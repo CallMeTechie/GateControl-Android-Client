@@ -155,7 +155,7 @@ private fun DetailView(
                 route.resolutionWidth != null && route.resolutionHeight != null ->
                     append("${route.resolutionWidth} x ${route.resolutionHeight}")
                 route.resolutionMode != null -> {
-                    val mode = route.resolutionMode
+                    val mode = route.resolutionMode!!
                     append(mode.substring(0, 1).uppercase() + mode.substring(1))
                 }
                 else -> append("Default")
