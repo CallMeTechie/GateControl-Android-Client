@@ -1,0 +1,55 @@
+# Build outputs
+build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle
+.gradle/
+local.properties
+gradle.properties
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Signing
+*.keystore
+*.jks
+*.p12
+release-signing.properties
+
+# Logs & crashes
+*.log
+*.hprof
+
+# Mockups, docs, planning (not needed for app operation)
+docs/
+mockups/
+superpowers/
+plans/
+*.md
+!README.md
+
+# Node / npm (if any tooling)
+node_modules/
+
+# Environment & secrets
+.env
+.env.*
+*.secret
+
+# Test outputs
+test-results/
+coverage/
