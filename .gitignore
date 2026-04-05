@@ -41,6 +41,7 @@ superpowers/
 plans/
 *.md
 !README.md
+!CHANGELOG.md
 
 # Node / npm (if any tooling)
 node_modules/

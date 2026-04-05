@@ -133,7 +133,12 @@ jobs:
             ENTRY=$(echo "$FIRST_LINE" | sed 's/^[a-z]*[^:]*: //')
           fi
           if [ -f CHANGELOG.md ]; then
-            sed -i "/^# Changelog/a\\\\n## [$NEW_VERSION] - $DATE\\n\\n### $SECTION\\n- $ENTRY\\n\\n---" CHANGELOG.md
+            TEMP=$(mktemp)
+            awk -v block="## [$NEW_VERSION] - $DATE\n\n### $SECTION\n- $ENTRY\n\n---" '
+              /^# Changelog/ { print; print ""; print block; next }
+              { print }
+            ' CHANGELOG.md > "$TEMP"
+            mv "$TEMP" CHANGELOG.md
           fi
 
       - name: Decode signing keystore
