@@ -167,7 +167,7 @@ class E2EEHandlerTest {
         val payload = serverEncrypt(clientPubKey, "sensitive data")
 
         // Flip a byte in the Base64-decoded ciphertext and re-encode
-        val ciphertextBytes = Base64.getDecoder().decode(payload.data).also { it[0] = it[0].xor(0xFF.toByte()) }
+        val ciphertextBytes = Base64.getDecoder().decode(payload.data).also { it[0] = (it[0].toInt() xor 0xFF).toByte() }
         val tamperedPayload = payload.copy(data = Base64.getEncoder().encodeToString(ciphertextBytes))
 
         assertThrows<Exception> {

@@ -125,16 +125,10 @@ class TunnelManager @Inject constructor(private val context: Context) {
             val now = System.currentTimeMillis()
             val elapsedSec = if (prevStatsTime > 0) (now - prevStatsTime) / 1000.0 else 1.0
 
-            var totalRx = 0L
-            var totalTx = 0L
-            var latestHandshake = 0L
-
-            for (key in statistics.peers()) {
-                totalRx += statistics.rx(key)
-                totalTx += statistics.tx(key)
-                val hs = statistics.latestHandshakeEpochMillis(key)
-                if (hs > latestHandshake) latestHandshake = hs
-            }
+            val totalRx = statistics.totalRx()
+            val totalTx = statistics.totalTx()
+            // Handshake timestamp not reliably exposed by the tunnel Statistics API
+            val latestHandshake = 0L
 
             val rxSpeed = if (elapsedSec > 0) ((totalRx - prevRxBytes) / elapsedSec).toLong() else 0L
             val txSpeed = if (elapsedSec > 0) ((totalTx - prevTxBytes) / elapsedSec).toLong() else 0L

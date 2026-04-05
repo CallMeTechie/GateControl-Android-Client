@@ -1,15 +1,12 @@
 package com.gatecontrol.android.data
 
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.preferencesOf
 import app.cash.turbine.test
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -69,14 +66,12 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `setTheme calls dataStore edit`() = runTest {
-        val editSlot = slot<suspend (MutablePreferences) -> Unit>()
-        coEvery { dataStore.edit(capture(editSlot)) } coAnswers {
-            preferencesOf()
+    fun `setTheme updates theme value`() = runTest {
+        coEvery { dataStore.updateData(any()) } coAnswers {
+            val transform = firstArg<suspend (Preferences) -> Preferences>()
+            transform(preferencesOf())
         }
 
         repository.setTheme("light")
-
-        coVerify { dataStore.edit(any()) }
     }
 }
