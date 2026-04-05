@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] - 2026-04-05
+
+### Fixes
+- unignore CHANGELOG.md, fix awk-based changelog update in CI
+
+---
+
 ## [1.0.0] — 2026-04-05
 
 ### Features
