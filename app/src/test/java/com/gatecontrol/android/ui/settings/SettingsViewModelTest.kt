@@ -76,6 +76,9 @@ class SettingsViewModelTest {
 
     @Test
     fun `setTheme updates repository and ui state`() = runTest {
+        // Drain init coroutines so they don't overwrite the state later
+        testDispatcher.scheduler.advanceUntilIdle()
+
         coEvery { settingsRepository.setTheme(any()) } returns Unit
 
         viewModel.setTheme("light")
@@ -87,6 +90,8 @@ class SettingsViewModelTest {
 
     @Test
     fun `setLocale updates repository`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
         coEvery { settingsRepository.setLocale(any()) } returns Unit
 
         viewModel.setLocale("en")
@@ -98,6 +103,8 @@ class SettingsViewModelTest {
 
     @Test
     fun `setAutoConnect updates repository`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
         coEvery { settingsRepository.setAutoConnect(any()) } returns Unit
 
         viewModel.setAutoConnect(true)
@@ -109,6 +116,8 @@ class SettingsViewModelTest {
 
     @Test
     fun `setKillSwitch updates repository`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
         coEvery { settingsRepository.setKillSwitch(any()) } returns Unit
 
         viewModel.setKillSwitch(true)
