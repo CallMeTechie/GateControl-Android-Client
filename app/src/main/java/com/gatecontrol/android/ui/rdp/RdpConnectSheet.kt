@@ -155,7 +155,7 @@ private fun DetailView(
                 route.resolutionWidth != null && route.resolutionHeight != null ->
                     append("${route.resolutionWidth} x ${route.resolutionHeight}")
                 route.resolutionMode != null ->
-                    append(route.resolutionMode.replaceFirstChar { it.uppercaseChar() })
+                    append(route.resolutionMode.replaceFirstChar { char -> char.uppercaseChar() })
                 else -> append("Default")
             }
         }
