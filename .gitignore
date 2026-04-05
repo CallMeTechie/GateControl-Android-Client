@@ -8,6 +8,7 @@ build/
 # Gradle
 .gradle/
 local.properties
+!gradle/wrapper/gradle-wrapper.jar
 
 # IDE
 .idea/
