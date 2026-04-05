@@ -349,12 +349,13 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            val updateInfo = uiState.updateInfo
             when {
-                uiState.updateInfo?.available == true -> {
+                updateInfo?.available == true -> {
                     Text(
                         text = stringResource(
                             R.string.settings_update_available,
-                            uiState.updateInfo.version ?: ""
+                            updateInfo.version ?: ""
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
@@ -369,7 +370,7 @@ fun SettingsScreen(
                         }
                     }
                 }
-                uiState.updateInfo != null -> {
+                updateInfo != null -> {
                     Text(
                         text = stringResource(R.string.settings_update_none),
                         style = MaterialTheme.typography.bodySmall,

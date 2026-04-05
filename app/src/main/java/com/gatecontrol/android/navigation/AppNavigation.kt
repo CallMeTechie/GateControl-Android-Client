@@ -2,10 +2,10 @@ package com.gatecontrol.android.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Monitor
+import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -145,7 +145,7 @@ private fun GcBottomNavigationBar(
             onClick = { onNavigate(Screen.Vpn.route) },
             icon = {
                 Icon(
-                    imageVector = Icons.Filled.Shield,
+                    imageVector = Icons.Filled.Lock,
                     contentDescription = stringResource(R.string.nav_vpn),
                 )
             },
@@ -173,7 +173,7 @@ private fun GcBottomNavigationBar(
                         },
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Monitor,
+                            imageVector = Icons.Filled.DesktopWindows,
                             contentDescription = stringResource(R.string.nav_rdp),
                         )
                     }
@@ -194,7 +194,7 @@ private fun GcBottomNavigationBar(
                 onClick = { onNavigate(Screen.Services.route) },
                 icon = {
                     Icon(
-                        imageVector = Icons.Filled.Language,
+                        imageVector = Icons.Filled.Public,
                         contentDescription = stringResource(R.string.nav_services),
                     )
                 },

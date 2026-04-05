@@ -19,9 +19,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -76,7 +76,7 @@ fun SetupScreen(
         ) {
             // Logo
             Icon(
-                imageVector = Icons.Filled.Shield,
+                imageVector = Icons.Filled.Lock,
                 contentDescription = null,
                 modifier = Modifier.size(72.dp),
                 tint = MaterialTheme.colorScheme.primary,
@@ -226,7 +226,7 @@ private fun SetupStatusMessage(
 ) {
     val (icon, color) = when (type) {
         StatusType.SUCCESS -> Icons.Filled.CheckCircle to MaterialTheme.colorScheme.primary
-        StatusType.ERROR -> Icons.Filled.Error to MaterialTheme.colorScheme.error
+        StatusType.ERROR -> Icons.Filled.Warning to MaterialTheme.colorScheme.error
         StatusType.INFO -> Icons.Filled.Info to GateControlTheme.extraColors.blue
     }
 

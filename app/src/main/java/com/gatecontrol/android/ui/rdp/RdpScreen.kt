@@ -21,7 +21,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,9 +56,7 @@ fun RdpScreen(viewModel: RdpViewModel = hiltViewModel()) {
         }
     ) { paddingValues ->
 
-        PullToRefreshBox(
-            isRefreshing = isLoading,
-            onRefresh = { viewModel.loadRoutes() },
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
