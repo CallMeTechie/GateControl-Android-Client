@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GateControl</string>
+
+    <!-- Navigation -->
+    <string name="nav_vpn">VPN</string>
+    <string name="nav_rdp">RDP</string>
+    <string name="nav_services">Dienste</string>
+    <string name="nav_settings">Einstellungen</string>
+
+    <!-- VPN Screen -->
+    <string name="vpn_connected">Verbunden</string>
+    <string name="vpn_disconnected">Getrennt</string>
+    <string name="vpn_connecting">Verbinde&#8230;</string>
+    <string name="vpn_disconnecting">Trenne&#8230;</string>
+    <string name="vpn_reconnecting">Verbinde erneut (%1$d/%2$d)&#8230;</string>
+    <string name="vpn_error">Verbindungsfehler</string>
+    <string name="vpn_connect">Verbinden</string>
+    <string name="vpn_disconnect">Trennen</string>
+    <string name="vpn_server">Server</string>
+    <string name="vpn_handshake">Handshake</string>
+    <string name="vpn_received">&#8595; Empfangen</string>
+    <string name="vpn_sent">&#8593; Gesendet</string>
+    <string name="vpn_kill_switch">Kill-Switch</string>
+    <string name="vpn_kill_switch_desc">Datenverkehr ohne VPN blockieren</string>
+    <string name="vpn_kill_switch_system">In den System-VPN-Einstellungen konfigurieren</string>
+    <string name="vpn_bandwidth">Bandbreite</string>
+    <string name="vpn_download">Download</string>
+    <string name="vpn_upload">Upload</string>
+
+    <!-- Traffic -->
+    <string name="traffic_title">Datenverbrauch</string>
+    <string name="traffic_24h">24 Std.</string>
+    <string name="traffic_7d">7 Tage</string>
+    <string name="traffic_30d">30 Tage</string>
+    <string name="traffic_total">Gesamt</string>
+
+    <!-- Services -->
+    <string name="services_title">Erreichbare Dienste</string>
+    <string name="services_empty">Keine Dienste verfügbar</string>
+    <string name="services_auth_badge">Auth</string>
+    <string name="dns_leak_test">DNS-Leak-Test</string>
+    <string name="dns_testing">Teste&#8230;</string>
+    <string name="dns_pass">Kein DNS-Leak erkannt</string>
+    <string name="dns_fail">DNS-Leak erkannt!</string>
+    <string name="dns_servers">DNS-Server: %1$s</string>
+
+    <!-- RDP -->
+    <string name="rdp_title">RDP-Verbindungen</string>
+    <string name="rdp_search">Suchen&#8230;</string>
+    <string name="rdp_filter_all">Alle</string>
+    <string name="rdp_filter_online">Online</string>
+    <string name="rdp_filter_offline">Offline</string>
+    <string name="rdp_online">Online</string>
+    <string name="rdp_offline">Offline</string>
+    <string name="rdp_maintenance">Wartung</string>
+    <string name="rdp_connect">Verbinden</string>
+    <string name="rdp_disconnect">Trennen</string>
+    <string name="rdp_wol">Aufwecken</string>
+    <string name="rdp_wol_sending">Sende Wake-on-LAN&#8230;</string>
+    <string name="rdp_wol_waiting">Warte auf Host&#8230;</string>
+    <string name="rdp_session_active">Sitzung aktiv</string>
+    <string name="rdp_no_vpn">VPN-Verbindung erforderlich</string>
+    <string name="rdp_host_unreachable">Host nicht erreichbar</string>
+    <string name="rdp_maintenance_warning">Host befindet sich im Wartungsfenster. Trotzdem verbinden?</string>
+    <string name="rdp_maintenance_bypass">Trotzdem verbinden</string>
+    <string name="rdp_enter_password">Passwort eingeben</string>
+    <string name="rdp_password_hint">Passwort</string>
+    <string name="rdp_credential_full">Automatische Anmeldung</string>
+    <string name="rdp_credential_user">Benutzername vorhanden</string>
+    <string name="rdp_credential_none">Manuelle Anmeldung</string>
+    <string name="rdp_no_client">Kein RDP-Client installiert. Microsoft Remote Desktop installieren?</string>
+    <string name="rdp_progress_vpn">Überprüfe VPN&#8230;</string>
+    <string name="rdp_progress_tcp">Überprüfe Host&#8230;</string>
+    <string name="rdp_progress_creds">Lade Anmeldedaten&#8230;</string>
+    <string name="rdp_progress_launch">Starte Client&#8230;</string>
+    <string name="rdp_progress_session">Starte Sitzung&#8230;</string>
+    <string name="rdp_progress_done">Verbunden</string>
+    <string name="rdp_timeout_warning">Sitzung läuft in %1$d Minuten ab</string>
+    <string name="rdp_empty">Keine RDP-Hosts konfiguriert</string>
+    <string name="rdp_pro_required">Pro-Lizenz erforderlich</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_server">Server</string>
+    <string name="settings_server_url">Server-URL</string>
+    <string name="settings_server_url_hint">https://gate.example.com</string>
+    <string name="settings_api_token">API-Token</string>
+    <string name="settings_api_token_hint">gc_&#8230;</string>
+    <string name="settings_test_connection">Verbindung testen</string>
+    <string name="settings_save_register">Speichern &amp; Registrieren</string>
+    <string name="settings_connection_ok">Verbindung erfolgreich</string>
+    <string name="settings_connection_fail">Verbindung fehlgeschlagen</string>
+    <string name="settings_tunnel">Tunnel</string>
+    <string name="settings_split_tunnel">Split-Tunneling</string>
+    <string name="settings_split_tunnel_desc">Nur bestimmten Datenverkehr über VPN leiten</string>
+    <string name="settings_split_routes">IP-Routen (eine pro Zeile)</string>
+    <string name="settings_split_routes_hint">10.0.0.0/8\n192.168.0.0/16</string>
+    <string name="settings_split_apps">Ausgeschlossene Apps</string>
+    <string name="settings_split_save">Routen speichern</string>
+    <string name="settings_split_saved">Routen gespeichert</string>
+    <string name="settings_config_import">Konfiguration importieren</string>
+    <string name="settings_import_qr">QR-Code scannen</string>
+    <string name="settings_import_file">.conf-Datei importieren</string>
+    <string name="settings_app">App</string>
+    <string name="settings_theme">Design</string>
+    <string name="settings_theme_dark">Dunkel</string>
+    <string name="settings_theme_light">Hell</string>
+    <string name="settings_language">Sprache</string>
+    <string name="settings_auto_connect">Automatisch verbinden</string>
+    <string name="settings_auto_connect_desc">Beim App-Start verbinden</string>
+    <string name="settings_check_interval">Prüfintervall (Sekunden)</string>
+    <string name="settings_poll_interval">Konfigurationsabfrageintervall (Sekunden)</string>
+    <string name="settings_license">Lizenz</string>
+    <string name="settings_license_community">Community</string>
+    <string name="settings_license_pro">Pro</string>
+    <string name="settings_license_activate">Lizenz aktivieren</string>
+    <string name="settings_logs">Protokolle</string>
+    <string name="settings_logs_view">Protokolle anzeigen</string>
+    <string name="settings_logs_export">Protokolle exportieren</string>
+    <string name="settings_about">Über</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_update_available">Update verfügbar: %1$s</string>
+    <string name="settings_update_install">Installieren</string>
+    <string name="settings_update_later">Später</string>
+    <string name="settings_update_none">Keine Updates verfügbar</string>
+
+    <!-- Setup -->
+    <string name="setup_title">Mit GateControl verbinden</string>
+    <string name="setup_subtitle">VPN-Verbindung einrichten</string>
+    <string name="setup_qr">QR-Code scannen</string>
+    <string name="setup_manual">Manuell eingeben</string>
+    <string name="setup_import">Konfigurationsdatei importieren</string>
+    <string name="setup_registering">Registriere&#8230;</string>
+    <string name="setup_success">Erfolgreich registriert!</string>
+    <string name="setup_error">Registrierung fehlgeschlagen: %1$s</string>
+
+    <!-- Logs -->
+    <string name="logs_title">Protokolle</string>
+    <string name="logs_all">Alle</string>
+    <string name="logs_24h">24 Std.</string>
+    <string name="logs_12h">12 Std.</string>
+    <string name="logs_1h">1 Std.</string>
+    <string name="logs_empty">Keine Protokolle vorhanden</string>
+    <string name="logs_refresh">Aktualisieren</string>
+    <string name="logs_export">Exportieren</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_vpn">VPN-Status</string>
+    <string name="notif_channel_update">Updates</string>
+    <string name="notif_channel_rdp">RDP-Sitzungen</string>
+    <string name="notif_vpn_connected">Verbunden mit %1$s</string>
+    <string name="notif_vpn_disconnected">VPN getrennt</string>
+    <string name="notif_vpn_reconnecting">Verbinde erneut&#8230;</string>
+    <string name="notif_vpn_stats">&#8595; %1$s · &#8593; %2$s · %3$s</string>
+    <string name="notif_update_title">Update verfügbar</string>
+    <string name="notif_update_body">Version %1$s ist verfügbar</string>
+    <string name="notif_peer_expiry">Peer läuft in %1$d Tagen ab</string>
+    <string name="notif_peer_expired">Peer ist abgelaufen</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="tile_vpn_label">GateControl VPN</string>
+    <string name="tile_label">GateControl VPN</string>
+    <string name="tile_not_connected">Nicht verbunden</string>
+
+    <!-- Common -->
+    <string name="cancel">Abbrechen</string>
+    <string name="ok">OK</string>
+    <string name="save">Speichern</string>
+    <string name="error">Fehler</string>
+    <string name="retry">Wiederholen</string>
+    <string name="close">Schließen</string>
+    <string name="open_settings">Einstellungen öffnen</string>
+    <string name="permission_vpn">VPN-Berechtigung erforderlich</string>
+    <string name="permission_camera">Kameraberechtigung für QR-Scan erforderlich</string>
+    <string name="permission_notification">Benachrichtigungsberechtigung erforderlich</string>
+    <string name="root_warning">Dieses Gerät scheint gerootet zu sein. Die VPN-Sicherheit könnte beeinträchtigt sein.</string>
+</resources>

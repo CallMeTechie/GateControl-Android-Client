@@ -70,6 +70,12 @@ interface ApiClient {
         @Body request: RdpEndSessionRequest
     ): RdpSessionResponse
 
+    @POST("api/v1/rdp/{id}/wol")
+    suspend fun sendWol(@Path("id") routeId: Int): WolResponse
+
+    @GET("api/v1/client/rdp/{id}/status")
+    suspend fun getRdpRouteStatus(@Path("id") routeId: Int): RdpRouteStatusResponse
+
     @GET("api/v1/client/update/check")
     suspend fun checkUpdate(
         @Query("version") version: String,

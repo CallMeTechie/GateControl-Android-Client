@@ -211,6 +211,16 @@ data class RdpEndSessionRequest(
     val endReason: String
 )
 
+data class WolResponse(
+    val ok: Boolean,
+    val error: String? = null
+)
+
+data class RdpRouteStatusResponse(
+    val ok: Boolean,
+    val status: RdpRouteStatus?
+)
+
 data class SimpleResponse(
     val ok: Boolean,
     val error: String? = null
