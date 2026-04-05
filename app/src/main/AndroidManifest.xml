@@ -39,7 +39,7 @@
         </activity>
 
         <service
-            android:name=".service.GateControlVpnService"
+            android:name=".service.VpnForegroundService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:foregroundServiceType="specialUse"
             android:exported="false">
@@ -49,7 +49,7 @@
         </service>
 
         <service
-            android:name=".service.GateControlTileService"
+            android:name=".service.VpnTileService"
             android:icon="@drawable/ic_launcher_foreground"
             android:label="@string/tile_label"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"

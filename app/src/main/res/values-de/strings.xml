@@ -124,6 +124,7 @@
     <string name="settings_update_install">Installieren</string>
     <string name="settings_update_later">Später</string>
     <string name="settings_update_none">Keine Updates verfügbar</string>
+    <string name="settings_check_for_updates">Nach Updates suchen</string>
 
     <!-- Setup -->
     <string name="setup_title">Mit GateControl verbinden</string>
