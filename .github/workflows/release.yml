@@ -1,11 +1,13 @@
-name: Build & Release
+name: Build and Release
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: write
+  checks: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -22,7 +24,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
           cache: gradle
 
       - name: Setup Gradle
@@ -39,12 +41,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: '**/build/test-results/test/*.xml'
+          path: "**/build/test-results/test/*.xml"
 
   build:
-    name: Build & Publish
+    name: Build and Publish
     runs-on: ubuntu-latest
-    needs: [test-gate]
+    needs: test-gate
     if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +59,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
           cache: gradle
 
       - name: Setup Gradle
@@ -71,7 +73,6 @@ jobs:
         run: |
           CURRENT=$(grep 'versionName' app/build.gradle.kts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-
           FIRST_LINE=$(echo "$COMMIT_MSG" | head -1)
           if echo "$FIRST_LINE" | grep -qE "^feat(\(.+\))?:"; then
             MINOR=$((MINOR + 1))
@@ -81,7 +82,6 @@ jobs:
             PATCH=$((PATCH + 1))
             BUMP="patch"
           fi
-
           NEW="${MAJOR}.${MINOR}.${PATCH}"
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           echo "new=$NEW" >> "$GITHUB_OUTPUT"
@@ -101,7 +101,7 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Update version in app/build.gradle.kts
+      - name: Update version in build.gradle.kts
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
         env:
@@ -111,9 +111,9 @@ jobs:
           NEW_VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
           sed -i "s/versionName = \"[0-9]*\.[0-9]*\.[0-9]*\"/versionName = \"$NEW_VERSION\"/" app/build.gradle.kts
           sed -i "s/versionCode = [0-9]*/versionCode = $NEW_VERSION_CODE/" app/build.gradle.kts
-          echo "Updated versionName to $NEW_VERSION and versionCode to $NEW_VERSION_CODE"
+          echo "Updated versionName=$NEW_VERSION versionCode=$NEW_VERSION_CODE"
 
-      - name: Update CHANGELOG.md
+      - name: Update CHANGELOG
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
         env:
@@ -122,7 +122,6 @@ jobs:
         run: |
           FIRST_LINE=$(echo "$COMMIT_MSG" | head -1)
           DATE=$(date +%Y-%m-%d)
-
           if echo "$FIRST_LINE" | grep -qE "^feat"; then
             SECTION="Features"
             ENTRY=$(echo "$FIRST_LINE" | sed 's/^feat[^:]*: //')
@@ -133,31 +132,22 @@ jobs:
             SECTION="Changes"
             ENTRY=$(echo "$FIRST_LINE" | sed 's/^[a-z]*[^:]*: //')
           fi
-
-          NEW_BLOCK="## [$NEW_VERSION] --- $DATE
-
-### $SECTION
-- $ENTRY"
-
           if [ -f CHANGELOG.md ]; then
-            TEMP=$(mktemp)
-            awk -v block="$NEW_BLOCK" '
-              /^# Changelog/ { print; print ""; print block; print ""; print "---"; next }
-              { print }
-            ' CHANGELOG.md > "$TEMP"
-            mv "$TEMP" CHANGELOG.md
+            sed -i "/^# Changelog/a\\\\n## [$NEW_VERSION] - $DATE\\n\\n### $SECTION\\n- $ENTRY\\n\\n---" CHANGELOG.md
           fi
 
       - name: Decode signing keystore
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
-          echo "KEYSTORE_PATH=$(pwd)/keystore.jks" >> "$GITHUB_ENV"
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+            echo "KEYSTORE_PATH=$(pwd)/keystore.jks" >> "$GITHUB_ENV"
+          else
+            echo "No keystore configured, building unsigned"
+          fi
 
-      - name: Build signed APK and AAB
+      - name: Build APK and AAB
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
         env:
@@ -165,8 +155,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease
-          ./gradlew bundleRelease
+          ./gradlew assembleRelease bundleRelease
 
       - name: Commit version bump
         if: steps.check_tag.outputs.exists == 'false'
@@ -187,16 +176,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.bump.outputs.tag }}
-          name: GateControl Android ${{ steps.bump.outputs.tag }}
+          name: "GateControl Android ${{ steps.bump.outputs.tag }}"
           generate_release_notes: true
           files: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/bundle/release/*.aab
-
-      - name: Publish test results
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Unit Test Results
-          path: '**/build/test-results/test/*.xml'
-          reporter: java-junit
