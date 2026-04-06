@@ -25,17 +25,10 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystorePath = System.getenv("KEYSTORE_PATH")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-            val keyAliasValue = System.getenv("KEY_ALIAS")
-            val keyPasswordValue = System.getenv("KEY_PASSWORD")
-
-            if (keystorePath != null && keystorePassword != null && keyAliasValue != null && keyPasswordValue != null) {
-                storeFile = file(keystorePath)
-                storePassword = keystorePassword
-                keyAlias = keyAliasValue
-                keyPassword = keyPasswordValue
-            }
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "keystore.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "gatecontrol"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
         }
     }
 
@@ -44,16 +37,8 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            val keystorePath = System.getenv("KEYSTORE_PATH")
-            if (keystorePath != null) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            isMinifyEnabled = false  // Disabled to avoid ProGuard issues with Retrofit/Hilt/WireGuard
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

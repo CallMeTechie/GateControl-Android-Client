@@ -13,6 +13,7 @@ class RdpManager(
     private val context: Context,
     private val credentialHandler: RdpCredentialHandler,
     private val externalClient: RdpExternalClient,
+    private val embeddedClient: RdpEmbeddedClient,
     private val monitor: RdpMonitor,
     private val wolClient: WolClient
 ) {
@@ -159,23 +160,32 @@ class RdpManager(
             }
         }
 
-        // Step 5: Launch client
+        // Step 5: Launch client (prefer embedded FreeRDP, fall back to external)
         onProgress(RdpProgress.CLIENT_LAUNCH)
-        val isExternal = externalClient.isAnyClientInstalled()
-        val intent = externalClient.launchIntent(
-            host = host,
-            port = port,
-            username = resolvedUsername,
-            domain = resolvedDomain
-        )
-        try {
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            credentialHandler.clear()
-            return ConnectResult.Error(
-                "No RDP client could be launched: ${e.message}",
-                RdpProgress.CLIENT_LAUNCH
+        val useEmbedded = embeddedClient.isAvailable()
+        val isExternal = !useEmbedded
+
+        if (useEmbedded) {
+            // TODO: Launch embedded FreeRDP session when AAR is integrated
+        }
+
+        // Fall back to external client if embedded is not available
+        if (!useEmbedded) {
+            val intent = externalClient.launchIntent(
+                host = host,
+                port = port,
+                username = resolvedUsername,
+                domain = resolvedDomain
             )
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                credentialHandler.clear()
+                return ConnectResult.Error(
+                    "No RDP client could be launched: ${e.message}",
+                    RdpProgress.CLIENT_LAUNCH
+                )
+            }
         }
 
         // Step 6: Start server-side session

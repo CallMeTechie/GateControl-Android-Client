@@ -135,7 +135,6 @@ class SetupViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @org.junit.jupiter.api.Disabled("Turbine timing issue with viewModelScope — needs coroutine test refactor")
     fun `saveAndRegister stores peerId on success`() = runTest {
         coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0", timestamp = "2024-01-01")
         coEvery { apiClient.register(any()) } returns RegisterResponse(
@@ -149,22 +148,11 @@ class SetupViewModelTest {
         viewModel.onServerUrlChanged("https://example.com")
         viewModel.onApiTokenChanged("gc_testtoken")
 
-        viewModel.uiState.test {
-            awaitItem()
+        viewModel.saveAndRegister()
+        advanceUntilIdle()
 
-            viewModel.saveAndRegister()
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            val states = mutableListOf<SetupUiState>()
-            while (states.lastOrNull()?.isSetupComplete != true) {
-                states += awaitItem()
-            }
-
-            assertTrue(states.last().isSetupComplete)
-            verify { setupRepository.save("https://example.com", "gc_testtoken", 42) }
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertTrue(viewModel.uiState.value.isSetupComplete)
+        verify { setupRepository.save("https://example.com", "gc_testtoken", 42) }
     }
 
     @Test
@@ -208,7 +196,6 @@ class SetupViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @org.junit.jupiter.api.Disabled("Turbine timing issue with viewModelScope — needs coroutine test refactor")
     fun `handleDeepLink auto-registers with provided url and token`() = runTest {
         coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0", timestamp = "2024-01-01")
         coEvery { apiClient.register(any()) } returns RegisterResponse(
@@ -219,22 +206,11 @@ class SetupViewModelTest {
             hash = null,
         )
 
-        viewModel.uiState.test {
-            awaitItem()
+        viewModel.handleDeepLink("https://example.com", "gc_deeptoken")
+        advanceUntilIdle()
 
-            viewModel.handleDeepLink("https://example.com", "gc_deeptoken")
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            val states = mutableListOf<SetupUiState>()
-            while (states.lastOrNull()?.isSetupComplete != true) {
-                states += awaitItem()
-            }
-
-            assertTrue(states.last().isSetupComplete)
-            verify { setupRepository.save("https://example.com", "gc_deeptoken", 99) }
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertTrue(viewModel.uiState.value.isSetupComplete)
+        verify { setupRepository.save("https://example.com", "gc_deeptoken", 99) }
     }
 
     // -------------------------------------------------------------------------

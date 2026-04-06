@@ -141,16 +141,20 @@ jobs:
             mv "$TEMP" CHANGELOG.md
           fi
 
-      - name: Decode signing keystore
+      - name: Setup signing
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
-            echo "KEYSTORE_PATH=$(pwd)/keystore.jks" >> "$GITHUB_ENV"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
           else
-            echo "No keystore configured, building unsigned"
+            keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias gatecontrol -storepass android -keypass android \
+              -dname "CN=GateControl, OU=Dev, O=GateControl, C=DE"
           fi
+          echo "KEYSTORE_PATH=$(pwd)/keystore.jks" >> "$GITHUB_ENV"
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build APK and AAB
         if: steps.check_tag.outputs.exists == 'false'
