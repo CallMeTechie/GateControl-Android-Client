@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2] - 2026-04-06
+
+### Fixes
+- handle empty env vars in signing config (fallback to generated keystore)
+
+---
+
 ## [1.0.1] - 2026-04-05
 
 ### Fixes
