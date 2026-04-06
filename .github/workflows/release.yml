@@ -166,6 +166,15 @@ jobs:
         run: |
           ./gradlew assembleRelease bundleRelease
 
+      - name: Rename artifacts
+        if: steps.check_tag.outputs.exists == 'false'
+        shell: bash
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/GateControl-Android-${NEW_VERSION}.apk"
+          mv app/build/outputs/bundle/release/app-release.aab "app/build/outputs/bundle/release/GateControl-Android-${NEW_VERSION}.aab"
+
       - name: Commit version bump
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
@@ -188,5 +197,5 @@ jobs:
           name: "GateControl Android ${{ steps.bump.outputs.tag }}"
           generate_release_notes: true
           files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/apk/release/GateControl-Android-*.apk
+            app/build/outputs/bundle/release/GateControl-Android-*.aab
