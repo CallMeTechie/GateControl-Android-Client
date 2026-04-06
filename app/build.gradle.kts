@@ -10,11 +10,11 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.gatecontrol.android"
+        applicationId = "com.gatecontrol.client"
         minSdk = 31
         targetSdk = 34
-        versionCode = 10100
-        versionName = "1.1.0"
+        versionCode = 10000
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
