@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0] - 2026-04-06
+
+### Features
+- enable R8 with ProGuard rules, native debug symbols, mapping file for Play Store
+
+---
+
 ## [1.0.3] - 2026-04-06
 
 ### Fixes
