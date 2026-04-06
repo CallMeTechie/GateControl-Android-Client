@@ -59,8 +59,8 @@ fun VpnScreen(
         if (tunnelState is TunnelState.Connected) {
             while (true) {
                 delay(1_000)
-                if (rxHistory.size >= 60) rxHistory.removeFirst()
-                if (txHistory.size >= 60) txHistory.removeFirst()
+                if (rxHistory.size >= 60) rxHistory.removeAt(0)
+                if (txHistory.size >= 60) txHistory.removeAt(0)
                 rxHistory.add(stats.rxSpeed)
                 txHistory.add(stats.txSpeed)
             }
