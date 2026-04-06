@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4] - 2026-04-06
+
+### Fixes
+- startup crash - ProGuard rules, EncryptedStorage lazy init, compileSdk 35
+
+---
+
 ## [1.1.3] - 2026-04-06
 
 ### Changes
