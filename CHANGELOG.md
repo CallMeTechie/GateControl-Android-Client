@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2] - 2026-04-06
+
+### Changes
+- add privacy policy markdown to docs/
+
+---
+
 ## [1.1.1] - 2026-04-06
 
 ### Fixes
