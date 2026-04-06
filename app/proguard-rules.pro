@@ -50,6 +50,24 @@
 -keep class com.google.mlkit.** { *; }
 -dontwarn com.google.mlkit.**
 
+# ── EncryptedSharedPreferences / Security Crypto ─────────
+-keep class androidx.security.crypto.** { *; }
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+-keepclassmembers class * extends com.google.crypto.tink.shaded.protobuf.GeneratedMessageLite { <fields>; }
+
+# ── DataStore ─────────────────────────────────────────────
+-keep class androidx.datastore.** { *; }
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite { <fields>; }
+
+# ── Compose Navigation ───────────────────────────────────
+-keep class androidx.navigation.** { *; }
+-keepnames class * extends androidx.lifecycle.ViewModel { *; }
+
+# ── Hilt ViewModels ──────────────────────────────────────
+-keep,allowobfuscation,allowshrinking class * extends androidx.lifecycle.ViewModel
+-keep class * extends dagger.hilt.android.lifecycle.HiltViewModel { *; }
+
 # ── General ───────────────────────────────────────────────
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

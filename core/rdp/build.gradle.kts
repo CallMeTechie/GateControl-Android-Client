@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.gatecontrol.android.core.rdp"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 31

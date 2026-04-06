@@ -3,21 +3,28 @@ package com.gatecontrol.android.data
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import android.content.SharedPreferences
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class EncryptedStorage @Inject constructor(context: Context) {
 
-    private val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-
-    private val prefs = EncryptedSharedPreferences.create(
-        "gatecontrol_secure",
-        masterKeyAlias,
-        context,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val prefs by lazy {
+        try {
+            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+            EncryptedSharedPreferences.create(
+                "gatecontrol_secure",
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        } catch (e: Exception) {
+            // Fallback to plain SharedPreferences if KeyStore fails
+            context.getSharedPreferences("gatecontrol_secure_fallback", Context.MODE_PRIVATE)
+        }
+    }
 
     fun putString(key: String, value: String) {
         prefs.edit().putString(key, value).apply()
