@@ -149,7 +149,7 @@ class SetupViewModelTest {
         viewModel.onApiTokenChanged("gc_testtoken")
 
         viewModel.saveAndRegister()
-        advanceUntilIdle()
+        testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isSetupComplete)
         verify { setupRepository.save("https://example.com", "gc_testtoken", 42) }
@@ -207,7 +207,7 @@ class SetupViewModelTest {
         )
 
         viewModel.handleDeepLink("https://example.com", "gc_deeptoken")
-        advanceUntilIdle()
+        testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isSetupComplete)
         verify { setupRepository.save("https://example.com", "gc_deeptoken", 99) }
