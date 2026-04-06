@@ -135,7 +135,7 @@ class SetupViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `saveAndRegister stores peerId on success`() = runTest {
+    fun `saveAndRegister stores peerId on success`() = runTest(testDispatcher) {
         coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0", timestamp = "2024-01-01")
         coEvery { apiClient.register(any()) } returns RegisterResponse(
             ok = true,
@@ -149,7 +149,7 @@ class SetupViewModelTest {
         viewModel.onApiTokenChanged("gc_testtoken")
 
         viewModel.saveAndRegister()
-        testDispatcher.scheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isSetupComplete)
         verify { setupRepository.save("https://example.com", "gc_testtoken", 42) }
@@ -196,7 +196,7 @@ class SetupViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `handleDeepLink auto-registers with provided url and token`() = runTest {
+    fun `handleDeepLink auto-registers with provided url and token`() = runTest(testDispatcher) {
         coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0", timestamp = "2024-01-01")
         coEvery { apiClient.register(any()) } returns RegisterResponse(
             ok = true,
@@ -207,7 +207,7 @@ class SetupViewModelTest {
         )
 
         viewModel.handleDeepLink("https://example.com", "gc_deeptoken")
-        testDispatcher.scheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isSetupComplete)
         verify { setupRepository.save("https://example.com", "gc_deeptoken", 99) }
