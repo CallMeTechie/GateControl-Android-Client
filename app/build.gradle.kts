@@ -37,8 +37,19 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false  // Disabled to avoid ProGuard issues with Retrofit/Hilt/WireGuard
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 
