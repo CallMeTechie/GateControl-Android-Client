@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1] - 2026-04-06
+
+### Fixes
+- replace removeFirst() with removeAt(0) for API 31 compat
+
+---
+
 ## [1.1.0] - 2026-04-06
 
 ### Features
