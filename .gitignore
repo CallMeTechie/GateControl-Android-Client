@@ -42,6 +42,7 @@ plans/
 *.md
 !README.md
 !CHANGELOG.md
+!privacy-policy.html
 
 # Node / npm (if any tooling)
 node_modules/

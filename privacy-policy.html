@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GateControl VPN Client — Privacy Policy</title>
+    <style>
+        :root { --bg: #0f1117; --card: #1a1d27; --text: #e0e0e0; --muted: #9ca3af; --accent: #4dabf7; --border: #2d3140; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; padding: 2rem 1rem; }
+        .container { max-width: 720px; margin: 0 auto; }
+        h1 { font-size: 1.75rem; margin-bottom: 0.25rem; color: #fff; }
+        h2 { font-size: 1.2rem; margin: 2rem 0 0.75rem; color: var(--accent); }
+        p, li { color: var(--muted); margin-bottom: 0.5rem; }
+        ul { padding-left: 1.5rem; }
+        .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .highlight { color: var(--text); font-weight: 500; }
+        .updated { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GateControl VPN Client</h1>
+        <p class="subtitle">Privacy Policy</p>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Overview</h2>
+            <p>GateControl VPN Client is a self-hosted VPN management app. It connects exclusively to <span class="highlight">your own GateControl server</span>. We do not operate any cloud infrastructure, relay servers, or data collection endpoints.</p>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Data Collection</h2>
+            <p class="highlight">We do not collect, store, or transmit any personal data.</p>
+            <p>Specifically, the app does <strong>not</strong>:</p>
+            <ul>
+                <li>Send analytics or telemetry to any third party</li>
+                <li>Track your location, browsing activity, or app usage</li>
+                <li>Display advertisements</li>
+                <li>Share data with advertising networks or data brokers</li>
+                <li>Store personal data on any server we control</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Network Communication</h2>
+            <p>All network traffic is directed exclusively to the GateControl server URL that <span class="highlight">you configure during setup</span>. The app communicates with:</p>
+            <ul>
+                <li><span class="highlight">Your GateControl server</span> — for VPN configuration, license validation, and service management</li>
+                <li><span class="highlight">Your WireGuard endpoint</span> — for encrypted VPN tunnel traffic</li>
+            </ul>
+            <p>No data is sent to any other destination.</p>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Permissions</h2>
+            <p>The app requests the following Android permissions:</p>
+            <ul>
+                <li><span class="highlight">INTERNET</span> — Required to establish the VPN connection to your server</li>
+                <li><span class="highlight">CAMERA</span> — Used solely for scanning QR codes during initial server setup. Camera access is only activated when you explicitly open the QR scanner. No images or video are stored or transmitted.</li>
+                <li><span class="highlight">VPN Service</span> — Required by Android to create the WireGuard VPN tunnel</li>
+                <li><span class="highlight">Boot Completed</span> — Optional auto-connect on device startup (user-configurable)</li>
+                <li><span class="highlight">Notifications</span> — To display VPN connection status</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Data Storage</h2>
+            <p>All configuration data (server URL, API token, WireGuard keys) is stored <span class="highlight">locally on your device</span> using Android's EncryptedSharedPreferences (AES-256). No credentials are stored in plain text. RDP credentials (Pro feature) use end-to-end encryption (ECDH + AES-256-GCM) and are never stored unencrypted on the device.</p>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Third-Party Services</h2>
+            <p>The app uses <span class="highlight">Google ML Kit</span> (on-device barcode scanning) for QR code recognition. ML Kit runs entirely on-device and does not transmit any data to Google servers. No other third-party SDKs or services are included.</p>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Children's Privacy</h2>
+            <p>This app is intended for IT administrators and technical users. It is not directed at children under the age of 13 and does not knowingly collect information from children.</p>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Contact</h2>
+            <p>For privacy-related inquiries, please open an issue on our <a href="https://github.com/CallMeTechie/GateControl-Android-Client">GitHub repository</a> or contact the server administrator of your GateControl instance.</p>
+        </div>
+
+        <p class="updated">Last updated: April 6, 2026</p>
+    </div>
+</body>
+</html>
