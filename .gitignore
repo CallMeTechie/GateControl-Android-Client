@@ -35,16 +35,19 @@ release-signing.properties
 *.hprof
 
 # Mockups, docs, planning (not needed for app operation)
-docs/*
-!docs/PRIVACY_POLICY.md
 mockups/
 superpowers/
 plans/
 *.md
 !README.md
 !CHANGELOG.md
-!docs/PRIVACY_POLICY.md
 !privacy-policy.html
+!docs/PRIVACY_POLICY.md
+!docs/PRODUCT.md
+!docs/SETUP_GUIDE.md
+!docs/FEATURES.md
+!docs/ARCHITECTURE.md
+!docs/FAQ.md
 
 # Node / npm (if any tooling)
 node_modules/
