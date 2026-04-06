@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3] - 2026-04-06
+
+### Fixes
+- rename release artifacts to GateControl-Android-VERSION.apk/.aab
+
+---
+
 ## [1.0.2] - 2026-04-06
 
 ### Fixes
