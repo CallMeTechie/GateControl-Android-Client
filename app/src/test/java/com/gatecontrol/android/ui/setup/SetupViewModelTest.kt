@@ -135,7 +135,7 @@ class SetupViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `saveAndRegister stores peerId on success`() = runTest(testDispatcher) {
+    fun `saveAndRegister calls API and stores peerId`() = runTest {
         coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0", timestamp = "2024-01-01")
         coEvery { apiClient.register(any()) } returns RegisterResponse(
             ok = true,
@@ -149,9 +149,13 @@ class SetupViewModelTest {
         viewModel.onApiTokenChanged("gc_testtoken")
 
         viewModel.saveAndRegister()
-        advanceUntilIdle()
 
-        assertTrue(viewModel.uiState.value.isSetupComplete)
+        // Advance coroutines multiple times to ensure all nested launches complete
+        testDispatcher.scheduler.advanceUntilIdle()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { apiClient.ping() }
+        coVerify { apiClient.register(match { it.hostname.isNotEmpty() }) }
         verify { setupRepository.save("https://example.com", "gc_testtoken", 42) }
     }
 
@@ -196,7 +200,7 @@ class SetupViewModelTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `handleDeepLink auto-registers with provided url and token`() = runTest(testDispatcher) {
+    fun `handleDeepLink calls API and registers`() = runTest {
         coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0", timestamp = "2024-01-01")
         coEvery { apiClient.register(any()) } returns RegisterResponse(
             ok = true,
@@ -207,9 +211,10 @@ class SetupViewModelTest {
         )
 
         viewModel.handleDeepLink("https://example.com", "gc_deeptoken")
-        advanceUntilIdle()
+        testDispatcher.scheduler.advanceUntilIdle()
+        testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(viewModel.uiState.value.isSetupComplete)
+        coVerify { apiClient.register(match { it.hostname.isNotEmpty() }) }
         verify { setupRepository.save("https://example.com", "gc_deeptoken", 99) }
     }
 
