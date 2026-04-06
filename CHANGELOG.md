@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3] - 2026-04-06
+
+### Changes
+- add product description, setup guide, feature docs, architecture and FAQ
+
+---
+
 ## [1.1.2] - 2026-04-06
 
 ### Changes
