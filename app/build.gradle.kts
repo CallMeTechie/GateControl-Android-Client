@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.gatecontrol.android"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.gatecontrol.client"
         minSdk = 31
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 10100
         versionName = "1.1.0"
 
