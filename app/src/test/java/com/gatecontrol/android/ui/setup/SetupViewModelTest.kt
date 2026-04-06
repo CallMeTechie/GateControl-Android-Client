@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SetupViewModelTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher()
 
     private lateinit var setupRepository: SetupRepository
     private lateinit var apiClientProvider: ApiClientProvider
@@ -151,8 +151,7 @@ class SetupViewModelTest {
         viewModel.saveAndRegister()
 
         // Advance coroutines multiple times to ensure all nested launches complete
-        testDispatcher.scheduler.advanceUntilIdle()
-        testDispatcher.scheduler.advanceUntilIdle()
+        // UnconfinedTestDispatcher executes coroutines eagerly
 
         coVerify { apiClient.ping() }
         coVerify { apiClient.register(match { it.hostname.isNotEmpty() }) }
@@ -211,8 +210,7 @@ class SetupViewModelTest {
         )
 
         viewModel.handleDeepLink("https://example.com", "gc_deeptoken")
-        testDispatcher.scheduler.advanceUntilIdle()
-        testDispatcher.scheduler.advanceUntilIdle()
+        // UnconfinedTestDispatcher executes coroutines eagerly
 
         coVerify { apiClient.register(match { it.hostname.isNotEmpty() }) }
         verify { setupRepository.save("https://example.com", "gc_deeptoken", 99) }
