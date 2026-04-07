@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.11] - 2026-04-07
+
+### Fixes
+- set TunnelState.Connected in RdpViewModelTest for RDP connect tests
+
+---
+
 ## [1.1.10] - 2026-04-07
 
 ### Fixes
