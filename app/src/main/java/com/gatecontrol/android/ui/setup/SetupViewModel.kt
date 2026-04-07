@@ -99,6 +99,11 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = "Registering…", statusType = StatusType.INFO) }
             try {
+                // Save token BEFORE register call so AuthInterceptor can use it
+                setupRepository.save(url, token, -1)
+                // Invalidate cached clients so new token is picked up
+                apiClientProvider.invalidate()
+
                 val client = apiClientProvider.getClient(url)
                 client.ping()
 
@@ -111,9 +116,12 @@ class SetupViewModel @Inject constructor(
                 )
 
                 if (!response.ok || response.peerId <= 0) {
+                    setupRepository.clear()
+                    apiClientProvider.invalidate()
                     throw IllegalStateException("Registration rejected by server")
                 }
 
+                // Update with actual peer ID
                 setupRepository.save(url, token, response.peerId)
 
                 response.config?.let { config ->
@@ -133,6 +141,9 @@ class SetupViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Timber.w(e, "saveAndRegister failed")
+                // Clean up on failure
+                setupRepository.clear()
+                apiClientProvider.invalidate()
                 _uiState.update {
                     it.copy(
                         isLoading = false,
