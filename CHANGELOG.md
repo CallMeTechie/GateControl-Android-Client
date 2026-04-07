@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.18] - 2026-04-07
+
+### Fixes
+- second RdpRoute test fixture also needs Int? for boolean fields
+
+---
+
 ## [1.1.17] - 2026-04-07
 
 ### Fixes
