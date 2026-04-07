@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.10] - 2026-04-07
+
+### Fixes
+- save API token before register call to prevent 401
+
+---
+
 ## [1.1.9] - 2026-04-07
 
 ### Fixes
