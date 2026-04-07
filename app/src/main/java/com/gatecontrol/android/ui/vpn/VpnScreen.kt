@@ -88,6 +88,17 @@ fun VpnScreen(
         viewModel.loadServices()
     }
 
+    // Tick every second to update connection duration
+    var tick by remember { mutableStateOf(0L) }
+    LaunchedEffect(tunnelState) {
+        if (tunnelState is TunnelState.Connected) {
+            while (true) {
+                delay(1_000)
+                tick = System.currentTimeMillis()
+            }
+        }
+    }
+
     val isConnected = tunnelState is TunnelState.Connected
     val isBusy = tunnelState is TunnelState.Connecting
         || tunnelState is TunnelState.Disconnecting
@@ -142,6 +153,7 @@ fun VpnScreen(
                 stats = stats,
                 serverHost = viewModel.serverHost,
                 connectedSince = connectedSince,
+                currentTimeMillis = tick,
                 locale = "en",
             )
         }

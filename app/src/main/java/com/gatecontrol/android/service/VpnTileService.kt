@@ -94,48 +94,50 @@ class VpnTileService : TileService() {
         tile.updateTile()
     }
 
-    private fun sendConnectBroadcast() {
-        val tm = TunnelStateHolder.tunnelManager
-        val repo = TunnelStateHolder.setupRepository
-        if (tm == null || repo == null) {
-            Timber.w("VpnTileService: TunnelManager or SetupRepository not available")
-            // Launch app to connect
-            val intent = packageManager.getLaunchIntentForPackage(packageName)
-            if (intent != null) {
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                val pi = android.app.PendingIntent.getActivity(
-                    this, 0, intent,
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-                )
-                if (android.os.Build.VERSION.SDK_INT >= 34) {
-                    startActivityAndCollapse(pi)
-                } else {
-                    @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
-                    startActivityAndCollapse(intent)
-                }
-            }
-            return
-        }
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val config = repo.getWireGuardConfig()
-                if (config.isNotEmpty()) {
-                    tm.connect(config)
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "VpnTileService: connect failed")
+    private fun launchAppWithAction(action: String) {
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        if (intent != null) {
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            intent.putExtra(EXTRA_TILE_ACTION, action)
+            val pi = android.app.PendingIntent.getActivity(
+                this, action.hashCode(), intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            if (android.os.Build.VERSION.SDK_INT >= 34) {
+                startActivityAndCollapse(pi)
+            } else {
+                @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
+                startActivityAndCollapse(intent)
             }
         }
     }
 
+    private fun sendConnectBroadcast() {
+        // Disconnect can be done directly (no permission needed)
+        // Connect requires VPN permission → must go through Activity
+        launchAppWithAction(ACTION_TILE_CONNECT)
+    }
+
     private fun sendDisconnectBroadcast() {
-        val tm = TunnelStateHolder.tunnelManager ?: return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                tm.disconnect()
-            } catch (e: Exception) {
-                Timber.e(e, "VpnTileService: disconnect failed")
+        // Try direct disconnect first, fall back to app launch
+        val tm = TunnelStateHolder.tunnelManager
+        if (tm != null && TunnelStateHolder.isConnected) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    tm.disconnect()
+                } catch (e: Exception) {
+                    Timber.e(e, "VpnTileService: direct disconnect failed, launching app")
+                    launchAppWithAction(ACTION_TILE_DISCONNECT)
+                }
             }
+        } else {
+            launchAppWithAction(ACTION_TILE_DISCONNECT)
         }
+    }
+
+    companion object {
+        const val EXTRA_TILE_ACTION = "tile_action"
+        const val ACTION_TILE_CONNECT = "tile_connect"
+        const val ACTION_TILE_DISCONNECT = "tile_disconnect"
     }
 }

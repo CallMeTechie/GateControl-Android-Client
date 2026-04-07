@@ -399,6 +399,15 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            if (uiState.error != null) {
+                Text(
+                    text = uiState.error ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             GcSecondaryButton(
                 text = stringResource(R.string.settings_check_for_updates),
                 onClick = { viewModel.checkForUpdate(versionName) },

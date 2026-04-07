@@ -18,6 +18,7 @@ fun StatsGrid(
     stats: TunnelStats,
     serverHost: String?,
     connectedSince: Long,
+    currentTimeMillis: Long = System.currentTimeMillis(),
     locale: String,
     modifier: Modifier = Modifier,
 ) {
@@ -26,7 +27,9 @@ fun StatsGrid(
     val txValue = Formatters.formatBytes(stats.txBytes)
     val txSpeed = Formatters.formatSpeed(stats.txSpeed)
 
-    // Show connection duration (auto-updating every second via recomposition)
+    // Connection duration — driven by currentTimeMillis ticker from VpnScreen
+    @Suppress("UNUSED_EXPRESSION")
+    currentTimeMillis // Referenced to force recomposition on tick
     val uptimeSeconds = if (connectedSince > 0) {
         (System.currentTimeMillis() - connectedSince) / 1000
     } else {
