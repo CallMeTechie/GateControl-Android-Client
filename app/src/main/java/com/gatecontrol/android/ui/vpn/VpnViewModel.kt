@@ -56,8 +56,13 @@ class VpnViewModel @Inject constructor(
     val killSwitchEnabled: StateFlow<Boolean> = settingsRepository.getKillSwitch()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    init {
-        // Poll statistics while connected + sync TunnelStateHolder for TileService
+    private var monitoringStarted = false
+
+    /** Start background monitoring loops. Called from the UI layer via LaunchedEffect. */
+    fun startMonitoring() {
+        if (monitoringStarted) return
+        monitoringStarted = true
+
         viewModelScope.launch {
             tunnelManager.state.collect { state ->
                 TunnelStateHolder.isConnected = state is TunnelState.Connected
@@ -65,7 +70,7 @@ class VpnViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 delay(1_000)
                 if (tunnelState.value is TunnelState.Connected) {
                     tunnelManager.getStatistics()?.let { _stats.value = it }

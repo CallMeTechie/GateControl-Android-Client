@@ -69,8 +69,9 @@ fun VpnScreen(
         }
     }
 
-    // Load data on first composition
+    // Load data and start monitoring on first composition
     LaunchedEffect(Unit) {
+        viewModel.startMonitoring()
         viewModel.loadPermissions()
         viewModel.loadTrafficStats()
         viewModel.loadServices()
