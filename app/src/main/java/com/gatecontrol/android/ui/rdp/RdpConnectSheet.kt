@@ -111,7 +111,7 @@ private fun DetailView(
 ) {
     val extra = GateControlTheme.extraColors
     val isOnline = route.status?.online == true
-    val wolEnabled = route.wolEnabled == true
+    val wolEnabled = route.isWolEnabled
 
     Column(
         modifier = Modifier
@@ -151,7 +151,7 @@ private fun DetailView(
         // Resolution
         val resolutionText = buildString {
             when {
-                route.multiMonitor == true -> append("Multi-monitor")
+                route.isMultiMonitor -> append("Multi-monitor")
                 route.resolutionWidth != null && route.resolutionHeight != null ->
                     append("${route.resolutionWidth} x ${route.resolutionHeight}")
                 route.resolutionMode != null -> {
@@ -170,9 +170,9 @@ private fun DetailView(
 
         // Redirects
         val redirects = buildList {
-            if (route.redirectClipboard == true) add("Clipboard")
-            if (route.redirectPrinters == true) add("Printers")
-            if (route.redirectDrives == true) add("Drives")
+            if (route.isRedirectClipboard) add("Clipboard")
+            if (route.isRedirectPrinters) add("Printers")
+            if (route.isRedirectDrives) add("Drives")
         }
         if (redirects.isNotEmpty()) {
             SheetInfoRow(label = "Redirects", value = redirects.joinToString(", "))

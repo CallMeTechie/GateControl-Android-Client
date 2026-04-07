@@ -125,19 +125,27 @@ data class RdpRoute(
     @SerializedName("resolution_mode") val resolutionMode: String?,
     @SerializedName("resolution_width") val resolutionWidth: Int?,
     @SerializedName("resolution_height") val resolutionHeight: Int?,
-    @SerializedName("multi_monitor") val multiMonitor: Boolean?,
+    @SerializedName("multi_monitor") val multiMonitor: Int?,
     @SerializedName("color_depth") val colorDepth: Int?,
-    @SerializedName("redirect_clipboard") val redirectClipboard: Boolean?,
-    @SerializedName("redirect_printers") val redirectPrinters: Boolean?,
-    @SerializedName("redirect_drives") val redirectDrives: Boolean?,
+    @SerializedName("redirect_clipboard") val redirectClipboard: Int?,
+    @SerializedName("redirect_printers") val redirectPrinters: Int?,
+    @SerializedName("redirect_drives") val redirectDrives: Int?,
     @SerializedName("audio_mode") val audioMode: String?,
     @SerializedName("network_profile") val networkProfile: String?,
     @SerializedName("session_timeout") val sessionTimeout: Int?,
-    @SerializedName("admin_session") val adminSession: Boolean?,
-    @SerializedName("wol_enabled") val wolEnabled: Boolean?,
-    @SerializedName("maintenance_enabled") val maintenanceEnabled: Boolean?,
+    @SerializedName("admin_session") val adminSession: Int?,
+    @SerializedName("wol_enabled") val wolEnabled: Int?,
+    @SerializedName("maintenance_enabled") val maintenanceEnabled: Int?,
     val status: RdpRouteStatus?
-)
+) {
+    val isMultiMonitor: Boolean get() = multiMonitor == 1
+    val isRedirectClipboard: Boolean get() = redirectClipboard == 1
+    val isRedirectPrinters: Boolean get() = redirectPrinters == 1
+    val isRedirectDrives: Boolean get() = redirectDrives == 1
+    val isAdminSession: Boolean get() = adminSession == 1
+    val isWolEnabled: Boolean get() = wolEnabled == 1
+    val isMaintenanceEnabled: Boolean get() = maintenanceEnabled == 1
+}
 
 data class RdpRouteStatus(
     val online: Boolean,

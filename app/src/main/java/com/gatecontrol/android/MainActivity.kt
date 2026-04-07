@@ -1,12 +1,15 @@
 package com.gatecontrol.android
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import java.util.Locale
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
@@ -38,6 +41,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             val theme by settingsRepository.getTheme()
                 .collectAsStateWithLifecycle(initialValue = "dark")
+            val locale by settingsRepository.getLocale()
+                .collectAsStateWithLifecycle(initialValue = "de")
+
+            // Apply locale change
+            LaunchedEffect(locale) {
+                val newLocale = Locale(locale)
+                val config = Configuration(resources.configuration)
+                config.setLocale(newLocale)
+                @Suppress("DEPRECATION")
+                resources.updateConfiguration(config, resources.displayMetrics)
+            }
 
             GateControlTheme(darkTheme = theme == "dark") {
                 val navController = rememberNavController()

@@ -180,11 +180,6 @@ fun VpnScreen(
             onCheckedChange = { viewModel.toggleKillSwitch(it) },
         )
 
-        // Services list (requires services permission)
-        if (permissions.services && services.isNotEmpty()) {
-            ServicesSection(services = services)
-        }
-
         // DNS leak test (requires dns permission)
         if (permissions.dns) {
             var dnsTestResult by remember { mutableStateOf<String?>(null) }
