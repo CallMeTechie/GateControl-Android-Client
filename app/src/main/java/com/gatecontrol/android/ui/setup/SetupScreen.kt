@@ -40,6 +40,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.components.GcOutlineButton
@@ -54,6 +56,22 @@ fun SetupScreen(
     onNavigateToQr: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val configFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val configText = inputStream?.bufferedReader()?.readText() ?: ""
+                inputStream?.close()
+                viewModel.importConfig(configText)
+            } catch (_: Exception) {
+                // Error reading file
+            }
+        }
+    }
 
     LaunchedEffect(uiState.isSetupComplete) {
         if (uiState.isSetupComplete) {
@@ -136,7 +154,7 @@ fun SetupScreen(
             // Outline action: Import Config
             GcOutlineButton(
                 text = stringResource(R.string.setup_import),
-                onClick = { /* Activity result launcher handled at Activity level */ },
+                onClick = { configFileLauncher.launch("*/*") },
                 enabled = !uiState.isLoading,
             )
 

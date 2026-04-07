@@ -55,6 +55,7 @@ class SetupViewModel @Inject constructor(
 
     fun testConnection() {
         val url = _uiState.value.serverUrl.trim()
+        val token = _uiState.value.apiToken.trim()
         if (url.isBlank()) {
             _uiState.update {
                 it.copy(statusMessage = "Server URL required", statusType = StatusType.ERROR)
@@ -65,6 +66,11 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = "Testing connection…", statusType = StatusType.INFO) }
             try {
+                // Temporarily save token so AuthInterceptor can use it
+                if (token.isNotEmpty()) {
+                    setupRepository.save(url, token, -1)
+                    apiClientProvider.invalidate()
+                }
                 val client = apiClientProvider.getClient(url)
                 client.ping()
                 _uiState.update {

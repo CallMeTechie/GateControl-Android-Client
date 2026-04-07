@@ -13,19 +13,23 @@ class AuthInterceptor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val requestBuilder = chain.request().newBuilder()
 
-        val token = tokenProvider()
+        val token = sanitizeHeaderValue(tokenProvider())
         if (token.isNotEmpty()) {
             requestBuilder.header("X-API-Token", token)
         }
 
-        requestBuilder.header("X-Client-Version", versionProvider())
-        requestBuilder.header("X-Client-Platform", platformProvider())
+        requestBuilder.header("X-Client-Version", sanitizeHeaderValue(versionProvider()))
+        requestBuilder.header("X-Client-Platform", sanitizeHeaderValue(platformProvider()))
 
-        val fingerprint = fingerprintProvider()
+        val fingerprint = sanitizeHeaderValue(fingerprintProvider())
         if (fingerprint.isNotEmpty()) {
             requestBuilder.header("X-Machine-Fingerprint", fingerprint)
         }
 
         return chain.proceed(requestBuilder.build())
     }
+
+    /** Strip non-ASCII and control characters that OkHttp rejects in header values. */
+    private fun sanitizeHeaderValue(value: String): String =
+        value.replace(Regex("[^\\x20-\\x7E]"), "").trim()
 }

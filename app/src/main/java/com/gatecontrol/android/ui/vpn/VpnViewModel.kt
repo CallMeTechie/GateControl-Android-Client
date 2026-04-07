@@ -9,6 +9,7 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
+import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tunnel.TunnelStats
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -28,10 +30,10 @@ class VpnViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val licenseRepository: LicenseRepository,
     private val apiClientProvider: ApiClientProvider,
+    private val tunnelManager: TunnelManager,
 ) : ViewModel() {
 
-    private val _tunnelState = MutableStateFlow<TunnelState>(TunnelState.Disconnected)
-    val tunnelState: StateFlow<TunnelState> = _tunnelState.asStateFlow()
+    val tunnelState: StateFlow<TunnelState> = tunnelManager.state
 
     private val _stats = MutableStateFlow(TunnelStats())
     val stats: StateFlow<TunnelStats> = _stats.asStateFlow()
@@ -53,25 +55,45 @@ class VpnViewModel @Inject constructor(
     val killSwitchEnabled: StateFlow<Boolean> = settingsRepository.getKillSwitch()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    init {
+        // Poll statistics while connected
+        viewModelScope.launch {
+            while (true) {
+                delay(1_000)
+                if (tunnelState.value is TunnelState.Connected) {
+                    tunnelManager.getStatistics()?.let { _stats.value = it }
+                }
+            }
+        }
+    }
+
     // --- Actions ---
 
     fun connect() {
         viewModelScope.launch {
-            _tunnelState.value = TunnelState.Connecting
-            // Placeholder: real WireGuard integration happens later
-            delay(1_500)
-            _tunnelState.value = TunnelState.Connected()
-            Timber.d("VpnViewModel: tunnel connected (placeholder)")
+            val config = setupRepository.getWireGuardConfig()
+            if (config.isEmpty()) {
+                Timber.w("VpnViewModel: no WireGuard config available")
+                return@launch
+            }
+            try {
+                tunnelManager.connect(config)
+                Timber.d("VpnViewModel: tunnel connect requested")
+            } catch (e: Exception) {
+                Timber.e(e, "VpnViewModel: connect failed")
+            }
         }
     }
 
     fun disconnect() {
         viewModelScope.launch {
-            _tunnelState.value = TunnelState.Disconnecting
-            delay(500)
-            _tunnelState.value = TunnelState.Disconnected
-            _stats.value = TunnelStats()
-            Timber.d("VpnViewModel: tunnel disconnected")
+            try {
+                tunnelManager.disconnect()
+                _stats.value = TunnelStats()
+                Timber.d("VpnViewModel: tunnel disconnected")
+            } catch (e: Exception) {
+                Timber.e(e, "VpnViewModel: disconnect failed")
+            }
         }
     }
 

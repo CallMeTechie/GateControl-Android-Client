@@ -24,7 +24,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.rdp.RdpScreen
 import com.gatecontrol.android.ui.services.ServicesScreen
+import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.setup.QrScannerScreen
 import com.gatecontrol.android.ui.setup.SetupScreen
 import com.gatecontrol.android.ui.vpn.VpnScreen
@@ -106,8 +108,7 @@ fun AppNavigation(
             }
 
             composable(Screen.Rdp.route) {
-                // RdpScreen implemented in separate task
-                androidx.compose.foundation.layout.Box(modifier = Modifier)
+                RdpScreen()
             }
 
             composable(Screen.Services.route) {
@@ -115,13 +116,20 @@ fun AppNavigation(
             }
 
             composable(Screen.Settings.route) {
-                // SettingsScreen implemented in separate task
-                androidx.compose.foundation.layout.Box(modifier = Modifier)
+                SettingsScreen(
+                    onNavigateToLogs = {
+                        navController.navigate(Screen.Logs.route)
+                    },
+                    onNavigateToQrScanner = {
+                        navController.navigate(Screen.QrScanner.route)
+                    },
+                )
             }
 
             composable(Screen.Logs.route) {
-                // LogsScreen implemented in separate task
-                androidx.compose.foundation.layout.Box(modifier = Modifier)
+                com.gatecontrol.android.ui.settings.LogsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                )
             }
         }
     }
