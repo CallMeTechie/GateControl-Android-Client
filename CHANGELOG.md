@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.7] - 2026-04-07
+
+### Fixes
+- disable R8 minification temporarily for crash diagnosis
+
+---
+
 ## [1.1.6] - 2026-04-07
 
 ### Fixes
