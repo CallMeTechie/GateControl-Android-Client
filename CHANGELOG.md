@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.13] - 2026-04-07
+
+### Fixes
+- VPN permission request, file logging, QR scanner, config import
+
+---
+
 ## [1.1.12] - 2026-04-07
 
 ### Fixes
