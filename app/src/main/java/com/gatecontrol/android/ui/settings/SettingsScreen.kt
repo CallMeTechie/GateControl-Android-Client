@@ -288,12 +288,24 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = stringResource(R.string.settings_license_community),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                TextButton(onClick = { viewModel.activateLicense() }) {
+                Column {
+                    Text(
+                        text = if (uiState.isPro) stringResource(R.string.settings_license_pro)
+                               else stringResource(R.string.settings_license_community),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (uiState.isPro) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onBackground,
+                        fontWeight = if (uiState.isPro) FontWeight.Bold else FontWeight.Normal
+                    )
+                    if (!uiState.isPro) {
+                        Text(
+                            text = "Pro-Lizenz wird serverseitig verwaltet",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                TextButton(onClick = { viewModel.refreshLicense() }) {
                     Text(stringResource(R.string.settings_license_activate))
                 }
             }

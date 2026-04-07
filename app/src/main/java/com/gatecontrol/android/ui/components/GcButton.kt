@@ -100,15 +100,15 @@ fun GcOutlineButton(
             .fillMaxWidth()
             .height(48.dp),
         colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = GateControlTheme.extraColors.border2,
-            disabledContentColor = GateControlTheme.extraColors.border2.copy(alpha = 0.38f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
         ),
         border = BorderStroke(
             width = 1.dp,
             color = if (enabled) {
-                GateControlTheme.extraColors.border
+                MaterialTheme.colorScheme.outline
             } else {
-                GateControlTheme.extraColors.border.copy(alpha = 0.38f)
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.38f)
             },
         ),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),

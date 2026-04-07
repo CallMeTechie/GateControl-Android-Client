@@ -41,7 +41,9 @@ data class SettingsUiState(
     val isLoading: Boolean = false,
     val updateInfo: UpdateCheckResponse? = null,
     val appVersion: String = "",
-    val error: String? = null
+    val error: String? = null,
+    val isPro: Boolean = false,
+    val licenseStatus: String = ""
 )
 
 @HiltViewModel
@@ -57,6 +59,7 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadInitialState()
+        refreshLicense()
     }
 
     private fun loadInitialState() {
@@ -261,24 +264,35 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun activateLicense() {
+    fun refreshLicense() {
         viewModelScope.launch {
             try {
                 val serverUrl = setupRepository.getServerUrl()
-                if (serverUrl.isBlank()) return@launch
+                if (serverUrl.isBlank()) {
+                    _uiState.update { it.copy(licenseStatus = "No server configured") }
+                    return@launch
+                }
                 val client = apiClientProvider.getClient(serverUrl)
                 val response = client.getPermissions()
                 if (response.ok) {
+                    val perms = response.permissions
                     licenseRepository.updatePermissions(
-                        services = response.permissions.services,
-                        traffic = response.permissions.traffic,
-                        dns = response.permissions.dns,
-                        rdp = response.permissions.rdp,
+                        services = perms.services,
+                        traffic = perms.traffic,
+                        dns = perms.dns,
+                        rdp = perms.rdp,
                     )
+                    val isPro = perms.rdp || perms.traffic || perms.dns
+                    _uiState.update {
+                        it.copy(
+                            isPro = isPro,
+                            licenseStatus = if (isPro) "Pro" else "Community",
+                        )
+                    }
                 }
             } catch (e: Exception) {
-                Timber.e(e, "License activation failed")
-                _uiState.update { it.copy(error = "License activation failed: ${e.localizedMessage}") }
+                Timber.e(e, "License refresh failed")
+                _uiState.update { it.copy(error = "License refresh failed: ${e.localizedMessage}") }
             }
         }
     }

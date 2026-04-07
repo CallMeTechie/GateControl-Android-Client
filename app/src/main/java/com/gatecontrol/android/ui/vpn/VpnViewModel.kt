@@ -63,6 +63,10 @@ class VpnViewModel @Inject constructor(
         if (monitoringStarted) return
         monitoringStarted = true
 
+        // Register Quick Settings tile callbacks
+        TunnelStateHolder.onConnect = { connect() }
+        TunnelStateHolder.onDisconnect = { disconnect() }
+
         viewModelScope.launch {
             tunnelManager.state.collect { state ->
                 TunnelStateHolder.isConnected = state is TunnelState.Connected

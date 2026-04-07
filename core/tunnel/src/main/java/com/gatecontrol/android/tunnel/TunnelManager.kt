@@ -127,8 +127,27 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
             val totalRx = statistics.totalRx()
             val totalTx = statistics.totalTx()
-            // Handshake timestamp not reliably exposed by the tunnel Statistics API
-            val latestHandshake = 0L
+
+            // Get latest handshake from peer statistics via reflection
+            // (API varies across WireGuard library versions)
+            var latestHandshake = 0L
+            try {
+                val peersMethod = statistics.javaClass.getMethod("peers")
+                val peerKeys = peersMethod.invoke(statistics) as? Set<*>
+                peerKeys?.forEach { key ->
+                    try {
+                        val peerMethod = statistics.javaClass.getMethod("peer", key!!.javaClass)
+                        val peerStats = peerMethod.invoke(statistics, key)
+                        if (peerStats != null) {
+                            val hsField = peerStats.javaClass.getField("latestHandshakeEpochMillis")
+                            val hs = hsField.getLong(peerStats)
+                            if (hs > latestHandshake) latestHandshake = hs
+                        }
+                    } catch (_: Exception) { }
+                }
+            } catch (_: Exception) {
+                Timber.d("Handshake timestamp not available from Statistics API")
+            }
 
             val rxSpeed = if (elapsedSec > 0) ((totalRx - prevRxBytes) / elapsedSec).toLong() else 0L
             val txSpeed = if (elapsedSec > 0) ((totalTx - prevTxBytes) / elapsedSec).toLong() else 0L

@@ -1,6 +1,5 @@
 package com.gatecontrol.android.service
 
-import android.content.Intent
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import timber.log.Timber
@@ -9,6 +8,8 @@ import timber.log.Timber
 object TunnelStateHolder {
     @Volatile var isConnected: Boolean = false
     @Volatile var serverHost: String? = null
+    @Volatile var onConnect: (() -> Unit)? = null
+    @Volatile var onDisconnect: (() -> Unit)? = null
 }
 
 /**
@@ -85,22 +86,10 @@ class VpnTileService : TileService() {
     }
 
     private fun sendConnectBroadcast() {
-        val intent = Intent(ACTION_VPN_CONNECT).apply {
-            setPackage(packageName)
-        }
-        sendBroadcast(intent)
+        TunnelStateHolder.onConnect?.invoke()
     }
 
     private fun sendDisconnectBroadcast() {
-        val intent = Intent(VpnForegroundService.ACTION_DISCONNECT).apply {
-            setPackage(packageName)
-        }
-        startService(Intent(this, VpnForegroundService::class.java).apply {
-            action = VpnForegroundService.ACTION_DISCONNECT
-        })
-    }
-
-    companion object {
-        const val ACTION_VPN_CONNECT = "com.gatecontrol.android.ACTION_VPN_CONNECT"
+        TunnelStateHolder.onDisconnect?.invoke()
     }
 }
