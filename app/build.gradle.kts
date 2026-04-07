@@ -77,6 +77,11 @@ android {
         }
     }
 
+    lint {
+        // startActivityAndCollapse(Intent) is deprecated but needed for API < 34
+        disable += "StartActivityAndCollapseDeprecated"
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
