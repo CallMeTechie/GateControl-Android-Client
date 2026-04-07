@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.14] - 2026-04-07
+
+### Fixes
+- add actions:read permission for CodeQL workflow
+
+---
+
 ## [1.1.13] - 2026-04-07
 
 ### Fixes
