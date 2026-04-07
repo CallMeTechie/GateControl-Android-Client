@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.17] - 2026-04-07
+
+### Fixes
+- handle startActivityAndCollapse for API 31-33 and suppress lint error
+
+---
+
 ## [1.1.16] - 2026-04-07
 
 ### Fixes
