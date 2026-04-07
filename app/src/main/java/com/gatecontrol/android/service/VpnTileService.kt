@@ -2,6 +2,9 @@ package com.gatecontrol.android.service
 
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /** Shared state holder so the TileService can read tunnel state without DI. */
@@ -107,7 +110,7 @@ class VpnTileService : TileService() {
             }
             return
         }
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 val config = repo.getWireGuardConfig()
                 if (config.isNotEmpty()) {
@@ -121,7 +124,7 @@ class VpnTileService : TileService() {
 
     private fun sendDisconnectBroadcast() {
         val tm = TunnelStateHolder.tunnelManager ?: return
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 tm.disconnect()
             } catch (e: Exception) {
