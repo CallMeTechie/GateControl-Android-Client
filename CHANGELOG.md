@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.12] - 2026-04-07
+
+### Fixes
+- replace CodeQL autobuild with explicit debug build
+
+---
+
 ## [1.1.11] - 2026-04-07
 
 ### Fixes
