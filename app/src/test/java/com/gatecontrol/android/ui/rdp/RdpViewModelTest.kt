@@ -94,8 +94,8 @@ class RdpViewModelTest {
         networkProfile = null,
         sessionTimeout = null,
         adminSession = null,
-        wolEnabled = true,
-        maintenanceEnabled = false,
+        wolEnabled = 1,
+        maintenanceEnabled = 0,
         status = RdpRouteStatus(online = false, lastCheck = null)
     )
 
