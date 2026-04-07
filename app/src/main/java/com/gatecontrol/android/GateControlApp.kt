@@ -4,7 +4,14 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Environment
+import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.service.TunnelStateHolder
+import com.gatecontrol.android.tunnel.TunnelManager
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.components.SingletonComponent
 import timber.log.Timber
 import java.io.File
 import java.io.PrintWriter
@@ -40,6 +47,22 @@ class GateControlApp : Application() {
             writeCrashToFile("timber_init", e)
             throw e
         }
+
+        // Register singletons for Quick Settings tile (which can't use Hilt DI)
+        try {
+            val entryPoint = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java)
+            TunnelStateHolder.tunnelManager = entryPoint.tunnelManager()
+            TunnelStateHolder.setupRepository = entryPoint.setupRepository()
+        } catch (e: Throwable) {
+            Timber.e(e, "Failed to register TunnelStateHolder singletons")
+        }
+    }
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface TileEntryPoint {
+        fun tunnelManager(): TunnelManager
+        fun setupRepository(): SetupRepository
     }
 
     private fun installCrashLogger(context: Context) {

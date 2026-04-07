@@ -8,8 +8,8 @@ import timber.log.Timber
 object TunnelStateHolder {
     @Volatile var isConnected: Boolean = false
     @Volatile var serverHost: String? = null
-    @Volatile var onConnect: (() -> Unit)? = null
-    @Volatile var onDisconnect: (() -> Unit)? = null
+    @Volatile var tunnelManager: com.gatecontrol.android.tunnel.TunnelManager? = null
+    @Volatile var setupRepository: com.gatecontrol.android.data.SetupRepository? = null
 }
 
 /**
@@ -50,17 +50,23 @@ class VpnTileService : TileService() {
         when (tile.state) {
             Tile.STATE_ACTIVE -> {
                 Timber.d("VpnTileService: disconnect requested")
-                tile.state = Tile.STATE_INACTIVE
-                tile.updateTile()
                 sendDisconnectBroadcast()
+                // Tile will be updated by the state monitoring coroutine
+                tile.state = Tile.STATE_INACTIVE
+                tile.subtitle = getString(com.gatecontrol.android.R.string.tile_not_connected)
+                tile.updateTile()
             }
             Tile.STATE_INACTIVE -> {
                 Timber.d("VpnTileService: connect requested")
-                tile.state = Tile.STATE_UNAVAILABLE
-                tile.updateTile()
                 sendConnectBroadcast()
+                tile.state = Tile.STATE_ACTIVE
+                tile.subtitle = getString(com.gatecontrol.android.R.string.vpn_connecting)
+                tile.updateTile()
             }
-            else -> { /* unavailable — ignore */ }
+            else -> {
+                // Reset from unavailable
+                refreshTile()
+            }
         }
     }
 
@@ -86,10 +92,41 @@ class VpnTileService : TileService() {
     }
 
     private fun sendConnectBroadcast() {
-        TunnelStateHolder.onConnect?.invoke()
+        val tm = TunnelStateHolder.tunnelManager
+        val repo = TunnelStateHolder.setupRepository
+        if (tm == null || repo == null) {
+            Timber.w("VpnTileService: TunnelManager or SetupRepository not available")
+            // Launch app to connect
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivityAndCollapse(android.app.PendingIntent.getActivity(
+                    this, 0, intent,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                ))
+            }
+            return
+        }
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val config = repo.getWireGuardConfig()
+                if (config.isNotEmpty()) {
+                    tm.connect(config)
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "VpnTileService: connect failed")
+            }
+        }
     }
 
     private fun sendDisconnectBroadcast() {
-        TunnelStateHolder.onDisconnect?.invoke()
+        val tm = TunnelStateHolder.tunnelManager ?: return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                tm.disconnect()
+            } catch (e: Exception) {
+                Timber.e(e, "VpnTileService: disconnect failed")
+            }
+        }
     }
 }

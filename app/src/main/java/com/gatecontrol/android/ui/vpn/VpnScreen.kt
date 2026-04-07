@@ -137,9 +137,11 @@ fun VpnScreen(
 
         // Stats grid (only show when connected or previously connected)
         if (isConnected || stats.rxBytes > 0 || stats.txBytes > 0) {
+            val connectedSince = (tunnelState as? TunnelState.Connected)?.connectedSince ?: 0L
             StatsGrid(
                 stats = stats,
                 serverHost = viewModel.serverHost,
+                connectedSince = connectedSince,
                 locale = "en",
             )
         }

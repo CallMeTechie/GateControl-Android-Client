@@ -17,6 +17,7 @@ import com.gatecontrol.android.ui.components.GcStatCard
 fun StatsGrid(
     stats: TunnelStats,
     serverHost: String?,
+    connectedSince: Long,
     locale: String,
     modifier: Modifier = Modifier,
 ) {
@@ -24,8 +25,15 @@ fun StatsGrid(
     val rxSpeed = Formatters.formatSpeed(stats.rxSpeed)
     val txValue = Formatters.formatBytes(stats.txBytes)
     val txSpeed = Formatters.formatSpeed(stats.txSpeed)
-    val handshake = if (stats.lastHandshakeEpoch > 0) {
-        Formatters.formatHandshakeAge(stats.handshakeAgeSeconds, locale)
+
+    // Show connection duration (auto-updating every second via recomposition)
+    val uptimeSeconds = if (connectedSince > 0) {
+        (System.currentTimeMillis() - connectedSince) / 1000
+    } else {
+        0L
+    }
+    val uptimeText = if (uptimeSeconds > 0) {
+        Formatters.formatDuration(uptimeSeconds)
     } else {
         "—"
     }
@@ -45,7 +53,7 @@ fun StatsGrid(
             )
             GcStatCard(
                 label = stringResource(R.string.vpn_handshake),
-                value = handshake,
+                value = uptimeText,
                 modifier = Modifier.weight(1f),
             )
         }
