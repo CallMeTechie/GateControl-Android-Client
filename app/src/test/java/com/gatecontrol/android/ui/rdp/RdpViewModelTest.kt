@@ -115,7 +115,7 @@ class RdpViewModelTest {
         wolClient = mockk()
 
         val tunnelManager = mockk<com.gatecontrol.android.tunnel.TunnelManager>(relaxed = true)
-        every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(com.gatecontrol.android.tunnel.TunnelState.Disconnected)
+        every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(com.gatecontrol.android.tunnel.TunnelState.Connected())
 
         viewModel = RdpViewModel(
             setupRepository = setupRepository,
