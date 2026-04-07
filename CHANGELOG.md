@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.15] - 2026-04-07
+
+### Fixes
+- handshake display, dark mode buttons, license status, Quick Settings tile
+
+---
+
 ## [1.1.14] - 2026-04-07
 
 ### Fixes
