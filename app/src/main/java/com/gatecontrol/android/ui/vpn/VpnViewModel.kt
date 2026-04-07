@@ -9,6 +9,7 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
+import com.gatecontrol.android.service.TunnelStateHolder
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tunnel.TunnelStats
@@ -56,7 +57,13 @@ class VpnViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
-        // Poll statistics while connected
+        // Poll statistics while connected + sync TunnelStateHolder for TileService
+        viewModelScope.launch {
+            tunnelManager.state.collect { state ->
+                TunnelStateHolder.isConnected = state is TunnelState.Connected
+                TunnelStateHolder.serverHost = serverHost
+            }
+        }
         viewModelScope.launch {
             while (true) {
                 delay(1_000)
@@ -134,6 +141,40 @@ class VpnViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Timber.w(e, "VpnViewModel: failed to load services")
+            }
+        }
+    }
+
+    /** Derive server hostname from stored WireGuard config. */
+    val serverHost: String?
+        get() {
+            val config = setupRepository.getWireGuardConfig()
+            if (config.isEmpty()) return null
+            return try {
+                com.gatecontrol.android.tunnel.TunnelConfig.parse(config).getServerHost()
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+    fun runDnsLeakTest(onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val serverUrl = setupRepository.getServerUrl()
+                if (serverUrl.isEmpty()) {
+                    onResult("No server configured")
+                    return@launch
+                }
+                val client = apiClientProvider.getClient(serverUrl)
+                val response = client.dnsCheck()
+                if (response.ok) {
+                    onResult("DNS: ${response.vpnDns} (Subnet: ${response.vpnSubnet})")
+                } else {
+                    onResult("DNS check failed")
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "VpnViewModel: DNS leak test failed")
+                onResult("DNS test error: ${e.localizedMessage}")
             }
         }
     }

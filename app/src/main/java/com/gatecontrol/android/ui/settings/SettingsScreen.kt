@@ -230,7 +230,7 @@ fun SettingsScreen(
                 )
                 GcOutlineButton(
                     text = stringResource(R.string.settings_import_file),
-                    onClick = { /* file picker handled by caller */ },
+                    onClick = { viewModel.requestConfigImport() },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -293,7 +293,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                TextButton(onClick = { /* license activation flow */ }) {
+                TextButton(onClick = { viewModel.activateLicense() }) {
                     Text(stringResource(R.string.settings_license_activate))
                 }
             }
@@ -362,10 +362,15 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { /* open download URL */ }) {
+                        TextButton(onClick = {
+                            updateInfo.downloadUrl?.let { url ->
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                context.startActivity(intent)
+                            }
+                        }) {
                             Text(stringResource(R.string.settings_update_install))
                         }
-                        TextButton(onClick = { /* dismiss */ }) {
+                        TextButton(onClick = { viewModel.dismissUpdate() }) {
                             Text(stringResource(R.string.settings_update_later))
                         }
                     }

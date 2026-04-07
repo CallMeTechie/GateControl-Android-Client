@@ -5,17 +5,14 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import timber.log.Timber
 
+/** Shared state holder so the TileService can read tunnel state without DI. */
+object TunnelStateHolder {
+    @Volatile var isConnected: Boolean = false
+    @Volatile var serverHost: String? = null
+}
+
 /**
  * Quick Settings tile for GateControl VPN.
- *
- * Tile states:
- *  - STATE_ACTIVE   — VPN connected; subtitle shows the server host.
- *  - STATE_INACTIVE — VPN not connected.
- *  - STATE_UNAVAILABLE — used transiently while toggling.
- *
- * Real connection state must be supplied via a shared singleton / broadcast
- * once the WireGuard integration layer is wired in.  For now the tile tracks
- * its own local boolean as a placeholder.
  */
 class VpnTileService : TileService() {
 
@@ -72,9 +69,8 @@ class VpnTileService : TileService() {
 
     private fun refreshTile() {
         val tile = qsTile ?: return
-        // TODO: query real tunnel state from a shared state holder once available
-        val connected = false
-        applyTileState(tile, connected, serverHost = null)
+        val connected = TunnelStateHolder.isConnected
+        applyTileState(tile, connected, serverHost = TunnelStateHolder.serverHost)
     }
 
     private fun applyTileState(tile: Tile, connected: Boolean, serverHost: String?) {

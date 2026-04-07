@@ -25,7 +25,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -117,7 +119,7 @@ fun VpnScreen(
         if (isConnected || stats.rxBytes > 0 || stats.txBytes > 0) {
             StatsGrid(
                 stats = stats,
-                serverHost = null, // TODO: derive from SetupRepository
+                serverHost = viewModel.serverHost,
                 locale = "en",
             )
         }
@@ -151,9 +153,19 @@ fun VpnScreen(
 
         // DNS leak test (requires dns permission)
         if (permissions.dns) {
+            var dnsTestResult by remember { mutableStateOf<String?>(null) }
+            var dnsTestLoading by remember { mutableStateOf(false) }
+
             GcOutlineButton(
-                text = stringResource(R.string.dns_leak_test),
-                onClick = { /* TODO: launch DNS leak test */ },
+                text = if (dnsTestLoading) stringResource(R.string.dns_testing)
+                       else dnsTestResult ?: stringResource(R.string.dns_leak_test),
+                onClick = {
+                    dnsTestLoading = true
+                    viewModel.runDnsLeakTest { result ->
+                        dnsTestResult = result
+                        dnsTestLoading = false
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
         }

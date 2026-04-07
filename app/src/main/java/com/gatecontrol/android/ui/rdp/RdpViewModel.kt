@@ -10,6 +10,8 @@ import com.gatecontrol.android.rdp.RdpManager
 import com.gatecontrol.android.rdp.RdpProgress
 import com.gatecontrol.android.rdp.RdpSession
 import com.gatecontrol.android.rdp.WolClient
+import com.gatecontrol.android.tunnel.TunnelManager
+import com.gatecontrol.android.tunnel.TunnelState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,7 +45,8 @@ class RdpViewModel @Inject constructor(
     private val apiClientProvider: ApiClientProvider,
     private val licenseRepository: LicenseRepository,
     private val rdpManager: RdpManager,
-    private val wolClient: WolClient
+    private val wolClient: WolClient,
+    private val tunnelManager: TunnelManager
 ) : ViewModel() {
 
     // --- State ---
@@ -123,7 +126,7 @@ class RdpViewModel @Inject constructor(
                 val result = rdpManager.connect(
                     route = route,
                     apiClient = client,
-                    isVpnConnected = true, // TODO: wire in real VPN state
+                    isVpnConnected = tunnelManager.state.value is TunnelState.Connected,
                     userPassword = password,
                     forceMaintenanceBypass = forceBypass,
                     onProgress = { step ->

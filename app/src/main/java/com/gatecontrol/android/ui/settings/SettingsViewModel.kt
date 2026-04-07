@@ -261,6 +261,37 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun activateLicense() {
+        viewModelScope.launch {
+            try {
+                val serverUrl = setupRepository.getServerUrl()
+                if (serverUrl.isBlank()) return@launch
+                val client = apiClientProvider.getClient(serverUrl)
+                val response = client.getPermissions()
+                if (response.ok) {
+                    licenseRepository.updatePermissions(
+                        services = response.permissions.services,
+                        traffic = response.permissions.traffic,
+                        dns = response.permissions.dns,
+                        rdp = response.permissions.rdp,
+                    )
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "License activation failed")
+                _uiState.update { it.copy(error = "License activation failed: ${e.localizedMessage}") }
+            }
+        }
+    }
+
+    fun dismissUpdate() {
+        _uiState.update { it.copy(updateInfo = null) }
+    }
+
+    fun requestConfigImport() {
+        // Signal to UI to launch file picker — handled via shared state
+        _uiState.update { it.copy(error = "Use the setup screen to import config files") }
+    }
+
     fun exportLogs(cacheDir: File): File? {
         return try {
             val logFile = File(cacheDir, "gatecontrol-logs.txt")
