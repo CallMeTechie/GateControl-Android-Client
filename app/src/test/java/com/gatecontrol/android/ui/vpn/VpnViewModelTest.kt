@@ -8,6 +8,7 @@ import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.PermissionsResponse
+import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -40,6 +41,7 @@ class VpnViewModelTest {
     private lateinit var licenseRepository: LicenseRepository
     private lateinit var apiClientProvider: ApiClientProvider
     private lateinit var apiClient: ApiClient
+    private lateinit var tunnelManager: TunnelManager
     private lateinit var viewModel: VpnViewModel
 
     @BeforeEach
@@ -51,17 +53,21 @@ class VpnViewModelTest {
         licenseRepository = mockk(relaxed = true)
         apiClientProvider = mockk(relaxed = true)
         apiClient = mockk(relaxed = true)
+        tunnelManager = mockk(relaxed = true)
 
         every { settingsRepository.getKillSwitch() } returns flowOf(false)
         every { setupRepository.getServerUrl() } returns "https://gate.example.com"
         every { setupRepository.getPeerId() } returns 42
         every { apiClientProvider.getClient(any()) } returns apiClient
+        every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(TunnelState.Disconnected)
+        every { tunnelManager.stats } returns kotlinx.coroutines.flow.MutableStateFlow(com.gatecontrol.android.tunnel.TunnelStats())
 
         viewModel = VpnViewModel(
             setupRepository = setupRepository,
             settingsRepository = settingsRepository,
             licenseRepository = licenseRepository,
             apiClientProvider = apiClientProvider,
+            tunnelManager = tunnelManager,
         )
     }
 
@@ -81,40 +87,31 @@ class VpnViewModelTest {
     }
 
     @Test
-    fun `connect changes state to Connecting then Connected`() = runTest {
-        viewModel.tunnelState.test {
-            assertEquals(TunnelState.Disconnected, awaitItem())
+    fun `connect calls tunnelManager with config`() = runTest {
+        every { setupRepository.getWireGuardConfig() } returns "[Interface]\nPrivateKey=abc\nAddress=10.0.0.1/32\n\n[Peer]\nPublicKey=xyz\nEndpoint=1.2.3.4:51820\nAllowedIPs=0.0.0.0/0"
 
-            viewModel.connect()
-            assertEquals(TunnelState.Connecting, awaitItem())
+        viewModel.connect()
+        testDispatcher.scheduler.advanceUntilIdle()
 
-            advanceTimeBy(2_000)
-            val connected = awaitItem()
-            assertInstanceOf(TunnelState.Connected::class.java, connected)
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        coVerify { tunnelManager.connect(any(), any(), any()) }
     }
 
     @Test
-    fun `disconnect changes state to Disconnecting then Disconnected`() = runTest {
-        // First connect
+    fun `connect does nothing when config is empty`() = runTest {
+        every { setupRepository.getWireGuardConfig() } returns ""
+
         viewModel.connect()
-        advanceTimeBy(2_000)
+        testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.tunnelState.test {
-            // Skip the Connected state we're already in
-            val current = awaitItem()
-            assertInstanceOf(TunnelState.Connected::class.java, current)
+        coVerify(exactly = 0) { tunnelManager.connect(any(), any(), any()) }
+    }
 
-            viewModel.disconnect()
-            assertEquals(TunnelState.Disconnecting, awaitItem())
+    @Test
+    fun `disconnect calls tunnelManager disconnect`() = runTest {
+        viewModel.disconnect()
+        testDispatcher.scheduler.advanceUntilIdle()
 
-            advanceTimeBy(1_000)
-            assertEquals(TunnelState.Disconnected, awaitItem())
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        coVerify { tunnelManager.disconnect() }
     }
 
     @Test
