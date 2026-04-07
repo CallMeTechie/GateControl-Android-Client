@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.8] - 2026-04-07
+
+### Fixes
+- move crash handler to attachBaseContext, write to Downloads folder
+
+---
+
 ## [1.1.7] - 2026-04-07
 
 ### Fixes
