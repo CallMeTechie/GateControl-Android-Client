@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.9] - 2026-04-07
+
+### Fixes
+- update dependencies for Android 16 (API 36) compatibility
+
+---
+
 ## [1.1.8] - 2026-04-07
 
 ### Fixes
