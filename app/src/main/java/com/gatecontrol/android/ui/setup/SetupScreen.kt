@@ -54,9 +54,32 @@ fun SetupScreen(
     viewModel: SetupViewModel = hiltViewModel(),
     onSetupComplete: () -> Unit,
     onNavigateToQr: () -> Unit,
+    qrResult: String? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Handle QR scan result
+    LaunchedEffect(qrResult) {
+        if (qrResult != null && qrResult.isNotEmpty()) {
+            if (qrResult.contains("[Interface]")) {
+                // WireGuard config
+                viewModel.importConfig(qrResult)
+            } else if (qrResult.startsWith("gatecontrol://")) {
+                // Deep link
+                val uri = android.net.Uri.parse(qrResult)
+                val url = uri.getQueryParameter("url") ?: ""
+                val token = uri.getQueryParameter("token") ?: ""
+                if (url.isNotEmpty() && token.isNotEmpty()) {
+                    viewModel.handleDeepLink(url, token)
+                }
+            } else if (qrResult.startsWith("http")) {
+                // Plain server URL
+                viewModel.onServerUrlChanged(qrResult)
+                viewModel.toggleManualExpanded()
+            }
+        }
+    }
 
     val configFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()

@@ -79,7 +79,8 @@ fun AppNavigation(
             startDestination = startDestination,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Screen.Setup.route) {
+            composable(Screen.Setup.route) { backStackEntry ->
+                val qrResult = backStackEntry.savedStateHandle.get<String>("qr_result")
                 SetupScreen(
                     onSetupComplete = {
                         navController.navigate(Screen.Vpn.route) {
@@ -89,12 +90,17 @@ fun AppNavigation(
                     onNavigateToQr = {
                         navController.navigate(Screen.QrScanner.route)
                     },
+                    qrResult = qrResult,
                 )
             }
 
             composable(Screen.QrScanner.route) {
                 QrScannerScreen(
-                    onQrScanned = { _ ->
+                    onQrScanned = { scannedData ->
+                        // Pass scanned data back via savedStateHandle
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("qr_result", scannedData)
                         navController.popBackStack()
                     },
                     onBack = {

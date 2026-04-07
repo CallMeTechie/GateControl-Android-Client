@@ -45,6 +45,17 @@ import kotlinx.coroutines.delay
 fun VpnScreen(
     viewModel: VpnViewModel = hiltViewModel(),
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // VPN permission launcher — Android requires user consent before creating a VPN tunnel
+    val vpnPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            viewModel.connect()
+        }
+    }
+
     val tunnelState by viewModel.tunnelState.collectAsState()
     val stats by viewModel.stats.collectAsState()
     val trafficUsage by viewModel.trafficUsage.collectAsState()
@@ -109,7 +120,15 @@ fun VpnScreen(
         } else {
             GcPrimaryButton(
                 text = stringResource(R.string.vpn_connect),
-                onClick = { viewModel.connect() },
+                onClick = {
+                    // Check VPN permission before connecting
+                    val prepareIntent = android.net.VpnService.prepare(context)
+                    if (prepareIntent != null) {
+                        vpnPermissionLauncher.launch(prepareIntent)
+                    } else {
+                        viewModel.connect()
+                    }
+                },
                 enabled = !isBusy,
                 loading = isBusy,
                 modifier = Modifier.fillMaxWidth(),

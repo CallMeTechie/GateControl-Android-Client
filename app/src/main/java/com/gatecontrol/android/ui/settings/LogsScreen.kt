@@ -227,7 +227,14 @@ fun LogsScreen(
  * Falls back to including the line if the timestamp cannot be parsed.
  */
 private fun isLineWithinPeriod(line: String, cutoffMs: Long): Boolean {
-    // Timber format: D/TAG: message (no timestamp). Fall back to including by default.
-    // For file-backed loggers that prepend epoch millis or ISO timestamps, parse here.
-    return true
+    // FileLoggingTree format: "2026-04-07 09:55:57.123 I/Tag: message"
+    return try {
+        if (line.length < 23) return true
+        val dateStr = line.substring(0, 23) // "2026-04-07 09:55:57.123"
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US)
+        val date = sdf.parse(dateStr) ?: return true
+        date.time >= cutoffMs
+    } catch (_: Exception) {
+        true // Include lines that can't be parsed
+    }
 }

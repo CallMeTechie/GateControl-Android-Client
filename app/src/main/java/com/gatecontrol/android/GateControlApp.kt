@@ -34,6 +34,8 @@ class GateControlApp : Application() {
             if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
                 Timber.plant(Timber.DebugTree())
             }
+            // Always plant a file-based tree so logs are available in release builds
+            Timber.plant(FileLoggingTree(this))
         } catch (e: Throwable) {
             writeCrashToFile("timber_init", e)
             throw e
