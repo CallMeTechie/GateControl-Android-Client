@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.16] - 2026-04-07
+
+### Fixes
+- remove CodeQL job (requires GitHub Advanced Security on private repos)
+
+---
+
 ## [1.1.15] - 2026-04-07
 
 ### Fixes
