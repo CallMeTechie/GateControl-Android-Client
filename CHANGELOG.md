@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.19] - 2026-04-07
+
+### Fixes
+- Gson LenientBooleanAdapter for SQLite 0/1, revert fields to Boolean
+
+---
+
 ## [1.1.18] - 2026-04-07
 
 ### Fixes
