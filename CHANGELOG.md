@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.5] - 2026-04-07
+
+### Fixes
+- add crash logger to write crash reports to external storage
+
+---
+
 ## [1.1.4] - 2026-04-06
 
 ### Fixes
