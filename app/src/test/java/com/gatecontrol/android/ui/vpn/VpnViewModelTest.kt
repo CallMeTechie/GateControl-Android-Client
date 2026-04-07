@@ -18,8 +18,7 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -34,7 +33,7 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class VpnViewModelTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
 
     private lateinit var setupRepository: SetupRepository
     private lateinit var settingsRepository: SettingsRepository
@@ -91,7 +90,7 @@ class VpnViewModelTest {
         every { setupRepository.getWireGuardConfig() } returns "[Interface]\nPrivateKey=abc\nAddress=10.0.0.1/32\n\n[Peer]\nPublicKey=xyz\nEndpoint=1.2.3.4:51820\nAllowedIPs=0.0.0.0/0"
 
         viewModel.connect()
-        testDispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.yield()
 
         coVerify { tunnelManager.connect(any(), any(), any()) }
     }
@@ -101,7 +100,7 @@ class VpnViewModelTest {
         every { setupRepository.getWireGuardConfig() } returns ""
 
         viewModel.connect()
-        testDispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.yield()
 
         coVerify(exactly = 0) { tunnelManager.connect(any(), any(), any()) }
     }
@@ -109,7 +108,7 @@ class VpnViewModelTest {
     @Test
     fun `disconnect calls tunnelManager disconnect`() = runTest {
         viewModel.disconnect()
-        testDispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.yield()
 
         coVerify { tunnelManager.disconnect() }
     }
@@ -117,7 +116,7 @@ class VpnViewModelTest {
     @Test
     fun `toggleKillSwitch saves to settings`() = runTest {
         viewModel.toggleKillSwitch(true)
-        testDispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.yield()
 
         coVerify { settingsRepository.setKillSwitch(true) }
     }
@@ -125,7 +124,7 @@ class VpnViewModelTest {
     @Test
     fun `toggleKillSwitch false saves false to settings`() = runTest {
         viewModel.toggleKillSwitch(false)
-        testDispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.yield()
 
         coVerify { settingsRepository.setKillSwitch(false) }
     }
@@ -145,7 +144,7 @@ class VpnViewModelTest {
         )
 
         viewModel.loadPermissions()
-        testDispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.yield()
 
         verify {
             licenseRepository.updatePermissions(
@@ -176,7 +175,7 @@ class VpnViewModelTest {
             assertFalse(initial.services)
 
             viewModel.loadPermissions()
-            testDispatcher.scheduler.advanceUntilIdle()
+            kotlinx.coroutines.yield()
 
             val updated = awaitItem()
             assertTrue(updated.services)
@@ -193,7 +192,7 @@ class VpnViewModelTest {
         every { setupRepository.getServerUrl() } returns ""
 
         viewModel.loadPermissions()
-        testDispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.yield()
 
         coVerify(exactly = 0) { apiClient.getPermissions() }
     }
