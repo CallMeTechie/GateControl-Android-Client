@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.6] - 2026-04-07
+
+### Fixes
+- add debug APK to release for crash diagnosis
+
+---
+
 ## [1.1.5] - 2026-04-07
 
 ### Fixes
