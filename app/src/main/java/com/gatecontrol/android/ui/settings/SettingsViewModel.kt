@@ -255,11 +255,20 @@ class SettingsViewModel @Inject constructor(
                     return@launch
                 }
                 val client = apiClientProvider.getClient(serverUrl)
-                val response = client.checkUpdate(version = currentVersion)
+                val response = client.checkUpdate(
+                    version = currentVersion,
+                    platform = "android",
+                    client = "android"
+                )
                 _uiState.update { it.copy(isLoading = false, updateInfo = response) }
             } catch (e: Exception) {
                 Timber.e(e, "Update check failed")
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "Update check: ${e.localizedMessage}"
+                    )
+                }
             }
         }
     }

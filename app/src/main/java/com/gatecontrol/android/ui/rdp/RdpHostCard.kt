@@ -45,8 +45,8 @@ fun RdpHostCard(
     modifier: Modifier = Modifier
 ) {
     val isOnline = route.status?.online == true
-    val inMaintenance = route.isMaintenanceEnabled
-    val wolEnabled = route.isWolEnabled
+    val inMaintenance = route.maintenanceEnabled == true
+    val wolEnabled = route.wolEnabled == true
     val extra = GateControlTheme.extraColors
 
     val sessionBorder = if (isSessionActive) {

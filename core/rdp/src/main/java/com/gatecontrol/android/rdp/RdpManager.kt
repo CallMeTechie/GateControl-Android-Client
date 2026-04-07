@@ -64,7 +64,7 @@ class RdpManager(
         val reachable = isTcpReachable(host, port, timeoutMs = 5_000)
 
         if (!reachable) {
-            val wolEnabled = route.isWolEnabled
+            val wolEnabled = route.wolEnabled == true
             if (wolEnabled) {
                 val wolSent = wolClient.sendWol(apiClient, route.id)
                 if (!wolSent) {
@@ -89,7 +89,7 @@ class RdpManager(
         }
 
         // Step 3: Maintenance check
-        if (route.isMaintenanceEnabled && !forceMaintenanceBypass) {
+        if (route.maintenanceEnabled == true && !forceMaintenanceBypass) {
             return ConnectResult.MaintenanceWarning(schedule = null)
         }
 
