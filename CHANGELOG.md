@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.27] - 2026-04-08
+
+### Fixes
+- Daten nach VPN-Connect neu laden, Services-Spinner zentriert
+
+---
+
 ## [1.1.26] - 2026-04-08
 
 ### Fixes
