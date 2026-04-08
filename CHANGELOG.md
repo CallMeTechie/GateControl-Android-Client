@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.26] - 2026-04-08
+
+### Fixes
+- RDP TCP-Check über Server statt lokalen Socket
+
+---
+
 ## [1.1.25] - 2026-04-08
 
 ### Fixes
