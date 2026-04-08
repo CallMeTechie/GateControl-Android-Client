@@ -30,6 +30,13 @@ jobs:
       - name: Run lint
         run: ./gradlew lintRelease
 
+      - name: Check for unguarded HTTP body logging
+        run: |
+          if grep -rn 'Level\.BODY' --include='*.kt' --include='*.java' . | grep -v 'isDebuggable\|BuildConfig\.DEBUG\|FLAG_DEBUGGABLE' | grep -v '\.gradle'; then
+            echo "::error::Found unguarded Level.BODY HTTP logging. Wrap with a debug-only check to prevent credential leaks in release builds."
+            exit 1
+          fi
+
       - name: Build debug APK (build check)
         run: ./gradlew assembleDebug
 
