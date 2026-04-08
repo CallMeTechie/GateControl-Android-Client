@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.20] - 2026-04-08
+
+### Fixes
+- pass ApplicationContext to ApiClientProvider in NetworkModule
+
+---
+
 ## [1.1.19] - 2026-04-07
 
 ### Fixes
