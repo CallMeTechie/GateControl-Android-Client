@@ -7,7 +7,6 @@ import com.gatecontrol.android.network.RdpHeartbeatRequest
 import com.gatecontrol.android.network.RdpRoute
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.net.Socket
 
 class RdpManager(
     private val context: Context,
@@ -57,11 +56,19 @@ class RdpManager(
             return ConnectResult.VpnRequired("VPN connection required to reach RDP host")
         }
 
-        // Step 2: TCP reachability check
+        // Step 2: Server-side TCP reachability check
+        // Android VPN apps cannot connect to VPN addresses from their own process
+        // (VpnService excludes the app to prevent routing loops), so the server
+        // performs the TCP check on behalf of the client.
         onProgress(RdpProgress.TCP_CHECK)
         val host = route.host
         val port = route.port
-        val reachable = isTcpReachable(host, port, timeoutMs = 5_000)
+        val reachable = try {
+            val statusResponse = apiClient.getRdpRouteStatus(route.id)
+            statusResponse.ok && statusResponse.status?.online == true
+        } catch (_: Exception) {
+            false
+        }
 
         if (!reachable) {
             val wolEnabled = route.wolEnabled == true
@@ -248,18 +255,4 @@ class RdpManager(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private fun isTcpReachable(host: String, port: Int, timeoutMs: Int): Boolean {
-        return try {
-            Socket().use { socket ->
-                socket.connect(java.net.InetSocketAddress(host, port), timeoutMs)
-                true
-            }
-        } catch (_: Exception) {
-            false
-        }
-    }
 }
