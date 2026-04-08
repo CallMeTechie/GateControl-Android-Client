@@ -37,6 +37,17 @@ jobs:
             exit 1
           fi
 
+      - name: Generate coverage report
+        if: always()
+        run: ./gradlew jacocoTestReport || true
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: app/build/reports/jacoco/
+
       - name: Build debug APK (build check)
         run: ./gradlew assembleDebug
 

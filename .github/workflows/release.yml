@@ -166,6 +166,20 @@ jobs:
         run: |
           ./gradlew assembleRelease bundleRelease assembleDebug
 
+      - name: Verify R8 obfuscation
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          if [ ! -f app/build/outputs/mapping/release/mapping.txt ]; then
+            echo "::error::R8 mapping.txt not found — minification may not be active"
+            exit 1
+          fi
+          SIZE=$(wc -c < app/build/outputs/mapping/release/mapping.txt)
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::R8 mapping.txt is suspiciously small (${SIZE} bytes) — minification may not be working"
+            exit 1
+          fi
+          echo "R8 mapping.txt verified (${SIZE} bytes)"
+
       - name: Rename and package artifacts
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
@@ -175,9 +189,7 @@ jobs:
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/GateControl-Android-${NEW_VERSION}.apk"
           mv app/build/outputs/bundle/release/app-release.aab "app/build/outputs/bundle/release/GateControl-Android-${NEW_VERSION}.aab"
           # Package R8 mapping file for Play Console
-          if [ -f app/build/outputs/mapping/release/mapping.txt ]; then
-            cp app/build/outputs/mapping/release/mapping.txt "app/build/outputs/mapping/release/GateControl-Android-${NEW_VERSION}-mapping.txt"
-          fi
+          cp app/build/outputs/mapping/release/mapping.txt "app/build/outputs/mapping/release/GateControl-Android-${NEW_VERSION}-mapping.txt"
           # Package native debug symbols for Play Console
           if [ -d app/build/outputs/native-debug-symbols/release ]; then
             cd app/build/outputs/native-debug-symbols/release

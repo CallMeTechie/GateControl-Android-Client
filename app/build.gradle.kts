@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt)
     kotlin("kapt")
+    jacoco
 }
 
 android {
@@ -152,4 +153,20 @@ kapt {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    finalizedBy(tasks.named("jacocoTestReport"))
+}
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn(tasks.withType<Test>())
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    sourceDirectories.setFrom(files("src/main/java"))
+    classDirectories.setFrom(
+        fileTree("build/tmp/kotlin-classes/debug") {
+            exclude("**/hilt_aggregated_deps/**", "**/Hilt_*", "**/*_Factory*", "**/*_MembersInjector*")
+        }
+    )
+    executionData.setFrom(fileTree("build") { include("jacoco/*.exec") })
 }
