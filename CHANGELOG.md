@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.21] - 2026-04-08
+
+### Changes
+- add dependency scanning, JaCoCo coverage, R8 verification
+
+---
+
 ## [1.1.20] - 2026-04-08
 
 ### Fixes
