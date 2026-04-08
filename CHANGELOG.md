@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.24] - 2026-04-08
+
+### Fixes
+- SettingsViewModelTest nutzt String-Literal statt undefinierter Variable
+
+---
+
 ## [1.1.23] - 2026-04-08
 
 ### Fixes
