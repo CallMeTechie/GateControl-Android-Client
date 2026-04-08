@@ -129,6 +129,9 @@ dependencies {
     // ML Kit
     implementation(libs.mlkit.barcode)
 
+    // Retrofit (needed for HttpException in error handling)
+    implementation(libs.retrofit)
+
     // Logging
     implementation(libs.timber)
 
@@ -143,6 +146,7 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)
     testImplementation(libs.robolectric)
+    testImplementation(libs.okhttp)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
