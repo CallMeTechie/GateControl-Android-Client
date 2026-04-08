@@ -55,6 +55,9 @@ class VpnViewModelTest {
         tunnelManager = mockk(relaxed = true)
 
         every { settingsRepository.getKillSwitch() } returns flowOf(false)
+        every { settingsRepository.getSplitTunnelEnabled() } returns flowOf(false)
+        every { settingsRepository.getSplitTunnelRoutes() } returns flowOf("")
+        every { settingsRepository.getSplitTunnelApps() } returns flowOf("")
         every { setupRepository.getServerUrl() } returns "https://gate.example.com"
         every { setupRepository.getPeerId() } returns 42
         every { apiClientProvider.getClient(any()) } returns apiClient
