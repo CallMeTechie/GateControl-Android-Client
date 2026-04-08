@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.22] - 2026-04-08
+
+### Fixes
+- add split-tunnel mock returns to VpnViewModelTest
+
+---
+
 ## [1.1.21] - 2026-04-08
 
 ### Changes
