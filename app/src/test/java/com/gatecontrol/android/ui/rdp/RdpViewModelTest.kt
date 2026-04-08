@@ -22,12 +22,16 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import retrofit2.HttpException
+import retrofit2.Response
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RdpViewModelTest {
@@ -178,7 +182,7 @@ class RdpViewModelTest {
     }
 
     @Test
-    fun `loadRoutes leaves list empty when API returns non-ok`() = runTest {
+    fun `loadRoutes sets ServerError when API returns non-ok`() = runTest {
         coEvery { apiClient.getRdpRoutes() } returns RdpRoutesResponse(
             ok = false,
             routes = emptyList()
@@ -188,19 +192,67 @@ class RdpViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.filteredRoutes.value.isEmpty())
+        assertEquals(ErrorType.ServerError, viewModel.error.value)
     }
 
     @Test
-    fun `loadRoutes handles network exception gracefully`() = runTest {
-        coEvery { apiClient.getRdpRoutes() } throws RuntimeException("Network error")
+    fun `loadRoutes sets Forbidden error on HTTP 403`() = runTest {
+        val response = Response.error<Any>(403, "".toResponseBody())
+        coEvery { apiClient.getRdpRoutes() } throws HttpException(response)
 
         viewModel.loadRoutes()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Should not crash; list remains empty
         assertTrue(viewModel.filteredRoutes.value.isEmpty())
-        // Loading must be reset to false even after error
+        assertEquals(ErrorType.Forbidden, viewModel.error.value)
         assertEquals(false, viewModel.isLoading.value)
+    }
+
+    @Test
+    fun `loadRoutes sets Network error on IOException`() = runTest {
+        coEvery { apiClient.getRdpRoutes() } throws IOException("Connection refused")
+
+        viewModel.loadRoutes()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.filteredRoutes.value.isEmpty())
+        assertEquals(ErrorType.Network, viewModel.error.value)
+        assertEquals(false, viewModel.isLoading.value)
+    }
+
+    @Test
+    fun `loadRoutes sets ServerError on unexpected exception`() = runTest {
+        coEvery { apiClient.getRdpRoutes() } throws RuntimeException("Unexpected")
+
+        viewModel.loadRoutes()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.filteredRoutes.value.isEmpty())
+        assertEquals(ErrorType.ServerError, viewModel.error.value)
+        assertEquals(false, viewModel.isLoading.value)
+    }
+
+    @Test
+    fun `loadRoutes clears error on successful retry`() = runTest {
+        // First call fails
+        val response = Response.error<Any>(403, "".toResponseBody())
+        coEvery { apiClient.getRdpRoutes() } throws HttpException(response)
+
+        viewModel.loadRoutes()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(ErrorType.Forbidden, viewModel.error.value)
+
+        // Retry succeeds
+        coEvery { apiClient.getRdpRoutes() } returns RdpRoutesResponse(
+            ok = true,
+            routes = listOf(onlineRoute)
+        )
+
+        viewModel.loadRoutes()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.error.value)
+        assertEquals(1, viewModel.filteredRoutes.value.size)
     }
 
     // -------------------------------------------------------------------------

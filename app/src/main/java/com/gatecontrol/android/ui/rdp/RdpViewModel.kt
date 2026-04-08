@@ -17,7 +17,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import timber.log.Timber
+import java.io.IOException
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -25,6 +27,8 @@ import javax.inject.Inject
 // ---------------------------------------------------------------------------
 
 enum class StatusFilter { ALL, ONLINE, OFFLINE }
+
+enum class ErrorType { Forbidden, Network, ServerError }
 
 sealed class ConnectState {
     object Idle : ConnectState()
@@ -75,11 +79,15 @@ class RdpViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _error = MutableStateFlow<ErrorType?>(null)
+    val error: StateFlow<ErrorType?> = _error.asStateFlow()
+
     // --- Actions ---
 
     fun loadRoutes() {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
             try {
                 val serverUrl = setupRepository.getServerUrl()
                 if (serverUrl.isEmpty()) return@launch
@@ -88,9 +96,21 @@ class RdpViewModel @Inject constructor(
                 if (response.ok) {
                     _routes.value = response.routes
                     applyFilters()
+                } else {
+                    _error.value = ErrorType.ServerError
                 }
+            } catch (e: HttpException) {
+                Timber.w(e, "RdpViewModel: HTTP %d loading routes", e.code())
+                _error.value = when (e.code()) {
+                    403 -> ErrorType.Forbidden
+                    else -> ErrorType.ServerError
+                }
+            } catch (e: IOException) {
+                Timber.w(e, "RdpViewModel: network error loading routes")
+                _error.value = ErrorType.Network
             } catch (e: Exception) {
                 Timber.w(e, "RdpViewModel: failed to load routes")
+                _error.value = ErrorType.ServerError
             } finally {
                 _isLoading.value = false
             }

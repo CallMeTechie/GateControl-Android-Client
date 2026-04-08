@@ -79,6 +79,9 @@
     <string name="rdp_timeout_warning">Session expires in %1$d minutes</string>
     <string name="rdp_empty">No RDP hosts configured</string>
     <string name="rdp_pro_required">Pro license required</string>
+    <string name="rdp_error_forbidden">RDP is not available. A Pro license or the required token permission is missing.</string>
+    <string name="rdp_error_network">Could not reach the server. Check your connection and try again.</string>
+    <string name="rdp_error_server">Failed to load RDP hosts. Please try again later.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

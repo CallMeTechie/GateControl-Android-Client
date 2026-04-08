@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,6 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,6 +46,7 @@ fun RdpScreen(viewModel: RdpViewModel = hiltViewModel()) {
     val connectState by viewModel.connectState.collectAsState()
     val activeSessions by viewModel.activeSessions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadRoutes()
@@ -109,7 +113,7 @@ fun RdpScreen(viewModel: RdpViewModel = hiltViewModel()) {
                     }
                 }
 
-                // --- Route list or empty state ---
+                // --- Route list, error, or empty state ---
                 if (isLoading && filteredRoutes.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -117,6 +121,12 @@ fun RdpScreen(viewModel: RdpViewModel = hiltViewModel()) {
                     ) {
                         CircularProgressIndicator()
                     }
+                } else if (error != null && filteredRoutes.isEmpty()) {
+                    ErrorState(
+                        errorType = error!!,
+                        onRetry = { viewModel.loadRoutes() },
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 } else if (filteredRoutes.isEmpty()) {
                     EmptyState(modifier = Modifier.fillMaxSize())
                 } else {
@@ -152,6 +162,42 @@ fun RdpScreen(viewModel: RdpViewModel = hiltViewModel()) {
                 onDismiss = { viewModel.dismissSheet() },
                 onWol = { viewModel.sendWol(route.id) }
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Error state
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ErrorState(
+    errorType: ErrorType,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val message = when (errorType) {
+        ErrorType.Forbidden -> stringResource(R.string.rdp_error_forbidden)
+        ErrorType.Network -> stringResource(R.string.rdp_error_network)
+        ErrorType.ServerError -> stringResource(R.string.rdp_error_server)
+    }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedButton(onClick = onRetry) {
+                Text(stringResource(R.string.retry))
+            }
         }
     }
 }

@@ -79,6 +79,9 @@
     <string name="rdp_timeout_warning">Sitzung läuft in %1$d Minuten ab</string>
     <string name="rdp_empty">Keine RDP-Hosts konfiguriert</string>
     <string name="rdp_pro_required">Pro-Lizenz erforderlich</string>
+    <string name="rdp_error_forbidden">RDP ist nicht verfügbar. Es fehlt eine Pro-Lizenz oder die erforderliche Token-Berechtigung.</string>
+    <string name="rdp_error_network">Server nicht erreichbar. Überprüfe die Verbindung und versuche es erneut.</string>
+    <string name="rdp_error_server">RDP-Hosts konnten nicht geladen werden. Bitte später erneut versuchen.</string>
 
     <!-- Settings -->
     <string name="settings_title">Einstellungen</string>
