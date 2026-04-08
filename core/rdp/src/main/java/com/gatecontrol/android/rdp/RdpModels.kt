@@ -17,7 +17,8 @@ enum class RdpProgress(val step: Int) {
     CREDENTIALS(3),
     CLIENT_LAUNCH(4),
     SESSION_START(5),
-    COMPLETE(6)
+    SERVICE_START(6),
+    COMPLETE(7)
 }
 
 data class RdpCredentials(
