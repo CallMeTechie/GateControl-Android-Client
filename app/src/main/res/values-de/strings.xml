@@ -83,6 +83,16 @@
     <string name="rdp_error_forbidden">RDP ist nicht verfügbar. Es fehlt eine Pro-Lizenz oder die erforderliche Token-Berechtigung.</string>
     <string name="rdp_error_network">Server nicht erreichbar. Überprüfe die Verbindung und versuche es erneut.</string>
     <string name="rdp_error_server">RDP-Hosts konnten nicht geladen werden. Bitte später erneut versuchen.</string>
+    <string name="rdp_embedded_connecting">Verbinde mit Remote-Desktop&#8230;</string>
+    <string name="rdp_embedded_reconnecting">Verbinde erneut&#8230; (%1$d/%2$d)</string>
+    <string name="rdp_embedded_disconnect_confirm">RDP-Sitzung beenden?</string>
+    <string name="rdp_embedded_disconnect_message">Die Remote-Desktop-Sitzung wird getrennt.</string>
+    <string name="rdp_embedded_connection_lost">Verbindung verloren</string>
+    <string name="rdp_embedded_reconnect_failed">Wiederverbindung nach %1$d Versuchen fehlgeschlagen</string>
+    <string name="rdp_progress_service">Starte Dienst&#8230;</string>
+    <string name="notif_rdp_session">RDP: %1$s</string>
+    <string name="notif_rdp_duration">Sitzung: %1$s</string>
+    <string name="notif_rdp_disconnect">Trennen</string>
 
     <!-- Settings -->
     <string name="settings_title">Einstellungen</string>

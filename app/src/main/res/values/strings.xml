@@ -83,6 +83,16 @@
     <string name="rdp_error_forbidden">RDP is not available. A Pro license or the required token permission is missing.</string>
     <string name="rdp_error_network">Could not reach the server. Check your connection and try again.</string>
     <string name="rdp_error_server">Failed to load RDP hosts. Please try again later.</string>
+    <string name="rdp_embedded_connecting">Connecting to remote desktop&#8230;</string>
+    <string name="rdp_embedded_reconnecting">Reconnecting&#8230; (%1$d/%2$d)</string>
+    <string name="rdp_embedded_disconnect_confirm">End RDP session?</string>
+    <string name="rdp_embedded_disconnect_message">The remote desktop session will be disconnected.</string>
+    <string name="rdp_embedded_connection_lost">Connection lost</string>
+    <string name="rdp_embedded_reconnect_failed">Reconnection failed after %1$d attempts</string>
+    <string name="rdp_progress_service">Starting service&#8230;</string>
+    <string name="notif_rdp_session">RDP: %1$s</string>
+    <string name="notif_rdp_duration">Session: %1$s</string>
+    <string name="notif_rdp_disconnect">Disconnect</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
