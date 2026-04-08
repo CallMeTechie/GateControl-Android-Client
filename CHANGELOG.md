@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.25] - 2026-04-08
+
+### Fixes
+- ensureHttps in Setup + Settings ViewModels
+
+---
+
 ## [1.1.24] - 2026-04-08
 
 ### Fixes
