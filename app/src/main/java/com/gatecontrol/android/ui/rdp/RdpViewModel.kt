@@ -33,7 +33,7 @@ enum class ErrorType { Forbidden, Network, ServerError }
 sealed class ConnectState {
     object Idle : ConnectState()
     data class Connecting(val progress: RdpProgress) : ConnectState()
-    data class Connected(val session: RdpSession) : ConnectState()
+    data class Connected(val session: RdpSession, val passwordCopied: Boolean = false) : ConnectState()
     data class Error(val message: String) : ConnectState()
     data class NeedsPassword(val username: String, val domain: String?) : ConnectState()
     object MaintenanceWarning : ConnectState()
@@ -156,7 +156,7 @@ class RdpViewModel @Inject constructor(
 
                 when (result) {
                     is RdpManager.ConnectResult.Success -> {
-                        _connectState.value = ConnectState.Connected(result.session)
+                        _connectState.value = ConnectState.Connected(result.session, result.passwordCopied)
                         _activeSessions.value = _activeSessions.value + result.session
                     }
                     is RdpManager.ConnectResult.NeedsPassword -> {

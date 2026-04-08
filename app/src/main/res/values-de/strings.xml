@@ -77,6 +77,7 @@
     <string name="rdp_progress_session">Starte Sitzung&#8230;</string>
     <string name="rdp_progress_done">Verbunden</string>
     <string name="rdp_timeout_warning">Sitzung läuft in %1$d Minuten ab</string>
+    <string name="rdp_password_copied">Passwort in Zwischenablage kopiert</string>
     <string name="rdp_empty">Keine RDP-Hosts konfiguriert</string>
     <string name="rdp_pro_required">Pro-Lizenz erforderlich</string>
     <string name="rdp_error_forbidden">RDP ist nicht verfügbar. Es fehlt eine Pro-Lizenz oder die erforderliche Token-Berechtigung.</string>

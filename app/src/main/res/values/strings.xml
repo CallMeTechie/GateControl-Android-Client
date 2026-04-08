@@ -77,6 +77,7 @@
     <string name="rdp_progress_session">Starting session&#8230;</string>
     <string name="rdp_progress_done">Connected</string>
     <string name="rdp_timeout_warning">Session expires in %1$d minutes</string>
+    <string name="rdp_password_copied">Password copied to clipboard</string>
     <string name="rdp_empty">No RDP hosts configured</string>
     <string name="rdp_pro_required">Pro license required</string>
     <string name="rdp_error_forbidden">RDP is not available. A Pro license or the required token permission is missing.</string>

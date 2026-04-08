@@ -1,5 +1,7 @@
 package com.gatecontrol.android.rdp
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.RdpEndSessionRequest
@@ -18,7 +20,7 @@ class RdpManager(
 ) {
 
     sealed class ConnectResult {
-        data class Success(val session: RdpSession) : ConnectResult()
+        data class Success(val session: RdpSession, val passwordCopied: Boolean = false) : ConnectResult()
         data class Error(val message: String, val step: RdpProgress) : ConnectResult()
         data class NeedsPassword(val username: String, val domain: String?) : ConnectResult()
         data class MaintenanceWarning(val schedule: String?) : ConnectResult()
@@ -178,6 +180,13 @@ class RdpManager(
 
         // Fall back to external client if embedded is not available
         if (!useEmbedded) {
+            // Copy password to clipboard so the user can paste it in the RDP app.
+            // The rdp:// URI scheme and .rdp files don't support password passing.
+            if (!resolvedPassword.isNullOrEmpty()) {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("rdp-password", resolvedPassword))
+            }
+
             val intent = externalClient.launchIntent(
                 host = host,
                 port = port,
@@ -226,7 +235,7 @@ class RdpManager(
         )
 
         credentialHandler.clear()
-        return ConnectResult.Success(localSession)
+        return ConnectResult.Success(localSession, passwordCopied = !resolvedPassword.isNullOrEmpty() && isExternal)
     }
 
     /**

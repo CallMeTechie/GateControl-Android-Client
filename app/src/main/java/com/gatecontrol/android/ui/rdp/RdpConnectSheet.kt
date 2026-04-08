@@ -88,6 +88,7 @@ fun RdpConnectSheet(
             )
             is ConnectState.Connected -> ConnectedView(
                 session = state.session,
+                passwordCopied = state.passwordCopied,
                 onDisconnect = onDisconnect
             )
             is ConnectState.Error -> ErrorView(
@@ -425,6 +426,7 @@ private fun MaintenanceView(
 @Composable
 private fun ConnectedView(
     session: com.gatecontrol.android.rdp.RdpSession,
+    passwordCopied: Boolean,
     onDisconnect: () -> Unit
 ) {
     val extra = GateControlTheme.extraColors
@@ -457,6 +459,14 @@ private fun ConnectedView(
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
+
+        if (passwordCopied) {
+            Text(
+                text = stringResource(R.string.rdp_password_copied),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
 
         Text(
             text = formatElapsed(elapsed),
