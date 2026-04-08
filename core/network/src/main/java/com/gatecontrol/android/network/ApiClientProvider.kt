@@ -2,8 +2,11 @@ package com.gatecontrol.android.network
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
+import com.google.gson.TypeAdapterFactory
+import com.google.gson.reflect.TypeToken
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
@@ -54,9 +57,9 @@ class ApiClientProvider @Inject constructor(
             .build()
 
         // Gson that tolerates SQLite boolean fields (0/1 as NUMBER instead of true/false)
+        // Uses TypeAdapterFactory to cover both Boolean and Boolean? (nullable) fields
         val gson = GsonBuilder()
-            .registerTypeAdapter(Boolean::class.java, LenientBooleanAdapter())
-            .registerTypeAdapter(Boolean::class.javaPrimitiveType, LenientBooleanAdapter())
+            .registerTypeAdapterFactory(LenientBooleanAdapterFactory())
             .create()
 
         return Retrofit.Builder()
@@ -65,6 +68,17 @@ class ApiClientProvider @Inject constructor(
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiClient::class.java)
+    }
+
+    /** Factory that applies LenientBooleanAdapter to both Boolean and Boolean? fields. */
+    private class LenientBooleanAdapterFactory : TypeAdapterFactory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T> create(gson: Gson, type: TypeToken<T>): TypeAdapter<T>? {
+            if (type.rawType != Boolean::class.java && type.rawType != Boolean::class.javaPrimitiveType) {
+                return null
+            }
+            return LenientBooleanAdapter() as TypeAdapter<T>
+        }
     }
 
     /** Reads JSON booleans, numbers (0/1), and strings ("true"/"false") as Boolean. */

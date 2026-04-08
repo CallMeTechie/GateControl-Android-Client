@@ -134,7 +134,7 @@ class SettingsViewModelTest {
         viewModel.uiState.test {
             awaitItem() // initial state
 
-            viewModel.testConnection()
+            viewModel.testConnection(serverUrl, "gc_test")
             testDispatcher.scheduler.advanceUntilIdle()
 
             val testing = awaitItem()
@@ -151,18 +151,15 @@ class SettingsViewModelTest {
     fun `testConnection sets Failure on exception`() = runTest {
         coEvery { apiClient.ping() } throws RuntimeException("Timeout")
 
-        viewModel.testConnection()
+        viewModel.testConnection(serverUrl, "gc_test")
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(ConnectionTestStatus.Failure, viewModel.uiState.value.connectionTestStatus)
     }
 
     @Test
-    fun `testConnection sets Failure when server URL is blank`() = runTest {
-        every { setupRepository.getServerUrl() } returns ""
-        viewModel = SettingsViewModel(setupRepository, settingsRepository, apiClientProvider, licenseRepository)
-
-        viewModel.testConnection()
+    fun `testConnection sets Failure when URL is blank`() = runTest {
+        viewModel.testConnection("", "gc_test")
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(ConnectionTestStatus.Failure, viewModel.uiState.value.connectionTestStatus)

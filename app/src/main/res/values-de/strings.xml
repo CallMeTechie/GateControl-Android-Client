@@ -87,7 +87,7 @@
     <string name="settings_title">Einstellungen</string>
     <string name="settings_server">Server</string>
     <string name="settings_server_url">Server-URL</string>
-    <string name="settings_server_url_hint">https://gate.example.com</string>
+    <string name="settings_server_url_hint">gate.example.com</string>
     <string name="settings_api_token">API-Token</string>
     <string name="settings_api_token_hint">gc_&#8230;</string>
     <string name="settings_test_connection">Verbindung testen</string>
@@ -118,6 +118,8 @@
     <string name="settings_license_community">Community</string>
     <string name="settings_license_pro">Pro</string>
     <string name="settings_license_activate">Lizenz aktivieren</string>
+    <string name="settings_license_refresh">Lizenz aktualisieren</string>
+    <string name="settings_license_managed">Lizenz wird serverseitig verwaltet</string>
     <string name="settings_logs">Protokolle</string>
     <string name="settings_logs_view">Protokolle anzeigen</string>
     <string name="settings_logs_export">Protokolle exportieren</string>

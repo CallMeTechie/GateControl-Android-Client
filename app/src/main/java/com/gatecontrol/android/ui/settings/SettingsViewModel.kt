@@ -162,16 +162,15 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun testConnection() {
+    fun testConnection(url: String, token: String) {
         viewModelScope.launch {
-            val serverUrl = _uiState.value.serverUrl
-            if (serverUrl.isBlank()) {
+            if (url.isBlank()) {
                 _uiState.update { it.copy(connectionTestStatus = ConnectionTestStatus.Failure) }
                 return@launch
             }
             _uiState.update { it.copy(connectionTestStatus = ConnectionTestStatus.Testing) }
             try {
-                val client = apiClientProvider.getClient(serverUrl)
+                val client = apiClientProvider.getClient(url)
                 val response = client.ping()
                 _uiState.update {
                     it.copy(

@@ -76,14 +76,17 @@ fun SettingsScreen(
             SectionHeader(text = stringResource(R.string.settings_server))
             Spacer(modifier = Modifier.height(8.dp))
 
-            var serverUrlField by remember(uiState.serverUrl) { mutableStateOf(uiState.serverUrl) }
+            var serverUrlField by remember(uiState.serverUrl) {
+                mutableStateOf(uiState.serverUrl.removePrefix("https://").removePrefix("http://"))
+            }
             var apiTokenField by remember(uiState.apiToken) { mutableStateOf(uiState.apiToken) }
 
             OutlinedTextField(
                 value = serverUrlField,
-                onValueChange = { serverUrlField = it },
+                onValueChange = { serverUrlField = it.removePrefix("https://").removePrefix("http://") },
                 label = { Text(stringResource(R.string.settings_server_url)) },
                 placeholder = { Text(stringResource(R.string.settings_server_url_hint)) },
+                prefix = { Text("https://") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -116,13 +119,13 @@ fun SettingsScreen(
             ) {
                 GcOutlineButton(
                     text = stringResource(R.string.settings_test_connection),
-                    onClick = { viewModel.testConnection() },
+                    onClick = { viewModel.testConnection("https://$serverUrlField", apiTokenField) },
                     enabled = uiState.connectionTestStatus != ConnectionTestStatus.Testing,
                     modifier = Modifier.weight(1f)
                 )
                 GcPrimaryButton(
                     text = stringResource(R.string.settings_save_register),
-                    onClick = { viewModel.saveServer(serverUrlField, apiTokenField) },
+                    onClick = { viewModel.saveServer("https://$serverUrlField", apiTokenField) },
                     loading = uiState.isLoading,
                     modifier = Modifier.weight(1f)
                 )
@@ -297,16 +300,17 @@ fun SettingsScreen(
                                else MaterialTheme.colorScheme.onBackground,
                         fontWeight = if (uiState.isPro) FontWeight.Bold else FontWeight.Normal
                     )
-                    if (!uiState.isPro) {
-                        Text(
-                            text = "Pro-Lizenz wird serverseitig verwaltet",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = stringResource(R.string.settings_license_managed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 TextButton(onClick = { viewModel.refreshLicense() }) {
-                    Text(stringResource(R.string.settings_license_activate))
+                    Text(
+                        if (uiState.isPro) stringResource(R.string.settings_license_refresh)
+                        else stringResource(R.string.settings_license_activate)
+                    )
                 }
             }
 
