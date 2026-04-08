@@ -134,7 +134,7 @@ class SettingsViewModelTest {
         viewModel.uiState.test {
             awaitItem() // initial state
 
-            viewModel.testConnection(serverUrl, "gc_test")
+            viewModel.testConnection("https://gate.example.com", "gc_test")
             testDispatcher.scheduler.advanceUntilIdle()
 
             val testing = awaitItem()
@@ -151,7 +151,7 @@ class SettingsViewModelTest {
     fun `testConnection sets Failure on exception`() = runTest {
         coEvery { apiClient.ping() } throws RuntimeException("Timeout")
 
-        viewModel.testConnection(serverUrl, "gc_test")
+        viewModel.testConnection("https://gate.example.com", "gc_test")
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(ConnectionTestStatus.Failure, viewModel.uiState.value.connectionTestStatus)
