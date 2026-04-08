@@ -195,6 +195,15 @@ class VpnViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Invalidate cached API clients so the next request uses a fresh connection.
+     * Must be called when the network changes (VPN connect/disconnect) because
+     * OkHttp's connection pool may hold stale connections on the old interface.
+     */
+    fun invalidateApiClients() {
+        apiClientProvider.invalidate()
+    }
+
     fun loadPermissions() {
         viewModelScope.launch {
             try {

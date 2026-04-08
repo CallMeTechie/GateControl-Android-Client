@@ -71,7 +71,7 @@ fun ServicesScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(modifier = Modifier.weight(1f)) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when {
                 uiState.isLoading -> {
                     CircularProgressIndicator(

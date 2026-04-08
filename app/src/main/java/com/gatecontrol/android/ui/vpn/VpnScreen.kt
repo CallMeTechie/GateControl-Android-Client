@@ -80,12 +80,21 @@ fun VpnScreen(
         }
     }
 
-    // Load data and start monitoring on first composition
+    // Start monitoring on first composition
     LaunchedEffect(Unit) {
         viewModel.startMonitoring()
-        viewModel.loadPermissions()
-        viewModel.loadTrafficStats()
-        viewModel.loadServices()
+    }
+
+    // Reload data when VPN state changes. Invalidate cached HTTP clients first
+    // because OkHttp's connection pool holds stale connections on the old network
+    // interface after VPN connect/disconnect, causing SocketTimeoutExceptions.
+    LaunchedEffect(tunnelState) {
+        if (tunnelState is TunnelState.Connected || tunnelState is TunnelState.Disconnected) {
+            viewModel.invalidateApiClients()
+            viewModel.loadPermissions()
+            viewModel.loadTrafficStats()
+            viewModel.loadServices()
+        }
     }
 
     // Tick every second to update connection duration
