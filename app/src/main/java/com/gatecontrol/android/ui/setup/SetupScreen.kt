@@ -215,6 +215,7 @@ private fun ManualEntrySection(
             onValueChange = onServerUrlChanged,
             label = { Text(stringResource(R.string.settings_server_url)) },
             placeholder = { Text(stringResource(R.string.settings_server_url_hint)) },
+            prefix = { Text("https://") },
             singleLine = true,
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),

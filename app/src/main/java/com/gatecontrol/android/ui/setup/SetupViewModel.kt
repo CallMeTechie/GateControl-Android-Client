@@ -54,7 +54,7 @@ class SetupViewModel @Inject constructor(
     }
 
     fun testConnection() {
-        val url = _uiState.value.serverUrl.trim()
+        val url = ensureHttps(_uiState.value.serverUrl.trim())
         val token = _uiState.value.apiToken.trim()
         if (url.isBlank()) {
             _uiState.update {
@@ -90,7 +90,7 @@ class SetupViewModel @Inject constructor(
     }
 
     fun saveAndRegister() {
-        val url = _uiState.value.serverUrl.trim()
+        val url = ensureHttps(_uiState.value.serverUrl.trim())
         val token = _uiState.value.apiToken.trim()
 
         if (url.isBlank()) {
@@ -164,6 +164,12 @@ class SetupViewModel @Inject constructor(
     fun handleDeepLink(url: String, token: String) {
         _uiState.update { it.copy(serverUrl = url, apiToken = token) }
         saveAndRegister()
+    }
+
+    private fun ensureHttps(url: String): String {
+        if (url.isBlank()) return url
+        if (url.startsWith("http://") || url.startsWith("https://")) return url
+        return "https://$url"
     }
 
     fun importConfig(configText: String) {

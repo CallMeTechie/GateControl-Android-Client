@@ -164,13 +164,14 @@ class SettingsViewModel @Inject constructor(
 
     fun testConnection(url: String, token: String) {
         viewModelScope.launch {
-            if (url.isBlank()) {
+            val safeUrl = ensureHttps(url)
+            if (safeUrl.isBlank()) {
                 _uiState.update { it.copy(connectionTestStatus = ConnectionTestStatus.Failure) }
                 return@launch
             }
             _uiState.update { it.copy(connectionTestStatus = ConnectionTestStatus.Testing) }
             try {
-                val client = apiClientProvider.getClient(url)
+                val client = apiClientProvider.getClient(safeUrl)
                 val response = client.ping()
                 _uiState.update {
                     it.copy(
@@ -185,7 +186,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private fun ensureHttps(url: String): String {
+        if (url.isBlank()) return url
+        if (url.startsWith("http://") || url.startsWith("https://")) return url
+        return "https://$url"
+    }
+
     fun saveServer(url: String, token: String) {
+        val url = ensureHttps(url)
         if (!Validation.validateServerUrl(url)) {
             _uiState.update { it.copy(error = "Invalid server URL") }
             return
