@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.23] - 2026-04-08
+
+### Fixes
+- add retrofit + okhttp dependencies for RDP error handling
+
+---
+
 ## [1.1.22] - 2026-04-08
 
 ### Fixes
