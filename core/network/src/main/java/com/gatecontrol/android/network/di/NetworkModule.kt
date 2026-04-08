@@ -38,6 +38,8 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideApiClientProvider(authInterceptor: AuthInterceptor): ApiClientProvider =
-        ApiClientProvider(authInterceptor)
+    fun provideApiClientProvider(
+        authInterceptor: AuthInterceptor,
+        @ApplicationContext context: Context
+    ): ApiClientProvider = ApiClientProvider(authInterceptor, context)
 }
