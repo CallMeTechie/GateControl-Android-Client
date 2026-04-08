@@ -200,7 +200,12 @@ class TunnelManager @Inject constructor(private val context: Context) {
         parsed.persistentKeepalive?.let { peerBuilder.setPersistentKeepalive(it) }
 
         val allowedIpsRaw = if (splitTunnelRoutes.isNotEmpty()) {
-            splitTunnelRoutes.joinToString(",")
+            // Include DNS server IPs in allowed IPs to prevent DNS leaks
+            val dnsRoutes = parsed.dns.map { dns ->
+                val addr = dns.trim()
+                if (addr.contains(":")) "$addr/128" else "$addr/32"
+            }
+            (splitTunnelRoutes + dnsRoutes).distinct().joinToString(",")
         } else {
             parsed.allowedIps
         }

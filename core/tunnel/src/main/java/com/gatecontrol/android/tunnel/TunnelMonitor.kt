@@ -17,10 +17,15 @@ class TunnelMonitor(
     private val _disconnectEvent = MutableSharedFlow<Unit>()
     val disconnectEvent: SharedFlow<Unit> = _disconnectEvent.asSharedFlow()
 
+    private val _reconnectEvent = MutableSharedFlow<ReconnectRequest>()
+    val reconnectEvent: SharedFlow<ReconnectRequest> = _reconnectEvent.asSharedFlow()
+
     private val _statsEvent = MutableSharedFlow<TunnelStats>()
     val statsEvent: SharedFlow<TunnelStats> = _statsEvent.asSharedFlow()
 
     private var monitorJob: Job? = null
+
+    data class ReconnectRequest(val attempt: Int, val maxAttempts: Int)
 
     fun start(scope: CoroutineScope, statsProvider: suspend () -> TunnelStats?) {
         stop()
@@ -34,7 +39,21 @@ class TunnelMonitor(
                     consecutiveFailures++
                     if (consecutiveFailures >= failuresBeforeDisconnect) {
                         _disconnectEvent.emit(Unit)
-                        break
+                        // Attempt reconnection with exponential backoff
+                        for (attempt in 0 until maxReconnectAttempts) {
+                            val backoffMs = calculateBackoffMs(attempt)
+                            _reconnectEvent.emit(ReconnectRequest(attempt + 1, maxReconnectAttempts))
+                            delay(backoffMs)
+                            val retryStats = statsProvider()
+                            if (retryStats != null && !isHandshakeStale(retryStats.lastHandshakeEpoch, maxHandshakeAgeSec)) {
+                                consecutiveFailures = 0
+                                _statsEvent.emit(retryStats)
+                                break
+                            }
+                            if (attempt == maxReconnectAttempts - 1) {
+                                return@launch // Give up after max attempts
+                            }
+                        }
                     }
                 } else {
                     consecutiveFailures = 0

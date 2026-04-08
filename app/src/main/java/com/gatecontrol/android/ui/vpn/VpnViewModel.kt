@@ -11,6 +11,7 @@ import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
 import com.gatecontrol.android.service.TunnelStateHolder
 import com.gatecontrol.android.tunnel.TunnelManager
+import com.gatecontrol.android.tunnel.TunnelMonitor
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tunnel.TunnelStats
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -89,7 +91,16 @@ class VpnViewModel @Inject constructor(
                 return@launch
             }
             try {
-                tunnelManager.connect(config)
+                val splitEnabled = settingsRepository.getSplitTunnelEnabled().first()
+                val splitRoutes = if (splitEnabled) {
+                    settingsRepository.getSplitTunnelRoutes().first()
+                        .split(",", "\n").map { it.trim() }.filter { it.isNotEmpty() }
+                } else emptyList()
+                val excludedApps = if (splitEnabled) {
+                    settingsRepository.getSplitTunnelApps().first()
+                        .split(",", "\n").map { it.trim() }.filter { it.isNotEmpty() }
+                } else emptyList()
+                tunnelManager.connect(config, splitRoutes, excludedApps)
                 Timber.d("VpnViewModel: tunnel connect requested")
             } catch (e: Exception) {
                 Timber.e(e, "VpnViewModel: connect failed")
