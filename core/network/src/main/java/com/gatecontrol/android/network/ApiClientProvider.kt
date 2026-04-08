@@ -1,10 +1,13 @@
 package com.gatecontrol.android.network
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
+import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -15,7 +18,8 @@ import javax.inject.Singleton
 
 @Singleton
 class ApiClientProvider @Inject constructor(
-    private val authInterceptor: AuthInterceptor
+    private val authInterceptor: AuthInterceptor,
+    @ApplicationContext private val context: Context
 ) {
     private val cache = mutableMapOf<String, ApiClient>()
     private val lock = Any()
@@ -36,8 +40,9 @@ class ApiClientProvider @Inject constructor(
     }
 
     private fun buildClient(baseUrl: String): ApiClient {
+        val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (isDebuggable) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
         }
 
         val okHttpClient = OkHttpClient.Builder()
