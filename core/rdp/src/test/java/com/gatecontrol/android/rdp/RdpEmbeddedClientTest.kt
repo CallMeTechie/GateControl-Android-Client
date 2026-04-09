@@ -35,10 +35,11 @@ class RdpEmbeddedClientTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `isAvailable returns false when FreeRDP is not on the classpath`() {
-        // The FreeRDP AAR is not included as a test dependency, so Class.forName
-        // throws ClassNotFoundException and isAvailable must return false.
-        assertFalse(client.isAvailable())
+    fun `isAvailable returns true when FreeRDP AAR is on the classpath`() {
+        // Phase 2: the AAR is a required build dependency, so LibFreeRDP is
+        // always resolvable in unit tests via the core:rdp testImplementation
+        // declaration of files("libs/freerdp-android.aar").
+        assertTrue(client.isAvailable())
     }
 
     // -------------------------------------------------------------------------
