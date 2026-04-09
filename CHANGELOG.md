@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.2.0] - 2026-04-09
+
+### Added
+- **Embedded FreeRDP client:** RDP sessions now render inside the GateControl
+  app via the upstream FreeRDP 3.24.2 library (arm64-v8a). Touch → mouse and
+  certificate verification dialogs are wired in. No more dependency on an
+  external RDP app — everything happens in one process with `FLAG_SECURE`
+  protecting the remote desktop from screenshots.
+- `RdpBookmarkBuilder`, `RdpSessionEvent`, `GateControlUiEventListener`,
+  `RdpSessionController`, `RdpCanvasView`, `CertificateVerifyDialog` — new
+  embedded-session stack under `com.gatecontrol.android.rdp.freerdp.*` and
+  `com.gatecontrol.android.rdp.*`.
+- `NOTICE` file at repo root with FreeRDP Apache 2.0 + `freeRDPCore/domain`
+  MPL 2.0 attribution.
+- `scripts/sync-freerdp-aar.sh` for developers who prefer to download the
+  AAR artifact from CI instead of building FreeRDP natively.
+
+### Changed
+- `core/rdp/libs/freerdp-android.aar` is now a required build dependency,
+  produced by `.github/workflows/freerdp-build.yml` from the `freerdp/`
+  submodule pinned to tag `3.24.2`. The AAR is committed automatically by
+  the CI bot.
+- `RdpEmbeddedClient.isAvailable()` now returns `true` whenever the AAR is
+  on the classpath (always in shipped builds). `RdpManager.connect()` routes
+  every session through the embedded client; the external RDP-client path
+  is now the defensive fallback.
+- APK ships arm64-v8a only; release size ≈ +6 MB compared to 1.1.26.
+- `:core:rdp` consumes the AAR via `compileOnly` + `testImplementation`; `:app`
+  packages it via `implementation`. This is the AGP-recommended split for
+  library modules that need to reference classes from a local AAR.
+
+### Removed
+- `RdpEmbeddedClient.PHASE_2_ENABLED` feature flag.
+- Phase-1 reflection placeholder in `RdpSessionActivity`.
+
+---
+
 ## [1.1.26] - 2026-04-08
 
 ### Fixes
