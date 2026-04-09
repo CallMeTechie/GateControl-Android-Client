@@ -1,23 +1,54 @@
 package com.gatecontrol.android.rdp
 
-import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.Bundle
-import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.ImageButton
-import android.widget.LinearLayout
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.rdp.freerdp.RdpSessionController
+import com.gatecontrol.android.rdp.freerdp.RdpSessionEvent
 import com.gatecontrol.android.service.RdpSessionService
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 
+/**
+ * Fullscreen Activity that hosts a live FreeRDP session. The activity is
+ * launched by [RdpEmbeddedClient.launchSession] with connection parameters
+ * serialized into Intent extras by [RdpEmbeddedClient.buildSessionIntent].
+ *
+ * Lifecycle:
+ *   - `onCreate` parses params, allocates a [RdpSessionController], starts
+ *     the foreground [RdpSessionService], and kicks off the connect thread.
+ *   - The Compose screen observes `controller.events` and reacts to
+ *     `GraphicsResize` (new Bitmap backbuffer), `GraphicsUpdate` (dirty rect
+ *     invalidate), `VerifyCertificate*` (dialog + runBlocking bridge),
+ *     `ConnectionFailure` / `Disconnected` (finish).
+ *   - `onDestroy` tears down the controller and stops the service.
+ */
 class RdpSessionActivity : ComponentActivity() {
 
     companion object {
@@ -44,11 +75,13 @@ class RdpSessionActivity : ComponentActivity() {
         }
     }
 
-    private var params: RdpConnectionParams? = null
+    private lateinit var controller: RdpSessionController
+    private val certVerdictChannel = Channel<Int>(capacity = 1)
     private var sessionStartMs: Long = 0L
 
-    // FreeRDP references — populated when AAR is available
-    private var freerdpSession: Long = 0L
+    @androidx.annotation.VisibleForTesting
+    internal val controllerForTest: RdpSessionController
+        get() = controller
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,11 +91,12 @@ class RdpSessionActivity : ComponentActivity() {
 
         // Immersive fullscreen
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        val controller = WindowInsetsControllerCompat(window, window.decorView)
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        val windowController = WindowInsetsControllerCompat(window, window.decorView)
+        windowController.hide(WindowInsetsCompat.Type.systemBars())
+        windowController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
-        params = parseConnectionParams(intent)
+        val params = parseConnectionParams(intent)
         if (params == null) {
             Timber.e("RdpSessionActivity: no connection params in intent")
             finish()
@@ -71,193 +105,56 @@ class RdpSessionActivity : ComponentActivity() {
 
         sessionStartMs = System.currentTimeMillis()
 
-        // Create layout: FrameLayout for FreeRDP SessionView + floating toolbar
-        val rootLayout = FrameLayout(this)
-        setContentView(rootLayout)
+        controller = RdpSessionController(
+            context = this,
+            params = params,
+            verifyCertificate = { _, _ ->
+                // This callback runs on the FreeRDP network thread and must
+                // block until the user answers. The dialog is surfaced via the
+                // events StateFlow observed by the Compose tree; the verdict
+                // is posted back through certVerdictChannel.
+                runBlocking { certVerdictChannel.receive() }
+            },
+            authenticate = { _, _ ->
+                // MVP: credentials always come through the Intent. If the
+                // server forces an auth prompt, reject.
+                Timber.w("OnAuthenticate fired unexpectedly — rejecting")
+                false
+            },
+        )
 
-        // Start FreeRDP connection
-        initFreeRdpSession(rootLayout, params!!)
+        startRdpService(params.routeName)
 
-        // Start foreground service
-        startRdpService()
+        setContent { RdpSessionScreen() }
 
-        // Handle back press with confirmation dialog
+        controller.connect()
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                showDisconnectConfirmation()
+                finishSession()
             }
         })
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        disconnectFreeRdp()
+        if (::controller.isInitialized) {
+            controller.disconnect()
+            controller.release()
+        }
         stopRdpService()
-        // Wipe credentials from memory
-        params = null
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // ⚠ PHASE-2 PLACEHOLDER — NOT FUNCTIONAL ⚠
-    //
-    // The reflection code below targets an imagined LibFreeRDP API and is
-    // kept only as a structural reference for the real Phase-2 rewrite:
-    //
-    //   * `setConnectionInfo(long, String, Int, String, ...)` with 15
-    //     primitive parameters does NOT exist in upstream LibFreeRDP.
-    //     Real API: `setConnectionInfo(Context, long, BookmarkBase)` or
-    //               `setConnectionInfo(Context, long, Uri)`.
-    //   * `freeSession(long)` does NOT exist. Real API: `freeInstance(long)`.
-    //   * Missing entirely: EventListener wiring, Bitmap/updateGraphics
-    //     rendering pipeline, sendCursorEvent / sendKeyEvent input forwarding.
-    //
-    // This Activity is therefore never reached at runtime —
-    // `RdpEmbeddedClient.PHASE_2_ENABLED` gates `isAvailable()` to `false`,
-    // so `RdpManager` always routes through `RdpExternalClient`.
-    //
-    // See `docs/FREERDP_INTEGRATION.md` → "Known Gaps" for the Phase-2 plan.
-    // ──────────────────────────────────────────────────────────────────────
-    private fun initFreeRdpSession(container: FrameLayout, params: RdpConnectionParams) {
-        try {
-            // Check if FreeRDP is available
-            val libClass = Class.forName("com.freerdp.freerdpcore.services.LibFreeRDP")
-
-            // Initialize FreeRDP session via reflection
-            val newInstanceMethod = libClass.getMethod("newInstance", android.content.Context::class.java)
-            freerdpSession = newInstanceMethod.invoke(null, this) as Long
-
-            // Configure connection settings
-            configureFreeRdpSettings(libClass, params)
-
-            // Create SessionView and add to container
-            val sessionViewClass = Class.forName("com.freerdp.freerdpcore.presentation.SessionView")
-            val sessionView = sessionViewClass
-                .getConstructor(android.content.Context::class.java)
-                .newInstance(this) as View
-            container.addView(sessionView, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            ))
-
-            // Connect
-            val connectMethod = libClass.getMethod("connect", Long::class.javaPrimitiveType)
-            connectMethod.invoke(null, freerdpSession)
-
-            Timber.i("FreeRDP session started for ${params.routeName}")
-        } catch (e: ClassNotFoundException) {
-            Timber.e("FreeRDP library not found — cannot start embedded session")
-            Toast.makeText(this, getString(R.string.rdp_embedded_connection_lost), Toast.LENGTH_LONG).show()
-            finish()
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to initialize FreeRDP session")
-            Toast.makeText(this, getString(R.string.rdp_embedded_connection_lost), Toast.LENGTH_LONG).show()
-            finish()
+    private fun finishSession() {
+        if (::controller.isInitialized) {
+            controller.disconnect()
         }
-
-        // Add floating toolbar
-        addFloatingToolbar(container)
+        finish()
     }
 
-    private fun configureFreeRdpSettings(libClass: Class<*>, params: RdpConnectionParams) {
-        val setMethod = libClass.getMethod(
-            "setConnectionInfo",
-            Long::class.javaPrimitiveType,     // session
-            String::class.java,                 // hostname
-            Int::class.javaPrimitiveType,       // port
-            String::class.java,                 // username
-            String::class.java,                 // password
-            String::class.java,                 // domain
-            Int::class.javaPrimitiveType,       // width
-            Int::class.javaPrimitiveType,       // height
-            Int::class.javaPrimitiveType,       // colorDepth
-            Boolean::class.javaPrimitiveType,   // redirectClipboard
-            Boolean::class.javaPrimitiveType,   // redirectPrinters
-            Boolean::class.javaPrimitiveType,   // redirectDrives
-            String::class.java,                 // audioMode
-            Boolean::class.javaPrimitiveType,   // adminSession
-            Int::class.javaPrimitiveType        // autoReconnectMaxRetries
-        )
-        setMethod.invoke(
-            null,
-            freerdpSession,
-            params.host,
-            params.port,
-            params.username ?: "",
-            params.password ?: "",
-            params.domain ?: "",
-            params.resolutionWidth,
-            params.resolutionHeight,
-            params.colorDepth,
-            params.redirectClipboard,
-            params.redirectPrinters,
-            params.redirectDrives,
-            params.audioMode,
-            params.adminSession,
-            5 // auto-reconnect max retries
-        )
-    }
-
-    private fun addFloatingToolbar(container: FrameLayout) {
-        val toolbar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(0xCC333333.toInt())
-            setPadding(16, 8, 16, 8)
-        }
-
-        // Disconnect button
-        val disconnectBtn = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            setOnClickListener { showDisconnectConfirmation() }
-            contentDescription = getString(R.string.rdp_disconnect)
-        }
-        toolbar.addView(disconnectBtn)
-
-        // Keyboard toggle button
-        val keyboardBtn = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_menu_edit)
-            setOnClickListener { toggleSoftKeyboard() }
-            contentDescription = "Keyboard"
-        }
-        toolbar.addView(keyboardBtn)
-
-        val layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
-            topMargin = 16
-        }
-
-        container.addView(toolbar, layoutParams)
-    }
-
-    private fun showDisconnectConfirmation() {
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.rdp_embedded_disconnect_confirm))
-            .setMessage(getString(R.string.rdp_embedded_disconnect_message))
-            .setPositiveButton(getString(R.string.rdp_disconnect)) { _, _ -> finish() }
-            .setNegativeButton(getString(R.string.cancel), null)
-            .show()
-    }
-
-    private fun disconnectFreeRdp() {
-        if (freerdpSession != 0L) {
-            try {
-                val libClass = Class.forName("com.freerdp.freerdpcore.services.LibFreeRDP")
-                val disconnectMethod = libClass.getMethod("disconnect", Long::class.javaPrimitiveType)
-                disconnectMethod.invoke(null, freerdpSession)
-                val freeMethod = libClass.getMethod("freeSession", Long::class.javaPrimitiveType)
-                freeMethod.invoke(null, freerdpSession)
-            } catch (e: Exception) {
-                Timber.w(e, "Error disconnecting FreeRDP session")
-            }
-            freerdpSession = 0L
-        }
-    }
-
-    private fun startRdpService() {
+    private fun startRdpService(routeName: String) {
         val serviceIntent = Intent(this, RdpSessionService::class.java).apply {
-            putExtra(RdpSessionService.EXTRA_ROUTE_NAME, params?.routeName ?: "")
+            putExtra(RdpSessionService.EXTRA_ROUTE_NAME, routeName)
             putExtra(RdpSessionService.EXTRA_CONNECTED_SINCE, sessionStartMs)
         }
         startForegroundService(serviceIntent)
@@ -267,11 +164,84 @@ class RdpSessionActivity : ComponentActivity() {
         stopService(Intent(this, RdpSessionService::class.java))
     }
 
-    private fun toggleSoftKeyboard() {
-        val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
-        imm.toggleSoftInput(
-            android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT,
-            0
+    // ------------------------------------------------------------------
+    // Compose screen
+    // ------------------------------------------------------------------
+
+    @Composable
+    private fun RdpSessionScreen() {
+        val event by controller.events.collectAsState()
+        var canvasView by remember { mutableStateOf<RdpCanvasView?>(null) }
+        var surface by remember { mutableStateOf<Bitmap?>(null) }
+
+        LaunchedEffect(event) {
+            when (val e = event) {
+                is RdpSessionEvent.GraphicsResize -> {
+                    val bmp = Bitmap.createBitmap(e.width, e.height, Bitmap.Config.ARGB_8888)
+                    surface = bmp
+                    canvasView?.surface = bmp
+                }
+                is RdpSessionEvent.GraphicsUpdate -> {
+                    canvasView?.invalidateSurfaceRegion(e.x, e.y, e.width, e.height)
+                }
+                is RdpSessionEvent.ConnectionFailure -> {
+                    Timber.e("Connection failed: ${e.reason}")
+                    finish()
+                }
+                is RdpSessionEvent.Disconnected -> {
+                    Timber.i("Disconnected")
+                    finish()
+                }
+                else -> { /* no-op */ }
+            }
+        }
+
+        Box(Modifier.fillMaxSize()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    RdpCanvasView(ctx).also {
+                        it.surface = surface
+                        it.onCursorEvent = { x, y, flags ->
+                            controller.sendCursor(x, y, flags)
+                        }
+                        canvasView = it
+                    }
+                },
+            )
+
+            when (val e = event) {
+                is RdpSessionEvent.VerifyCertificate -> CertificateVerifyDialog(
+                    unknown = e,
+                    changed = null,
+                    onVerdict = { verdict ->
+                        lifecycleScope.launch { certVerdictChannel.send(verdict) }
+                    },
+                )
+                is RdpSessionEvent.VerifyChangedCertificate -> CertificateVerifyDialog(
+                    unknown = null,
+                    changed = e,
+                    onVerdict = { verdict ->
+                        lifecycleScope.launch { certVerdictChannel.send(verdict) }
+                    },
+                )
+                is RdpSessionEvent.AuthenticationRequired -> AuthRequiredDialog {
+                    finishSession()
+                }
+                else -> { /* no-op */ }
+            }
+        }
+    }
+
+    @Composable
+    private fun AuthRequiredDialog(onDismiss: () -> Unit) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.rdp_auth_required_title)) },
+            text = { Text(stringResource(R.string.rdp_auth_required_message)) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.rdp_disconnect)) }
+            },
         )
     }
 }
