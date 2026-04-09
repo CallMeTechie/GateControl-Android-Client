@@ -48,6 +48,7 @@ plans/
 !docs/FEATURES.md
 !docs/ARCHITECTURE.md
 !docs/FAQ.md
+!docs/FREERDP_INTEGRATION.md
 
 # Node / npm (if any tooling)
 node_modules/
