@@ -416,6 +416,7 @@ class RdpViewModelTest {
             onProgress(RdpProgress.CREDENTIALS)
             onProgress(RdpProgress.CLIENT_LAUNCH)
             onProgress(RdpProgress.SESSION_START)
+            onProgress(RdpProgress.SERVICE_START)
             onProgress(RdpProgress.COMPLETE)
             RdpManager.ConnectResult.Success(expectedSession)
         }
@@ -431,6 +432,7 @@ class RdpViewModelTest {
             assertEquals(ConnectState.Connecting(RdpProgress.CREDENTIALS), awaitItem())
             assertEquals(ConnectState.Connecting(RdpProgress.CLIENT_LAUNCH), awaitItem())
             assertEquals(ConnectState.Connecting(RdpProgress.SESSION_START), awaitItem())
+            assertEquals(ConnectState.Connecting(RdpProgress.SERVICE_START), awaitItem())
             assertEquals(ConnectState.Connecting(RdpProgress.COMPLETE), awaitItem())
 
             // Final connected state
@@ -512,5 +514,45 @@ class RdpViewModelTest {
         // State should remain Idle, no API calls made
         assertEquals(ConnectState.Idle, viewModel.connectState.value)
         coVerify(exactly = 0) { rdpManager.connect(any(), any(), any(), any(), any(), any()) }
+    }
+
+    // -------------------------------------------------------------------------
+    // connect — embedded client
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `connect with embedded client sets Connected with passwordCopied false`() = runTest {
+        coEvery { apiClient.getRdpRoutes() } returns RdpRoutesResponse(
+            ok = true,
+            routes = listOf(onlineRoute)
+        )
+        viewModel.loadRoutes()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val expectedSession = RdpSession(
+            routeId = onlineRoute.id,
+            sessionId = 42,
+            host = onlineRoute.host,
+            startTime = System.currentTimeMillis(),
+            isExternal = false
+        )
+
+        coEvery {
+            rdpManager.connect(
+                route = onlineRoute,
+                apiClient = apiClient,
+                isVpnConnected = true,
+                userPassword = null,
+                forceMaintenanceBypass = false,
+                onProgress = any()
+            )
+        } returns RdpManager.ConnectResult.Success(expectedSession, passwordCopied = false)
+
+        viewModel.connect(onlineRoute.id)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.connectState.value
+        assertTrue(state is ConnectState.Connected)
+        assertEquals(false, (state as ConnectState.Connected).passwordCopied)
     }
 }
