@@ -52,11 +52,22 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.timber)
 
-    // FreeRDP embedded client AAR (built from CallMeTechie/aFreeRDP fork)
-    // Activated automatically when the AAR exists (built by freerdp-build.yml CI workflow)
-    if (file("libs/freerdp-android.aar").exists()) {
-        implementation(files("libs/freerdp-android.aar"))
-    }
+    // FreeRDP embedded client AAR (built from freerdp/ submodule by
+    // .github/workflows/freerdp-build.yml).
+    //
+    // AGP forbids direct local .aar dependencies inside a library module
+    // because the classes+resources would not be re-packaged into the
+    // downstream AAR. We therefore split the dependency:
+    //
+    //   :core:rdp  → compileOnly + testImplementation (compile-time symbols,
+    //                test-time Class.forName checks)
+    //   :app       → implementation(files("../core/rdp/libs/freerdp-android.aar"))
+    //                (runtime packaging — classes.dex + jni/arm64-v8a/*.so)
+    //
+    // This is the AGP-recommended pattern for library modules that need to
+    // reference classes from a local AAR without re-bundling them.
+    compileOnly(files("libs/freerdp-android.aar"))
+    testImplementation(files("libs/freerdp-android.aar"))
 
     testImplementation(libs.junit5.api)
     testRuntimeOnly(libs.junit5.engine)

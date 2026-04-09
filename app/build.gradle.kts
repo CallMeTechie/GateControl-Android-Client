@@ -95,6 +95,11 @@ dependencies {
     implementation(project(":core:tunnel"))
     implementation(project(":core:rdp"))
 
+    // FreeRDP embedded client AAR (runtime packaging)
+    // See core/rdp/build.gradle.kts for the rationale behind splitting
+    // this dependency between :core:rdp (compileOnly) and :app (runtime).
+    implementation(files("../core/rdp/libs/freerdp-android.aar"))
+
     // AndroidX Core
     implementation(libs.core.ktx)
     implementation(libs.activity.compose)
