@@ -70,6 +70,19 @@
             </intent-filter>
         </receiver>
 
+        <activity
+            android:name=".rdp.RdpSessionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.GateControl"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
+
+        <service
+            android:name=".service.RdpSessionService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
