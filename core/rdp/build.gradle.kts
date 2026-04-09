@@ -52,8 +52,11 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.timber)
 
-    // FreeRDP - uncomment when AAR is available locally
-    // implementation(files("libs/freerdp-android.aar"))
+    // FreeRDP embedded client AAR (built from CallMeTechie/aFreeRDP fork)
+    // Activated automatically when the AAR exists (built by freerdp-build.yml CI workflow)
+    if (file("libs/freerdp-android.aar").exists()) {
+        implementation(files("libs/freerdp-android.aar"))
+    }
 
     testImplementation(libs.junit5.api)
     testRuntimeOnly(libs.junit5.engine)
