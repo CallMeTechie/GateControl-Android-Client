@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2] - 2026-04-09
+
+### Changes
+- clarify 1.2.1 CHANGELOG entry to reflect Phase 2 FreeRDP content
+
+---
+
 ## [1.2.1] - 2026-04-09
 
 ### Changes
