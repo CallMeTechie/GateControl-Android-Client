@@ -37,6 +37,24 @@ jobs:
             exit 1
           fi
 
+      - name: Check for credential leaks in logs
+        run: |
+          if grep -rn 'Timber\.\(d\|i\|w\|e\).*\(password\|Password\|PASSWORD\|secret\|credential\)' \
+            --include='*.kt' --include='*.java' . \
+            | grep -v 'Test\|test\|\.gradle'; then
+            echo "::error::Found potential credential logging. Never log passwords or secrets."
+            exit 1
+          fi
+
+      - name: Check FLAG_SECURE on RDP Activity
+        run: |
+          if grep -rn 'class RdpSessionActivity' --include='*.kt' -l .; then
+            if ! grep -n 'FLAG_SECURE' app/src/main/java/com/gatecontrol/android/rdp/RdpSessionActivity.kt; then
+              echo "::error::RdpSessionActivity must set FLAG_SECURE to prevent screenshots"
+              exit 1
+            fi
+          fi
+
       - name: Generate coverage report
         if: always()
         run: ./gradlew jacocoTestReport || true

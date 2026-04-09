@@ -36,6 +36,12 @@ jobs:
       - name: Run lint
         run: ./gradlew lintRelease
 
+      - name: Verify FreeRDP AAR exists
+        run: |
+          if [ ! -f core/rdp/libs/freerdp-android.aar ] && [ ! -f core/rdp/libs/.gitkeep ]; then
+            echo "::warning::FreeRDP AAR not found — embedded RDP will use external client fallback"
+          fi
+
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@v4
