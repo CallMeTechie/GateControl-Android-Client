@@ -8,6 +8,8 @@ name: Build FreeRDP AAR
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
       - '.gitmodules'
       - 'core/rdp/FREERDP_VERSION'
