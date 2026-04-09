@@ -42,8 +42,8 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: >-
-            platforms;android-34
-            build-tools;34.0.0
+            platforms;android-35
+            build-tools;35.0.0
             ndk;26.1.10909125
             cmake;3.22.1
 
@@ -76,6 +76,30 @@ jobs:
             --ndk "$ANDROID_NDK_HOME" \
             --sdk "$ANDROID_HOME" \
             --arch arm64-v8a
+
+      - name: Inject release properties for upstream Studio build
+        working-directory: freerdp/client/Android/Studio
+        run: |
+          # Ensure a debug keystore exists — the upstream build.gradle
+          # defaults RELEASE_STORE_FILE to ~/.android/debug.keystore.
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkey -v -keystore "$HOME/.android/debug.keystore" \
+              -storepass android -alias androiddebugkey -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          # Upstream build.gradle does direct Groovy assignment inside
+          # `if (!hasProperty('RELEASE_STORE_FILE')) { RELEASE_STORE_FILE=... }`
+          # which throws MissingPropertyException on Gradle 8+. Defining the
+          # keys in gradle.properties makes hasProperty() true and the broken
+          # block is skipped.
+          cat >> gradle.properties <<EOF
+          RELEASE_STORE_FILE=$HOME/.android/debug.keystore
+          RELEASE_KEY_ALIAS=androiddebugkey
+          RELEASE_KEY_PASSWORD=android
+          RELEASE_STORE_PASSWORD=android
+          EOF
 
       - name: Build freeRDPCore Gradle project
         working-directory: freerdp/client/Android/Studio
