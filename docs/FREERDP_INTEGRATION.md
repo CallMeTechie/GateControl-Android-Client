@@ -198,3 +198,10 @@ tatsächlichen Connect-Versuch mit `NoSuchMethodException` crashen.
 - CI `Build and Release`: **✓ success**
 - CI `Security & Quality`: **✓ success**
 - CI `Build FreeRDP AAR`: **manual-only** (`workflow_dispatch`), kein `push`-Trigger mehr
+
+## Licensing
+
+- FreeRDP core (C + most Java code): **Apache License 2.0**
+- `freeRDPCore/domain/*.java` (`BookmarkBase`, `ManualBookmark`, `ConnectionReference`, etc.): **Mozilla Public License 2.0**
+
+Both licenses are compatible with the project's existing licensing. Attribution is maintained in the top-level `NOTICE` file. When distributing the APK, the NOTICE file must be included.

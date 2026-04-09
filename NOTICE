@@ -1,0 +1,18 @@
+GateControl Android Client
+Copyright 2026 CallMeTechie
+
+This product includes software developed at:
+
+  FreeRDP (https://www.freerdp.com/)
+  Copyright 2009-2024 FreeRDP Project
+  Licensed under the Apache License, Version 2.0
+
+  FreeRDP Core (Android Java wrapper, domain classes)
+  Copyright 2013 Thincast Technologies GmbH
+  Licensed under the Mozilla Public License, v. 2.0
+  (see freerdp/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/domain/*.java)
+
+The full text of the Apache License 2.0 is available at
+  http://www.apache.org/licenses/LICENSE-2.0
+The full text of the Mozilla Public License 2.0 is available at
+  http://mozilla.org/MPL/2.0/
