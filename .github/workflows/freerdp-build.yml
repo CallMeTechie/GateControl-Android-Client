@@ -68,6 +68,24 @@ jobs:
           sed -i 's/^WITH_FFMPEG=.*/WITH_FFMPEG=0/' scripts/android-build.conf
           sed -i 's/^WITH_AAD=.*/WITH_AAD=0/' scripts/android-build.conf
 
+          # Upstream common.sh finds cmake via:
+          #   find $ANDROID_SDK/cmake -name cmake -executable -type f -print -quit
+          # which on modern sdkmanager installs picks up
+          # cmake/<ver>/share/bash-completion/completions/cmake (a shell
+          # snippet, not the real binary). That stub exits 0 when executed
+          # directly, so the driver script reports success without building
+          # anything. Pre-export CMAKE_PROGRAM to the real bin/cmake — the
+          # script honours the pre-set value and skips its buggy find.
+          REAL_CMAKE=$(find "$ANDROID_HOME/cmake" -path "*/bin/cmake" -type f -executable | head -1)
+          if [ -z "$REAL_CMAKE" ]; then
+            echo "::error::No real cmake binary found under $ANDROID_HOME/cmake/*/bin/"
+            ls -la "$ANDROID_HOME/cmake/" || true
+            exit 1
+          fi
+          echo "Using real cmake: $REAL_CMAKE"
+          "$REAL_CMAKE" --version
+          export CMAKE_PROGRAM="$REAL_CMAKE"
+
           # android-build-freerdp.sh auto-sources scripts/android-build.conf
           # then accepts --ndk/--sdk/--arch via common_parse_arguments to
           # supply the environment values. BUILD_DEPS=1 is already on by
@@ -76,6 +94,16 @@ jobs:
             --ndk "$ANDROID_NDK_HOME" \
             --sdk "$ANDROID_HOME" \
             --arch arm64-v8a
+
+          # Sanity check: libfreerdp3.so must have been installed into jniLibs
+          JNI_DIR="client/Android/Studio/freeRDPCore/src/main/jniLibs/arm64-v8a"
+          if [ ! -f "$JNI_DIR/libfreerdp3.so" ]; then
+            echo "::error::FreeRDP build did not produce $JNI_DIR/libfreerdp3.so"
+            ls -la "$JNI_DIR/" || true
+            exit 1
+          fi
+          echo "FreeRDP native libs installed:"
+          ls -la "$JNI_DIR/"
 
       - name: Inject release properties for upstream Studio build
         working-directory: freerdp/client/Android/Studio
