@@ -295,15 +295,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build pkg-config ccache
 
-      - name: Build FreeRDP Android dependencies
+      - name: Build FreeRDP native libraries + dependencies (OpenSSL, cJSON)
         working-directory: freerdp
-        run: |
-          scripts/android-build-deps.sh \
-            --ndk "$ANDROID_NDK_HOME" \
-            --arch arm64-v8a \
-            --api 24
         env:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
+        run: |
+          # android-build-freerdp.sh is the upstream driver. -d pulls and
+          # builds OpenSSL + cJSON, then CMake-builds FreeRDP itself for
+          # the ABI configured in scripts/android-build.conf. We override
+          # the ABI list to arm64-v8a only via the ANDROID_ABI env var that
+          # android-build.conf honours.
+          export ANDROID_NDK="$ANDROID_NDK_HOME"
+          export ANDROID_ABI="arm64-v8a"
+          export ANDROID_API_LEVEL=24
+          bash scripts/android-build-freerdp.sh -d --conf scripts/android-build.conf
 
       - name: Build freeRDPCore Gradle project
         working-directory: freerdp/client/Android/Studio
@@ -311,6 +316,10 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
+          # Upstream Studio project uses Groovy build.gradle (not .kts).
+          # :freeRDPCore assembles the AAR we consume. :aFreeRDP is the
+          # upstream demo app — skip it to save time.
+          chmod +x ./gradlew
           ./gradlew :freeRDPCore:assembleRelease --no-daemon --stacktrace
 
       - name: Locate produced AAR
