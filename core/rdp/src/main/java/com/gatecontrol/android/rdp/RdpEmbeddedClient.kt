@@ -21,6 +21,24 @@ class RdpEmbeddedClient {
         private const val FREERDP_CLASS = "com.freerdp.freerdpcore.services.LibFreeRDP"
         private const val RDP_SESSION_ACTIVITY = "com.gatecontrol.android.rdp.RdpSessionActivity"
 
+        /**
+         * Phase-2 feature flag — embedded FreeRDP integration is intentionally
+         * parked. Set to `true` only when the reflection glue in
+         * [RdpSessionActivity.initFreeRdpSession] / `configureFreeRdpSettings`
+         * has been rewritten against the real upstream `LibFreeRDP` API
+         * (see `docs/FREERDP_INTEGRATION.md` → "Known Gaps").
+         *
+         * Background: the current reflection calls assume a `setConnectionInfo`
+         * overload with 15 primitive parameters and a `freeSession` method,
+         * neither of which exist in upstream `LibFreeRDP`. Additionally the
+         * Activity is missing the Bitmap/`updateGraphics` rendering pipeline
+         * and `EventListener` wiring required for a working session.
+         *
+         * While the flag is `false`, `isAvailable()` unconditionally returns
+         * `false` and `RdpManager` always routes through `RdpExternalClient`.
+         */
+        internal const val PHASE_2_ENABLED = false
+
         // Intent extra keys read by RdpSessionActivity
         const val EXTRA_HOST = "rdp_host"
         const val EXTRA_PORT = "rdp_port"
@@ -39,11 +57,17 @@ class RdpEmbeddedClient {
     }
 
     /**
-     * Returns true if the FreeRDP library is available on the classpath.
-     * When the AAR dependency is not included, this returns false and all
-     * connect attempts should use [RdpExternalClient] instead.
+     * Returns true if the FreeRDP library is available AND the Phase-2
+     * integration has been completed (see [PHASE_2_ENABLED]).
+     *
+     * While Phase-2 is parked, this always returns `false` so that
+     * [RdpManager] routes every session through [RdpExternalClient].
      */
     fun isAvailable(): Boolean {
+        if (!PHASE_2_ENABLED) {
+            Timber.d("FreeRDP embedded client parked (Phase 2 disabled)")
+            return false
+        }
         return try {
             Class.forName(FREERDP_CLASS)
             true
