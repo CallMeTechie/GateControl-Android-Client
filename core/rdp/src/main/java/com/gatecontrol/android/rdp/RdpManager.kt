@@ -175,11 +175,22 @@ class RdpManager(
         val isExternal = !useEmbedded
 
         if (useEmbedded) {
-            // TODO: Launch embedded FreeRDP session when AAR is integrated
-        }
-
-        // Fall back to external client if embedded is not available
-        if (!useEmbedded) {
+            val params = RdpConnectionParams.fromRoute(
+                route = route,
+                username = resolvedUsername,
+                password = resolvedPassword,
+                domain = resolvedDomain
+            )
+            try {
+                embeddedClient.launchSession(context, params)
+            } catch (e: Exception) {
+                credentialHandler.clear()
+                return ConnectResult.Error(
+                    "Failed to launch embedded RDP client: ${e.message}",
+                    RdpProgress.CLIENT_LAUNCH
+                )
+            }
+        } else {
             // Copy password to clipboard so the user can paste it in the RDP app.
             // The rdp:// URI scheme and .rdp files don't support password passing.
             if (!resolvedPassword.isNullOrEmpty()) {
