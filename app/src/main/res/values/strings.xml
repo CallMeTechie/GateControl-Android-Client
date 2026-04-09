@@ -93,6 +93,16 @@
     <string name="notif_rdp_session">RDP: %1$s</string>
     <string name="notif_rdp_duration">Session: %1$s</string>
     <string name="notif_rdp_disconnect">Disconnect</string>
+    <string name="rdp_cert_unknown_title">Server identity not verified</string>
+    <string name="rdp_cert_changed_title">Server identity changed</string>
+    <string name="rdp_cert_host">Host: %1$s:%2$d</string>
+    <string name="rdp_cert_common_name">Common name: %1$s</string>
+    <string name="rdp_cert_fingerprint">Fingerprint: %1$s</string>
+    <string name="rdp_cert_trust_once">Connect once</string>
+    <string name="rdp_cert_trust_always">Always trust</string>
+    <string name="rdp_cert_reject">Reject</string>
+    <string name="rdp_auth_required_title">Authentication required</string>
+    <string name="rdp_auth_required_message">The server requires credentials. Enter them to continue.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
