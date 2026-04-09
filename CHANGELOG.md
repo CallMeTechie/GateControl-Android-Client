@@ -3,7 +3,9 @@
 ## [1.2.1] - 2026-04-09
 
 ### Changes
-- add emulator smoke test for embedded RDP (workflow_dispatch only)
+- Initial unreleased cut carrying the Phase 2 embedded FreeRDP client work
+  from 1.2.0 plus the emulator smoke test harness (workflow_dispatch only).
+  Not published as a GitHub release — superseded by 1.2.2.
 
 ---
 
