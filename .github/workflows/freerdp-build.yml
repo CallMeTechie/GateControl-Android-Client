@@ -1,5 +1,8 @@
 name: Build FreeRDP AAR
 
+# Parked: manual-only until Phase-2 embedded RDP integration begins.
+# See docs/FREERDP_INTEGRATION.md (Known Gaps) and
+# RdpEmbeddedClient.PHASE_2_ENABLED.
 on:
   workflow_dispatch:
     inputs:
@@ -7,9 +10,6 @@ on:
         description: 'FreeRDP git ref to build (tag or branch)'
         required: false
         default: 'master'
-  push:
-    paths:
-      - 'freerdp/**'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
