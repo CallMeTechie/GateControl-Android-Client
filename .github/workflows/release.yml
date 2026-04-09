@@ -38,8 +38,14 @@ jobs:
 
       - name: Verify FreeRDP AAR exists
         run: |
-          if [ ! -f core/rdp/libs/freerdp-android.aar ] && [ ! -f core/rdp/libs/.gitkeep ]; then
-            echo "::warning::FreeRDP AAR not found — embedded RDP will use external client fallback"
+          if [ ! -f core/rdp/libs/freerdp-android.aar ]; then
+            echo "::error::FreeRDP AAR missing - trigger Build FreeRDP AAR workflow and pull the auto-commit"
+            exit 1
+          fi
+          SIZE=$(stat -c %s core/rdp/libs/freerdp-android.aar)
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "::error::AAR too small ($SIZE bytes) - likely corrupt"
+            exit 1
           fi
 
       - name: Upload test results on failure
