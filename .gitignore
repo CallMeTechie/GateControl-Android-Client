@@ -49,6 +49,11 @@ plans/
 !docs/ARCHITECTURE.md
 !docs/FAQ.md
 !docs/FREERDP_INTEGRATION.md
+!docs/superpowers/
+!docs/superpowers/plans/
+!docs/superpowers/plans/*.md
+!docs/superpowers/specs/
+!docs/superpowers/specs/*.md
 
 # Node / npm (if any tooling)
 node_modules/
