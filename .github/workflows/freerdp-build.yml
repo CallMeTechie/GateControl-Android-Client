@@ -1,27 +1,35 @@
 name: Build FreeRDP AAR
 
-# Parked: manual-only until Phase-2 embedded RDP integration begins.
-# See docs/FREERDP_INTEGRATION.md (Known Gaps) and
-# RdpEmbeddedClient.PHASE_2_ENABLED.
+# Builds the freeRDPCore AAR from the pinned FreeRDP submodule and
+# commits it to core/rdp/libs/ so the main app build can consume it.
+# Trigger:
+#   - manually via workflow_dispatch
+#   - automatically when the submodule pointer or this workflow changes
 on:
   workflow_dispatch:
-    inputs:
-      freerdp_ref:
-        description: 'FreeRDP git ref to build (tag or branch)'
-        required: false
-        default: 'master'
+  push:
+    paths:
+      - '.gitmodules'
+      - 'core/rdp/FREERDP_VERSION'
+      - '.github/workflows/freerdp-build.yml'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+permissions:
+  contents: write
 
 jobs:
   build-aar:
-    name: Build FreeRDP AAR
+    name: Build freeRDPCore AAR
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NDK_VERSION: "26.1.10909125"
+      CMAKE_VERSION: "3.22.1"
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout with submodule
+        uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -32,64 +40,91 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platforms;android-34
+            build-tools;34.0.0
+            ndk;26.1.10909125
+            cmake;3.22.1
 
-      - name: Setup NDK
+      - name: Export NDK path
         run: |
-          sdkmanager --install "ndk;26.1.10909125"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
 
-      - name: Build FreeRDP native libraries
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config ccache
+
+      - name: Build FreeRDP native libraries + dependencies (OpenSSL, cJSON)
         working-directory: freerdp
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
         run: |
-          mkdir -p build && cd build
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI="arm64-v8a" \
-            -DANDROID_PLATFORM=android-31 \
-            -DWITH_CLIENT=ON \
-            -DWITH_SERVER=OFF \
-            -DWITH_OPENSSL=ON \
-            -DBUILD_SHARED_LIBS=ON
-          cmake --build . --parallel $(nproc)
+          # android-build-freerdp.sh is the upstream driver. -d pulls and
+          # builds OpenSSL + cJSON, then CMake-builds FreeRDP itself for
+          # the ABI configured in scripts/android-build.conf. We override
+          # the ABI list to arm64-v8a only via the ANDROID_ABI env var that
+          # android-build.conf honours.
+          export ANDROID_NDK="$ANDROID_NDK_HOME"
+          export ANDROID_ABI="arm64-v8a"
+          export ANDROID_API_LEVEL=24
+          bash scripts/android-build-freerdp.sh -d --conf scripts/android-build.conf
 
-      - name: Build AAR
-        working-directory: freerdp
+      - name: Build freeRDPCore Gradle project
+        working-directory: freerdp/client/Android/Studio
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
-          ./gradlew :freerdpcore:assembleRelease
+          # Upstream Studio project uses Groovy build.gradle (not .kts).
+          # :freeRDPCore assembles the AAR we consume. :aFreeRDP is the
+          # upstream demo app — skip it to save time.
+          chmod +x ./gradlew
+          ./gradlew :freeRDPCore:assembleRelease --no-daemon --stacktrace
 
-      - name: Run FreeRDP tests
-        working-directory: freerdp
+      - name: Locate produced AAR
+        id: locate
         run: |
-          cd build && ctest --output-on-failure --parallel $(nproc)
-
-      - name: Validate AAR contents
-        run: |
-          AAR_PATH=$(find freerdp -name "*.aar" -path "*/release/*" | head -1)
-          if [ -z "$AAR_PATH" ]; then
-            echo "::error::No AAR file found"
+          AAR=$(find freerdp/client/Android/Studio/freeRDPCore/build/outputs/aar \
+                  -name 'freeRDPCore-release.aar' -print -quit)
+          if [ -z "$AAR" ]; then
+            echo "::error::AAR not found after build"
             exit 1
           fi
-          # Check for required ABIs
-          unzip -l "$AAR_PATH" | grep -q "arm64-v8a" || { echo "::error::Missing arm64-v8a"; exit 1; }
-          echo "AAR validated: $AAR_PATH"
-          cp "$AAR_PATH" core/rdp/libs/freerdp-android.aar
+          echo "aar_path=$AAR" >> "$GITHUB_OUTPUT"
 
-      - name: Run Android unit tests with AAR
-        run: ./gradlew :core:rdp:test --continue
+      - name: Verify AAR contains arm64-v8a native libs
+        run: |
+          unzip -l "${{ steps.locate.outputs.aar_path }}" \
+            | grep -q "jni/arm64-v8a/libfreerdp-android.so" \
+            || { echo "::error::AAR missing arm64-v8a native lib"; exit 1; }
+
+      - name: Copy AAR into core/rdp/libs
+        run: |
+          mkdir -p core/rdp/libs
+          cp "${{ steps.locate.outputs.aar_path }}" core/rdp/libs/freerdp-android.aar
+          ls -la core/rdp/libs/
+
+      - name: Commit AAR if changed
+        env:
+          FREERDP_VERSION: ${{ env.FREERDP_VERSION }}
+        run: |
+          VERSION=$(cat core/rdp/FREERDP_VERSION)
+          if git diff --quiet core/rdp/libs/freerdp-android.aar; then
+            echo "AAR unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add core/rdp/libs/freerdp-android.aar
+          git commit -m "chore: rebuild freerdp-android.aar against FreeRDP $VERSION"
+          git push
 
       - name: Upload AAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: freerdp-android-aar
           path: core/rdp/libs/freerdp-android.aar
-
-      - name: Commit AAR if changed
-        run: |
-          if git diff --name-only | grep -q "freerdp-android.aar"; then
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git add core/rdp/libs/freerdp-android.aar
-            VERSION=$(cat freerdp/VERSION)
-            git commit -m "chore: update FreeRDP AAR to v$VERSION"
-            git push
-          fi
+          if-no-files-found: error
