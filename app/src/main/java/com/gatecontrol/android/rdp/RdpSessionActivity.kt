@@ -97,6 +97,26 @@ class RdpSessionActivity : ComponentActivity() {
         params = null
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // ⚠ PHASE-2 PLACEHOLDER — NOT FUNCTIONAL ⚠
+    //
+    // The reflection code below targets an imagined LibFreeRDP API and is
+    // kept only as a structural reference for the real Phase-2 rewrite:
+    //
+    //   * `setConnectionInfo(long, String, Int, String, ...)` with 15
+    //     primitive parameters does NOT exist in upstream LibFreeRDP.
+    //     Real API: `setConnectionInfo(Context, long, BookmarkBase)` or
+    //               `setConnectionInfo(Context, long, Uri)`.
+    //   * `freeSession(long)` does NOT exist. Real API: `freeInstance(long)`.
+    //   * Missing entirely: EventListener wiring, Bitmap/updateGraphics
+    //     rendering pipeline, sendCursorEvent / sendKeyEvent input forwarding.
+    //
+    // This Activity is therefore never reached at runtime —
+    // `RdpEmbeddedClient.PHASE_2_ENABLED` gates `isAvailable()` to `false`,
+    // so `RdpManager` always routes through `RdpExternalClient`.
+    //
+    // See `docs/FREERDP_INTEGRATION.md` → "Known Gaps" for the Phase-2 plan.
+    // ──────────────────────────────────────────────────────────────────────
     private fun initFreeRdpSession(container: FrameLayout, params: RdpConnectionParams) {
         try {
             // Check if FreeRDP is available
