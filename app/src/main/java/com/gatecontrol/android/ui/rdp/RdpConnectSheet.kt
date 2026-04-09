@@ -236,6 +236,7 @@ private fun ConnectingView(
             RdpProgress.CREDENTIALS to stringResource(R.string.rdp_progress_creds),
             RdpProgress.CLIENT_LAUNCH to stringResource(R.string.rdp_progress_launch),
             RdpProgress.SESSION_START to stringResource(R.string.rdp_progress_session),
+            RdpProgress.SERVICE_START to stringResource(R.string.rdp_progress_service),
             RdpProgress.COMPLETE to stringResource(R.string.rdp_progress_done)
         )
 
