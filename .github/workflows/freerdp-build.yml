@@ -165,17 +165,19 @@ jobs:
           ls -la core/rdp/libs/
 
       - name: Commit AAR if changed
-        env:
-          FREERDP_VERSION: ${{ env.FREERDP_VERSION }}
         run: |
           VERSION=$(cat core/rdp/FREERDP_VERSION)
-          if git diff --quiet core/rdp/libs/freerdp-android.aar; then
-            echo "AAR unchanged"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # `git add` handles both new-untracked and modified cases. Then
+          # `git diff --cached --quiet` correctly detects whether the index
+          # differs from HEAD — which covers the initial commit of a
+          # previously untracked AAR file.
           git add core/rdp/libs/freerdp-android.aar
+          if git diff --cached --quiet core/rdp/libs/freerdp-android.aar; then
+            echo "AAR unchanged vs HEAD — nothing to commit"
+            exit 0
+          fi
           git commit -m "chore: rebuild freerdp-android.aar against FreeRDP $VERSION"
           git push
 
