@@ -28,6 +28,11 @@
 -keep class org.amnezia.** { *; }
 -dontwarn com.wireguard.**
 
+# ── FreeRDP ───────────────────────────────────────────────
+-keep class com.freerdp.** { *; }
+-dontwarn com.freerdp.**
+-keep class com.gatecontrol.android.rdp.RdpConnectionParams { *; }
+
 # ── Hilt / Dagger ─────────────────────────────────────────
 -keep class dagger.hilt.** { *; }
 -keep class javax.inject.** { *; }
