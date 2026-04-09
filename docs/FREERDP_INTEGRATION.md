@@ -1,11 +1,14 @@
 # FreeRDP Integration
 
-**Status:** Phase 1 abgeschlossen und **bewusst geparkt**. Embedded-Pfad ist hart
-deaktiviert via `RdpEmbeddedClient.PHASE_2_ENABLED = false`. Externer RDP-Client
-bleibt der einzige aktive Pfad. Siehe "Known Gaps" unten für den Grund.
+**Status:** Phase 2 aktiv — der eingebettete FreeRDP-Client läuft in Release-Builds.
+`RdpEmbeddedClient.isAvailable()` liefert `true` sobald die AAR unter
+`core/rdp/libs/` liegt. `RdpManager` routet jede RDP-Verbindung durch den
+eingebetteten Client; der externe RDP-Client-Pfad existiert nur noch als
+defensiver Fallback, wenn die AAR fehlt.
 
 **Datum:** 2026-04-09
-**Plan:** `docs/superpowers/plans/2026-04-08-freerdp-integration.md`
+**Plan:** `docs/superpowers/plans/2026-04-09-freerdp-phase2-integration.md`
+**Vorheriger Plan (Phase 1, geparkt):** `docs/superpowers/plans/2026-04-08-freerdp-integration.md`
 
 ## Ziel
 
@@ -116,80 +119,41 @@ ist — aktueller Run zeigt erwartungsgemäß "CMakeLists.txt not found".
 2. **`RdpSessionActivityTest` auf MockK umgestellt** — `Intent()` in reinem JUnit ohne
    Android Framework speichert keine Extras. Tests nutzen jetzt MockK für Intent.
 
-## Known Gaps (Warum Phase 1 geparkt ist)
+## Phase-2 Komponenten (jetzt live)
 
-Nach Abschluss von Phase 1 wurde festgestellt, dass der ursprüngliche Plan auf einer
-**imaginären `LibFreeRDP`-API** basiert, die im echten FreeRDP-Upstream nicht existiert.
-Die bereits committete Reflection-Glue in `RdpSessionActivity` würde beim ersten
-tatsächlichen Connect-Versuch mit `NoSuchMethodException` crashen.
+| Komponente | Datei | Rolle |
+|------------|-------|-------|
+| `RdpBookmarkBuilder` | `core/rdp/.../freerdp/RdpBookmarkBuilder.kt` | `RdpConnectionParams` → `ManualBookmark` |
+| `RdpSessionEvent` | `core/rdp/.../freerdp/RdpSessionEvent.kt` | Sealed class für Lifecycle-Events |
+| `GateControlUiEventListener` | `core/rdp/.../freerdp/GateControlUiEventListener.kt` | Implementiert `LibFreeRDP.UIEventListener`, postet in `StateFlow` |
+| `RdpSessionController` | `core/rdp/.../freerdp/RdpSessionController.kt` | Background-Thread-Wrapper um `LibFreeRDP.connect`/`disconnect`/`freeInstance` |
+| `RdpCanvasView` | `app/.../rdp/RdpCanvasView.kt` | Custom `View` mit `Bitmap`-Backbuffer + Touch → `sendCursorEvent` |
+| `CertificateVerifyDialog` | `app/.../rdp/CertificateVerifyDialog.kt` | Compose-Dialog für unbekannte/geänderte Zertifikate |
+| `RdpSessionActivity` (rewritten) | `app/.../rdp/RdpSessionActivity.kt` | Fullscreen `ComponentActivity` mit Compose + `runBlocking`-Bridge für Cert-Verdict |
 
-### API-Mismatch mit upstream `FreeRDP/FreeRDP` `client/Android/Studio/freeRDPCore`
+## Upgrading the pinned FreeRDP version
 
-| Unser Code | Upstream-Realität |
-|------------|-------------------|
-| `setConnectionInfo(long, String, int, String, String, String, int, int, int, boolean, boolean, boolean, String, boolean, int)` — 15-Parameter-Variante | **Existiert nicht.** Real: `setConnectionInfo(Context, long, BookmarkBase)` oder `setConnectionInfo(Context, long, Uri)` |
-| `freeSession(long)` | **Existiert nicht.** Real: `freeInstance(long)` |
-| `newInstance(Context) → long` | ✓ passt |
-| `connect(long) → void` | ~ passt (real: `connect(long) → boolean`) |
-| `disconnect(long) → void` | ~ passt (real: `disconnect(long) → boolean`) |
+1. Edit `core/rdp/FREERDP_VERSION` → write the new tag (e.g. `3.25.0`).
+2. `cd freerdp && git fetch --tags && git checkout <new-tag> && cd ..`
+3. `git add freerdp core/rdp/FREERDP_VERSION`
+4. `git commit -m "chore: bump FreeRDP to <new-tag>"`
+5. `git push` — this fires `freerdp-build.yml` which rebuilds the AAR,
+   commits it, and pushes the auto-commit with the updated binary.
+6. After the workflow completes: `git pull` to receive the new AAR.
+7. Smoke-test on a device before tagging a release.
 
-### Fehlende Komponenten im aktuellen Code
+## Phase-2 manual QA checklist
 
-- **Rendering-Pipeline:** Kein `EventListener` registriert, kein `Bitmap`-Backbuffer,
-  kein `updateGraphics(long, Bitmap, int, int, int, int)`-Callback-Handling. Die
-  `SessionView` alleine zeigt nichts an.
-- **Input-Forwarding:** `sendCursorEvent`, `sendKeyEvent`, `sendUnicodeKeyEvent`,
-  `sendClipboardData` werden nie aufgerufen. Touch/Keyboard-Eingaben würden ins
-  Leere laufen.
-- **Zertifikats-Handling:** Kein `EventListener` für die `verifyCertificate*`-Callbacks.
-  Verbindungen zu Servern mit selbstsignierten Zertifikaten würden stumm scheitern.
-- **Submodule:** `freerdp/` enthält nur `VERSION`, nicht die FreeRDP-Sourcen.
-  `freerdp-build.yml` schlägt ohne `CMakeLists.txt` fehl (deshalb jetzt manual-only).
-
-### Warum der Code trotzdem committed bleibt
-
-- Das **Kotlin/UI-Gerüst** (Service, Activity-Skeleton, `RdpConnectionParams`,
-  `RdpEmbeddedClient`, i18n, Progress-UI, Security-Tests) ist framework-agnostisch,
-  sauber getestet und **in Phase 2 wiederverwendbar**.
-- Die **Routing-Logik in `RdpManager`** (Embedded → Intent, Fallback → External) ist
-  korrekt und wird in Phase 2 unverändert benötigt.
-- **`PHASE_2_ENABLED = false`** in `RdpEmbeddedClient` macht die defekte Reflection
-  unerreichbar — `isAvailable()` liefert immer `false`, jeder Connect geht über den
-  funktionierenden External-Client.
-- Die Reflection-Platzhalter in `RdpSessionActivity.initFreeRdpSession` +
-  `configureFreeRdpSettings` sind mit einem großen `⚠ PHASE-2 PLACEHOLDER`-Block
-  markiert und dienen als **Struktur-Referenz** für den Phase-2-Rewrite.
-
-### Benutzer-Impact: Keiner
-
-- `RdpManager.connect()` routet jede Session durch `RdpExternalClient`
-- Passwort landet wie bisher im Clipboard, externer RDP-Client wird gestartet
-- Keine Verhaltensänderung gegenüber Version 1.1.26
-
-## Phase 2 — Was für echte Integration nötig ist
-
-> Dies ist **kein ausgeführter Plan**, sondern eine Skizze für einen späteren
-> eigenständigen Plan.
-
-1. **Submodule einbinden:** `git submodule add https://github.com/FreeRDP/FreeRDP freerdp`
-   auf Tag `3.10.3` pinnen (siehe `freerdp/VERSION`). Alternativ eigenen Fork anlegen,
-   falls Custom-Patches nötig sind.
-2. **`freerdp-build.yml` fixen:** Build-Pfad auf
-   `client/Android/Studio` umstellen, `:freeRDPCore:assembleRelease` dort aufrufen,
-   AAR nach `core/rdp/libs/freerdp-android.aar` kopieren.
-3. **Reflection-Glue neu schreiben** in `RdpSessionActivity`:
-   - `BookmarkBase` oder `Uri` konstruieren statt 15-Parameter `setConnectionInfo`
-   - `freeInstance` statt `freeSession`
-   - `EventListener`-Interface implementieren: `OnConnectionSuccess`,
-     `OnConnectionFailure`, `OnDisconnecting`, `OnPreConnect`, `OnVerify*Certificate`
-4. **Rendering-Pipeline:** `SessionView` + `LibFreeRDPBroadcastReceiver` oder direkte
-   `updateGraphics`-Callbacks → `Bitmap` → `ImageView`-Rendering. An upstream
-   `aFreeRDP`-Client (`client/Android/Studio/aFreeRDP`) orientieren.
-5. **Input-Events:** `OnTouchListener` → `sendCursorEvent`,
-   Soft-Keyboard → `sendKeyEvent`/`sendUnicodeKeyEvent`.
-6. **`PHASE_2_ENABLED = true`** setzen und `:freerdp-build.yml` wieder an
-   `push`-Trigger anbinden.
-7. **Device-Tests** auf echtem Android mit echten RDP-Servern.
+- [ ] Connect to a Windows Server 2019+ target over local VPN
+- [ ] Connect to an `xrdp` target
+- [ ] Verify mouse clicks produce remote actions
+- [ ] Verify soft keyboard input produces remote keystrokes (Phase-2.1 follow-up — only on-screen toolbar shortcuts in first release)
+- [ ] Verify back-press disconnects cleanly (no process orphaned)
+- [ ] Verify foreground notification appears and is dismissible
+- [ ] Verify `FLAG_SECURE` — attempt to screenshot, confirm blank
+- [ ] Verify certificate dialog fires for self-signed cert
+- [ ] Verify "always trust" persists across app restart
+- [ ] Verify APK install size < 50 MB
 
 ## Tests
 
