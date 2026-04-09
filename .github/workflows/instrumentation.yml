@@ -1,0 +1,41 @@
+name: Instrumentation Tests
+
+# Manual-only: runs the RdpSessionSmokeTest on an Android emulator with
+# an xrdp sidecar. Not wired into normal push/PR because:
+#   - macos-latest runners are expensive (10x ubuntu minute cost)
+#   - xrdp-in-docker is flaky and false negatives would block merges
+#   - real release gating is the manual QA checklist in
+#     docs/FREERDP_INTEGRATION.md
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    services:
+      xrdp:
+        image: linuxserver/xrdp:3389
+        ports:
+          - 3389:3389
+        env:
+          PUID: 1000
+          PGID: 1000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Verify AAR present
+        run: test -f core/rdp/libs/freerdp-android.aar
+      - name: Run connected test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: arm64-v8a
+          profile: pixel_6
+          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
