@@ -22,6 +22,14 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // FreeRDP native libs only ship as arm64-v8a (see
+        // .github/workflows/freerdp-build.yml). Restrict the APK to the
+        // same ABI so it cannot accidentally package other architectures
+        // from other libraries and bloat the install size.
+        ndk {
+            abiFilters += setOf("arm64-v8a")
+        }
     }
 
     signingConfigs {
