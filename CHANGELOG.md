@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.4] - 2026-04-10
+
+### Fixes
+- initialize FreeRDP sessionMap via reflection to prevent RDP crash
+
+---
+
 ## [1.2.3] - 2026-04-10
 
 ### Changes
