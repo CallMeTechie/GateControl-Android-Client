@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.7] - 2026-04-10
+
+### Fixes
+- correct diagnostic log references (E2eePayload.data.length, remove e2eeEnabled)
+
+---
+
 ## [1.2.6] - 2026-04-10
 
 ### Fixes
