@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.3] - 2026-04-10
+
+### Changes
+- update save() test to match commitBatch() signature
+
+---
+
 ## [1.2.2] - 2026-04-09
 
 ### Changes
