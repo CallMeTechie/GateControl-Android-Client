@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.6] - 2026-04-10
+
+### Fixes
+- only show auth dialog when credentials are actually missing
+
+---
+
 ## [1.2.5] - 2026-04-10
 
 ### Fixes
