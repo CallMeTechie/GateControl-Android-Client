@@ -132,8 +132,8 @@ class RdpManager(
 
             val connection = connectionResponse.connection
             val e2eePayload = connection.credentialsE2ee
-            Timber.i("RDP connect: e2eePayload=${if (e2eePayload != null) "present (${e2eePayload.length} chars)" else "NULL"}")
-            Timber.i("RDP connect: connection host=${connection.host}, port=${connection.port}, e2ee=${connection.e2eeEnabled}")
+            Timber.i("RDP connect: e2eePayload=${if (e2eePayload != null) "present (data=${e2eePayload.data.length} chars)" else "NULL"}")
+            Timber.i("RDP connect: connection host=${connection.host}, port=${connection.port}, credentialMode=${connection.credentialMode}")
 
             if (credentialMode == CredentialMode.FULL) {
                 if (e2eePayload != null) {
