@@ -15,9 +15,15 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
     }
 
     fun save(serverUrl: String, apiToken: String, peerId: Int) {
-        storage.putString(KEY_SERVER_URL, serverUrl)
-        storage.putString(KEY_API_TOKEN, apiToken)
-        storage.putInt(KEY_PEER_ID, peerId)
+        // Use synchronous commit (not apply) so the values are immediately
+        // readable by AuthInterceptor when testConnection() calls ping()
+        // right after save(). Three separate apply() calls created a race
+        // condition where getApiToken() returned stale data.
+        storage.commitBatch(
+            KEY_SERVER_URL to serverUrl,
+            KEY_API_TOKEN to apiToken,
+            KEY_PEER_ID to peerId,
+        )
     }
 
     fun getServerUrl(): String = storage.getString(KEY_SERVER_URL, "")

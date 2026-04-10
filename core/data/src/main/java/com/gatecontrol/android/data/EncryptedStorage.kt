@@ -30,6 +30,23 @@ class EncryptedStorage @Inject constructor(context: Context) {
         prefs.edit().putString(key, value).apply()
     }
 
+    /**
+     * Write multiple key-value pairs in a single synchronous commit.
+     * Use this when subsequent code reads from prefs immediately after writing.
+     */
+    fun commitBatch(vararg entries: Pair<String, Any>) {
+        val editor = prefs.edit()
+        for ((key, value) in entries) {
+            when (value) {
+                is String -> editor.putString(key, value)
+                is Int -> editor.putInt(key, value)
+                is Boolean -> editor.putBoolean(key, value)
+                else -> throw IllegalArgumentException("Unsupported type for key $key")
+            }
+        }
+        editor.commit()
+    }
+
     fun getString(key: String, default: String): String {
         return prefs.getString(key, default) ?: default
     }
