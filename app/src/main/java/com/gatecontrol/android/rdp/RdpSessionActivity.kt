@@ -105,24 +105,34 @@ class RdpSessionActivity : ComponentActivity() {
 
         sessionStartMs = System.currentTimeMillis()
 
+        // Diagnostic log for RDP debugging — written to Downloads folder
+        val diagLog = RdpDiagnosticLog(this)
+        diagLog.log("=== RDP Session Start ===")
+        diagLog.log("Host: ${params.host}:${params.port}")
+        diagLog.log("Username: ${if (params.username.isNullOrEmpty()) "EMPTY" else "${params.username} (${params.username?.length} chars)"}")
+        diagLog.log("Password: ${if (params.password.isNullOrEmpty()) "EMPTY" else "SET (${params.password?.length} chars)"}")
+        diagLog.log("Domain: ${params.domain ?: "null"}")
+        diagLog.log("Resolution: ${params.resolutionWidth}x${params.resolutionHeight} @${params.colorDepth}bpp")
+        diagLog.log("NLA: see bookmark advancedSettings.security")
+        diagLog.log("AdminSession: ${params.adminSession}")
+
         controller = RdpSessionController(
             context = this,
             params = params,
-            verifyCertificate = { _, _ ->
-                // This callback runs on the FreeRDP network thread and must
-                // block until the user answers. The dialog is surfaced via the
-                // events StateFlow observed by the Compose tree; the verdict
-                // is posted back through certVerdictChannel.
+            verifyCertificate = { unknown, changed ->
+                diagLog.log("OnVerifyCertificate: unknown=${unknown != null}, changed=${changed != null}")
                 runBlocking { certVerdictChannel.receive() }
             },
             authenticate = { username, password ->
-                // FreeRDP calls OnAuthenticate during NLA negotiation even
-                // when credentials were already set via /u: /p: args. The
-                // StringBuilder params contain the pre-filled values. Return
-                // true to let FreeRDP proceed with them.
-                val hasCredentials = username.isNotEmpty() || password.isNotEmpty()
+                val uLen = username.length
+                val pLen = password.length
+                val hasCredentials = uLen > 0 || pLen > 0
+                diagLog.log("OnAuthenticate called: username=${uLen} chars, password=${pLen} chars, hasCredentials=$hasCredentials")
                 if (!hasCredentials) {
                     Timber.w("OnAuthenticate: no credentials available — rejecting")
+                    diagLog.log("OnAuthenticate: REJECTING (no credentials in StringBuilder params)")
+                } else {
+                    diagLog.log("OnAuthenticate: ACCEPTING (credentials present)")
                 }
                 hasCredentials
             },
@@ -132,7 +142,9 @@ class RdpSessionActivity : ComponentActivity() {
 
         setContent { RdpSessionScreen() }
 
+        diagLog.log("Calling controller.connect()...")
         controller.connect()
+        diagLog.log("controller.connect() returned (async thread started)")
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {

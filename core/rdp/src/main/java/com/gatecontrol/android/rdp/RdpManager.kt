@@ -9,6 +9,7 @@ import com.gatecontrol.android.network.RdpHeartbeatRequest
 import com.gatecontrol.android.network.RdpRoute
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class RdpManager(
     private val context: Context,
@@ -109,6 +110,7 @@ class RdpManager(
             "user_only" -> CredentialMode.USER_ONLY
             else -> CredentialMode.NONE
         }
+        Timber.i("RDP connect: credentialMode=${route.credentialMode} -> $credentialMode")
 
         var resolvedUsername: String? = null
         var resolvedPassword: String? = null
@@ -116,9 +118,11 @@ class RdpManager(
 
         if (credentialMode != CredentialMode.NONE) {
             val publicKey = credentialHandler.generatePublicKey()
+            Timber.i("RDP connect: ECDH publicKey generated (${publicKey.length} chars)")
             val connectionResponse = try {
                 apiClient.getRdpConnection(route.id, ecdhPublicKey = publicKey)
             } catch (e: Exception) {
+                Timber.e(e, "RDP connect: credential fetch FAILED")
                 credentialHandler.clear()
                 return ConnectResult.Error(
                     "Failed to fetch credentials: ${e.message}",
@@ -128,12 +132,15 @@ class RdpManager(
 
             val connection = connectionResponse.connection
             val e2eePayload = connection.credentialsE2ee
+            Timber.i("RDP connect: e2eePayload=${if (e2eePayload != null) "present (${e2eePayload.length} chars)" else "NULL"}")
+            Timber.i("RDP connect: connection host=${connection.host}, port=${connection.port}, e2ee=${connection.e2eeEnabled}")
 
             if (credentialMode == CredentialMode.FULL) {
                 if (e2eePayload != null) {
                     val creds = try {
                         credentialHandler.decryptCredentials(e2eePayload)
                     } catch (e: Exception) {
+                        Timber.e(e, "RDP connect: E2EE decrypt FAILED")
                         credentialHandler.clear()
                         return ConnectResult.Error(
                             "Failed to decrypt credentials: ${e.message}",
@@ -143,6 +150,9 @@ class RdpManager(
                     resolvedUsername = creds.username
                     resolvedPassword = creds.password
                     resolvedDomain = creds.domain ?: route.domain
+                    Timber.i("RDP connect: decrypted username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "${resolvedUsername!!.length} chars"}, password=${if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "${resolvedPassword!!.length} chars"}, domain=$resolvedDomain")
+                } else {
+                    Timber.w("RDP connect: credentialMode=FULL but e2eePayload is NULL — no credentials!")
                 }
             } else if (credentialMode == CredentialMode.USER_ONLY) {
                 if (e2eePayload != null) {
@@ -173,6 +183,8 @@ class RdpManager(
         onProgress(RdpProgress.CLIENT_LAUNCH)
         val useEmbedded = embeddedClient.isAvailable()
         val isExternal = !useEmbedded
+
+        Timber.i("RDP connect: launching client — embedded=$useEmbedded, username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "SET"}, password=${if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "SET"}")
 
         if (useEmbedded) {
             val params = RdpConnectionParams.fromRoute(
