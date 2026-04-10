@@ -115,11 +115,16 @@ class RdpSessionActivity : ComponentActivity() {
                 // is posted back through certVerdictChannel.
                 runBlocking { certVerdictChannel.receive() }
             },
-            authenticate = { _, _ ->
-                // MVP: credentials always come through the Intent. If the
-                // server forces an auth prompt, reject.
-                Timber.w("OnAuthenticate fired unexpectedly — rejecting")
-                false
+            authenticate = { username, password ->
+                // FreeRDP calls OnAuthenticate during NLA negotiation even
+                // when credentials were already set via /u: /p: args. The
+                // StringBuilder params contain the pre-filled values. Return
+                // true to let FreeRDP proceed with them.
+                val hasCredentials = username.isNotEmpty() || password.isNotEmpty()
+                if (!hasCredentials) {
+                    Timber.w("OnAuthenticate: no credentials available — rejecting")
+                }
+                hasCredentials
             },
         )
 
