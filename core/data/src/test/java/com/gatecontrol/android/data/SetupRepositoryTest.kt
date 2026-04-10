@@ -24,9 +24,13 @@ class SetupRepositoryTest {
     fun `save stores serverUrl, apiToken and peerId`() {
         repository.save("https://example.com", "token123", 42)
 
-        verify { storage.putString("server_url", "https://example.com") }
-        verify { storage.putString("api_token", "token123") }
-        verify { storage.putInt("peer_id", 42) }
+        verify {
+            storage.commitBatch(
+                "server_url" to "https://example.com",
+                "api_token" to "token123",
+                "peer_id" to 42,
+            )
+        }
     }
 
     @Test
