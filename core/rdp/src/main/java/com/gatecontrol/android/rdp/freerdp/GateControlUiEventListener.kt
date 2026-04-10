@@ -42,8 +42,11 @@ class GateControlUiEventListener(
         domain: StringBuilder,
         password: StringBuilder,
     ): Boolean {
-        eventFlow.value = RdpSessionEvent.AuthenticationRequired(gateway = false)
-        return authenticate(username, password)
+        val result = authenticate(username, password)
+        if (!result) {
+            eventFlow.value = RdpSessionEvent.AuthenticationRequired(gateway = false)
+        }
+        return result
     }
 
     override fun OnGatewayAuthenticate(
@@ -51,8 +54,11 @@ class GateControlUiEventListener(
         domain: StringBuilder,
         password: StringBuilder,
     ): Boolean {
-        eventFlow.value = RdpSessionEvent.AuthenticationRequired(gateway = true)
-        return authenticate(username, password)
+        val result = authenticate(username, password)
+        if (!result) {
+            eventFlow.value = RdpSessionEvent.AuthenticationRequired(gateway = true)
+        }
+        return result
     }
 
     override fun OnVerifiyCertificateEx(
