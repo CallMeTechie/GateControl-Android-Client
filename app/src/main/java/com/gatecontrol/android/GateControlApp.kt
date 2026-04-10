@@ -56,6 +56,25 @@ class GateControlApp : Application() {
         } catch (e: Throwable) {
             Timber.e(e, "Failed to register TunnelStateHolder singletons")
         }
+
+        // Initialize FreeRDP's GlobalApp.sessionMap, which is normally set in
+        // GlobalApp.onCreate(). Since GateControlApp extends Application (Hilt
+        // requirement), not GlobalApp, that lifecycle never fires. Without this,
+        // GlobalApp.createSession() NPEs on the null sessionMap when a user taps
+        // an RDP route. Reflection avoids modifying the freerdp submodule.
+        try {
+            val sessionMapField = com.freerdp.freerdpcore.application.GlobalApp::class.java
+                .getDeclaredField("sessionMap")
+            sessionMapField.isAccessible = true
+            if (sessionMapField.get(null) == null) {
+                sessionMapField.set(null, java.util.Collections.synchronizedMap(
+                    java.util.HashMap<Long, Any>()
+                ))
+                Timber.d("FreeRDP sessionMap initialized")
+            }
+        } catch (e: Throwable) {
+            Timber.w(e, "FreeRDP GlobalApp init failed — embedded RDP may crash")
+        }
     }
 
     @EntryPoint
