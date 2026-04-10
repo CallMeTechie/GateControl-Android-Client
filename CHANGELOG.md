@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.5] - 2026-04-10
+
+### Fixes
+- accept FreeRDP OnAuthenticate callback instead of rejecting
+
+---
+
 ## [1.2.4] - 2026-04-10
 
 ### Fixes
