@@ -15,10 +15,10 @@ import javax.crypto.spec.SecretKeySpec
 class E2EEHandler {
 
     data class EncryptedPayload(
-        val data: String,           // Base64: ciphertext + authTag
+        val data: String,           // Base64: ciphertext only (without tag)
         val iv: String,             // Base64: 12-byte IV
-        val authTag: String,        // Base64: 16-byte GCM tag (already appended to data by server)
-        val serverPublicKey: String // Base64: server ECDH public key (X.509 encoded)
+        val authTag: String,        // Base64: 16-byte GCM auth tag (separate from data)
+        val serverPublicKey: String // Base64: server ECDH public key (X.509 or raw)
     )
 
     data class Credentials(
@@ -75,8 +75,13 @@ class E2EEHandler {
         val derivedKey = hkdf(sharedSecret, salt, info, 32)
 
         // 4. AES-256-GCM decrypt
+        //    Server sends ciphertext and authTag as separate Base64 fields.
+        //    Java's AES/GCM/NoPadding expects ciphertext || authTag concatenated
+        //    as input to doFinal().
         val iv = Base64.getDecoder().decode(payload.iv)
-        val ciphertextWithTag = Base64.getDecoder().decode(payload.data)
+        val ciphertext = Base64.getDecoder().decode(payload.data)
+        val authTag = Base64.getDecoder().decode(payload.authTag)
+        val ciphertextWithTag = ciphertext + authTag
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val gcmSpec = GCMParameterSpec(128, iv) // 128-bit auth tag
