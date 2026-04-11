@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.16] - 2026-04-11
+
+### Fixes
+- validate API token on app start, redirect to setup when expired
+
+---
+
 ## [1.2.15] - 2026-04-11
 
 ### Fixes
