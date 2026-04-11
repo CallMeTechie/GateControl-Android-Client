@@ -47,11 +47,16 @@ class RdpCredentialHandlerTest {
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(derivedKey, "AES"), GCMParameterSpec(128, iv))
         val ciphertextWithTag = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
 
+        // Node.js server sends ciphertext and authTag as separate fields.
+        val tagSize = 16
+        val ciphertextOnly = ciphertextWithTag.copyOfRange(0, ciphertextWithTag.size - tagSize)
+        val authTagBytes = ciphertextWithTag.copyOfRange(ciphertextWithTag.size - tagSize, ciphertextWithTag.size)
+
         val encoder = Base64.getEncoder()
         return E2eePayload(
-            data = encoder.encodeToString(ciphertextWithTag),
+            data = encoder.encodeToString(ciphertextOnly),
             iv = encoder.encodeToString(iv),
-            authTag = encoder.encodeToString(ciphertextWithTag.takeLast(16).toByteArray()),
+            authTag = encoder.encodeToString(authTagBytes),
             serverPublicKey = encoder.encodeToString(serverPubBytes)
         )
     }
