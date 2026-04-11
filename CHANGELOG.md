@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.19] - 2026-04-11
+
+### Fixes
+- add missing imports + update theme default test to 'system'
+
+---
+
 ## [1.2.18] - 2026-04-11
 
 ### Fixes
