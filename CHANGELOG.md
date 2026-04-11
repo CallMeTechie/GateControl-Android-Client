@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.17] - 2026-04-11
+
+### Fixes
+- use explicit Dns object instead of SAM lambda (Kotlin type inference)
+
+---
+
 ## [1.2.16] - 2026-04-11
 
 ### Fixes
