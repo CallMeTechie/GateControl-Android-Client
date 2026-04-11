@@ -76,6 +76,7 @@ class RdpSessionActivity : ComponentActivity() {
     }
 
     private lateinit var controller: RdpSessionController
+    private lateinit var diagLog: RdpDiagnosticLog
     private val certVerdictChannel = Channel<Int>(capacity = 1)
     private var sessionStartMs: Long = 0L
 
@@ -106,7 +107,7 @@ class RdpSessionActivity : ComponentActivity() {
         sessionStartMs = System.currentTimeMillis()
 
         // Diagnostic log for RDP debugging — written to Downloads folder
-        val diagLog = RdpDiagnosticLog(this)
+        diagLog = RdpDiagnosticLog(this)
         diagLog.log("=== RDP Session Start ===")
         diagLog.log("Host: ${params.host}:${params.port}")
         diagLog.log("Username: ${if (params.username.isNullOrEmpty()) "EMPTY" else "${params.username} (${params.username?.length} chars)"}")
@@ -138,6 +139,12 @@ class RdpSessionActivity : ComponentActivity() {
             },
         )
 
+        // Verify session registration
+        val inst = controller.instance
+        val session = com.freerdp.freerdpcore.application.GlobalApp.getSession(inst)
+        diagLog.log("Controller instance=$inst, GlobalApp.getSession=${if (session != null) "FOUND" else "NULL"}")
+        diagLog.log("SessionMap size=${com.freerdp.freerdpcore.application.GlobalApp.getSessions()?.size ?: "null"}")
+
         startRdpService(params.routeName)
 
         setContent { RdpSessionScreen() }
@@ -145,6 +152,13 @@ class RdpSessionActivity : ComponentActivity() {
         diagLog.log("Calling controller.connect()...")
         controller.connect()
         diagLog.log("controller.connect() returned (async thread started)")
+
+        // Monitor events on a background coroutine and log ALL of them
+        lifecycleScope.launch {
+            controller.events.collect { event ->
+                diagLog.log("EVENT: ${event::class.simpleName} — $event")
+            }
+        }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
