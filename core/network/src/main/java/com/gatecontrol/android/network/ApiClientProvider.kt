@@ -50,15 +50,17 @@ class ApiClientProvider @Inject constructor(
         } catch (_: Exception) { /* ignore — will use cached value or fail later */ }
     }
 
-    private val vpnSafeDns = Dns { hostname ->
-        try {
-            // Try system DNS first (works when VPN is down or on Wi-Fi)
-            Dns.SYSTEM.lookup(hostname)
-        } catch (_: Exception) {
-            // System DNS failed (VPN is up, app excluded) — use cache
-            dnsCache[hostname] ?: throw java.net.UnknownHostException(
-                "DNS lookup failed for $hostname (system DNS unreachable, no cache)"
-            )
+    private val vpnSafeDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            return try {
+                // Try system DNS first (works when VPN is down or on Wi-Fi)
+                Dns.SYSTEM.lookup(hostname)
+            } catch (_: Exception) {
+                // System DNS failed (VPN is up, app excluded) — use cache
+                dnsCache[hostname] ?: throw java.net.UnknownHostException(
+                    "DNS lookup failed for $hostname (system DNS unreachable, no cache)"
+                )
+            }
         }
     }
 
