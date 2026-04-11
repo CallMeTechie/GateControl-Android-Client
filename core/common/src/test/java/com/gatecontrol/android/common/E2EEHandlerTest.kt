@@ -66,14 +66,18 @@ class E2EEHandlerTest {
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec)
         val ciphertextWithTag = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
 
-        val encoder = Base64.getEncoder()
-        // authTag is the last 16 bytes of ciphertextWithTag (GCM appends it)
-        val authTagBase64 = encoder.encodeToString(ciphertextWithTag.takeLast(16).toByteArray())
+        // Node.js server sends ciphertext and authTag as SEPARATE fields.
+        // Java GCM doFinal returns ciphertext || 16-byte-tag concatenated,
+        // so split them to match the real server response format.
+        val tagSize = 16
+        val ciphertextOnly = ciphertextWithTag.copyOfRange(0, ciphertextWithTag.size - tagSize)
+        val authTagBytes = ciphertextWithTag.copyOfRange(ciphertextWithTag.size - tagSize, ciphertextWithTag.size)
 
+        val encoder = Base64.getEncoder()
         return E2EEHandler.EncryptedPayload(
-            data = encoder.encodeToString(ciphertextWithTag),
+            data = encoder.encodeToString(ciphertextOnly),
             iv = encoder.encodeToString(iv),
-            authTag = authTagBase64,
+            authTag = encoder.encodeToString(authTagBytes),
             serverPublicKey = encoder.encodeToString(serverPubBytes)
         )
     }
