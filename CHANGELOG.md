@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.11] - 2026-04-11
+
+### Fixes
+- create bitmap from SettingsChanged (FreeRDP 3.x never fires GraphicsResize)
+
+---
+
 ## [1.2.10] - 2026-04-11
 
 ### Changes
