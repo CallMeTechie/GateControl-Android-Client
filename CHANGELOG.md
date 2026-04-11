@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.9] - 2026-04-11
+
+### Fixes
+- register bitmap with FreeRDP and call updateGraphics for rendering
+
+---
+
 ## [1.2.8] - 2026-04-11
 
 ### Changes
