@@ -100,6 +100,15 @@ class VpnViewModel @Inject constructor(
         if (monitoringStarted) return
         monitoringStarted = true
 
+        // Pre-resolve DNS for the server in case VPN is already active
+        val serverUrl = setupRepository.getServerUrl()
+        if (serverUrl.isNotEmpty()) {
+            try {
+                val host = java.net.URI(serverUrl).host
+                if (host != null) apiClientProvider.preResolveDns(host)
+            } catch (_: Exception) {}
+        }
+
         viewModelScope.launch {
             tunnelManager.state.collect { state ->
                 TunnelStateHolder.isConnected = state is TunnelState.Connected
@@ -124,6 +133,16 @@ class VpnViewModel @Inject constructor(
             if (config.isEmpty()) {
                 Timber.w("VpnViewModel: no WireGuard config available")
                 return@launch
+            }
+            // Pre-resolve server hostname BEFORE VPN starts, so API calls
+            // work after the VPN is up (when system DNS points to 10.8.0.1
+            // which is unreachable from the excluded GateControl app).
+            val serverUrl = setupRepository.getServerUrl()
+            if (serverUrl.isNotEmpty()) {
+                try {
+                    val host = java.net.URI(serverUrl).host
+                    if (host != null) apiClientProvider.preResolveDns(host)
+                } catch (_: Exception) {}
             }
             try {
                 val splitEnabled = settingsRepository.getSplitTunnelEnabled().first()

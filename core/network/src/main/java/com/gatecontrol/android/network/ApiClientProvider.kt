@@ -11,10 +11,13 @@ import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.net.InetAddress
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,6 +29,38 @@ class ApiClientProvider @Inject constructor(
 ) {
     private val cache = mutableMapOf<String, ApiClient>()
     private val lock = Any()
+
+    /**
+     * DNS cache for VPN-safe resolution. When the VPN is active, Android's
+     * system DNS points to the VPN-internal resolver (10.8.0.1) but the
+     * GateControl app is excluded from the VPN (VpnService requirement).
+     * System DNS lookups fail with EAI_NODATA because 10.8.0.1 is unreachable
+     * outside the tunnel. We cache DNS results resolved BEFORE the VPN starts
+     * and fall back to the cache when system DNS fails.
+     */
+    private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
+
+    /** Call BEFORE establishing the VPN tunnel to cache the server hostname. */
+    fun preResolveDns(hostname: String) {
+        try {
+            val addresses = InetAddress.getAllByName(hostname)
+            if (addresses.isNotEmpty()) {
+                dnsCache[hostname] = addresses.toList()
+            }
+        } catch (_: Exception) { /* ignore — will use cached value or fail later */ }
+    }
+
+    private val vpnSafeDns = Dns { hostname ->
+        try {
+            // Try system DNS first (works when VPN is down or on Wi-Fi)
+            Dns.SYSTEM.lookup(hostname)
+        } catch (_: Exception) {
+            // System DNS failed (VPN is up, app excluded) — use cache
+            dnsCache[hostname] ?: throw java.net.UnknownHostException(
+                "DNS lookup failed for $hostname (system DNS unreachable, no cache)"
+            )
+        }
+    }
 
     fun getClient(baseUrl: String): ApiClient {
         val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
@@ -49,6 +84,7 @@ class ApiClientProvider @Inject constructor(
         }
 
         val okHttpClient = OkHttpClient.Builder()
+            .dns(vpnSafeDns)
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)
             .connectTimeout(15, TimeUnit.SECONDS)
