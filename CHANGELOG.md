@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.12] - 2026-04-11
+
+### Fixes
+- auto-detect device resolution + direct pixel rendering (no Compose)
+
+---
+
 ## [1.2.11] - 2026-04-11
 
 ### Fixes
