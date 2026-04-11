@@ -101,12 +101,14 @@ class VpnViewModel @Inject constructor(
         monitoringStarted = true
 
         // Pre-resolve DNS for the server in case VPN is already active
-        val serverUrl = setupRepository.getServerUrl()
-        if (serverUrl.isNotEmpty()) {
-            try {
-                val host = java.net.URI(serverUrl).host
-                if (host != null) apiClientProvider.preResolveDns(host)
-            } catch (_: Exception) {}
+        viewModelScope.launch {
+            val serverUrl = setupRepository.getServerUrl()
+            if (serverUrl.isNotEmpty()) {
+                try {
+                    val host = java.net.URI(serverUrl).host
+                    if (host != null) apiClientProvider.preResolveDns(host)
+                } catch (_: Exception) {}
+            }
         }
 
         viewModelScope.launch {
