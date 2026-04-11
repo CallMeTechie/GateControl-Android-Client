@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.service.VpnForegroundService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,7 @@ class BootReceiver : BroadcastReceiver() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var setupRepository: SetupRepository
+    @Inject lateinit var apiClientProvider: ApiClientProvider
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
@@ -32,8 +34,22 @@ class BootReceiver : BroadcastReceiver() {
                 val isConfigured = setupRepository.isConfigured()
 
                 if (autoConnect && isConfigured) {
-                    Timber.d("BootReceiver: auto-connect enabled, starting VpnForegroundService")
+                    // Validate token before auto-connecting — skip if expired/deleted
                     val serverUrl = setupRepository.getServerUrl()
+                    try {
+                        val client = apiClientProvider.getClient(serverUrl)
+                        client.ping()
+                    } catch (e: retrofit2.HttpException) {
+                        if (e.code() == 401 || e.code() == 403) {
+                            Timber.w("BootReceiver: token invalid (${e.code()}), skipping auto-connect")
+                            pendingResult.finish()
+                            return@launch
+                        }
+                    } catch (_: Exception) {
+                        // Network error — allow offline auto-connect
+                    }
+
+                    Timber.d("BootReceiver: auto-connect enabled, starting VpnForegroundService")
                     val serviceIntent = Intent(context, VpnForegroundService::class.java).apply {
                         putExtra(VpnForegroundService.EXTRA_SERVER, serverUrl)
                     }

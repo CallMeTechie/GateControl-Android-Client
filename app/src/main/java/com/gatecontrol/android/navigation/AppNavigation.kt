@@ -110,7 +110,13 @@ fun AppNavigation(
             }
 
             composable(Screen.Vpn.route) {
-                VpnScreen()
+                VpnScreen(
+                    onTokenInvalid = {
+                        navController.navigate(Screen.Setup.route) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        }
+                    },
+                )
             }
 
             composable(Screen.Rdp.route) {

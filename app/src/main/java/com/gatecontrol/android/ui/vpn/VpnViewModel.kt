@@ -60,6 +60,41 @@ class VpnViewModel @Inject constructor(
 
     private var monitoringStarted = false
 
+    /** Emits true when the stored token is invalid and the user should be
+     *  redirected to the Setup screen. Observed by the UI layer. */
+    private val _tokenInvalid = MutableStateFlow(false)
+    val tokenInvalid: StateFlow<Boolean> = _tokenInvalid.asStateFlow()
+
+    /**
+     * Validate the stored API token against the server via /client/ping.
+     * If the server returns 401 → token is expired/deleted → clear local
+     * config and signal the UI to redirect to the Setup screen.
+     * Network errors are ignored (offline mode — allow cached config).
+     */
+    fun validateToken() {
+        val serverUrl = setupRepository.getServerUrl()
+        val token = setupRepository.getApiToken()
+        if (serverUrl.isEmpty() || token.isEmpty()) return
+
+        viewModelScope.launch {
+            try {
+                val client = apiClientProvider.getClient(serverUrl)
+                client.ping()
+                // Token is valid — nothing to do
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 401 || e.code() == 403) {
+                    Timber.w("Token invalid (HTTP ${e.code()}) — clearing config, redirecting to setup")
+                    setupRepository.clear()
+                    apiClientProvider.invalidate()
+                    _tokenInvalid.value = true
+                }
+            } catch (e: Exception) {
+                // Network error (timeout, DNS, etc.) — allow offline mode
+                Timber.d("Token validation skipped (offline): ${e.message}")
+            }
+        }
+    }
+
     /** Start background monitoring loops. Called from the UI layer via LaunchedEffect. */
     fun startMonitoring() {
         if (monitoringStarted) return

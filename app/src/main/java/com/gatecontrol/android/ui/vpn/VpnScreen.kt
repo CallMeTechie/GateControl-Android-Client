@@ -44,6 +44,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun VpnScreen(
     viewModel: VpnViewModel = hiltViewModel(),
+    onTokenInvalid: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -80,9 +81,16 @@ fun VpnScreen(
         }
     }
 
-    // Start monitoring on first composition
+    // Start monitoring and validate token on first composition
     LaunchedEffect(Unit) {
         viewModel.startMonitoring()
+        viewModel.validateToken()
+    }
+
+    // Redirect to setup if token is invalid
+    val tokenInvalid by viewModel.tokenInvalid.collectAsState()
+    LaunchedEffect(tokenInvalid) {
+        if (tokenInvalid) onTokenInvalid()
     }
 
     // Reload data when VPN state changes. Invalidate cached HTTP clients first
