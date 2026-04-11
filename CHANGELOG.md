@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.13] - 2026-04-11
+
+### Changes
+- cap mobile RDP resolution to 1920x1080 + enable GFX pipeline
+
+---
+
 ## [1.2.12] - 2026-04-11
 
 ### Fixes
