@@ -194,13 +194,15 @@ class RdpManager(
                 domain = resolvedDomain
             )
             // If route has no explicit resolution, use device screen size
+            // capped to 1920x1080 to avoid pushing multi-MB frames over VPN.
             if (params.resolutionWidth <= 0 || params.resolutionHeight <= 0) {
                 val dm = context.resources.displayMetrics
-                params = params.copy(
-                    resolutionWidth = dm.widthPixels,
-                    resolutionHeight = dm.heightPixels
-                )
-                Timber.i("RDP connect: using device resolution ${dm.widthPixels}x${dm.heightPixels}")
+                val maxW = 1920
+                val maxH = 1080
+                val w = dm.widthPixels.coerceAtMost(maxW)
+                val h = dm.heightPixels.coerceAtMost(maxH)
+                params = params.copy(resolutionWidth = w, resolutionHeight = h)
+                Timber.i("RDP connect: device=${dm.widthPixels}x${dm.heightPixels}, capped=${w}x${h}")
             }
             try {
                 embeddedClient.launchSession(context, params)

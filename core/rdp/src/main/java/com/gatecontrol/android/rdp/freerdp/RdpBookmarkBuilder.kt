@@ -33,8 +33,11 @@ object RdpBookmarkBuilder {
 
         val perf = bookmark.performanceFlags
         perf.remoteFX = false
-        perf.gfx = false
-        perf.h264 = false
+        // Enable GFX pipeline for H.264/AVC compression — dramatically reduces
+        // bandwidth and CPU vs raw bitmap updates. Falls back gracefully if
+        // the server doesn't support it.
+        perf.gfx = true
+        perf.h264 = false  // let server negotiate; AVC444 may not be available
         perf.wallpaper = false
         perf.theming = false
         perf.fullWindowDrag = false
