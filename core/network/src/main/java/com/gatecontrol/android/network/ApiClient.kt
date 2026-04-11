@@ -70,6 +70,9 @@ interface ApiClient {
         @Body request: RdpEndSessionRequest
     ): RdpSessionResponse
 
+    @POST("api/v1/rdp/{id}/sessions/disconnect-all")
+    suspend fun disconnectAllSessions(@Path("id") routeId: Int): SimpleResponse
+
     @POST("api/v1/rdp/{id}/wol")
     suspend fun sendWol(@Path("id") routeId: Int): WolResponse
 

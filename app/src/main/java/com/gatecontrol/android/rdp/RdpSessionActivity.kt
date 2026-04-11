@@ -213,7 +213,10 @@ class RdpSessionActivity : ComponentActivity() {
                 .apiClientProvider().getClient(serverUrl)
             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    client.endRdpSession(rdpRouteId, com.gatecontrol.android.network.RdpEndSessionRequest("user_disconnect"))
+                    // Use disconnect-all for this route — we don't track the
+                    // server-side sessionId, and a single client can only have
+                    // one active session per route anyway.
+                    client.disconnectAllSessions(rdpRouteId)
                     Timber.i("Server notified: RDP session ended for route $rdpRouteId")
                 } catch (e: Exception) {
                     Timber.w(e, "Failed to notify server of RDP session end")
