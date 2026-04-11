@@ -205,20 +205,39 @@ class RdpSessionActivity : ComponentActivity() {
         var canvasView by remember { mutableStateOf<RdpCanvasView?>(null) }
         var surface by remember { mutableStateOf<Bitmap?>(null) }
 
+        // Helper: create bitmap and register with FreeRDP session
+        fun initSurface(width: Int, height: Int, bpp: Int) {
+            if (width <= 0 || height <= 0) return
+            val bmp = if (bpp >= 24)
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            else
+                Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+            val session = com.freerdp.freerdpcore.application.GlobalApp.getSession(controller.instance)
+            session?.setSurface(android.graphics.drawable.BitmapDrawable(resources, bmp))
+            surface = bmp
+            canvasView?.surface = bmp
+            diagLog.log("Surface created: ${width}x${height} bpp=$bpp, session=${if (session != null) "OK" else "NULL"}")
+        }
+
         LaunchedEffect(event) {
             when (val e = event) {
+                is RdpSessionEvent.SettingsChanged -> {
+                    // FreeRDP 3.x fires SettingsChanged (not GraphicsResize)
+                    // for the initial resolution negotiation.
+                    if (surface == null) {
+                        initSurface(e.width, e.height, e.bpp)
+                    }
+                }
                 is RdpSessionEvent.GraphicsResize -> {
-                    val bmp = if (e.bpp >= 24)
-                        Bitmap.createBitmap(e.width, e.height, Bitmap.Config.ARGB_8888)
-                    else
-                        Bitmap.createBitmap(e.width, e.height, Bitmap.Config.RGB_565)
-                    // Register bitmap with FreeRDP so native code writes pixels into it
-                    val session = com.freerdp.freerdpcore.application.GlobalApp.getSession(controller.instance)
-                    session?.setSurface(android.graphics.drawable.BitmapDrawable(resources, bmp))
-                    surface = bmp
-                    canvasView?.surface = bmp
+                    // FreeRDP 2.x path or mid-session resize
+                    initSurface(e.width, e.height, e.bpp)
                 }
                 is RdpSessionEvent.GraphicsUpdate -> {
+                    // Create surface on first update if neither SettingsChanged
+                    // nor GraphicsResize fired (defensive fallback)
+                    if (surface == null && e.width > 0 && e.height > 0) {
+                        initSurface(e.width, e.height, 32)
+                    }
                     // Copy pixels from FreeRDP native buffer into our bitmap
                     surface?.let { bmp ->
                         com.freerdp.freerdpcore.services.LibFreeRDP.updateGraphics(
