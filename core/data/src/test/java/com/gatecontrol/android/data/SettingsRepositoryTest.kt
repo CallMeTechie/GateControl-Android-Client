@@ -26,11 +26,11 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `getTheme returns dark by default`() = runTest {
+    fun `getTheme returns system by default`() = runTest {
         every { dataStore.data } returns flowOf(preferencesOf())
 
         repository.getTheme().test {
-            assertEquals("dark", awaitItem())
+            assertEquals("system", awaitItem())
             awaitComplete()
         }
     }
