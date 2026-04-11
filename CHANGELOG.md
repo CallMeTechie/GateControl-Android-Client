@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.15] - 2026-04-11
+
+### Fixes
+- use disconnect-all endpoint instead of endRdpSession (no sessionId needed)
+
+---
+
 ## [1.2.14] - 2026-04-11
 
 ### Fixes
