@@ -194,11 +194,23 @@ class RdpSessionActivity : ComponentActivity() {
         LaunchedEffect(event) {
             when (val e = event) {
                 is RdpSessionEvent.GraphicsResize -> {
-                    val bmp = Bitmap.createBitmap(e.width, e.height, Bitmap.Config.ARGB_8888)
+                    val bmp = if (e.bpp >= 24)
+                        Bitmap.createBitmap(e.width, e.height, Bitmap.Config.ARGB_8888)
+                    else
+                        Bitmap.createBitmap(e.width, e.height, Bitmap.Config.RGB_565)
+                    // Register bitmap with FreeRDP so native code writes pixels into it
+                    val session = com.freerdp.freerdpcore.application.GlobalApp.getSession(controller.instance)
+                    session?.setSurface(android.graphics.drawable.BitmapDrawable(resources, bmp))
                     surface = bmp
                     canvasView?.surface = bmp
                 }
                 is RdpSessionEvent.GraphicsUpdate -> {
+                    // Copy pixels from FreeRDP native buffer into our bitmap
+                    surface?.let { bmp ->
+                        com.freerdp.freerdpcore.services.LibFreeRDP.updateGraphics(
+                            controller.instance, bmp, e.x, e.y, e.width, e.height
+                        )
+                    }
                     canvasView?.invalidateSurfaceRegion(e.x, e.y, e.width, e.height)
                 }
                 is RdpSessionEvent.ConnectionFailure -> {
