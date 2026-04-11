@@ -70,7 +70,8 @@ class RdpSessionActivity : ComponentActivity() {
                 redirectDrives = intent.getBooleanExtra("rdp_redirect_drives", false),
                 audioMode = intent.getStringExtra("rdp_audio_mode") ?: "local",
                 adminSession = intent.getBooleanExtra("rdp_admin_session", false),
-                routeName = intent.getStringExtra("rdp_route_name") ?: ""
+                routeName = intent.getStringExtra("rdp_route_name") ?: "",
+                routeId = intent.getIntExtra("rdp_route_id", 0)
             )
         }
     }
@@ -81,6 +82,7 @@ class RdpSessionActivity : ComponentActivity() {
     private var sessionStartMs: Long = 0L
     @Volatile private var rdpCanvasView: RdpCanvasView? = null
     @Volatile private var rdpSurface: Bitmap? = null
+    private var rdpRouteId: Int = 0
 
     @androidx.annotation.VisibleForTesting
     internal val controllerForTest: RdpSessionController
@@ -107,6 +109,7 @@ class RdpSessionActivity : ComponentActivity() {
         }
 
         sessionStartMs = System.currentTimeMillis()
+        rdpRouteId = params.routeId
 
         // Diagnostic log for RDP debugging — written to Downloads folder
         diagLog = RdpDiagnosticLog(this)
@@ -185,6 +188,7 @@ class RdpSessionActivity : ComponentActivity() {
             controller.disconnect()
             controller.release()
         }
+        notifyServerSessionEnd()
         stopRdpService()
     }
 
@@ -192,7 +196,39 @@ class RdpSessionActivity : ComponentActivity() {
         if (::controller.isInitialized) {
             controller.disconnect()
         }
+        notifyServerSessionEnd()
         finish()
+    }
+
+    /** Fire-and-forget: tell the server this RDP session ended. */
+    private fun notifyServerSessionEnd() {
+        if (rdpRouteId <= 0) return
+        try {
+            val serverUrl = dagger.hilt.android.EntryPointAccessors
+                .fromApplication(applicationContext, ServerUrlEntryPoint::class.java)
+                .setupRepository().getServerUrl()
+            if (serverUrl.isEmpty()) return
+            val client = dagger.hilt.android.EntryPointAccessors
+                .fromApplication(applicationContext, ServerUrlEntryPoint::class.java)
+                .apiClientProvider().getClient(serverUrl)
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    client.endRdpSession(rdpRouteId, com.gatecontrol.android.network.RdpEndSessionRequest("user_disconnect"))
+                    Timber.i("Server notified: RDP session ended for route $rdpRouteId")
+                } catch (e: Exception) {
+                    Timber.w(e, "Failed to notify server of RDP session end")
+                }
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Could not notify server of session end")
+        }
+    }
+
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface ServerUrlEntryPoint {
+        fun setupRepository(): com.gatecontrol.android.data.SetupRepository
+        fun apiClientProvider(): com.gatecontrol.android.network.ApiClientProvider
     }
 
     private fun startRdpService(routeName: String) {

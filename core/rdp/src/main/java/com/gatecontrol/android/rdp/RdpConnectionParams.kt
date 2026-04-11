@@ -23,7 +23,8 @@ data class RdpConnectionParams(
     val redirectDrives: Boolean,
     val audioMode: String,
     val adminSession: Boolean,
-    val routeName: String
+    val routeName: String,
+    val routeId: Int = 0
 ) {
 
     companion object {
@@ -64,7 +65,8 @@ data class RdpConnectionParams(
             redirectDrives = route.redirectDrives ?: false,
             audioMode = route.audioMode ?: "local",
             adminSession = route.adminSession ?: false,
-            routeName = route.name
+            routeName = route.name,
+            routeId = route.id
         )
     }
 }

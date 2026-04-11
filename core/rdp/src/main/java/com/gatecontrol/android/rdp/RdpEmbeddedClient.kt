@@ -36,6 +36,7 @@ class RdpEmbeddedClient {
         const val EXTRA_AUDIO_MODE = "rdp_audio_mode"
         const val EXTRA_ADMIN_SESSION = "rdp_admin_session"
         const val EXTRA_ROUTE_NAME = "rdp_route_name"
+        const val EXTRA_ROUTE_ID = "rdp_route_id"
     }
 
     /**
@@ -82,6 +83,7 @@ class RdpEmbeddedClient {
             EXTRA_AUDIO_MODE to params.audioMode,
             EXTRA_ADMIN_SESSION to params.adminSession,
             EXTRA_ROUTE_NAME to params.routeName,
+            EXTRA_ROUTE_ID to params.routeId,
         )
         params.username?.let { map[EXTRA_USERNAME] = it }
         params.password?.let { map[EXTRA_PASSWORD] = it }
