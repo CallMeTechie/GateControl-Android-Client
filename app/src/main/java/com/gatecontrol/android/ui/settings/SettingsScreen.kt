@@ -36,6 +36,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -97,6 +100,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            var settingsTokenVisible by remember { mutableStateOf(false) }
             OutlinedTextField(
                 value = apiTokenField,
                 onValueChange = { apiTokenField = it },
@@ -104,7 +108,15 @@ fun SettingsScreen(
                 placeholder = { Text(stringResource(R.string.settings_api_token_hint)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (settingsTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { settingsTokenVisible = !settingsTokenVisible }) {
+                        Icon(
+                            imageVector = if (settingsTokenVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (settingsTokenVisible) "Hide" else "Show",
+                        )
+                    }
+                },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
                     imeAction = ImeAction.Done

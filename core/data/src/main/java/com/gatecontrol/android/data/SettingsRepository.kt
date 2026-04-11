@@ -26,7 +26,7 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val CONFIG_POLL_INTERVAL = intPreferencesKey("config_poll_interval")
     }
 
-    fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "dark" }
+    fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
 
     fun getLocale(): Flow<String> = dataStore.data.map { it[LOCALE] ?: "de" }
 

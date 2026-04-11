@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val theme by settingsRepository.getTheme()
-                .collectAsStateWithLifecycle(initialValue = "dark")
+                .collectAsStateWithLifecycle(initialValue = "system")
             val locale by settingsRepository.getLocale()
                 .collectAsStateWithLifecycle(initialValue = "de")
 
@@ -53,7 +53,13 @@ class MainActivity : ComponentActivity() {
                 resources.updateConfiguration(config, resources.displayMetrics)
             }
 
-            GateControlTheme(darkTheme = theme == "dark") {
+            val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val isDark = when (theme) {
+                "dark" -> true
+                "light" -> false
+                else -> systemDark // "system" or first launch
+            }
+            GateControlTheme(darkTheme = isDark) {
                 val navController = rememberNavController()
                 val isSetupComplete =
                     setupRepository.isConfigured() || setupRepository.hasWireGuardConfig()
