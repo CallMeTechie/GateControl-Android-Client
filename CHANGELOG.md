@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.8] - 2026-04-11
+
+### Changes
+- fix RdpCredentialHandlerTest serverEncrypt to use separate data+authTag format
+
+---
+
 ## [1.2.7] - 2026-04-10
 
 ### Fixes
