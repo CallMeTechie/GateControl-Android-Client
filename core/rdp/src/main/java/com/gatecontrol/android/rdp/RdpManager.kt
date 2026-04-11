@@ -187,12 +187,21 @@ class RdpManager(
         Timber.i("RDP connect: launching client — embedded=$useEmbedded, username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "SET"}, password=${if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "SET"}")
 
         if (useEmbedded) {
-            val params = RdpConnectionParams.fromRoute(
+            var params = RdpConnectionParams.fromRoute(
                 route = route,
                 username = resolvedUsername,
                 password = resolvedPassword,
                 domain = resolvedDomain
             )
+            // If route has no explicit resolution, use device screen size
+            if (params.resolutionWidth <= 0 || params.resolutionHeight <= 0) {
+                val dm = context.resources.displayMetrics
+                params = params.copy(
+                    resolutionWidth = dm.widthPixels,
+                    resolutionHeight = dm.heightPixels
+                )
+                Timber.i("RDP connect: using device resolution ${dm.widthPixels}x${dm.heightPixels}")
+            }
             try {
                 embeddedClient.launchSession(context, params)
             } catch (e: Exception) {

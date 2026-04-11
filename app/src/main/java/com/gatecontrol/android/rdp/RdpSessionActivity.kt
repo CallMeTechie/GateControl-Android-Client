@@ -79,6 +79,8 @@ class RdpSessionActivity : ComponentActivity() {
     private lateinit var diagLog: RdpDiagnosticLog
     private val certVerdictChannel = Channel<Int>(capacity = 1)
     private var sessionStartMs: Long = 0L
+    @Volatile private var rdpCanvasView: RdpCanvasView? = null
+    @Volatile private var rdpSurface: Bitmap? = null
 
     @androidx.annotation.VisibleForTesting
     internal val controllerForTest: RdpSessionController
@@ -136,6 +138,16 @@ class RdpSessionActivity : ComponentActivity() {
                     diagLog.log("OnAuthenticate: ACCEPTING (credentials present)")
                 }
                 hasCredentials
+            },
+            // Direct pixel-update callback — runs on FreeRDP thread, bypasses
+            // Compose StateFlow to avoid frame drops and artefacts.
+            onPixelUpdate = { x, y, w, h ->
+                rdpSurface?.let { bmp ->
+                    com.freerdp.freerdpcore.services.LibFreeRDP.updateGraphics(
+                        controller.instance, bmp, x, y, w, h
+                    )
+                }
+                rdpCanvasView?.invalidateSurfaceRegion(x, y, w, h)
             },
         )
 
@@ -199,53 +211,34 @@ class RdpSessionActivity : ComponentActivity() {
     // Compose screen
     // ------------------------------------------------------------------
 
+    /** Create bitmap and register with FreeRDP session. Must run on main thread. */
+    private fun initSurface(width: Int, height: Int, bpp: Int) {
+        if (width <= 0 || height <= 0) return
+        val bmp = if (bpp >= 24)
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        else
+            Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+        val session = com.freerdp.freerdpcore.application.GlobalApp.getSession(controller.instance)
+        session?.setSurface(android.graphics.drawable.BitmapDrawable(resources, bmp))
+        rdpSurface = bmp
+        rdpCanvasView?.surface = bmp
+        diagLog.log("Surface created: ${width}x${height} bpp=$bpp, session=${if (session != null) "OK" else "NULL"}")
+    }
+
     @Composable
     private fun RdpSessionScreen() {
         val event by controller.events.collectAsState()
-        var canvasView by remember { mutableStateOf<RdpCanvasView?>(null) }
-        var surface by remember { mutableStateOf<Bitmap?>(null) }
-
-        // Helper: create bitmap and register with FreeRDP session
-        fun initSurface(width: Int, height: Int, bpp: Int) {
-            if (width <= 0 || height <= 0) return
-            val bmp = if (bpp >= 24)
-                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            else
-                Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-            val session = com.freerdp.freerdpcore.application.GlobalApp.getSession(controller.instance)
-            session?.setSurface(android.graphics.drawable.BitmapDrawable(resources, bmp))
-            surface = bmp
-            canvasView?.surface = bmp
-            diagLog.log("Surface created: ${width}x${height} bpp=$bpp, session=${if (session != null) "OK" else "NULL"}")
-        }
 
         LaunchedEffect(event) {
             when (val e = event) {
                 is RdpSessionEvent.SettingsChanged -> {
-                    // FreeRDP 3.x fires SettingsChanged (not GraphicsResize)
-                    // for the initial resolution negotiation.
-                    if (surface == null) {
-                        initSurface(e.width, e.height, e.bpp)
-                    }
+                    if (rdpSurface == null) initSurface(e.width, e.height, e.bpp)
                 }
                 is RdpSessionEvent.GraphicsResize -> {
-                    // FreeRDP 2.x path or mid-session resize
                     initSurface(e.width, e.height, e.bpp)
                 }
-                is RdpSessionEvent.GraphicsUpdate -> {
-                    // Create surface on first update if neither SettingsChanged
-                    // nor GraphicsResize fired (defensive fallback)
-                    if (surface == null && e.width > 0 && e.height > 0) {
-                        initSurface(e.width, e.height, 32)
-                    }
-                    // Copy pixels from FreeRDP native buffer into our bitmap
-                    surface?.let { bmp ->
-                        com.freerdp.freerdpcore.services.LibFreeRDP.updateGraphics(
-                            controller.instance, bmp, e.x, e.y, e.width, e.height
-                        )
-                    }
-                    canvasView?.invalidateSurfaceRegion(e.x, e.y, e.width, e.height)
-                }
+                // GraphicsUpdate is handled via direct onPixelUpdate callback
+                // (bypasses StateFlow for performance — no frame drops)
                 is RdpSessionEvent.ConnectionFailure -> {
                     Timber.e("Connection failed: ${e.reason}")
                     finish()
@@ -263,11 +256,11 @@ class RdpSessionActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
                     RdpCanvasView(ctx).also {
-                        it.surface = surface
+                        it.surface = rdpSurface
                         it.onCursorEvent = { x, y, flags ->
                             controller.sendCursor(x, y, flags)
                         }
-                        canvasView = it
+                        rdpCanvasView = it
                     }
                 },
             )

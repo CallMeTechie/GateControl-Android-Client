@@ -31,6 +31,8 @@ class GateControlUiEventListener(
         username: StringBuilder,
         password: StringBuilder,
     ) -> Boolean,
+    /** Direct pixel-update callback — bypasses StateFlow for performance. */
+    private val onPixelUpdate: ((x: Int, y: Int, width: Int, height: Int) -> Unit)? = null,
 ) : LibFreeRDP.UIEventListener {
 
     override fun OnSettingsChanged(width: Int, height: Int, bpp: Int) {
@@ -98,7 +100,14 @@ class GateControlUiEventListener(
     }
 
     override fun OnGraphicsUpdate(x: Int, y: Int, width: Int, height: Int) {
-        eventFlow.value = RdpSessionEvent.GraphicsUpdate(x, y, width, height)
+        // Use direct callback for pixel updates (bypasses StateFlow to avoid
+        // frame drops). Fall back to StateFlow if no callback is set.
+        val cb = onPixelUpdate
+        if (cb != null) {
+            cb(x, y, width, height)
+        } else {
+            eventFlow.value = RdpSessionEvent.GraphicsUpdate(x, y, width, height)
+        }
     }
 
     override fun OnGraphicsResize(width: Int, height: Int, bpp: Int) {

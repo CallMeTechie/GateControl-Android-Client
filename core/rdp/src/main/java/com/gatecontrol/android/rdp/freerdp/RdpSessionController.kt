@@ -28,10 +28,11 @@ class RdpSessionController(
         changed: RdpSessionEvent.VerifyChangedCertificate?,
     ) -> Int,
     authenticate: (username: StringBuilder, password: StringBuilder) -> Boolean,
+    onPixelUpdate: ((x: Int, y: Int, width: Int, height: Int) -> Unit)? = null,
 ) {
     val events: MutableStateFlow<RdpSessionEvent> = MutableStateFlow(RdpSessionEvent.Idle)
 
-    private val listener = GateControlUiEventListener(events, verifyCertificate, authenticate)
+    private val listener = GateControlUiEventListener(events, verifyCertificate, authenticate, onPixelUpdate)
     private val bookmark = RdpBookmarkBuilder.build(params)
     private val sessionState: SessionState = GlobalApp.createSession(bookmark, context)
     private var connectThread: Thread? = null

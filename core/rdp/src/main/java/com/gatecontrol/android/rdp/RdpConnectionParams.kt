@@ -53,6 +53,9 @@ data class RdpConnectionParams(
             username = username,
             password = password,
             domain = domain ?: route.domain,
+            // Use route-configured resolution, or 0 to signal "use device screen size".
+            // The BookmarkBuilder coerces 0 to at least 800x600, but callers can
+            // override with the device's actual display dimensions before launch.
             resolutionWidth = route.resolutionWidth ?: 0,
             resolutionHeight = route.resolutionHeight ?: 0,
             colorDepth = route.colorDepth ?: 32,
