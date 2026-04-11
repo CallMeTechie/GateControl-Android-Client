@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.18] - 2026-04-11
+
+### Fixes
+- call suspend preResolveDns inside coroutine scope
+
+---
+
 ## [1.2.17] - 2026-04-11
 
 ### Fixes
