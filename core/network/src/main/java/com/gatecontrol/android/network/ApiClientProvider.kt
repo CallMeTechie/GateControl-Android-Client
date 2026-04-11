@@ -40,14 +40,23 @@ class ApiClientProvider @Inject constructor(
      */
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
 
-    /** Call BEFORE establishing the VPN tunnel to cache the server hostname. */
-    fun preResolveDns(hostname: String) {
-        try {
-            val addresses = InetAddress.getAllByName(hostname)
-            if (addresses.isNotEmpty()) {
-                dnsCache[hostname] = addresses.toList()
+    /**
+     * Resolve and cache the server hostname. Safe to call from any thread
+     * (runs the blocking DNS lookup on a background thread).
+     * Call BEFORE establishing the VPN tunnel.
+     */
+    suspend fun preResolveDns(hostname: String) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val addresses = InetAddress.getAllByName(hostname)
+                if (addresses.isNotEmpty()) {
+                    dnsCache[hostname] = addresses.toList()
+                    timber.log.Timber.d("DNS pre-resolved: $hostname -> ${addresses.map { it.hostAddress }}")
+                }
+            } catch (e: Exception) {
+                timber.log.Timber.w("DNS pre-resolve failed for $hostname: ${e.message}")
             }
-        } catch (_: Exception) { /* ignore — will use cached value or fail later */ }
+        }
     }
 
     private val vpnSafeDns = object : Dns {
