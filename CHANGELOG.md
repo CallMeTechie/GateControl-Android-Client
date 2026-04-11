@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.14] - 2026-04-11
+
+### Fixes
+- scale RDP resolution proportionally to preserve device aspect ratio
+
+---
+
 ## [1.2.13] - 2026-04-11
 
 ### Changes
