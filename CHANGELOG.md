@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.10] - 2026-04-11
+
+### Changes
+- log session map state, all FreeRDP events, and connection lifecycle
+
+---
+
 ## [1.2.9] - 2026-04-11
 
 ### Fixes
