@@ -51,18 +51,42 @@ class TunnelManager @Inject constructor(private val context: Context) {
         }
     }
 
+    /**
+     * Legacy connect signature — kept for backward compatibility (BootReceiver, Tile, etc.).
+     * Converts the old (routes, apps) parameters to a [SplitTunnelConfig] and delegates.
+     */
     suspend fun connect(
         configString: String,
         splitTunnelRoutes: List<String> = emptyList(),
         excludedApps: List<String> = emptyList()
     ) {
+        val splitConfig = if (splitTunnelRoutes.isNotEmpty() || excludedApps.isNotEmpty()) {
+            SplitTunnelConfig(
+                mode = "include",
+                networks = splitTunnelRoutes,
+                apps = excludedApps,
+            )
+        } else {
+            SplitTunnelConfig() // mode = "off"
+        }
+        connectInternal(configString, splitConfig)
+    }
+
+    /**
+     * New connect signature accepting a full [SplitTunnelConfig] with mode-aware routing.
+     */
+    suspend fun connect(configString: String, splitConfig: SplitTunnelConfig) {
+        connectInternal(configString, splitConfig)
+    }
+
+    private suspend fun connectInternal(configString: String, splitConfig: SplitTunnelConfig) {
         withContext(Dispatchers.IO) {
             try {
                 val parsedConfig = TunnelConfig.parse(configString)
-                val wgConfig = buildWgConfig(parsedConfig, splitTunnelRoutes, excludedApps)
+                val wgConfig = buildWgConfig(parsedConfig, splitConfig)
 
                 _state.value = TunnelState.Connecting
-                Timber.d("Connecting tunnel...")
+                Timber.d("Connecting tunnel with split-tunnel mode: ${splitConfig.mode}")
 
                 val currentBackend = backend ?: run {
                     initialize()
@@ -176,8 +200,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
     private fun buildWgConfig(
         parsed: TunnelConfig,
-        splitTunnelRoutes: List<String>,
-        excludedApps: List<String>
+        splitConfig: SplitTunnelConfig,
     ): Config {
         val ifaceBuilder = Interface.Builder()
             .parsePrivateKey(parsed.privateKey)
@@ -188,8 +211,19 @@ class TunnelManager @Inject constructor(private val context: Context) {
         }
         parsed.mtu?.let { ifaceBuilder.setMtu(it) }
 
-        if (excludedApps.isNotEmpty()) {
-            ifaceBuilder.excludeApplications(excludedApps.toSet())
+        // App filtering — excludeApplications and includeApplications are mutually exclusive
+        when (splitConfig.mode) {
+            "exclude" -> {
+                if (splitConfig.apps.isNotEmpty()) {
+                    ifaceBuilder.excludeApplications(splitConfig.apps.toSet())
+                }
+            }
+            "include" -> {
+                if (splitConfig.apps.isNotEmpty()) {
+                    ifaceBuilder.includeApplications(splitConfig.apps.toSet())
+                }
+            }
+            // "off" — no app filtering
         }
 
         val peerBuilder = Peer.Builder()
@@ -199,15 +233,31 @@ class TunnelManager @Inject constructor(private val context: Context) {
         parsed.presharedKey?.let { peerBuilder.parsePreSharedKey(it) }
         parsed.persistentKeepalive?.let { peerBuilder.setPersistentKeepalive(it) }
 
-        val allowedIpsRaw = if (splitTunnelRoutes.isNotEmpty()) {
-            // Include DNS server IPs in allowed IPs to prevent DNS leaks
-            val dnsRoutes = parsed.dns.map { dns ->
-                val addr = dns.trim()
-                if (addr.contains(":")) "$addr/128" else "$addr/32"
+        // DNS IPs as /32 (or /128 for IPv6) — always included to prevent DNS leaks
+        val dnsIps = parsed.dns.map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .map { if (it.contains(":")) "$it/128" else "$it/32" }
+
+        val allowedIpsRaw = when (splitConfig.mode) {
+            "exclude" -> {
+                if (splitConfig.networks.isEmpty()) {
+                    // No networks excluded — full tunnel (use original AllowedIPs)
+                    parsed.allowedIps
+                } else {
+                    // Compute complement: 0.0.0.0/0 minus excluded networks
+                    val complement = CidrComplement.computeAllowedIps(splitConfig.networks)
+                    // Always add DNS + VPN subnet to prevent DNS leaks
+                    (complement + dnsIps + VPN_SUBNET).distinct().joinToString(",")
+                }
             }
-            (splitTunnelRoutes + dnsRoutes).distinct().joinToString(",")
-        } else {
-            parsed.allowedIps
+            "include" -> {
+                // Only route specified networks + DNS + VPN subnet
+                (splitConfig.networks + dnsIps + VPN_SUBNET).distinct().joinToString(",")
+            }
+            else -> {
+                // Off — use original AllowedIPs from WG config
+                parsed.allowedIps
+            }
         }
         peerBuilder.parseAllowedIPs(allowedIpsRaw)
 
@@ -219,5 +269,6 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
     companion object {
         private const val TUNNEL_NAME = "gatecontrol"
+        private const val VPN_SUBNET = "10.8.0.0/24"
     }
 }
