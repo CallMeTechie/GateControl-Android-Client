@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.21] - 2026-04-12
+
+### Fixes
+- update VpnViewModelTest to use new connect(config, SplitTunnelConfig) signature
+
+---
+
 ## [1.2.20] - 2026-04-12
 
 ### Fixes
