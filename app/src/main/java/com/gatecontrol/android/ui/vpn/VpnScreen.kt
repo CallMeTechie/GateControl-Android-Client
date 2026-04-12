@@ -96,8 +96,16 @@ fun VpnScreen(
     // Reload data when VPN state changes. Invalidate cached HTTP clients first
     // because OkHttp's connection pool holds stale connections on the old network
     // interface after VPN connect/disconnect, causing SocketTimeoutExceptions.
+    // Brief delay after Connected: the excluded app's network path needs a moment
+    // to stabilize after the VPN tunnel changes the routing table.
     LaunchedEffect(tunnelState) {
-        if (tunnelState is TunnelState.Connected || tunnelState is TunnelState.Disconnected) {
+        if (tunnelState is TunnelState.Connected) {
+            delay(2_000) // wait for network stack to stabilize
+            viewModel.invalidateApiClients()
+            viewModel.loadPermissions()
+            viewModel.loadTrafficStats()
+            viewModel.loadServices()
+        } else if (tunnelState is TunnelState.Disconnected) {
             viewModel.invalidateApiClients()
             viewModel.loadPermissions()
             viewModel.loadTrafficStats()

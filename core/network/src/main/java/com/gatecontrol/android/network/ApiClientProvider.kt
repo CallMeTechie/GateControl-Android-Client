@@ -41,11 +41,17 @@ class ApiClientProvider @Inject constructor(
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
 
     /**
-     * Resolve and cache the server hostname. Safe to call from any thread
-     * (runs the blocking DNS lookup on a background thread).
-     * Call BEFORE establishing the VPN tunnel.
+     * Resolve and cache the server hostname. Safe to call from any thread.
+     * Only updates the cache if it is EMPTY for this hostname — never
+     * overwrites a previously resolved address. This prevents the VPN's
+     * split-horizon DNS (10.8.0.1) from replacing the real public IP
+     * when preResolveDns is called again after the tunnel is up.
      */
     suspend fun preResolveDns(hostname: String) {
+        if (dnsCache.containsKey(hostname)) {
+            timber.log.Timber.d("DNS cache hit for $hostname — skipping re-resolve")
+            return
+        }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val addresses = InetAddress.getAllByName(hostname)
