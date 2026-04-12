@@ -22,6 +22,11 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val SPLIT_TUNNEL_ENABLED = booleanPreferencesKey("split_tunnel_enabled")
         val SPLIT_TUNNEL_ROUTES = stringPreferencesKey("split_tunnel_routes")
         val SPLIT_TUNNEL_APPS = stringPreferencesKey("split_tunnel_apps")
+        // New split-tunnel keys (v2 JSON format)
+        val SPLIT_TUNNEL_MODE = stringPreferencesKey("split_tunnel_mode")
+        val SPLIT_TUNNEL_NETWORKS = stringPreferencesKey("split_tunnel_networks")
+        val SPLIT_TUNNEL_APPS_V2 = stringPreferencesKey("split_tunnel_apps_v2")
+        val SPLIT_TUNNEL_ADMIN_LOCKED = booleanPreferencesKey("split_tunnel_admin_locked")
         val CHECK_INTERVAL = intPreferencesKey("check_interval")
         val CONFIG_POLL_INTERVAL = intPreferencesKey("config_poll_interval")
     }
@@ -42,6 +47,19 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     fun getSplitTunnelApps(): Flow<String> =
         dataStore.data.map { it[SPLIT_TUNNEL_APPS] ?: "" }
+
+    // New split-tunnel getters (v2 JSON format)
+    fun getSplitTunnelMode(): Flow<String> =
+        dataStore.data.map { it[SPLIT_TUNNEL_MODE] ?: "off" }
+
+    fun getSplitTunnelNetworks(): Flow<String> =
+        dataStore.data.map { it[SPLIT_TUNNEL_NETWORKS] ?: "[]" }
+
+    fun getSplitTunnelAppsV2(): Flow<String> =
+        dataStore.data.map { it[SPLIT_TUNNEL_APPS_V2] ?: "[]" }
+
+    fun getSplitTunnelAdminLocked(): Flow<Boolean> =
+        dataStore.data.map { it[SPLIT_TUNNEL_ADMIN_LOCKED] ?: false }
 
     fun getCheckInterval(): Flow<Int> = dataStore.data.map { it[CHECK_INTERVAL] ?: 30 }
 
@@ -74,6 +92,62 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     suspend fun setSplitTunnelApps(value: String) {
         dataStore.edit { it[SPLIT_TUNNEL_APPS] = value }
+    }
+
+    // New split-tunnel setters (v2 JSON format)
+    suspend fun setSplitTunnelMode(mode: String) {
+        dataStore.edit { it[SPLIT_TUNNEL_MODE] = mode }
+    }
+
+    suspend fun setSplitTunnelNetworks(json: String) {
+        dataStore.edit { it[SPLIT_TUNNEL_NETWORKS] = json }
+    }
+
+    suspend fun setSplitTunnelAppsV2(json: String) {
+        dataStore.edit { it[SPLIT_TUNNEL_APPS_V2] = json }
+    }
+
+    suspend fun setSplitTunnelAdminLocked(locked: Boolean) {
+        dataStore.edit { it[SPLIT_TUNNEL_ADMIN_LOCKED] = locked }
+    }
+
+    /**
+     * Migrates old split-tunnel preferences (v1) to new JSON format (v2).
+     * Only runs once: when old keys exist but new keys don't.
+     */
+    suspend fun migrateSplitTunnelIfNeeded() {
+        dataStore.edit { prefs ->
+            val oldEnabled = prefs[SPLIT_TUNNEL_ENABLED]
+            if (oldEnabled != null && prefs[SPLIT_TUNNEL_MODE] == null) {
+                // Mode: old enabled=true was include-mode (only these routes through VPN)
+                prefs[SPLIT_TUNNEL_MODE] = if (oldEnabled) "include" else "off"
+
+                // Routes: newline/comma-separated CIDRs → JSON with empty labels
+                val oldRoutes = prefs[SPLIT_TUNNEL_ROUTES] ?: ""
+                if (oldRoutes.isNotBlank()) {
+                    val networks = oldRoutes.split("\n", ",")
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .map { """{"cidr":"$it","label":""}""" }
+                    prefs[SPLIT_TUNNEL_NETWORKS] = "[${networks.joinToString(",")}]"
+                }
+
+                // Apps: comma/newline-separated packages → JSON with empty labels
+                val oldApps = prefs[SPLIT_TUNNEL_APPS] ?: ""
+                if (oldApps.isNotBlank()) {
+                    val apps = oldApps.split("\n", ",")
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .map { """{"package":"$it","label":""}""" }
+                    prefs[SPLIT_TUNNEL_APPS_V2] = "[${apps.joinToString(",")}]"
+                }
+
+                // Clear old keys
+                prefs.remove(SPLIT_TUNNEL_ENABLED)
+                prefs.remove(SPLIT_TUNNEL_ROUTES)
+                prefs.remove(SPLIT_TUNNEL_APPS)
+            }
+        }
     }
 
     suspend fun setCheckInterval(value: Int) {
