@@ -123,6 +123,14 @@
     <string name="settings_split_apps">Excluded Apps</string>
     <string name="split_tunnel_search_apps">Search apps&#8230;</string>
     <string name="split_tunnel_show_system">Show system apps</string>
+    <string name="split_tunnel_presets_label">Network Presets</string>
+    <string name="split_tunnel_private_nets">Private Networks (10/172/192)</string>
+    <string name="split_tunnel_wifi_subnet">WiFi Subnet (%1$s)</string>
+    <string name="split_tunnel_no_wifi">WiFi Subnet (not connected)</string>
+    <string name="split_tunnel_custom_label">Custom Networks</string>
+    <string name="split_tunnel_add_network">Add Network</string>
+    <string name="split_tunnel_label">Label</string>
+    <string name="split_tunnel_admin_locked">Configured by administrator</string>
     <string name="settings_split_save">Save Routes</string>
     <string name="settings_split_saved">Routes saved</string>
     <string name="settings_config_import">Config Import</string>
