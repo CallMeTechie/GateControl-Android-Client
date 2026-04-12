@@ -18,7 +18,7 @@ class CidrComplementTest {
     }
 
     @Test
-    fun `exclude single /8 network`() {
+    fun `exclude single slash-8 network`() {
         val result = CidrComplement.computeAllowedIps(listOf("10.0.0.0/8"))
         // Should not contain anything in 10.x.x.x
         assertTrue(result.isNotEmpty())
@@ -71,7 +71,7 @@ class CidrComplementTest {
     }
 
     @Test
-    fun `single host /32 exclude`() {
+    fun `single host slash-32 exclude`() {
         val result = CidrComplement.computeAllowedIps(listOf("10.0.0.1/32"))
         assertTrue(result.isNotEmpty())
         assertFalse(result.contains("10.0.0.1/32"))
