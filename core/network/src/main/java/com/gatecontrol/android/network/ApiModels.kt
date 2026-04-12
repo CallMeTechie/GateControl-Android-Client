@@ -105,6 +105,21 @@ data class UpdateCheckResponse(
     val releaseNotes: String?
 )
 
+// --- Split Tunnel ---
+
+data class SplitTunnelNetwork(
+    val cidr: String,
+    val label: String
+)
+
+data class SplitTunnelPresetResponse(
+    val ok: Boolean,
+    val mode: String,
+    val networks: List<SplitTunnelNetwork>,
+    val locked: Boolean,
+    val source: String
+)
+
 // --- RDP ---
 
 data class RdpRoutesResponse(

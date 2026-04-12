@@ -46,6 +46,9 @@ interface ApiClient {
     @GET("api/v1/client/dns-check")
     suspend fun dnsCheck(): DnsCheckResponse
 
+    @GET("api/v1/client/split-tunnel")
+    suspend fun getSplitTunnelPreset(): SplitTunnelPresetResponse
+
     @GET("api/v1/client/rdp")
     suspend fun getRdpRoutes(): RdpRoutesResponse
 
