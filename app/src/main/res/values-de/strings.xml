@@ -131,6 +131,15 @@
     <string name="split_tunnel_add_network">Netzwerk hinzufuegen</string>
     <string name="split_tunnel_label">Bezeichnung</string>
     <string name="split_tunnel_admin_locked">Vom Administrator konfiguriert</string>
+    <string name="split_tunnel_enabled_label">Split-Tunneling</string>
+    <string name="split_tunnel_off_desc">Gesamter Datenverkehr durch VPN</string>
+    <string name="split_tunnel_exclude_label">Alles durch VPN — Ausnahmen definieren</string>
+    <string name="split_tunnel_include_label">Nur ausgewaehlte Netzwerke durch VPN</string>
+    <string name="split_tunnel_networks_exclude_header">Diese Netzwerke NICHT durch VPN leiten</string>
+    <string name="split_tunnel_networks_include_header">NUR diese Netzwerke durch VPN leiten</string>
+    <string name="split_tunnel_apps_exclude_header">Diese Apps NICHT durch VPN leiten</string>
+    <string name="split_tunnel_apps_include_header">NUR diese Apps durch VPN leiten</string>
+    <string name="split_tunnel_add_app">App hinzufuegen</string>
     <string name="settings_split_save">Routen speichern</string>
     <string name="settings_split_saved">Routen gespeichert</string>
     <string name="settings_config_import">Konfiguration importieren</string>

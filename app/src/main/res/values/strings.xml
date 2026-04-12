@@ -131,6 +131,15 @@
     <string name="split_tunnel_add_network">Add Network</string>
     <string name="split_tunnel_label">Label</string>
     <string name="split_tunnel_admin_locked">Configured by administrator</string>
+    <string name="split_tunnel_enabled_label">Split Tunneling</string>
+    <string name="split_tunnel_off_desc">All traffic through VPN</string>
+    <string name="split_tunnel_exclude_label">Full VPN — define exceptions</string>
+    <string name="split_tunnel_include_label">Only selected networks through VPN</string>
+    <string name="split_tunnel_networks_exclude_header">These networks NOT through VPN</string>
+    <string name="split_tunnel_networks_include_header">ONLY these networks through VPN</string>
+    <string name="split_tunnel_apps_exclude_header">These apps NOT through VPN</string>
+    <string name="split_tunnel_apps_include_header">ONLY these apps through VPN</string>
+    <string name="split_tunnel_add_app">Add App</string>
     <string name="settings_split_save">Save Routes</string>
     <string name="settings_split_saved">Routes saved</string>
     <string name="settings_config_import">Config Import</string>

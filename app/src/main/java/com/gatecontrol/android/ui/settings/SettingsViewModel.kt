@@ -33,6 +33,10 @@ data class SettingsUiState(
     val splitTunnelEnabled: Boolean = false,
     val splitTunnelRoutes: String = "",
     val splitTunnelApps: String = "",
+    val splitTunnelMode: String = "off",
+    val splitTunnelNetworks: List<NetworkEntry> = emptyList(),
+    val splitTunnelAppsV2: List<String> = emptyList(),
+    val splitTunnelAdminLocked: Boolean = false,
     val checkInterval: Int = 30,
     val configPollInterval: Int = 300,
     val serverUrl: String = "",
@@ -92,6 +96,31 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.getSplitTunnelApps().collect { apps ->
                 _uiState.update { it.copy(splitTunnelApps = apps) }
+            }
+        }
+
+        // V2 split-tunnel loading
+        viewModelScope.launch {
+            settingsRepository.migrateSplitTunnelIfNeeded()
+            settingsRepository.getSplitTunnelMode().collect { mode ->
+                _uiState.update { it.copy(splitTunnelMode = mode) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.getSplitTunnelNetworks().collect { json ->
+                val networks = parseSplitNetworksJson(json)
+                _uiState.update { it.copy(splitTunnelNetworks = networks) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.getSplitTunnelAppsV2().collect { json ->
+                val apps = parseSplitAppsJson(json)
+                _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.getSplitTunnelAdminLocked().collect { locked ->
+                _uiState.update { it.copy(splitTunnelAdminLocked = locked) }
             }
         }
 
@@ -250,6 +279,39 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.setSplitTunnelApps(apps)
             _uiState.update { it.copy(splitTunnelApps = apps) }
         }
+    }
+
+    fun setSplitTunnelMode(mode: String) {
+        _uiState.update { it.copy(splitTunnelMode = mode) }
+        viewModelScope.launch { settingsRepository.setSplitTunnelMode(mode) }
+    }
+
+    fun setSplitTunnelNetworks(networks: List<NetworkEntry>) {
+        _uiState.update { it.copy(splitTunnelNetworks = networks) }
+        viewModelScope.launch {
+            val json = networks.joinToString(",", "[", "]") { """{"cidr":"${it.cidr}","label":"${it.label}"}""" }
+            settingsRepository.setSplitTunnelNetworks(json)
+        }
+    }
+
+    fun setSplitTunnelAppsV2(apps: List<String>) {
+        _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
+        viewModelScope.launch {
+            val json = apps.joinToString(",", "[", "]") { """{"package":"$it","label":""}""" }
+            settingsRepository.setSplitTunnelAppsV2(json)
+        }
+    }
+
+    private fun parseSplitNetworksJson(json: String): List<NetworkEntry> {
+        if (json.isBlank() || json == "[]") return emptyList()
+        val regex = Regex("""\{"cidr":"([^"]+)","label":"([^"]*)"\}""")
+        return regex.findAll(json).map { NetworkEntry(it.groupValues[1], it.groupValues[2]) }.toList()
+    }
+
+    private fun parseSplitAppsJson(json: String): List<String> {
+        if (json.isBlank() || json == "[]") return emptyList()
+        val regex = Regex("""\{"package":"([^"]+)"""")
+        return regex.findAll(json).map { it.groupValues[1] }.toList()
     }
 
     fun checkForUpdate(currentVersion: String) {

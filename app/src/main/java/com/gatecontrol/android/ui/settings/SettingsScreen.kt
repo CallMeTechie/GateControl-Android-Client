@@ -38,11 +38,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.ui.unit.dp
+import com.gatecontrol.android.util.WifiSubnetDetector
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
@@ -170,61 +173,98 @@ fun SettingsScreen(
             SectionDivider()
         }
 
-        // --- Tunnel Section ---
+        // --- Split Tunneling ---
         item {
+            var showAppPicker by remember { mutableStateOf(false) }
+            val wifiSubnet = remember { WifiSubnetDetector.detect(context) }
+
             Spacer(modifier = Modifier.height(16.dp))
-            SectionHeader(text = stringResource(R.string.settings_tunnel))
+            SectionHeader(text = stringResource(R.string.settings_split_tunnel))
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Mode toggle
             SettingsToggleRow(
-                label = stringResource(R.string.settings_split_tunnel),
-                description = stringResource(R.string.settings_split_tunnel_desc),
-                checked = uiState.splitTunnelEnabled,
-                onCheckedChange = { viewModel.setSplitTunnelEnabled(it) }
+                label = stringResource(R.string.split_tunnel_enabled_label),
+                description = if (uiState.splitTunnelMode == "off") stringResource(R.string.split_tunnel_off_desc) else null,
+                checked = uiState.splitTunnelMode != "off",
+                onCheckedChange = { enabled ->
+                    viewModel.setSplitTunnelMode(if (enabled) "exclude" else "off")
+                }
             )
 
-            if (uiState.splitTunnelEnabled) {
-                Spacer(modifier = Modifier.height(8.dp))
-
-                var routesField by remember(uiState.splitTunnelRoutes) {
-                    mutableStateOf(uiState.splitTunnelRoutes)
+            if (uiState.splitTunnelMode != "off") {
+                // Mode selection
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = uiState.splitTunnelMode == "exclude",
+                        onClick = { if (!uiState.splitTunnelAdminLocked) viewModel.setSplitTunnelMode("exclude") },
+                        enabled = !uiState.splitTunnelAdminLocked,
+                    )
+                    Text(stringResource(R.string.split_tunnel_exclude_label), Modifier.padding(start = 4.dp))
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = uiState.splitTunnelMode == "include",
+                        onClick = { if (!uiState.splitTunnelAdminLocked) viewModel.setSplitTunnelMode("include") },
+                        enabled = !uiState.splitTunnelAdminLocked,
+                    )
+                    Text(stringResource(R.string.split_tunnel_include_label), Modifier.padding(start = 4.dp))
                 }
 
-                OutlinedTextField(
-                    value = routesField,
-                    onValueChange = { routesField = it },
-                    label = { Text(stringResource(R.string.settings_split_routes)) },
-                    placeholder = { Text(stringResource(R.string.settings_split_routes_hint)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    maxLines = 8,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii)
+                Spacer(Modifier.height(12.dp))
+
+                // Context header for networks
+                Text(
+                    if (uiState.splitTunnelMode == "exclude")
+                        stringResource(R.string.split_tunnel_networks_exclude_header)
+                    else
+                        stringResource(R.string.split_tunnel_networks_include_header),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(bottom = 8.dp),
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                GcOutlineButton(
-                    text = stringResource(R.string.settings_split_save),
-                    onClick = { viewModel.saveSplitRoutes(routesField) }
+                NetworkPresetsSection(
+                    networks = uiState.splitTunnelNetworks,
+                    wifiSubnet = wifiSubnet,
+                    adminLocked = uiState.splitTunnelAdminLocked,
+                    onNetworksChanged = { viewModel.setSplitTunnelNetworks(it) },
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(16.dp))
 
-                var appsField by remember(uiState.splitTunnelApps) {
-                    mutableStateOf(uiState.splitTunnelApps)
+                // Context header for apps
+                Text(
+                    if (uiState.splitTunnelMode == "exclude")
+                        stringResource(R.string.split_tunnel_apps_exclude_header)
+                    else
+                        stringResource(R.string.split_tunnel_apps_include_header),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+
+                // Selected apps list
+                uiState.splitTunnelAppsV2.forEach { pkg ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(pkg, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        IconButton(onClick = { viewModel.setSplitTunnelAppsV2(uiState.splitTunnelAppsV2 - pkg) }) {
+                            Icon(Icons.Default.Close, contentDescription = "Remove")
+                        }
+                    }
                 }
 
-                OutlinedTextField(
-                    value = appsField,
-                    onValueChange = {
-                        appsField = it
-                        viewModel.setSplitTunnelApps(it)
-                    },
-                    label = { Text(stringResource(R.string.settings_split_apps)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                TextButton(onClick = { showAppPicker = true }) {
+                    Text("+ ${stringResource(R.string.split_tunnel_add_app)}")
+                }
+
+                if (showAppPicker) {
+                    AppPickerSheet(
+                        selectedPackages = uiState.splitTunnelAppsV2.toSet(),
+                        onDismiss = { selected ->
+                            viewModel.setSplitTunnelAppsV2(selected.toList())
+                            showAppPicker = false
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
