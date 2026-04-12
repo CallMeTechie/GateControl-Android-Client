@@ -8,6 +8,7 @@ import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.PermissionsResponse
+import com.gatecontrol.android.network.SplitTunnelPresetResponse
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
 import io.mockk.coEvery
@@ -58,8 +59,14 @@ class VpnViewModelTest {
         every { settingsRepository.getSplitTunnelEnabled() } returns flowOf(false)
         every { settingsRepository.getSplitTunnelRoutes() } returns flowOf("")
         every { settingsRepository.getSplitTunnelApps() } returns flowOf("")
+        every { settingsRepository.getSplitTunnelMode() } returns flowOf("off")
+        every { settingsRepository.getSplitTunnelNetworks() } returns flowOf("[]")
+        every { settingsRepository.getSplitTunnelAppsV2() } returns flowOf("[]")
         every { setupRepository.getServerUrl() } returns "https://gate.example.com"
         every { setupRepository.getPeerId() } returns 42
+        coEvery { apiClient.getSplitTunnelPreset() } returns SplitTunnelPresetResponse(
+            ok = true, mode = "off", networks = emptyList(), locked = false, source = "none"
+        )
         every { apiClientProvider.getClient(any()) } returns apiClient
         every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(TunnelState.Disconnected)
         every { tunnelManager.stats } returns kotlinx.coroutines.flow.MutableStateFlow(com.gatecontrol.android.tunnel.TunnelStats())

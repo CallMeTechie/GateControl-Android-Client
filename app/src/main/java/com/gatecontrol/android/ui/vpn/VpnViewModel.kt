@@ -10,6 +10,7 @@ import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
 import com.gatecontrol.android.service.TunnelStateHolder
+import com.gatecontrol.android.tunnel.SplitTunnelConfig
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelMonitor
 import com.gatecontrol.android.tunnel.TunnelState
@@ -146,17 +147,55 @@ class VpnViewModel @Inject constructor(
                     if (host != null) apiClientProvider.preResolveDns(host)
                 } catch (_: Exception) {}
             }
+            // Fetch admin split-tunnel preset (graceful — never blocks connect)
+            var splitTunnelConfig = SplitTunnelConfig() // default: mode=off
             try {
-                val splitEnabled = settingsRepository.getSplitTunnelEnabled().first()
-                val splitRoutes = if (splitEnabled) {
-                    settingsRepository.getSplitTunnelRoutes().first()
-                        .split(",", "\n").map { it.trim() }.filter { it.isNotEmpty() }
-                } else emptyList()
-                val excludedApps = if (splitEnabled) {
-                    settingsRepository.getSplitTunnelApps().first()
-                        .split(",", "\n").map { it.trim() }.filter { it.isNotEmpty() }
-                } else emptyList()
-                tunnelManager.connect(config, splitRoutes, excludedApps)
+                if (serverUrl.isNotEmpty()) {
+                    val client = apiClientProvider.getClient(serverUrl)
+                    val preset = client.getSplitTunnelPreset()
+                    if (preset.ok && preset.mode != "off") {
+                        // Store admin preset
+                        settingsRepository.setSplitTunnelMode(preset.mode)
+                        settingsRepository.setSplitTunnelNetworks(
+                            preset.networks.joinToString(",", "[", "]") {
+                                """{"cidr":"${it.cidr}","label":"${it.label}"}"""
+                            }
+                        )
+                        settingsRepository.setSplitTunnelAdminLocked(preset.locked)
+
+                        // Merge: admin networks + user apps (apps are ALWAYS user-controlled)
+                        val userApps = settingsRepository.getSplitTunnelAppsV2().first()
+                        val appsList = parseSplitAppsJson(userApps)
+
+                        splitTunnelConfig = SplitTunnelConfig(
+                            mode = preset.mode,
+                            networks = preset.networks.map { it.cidr },
+                            apps = appsList,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Split-tunnel preset fetch failed, using cached config")
+                // Fallback to cached DataStore values
+                try {
+                    val mode = settingsRepository.getSplitTunnelMode().first()
+                    if (mode != "off") {
+                        val networksJson = settingsRepository.getSplitTunnelNetworks().first()
+                        val appsJson = settingsRepository.getSplitTunnelAppsV2().first()
+                        splitTunnelConfig = SplitTunnelConfig(
+                            mode = mode,
+                            networks = parseSplitNetworksJsonToCidrs(networksJson),
+                            apps = parseSplitAppsJson(appsJson),
+                        )
+                    }
+                } catch (_: Exception) {}
+            }
+
+            try {
+                // Temporary bridge until TunnelManager is updated (T11)
+                val routesForTunnel = if (splitTunnelConfig.mode == "include") splitTunnelConfig.networks else emptyList()
+                val appsForTunnel = splitTunnelConfig.apps
+                tunnelManager.connect(config, routesForTunnel, appsForTunnel)
                 Timber.d("VpnViewModel: tunnel connect requested")
             } catch (e: Exception) {
                 Timber.e(e, "VpnViewModel: connect failed")
@@ -281,5 +320,19 @@ class VpnViewModel @Inject constructor(
                 Timber.w(e, "VpnViewModel: failed to load permissions")
             }
         }
+    }
+
+    // --- Split-tunnel JSON helpers ---
+
+    private fun parseSplitNetworksJsonToCidrs(json: String): List<String> {
+        if (json.isBlank() || json == "[]") return emptyList()
+        val regex = Regex("""\{"cidr":"([^"]+)"""")
+        return regex.findAll(json).map { it.groupValues[1] }.toList()
+    }
+
+    private fun parseSplitAppsJson(json: String): List<String> {
+        if (json.isBlank() || json == "[]") return emptyList()
+        val regex = Regex("""\{"package":"([^"]+)"""")
+        return regex.findAll(json).map { it.groupValues[1] }.toList()
     }
 }
