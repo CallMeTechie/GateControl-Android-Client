@@ -192,10 +192,7 @@ class VpnViewModel @Inject constructor(
             }
 
             try {
-                // Temporary bridge until TunnelManager is updated (T11)
-                val routesForTunnel = if (splitTunnelConfig.mode == "include") splitTunnelConfig.networks else emptyList()
-                val appsForTunnel = splitTunnelConfig.apps
-                tunnelManager.connect(config, routesForTunnel, appsForTunnel)
+                tunnelManager.connect(config, splitTunnelConfig)
                 Timber.d("VpnViewModel: tunnel connect requested")
             } catch (e: Exception) {
                 Timber.e(e, "VpnViewModel: connect failed")
