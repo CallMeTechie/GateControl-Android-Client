@@ -121,6 +121,8 @@
     <string name="settings_split_routes">IP Routes (one per line)</string>
     <string name="settings_split_routes_hint">10.0.0.0/8\n192.168.0.0/16</string>
     <string name="settings_split_apps">Excluded Apps</string>
+    <string name="split_tunnel_search_apps">Search apps&#8230;</string>
+    <string name="split_tunnel_show_system">Show system apps</string>
     <string name="settings_split_save">Save Routes</string>
     <string name="settings_split_saved">Routes saved</string>
     <string name="settings_config_import">Config Import</string>

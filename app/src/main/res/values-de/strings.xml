@@ -121,6 +121,8 @@
     <string name="settings_split_routes">IP-Routen (eine pro Zeile)</string>
     <string name="settings_split_routes_hint">10.0.0.0/8\n192.168.0.0/16</string>
     <string name="settings_split_apps">Ausgeschlossene Apps</string>
+    <string name="split_tunnel_search_apps">Apps suchen&#8230;</string>
+    <string name="split_tunnel_show_system">System-Apps anzeigen</string>
     <string name="settings_split_save">Routen speichern</string>
     <string name="settings_split_saved">Routen gespeichert</string>
     <string name="settings_config_import">Konfiguration importieren</string>
