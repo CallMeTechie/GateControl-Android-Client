@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.20] - 2026-04-12
+
+### Fixes
+- don't overwrite DNS cache + delay API calls after VPN connect
+
+---
+
 ## [1.2.19] - 2026-04-11
 
 ### Fixes
