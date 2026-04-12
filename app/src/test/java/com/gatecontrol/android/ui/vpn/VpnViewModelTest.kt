@@ -102,7 +102,7 @@ class VpnViewModelTest {
         viewModel.connect()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { tunnelManager.connect(any(), any(), any()) }
+        coVerify { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
     }
 
     @Test
@@ -112,7 +112,7 @@ class VpnViewModelTest {
         viewModel.connect()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify(exactly = 0) { tunnelManager.connect(any(), any(), any()) }
+        coVerify(exactly = 0) { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
     }
 
     @Test
