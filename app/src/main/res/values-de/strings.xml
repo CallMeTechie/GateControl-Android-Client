@@ -124,7 +124,7 @@
     <string name="split_tunnel_search_apps">Apps suchen&#8230;</string>
     <string name="split_tunnel_show_system">System-Apps anzeigen</string>
     <string name="split_tunnel_presets_label">Netzwerk-Vorauswahl</string>
-    <string name="split_tunnel_private_nets">Private Netzwerke (10/172/192)</string>
+    <string name="split_tunnel_private_nets">Private Netzwerke (172/192)</string>
     <string name="split_tunnel_wifi_subnet">WLAN-Subnetz (%1$s)</string>
     <string name="split_tunnel_no_wifi">WLAN-Subnetz (nicht verbunden)</string>
     <string name="split_tunnel_custom_label">Benutzerdefinierte Netzwerke</string>

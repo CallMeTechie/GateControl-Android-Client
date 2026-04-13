@@ -16,8 +16,9 @@ import com.gatecontrol.android.R
 
 data class NetworkEntry(val cidr: String, val label: String)
 
+// 10.0.0.0/8 intentionally excluded — the WireGuard VPN subnet (10.8.0.0/24)
+// lives there. Users who need it can add it as a custom network.
 private val PRIVATE_NETS = listOf(
-    NetworkEntry("10.0.0.0/8", "Private 10.x"),
     NetworkEntry("172.16.0.0/12", "Private 172.x"),
     NetworkEntry("192.168.0.0/16", "Private 192.x"),
 )

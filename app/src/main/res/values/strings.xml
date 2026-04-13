@@ -124,7 +124,7 @@
     <string name="split_tunnel_search_apps">Search apps&#8230;</string>
     <string name="split_tunnel_show_system">Show system apps</string>
     <string name="split_tunnel_presets_label">Network Presets</string>
-    <string name="split_tunnel_private_nets">Private Networks (10/172/192)</string>
+    <string name="split_tunnel_private_nets">Private Networks (172/192)</string>
     <string name="split_tunnel_wifi_subnet">WiFi Subnet (%1$s)</string>
     <string name="split_tunnel_no_wifi">WiFi Subnet (not connected)</string>
     <string name="split_tunnel_custom_label">Custom Networks</string>
