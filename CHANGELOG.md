@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.23] - 2026-04-13
+
+### Fixes
+- WifiSubnetDetector iterates allNetworks to find WiFi (not VPN)
+
+---
+
 ## [1.2.22] - 2026-04-13
 
 ### Fixes
