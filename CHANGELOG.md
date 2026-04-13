@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.28] - 2026-04-13
+
+### Fixes
+- missing imports, success field in UiState, locale test update
+
+---
+
 ## [1.2.27] - 2026-04-13
 
 ### Fixes
