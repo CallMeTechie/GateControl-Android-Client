@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.22] - 2026-04-13
+
+### Fixes
+- remove 10.0.0.0/8 from private nets preset (conflicts with WireGuard VPN subnet)
+
+---
+
 ## [1.2.21] - 2026-04-12
 
 ### Fixes
