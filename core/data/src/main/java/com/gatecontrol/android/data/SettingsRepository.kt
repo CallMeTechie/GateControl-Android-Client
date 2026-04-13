@@ -33,7 +33,13 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
 
-    fun getLocale(): Flow<String> = dataStore.data.map { it[LOCALE] ?: "de" }
+    fun getLocale(): Flow<String> = dataStore.data.map { prefs ->
+        prefs[LOCALE] ?: run {
+            // Default to system language, fall back to English if not supported
+            val sysLang = java.util.Locale.getDefault().language
+            if (sysLang == "de") "de" else "en"
+        }
+    }
 
     fun getAutoConnect(): Flow<Boolean> = dataStore.data.map { it[AUTO_CONNECT] ?: false }
 

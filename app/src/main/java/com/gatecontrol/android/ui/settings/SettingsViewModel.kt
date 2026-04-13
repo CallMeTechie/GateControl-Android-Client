@@ -379,9 +379,33 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(updateInfo = null) }
     }
 
+    private val _requestFilePicker = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val requestFilePicker: kotlinx.coroutines.flow.StateFlow<Boolean> = _requestFilePicker
+
     fun requestConfigImport() {
-        // Signal to UI to launch file picker — handled via shared state
-        _uiState.update { it.copy(error = "Use the setup screen to import config files") }
+        _requestFilePicker.value = true
+    }
+
+    fun onFilePickerLaunched() {
+        _requestFilePicker.value = false
+    }
+
+    fun importConfigFromUri(context: android.content.Context, uri: android.net.Uri) {
+        viewModelScope.launch {
+            try {
+                val input = context.contentResolver.openInputStream(uri)
+                val config = input?.bufferedReader()?.readText() ?: return@launch
+                input.close()
+                if (!config.contains("[Interface]") || !config.contains("PrivateKey")) {
+                    _uiState.update { it.copy(error = "Invalid WireGuard config file") }
+                    return@launch
+                }
+                setupRepository.saveWireGuardConfig(config)
+                _uiState.update { it.copy(error = null, success = "Config imported successfully") }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Import failed: ${e.message}") }
+            }
+        }
     }
 
     fun exportLogs(cacheDir: File): File? {

@@ -37,6 +37,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Visibility
@@ -62,6 +68,19 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // File picker for .conf import
+    val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) viewModel.importConfigFromUri(context, uri) }
+
+    val requestFilePicker by viewModel.requestFilePicker.collectAsStateWithLifecycle()
+    LaunchedEffect(requestFilePicker) {
+        if (requestFilePicker) {
+            viewModel.onFilePickerLaunched()
+            filePickerLauncher.launch(arrayOf("*/*"))
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -242,10 +261,25 @@ fun SettingsScreen(
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
 
-                // Selected apps list
+                // Selected apps list (resolve package name → app label + icon)
+                val pm = context.packageManager
                 uiState.splitTunnelAppsV2.forEach { pkg ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(pkg, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    val appLabel = remember(pkg) {
+                        try { pm.getApplicationInfo(pkg, 0).loadLabel(pm).toString() } catch (_: Exception) { pkg }
+                    }
+                    val appIcon = remember(pkg) {
+                        try { pm.getApplicationIcon(pkg) } catch (_: Exception) { null }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (appIcon != null) {
+                            Image(
+                                bitmap = appIcon.toBitmap(40, 40).asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(appLabel, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         IconButton(onClick = { viewModel.setSplitTunnelAppsV2(uiState.splitTunnelAppsV2 - pkg) }) {
                             Icon(Icons.Default.Close, contentDescription = "Remove")
                         }
@@ -303,13 +337,20 @@ fun SettingsScreen(
             SectionHeader(text = stringResource(R.string.settings_app))
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Resolve effective theme: "system" follows device setting
+            val systemIsDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val effectivelyDark = when (uiState.theme) {
+                "dark" -> true
+                "light" -> false
+                else -> systemIsDark
+            }
             SettingsToggleRow(
                 label = stringResource(R.string.settings_theme),
-                description = if (uiState.theme == "dark")
+                description = if (effectivelyDark)
                     stringResource(R.string.settings_theme_dark)
                 else
                     stringResource(R.string.settings_theme_light),
-                checked = uiState.theme == "dark",
+                checked = effectivelyDark,
                 onCheckedChange = { isDark ->
                     viewModel.setTheme(if (isDark) "dark" else "light")
                 }

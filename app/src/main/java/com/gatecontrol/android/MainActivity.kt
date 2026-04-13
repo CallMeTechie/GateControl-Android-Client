@@ -41,8 +41,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val theme by settingsRepository.getTheme()
                 .collectAsStateWithLifecycle(initialValue = "system")
+            val sysLang = remember { java.util.Locale.getDefault().language }
             val locale by settingsRepository.getLocale()
-                .collectAsStateWithLifecycle(initialValue = "de")
+                .collectAsStateWithLifecycle(initialValue = if (sysLang == "de") "de" else "en")
 
             // Apply locale change
             LaunchedEffect(locale) {
