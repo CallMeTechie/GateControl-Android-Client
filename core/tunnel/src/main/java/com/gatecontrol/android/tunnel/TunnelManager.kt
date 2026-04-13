@@ -244,10 +244,12 @@ class TunnelManager @Inject constructor(private val context: Context) {
                     // No networks excluded — full tunnel (use original AllowedIPs)
                     parsed.allowedIps
                 } else {
-                    // Compute complement: 0.0.0.0/0 minus excluded networks
+                    // Compute complement: 0.0.0.0/0 minus excluded networks (IPv4)
                     val complement = CidrComplement.computeAllowedIps(splitConfig.networks)
-                    // Always add DNS + VPN subnet to prevent DNS leaks
-                    (complement + dnsIps + VPN_SUBNET).distinct().joinToString(",")
+                    // Always include ::/0 to prevent IPv6 leaks — exclude mode means
+                    // "everything through VPN except these networks", so IPv6 must also
+                    // be tunneled. Also add DNS + VPN subnet to prevent DNS leaks.
+                    (complement + listOf("::/0") + dnsIps + VPN_SUBNET).distinct().joinToString(",")
                 }
             }
             "include" -> {
