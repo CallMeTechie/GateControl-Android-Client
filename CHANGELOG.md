@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.26] - 2026-04-13
+
+### Fixes
+- add missing imports for toBitmap and Modifier.size
+
+---
+
 ## [1.2.25] - 2026-04-13
 
 ### Fixes
