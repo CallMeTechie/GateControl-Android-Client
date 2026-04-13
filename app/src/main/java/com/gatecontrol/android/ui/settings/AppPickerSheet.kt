@@ -57,18 +57,27 @@ fun AppPickerSheet(
     var showSystem by remember { mutableStateOf(false) }
     var currentSelection by remember { mutableStateOf(selectedPackages) }
 
-    // Load apps on IO thread
+    // Load apps on IO thread.
+    // Use queryIntentActivities with ACTION_MAIN + CATEGORY_LAUNCHER to get all
+    // launchable apps. getInstalledApplications(0) returns almost nothing on
+    // Android 11+ due to package visibility restrictions (QUERY_ALL_PACKAGES
+    // permission would require Play Store review).
     val apps by produceState<List<AppInfo>?>(initialValue = null) {
         value = withContext(Dispatchers.IO) {
             val pm = context.packageManager
-            pm.getInstalledApplications(0)
-                .map { info ->
+            val launcherIntent = android.content.Intent(android.content.Intent.ACTION_MAIN, null)
+                .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+            val activities = pm.queryIntentActivities(launcherIntent, 0)
+            activities
+                .mapNotNull { resolveInfo ->
+                    val appInfo = resolveInfo.activityInfo?.applicationInfo ?: return@mapNotNull null
                     AppInfo(
-                        packageName = info.packageName,
-                        label = info.loadLabel(pm).toString(),
-                        isSystemApp = (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
+                        packageName = appInfo.packageName,
+                        label = resolveInfo.loadLabel(pm).toString(),
+                        isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
                     )
                 }
+                .distinctBy { it.packageName }
                 .sortedBy { it.label.lowercase() }
         }
     }
