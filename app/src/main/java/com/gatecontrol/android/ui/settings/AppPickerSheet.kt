@@ -1,7 +1,9 @@
 package com.gatecontrol.android.ui.settings
 
 import android.content.pm.ApplicationInfo
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -137,14 +139,21 @@ fun AppPickerSheet(
                 ) {
                     items(filtered, key = { it.packageName }) { app ->
                         val isSelected = app.packageName in currentSelection
+                        val icon = remember(app.packageName) {
+                            try {
+                                context.packageManager.getApplicationIcon(app.packageName)
+                            } catch (_: Exception) { null }
+                        }
                         ListItem(
                             headlineContent = { Text(app.label, maxLines = 1) },
-                            supportingContent = {
-                                Text(
-                                    app.packageName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                )
+                            leadingContent = {
+                                if (icon != null) {
+                                    Image(
+                                        bitmap = androidx.core.graphics.drawable.toBitmap(icon, 40, 40).asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(36.dp),
+                                    )
+                                }
                             },
                             trailingContent = {
                                 if (isSelected) {
