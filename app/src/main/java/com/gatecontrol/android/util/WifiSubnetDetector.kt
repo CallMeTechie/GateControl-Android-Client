@@ -18,13 +18,16 @@ object WifiSubnetDetector {
     fun detect(context: Context): String? {
         return try {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork ?: return null
-            val caps = cm.getNetworkCapabilities(network) ?: return null
 
-            // Check it's WiFi
-            if (!caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) return null
+            // Iterate ALL networks to find the WiFi one — activeNetwork may be
+            // the VPN interface (10.8.0.x) when the tunnel is active.
+            val wifiNetwork = cm.allNetworks.firstOrNull { net ->
+                val caps = cm.getNetworkCapabilities(net) ?: return@firstOrNull false
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) &&
+                    !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
+            } ?: return null
 
-            val linkProps = cm.getLinkProperties(network) ?: return null
+            val linkProps = cm.getLinkProperties(wifiNetwork) ?: return null
             val linkAddr = linkProps.linkAddresses.firstOrNull { it.address is java.net.Inet4Address }
                 ?: return null
 
