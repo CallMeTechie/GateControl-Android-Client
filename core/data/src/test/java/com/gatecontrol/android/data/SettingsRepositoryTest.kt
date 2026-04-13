@@ -36,11 +36,12 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `getLocale returns de by default`() = runTest {
+    fun `getLocale returns system language by default`() = runTest {
         every { dataStore.data } returns flowOf(preferencesOf())
+        val expected = if (java.util.Locale.getDefault().language == "de") "de" else "en"
 
         repository.getLocale().test {
-            assertEquals("de", awaitItem())
+            assertEquals(expected, awaitItem())
             awaitComplete()
         }
     }

@@ -46,6 +46,7 @@ data class SettingsUiState(
     val updateInfo: UpdateCheckResponse? = null,
     val appVersion: String = "",
     val error: String? = null,
+    val success: String? = null,
     val isPro: Boolean = false,
     val licenseStatus: String = ""
 )
