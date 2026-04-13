@@ -150,34 +150,39 @@ class VpnViewModel @Inject constructor(
             // Fetch admin split-tunnel preset (graceful — never blocks connect)
             var splitTunnelConfig = SplitTunnelConfig() // default: mode=off
             try {
+                var adminPresetActive = false
                 if (serverUrl.isNotEmpty()) {
-                    val client = apiClientProvider.getClient(serverUrl)
-                    val preset = client.getSplitTunnelPreset()
-                    if (preset.ok && preset.mode != "off") {
-                        // Store admin preset
-                        settingsRepository.setSplitTunnelMode(preset.mode)
-                        settingsRepository.setSplitTunnelNetworks(
-                            preset.networks.joinToString(",", "[", "]") {
-                                """{"cidr":"${it.cidr}","label":"${it.label}"}"""
-                            }
-                        )
-                        settingsRepository.setSplitTunnelAdminLocked(preset.locked)
+                    try {
+                        val client = apiClientProvider.getClient(serverUrl)
+                        val preset = client.getSplitTunnelPreset()
+                        if (preset.ok && preset.mode != "off" && preset.source != "none") {
+                            // Admin preset exists — store and use it
+                            settingsRepository.setSplitTunnelMode(preset.mode)
+                            settingsRepository.setSplitTunnelNetworks(
+                                preset.networks.joinToString(",", "[", "]") {
+                                    """{"cidr":"${it.cidr}","label":"${it.label}"}"""
+                                }
+                            )
+                            settingsRepository.setSplitTunnelAdminLocked(preset.locked)
+                            adminPresetActive = true
 
-                        // Merge: admin networks + user apps (apps are ALWAYS user-controlled)
-                        val userApps = settingsRepository.getSplitTunnelAppsV2().first()
-                        val appsList = parseSplitAppsJson(userApps)
+                            // Merge: admin networks + user apps (apps ALWAYS user-controlled)
+                            val userApps = settingsRepository.getSplitTunnelAppsV2().first()
+                            val appsList = parseSplitAppsJson(userApps)
 
-                        splitTunnelConfig = SplitTunnelConfig(
-                            mode = preset.mode,
-                            networks = preset.networks.map { it.cidr },
-                            apps = appsList,
-                        )
+                            splitTunnelConfig = SplitTunnelConfig(
+                                mode = preset.mode,
+                                networks = preset.networks.map { it.cidr },
+                                apps = appsList,
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Timber.w(e, "Split-tunnel preset fetch failed")
                     }
                 }
-            } catch (e: Exception) {
-                Timber.w(e, "Split-tunnel preset fetch failed, using cached config")
-                // Fallback to cached DataStore values
-                try {
+
+                // No admin preset — use LOCAL user settings from DataStore
+                if (!adminPresetActive) {
                     val mode = settingsRepository.getSplitTunnelMode().first()
                     if (mode != "off") {
                         val networksJson = settingsRepository.getSplitTunnelNetworks().first()
@@ -187,8 +192,11 @@ class VpnViewModel @Inject constructor(
                             networks = parseSplitNetworksJsonToCidrs(networksJson),
                             apps = parseSplitAppsJson(appsJson),
                         )
+                        Timber.d("Split-tunnel: using local config mode=$mode, ${splitTunnelConfig.networks.size} networks, ${splitTunnelConfig.apps.size} apps")
                     }
-                } catch (_: Exception) {}
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Split-tunnel config load failed")
             }
 
             try {
