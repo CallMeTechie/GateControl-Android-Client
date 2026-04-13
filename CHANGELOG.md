@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.29] - 2026-04-13
+
+### Fixes
+- add ::/0 to AllowedIPs in exclude mode to prevent IPv6 leak
+
+---
+
 ## [1.2.28] - 2026-04-13
 
 ### Fixes
