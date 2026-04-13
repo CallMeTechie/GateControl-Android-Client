@@ -3,7 +3,9 @@ package com.gatecontrol.android.ui.settings
 import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -149,7 +151,7 @@ fun AppPickerSheet(
                             leadingContent = {
                                 if (icon != null) {
                                     Image(
-                                        bitmap = androidx.core.graphics.drawable.toBitmap(icon, 40, 40).asImageBitmap(),
+                                        bitmap = icon.toBitmap(40, 40).asImageBitmap(),
                                         contentDescription = null,
                                         modifier = Modifier.size(36.dp),
                                     )
