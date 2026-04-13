@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.27] - 2026-04-13
+
+### Fixes
+- use local split-tunnel settings when no admin preset exists
+
+---
+
 ## [1.2.26] - 2026-04-13
 
 ### Fixes
