@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.25] - 2026-04-13
+
+### Fixes
+- add queries element for launcher intent visibility (Android 11+)
+
+---
+
 ## [1.2.24] - 2026-04-13
 
 ### Fixes
