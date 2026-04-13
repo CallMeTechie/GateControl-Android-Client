@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.24] - 2026-04-13
+
+### Fixes
+- use queryIntentActivities for app list (Android 11+ package visibility)
+
+---
+
 ## [1.2.23] - 2026-04-13
 
 ### Fixes
