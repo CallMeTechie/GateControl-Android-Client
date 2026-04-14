@@ -213,7 +213,8 @@ class VpnViewModel @Inject constructor(
             try {
                 tunnelManager.disconnect()
                 _stats.value = TunnelStats()
-                Timber.d("VpnViewModel: tunnel disconnected")
+                apiClientProvider.clearDnsCache()
+                Timber.d("VpnViewModel: tunnel disconnected, DNS cache cleared")
             } catch (e: Exception) {
                 Timber.e(e, "VpnViewModel: disconnect failed")
             }

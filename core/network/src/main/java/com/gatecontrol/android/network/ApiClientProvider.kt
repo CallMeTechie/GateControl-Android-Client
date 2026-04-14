@@ -42,27 +42,42 @@ class ApiClientProvider @Inject constructor(
 
     /**
      * Resolve and cache the server hostname. Safe to call from any thread.
-     * Only updates the cache if it is EMPTY for this hostname — never
-     * overwrites a previously resolved address. This prevents the VPN's
-     * split-horizon DNS (10.8.0.1) from replacing the real public IP
-     * when preResolveDns is called again after the tunnel is up.
+     * Always re-resolves to pick up DNS changes (server migration, dynamic DNS).
+     * Call this BEFORE the VPN starts — once the tunnel is up, system DNS
+     * points to the VPN-internal resolver which is unreachable from this app.
      */
     suspend fun preResolveDns(hostname: String) {
-        if (dnsCache.containsKey(hostname)) {
-            timber.log.Timber.d("DNS cache hit for $hostname — skipping re-resolve")
-            return
-        }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val addresses = InetAddress.getAllByName(hostname)
                 if (addresses.isNotEmpty()) {
+                    val prev = dnsCache[hostname]?.map { it.hostAddress }
                     dnsCache[hostname] = addresses.toList()
-                    timber.log.Timber.d("DNS pre-resolved: $hostname -> ${addresses.map { it.hostAddress }}")
+                    val resolved = addresses.map { it.hostAddress }
+                    if (prev != null && prev != resolved) {
+                        timber.log.Timber.i("DNS changed for $hostname: $prev -> $resolved")
+                    } else {
+                        timber.log.Timber.d("DNS pre-resolved: $hostname -> $resolved")
+                    }
                 }
             } catch (e: Exception) {
-                timber.log.Timber.w("DNS pre-resolve failed for $hostname: ${e.message}")
+                // Keep existing cache entry if re-resolve fails (e.g. no connectivity)
+                if (dnsCache.containsKey(hostname)) {
+                    timber.log.Timber.d("DNS re-resolve failed for $hostname, keeping cached entry: ${e.message}")
+                } else {
+                    timber.log.Timber.w("DNS pre-resolve failed for $hostname: ${e.message}")
+                }
             }
         }
+    }
+
+    /**
+     * Clear the DNS cache. Call on VPN disconnect so the next connect
+     * picks up any DNS changes that occurred while the tunnel was active.
+     */
+    fun clearDnsCache() {
+        dnsCache.clear()
+        timber.log.Timber.d("DNS cache cleared")
     }
 
     private val vpnSafeDns = object : Dns {
