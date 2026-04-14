@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1] - 2026-04-14
+
+### Fixes
+- load recommended apps via getApplicationInfo instead of launcher query
+
+---
+
 ## [1.3.0] - 2026-04-14
 
 ### Features
