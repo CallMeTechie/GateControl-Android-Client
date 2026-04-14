@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4] - 2026-04-14
+
+### Fixes
+- invalidate DNS cache on VPN disconnect
+
+---
+
 ## [1.3.3] - 2026-04-14
 
 ### Fixes
