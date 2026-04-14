@@ -74,6 +74,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.robolectric)
+    testImplementation("org.json:json:20240303")
 }
 
 kapt {

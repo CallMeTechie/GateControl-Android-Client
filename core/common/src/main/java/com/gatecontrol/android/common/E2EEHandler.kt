@@ -101,8 +101,8 @@ class E2EEHandler {
         val obj = JSONObject(json)
         return Credentials(
             username = obj.optString("username", ""),
-            password = obj.optString("password").ifEmpty { null },
-            domain = obj.optString("domain").ifEmpty { null },
+            password = if (obj.isNull("password")) null else obj.getString("password"),
+            domain = if (obj.isNull("domain")) null else obj.getString("domain"),
         )
     }
 
