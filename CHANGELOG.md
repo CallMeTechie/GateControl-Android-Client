@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2] - 2026-04-14
+
+### Fixes
+- auto-exclude Wi-Fi Direct subnet when Android Auto is excluded
+
+---
+
 ## [1.3.1] - 2026-04-14
 
 ### Fixes
