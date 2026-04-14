@@ -91,9 +91,21 @@ fun AppPickerSheet(
         }
     }
 
-    // Recommended apps (only installed ones)
-    val recommendedApps = remember(apps) {
-        apps?.filter { it.packageName in RECOMMENDED_EXCLUDE_APPS } ?: emptyList()
+    // Recommended apps — loaded independently via getApplicationInfo() because
+    // some (e.g. Android Auto) have no CATEGORY_LAUNCHER and won't appear in
+    // the main list from queryIntentActivities().
+    val recommendedApps = remember {
+        val pm = context.packageManager
+        RECOMMENDED_EXCLUDE_APPS.mapNotNull { pkg ->
+            try {
+                val info = pm.getApplicationInfo(pkg, 0)
+                AppInfo(
+                    packageName = pkg,
+                    label = info.loadLabel(pm).toString(),
+                    isSystemApp = (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
+                )
+            } catch (_: Exception) { null }
+        }
     }
 
     // Filter (exclude recommended from main list to avoid duplicates)
