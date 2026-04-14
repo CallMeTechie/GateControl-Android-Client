@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0] - 2026-04-14
+
+### Features
+- recommended apps section in split-tunnel app picker
+
+---
+
 ## [1.2.29] - 2026-04-13
 
 ### Fixes
