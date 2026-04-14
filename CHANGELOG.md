@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3] - 2026-04-14
+
+### Fixes
+- add org.json test dependency and handle JSON null correctly
+
+---
+
 ## [1.3.2] - 2026-04-14
 
 ### Fixes
