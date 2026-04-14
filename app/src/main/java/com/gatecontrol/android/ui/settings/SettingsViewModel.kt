@@ -8,6 +8,8 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.UpdateCheckResponse
 import com.gatecontrol.android.common.Validation
+import org.json.JSONArray
+import org.json.JSONObject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -290,29 +292,34 @@ class SettingsViewModel @Inject constructor(
     fun setSplitTunnelNetworks(networks: List<NetworkEntry>) {
         _uiState.update { it.copy(splitTunnelNetworks = networks) }
         viewModelScope.launch {
-            val json = networks.joinToString(",", "[", "]") { """{"cidr":"${it.cidr}","label":"${it.label}"}""" }
-            settingsRepository.setSplitTunnelNetworks(json)
+            val arr = JSONArray()
+            networks.forEach { arr.put(JSONObject().put("cidr", it.cidr).put("label", it.label)) }
+            settingsRepository.setSplitTunnelNetworks(arr.toString())
         }
     }
 
     fun setSplitTunnelAppsV2(apps: List<String>) {
         _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
         viewModelScope.launch {
-            val json = apps.joinToString(",", "[", "]") { """{"package":"$it","label":""}""" }
-            settingsRepository.setSplitTunnelAppsV2(json)
+            val arr = JSONArray()
+            apps.forEach { arr.put(JSONObject().put("package", it).put("label", "")) }
+            settingsRepository.setSplitTunnelAppsV2(arr.toString())
         }
     }
 
     private fun parseSplitNetworksJson(json: String): List<NetworkEntry> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val regex = Regex("""\{"cidr":"([^"]+)","label":"([^"]*)"\}""")
-        return regex.findAll(json).map { NetworkEntry(it.groupValues[1], it.groupValues[2]) }.toList()
+        val arr = JSONArray(json)
+        return (0 until arr.length()).map {
+            val obj = arr.getJSONObject(it)
+            NetworkEntry(obj.getString("cidr"), obj.optString("label", ""))
+        }
     }
 
     private fun parseSplitAppsJson(json: String): List<String> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val regex = Regex("""\{"package":"([^"]+)"""")
-        return regex.findAll(json).map { it.groupValues[1] }.toList()
+        val arr = JSONArray(json)
+        return (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
     }
 
     fun checkForUpdate(currentVersion: String) {

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.common
 
+import org.json.JSONObject
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
@@ -94,14 +95,15 @@ class E2EEHandler {
 
     /**
      * Decrypt and parse credentials from a JSON-encoded EncryptedPayload.
-     * Uses simple regex-based JSON parsing without external dependencies.
      */
     fun decryptCredentials(payload: EncryptedPayload): Credentials {
         val json = decrypt(payload)
-        val username = extractJsonString(json, "username") ?: ""
-        val password = extractJsonString(json, "password")
-        val domain = extractJsonString(json, "domain")
-        return Credentials(username = username, password = password, domain = domain)
+        val obj = JSONObject(json)
+        return Credentials(
+            username = obj.optString("username", ""),
+            password = obj.optString("password").ifEmpty { null },
+            domain = obj.optString("domain").ifEmpty { null },
+        )
     }
 
     /**
@@ -140,23 +142,4 @@ class E2EEHandler {
         return mac.doFinal(data)
     }
 
-    /**
-     * Extract the string value for [key] from a JSON object string.
-     * Handles escaped quotes (\") and escaped backslashes (\\).
-     * Returns null if the key is absent or its value is JSON null.
-     */
-    private fun extractJsonString(json: String, key: String): String? {
-        // Match: "key"\s*:\s*"captured value" — value may contain \" and \\
-        val pattern = Regex(""""${Regex.escape(key)}"\s*:\s*(?:"((?:[^"\\]|\\.)*)"|null)""")
-        val match = pattern.find(json) ?: return null
-        val raw = match.groupValues[1]
-        if (raw.isEmpty() && match.value.trimEnd().endsWith("null")) return null
-        return raw
-            .replace("\\\"", "\"")
-            .replace("\\\\", "\\")
-            .replace("\\/", "/")
-            .replace("\\n", "\n")
-            .replace("\\r", "\r")
-            .replace("\\t", "\t")
-    }
 }

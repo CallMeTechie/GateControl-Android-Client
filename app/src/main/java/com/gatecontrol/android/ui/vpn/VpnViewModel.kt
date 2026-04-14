@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -158,11 +160,9 @@ class VpnViewModel @Inject constructor(
                         if (preset.ok && preset.mode != "off" && preset.source != "none") {
                             // Admin preset exists — store and use it
                             settingsRepository.setSplitTunnelMode(preset.mode)
-                            settingsRepository.setSplitTunnelNetworks(
-                                preset.networks.joinToString(",", "[", "]") {
-                                    """{"cidr":"${it.cidr}","label":"${it.label}"}"""
-                                }
-                            )
+                            val arr = JSONArray()
+                            preset.networks.forEach { arr.put(JSONObject().put("cidr", it.cidr).put("label", it.label)) }
+                            settingsRepository.setSplitTunnelNetworks(arr.toString())
                             settingsRepository.setSplitTunnelAdminLocked(preset.locked)
                             adminPresetActive = true
 
@@ -331,13 +331,13 @@ class VpnViewModel @Inject constructor(
 
     private fun parseSplitNetworksJsonToCidrs(json: String): List<String> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val regex = Regex("""\{"cidr":"([^"]+)"""")
-        return regex.findAll(json).map { it.groupValues[1] }.toList()
+        val arr = JSONArray(json)
+        return (0 until arr.length()).map { arr.getJSONObject(it).getString("cidr") }
     }
 
     private fun parseSplitAppsJson(json: String): List<String> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val regex = Regex("""\{"package":"([^"]+)"""")
-        return regex.findAll(json).map { it.groupValues[1] }.toList()
+        val arr = JSONArray(json)
+        return (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
     }
 }
