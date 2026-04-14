@@ -140,6 +140,8 @@
     <string name="split_tunnel_apps_exclude_header">These apps NOT through VPN</string>
     <string name="split_tunnel_apps_include_header">ONLY these apps through VPN</string>
     <string name="split_tunnel_add_app">Add App</string>
+    <string name="split_tunnel_recommended_apps">Recommended</string>
+    <string name="split_tunnel_recommended_hint">May cause issues with wireless connections when VPN is active</string>
     <string name="settings_split_save">Save Routes</string>
     <string name="settings_split_saved">Routes saved</string>
     <string name="settings_config_import">Config Import</string>

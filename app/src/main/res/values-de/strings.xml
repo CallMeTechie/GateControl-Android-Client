@@ -140,6 +140,8 @@
     <string name="split_tunnel_apps_exclude_header">Diese Apps NICHT durch VPN leiten</string>
     <string name="split_tunnel_apps_include_header">NUR diese Apps durch VPN leiten</string>
     <string name="split_tunnel_add_app">App hinzufuegen</string>
+    <string name="split_tunnel_recommended_apps">Empfohlen</string>
+    <string name="split_tunnel_recommended_hint">Kann bei kabelloser Verbindung VPN-Probleme verursachen</string>
     <string name="settings_split_save">Routen speichern</string>
     <string name="settings_split_saved">Routen gespeichert</string>
     <string name="settings_config_import">Konfiguration importieren</string>

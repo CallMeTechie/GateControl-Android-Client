@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -48,6 +49,10 @@ data class AppInfo(
     val packageName: String,
     val label: String,
     val isSystemApp: Boolean,
+)
+
+private val RECOMMENDED_EXCLUDE_APPS = listOf(
+    "com.google.android.projection.gearhead", // Android Auto
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,10 +91,16 @@ fun AppPickerSheet(
         }
     }
 
-    // Filter
+    // Recommended apps (only installed ones)
+    val recommendedApps = remember(apps) {
+        apps?.filter { it.packageName in RECOMMENDED_EXCLUDE_APPS } ?: emptyList()
+    }
+
+    // Filter (exclude recommended from main list to avoid duplicates)
     val filtered = remember(apps, search, showSystem) {
         apps?.filter { app ->
-            (showSystem || !app.isSystemApp) &&
+            app.packageName !in RECOMMENDED_EXCLUDE_APPS &&
+                (showSystem || !app.isSystemApp) &&
                 (search.isBlank() || app.label.contains(search, ignoreCase = true))
         } ?: emptyList()
     }
@@ -139,6 +150,61 @@ fun AppPickerSheet(
                         .heightIn(max = 400.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    if (recommendedApps.isNotEmpty() && search.isBlank()) {
+                        item(key = "_recommended_header") {
+                            Column(Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    stringResource(R.string.split_tunnel_recommended_apps),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Text(
+                                    stringResource(R.string.split_tunnel_recommended_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        items(recommendedApps, key = { it.packageName }) { app ->
+                            val isSelected = app.packageName in currentSelection
+                            val icon = remember(app.packageName) {
+                                try {
+                                    context.packageManager.getApplicationIcon(app.packageName)
+                                } catch (_: Exception) { null }
+                            }
+                            ListItem(
+                                headlineContent = { Text(app.label, maxLines = 1) },
+                                leadingContent = {
+                                    if (icon != null) {
+                                        Image(
+                                            bitmap = icon.toBitmap(40, 40).asImageBitmap(),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(36.dp),
+                                        )
+                                    }
+                                },
+                                trailingContent = {
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.clickable {
+                                    currentSelection = if (isSelected) {
+                                        currentSelection - app.packageName
+                                    } else {
+                                        currentSelection + app.packageName
+                                    }
+                                },
+                            )
+                        }
+                        item(key = "_divider") {
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                        }
+                    }
                     items(filtered, key = { it.packageName }) { app ->
                         val isSelected = app.packageName in currentSelection
                         val icon = remember(app.packageName) {
