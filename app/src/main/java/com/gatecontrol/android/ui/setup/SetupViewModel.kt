@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.RegisterRequest
+import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +32,14 @@ data class SetupUiState(
 class SetupViewModel @Inject constructor(
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    private val appVersion: String by lazy {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+        } catch (_: Exception) { "0.0.0" }
+    }
 
     private val _uiState = MutableStateFlow(
         SetupUiState(
@@ -117,7 +126,7 @@ class SetupViewModel @Inject constructor(
                     RegisterRequest(
                         hostname = android.os.Build.MODEL,
                         platform = "android",
-                        clientVersion = "1.0.0",
+                        clientVersion = appVersion,
                     ),
                 )
 
