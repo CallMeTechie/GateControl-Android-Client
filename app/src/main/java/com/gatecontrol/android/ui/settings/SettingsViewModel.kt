@@ -309,17 +309,27 @@ class SettingsViewModel @Inject constructor(
 
     private fun parseSplitNetworksJson(json: String): List<NetworkEntry> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val arr = JSONArray(json)
-        return (0 until arr.length()).map {
-            val obj = arr.getJSONObject(it)
-            NetworkEntry(obj.getString("cidr"), obj.optString("label", ""))
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map {
+                val obj = arr.getJSONObject(it)
+                NetworkEntry(obj.getString("cidr"), obj.optString("label", ""))
+            }
+        } catch (e: Exception) {
+            timber.log.Timber.w(e, "Failed to parse split-tunnel networks JSON")
+            emptyList()
         }
     }
 
     private fun parseSplitAppsJson(json: String): List<String> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val arr = JSONArray(json)
-        return (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
+        } catch (e: Exception) {
+            timber.log.Timber.w(e, "Failed to parse split-tunnel apps JSON")
+            emptyList()
+        }
     }
 
     fun checkForUpdate(currentVersion: String) {

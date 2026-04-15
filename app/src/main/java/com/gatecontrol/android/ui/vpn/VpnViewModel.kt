@@ -332,13 +332,23 @@ class VpnViewModel @Inject constructor(
 
     private fun parseSplitNetworksJsonToCidrs(json: String): List<String> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val arr = JSONArray(json)
-        return (0 until arr.length()).map { arr.getJSONObject(it).getString("cidr") }
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.getJSONObject(it).getString("cidr") }
+        } catch (e: Exception) {
+            Timber.w(e, "Failed to parse split-tunnel networks JSON, falling back to empty")
+            emptyList()
+        }
     }
 
     private fun parseSplitAppsJson(json: String): List<String> {
         if (json.isBlank() || json == "[]") return emptyList()
-        val arr = JSONArray(json)
-        return (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
+        } catch (e: Exception) {
+            Timber.w(e, "Failed to parse split-tunnel apps JSON, falling back to empty")
+            emptyList()
+        }
     }
 }
