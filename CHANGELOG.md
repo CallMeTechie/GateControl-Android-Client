@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.7] - 2026-04-15
+
+### Fixes
+- reject VPN-internal DNS responses in preResolveDns
+
+---
+
 ## [1.3.6] - 2026-04-15
 
 ### Changes
