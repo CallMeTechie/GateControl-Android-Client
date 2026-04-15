@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.6] - 2026-04-15
+
+### Changes
+- trigger release for v1.3.5
+
+---
+
 ## [1.3.5] - 2026-04-15
 
 ### Fixes
