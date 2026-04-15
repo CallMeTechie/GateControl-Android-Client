@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.9] - 2026-04-15
+
+### Fixes
+- broaden Wi-Fi Direct exclusion to full 192.168.0.0/16 + multicast
+
+---
+
 ## [1.3.8] - 2026-04-15
 
 ### Fixes
