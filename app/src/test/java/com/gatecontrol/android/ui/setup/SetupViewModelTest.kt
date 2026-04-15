@@ -1,5 +1,8 @@
 package com.gatecontrol.android.ui.setup
 
+import android.content.Context
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import app.cash.turbine.test
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
@@ -33,6 +36,7 @@ class SetupViewModelTest {
     private lateinit var setupRepository: SetupRepository
     private lateinit var apiClientProvider: ApiClientProvider
     private lateinit var apiClient: ApiClient
+    private lateinit var context: Context
     private lateinit var viewModel: SetupViewModel
 
     @BeforeEach
@@ -49,7 +53,14 @@ class SetupViewModelTest {
         every { setupRepository.hasWireGuardConfig() } returns false
         every { apiClientProvider.getClient(any()) } returns apiClient
 
-        viewModel = SetupViewModel(setupRepository, apiClientProvider)
+        context = mockk {
+            every { packageName } returns "com.gatecontrol.android"
+            every { packageManager } returns mockk {
+                every { getPackageInfo("com.gatecontrol.android", 0) } returns PackageInfo().apply { versionName = "1.0.0-test" }
+            }
+        }
+
+        viewModel = SetupViewModel(setupRepository, apiClientProvider, context)
     }
 
     @AfterEach
@@ -227,7 +238,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns true
         every { setupRepository.hasWireGuardConfig() } returns false
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider)
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context)
 
         assertTrue(vm.uiState.value.isSetupComplete)
     }
@@ -237,7 +248,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns false
         every { setupRepository.hasWireGuardConfig() } returns true
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider)
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context)
 
         assertTrue(vm.uiState.value.isSetupComplete)
     }
@@ -247,7 +258,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns false
         every { setupRepository.hasWireGuardConfig() } returns false
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider)
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context)
 
         assertFalse(vm.uiState.value.isSetupComplete)
     }
