@@ -238,25 +238,14 @@ class TunnelManager @Inject constructor(private val context: Context) {
             .filter { it.isNotEmpty() }
             .map { if (it.contains(":")) "$it/128" else "$it/32" }
 
-        // Implicitly exclude Wi-Fi Direct subnet when Android Auto is in the
-        // excluded apps list — Android Auto wireless uses Wi-Fi P2P (192.168.49.0/24)
-        // and routing that through the tunnel breaks the connection to the car.
-        val implicitNetworks = if (splitConfig.mode == "exclude" &&
-            WIFI_DIRECT_APP_PACKAGES.any { it in splitConfig.apps }
-        ) {
-            splitConfig.networks + WIFI_DIRECT_SUBNETS
-        } else {
-            splitConfig.networks
-        }
-
         val allowedIpsRaw = when (splitConfig.mode) {
             "exclude" -> {
-                if (implicitNetworks.isEmpty()) {
+                if (splitConfig.networks.isEmpty()) {
                     // No networks excluded — full tunnel (use original AllowedIPs)
                     parsed.allowedIps
                 } else {
                     // Compute complement: 0.0.0.0/0 minus excluded networks (IPv4)
-                    val complement = CidrComplement.computeAllowedIps(implicitNetworks)
+                    val complement = CidrComplement.computeAllowedIps(splitConfig.networks)
                     // Always include ::/0 to prevent IPv6 leaks — exclude mode means
                     // "everything through VPN except these networks", so IPv6 must also
                     // be tunneled. Also add DNS + VPN subnet to prevent DNS leaks.
@@ -283,18 +272,5 @@ class TunnelManager @Inject constructor(private val context: Context) {
     companion object {
         private const val TUNNEL_NAME = "gatecontrol"
         private const val VPN_SUBNET = "10.8.0.0/24"
-        // Android Auto wireless uses Wi-Fi Direct (P2P). The P2P group
-        // owner subnet varies by device — 192.168.49.0/24 is default but
-        // many cars/headunits use other 192.168.x.x ranges. Exclude the
-        // full private range to cover all variants, plus link-local for
-        // mDNS discovery and multicast for SSDP/UPnP.
-        private val WIFI_DIRECT_SUBNETS = listOf(
-            "192.168.0.0/16",   // All P2P group owner subnets (varies by device)
-            "169.254.0.0/16",   // Link-Local (mDNS service discovery)
-            "224.0.0.0/4",      // Multicast (SSDP, mDNS 224.0.0.251)
-        )
-        private val WIFI_DIRECT_APP_PACKAGES = listOf(
-            "com.google.android.projection.gearhead", // Android Auto
-        )
     }
 }
