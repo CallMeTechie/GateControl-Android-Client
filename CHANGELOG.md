@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.8] - 2026-04-15
+
+### Fixes
+- add mock context to SetupViewModelTest for new constructor parameter
+
+---
+
 ## [1.3.7] - 2026-04-15
 
 ### Fixes
