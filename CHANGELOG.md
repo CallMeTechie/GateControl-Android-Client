@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5] - 2026-04-15
+
+### Fixes
+- add error handling to split-tunnel JSON parsers
+
+---
+
 ## [1.3.4] - 2026-04-14
 
 ### Fixes
