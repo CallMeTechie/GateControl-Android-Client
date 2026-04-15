@@ -244,7 +244,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
         val implicitNetworks = if (splitConfig.mode == "exclude" &&
             WIFI_DIRECT_APP_PACKAGES.any { it in splitConfig.apps }
         ) {
-            splitConfig.networks + WIFI_DIRECT_SUBNET
+            splitConfig.networks + WIFI_DIRECT_SUBNETS
         } else {
             splitConfig.networks
         }
@@ -283,7 +283,13 @@ class TunnelManager @Inject constructor(private val context: Context) {
     companion object {
         private const val TUNNEL_NAME = "gatecontrol"
         private const val VPN_SUBNET = "10.8.0.0/24"
-        private const val WIFI_DIRECT_SUBNET = "192.168.49.0/24"
+        // Wi-Fi Direct uses 192.168.49.0/24 by default, but some devices
+        // use other ranges. Also need link-local (169.254.0.0/16) for
+        // mDNS/Bonjour service discovery used by Android Auto.
+        private val WIFI_DIRECT_SUBNETS = listOf(
+            "192.168.49.0/24",  // Standard Wi-Fi Direct group owner subnet
+            "169.254.0.0/16",   // Link-Local (mDNS service discovery)
+        )
         private val WIFI_DIRECT_APP_PACKAGES = listOf(
             "com.google.android.projection.gearhead", // Android Auto
         )
