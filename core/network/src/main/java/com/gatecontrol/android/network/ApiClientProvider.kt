@@ -42,15 +42,27 @@ class ApiClientProvider @Inject constructor(
 
     /**
      * Resolve and cache the server hostname. Safe to call from any thread.
-     * Always re-resolves to pick up DNS changes (server migration, dynamic DNS).
-     * Call this BEFORE the VPN starts — once the tunnel is up, system DNS
-     * points to the VPN-internal resolver which is unreachable from this app.
+     * Re-resolves to pick up DNS changes, but rejects VPN-internal addresses
+     * (10.8.x.x) that appear when the tunnel's split-horizon DNS is active.
+     * Call clearDnsCache() on disconnect so the next connect starts fresh.
      */
     suspend fun preResolveDns(hostname: String) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val addresses = InetAddress.getAllByName(hostname)
                 if (addresses.isNotEmpty()) {
+                    // Reject VPN-internal addresses — when the tunnel is up,
+                    // system DNS may return the VPN gateway (10.8.0.1) instead
+                    // of the real public IP.
+                    val isVpnInternal = addresses.all { addr ->
+                        val ip = addr.hostAddress ?: ""
+                        ip.startsWith("10.8.")
+                    }
+                    if (isVpnInternal) {
+                        timber.log.Timber.d("DNS for $hostname returned VPN-internal address — keeping cache")
+                        return@withContext
+                    }
+
                     val prev = dnsCache[hostname]?.map { it.hostAddress }
                     dnsCache[hostname] = addresses.toList()
                     val resolved = addresses.map { it.hostAddress }
@@ -61,7 +73,6 @@ class ApiClientProvider @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                // Keep existing cache entry if re-resolve fails (e.g. no connectivity)
                 if (dnsCache.containsKey(hostname)) {
                     timber.log.Timber.d("DNS re-resolve failed for $hostname, keeping cached entry: ${e.message}")
                 } else {
