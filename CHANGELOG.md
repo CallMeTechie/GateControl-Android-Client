@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5] - 2026-04-15
+
+### Fixes
+- expand Wi-Fi Direct exclusion with link-local for mDNS discovery
+
+---
+
 ## [1.3.4] - 2026-04-14
 
 ### Fixes
