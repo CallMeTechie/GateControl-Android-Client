@@ -283,12 +283,15 @@ class TunnelManager @Inject constructor(private val context: Context) {
     companion object {
         private const val TUNNEL_NAME = "gatecontrol"
         private const val VPN_SUBNET = "10.8.0.0/24"
-        // Wi-Fi Direct uses 192.168.49.0/24 by default, but some devices
-        // use other ranges. Also need link-local (169.254.0.0/16) for
-        // mDNS/Bonjour service discovery used by Android Auto.
+        // Android Auto wireless uses Wi-Fi Direct (P2P). The P2P group
+        // owner subnet varies by device — 192.168.49.0/24 is default but
+        // many cars/headunits use other 192.168.x.x ranges. Exclude the
+        // full private range to cover all variants, plus link-local for
+        // mDNS discovery and multicast for SSDP/UPnP.
         private val WIFI_DIRECT_SUBNETS = listOf(
-            "192.168.49.0/24",  // Standard Wi-Fi Direct group owner subnet
+            "192.168.0.0/16",   // All P2P group owner subnets (varies by device)
             "169.254.0.0/16",   // Link-Local (mDNS service discovery)
+            "224.0.0.0/4",      // Multicast (SSDP, mDNS 224.0.0.251)
         )
         private val WIFI_DIRECT_APP_PACKAGES = listOf(
             "com.google.android.projection.gearhead", // Android Auto
