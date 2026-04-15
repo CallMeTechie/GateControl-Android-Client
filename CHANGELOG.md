@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.10] - 2026-04-15
+
+### Fixes
+- remove implicit network exclusion for Android Auto
+
+---
+
 ## [1.3.9] - 2026-04-15
 
 ### Fixes
