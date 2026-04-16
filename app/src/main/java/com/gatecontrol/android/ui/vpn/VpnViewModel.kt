@@ -68,6 +68,10 @@ class VpnViewModel @Inject constructor(
     private val _tokenInvalid = MutableStateFlow(false)
     val tokenInvalid: StateFlow<Boolean> = _tokenInvalid.asStateFlow()
 
+    /** Emits true when the peer was disabled on the server and the tunnel was disconnected. */
+    private val _peerDisabled = MutableStateFlow(false)
+    val peerDisabled: StateFlow<Boolean> = _peerDisabled.asStateFlow()
+
     /**
      * Validate the stored API token against the server via /client/ping.
      * If the server returns 401 → token is expired/deleted → clear local
@@ -127,6 +131,39 @@ class VpnViewModel @Inject constructor(
                     tunnelManager.getStatistics()?.let { _stats.value = it }
                 }
             }
+        }
+        // Periodic peer status check — detect server-side peer disabling
+        viewModelScope.launch {
+            while (isActive) {
+                delay(60_000) // Check every 60 seconds
+                if (tunnelState.value is TunnelState.Connected) {
+                    checkPeerEnabled()
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if the peer is still enabled on the server.
+     * If disabled, disconnect the tunnel immediately.
+     */
+    private suspend fun checkPeerEnabled() {
+        try {
+            val serverUrl = setupRepository.getServerUrl()
+            if (serverUrl.isEmpty()) return
+            val peerId = setupRepository.getPeerId()
+            if (peerId <= 0) return
+            val client = apiClientProvider.getClient(serverUrl)
+            val response = client.getPeerInfo(peerId)
+            if (response.ok && !response.peer.enabled) {
+                Timber.w("Peer disabled on server (id=$peerId) — disconnecting tunnel")
+                tunnelManager.disconnect()
+                _stats.value = TunnelStats()
+                apiClientProvider.clearDnsCache()
+                _peerDisabled.value = true
+            }
+        } catch (e: Exception) {
+            Timber.d("Peer status check failed (offline): ${e.message}")
         }
     }
 

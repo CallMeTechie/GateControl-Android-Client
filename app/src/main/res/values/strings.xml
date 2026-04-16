@@ -205,6 +205,7 @@
     <string name="notif_update_body">Version %1$s is available</string>
     <string name="notif_peer_expiry">Peer expires in %1$d days</string>
     <string name="notif_peer_expired">Peer has expired</string>
+    <string name="peer_disabled_by_server">VPN access has been disabled by the server. Disconnected.</string>
 
     <!-- Quick Settings Tile -->
     <string name="tile_vpn_label">GateControl VPN</string>

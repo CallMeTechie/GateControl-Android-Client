@@ -93,6 +93,18 @@ fun VpnScreen(
         if (tokenInvalid) onTokenInvalid()
     }
 
+    // Show notification when peer is disabled on server
+    val peerDisabled by viewModel.peerDisabled.collectAsState()
+    LaunchedEffect(peerDisabled) {
+        if (peerDisabled) {
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.peer_disabled_by_server),
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
     // Reload data when VPN state changes. Invalidate cached HTTP clients first
     // because OkHttp's connection pool holds stale connections on the old network
     // interface after VPN connect/disconnect, causing SocketTimeoutExceptions.
