@@ -217,6 +217,17 @@ data class StatusRequest(
     val timestamp: String
 )
 
+data class HostnameReportRequest(
+    val hostname: String
+)
+
+data class HostnameReportResponse(
+    val ok: Boolean,
+    val assigned: String? = null,
+    val changed: Boolean? = null,
+    val error: String? = null
+)
+
 data class RdpHeartbeatRequest(
     val sessionId: Int
 )

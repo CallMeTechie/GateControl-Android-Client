@@ -239,9 +239,33 @@ class VpnViewModel @Inject constructor(
             try {
                 tunnelManager.connect(config, splitTunnelConfig)
                 Timber.d("VpnViewModel: tunnel connect requested")
+                reportDeviceHostname(serverUrl)
             } catch (e: Exception) {
                 Timber.e(e, "VpnViewModel: connect failed")
             }
+        }
+    }
+
+    /**
+     * Fire-and-forget hostname report for internal DNS resolution.
+     * Server rate-limits (3/min/token) and feature-gates (403) — we
+     * never surface failures; they're logged at debug level only.
+     * Uses Build.MODEL as the source — user-set Settings.Global.DEVICE_NAME
+     * would be preferable but requires a Context, which is not in scope
+     * here; can be plumbed through later without changing the API.
+     */
+    private suspend fun reportDeviceHostname(serverUrl: String) {
+        try {
+            val sanitized = com.gatecontrol.android.common.HostnameSanitizer.sanitize(android.os.Build.MODEL)
+            if (sanitized.isNullOrBlank()) return
+
+            val client = apiClientProvider.getClient(serverUrl)
+            val response = client.reportHostname(
+                com.gatecontrol.android.network.HostnameReportRequest(sanitized)
+            )
+            Timber.d("Hostname report: assigned=${response.assigned} changed=${response.changed}")
+        } catch (e: Exception) {
+            Timber.d(e, "Hostname report skipped: ${e.message}")
         }
     }
 

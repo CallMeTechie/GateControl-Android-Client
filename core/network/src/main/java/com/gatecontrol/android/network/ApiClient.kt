@@ -31,6 +31,9 @@ interface ApiClient {
     @POST("api/v1/client/heartbeat")
     suspend fun sendHeartbeat(@Body request: HeartbeatRequest): SimpleResponse
 
+    @POST("api/v1/client/peer/hostname")
+    suspend fun reportHostname(@Body request: HostnameReportRequest): HostnameReportResponse
+
     @POST("api/v1/client/status")
     suspend fun reportStatus(@Body request: StatusRequest): SimpleResponse
 
