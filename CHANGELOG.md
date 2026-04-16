@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1] - 2026-04-16
+
+### Fixes
+- correct expected output in sanitize apostrophe test
+
+---
+
 ## [1.4.0] - 2026-04-16
 
 ### Features
