@@ -25,7 +25,9 @@ class HostnameSanitizerTest {
 
     @Test
     fun `replaces spaces apostrophes and underscores`() {
-        assertEquals("marcs-pixel-7", HostnameSanitizer.sanitize("Marc's Pixel 7"))
+        // Each invalid char becomes a single '-', repeats collapsed,
+        // so "Marc's Pixel 7" -> "marc-s-pixel-7" (not "marcs-pixel-7").
+        assertEquals("marc-s-pixel-7", HostnameSanitizer.sanitize("Marc's Pixel 7"))
         assertEquals("my-pc", HostnameSanitizer.sanitize("MY_PC"))
     }
 
