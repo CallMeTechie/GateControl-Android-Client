@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0] - 2026-04-16
+
+### Features
+- auto-disconnect when peer disabled on server
+
+---
+
 ## [1.3.10] - 2026-04-15
 
 ### Fixes
