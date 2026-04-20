@@ -71,7 +71,7 @@ jobs:
 
       - name: Publish test results
         if: always()
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         with:
           name: PR Unit Test Results
           path: '**/build/test-results/test/*.xml'
