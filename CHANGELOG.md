@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2] - 2026-04-27
+
+### Fixes
+- vpnSafeDns must reject system-DNS results inside 10.8.0.0/16
+
+---
+
 ## [1.4.1] - 2026-04-16
 
 ### Fixes
