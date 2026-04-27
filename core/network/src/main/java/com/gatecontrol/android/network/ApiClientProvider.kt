@@ -93,15 +93,25 @@ class ApiClientProvider @Inject constructor(
 
     private val vpnSafeDns = object : Dns {
         override fun lookup(hostname: String): List<InetAddress> {
-            return try {
-                // Try system DNS first (works when VPN is down or on Wi-Fi)
-                Dns.SYSTEM.lookup(hostname)
+            // System DNS may return VPN-internal addresses (10.8.x.x) even
+            // when the GateControl app is excluded from the tunnel: Android
+            // caches the WG-internal resolver's answer system-wide. The app
+            // can't reach 10.8.0.1 from outside the tunnel, so OkHttp would
+            // hit SocketTimeout from the local Wi-Fi IP / ECONNREFUSED via
+            // VPN. Filter those out and prefer the pre-resolve cache,
+            // which preResolveDns() guarantees never holds 10.8.x.x.
+            val systemResults = try {
+                Dns.SYSTEM.lookup(hostname).filter { addr ->
+                    val ip = addr.hostAddress ?: ""
+                    !ip.startsWith("10.8.")
+                }
             } catch (_: Exception) {
-                // System DNS failed (VPN is up, app excluded) — use cache
-                dnsCache[hostname] ?: throw java.net.UnknownHostException(
-                    "DNS lookup failed for $hostname (system DNS unreachable, no cache)"
-                )
+                emptyList()
             }
+            if (systemResults.isNotEmpty()) return systemResults
+            return dnsCache[hostname] ?: throw java.net.UnknownHostException(
+                "DNS lookup failed for $hostname (system DNS returned only VPN-internal addresses, no cache)"
+            )
         }
     }
 
