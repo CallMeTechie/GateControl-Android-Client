@@ -15,6 +15,7 @@ import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.navigation.AppNavigation
+import com.gatecontrol.android.service.TunnelConnector
 import com.gatecontrol.android.service.VpnTileService
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var licenseRepository: LicenseRepository
     @Inject lateinit var tunnelManager: TunnelManager
+    @Inject lateinit var tunnelConnector: TunnelConnector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,16 +109,21 @@ class MainActivity : ComponentActivity() {
                     // For now, just open the app (user sees VPN screen and can tap Connect)
                     Timber.d("MainActivity: VPN permission required, showing app")
                 } else {
-                    // Permission already granted — connect immediately
-                    val config = setupRepository.getWireGuardConfig()
-                    if (config.isNotEmpty()) {
-                        CoroutineScope(Dispatchers.IO).launch {
-                            try {
-                                tunnelManager.connect(config)
+                    // Permission already granted — connect via the shared
+                    // TunnelConnector so the user's split-tunnel app/network
+                    // exceptions and the DNS pre-resolve workaround are
+                    // applied (otherwise the tile path would silently start
+                    // a full tunnel with no exceptions).
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val started = tunnelConnector.connectWithUserSettings()
+                            if (started) {
                                 Timber.d("MainActivity: Tile connect succeeded")
-                            } catch (e: Exception) {
-                                Timber.e(e, "MainActivity: Tile connect failed")
+                            } else {
+                                Timber.w("MainActivity: Tile connect aborted (no config)")
                             }
+                        } catch (e: Exception) {
+                            Timber.e(e, "MainActivity: Tile connect failed")
                         }
                     }
                 }
