@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3] - 2026-04-29
+
+### Fixes
+- tile connect now respects split-tunnel app exceptions
+
+---
+
 ## [1.4.2] - 2026-04-27
 
 ### Fixes
