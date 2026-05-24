@@ -1,0 +1,41 @@
+name: Dependabot auto-merge
+
+# Auto-merges non-major Dependabot PRs once all checks are green.
+# Uses GITHUB_TOKEN, so the merge push does NOT trigger release.yml —
+# merged dependency updates ride the next real release (intentional:
+# avoids a release per update). Merge security PRs manually if you need
+# an immediate release.
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for checks, then merge (non-major only)
+        if: ${{ steps.meta.outputs.update-type != 'version-update:semver-major' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          SELF_CHECK: Dependabot auto-merge
+        run: |
+          for i in $(seq 1 60); do
+            checks=$(gh pr checks "$PR_URL" --json name,bucket 2>/dev/null || echo '[]')
+            fail=$(echo "$checks" | jq '[.[] | select(.bucket=="fail" or .bucket=="cancel")] | length')
+            pend=$(echo "$checks" | jq --arg s "$SELF_CHECK" '[.[] | select(.name != $s and .bucket=="pending")] | length')
+            if [ "$fail" -gt 0 ]; then echo "::error::Dependabot PR has failing checks — not merging"; exit 1; fi
+            if [ "$pend" -eq 0 ]; then echo "All checks green — merging"; gh pr merge "$PR_URL" --squash; exit 0; fi
+            echo "waiting for $pend pending check(s)…"; sleep 30
+          done
+          echo "::error::timed out waiting for checks"; exit 1
