@@ -21,8 +21,11 @@ class RdpManager(
 ) {
 
     companion object {
+        const val ACCESS_MODE_GATEWAY = "gateway"
+
         /** Gateway routes reach the public server endpoint and need no VPN tunnel. */
-        fun requiresVpn(accessMode: String?): Boolean = accessMode != "gateway"
+        fun requiresVpn(accessMode: String?): Boolean =
+            accessMode?.lowercase() != ACCESS_MODE_GATEWAY
     }
 
     sealed class ConnectResult {
