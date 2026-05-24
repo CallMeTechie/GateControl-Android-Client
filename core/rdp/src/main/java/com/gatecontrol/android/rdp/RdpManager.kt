@@ -73,8 +73,12 @@ class RdpManager(
         // (VpnService excludes the app to prevent routing loops), so the server
         // performs the TCP check on behalf of the client.
         onProgress(RdpProgress.TCP_CHECK)
-        val host = route.host
-        val port = route.port
+        // Effective connect endpoint. For gateway routes this is the public
+        // connect_address (server:listen_port), not the LAN host. Keeps the
+        // external-launch path, the session monitor, and error messages aligned
+        // with the embedded path (which resolves the same via fromRoute).
+        val host = route.connectAddress ?: route.host
+        val port = route.connectPort ?: route.port
         val reachable = try {
             val statusResponse = apiClient.getRdpRouteStatus(route.id)
             statusResponse.ok && statusResponse.status?.online == true
