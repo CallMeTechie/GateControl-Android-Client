@@ -134,6 +134,8 @@ data class RdpRoute(
     val port: Int,
     @SerializedName("external_hostname") val externalHostname: String?,
     @SerializedName("external_port") val externalPort: Int?,
+    @SerializedName("connect_address") val connectAddress: String? = null,
+    @SerializedName("connect_port") val connectPort: Int? = null,
     @SerializedName("access_mode") val accessMode: String,
     @SerializedName("credential_mode") val credentialMode: String,
     val domain: String?,

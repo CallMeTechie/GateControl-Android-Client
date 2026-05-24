@@ -49,8 +49,8 @@ data class RdpConnectionParams(
             password: String?,
             domain: String?
         ): RdpConnectionParams = RdpConnectionParams(
-            host = route.host,
-            port = route.port,
+            host = route.connectAddress ?: route.host,
+            port = route.connectPort ?: route.port,
             username = username,
             password = password,
             domain = domain ?: route.domain,

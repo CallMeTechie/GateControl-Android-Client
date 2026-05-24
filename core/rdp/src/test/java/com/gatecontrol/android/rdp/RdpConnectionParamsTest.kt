@@ -140,4 +140,27 @@ class RdpConnectionParamsTest {
 
         assertEquals("CORP", params.domain)
     }
+
+    @Test
+    fun `gateway route uses connect address and port`() {
+        val route = buildMinimalRoute().copy(
+            accessMode = "gateway",
+            host = "192.168.2.100", port = 3389,
+            connectAddress = "gc.example.com", connectPort = 13389
+        )
+        val params = RdpConnectionParams.fromRoute(route, null, null, null)
+        assertEquals("gc.example.com", params.host)
+        assertEquals(13389, params.port)
+    }
+
+    @Test
+    fun `falls back to host when connectAddress is null`() {
+        val route = buildMinimalRoute().copy(
+            accessMode = "gateway",
+            connectAddress = null, connectPort = null
+        )
+        val params = RdpConnectionParams.fromRoute(route, null, null, null)
+        assertEquals("10.0.0.1", params.host)
+        assertEquals(3389, params.port)
+    }
 }
