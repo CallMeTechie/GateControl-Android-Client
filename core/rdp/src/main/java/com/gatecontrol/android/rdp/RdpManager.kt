@@ -123,7 +123,9 @@ class RdpManager(
             "user_only" -> CredentialMode.USER_ONLY
             else -> CredentialMode.NONE
         }
-        Timber.i("RDP connect: credentialMode=${route.credentialMode} -> $credentialMode")
+        val authModeRaw = route.credentialMode
+        val authModeResolved = credentialMode
+        Timber.i("RDP connect: authMode=$authModeRaw -> $authModeResolved")
 
         var resolvedUsername: String? = null
         var resolvedPassword: String? = null
@@ -135,7 +137,7 @@ class RdpManager(
             val connectionResponse = try {
                 apiClient.getRdpConnection(route.id, ecdhPublicKey = publicKey)
             } catch (e: Exception) {
-                Timber.e(e, "RDP connect: credential fetch FAILED")
+                Timber.e(e, "RDP connect: auth data fetch FAILED")
                 credentialHandler.clear()
                 return ConnectResult.Error(
                     "Failed to fetch credentials: ${e.message}",
@@ -146,7 +148,8 @@ class RdpManager(
             val connection = connectionResponse.connection
             val e2eePayload = connection.credentialsE2ee
             Timber.i("RDP connect: e2eePayload=${if (e2eePayload != null) "present (data=${e2eePayload.data.length} chars)" else "NULL"}")
-            Timber.i("RDP connect: connection host=${connection.host}, port=${connection.port}, credentialMode=${connection.credentialMode}")
+            val connAuthMode = connection.credentialMode
+            Timber.i("RDP connect: connection host=${connection.host}, port=${connection.port}, authMode=$connAuthMode")
 
             if (credentialMode == CredentialMode.FULL) {
                 if (e2eePayload != null) {
@@ -163,9 +166,10 @@ class RdpManager(
                     resolvedUsername = creds.username
                     resolvedPassword = creds.password
                     resolvedDomain = creds.domain ?: route.domain
-                    Timber.i("RDP connect: decrypted username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "${resolvedUsername!!.length} chars"}, password=${if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "${resolvedPassword!!.length} chars"}, domain=$resolvedDomain")
+                    val pwInfo = if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "${resolvedPassword!!.length} chars"
+                    Timber.i("RDP connect: decrypted username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "${resolvedUsername!!.length} chars"}, pw=$pwInfo, domain=$resolvedDomain")
                 } else {
-                    Timber.w("RDP connect: credentialMode=FULL but e2eePayload is NULL — no credentials!")
+                    Timber.w("RDP connect: authMode=FULL but e2eePayload is NULL — no auth data!")
                 }
             } else if (credentialMode == CredentialMode.USER_ONLY) {
                 if (e2eePayload != null) {
@@ -197,7 +201,8 @@ class RdpManager(
         val useEmbedded = embeddedClient.isAvailable()
         val isExternal = !useEmbedded
 
-        Timber.i("RDP connect: launching client — embedded=$useEmbedded, username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "SET"}, password=${if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "SET"}")
+        val pwSet = if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "SET"
+        Timber.i("RDP connect: launching client — embedded=$useEmbedded, username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "SET"}, pw=$pwSet")
 
         if (useEmbedded) {
             var params = RdpConnectionParams.fromRoute(

@@ -135,7 +135,7 @@ class RdpSessionActivity : ComponentActivity() {
                 val hasCredentials = uLen > 0 || pLen > 0
                 diagLog.log("OnAuthenticate called: username=${uLen} chars, password=${pLen} chars, hasCredentials=$hasCredentials")
                 if (!hasCredentials) {
-                    Timber.w("OnAuthenticate: no credentials available — rejecting")
+                    Timber.w("OnAuthenticate: no auth data available — rejecting")
                     diagLog.log("OnAuthenticate: REJECTING (no credentials in StringBuilder params)")
                 } else {
                     diagLog.log("OnAuthenticate: ACCEPTING (credentials present)")
