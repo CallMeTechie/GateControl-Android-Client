@@ -74,5 +74,5 @@ jobs:
         uses: dorny/test-reporter@v2
         with:
           name: PR Unit Test Results
-          path: '**/build/test-results/test/*.xml'
+          path: '**/build/test-results/**/*.xml'
           reporter: java-junit
