@@ -134,8 +134,6 @@ data class RdpRoute(
     val port: Int,
     @SerializedName("external_hostname") val externalHostname: String?,
     @SerializedName("external_port") val externalPort: Int?,
-    @SerializedName("connect_address") val connectAddress: String? = null,
-    @SerializedName("connect_port") val connectPort: Int? = null,
     @SerializedName("access_mode") val accessMode: String,
     @SerializedName("credential_mode") val credentialMode: String,
     val domain: String?,
@@ -153,7 +151,9 @@ data class RdpRoute(
     @SerializedName("admin_session") val adminSession: Boolean?,
     @SerializedName("wol_enabled") val wolEnabled: Boolean?,
     @SerializedName("maintenance_enabled") val maintenanceEnabled: Boolean?,
-    val status: RdpRouteStatus?
+    val status: RdpRouteStatus?,
+    @SerializedName("connect_address") val connectAddress: String? = null,
+    @SerializedName("connect_port") val connectPort: Int? = null
 )
 
 data class RdpRouteStatus(
