@@ -20,6 +20,11 @@ class RdpManager(
     private val wolClient: WolClient
 ) {
 
+    companion object {
+        /** Gateway routes reach the public server endpoint and need no VPN tunnel. */
+        fun requiresVpn(accessMode: String?): Boolean = accessMode != "gateway"
+    }
+
     sealed class ConnectResult {
         data class Success(val session: RdpSession, val passwordCopied: Boolean = false) : ConnectResult()
         data class Error(val message: String, val step: RdpProgress) : ConnectResult()
@@ -53,9 +58,10 @@ class RdpManager(
         onProgress: (RdpProgress) -> Unit = {}
     ): ConnectResult {
 
-        // Step 1: VPN check
+        // Step 1: VPN check — gateway routes reach the public server endpoint
+        // (connect_address) and do not need the tunnel.
         onProgress(RdpProgress.VPN_CHECK)
-        if (!isVpnConnected) {
+        if (requiresVpn(route.accessMode) && !isVpnConnected) {
             return ConnectResult.VpnRequired("VPN connection required to reach RDP host")
         }
 
