@@ -56,7 +56,7 @@ dependencies {
     // Lightweight JSON parser for loading the vendored WG-config golden fixtures
     // in unit tests. No standalone JSON lib is in the version catalog and the
     // org.json reference impl is dependency-free and JVM-friendly for unit tests.
-    testImplementation("org.json:json:20240303")
+    testImplementation(libs.org.json)
 }
 
 kapt {

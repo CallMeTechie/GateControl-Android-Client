@@ -17,7 +17,11 @@ package com.gatecontrol.android.tunnel
  * See SPEC.md for the normative rules. Error codes are a stable contract.
  */
 
-/** Result of validating a WireGuard config (see SPEC §1). */
+/**
+ * Public result type returned by [WgConfigValidator.validate].
+ *
+ * Result of validating a WireGuard config (see SPEC §1).
+ */
 data class WgValidationResult(
     /** true iff errors.isEmpty(). Nothing else may set this. */
     val ok: Boolean,
@@ -153,12 +157,8 @@ object WgConfigValidator {
 
     /** Comma-separated list; each trimmed entry must satisfy [pred]. Non-empty. */
     private fun isList(value: String, pred: (String) -> Boolean): Boolean {
-        if (value.trim() == "") return false
-        val entries = value.split(",").map { it.trim() }
-        for (e in entries) {
-            if (e == "" || !pred(e)) return false
-        }
-        return true
+        if (value.isBlank()) return false
+        return value.split(",").map { it.trim() }.all { it.isNotEmpty() && pred(it) }
     }
 
     /** host:port — split on the LAST ':'; host non-empty, port int 1..65535. */
@@ -239,7 +239,7 @@ object WgConfigValidator {
     ) {
         val values = LinkedHashMap<String, String>()
         for ((key, value) in section.pairs) {
-            if (INTERFACE_KEYS.contains(key)) {
+            if (key in INTERFACE_KEYS) {
                 values[key] = value
             } else {
                 warnings.add("unknown_key:$key")
@@ -286,7 +286,7 @@ object WgConfigValidator {
     ) {
         val values = LinkedHashMap<String, String>()
         for ((key, value) in section.pairs) {
-            if (PEER_KEYS.contains(key)) {
+            if (key in PEER_KEYS) {
                 values[key] = value
             } else {
                 warnings.add("unknown_key:$key")

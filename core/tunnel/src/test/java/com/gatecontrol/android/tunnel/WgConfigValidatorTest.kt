@@ -71,8 +71,10 @@ class WgConfigValidatorTest {
     @TestFactory
     fun `fixtures conform to the validator contract`(): List<DynamicTest> {
         val fixtures = loadFixtures()
-        // Sanity: we expect 15 vendored fixtures.
-        assertEquals(15, fixtures.size, "Expected 15 vendored fixtures")
+        // Sanity: at least one fixture must load. The .fixtures-hash integrity
+        // test guards sync completeness; a magic count here breaks confusingly
+        // whenever a fixture is added.
+        assertTrue(fixtures.isNotEmpty(), "No fixtures loaded")
         return fixtures.map { fx ->
             DynamicTest.dynamicTest(fx.name) {
                 val result = WgConfigValidator.validate(fx.config)
@@ -135,20 +137,6 @@ class WgConfigValidatorTest {
         assertTrue(result.ok, "Unknown section must not affect ok; errors=${result.errors}")
         // SPEC §4: bare section name, no brackets.
         assertTrue(result.warnings.contains("unknown_key:CustomSection"))
-    }
-
-    @Test
-    fun `valid_crlf fixture is valid`() {
-        val fx = loadFixtures().first { it.name == "valid_crlf" }
-        val result = WgConfigValidator.validate(fx.config)
-        assertTrue(result.ok, "valid_crlf must be valid; errors=${result.errors}")
-    }
-
-    @Test
-    fun `valid_whitespace fixture is valid`() {
-        val fx = loadFixtures().first { it.name == "valid_whitespace" }
-        val result = WgConfigValidator.validate(fx.config)
-        assertTrue(result.ok, "valid_whitespace must be valid; errors=${result.errors}")
     }
 
     @Test

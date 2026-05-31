@@ -21,6 +21,7 @@ junit5 = "5.10.2"
 mockk = "1.13.11"
 turbine = "1.1.0"
 robolectric = "4.12.2"
+org-json = "20240303"
 
 [libraries]
 # AndroidX Core
@@ -89,6 +90,7 @@ mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+org-json = { group = "org.json", name = "json", version.ref = "org-json" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
