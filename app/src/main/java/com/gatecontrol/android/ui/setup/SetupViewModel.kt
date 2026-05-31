@@ -2,9 +2,11 @@ package com.gatecontrol.android.ui.setup
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.R
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.RegisterRequest
+import com.gatecontrol.android.tunnel.WgConfigValidator
 import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -184,9 +186,14 @@ class SetupViewModel @Inject constructor(
     fun importConfig(configText: String) {
         viewModelScope.launch {
             try {
-                if (configText.isBlank() || !configText.contains("[Interface]")) {
+                val validation = WgConfigValidator.validate(configText)
+                if (!validation.ok) {
+                    Timber.w("importConfig rejected: %s", validation.errors.joinToString(", "))
                     _uiState.update {
-                        it.copy(statusMessage = "Invalid WireGuard config", statusType = StatusType.ERROR)
+                        it.copy(
+                            statusMessage = context.getString(R.string.setup_invalid_config),
+                            statusType = StatusType.ERROR,
+                        )
                     }
                     return@launch
                 }

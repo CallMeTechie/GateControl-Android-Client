@@ -2,10 +2,12 @@ package com.gatecontrol.android.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.R
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.tunnel.WgConfigValidator
 import com.gatecontrol.android.network.UpdateCheckResponse
 import com.gatecontrol.android.common.Validation
 import org.json.JSONArray
@@ -414,8 +416,12 @@ class SettingsViewModel @Inject constructor(
                 val input = context.contentResolver.openInputStream(uri)
                 val config = input?.bufferedReader()?.readText() ?: return@launch
                 input.close()
-                if (!config.contains("[Interface]") || !config.contains("PrivateKey")) {
-                    _uiState.update { it.copy(error = "Invalid WireGuard config file") }
+                val validation = WgConfigValidator.validate(config)
+                if (!validation.ok) {
+                    Timber.w("importConfigFromUri rejected: %s", validation.errors.joinToString(", "))
+                    _uiState.update {
+                        it.copy(error = context.getString(R.string.setup_invalid_config))
+                    }
                     return@launch
                 }
                 setupRepository.saveWireGuardConfig(config)

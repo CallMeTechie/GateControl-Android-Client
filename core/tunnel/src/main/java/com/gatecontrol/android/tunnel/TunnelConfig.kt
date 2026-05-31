@@ -38,6 +38,11 @@ data class TunnelConfig(
         fun parse(raw: String): TunnelConfig {
             require(raw.isNotBlank()) { "Config input must not be empty" }
 
+            val validation = WgConfigValidator.validate(raw)
+            require(validation.ok) {
+                "Invalid WireGuard config: ${validation.errors.joinToString(", ")}"
+            }
+
             val lines = raw.lines()
                 .map { it.trim() }
                 .filter { it.isNotEmpty() && !it.startsWith("#") }

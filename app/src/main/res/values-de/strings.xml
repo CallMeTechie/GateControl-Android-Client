@@ -182,6 +182,7 @@
     <string name="setup_registering">Registriere&#8230;</string>
     <string name="setup_success">Erfolgreich registriert!</string>
     <string name="setup_error">Registrierung fehlgeschlagen: %1$s</string>
+    <string name="setup_invalid_config">Ungültige WireGuard-Konfiguration</string>
 
     <!-- Logs -->
     <string name="logs_title">Protokolle</string>

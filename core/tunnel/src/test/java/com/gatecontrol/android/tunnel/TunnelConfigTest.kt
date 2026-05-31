@@ -14,8 +14,8 @@ class TunnelConfigTest {
         MTU = 1420
 
         [Peer]
-        PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==
-        PresharedKey = cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eA==
+        PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=
+        PresharedKey = cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eCE=
         Endpoint = vpn.example.com:51820
         AllowedIPs = 0.0.0.0/0
         PersistentKeepalive = 25
@@ -35,8 +35,8 @@ class TunnelConfigTest {
     fun `parse extracts peer fields`() {
         val config = TunnelConfig.parse(validConfig)
 
-        assertEquals("c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==", config.publicKey)
-        assertEquals("cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eA==", config.presharedKey)
+        assertEquals("c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=", config.publicKey)
+        assertEquals("cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eCE=", config.presharedKey)
         assertEquals("vpn.example.com:51820", config.endpoint)
         assertEquals("0.0.0.0/0", config.allowedIps)
         assertEquals(25, config.persistentKeepalive)
@@ -50,7 +50,7 @@ class TunnelConfigTest {
             Address = 10.8.0.5/32
 
             [Peer]
-            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==
+            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=
             Endpoint = vpn.example.com:51820
             AllowedIPs = 0.0.0.0/0
         """.trimIndent()
@@ -74,7 +74,7 @@ class TunnelConfigTest {
         assertTrue(output.contains("DNS = 1.1.1.1, 8.8.8.8"))
         assertTrue(output.contains("MTU = 1420"))
         assertTrue(output.contains("[Peer]"))
-        assertTrue(output.contains("PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA=="))
+        assertTrue(output.contains("PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE="))
         assertTrue(output.contains("Endpoint = vpn.example.com:51820"))
         assertTrue(output.contains("AllowedIPs = 0.0.0.0/0"))
         assertTrue(output.contains("PersistentKeepalive = 25"))
@@ -94,7 +94,7 @@ class TunnelConfigTest {
             Address = 10.8.0.5/32
 
             [Peer]
-            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==
+            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=
             Endpoint = vpn.example.com:51820
             AllowedIPs = 0.0.0.0/0
         """.trimIndent()
