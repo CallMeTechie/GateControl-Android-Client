@@ -269,7 +269,7 @@ class SetupViewModelTest {
 
     @Test
     fun `importConfig saves valid WireGuard config`() = runTest {
-        val config = "[Interface]\nPrivateKey=abc\nAddress=10.0.0.1/32\n\n[Peer]\nPublicKey=xyz"
+        val config = "[Interface]\nPrivateKey = YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=\nAddress = 10.8.0.5/32\n\n[Peer]\nPublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=\nEndpoint = vpn.example.com:51820\nAllowedIPs = 0.0.0.0/0"
 
         viewModel.uiState.test {
             awaitItem()
