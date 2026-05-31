@@ -1,0 +1,6 @@
+{
+  "name": "invalid_no_interface",
+  "config": "[Peer]\nPublicKey = 86R0I45ZRx/P7WQdj+GkW+q0+MU0cS4Zccy+CVTTvY4=\nEndpoint = gate.example.com:51820\nAllowedIPs = 0.0.0.0/0\n",
+  "expect": "invalid",
+  "errorContains": "interface_count"
+}

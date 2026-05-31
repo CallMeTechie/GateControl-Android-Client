@@ -1,0 +1,5 @@
+{
+  "name": "valid_server_internal_dns",
+  "config": "[Interface]\nPrivateKey = CyeI87ssPVm18g0yRG9AZV0vdIe9qtkKvFKsOlTCTHI=\nAddress = 10.8.0.2/32\nDNS = 10.8.0.1,1.1.1.1\nMTU = 1420\n\n[Peer]\nPublicKey = 86R0I45ZRx/P7WQdj+GkW+q0+MU0cS4Zccy+CVTTvY4=\nPresharedKey = /ai8/tDjM7oi2ITdt1ydLIWFHA5HJN8GCSzeFHCOhvc=\nEndpoint = gate.example.com:51820\nAllowedIPs = 0.0.0.0/0\nPersistentKeepalive = 25\n",
+  "expect": "valid"
+}

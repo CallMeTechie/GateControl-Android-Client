@@ -1,0 +1,6 @@
+{
+  "name": "invalid_bad_endpoint",
+  "config": "[Interface]\nPrivateKey = CyeI87ssPVm18g0yRG9AZV0vdIe9qtkKvFKsOlTCTHI=\nAddress = 10.8.0.2/32\nDNS = 10.8.0.1\n\n[Peer]\nPublicKey = 86R0I45ZRx/P7WQdj+GkW+q0+MU0cS4Zccy+CVTTvY4=\nEndpoint = gate.example.com\nAllowedIPs = 0.0.0.0/0\n",
+  "expect": "invalid",
+  "errorContains": "peer_endpoint_format"
+}
