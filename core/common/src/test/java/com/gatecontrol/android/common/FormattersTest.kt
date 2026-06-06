@@ -100,6 +100,11 @@ class FormattersTest {
     }
 
     @Test
+    fun `formatHandshakeAge hours in English returns Xh ago`() {
+        assertEquals("2h ago", Formatters.formatHandshakeAge(7_200, "en"))
+    }
+
+    @Test
     fun `formatHandshakeAge 0 seconds in German returns jetzt`() {
         assertEquals("jetzt", Formatters.formatHandshakeAge(0, "de"))
     }
@@ -115,14 +120,33 @@ class FormattersTest {
     }
 
     @Test
-    fun `formatHandshakeAge hours in English returns Xh ago`() {
-        assertEquals("2h ago", Formatters.formatHandshakeAge(7_200, "en"))
-    }
-
-    @Test
     fun `formatHandshakeAge hours in German returns vor Xh`() {
         assertEquals("vor 2h", Formatters.formatHandshakeAge(7_200, "de"))
     }
+
+    // --- 💡 这里是为你新增的中文 (zh) 本地化单元测试用例 ---
+
+    @Test
+    fun `formatHandshakeAge 0 seconds in Chinese returns ganggang`() {
+        assertEquals("刚刚", Formatters.formatHandshakeAge(0, "zh"))
+    }
+
+    @Test
+    fun `formatHandshakeAge 30 seconds in Chinese returns 30s ago`() {
+        assertEquals("30秒前", Formatters.formatHandshakeAge(30, "zh"))
+    }
+
+    @Test
+    fun `formatHandshakeAge 180 seconds in Chinese returns 3m ago`() {
+        assertEquals("3分钟前", Formatters.formatHandshakeAge(180, "zh"))
+    }
+
+    @Test
+    fun `formatHandshakeAge hours in Chinese returns Xh ago`() {
+        assertEquals("2小时前", Formatters.formatHandshakeAge(7_200, "zh"))
+    }
+
+    // --- Default Locale ---
 
     @Test
     fun `formatHandshakeAge default locale is English`() {
