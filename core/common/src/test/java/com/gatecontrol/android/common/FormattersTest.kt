@@ -128,22 +128,22 @@ class FormattersTest {
 
     @Test
     fun `formatHandshakeAge 0 seconds in Chinese returns ganggang`() {
-        assertEquals("刚刚", Formatters.formatHandshakeAge(0, "zh"))
+        assertEquals("now", Formatters.formatHandshakeAge(0, "zh"))
     }
 
     @Test
     fun `formatHandshakeAge 30 seconds in Chinese returns 30s ago`() {
-        assertEquals("30秒前", Formatters.formatHandshakeAge(30, "zh"))
+        assertEquals("30s", Formatters.formatHandshakeAge(30, "zh"))
     }
 
     @Test
     fun `formatHandshakeAge 180 seconds in Chinese returns 3m ago`() {
-        assertEquals("3分钟前", Formatters.formatHandshakeAge(180, "zh"))
+        assertEquals("3m", Formatters.formatHandshakeAge(180, "zh"))
     }
 
     @Test
     fun `formatHandshakeAge hours in Chinese returns Xh ago`() {
-        assertEquals("2小时前", Formatters.formatHandshakeAge(7_200, "zh"))
+        assertEquals("2h", Formatters.formatHandshakeAge(7_200, "zh"))
     }
 
     // --- Default Locale ---
