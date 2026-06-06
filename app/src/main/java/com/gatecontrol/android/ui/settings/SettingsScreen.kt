@@ -608,6 +608,7 @@ private fun LocaleDropdown(
     val localeOptions = mapOf(
         "de" to "Deutsch",
         "en" to "English"
+        "zh" to "中文 (简体)"
     )
 
     Row(
