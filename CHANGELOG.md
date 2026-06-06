@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2] - 2026-06-06
+
+### Changes
+- Rename Release.yml to release.yml
+
+---
+
 ## [1.6.1] - 2026-06-06
 
 ### Changes
