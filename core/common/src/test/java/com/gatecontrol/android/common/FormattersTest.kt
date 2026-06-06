@@ -124,24 +124,25 @@ class FormattersTest {
         assertEquals("vor 2h", Formatters.formatHandshakeAge(7_200, "de"))
     }
 
-// --- Chinese (zh) ---
+    // --- Chinese (zh) ---
 
-@Test
-fun `formatHandshakeAge 0 seconds in Chinese returns 此刻`() {
-    assertEquals("此刻", Formatters.formatHandshakeAge(0, "zh"))
-}
+    @Test
+    fun `formatHandshakeAge 0 seconds in Chinese returns 此刻`() {
+        assertEquals("此刻", Formatters.formatHandshakeAge(0, "zh"))
+    }
 
-@Test
-fun `formatHandshakeAge 30 seconds in Chinese returns 30秒前`() {
-    assertEquals("30秒前", Formatters.formatHandshakeAge(30, "zh"))
-}
+    @Test
+    fun `formatHandshakeAge 30 seconds in Chinese returns 30秒前`() {
+        assertEquals("30秒前", Formatters.formatHandshakeAge(30, "zh"))
+    }
 
-@Test
-fun `formatHandshakeAge 180 seconds in Chinese returns 3分钟前`() {
-    assertEquals("3分钟前", Formatters.formatHandshakeAge(180, "zh"))
-}
+    @Test
+    fun `formatHandshakeAge 180 seconds in Chinese returns 3分钟前`() {
+        assertEquals("3分钟前", Formatters.formatHandshakeAge(180, "zh"))
+    }
 
-@Test
-fun `formatHandshakeAge hours in Chinese returns X小时前`() {
-    assertEquals("2小时前", Formatters.formatHandshakeAge(7_200, "zh"))
+    @Test
+    fun `formatHandshakeAge hours in Chinese returns X小时前`() {
+        assertEquals("2小时前", Formatters.formatHandshakeAge(7_200, "zh"))
+    }
 }
