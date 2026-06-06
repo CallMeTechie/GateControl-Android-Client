@@ -56,16 +56,37 @@ object Formatters {
 
     fun formatHandshakeAge(seconds: Long, locale: String = "en"): String {
         val isDe = locale.equals("de", ignoreCase = true)
+        val isZh = locale.equals("zh", ignoreCase = true)
         return when {
-            seconds < 1 -> if (isDe) "jetzt" else "now"
-            seconds < 60 -> if (isDe) "vor ${seconds}s" else "${seconds}s ago"
+            seconds < 1 -> {
+                when {
+                    isDe -> "jetzt"
+                    isZh -> "此刻"
+                    else -> "now"
+                }
+            }
+            seconds < 60 -> {
+                when {
+                    isDe -> "vor ${seconds}s"
+                    isZh -> "${seconds}秒前"
+                    else -> "${seconds}s ago"
+                }
+            }
             seconds < 3600 -> {
                 val m = seconds / 60
-                if (isDe) "vor ${m}m" else "${m}m ago"
+                when {
+                    isDe -> "vor ${m}m"
+                    isZh -> "${m}分钟前"
+                    else -> "${m}m ago"
+                }
             }
             else -> {
                 val h = seconds / 3600
-                if (isDe) "vor ${h}h" else "${h}h ago"
+                when {
+                    isDe -> "vor ${h}h"
+                    isZh -> "${h}小时前"
+                    else -> "${h}h ago"
+                }
             }
         }
     }
