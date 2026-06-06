@@ -1,5 +1,14 @@
 package com.gatecontrol.android.navigation
 
+import android.net.Uri
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.gatecontrol.android.ui.settings.NetworkGroupListScreen
+import com.gatecontrol.android.ui.settings.NetworkGroupEditScreen
+import com.gatecontrol.android.ui.settings.SettingsViewModel
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
@@ -135,12 +144,46 @@ fun AppNavigation(
                     onNavigateToQrScanner = {
                         navController.navigate(Screen.QrScanner.route)
                     },
+                    onNavigateToNetworkGroups = {
+                        navController.navigate(Screen.NetworkGroups.route)
+                    },
                 )
             }
 
             composable(Screen.Logs.route) {
                 com.gatecontrol.android.ui.settings.LogsScreen(
                     onNavigateBack = { navController.popBackStack() },
+                )
+            }
+
+            composable(Screen.NetworkGroups.route) {
+                val settingsVm: SettingsViewModel = hiltViewModel()
+                val state by settingsVm.uiState.collectAsStateWithLifecycle()
+                NetworkGroupListScreen(
+                    adminLocked = state.splitTunnelAdminLocked,
+                    onNavigateToEdit = { groupId, groupName ->
+                        navController.navigate(Screen.NetworkGroupEdit.createRoute(groupId, groupName))
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            composable(
+                route = Screen.NetworkGroupEdit.route,
+                arguments = listOf(
+                    navArgument("groupId")   { type = NavType.LongType },
+                    navArgument("groupName") { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { backStackEntry ->
+                val groupId   = backStackEntry.arguments?.getLong("groupId")   ?: return@composable
+                val groupName = Uri.decode(backStackEntry.arguments?.getString("groupName") ?: "")
+                val settingsVm: SettingsViewModel = hiltViewModel()
+                val state by settingsVm.uiState.collectAsStateWithLifecycle()
+                NetworkGroupEditScreen(
+                    groupId     = groupId,
+                    groupName   = groupName,
+                    adminLocked = state.splitTunnelAdminLocked,
+                    onBack      = { navController.popBackStack() },
                 )
             }
         }
