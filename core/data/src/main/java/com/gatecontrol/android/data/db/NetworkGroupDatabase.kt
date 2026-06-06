@@ -139,8 +139,9 @@ interface NetworkGroupDao {
     """)
     suspend fun getEnabledCidrs(): List<String>
 
+    // 💡 修复部分：将原来的 SELECT c.cidr, c.label 改为 SELECT c.* // 这样能查出包括 id, groupId 在内的完整字段，完美契合 NetworkCidrEntity 的返回类型
     @Query("""
-        SELECT c.cidr, c.label FROM network_cidrs c
+        SELECT c.* FROM network_cidrs c
         INNER JOIN network_groups g ON g.id = c.groupId
         WHERE g.enabled = 1
     """)
