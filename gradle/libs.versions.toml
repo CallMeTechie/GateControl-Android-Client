@@ -22,6 +22,8 @@ mockk = "1.13.11"
 turbine = "1.1.0"
 robolectric = "4.12.2"
 org-json = "20240303"
+room = "2.6.1"
+ksp = "1.9.25-1.0.20"
 
 [libraries]
 # AndroidX Core
@@ -91,9 +93,13 @@ turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 org-json = { group = "org.json", name = "json", version.ref = "org-json" }
+room-runtime  = { group = "androidx.room", name = "room-runtime",  version.ref = "room" }
+room-ktx      = { group = "androidx.room", name = "room-ktx",      version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler",  version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
