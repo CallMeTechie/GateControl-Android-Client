@@ -45,14 +45,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.ui.unit.dp
-import com.gatecontrol.android.util.WifiSubnetDetector
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
@@ -65,6 +67,7 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 fun SettingsScreen(
     onNavigateToLogs: () -> Unit,
     onNavigateToQrScanner: () -> Unit,
+    onNavigateToNetworkGroups: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -196,7 +199,6 @@ fun SettingsScreen(
         // --- Split Tunneling ---
         item {
             var showAppPicker by remember { mutableStateOf(false) }
-            val wifiSubnet = remember { WifiSubnetDetector.detect(context) }
 
             Spacer(modifier = Modifier.height(16.dp))
             SectionHeader(text = stringResource(R.string.settings_split_tunnel))
@@ -243,12 +245,38 @@ fun SettingsScreen(
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
 
-                NetworkPresetsSection(
-                    networks = uiState.splitTunnelNetworks,
-                    wifiSubnet = wifiSubnet,
-                    adminLocked = uiState.splitTunnelAdminLocked,
-                    onNetworksChanged = { viewModel.setSplitTunnelNetworks(it) },
-                )
+                // Navigation entry to Network Groups management screen
+                val activeCount = uiState.splitTunnelNetworks.size
+                Surface(
+                    onClick = onNavigateToNetworkGroups,
+                    shape = MaterialTheme.shapes.small,
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.Lan,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Manage Network Groups",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                "$activeCount active CIDR${if (activeCount != 1) "s" else ""}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null)
+                    }
+                }
 
                 Spacer(Modifier.height(16.dp))
 
