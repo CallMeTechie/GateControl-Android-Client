@@ -124,7 +124,7 @@ class FormattersTest {
         assertEquals("vor 2h", Formatters.formatHandshakeAge(7_200, "de"))
     }
 
-    // --- 💡 这里是为你新增的中文 (zh) 本地化单元测试用例 ---
+    // --- 新增的中文
 
     @Test
     fun `formatHandshakeAge 0 seconds in Chinese returns ganggang`() {
