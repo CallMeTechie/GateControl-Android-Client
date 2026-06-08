@@ -14,6 +14,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.net.InetAddress
@@ -43,6 +45,9 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
     private var backend: Backend? = null
     private var tunnel: Tunnel? = null
+
+    /** 防止并发 connect/reconnect 竞争 */
+    private val connectMutex = kotlinx.coroutines.sync.Mutex()
 
     private var prevRxBytes: Long = 0L
     private var prevTxBytes: Long = 0L
@@ -122,6 +127,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
         stealthConfig: StealthConfig,
     ) {
         withContext(Dispatchers.IO) {
+            connectMutex.withLock {
             try {
                 // 保存配置供自动重连使用
                 currentRawConfig = configString
@@ -179,6 +185,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
                 Timber.e(e, "TunnelManager: failed to connect tunnel")
                 _state.value = TunnelState.Error(e.message ?: "Unknown error")
             }
+            } // connectMutex.withLock
         }
     }
 
@@ -222,8 +229,8 @@ class TunnelManager @Inject constructor(private val context: Context) {
         }
 
         withContext(Dispatchers.IO) {
+            connectMutex.withLock {
             try {
-                Timber.w("TunnelManager: handshake stale — attempting port-hop reconnect")
 
                 // 断开当前连接
                 val currentBackend = backend
@@ -268,6 +275,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
                 Timber.e(e, "TunnelManager: port-hop reconnect failed")
                 _state.value = TunnelState.Error(e.message ?: "Port-hop reconnect failed")
             }
+            } // connectMutex.withLock
         }
     }
 
@@ -333,6 +341,11 @@ class TunnelManager @Inject constructor(private val context: Context) {
         parsed: TunnelConfig,
         splitConfig: SplitTunnelConfig,
     ): Config {
+        require(parsed.address.isNotBlank()) {
+            "WireGuard Interface Address is empty — cannot establish VPN tunnel. " +
+            "The server configuration is missing the [Interface] Address field."
+        }
+
         val ifaceBuilder = Interface.Builder()
             .parsePrivateKey(parsed.privateKey)
             .parseAddresses(parsed.address)
