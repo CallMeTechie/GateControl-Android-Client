@@ -113,7 +113,11 @@ class VpnViewModelTest {
         viewModel.connect()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>(), any<com.gatecontrol.android.tunnel.StealthConfig>()) } = runTest {
+        coVerify { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>(), any<com.gatecontrol.android.tunnel.StealthConfig>()) }
+    }
+
+    @Test
+    fun `connect does nothing when config is empty`() = runTest {
         every { setupRepository.getWireGuardConfig() } returns ""
 
         viewModel.connect()
