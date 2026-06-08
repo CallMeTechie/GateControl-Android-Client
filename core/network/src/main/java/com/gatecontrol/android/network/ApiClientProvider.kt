@@ -116,6 +116,10 @@ class ApiClientProvider @Inject constructor(
     }
 
     fun getClient(baseUrl: String): ApiClient {
+        require(baseUrl.isNotBlank() &&
+            (baseUrl.startsWith("http://") || baseUrl.startsWith("https://"))) {
+            "Expected URL scheme 'http' or 'https' but received: '$baseUrl'"
+        }
         val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         return synchronized(lock) {
             cache.getOrPut(normalizedUrl) {
