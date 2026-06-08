@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.6] - 2026-06-08
+
+### Changes
+- 更新 VpnViewModel.kt
+
+---
+
 ## [1.6.5] - 2026-06-08
 
 ### Changes
