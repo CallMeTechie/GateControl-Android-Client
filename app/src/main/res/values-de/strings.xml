@@ -105,6 +105,9 @@
     <string name="rdp_auth_required_message">Der Server benötigt Zugangsdaten. Gib sie ein, um fortzufahren.</string>
 
     <!-- Settings -->
+    <string name="settings_save">Speichern</string>
+    <string name="settings_testing">Teste&#8230;</string>
+    <string name="settings_connection_failed">Verbindung fehlgeschlagen</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_server">Server</string>
     <string name="settings_server_url">Server-URL</string>
