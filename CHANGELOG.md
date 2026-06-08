@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3] - 2026-06-08
+
+### Changes
+- 更新 VpnViewModelTest.kt
+
+---
+
 ## [1.6.2] - 2026-06-06
 
 ### Changes
