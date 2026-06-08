@@ -105,6 +105,9 @@
     <string name="rdp_auth_required_message">The server requires credentials. Enter them to continue.</string>
 
     <!-- Settings -->
+<string name="settings_save">Save</string>
+<string name="settings_testing">Testing&#8230;</string>
+<string name="settings_connection_failed">Connection failed</string>
     <string name="settings_title">Settings</string>
     <string name="settings_server">Server</string>
     <string name="settings_server_url">Server URL</string>
