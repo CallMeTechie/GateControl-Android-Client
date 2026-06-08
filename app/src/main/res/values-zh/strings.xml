@@ -136,6 +136,9 @@
     <string name="split_tunnel_add_app">添加应用</string>
     <string name="split_tunnel_recommended_apps">推荐预设</string>
     <string name="split_tunnel_recommended_hint">无线连接时可能会导致 VPN 问题</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_testing">测试中&#8230;</string>
+    <string name="settings_connection_failed">连接失败</string>
     <string name="settings_split_save">保存路由</string>
     <string name="settings_split_saved">路由已保存</string>
     <string name="settings_config_import">导入配置</string>
