@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.4] - 2026-06-08
+
+### Changes
+- Add files via upload
+
+---
+
 ## [1.6.3] - 2026-06-08
 
 ### Changes
