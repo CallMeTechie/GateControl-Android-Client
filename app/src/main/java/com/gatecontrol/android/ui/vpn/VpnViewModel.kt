@@ -127,12 +127,21 @@ class VpnViewModel @Inject constructor(
             while (isActive) {
                 delay(45_000)
                 if (tunnelState.value is TunnelState.Connected) {
-                    val stats = tunnelManager.getStatistics()
-                    val handshakeStale = stats == null ||
-                        TunnelMonitor.isHandshakeStale(stats.lastHandshakeEpoch, 180L)
-                    if (handshakeStale) {
-                        Timber.w("VpnViewModel: handshake stale — triggering port-hop reconnect")
-                        tunnelManager.reconnectWithPortHop()
+                    // Only attempt port-hop reconnect if the feature is enabled.
+                    // loadStealthConfig() is cheap (reads SharedPreferences).
+                    val shouldAutoReconnect = try {
+                        loadStealthConfig().autoReconnectOnBlock
+                    } catch (_: Exception) { false }
+
+                    if (shouldAutoReconnect) {
+                        val stats = tunnelManager.getStatistics()
+                        // stats == null means the backend couldn't read stats (not a
+                        // handshake failure), so don't treat that as stale.
+                        if (stats != null &&
+                            TunnelMonitor.isHandshakeStale(stats.lastHandshakeEpoch, 180L)) {
+                            Timber.w("VpnViewModel: handshake stale — triggering port-hop reconnect")
+                            tunnelManager.reconnectWithPortHop()
+                        }
                     }
                 }
             }
@@ -293,6 +302,15 @@ class VpnViewModel @Inject constructor(
 
     private suspend fun reportDeviceHostname(serverUrl: String) {
         try {
+            // Guard: Retrofit requires a valid http/https URL. An empty or
+            // unconfigured serverUrl would produce "/" after normalization and
+            // crash with "Expected URL scheme 'http' or 'https'".
+            if (serverUrl.isBlank() ||
+                (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://"))) {
+                Timber.d("Hostname report skipped: serverUrl is not a valid http(s) URL: '$serverUrl'")
+                return
+            }
+
             val sanitized = com.gatecontrol.android.common.HostnameSanitizer.sanitize(android.os.Build.MODEL)
             if (sanitized.isNullOrBlank()) return
 
