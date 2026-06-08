@@ -62,6 +62,17 @@ class VpnViewModelTest {
         every { settingsRepository.getSplitTunnelMode() } returns flowOf("off")
         every { settingsRepository.getSplitTunnelNetworks() } returns flowOf("[]")
         every { settingsRepository.getSplitTunnelAppsV2() } returns flowOf("[]")
+        every { settingsRepository.getStealthPortHopping() } returns flowOf(false)
+        every { settingsRepository.getStealthTimingJitter() } returns flowOf(false)
+        every { settingsRepository.getStealthPacketPadding() } returns flowOf(false)
+        every { settingsRepository.getStealthPaddingMtu() } returns flowOf(1420)
+        every { settingsRepository.getStealthKeepaliveRandom() } returns flowOf(false)
+        every { settingsRepository.getStealthKeepaliveJitterSec() } returns flowOf(0)
+        every { settingsRepository.getStealthDecoyDns() } returns flowOf(false)
+        every { settingsRepository.getStealthAutoReconnect() } returns flowOf(false)
+        every { settingsRepository.getStealthCandidatePorts() } returns flowOf(emptyList())
+        every { settingsRepository.getStealthJitterMinMs() } returns flowOf(0)
+        every { settingsRepository.getStealthJitterMaxMs() } returns flowOf(0)
         every { setupRepository.getServerUrl() } returns "https://gate.example.com"
         every { setupRepository.getPeerId() } returns 42
         coEvery { apiClient.getSplitTunnelPreset() } returns SplitTunnelPresetResponse(
@@ -102,17 +113,13 @@ class VpnViewModelTest {
         viewModel.connect()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
-    }
-
-    @Test
-    fun `connect does nothing when config is empty`() = runTest {
+        coVerify { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>(), any<com.gatecontrol.android.tunnel.StealthConfig>()) } = runTest {
         every { setupRepository.getWireGuardConfig() } returns ""
 
         viewModel.connect()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify(exactly = 0) { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
+        coVerify(exactly = 0) { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>(), any<com.gatecontrol.android.tunnel.StealthConfig>()) }
     }
 
     @Test
