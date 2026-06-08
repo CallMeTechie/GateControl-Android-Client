@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5] - 2026-06-08
+
+### Changes
+- Delete azirevpn-ar-bue.conf
+
+---
+
 ## [1.6.4] - 2026-06-08
 
 ### Changes
