@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,6 +23,7 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val SPLIT_TUNNEL_ENABLED = booleanPreferencesKey("split_tunnel_enabled")
         val SPLIT_TUNNEL_ROUTES = stringPreferencesKey("split_tunnel_routes")
         val SPLIT_TUNNEL_APPS = stringPreferencesKey("split_tunnel_apps")
+        
         // New split-tunnel keys (v2 JSON format)
         val SPLIT_TUNNEL_MODE = stringPreferencesKey("split_tunnel_mode")
         val SPLIT_TUNNEL_NETWORKS = stringPreferencesKey("split_tunnel_networks")
@@ -30,7 +32,7 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val CHECK_INTERVAL = intPreferencesKey("check_interval")
         val CONFIG_POLL_INTERVAL = intPreferencesKey("config_poll_interval")
 
-        // ── 防检测设置键 ─────────────────────────────────────────────────
+        // ── 1. 完整保留：防检测设置键 (Stealth Keys) ──────────────────────────────
         val STEALTH_PORT_HOPPING = booleanPreferencesKey("stealth_port_hopping")
         val STEALTH_TIMING_JITTER = booleanPreferencesKey("stealth_timing_jitter")
         val STEALTH_PACKET_PADDING = booleanPreferencesKey("stealth_packet_padding")
@@ -42,9 +44,17 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val STEALTH_CANDIDATE_PORTS = stringPreferencesKey("stealth_candidate_ports")
         val STEALTH_JITTER_MIN_MS = intPreferencesKey("stealth_jitter_min_ms")
         val STEALTH_JITTER_MAX_MS = intPreferencesKey("stealth_jitter_max_ms")
-        // ─────────────────────────────────────────────────────────────────
+        
+        // ── 2. 全新加入：双轨主动探测引擎设置键 (Probe Keys) ──────────────────────────
+        val PROBE_BYPASS_TARGET = stringPreferencesKey("probe_bypass_target")
+        val PROBE_BYPASS_PORT = intPreferencesKey("probe_bypass_port")
+        val PROBE_TUNNEL_TARGET = stringPreferencesKey("probe_tunnel_target")
+        val PROBE_TUNNEL_PORT = intPreferencesKey("probe_tunnel_port")
+        val PROBE_TIMEOUT_MS = longPreferencesKey("probe_timeout_ms")
+        val PROBE_FAILURE_THRESHOLD = intPreferencesKey("probe_failure_threshold")
     }
 
+    // ── 基础设置流读取 ──
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
 
     fun getLocale(): Flow<String> = dataStore.data.map { prefs ->
@@ -55,177 +65,100 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     }
 
     fun getAutoConnect(): Flow<Boolean> = dataStore.data.map { it[AUTO_CONNECT] ?: false }
-
     fun getKillSwitch(): Flow<Boolean> = dataStore.data.map { it[KILL_SWITCH] ?: false }
-
-    fun getSplitTunnelEnabled(): Flow<Boolean> =
-        dataStore.data.map { it[SPLIT_TUNNEL_ENABLED] ?: false }
-
-    fun getSplitTunnelRoutes(): Flow<String> =
-        dataStore.data.map { it[SPLIT_TUNNEL_ROUTES] ?: "" }
-
-    fun getSplitTunnelApps(): Flow<String> =
-        dataStore.data.map { it[SPLIT_TUNNEL_APPS] ?: "" }
-
-    fun getSplitTunnelMode(): Flow<String> =
-        dataStore.data.map { it[SPLIT_TUNNEL_MODE] ?: "off" }
-
-    fun getSplitTunnelNetworks(): Flow<String> =
-        dataStore.data.map { it[SPLIT_TUNNEL_NETWORKS] ?: "[]" }
-
-    fun getSplitTunnelAppsV2(): Flow<String> =
-        dataStore.data.map { it[SPLIT_TUNNEL_APPS_V2] ?: "[]" }
-
-    fun getSplitTunnelAdminLocked(): Flow<Boolean> =
-        dataStore.data.map { it[SPLIT_TUNNEL_ADMIN_LOCKED] ?: false }
-
+    fun getSplitTunnelEnabled(): Flow<Boolean> = dataStore.data.map { it[SPLIT_TUNNEL_ENABLED] ?: false }
+    fun getSplitTunnelRoutes(): Flow<String> = dataStore.data.map { it[SPLIT_TUNNEL_ROUTES] ?: "" }
+    fun getSplitTunnelApps(): Flow<String> = dataStore.data.map { it[SPLIT_TUNNEL_APPS] ?: "" }
+    fun getSplitTunnelMode(): Flow<String> = dataStore.data.map { it[SPLIT_TUNNEL_MODE] ?: "off" }
+    fun getSplitTunnelNetworks(): Flow<String> = dataStore.data.map { it[SPLIT_TUNNEL_NETWORKS] ?: "[]" }
+    fun getSplitTunnelAppsV2(): Flow<String> = dataStore.data.map { it[SPLIT_TUNNEL_APPS_V2] ?: "[]" }
+    fun getSplitTunnelAdminLocked(): Flow<Boolean> = dataStore.data.map { it[SPLIT_TUNNEL_ADMIN_LOCKED] ?: false }
     fun getCheckInterval(): Flow<Int> = dataStore.data.map { it[CHECK_INTERVAL] ?: 30 }
+    fun getConfigPollInterval(): Flow<Int> = dataStore.data.map { it[CONFIG_POLL_INTERVAL] ?: 300 }
 
-    fun getConfigPollInterval(): Flow<Int> =
-        dataStore.data.map { it[CONFIG_POLL_INTERVAL] ?: 300 }
+    // ── 3. 完整保留：高级防检测属性流读取 (Stealth Getters) ───────────────────────
+    fun getStealthPortHopping(): Flow<Boolean> = dataStore.data.map { it[STEALTH_PORT_HOPPING] ?: false }
+    fun getStealthTimingJitter(): Flow<Boolean> = dataStore.data.map { it[STEALTH_TIMING_JITTER] ?: false }
+    fun getStealthPacketPadding(): Flow<Boolean> = dataStore.data.map { it[STEALTH_PACKET_PADDING] ?: false }
+    fun getStealthPaddingMtu(): Flow<Int> = dataStore.data.map { it[STEALTH_PADDING_MTU] ?: 1280 }
+    fun getStealthKeepaliveRandom(): Flow<Boolean> = dataStore.data.map { it[STEALTH_KEEPALIVE_RANDOM] ?: false }
+    fun getStealthKeepaliveJitterSec(): Flow<Int> = dataStore.data.map { it[STEALTH_KEEPALIVE_JITTER_SEC] ?: 5 }
+    fun getStealthDecoyDns(): Flow<Boolean> = dataStore.data.map { it[STEALTH_DECOY_DNS] ?: false }
+    fun getStealthAutoReconnect(): Flow<Boolean> = dataStore.data.map { it[STEALTH_AUTO_RECONNECT] ?: false }
+    fun getStealthJitterMinMs(): Flow<Int> = dataStore.data.map { it[STEALTH_JITTER_MIN_MS] ?: 100 }
+    fun getStealthJitterMaxMs(): Flow<Int> = dataStore.data.map { it[STEALTH_JITTER_MAX_MS] ?: 800 }
 
-    // ── 防检测设置读取 ────────────────────────────────────────────────────
-
-    fun getStealthPortHopping(): Flow<Boolean> =
-        dataStore.data.map { it[STEALTH_PORT_HOPPING] ?: false }
-
-    fun getStealthTimingJitter(): Flow<Boolean> =
-        dataStore.data.map { it[STEALTH_TIMING_JITTER] ?: false }
-
-    fun getStealthPacketPadding(): Flow<Boolean> =
-        dataStore.data.map { it[STEALTH_PACKET_PADDING] ?: false }
-
-    fun getStealthPaddingMtu(): Flow<Int> =
-        dataStore.data.map { it[STEALTH_PADDING_MTU] ?: 1280 }
-
-    fun getStealthKeepaliveRandom(): Flow<Boolean> =
-        dataStore.data.map { it[STEALTH_KEEPALIVE_RANDOM] ?: false }
-
-    fun getStealthKeepaliveJitterSec(): Flow<Int> =
-        dataStore.data.map { it[STEALTH_KEEPALIVE_JITTER_SEC] ?: 5 }
-
-    fun getStealthDecoyDns(): Flow<Boolean> =
-        dataStore.data.map { it[STEALTH_DECOY_DNS] ?: false }
-
-    fun getStealthAutoReconnect(): Flow<Boolean> =
-        dataStore.data.map { it[STEALTH_AUTO_RECONNECT] ?: false }
-
-    /** 存储为逗号分隔字符串，如 "443,80,8080,51820" */
-    fun getStealthCandidatePorts(): Flow<List<Int>> =
-        dataStore.data.map { prefs ->
-            prefs[STEALTH_CANDIDATE_PORTS]
-                ?.split(",")
-                ?.mapNotNull { it.trim().toIntOrNull() }
-                ?.filter { it in 1..65535 }
-                ?.takeIf { it.isNotEmpty() }
-                ?: listOf(443, 80, 8080, 8443, 53, 123, 51820)
-        }
-
-    fun getStealthJitterMinMs(): Flow<Int> =
-        dataStore.data.map { it[STEALTH_JITTER_MIN_MS] ?: 100 }
-
-    fun getStealthJitterMaxMs(): Flow<Int> =
-        dataStore.data.map { it[STEALTH_JITTER_MAX_MS] ?: 800 }
-
-    // ── 防检测设置写入 ────────────────────────────────────────────────────
-
-    suspend fun setStealthPortHopping(enabled: Boolean) {
-        dataStore.edit { it[STEALTH_PORT_HOPPING] = enabled }
+    fun getStealthCandidatePorts(): Flow<List<Int>> = dataStore.data.map { prefs ->
+        prefs[STEALTH_CANDIDATE_PORTS]
+            ?.split(",")
+            ?.mapNotNull { it.trim().toIntOrNull() }
+            ?.filter { it in 1..65535 }
+            ?.takeIf { it.isNotEmpty() }
+            ?: listOf(443, 80, 8080, 8443, 53, 123, 51820)
     }
 
-    suspend fun setStealthTimingJitter(enabled: Boolean) {
-        dataStore.edit { it[STEALTH_TIMING_JITTER] = enabled }
-    }
+    // ── 4. 全新加入：双轨探测属性流读取 (Probe Getters) ─────────────────────────
+    fun getProbeBypassTarget(): Flow<String> = dataStore.data.map { it[PROBE_BYPASS_TARGET] ?: "223.5.5.5" }
+    fun getProbeBypassPort(): Flow<Int> = dataStore.data.map { it[PROBE_BYPASS_PORT] ?: 80 }
+    fun getProbeTunnelTarget(): Flow<String> = dataStore.data.map { it[PROBE_TUNNEL_TARGET] ?: "8.8.8.8" }
+    fun getProbeTunnelPort(): Flow<Int> = dataStore.data.map { it[PROBE_TUNNEL_PORT] ?: 53 }
+    fun getProbeTimeoutMs(): Flow<Long> = dataStore.data.map { it[PROBE_TIMEOUT_MS] ?: 3000L }
+    fun getProbeFailureThreshold(): Flow<Int> = dataStore.data.map { it[PROBE_FAILURE_THRESHOLD] ?: 3 }
 
-    suspend fun setStealthPacketPadding(enabled: Boolean) {
-        dataStore.edit { it[STEALTH_PACKET_PADDING] = enabled }
-    }
+    // ── 5. 完整保留：高级防检测属性流写入 (Stealth Setters) ───────────────────────
+    suspend fun setStealthPortHopping(enabled: Boolean) { dataStore.edit { it[STEALTH_PORT_HOPPING] = enabled } }
+    suspend fun setStealthTimingJitter(enabled: Boolean) { dataStore.edit { it[STEALTH_TIMING_JITTER] = enabled } }
+    suspend fun setStealthPacketPadding(enabled: Boolean) { dataStore.edit { it[STEALTH_PACKET_PADDING] = enabled } }
+    suspend fun setStealthKeepaliveRandom(enabled: Boolean) { dataStore.edit { it[STEALTH_KEEPALIVE_RANDOM] = enabled } }
+    suspend fun setStealthDecoyDns(enabled: Boolean) { dataStore.edit { it[STEALTH_DECOY_DNS] = enabled } }
+    suspend fun setStealthAutoReconnect(enabled: Boolean) { dataStore.edit { it[STEALTH_AUTO_RECONNECT] = enabled } }
 
     suspend fun setStealthPaddingMtu(mtu: Int) {
         val clamped = mtu.coerceIn(1024, 1500)
         dataStore.edit { it[STEALTH_PADDING_MTU] = clamped }
     }
-
-    suspend fun setStealthKeepaliveRandom(enabled: Boolean) {
-        dataStore.edit { it[STEALTH_KEEPALIVE_RANDOM] = enabled }
-    }
-
     suspend fun setStealthKeepaliveJitterSec(jitter: Int) {
         val clamped = jitter.coerceIn(1, 30)
         dataStore.edit { it[STEALTH_KEEPALIVE_JITTER_SEC] = clamped }
     }
-
-    suspend fun setStealthDecoyDns(enabled: Boolean) {
-        dataStore.edit { it[STEALTH_DECOY_DNS] = enabled }
-    }
-
-    suspend fun setStealthAutoReconnect(enabled: Boolean) {
-        dataStore.edit { it[STEALTH_AUTO_RECONNECT] = enabled }
-    }
-
     suspend fun setStealthCandidatePorts(ports: List<Int>) {
         val valid = ports.filter { it in 1..65535 }.distinct()
         dataStore.edit { it[STEALTH_CANDIDATE_PORTS] = valid.joinToString(",") }
     }
-
     suspend fun setStealthJitterMinMs(ms: Int) {
         val clamped = ms.coerceIn(0, 2000)
         dataStore.edit { it[STEALTH_JITTER_MIN_MS] = clamped }
     }
-
     suspend fun setStealthJitterMaxMs(ms: Int) {
         val clamped = ms.coerceIn(50, 5000)
         dataStore.edit { it[STEALTH_JITTER_MAX_MS] = clamped }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ── 6. 全新加入：双轨探测属性流写入 (Probe Setters) ─────────────────────────
+    suspend fun setProbeBypassTarget(target: String) { dataStore.edit { it[PROBE_BYPASS_TARGET] = target.trim() } }
+    suspend fun setProbeBypassPort(port: Int) { dataStore.edit { it[PROBE_BYPASS_PORT] = port.coerceIn(1, 65535) } }
+    suspend fun setProbeTunnelTarget(target: String) { dataStore.edit { it[PROBE_TUNNEL_TARGET] = target.trim() } }
+    suspend fun setProbeTunnelPort(port: Int) { dataStore.edit { it[PROBE_TUNNEL_PORT] = port.coerceIn(1, 65535) } }
+    suspend fun setProbeTimeoutMs(timeoutMs: Long) { dataStore.edit { it[PROBE_TIMEOUT_MS] = timeoutMs.coerceIn(500L, 15000L) } }
+    suspend fun setProbeFailureThreshold(threshold: Int) { dataStore.edit { it[PROBE_FAILURE_THRESHOLD] = threshold.coerceIn(1, 10) } }
 
-    suspend fun setTheme(value: String) {
-        dataStore.edit { it[THEME] = value }
-    }
-
-    suspend fun setLocale(value: String) {
-        dataStore.edit { it[LOCALE] = value }
-    }
-
-    suspend fun setAutoConnect(value: Boolean) {
-        dataStore.edit { it[AUTO_CONNECT] = value }
-    }
-
-    suspend fun setKillSwitch(value: Boolean) {
-        dataStore.edit { it[KILL_SWITCH] = value }
-    }
-
-    suspend fun setSplitTunnelEnabled(value: Boolean) {
-        dataStore.edit { it[SPLIT_TUNNEL_ENABLED] = value }
-    }
-
-    suspend fun setSplitTunnelRoutes(value: String) {
-        dataStore.edit { it[SPLIT_TUNNEL_ROUTES] = value }
-    }
-
-    suspend fun setSplitTunnelApps(value: String) {
-        dataStore.edit { it[SPLIT_TUNNEL_APPS] = value }
-    }
-
-    suspend fun setSplitTunnelMode(mode: String) {
-        dataStore.edit { it[SPLIT_TUNNEL_MODE] = mode }
-    }
-
-    suspend fun setSplitTunnelNetworks(json: String) {
-        dataStore.edit { it[SPLIT_TUNNEL_NETWORKS] = json }
-    }
-
-    suspend fun setSplitTunnelAppsV2(json: String) {
-        dataStore.edit { it[SPLIT_TUNNEL_APPS_V2] = json }
-    }
-
-    suspend fun setSplitTunnelAdminLocked(locked: Boolean) {
-        dataStore.edit { it[SPLIT_TUNNEL_ADMIN_LOCKED] = locked }
-    }
+    // ── 基础与数据迁移逻辑写入 ──
+    suspend fun setTheme(value: String) { dataStore.edit { it[THEME] = value } }
+    suspend fun setLocale(value: String) { dataStore.edit { it[LOCALE] = value } }
+    suspend fun setAutoConnect(value: Boolean) { dataStore.edit { it[AUTO_CONNECT] = value } }
+    suspend fun setKillSwitch(value: Boolean) { dataStore.edit { it[KILL_SWITCH] = value } }
+    suspend fun setSplitTunnelEnabled(value: Boolean) { dataStore.edit { it[SPLIT_TUNNEL_ENABLED] = value } }
+    suspend fun setSplitTunnelRoutes(value: String) { dataStore.edit { it[SPLIT_TUNNEL_ROUTES] = value } }
+    suspend fun setSplitTunnelApps(value: String) { dataStore.edit { it[SPLIT_TUNNEL_APPS] = value } }
+    suspend fun setSplitTunnelMode(mode: String) { dataStore.edit { it[SPLIT_TUNNEL_MODE] = mode } }
+    suspend fun setSplitTunnelNetworks(json: String) { dataStore.edit { it[SPLIT_TUNNEL_NETWORKS] = json } }
+    suspend fun setSplitTunnelAppsV2(json: String) { dataStore.edit { it[SPLIT_TUNNEL_APPS_V2] = json } }
+    suspend fun setSplitTunnelAdminLocked(locked: Boolean) { dataStore.edit { it[SPLIT_TUNNEL_ADMIN_LOCKED] = locked } }
+    suspend fun setCheckInterval(value: Int) { dataStore.edit { it[CHECK_INTERVAL] = value.coerceIn(5, 300) } }
+    suspend fun setConfigPollInterval(value: Int) { dataStore.edit { it[CONFIG_POLL_INTERVAL] = value.coerceIn(30, 3600) } }
 
     /**
-     * 迁移旧分流配置（v1 → v2）。
+     * 迁移旧分流配置（v1 → v2），完整保留。
      */
     suspend fun migrateSplitTunnelIfNeeded() {
         dataStore.edit { prefs ->
@@ -256,15 +189,5 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
                 prefs.remove(SPLIT_TUNNEL_APPS)
             }
         }
-    }
-
-    suspend fun setCheckInterval(value: Int) {
-        val clamped = value.coerceIn(5, 300)
-        dataStore.edit { it[CHECK_INTERVAL] = clamped }
-    }
-
-    suspend fun setConfigPollInterval(value: Int) {
-        val clamped = value.coerceIn(30, 3600)
-        dataStore.edit { it[CONFIG_POLL_INTERVAL] = clamped }
     }
 }
