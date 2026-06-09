@@ -559,6 +559,9 @@ class TunnelManager @Inject constructor(private val context: Context) {
         screenReceiver = receiver
     }
 
+    // ACCESS_NETWORK_STATE is a normal permission declared in the app module's AndroidManifest.xml.
+    // Lint cannot see the app manifest from this library module, hence the suppression.
+    @android.annotation.SuppressLint("MissingPermission")
     private fun registerNetworkCallback() {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val request = NetworkRequest.Builder()
