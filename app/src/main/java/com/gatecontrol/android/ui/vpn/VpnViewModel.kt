@@ -122,30 +122,9 @@ class VpnViewModel @Inject constructor(
             }
         }
 
-        // 周期性检查握手是否超时，若超时且启用了 autoReconnectOnBlock 则触发端口跳变
-        viewModelScope.launch {
-            while (isActive) {
-                delay(45_000)
-                if (tunnelState.value is TunnelState.Connected) {
-                    // Only attempt port-hop reconnect if the feature is enabled.
-                    // loadStealthConfig() is cheap (reads SharedPreferences).
-                    val shouldAutoReconnect = try {
-                        loadStealthConfig().autoReconnectOnBlock
-                    } catch (_: Exception) { false }
-
-                    if (shouldAutoReconnect) {
-                        val stats = tunnelManager.getStatistics()
-                        // stats == null means the backend couldn't read stats (not a
-                        // handshake failure), so don't treat that as stale.
-                        if (stats != null &&
-                            TunnelMonitor.isHandshakeStale(stats.lastHandshakeEpoch, 180L)) {
-                            Timber.w("VpnViewModel: handshake stale — triggering port-hop reconnect")
-                            tunnelManager.reconnectWithPortHop()
-                        }
-                    }
-                }
-            }
-        }
+        // 双轨探测引擎已在 TunnelManager.connectInternal() 中随连接自动启动，
+        // 负责精准判断"精准阻断"并触发端口跳变重连。
+        // 此处不再重复轮询握手超时，避免误触发和竞争。
 
         viewModelScope.launch {
             while (isActive) {
