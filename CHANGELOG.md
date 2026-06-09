@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.8] - 2026-06-09
+
+### Changes
+- 更新 strings.xml
+
+---
+
 ## [1.6.7] - 2026-06-09
 
 ### Changes
