@@ -4,10 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.BatteryManager
 import com.gatecontrol.android.data.SettingsRepository
@@ -61,7 +57,7 @@ class BootReceiver : BroadcastReceiver() {
                 }
 
                 val vpnPreparePackage = VpnService.prepare(context)
-                if (vpnPreparePackage != null && vpnPreparePackage != context.packageName) {
+                if (vpnPreparePackage?.`package` != context.packageName) {
                     Timber.w("BootReceiver: vpn occupied")
                     return@launch
                 }
