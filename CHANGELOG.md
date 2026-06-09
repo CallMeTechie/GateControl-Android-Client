@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.9] - 2026-06-09
+
+### Changes
+- 更新 TunnelManager.kt
+
+---
+
 ## [1.6.8] - 2026-06-09
 
 ### Changes
