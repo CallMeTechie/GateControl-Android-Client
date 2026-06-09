@@ -366,13 +366,13 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
     /**
      * 轨道 A：直连探测。
-     * 向 [target] 发起 TCP 连接（端口 80），不绑定 VPN 网络接口。
+     * 向 [target] 发起 TCP 连接（端口 443），不绑定 VPN 网络接口。
      * 探测包不会进入 WireGuard 隧道（该 IP 不在 AllowedIPs 内）。
      */
     private fun probeBypass(target: String, timeoutMs: Long): Boolean {
         return try {
             Socket().use { socket ->
-                socket.connect(InetSocketAddress(target, 53), timeoutMs.toInt())
+                socket.connect(InetSocketAddress(target, 443), timeoutMs.toInt())
                 true
             }
         } catch (e: Exception) {
@@ -381,24 +381,24 @@ class TunnelManager @Inject constructor(private val context: Context) {
         }
     }
 
-    /**
+        /**
      * 轨道 B：隧道探测。
-     * 向 [target]（隧道内 IP，默认 10.8.0.1）发送 UDP 包。
-     * GoBackend 会将其加密后通过 WireGuard 发出；若隧道被封，UDP 无响应即超时。
-     * 用 DatagramSocket 发送后等待可达性（通过 InetAddress.isReachable 绑定 TUN 接口）。
+     * 向 [target]（海外常用域名/IP，如 www.google.com）发起 TCP 连接（端口 443）。
+     * 流量会自动走系统默认路由进入 WireGuard 隧道；若隧道被精准阻断，TCP 握手将超时返回 false。
      */
     private fun probeTunnel(target: String, timeoutMs: Long): Boolean {
         return try {
-            // InetAddress.isReachable 在 Android 上使用 ICMP echo（需 root）或 TCP 7 端口。
-            // 对于 VPN 隧道内 IP，GoBackend 的 TUN 接口会拦截 ICMP，实际上可达性
-            // 反映隧道是否通。若 GoBackend 未转发则超时返回 false。
-            val addr = InetAddress.getByName(target)
-            addr.isReachable(timeoutMs.toInt())
+            java.net.Socket().use { socket ->
+                // 使用和轨道 A 相同的 TCP 握手，走海外最通用的 HTTPS 443 端口
+                socket.connect(java.net.InetSocketAddress(target, 443), timeoutMs.toInt())
+                true
+            }
         } catch (e: Exception) {
             Timber.d("TunnelProbe: tunnel probe %s failed: %s", target, e.message)
             false
         }
     }
+
 
     // ── 端口跳变重连 ────────────────────────────────────────────────────────
 
@@ -669,7 +669,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
     companion object {
         private const val TUNNEL_NAME = "gatecontrol"
-        private const val VPN_SUBNET = "10.8.0.0/24"
+        private const val VPN_SUBNET = "0.0.0.0/32"
 
         /** 两次 establish() 之间的最小冷却时间（毫秒） */
         const val RECONNECT_COOLDOWN_MS = 5_000L
@@ -678,10 +678,10 @@ class TunnelManager @Inject constructor(private val context: Context) {
         private const val PROBE_INTERVAL_MS = 15_000L
 
         /** 轨道 A 默认探测目标（国内公共 DNS，不在 AllowedIPs 内） */
-        const val DEFAULT_BYPASS_PROBE = "114.114.114.114"
+        const val DEFAULT_BYPASS_PROBE = "10010.com"
 
         /** 轨道 B 默认探测目标（VPN 网关，在 AllowedIPs 内） */
-        const val DEFAULT_TUNNEL_PROBE = "10.8.0.1"
+        const val DEFAULT_TUNNEL_PROBE = "google.com"
 
         /** 单次探测超时（毫秒） */
         const val DEFAULT_PROBE_TIMEOUT_MS = 3_000L
