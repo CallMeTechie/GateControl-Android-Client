@@ -2,13 +2,11 @@
 <resources>
     <string name="app_name">GateControl</string>
 
-    <!-- Navigation -->
     <string name="nav_vpn">VPN</string>
     <string name="nav_rdp">RDP</string>
     <string name="nav_services">Dienste</string>
     <string name="nav_settings">Einstellungen</string>
 
-    <!-- VPN Screen -->
     <string name="vpn_connected">Verbunden</string>
     <string name="vpn_disconnected">Getrennt</string>
     <string name="vpn_connecting">Verbinde&#8230;</string>
@@ -28,14 +26,12 @@
     <string name="vpn_download">Download</string>
     <string name="vpn_upload">Upload</string>
 
-    <!-- Traffic -->
     <string name="traffic_title">Datenverbrauch</string>
     <string name="traffic_24h">24 Std.</string>
     <string name="traffic_7d">7 Tage</string>
     <string name="traffic_30d">30 Tage</string>
     <string name="traffic_total">Gesamt</string>
 
-    <!-- Services -->
     <string name="services_title">Erreichbare Dienste</string>
     <string name="services_empty">Keine Dienste verfügbar</string>
     <string name="services_auth_badge">Auth</string>
@@ -45,7 +41,6 @@
     <string name="dns_fail">DNS-Leak erkannt!</string>
     <string name="dns_servers">DNS-Server: %1$s</string>
 
-    <!-- RDP -->
     <string name="rdp_title">RDP-Verbindungen</string>
     <string name="rdp_search">Suchen&#8230;</string>
     <string name="rdp_filter_all">Alle</string>
@@ -104,7 +99,6 @@
     <string name="rdp_auth_required_title">Authentifizierung erforderlich</string>
     <string name="rdp_auth_required_message">Der Server benötigt Zugangsdaten. Gib sie ein, um fortzufahren.</string>
 
-    <!-- Settings -->
     <string name="settings_save">Speichern</string>
     <string name="settings_testing">Teste&#8230;</string>
     <string name="settings_connection_failed">Verbindung fehlgeschlagen</string>
@@ -176,7 +170,45 @@
     <string name="settings_update_none">Keine Updates verfügbar</string>
     <string name="settings_check_for_updates">Nach Updates suchen</string>
 
-    <!-- Setup -->
+    <string name="settings_stealth_title">Tarnung &amp; Protokoll-Obfuskation</string>
+    <string name="settings_stealth_desc">Erweiterte kryptografische Auffüllung und Transportmutationen zur Umgehung von Deep Packet Inspection (DPI).</string>
+    <string name="settings_stealth_port_hopping">Dynamisches Port-Hopping</string>
+    <string name="settings_stealth_port_hopping_desc">Endpunkte bei Verschlechterung des Handshakes über Kandidaten-Ports wechseln.</string>
+    <string name="settings_stealth_candidate_ports">Kandidaten-Ports</string>
+    <string name="settings_stealth_candidate_ports_hint">Kommagetrennt z. B. 443,80,51820</string>
+    <string name="settings_stealth_jitter">Timing-Jitter-Obfuskation</string>
+    <string name="settings_stealth_jitter_desc">Zufällige Millisekunden-Intervalle zwischen Initialisierungsvektoren einfügen.</string>
+    <string name="settings_stealth_jitter_min">Minimaler Jitter (ms)</string>
+    <string name="settings_stealth_jitter_max">Maximaler Jitter (ms)</string>
+    <string name="settings_stealth_padding">Paketgrößen-Auffüllung (Padding)</string>
+    <string name="settings_stealth_padding_desc">Deterministische Zufallsbytes an Header anhängen, um WireGuard-Signaturlängen zu maskieren.</string>
+    <string name="settings_stealth_padding_mtu">Ziel-Padding-Grenze (MTU)</string>
+    <string name="settings_stealth_keepalive">Zufälliges persistentes Keepalive</string>
+    <string name="settings_stealth_keepalive_desc">Standardmäßige 25s-Keepalive-Intervalle variieren, um Traffic-Timing-Analyseangriffe zu verhindern.</string>
+    <string name="settings_stealth_keepalive_jitter">Maximaler Keepalive-Jitter (Sekunden)</string>
+    <string name="settings_stealth_decoy_dns">DNS-Scheinabfragen (Chaff)</string>
+    <string name="settings_stealth_decoy_dns_desc">Unverschlüsselte DNS-Scheinabfragen an vertrauenswürdige Knoten vor dem Handshake senden.</string>
+    <string name="settings_stealth_auto_reconnect">Aktive Circuit-Breaker-Wiederverbindung</string>
+    <string name="settings_stealth_auto_reconnect_desc">Erzwinge die Neuinitialisierung der virtuellen Netzwerkschnittstelle bei Blockaden im Upstream.</string>
+
+    <string name="settings_probe_title">Duale aktive Prober-Engine</string>
+    <string name="settings_probe_desc">Der Prober führt bei aktivem Bildschirm eine differenzielle Bewertung des lokalen physischen Netzwerks und des Tunnels durch. Wenn die Kontrollschwelle überschritten wird, löst er eine Port-Wiederverbindung aus.</string>
+    <string name="settings_probe_track_a">Spur A: Lokaler Direktstrom-Prober (Bypass VPN)</string>
+    <string name="settings_probe_bypass_target">Direkt-Prober Ziel-IP/Domain</string>
+    <string name="settings_probe_bypass_target_hint">z. B. 223.5.5.5</string>
+    <string name="settings_probe_bypass_port">Direkt-Prober TCP-Port</string>
+    <string name="settings_probe_bypass_port_hint">Standard: 80</string>
+    <string name="settings_probe_track_b">Spur B: Tunnel-Verschlüsselungs-Prober (Über VPN)</string>
+    <string name="settings_probe_tunnel_target">Tunnel-Prober Ziel-IP/Domain</string>
+    <string name="settings_probe_tunnel_target_hint">Muss in AllowedIPs sein z. B. 8.8.8.8</string>
+    <string name="settings_probe_tunnel_port">Tunnel-Prober TCP-Port</string>
+    <string name="settings_probe_tunnel_port_hint">Standard: 53</string>
+    <string name="settings_probe_breaker_ctrl">Leistungsschalter-Steuerparameter</string>
+    <string name="settings_probe_timeout">Handshake-Timeout-Schwelle (ms)</string>
+    <string name="settings_probe_timeout_hint">Standard: 3000</string>
+    <string name="settings_probe_threshold">Fehlerschwelle für automatische Reconnects</string>
+    <string name="settings_probe_threshold_hint">Standard: 3</string>
+
     <string name="setup_title">Mit GateControl verbinden</string>
     <string name="setup_subtitle">VPN-Verbindung einrichten</string>
     <string name="setup_qr">QR-Code scannen</string>
@@ -187,7 +219,6 @@
     <string name="setup_error">Registrierung fehlgeschlagen: %1$s</string>
     <string name="setup_invalid_config">Ungültige WireGuard-Konfiguration</string>
 
-    <!-- Logs -->
     <string name="logs_title">Protokolle</string>
     <string name="logs_all">Alle</string>
     <string name="logs_24h">24 Std.</string>
@@ -197,7 +228,6 @@
     <string name="logs_refresh">Aktualisieren</string>
     <string name="logs_export">Exportieren</string>
 
-    <!-- Notifications -->
     <string name="notif_channel_vpn">VPN-Status</string>
     <string name="notif_channel_update">Updates</string>
     <string name="notif_channel_rdp">RDP-Sitzungen</string>
@@ -211,12 +241,10 @@
     <string name="notif_peer_expired">Peer ist abgelaufen</string>
     <string name="peer_disabled_by_server">VPN-Zugang wurde vom Server deaktiviert. Verbindung getrennt.</string>
 
-    <!-- Quick Settings Tile -->
     <string name="tile_vpn_label">GateControl VPN</string>
     <string name="tile_label">GateControl VPN</string>
     <string name="tile_not_connected">Nicht verbunden</string>
 
-    <!-- Common -->
     <string name="cancel">Abbrechen</string>
     <string name="ok">OK</string>
     <string name="save">Speichern</string>
