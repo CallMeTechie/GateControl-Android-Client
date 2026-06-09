@@ -106,141 +106,140 @@ class SettingsViewModel @Inject constructor(
         refreshLicense()
     }
 
-    private fun loadInitialState() {
-        viewModelScope.launch {
-            combine(
-                settingsRepository.getTheme(),
-                settingsRepository.getLocale(),
-                settingsRepository.getAutoConnect(),
-                settingsRepository.getKillSwitch(),
-                settingsRepository.getSplitTunnelEnabled()
-            ) { theme, locale, autoConnect, killSwitch, splitTunnelEnabled ->
-                _uiState.update {
-                    it.copy(
-                        theme = theme,
-                        locale = locale,
-                        autoConnect = autoConnect,
-                        killSwitch = killSwitch,
-                        splitTunnelEnabled = splitTunnelEnabled
-                    )
-                }
-            }.collect {}
-        }
-
-        viewModelScope.launch {
-            settingsRepository.getSplitTunnelRoutes().collect { routes ->
-                _uiState.update { it.copy(splitTunnelRoutes = routes) }
+//// loadInitialState() 去掉内部的 migrateSplitTunnelIfNeeded 调用：
+private fun loadInitialState() {
+    viewModelScope.launch {
+        combine(
+            settingsRepository.getTheme(),
+            settingsRepository.getLocale(),
+            settingsRepository.getAutoConnect(),
+            settingsRepository.getKillSwitch(),
+            settingsRepository.getSplitTunnelEnabled()
+        ) { theme, locale, autoConnect, killSwitch, splitTunnelEnabled ->
+            _uiState.update {
+                it.copy(
+                    theme = theme,
+                    locale = locale,
+                    autoConnect = autoConnect,
+                    killSwitch = killSwitch,
+                    splitTunnelEnabled = splitTunnelEnabled
+                )
             }
-        }
-
-        viewModelScope.launch {
-            settingsRepository.getSplitTunnelApps().collect { apps ->
-                _uiState.update { it.copy(splitTunnelApps = apps) }
-            }
-        }
-
-        viewModelScope.launch {
-            settingsRepository.migrateSplitTunnelIfNeeded()
-            settingsRepository.getSplitTunnelMode().collect { mode ->
-                _uiState.update { it.copy(splitTunnelMode = mode) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getSplitTunnelNetworks().collect { json ->
-                val networks = parseSplitNetworksJson(json)
-                _uiState.update { it.copy(splitTunnelNetworks = networks) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getSplitTunnelAppsV2().collect { json ->
-                val apps = parseSplitAppsJson(json)
-                _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getSplitTunnelAdminLocked().collect { locked ->
-                _uiState.update { it.copy(splitTunnelAdminLocked = locked) }
-            }
-        }
-
-        viewModelScope.launch {
-            settingsRepository.getCheckInterval().collect { interval ->
-                _uiState.update { it.copy(checkInterval = interval) }
-            }
-        }
-
-        viewModelScope.launch {
-            settingsRepository.getConfigPollInterval().collect { interval ->
-                _uiState.update { it.copy(configPollInterval = interval) }
-            }
-        }
-
-        _uiState.update {
-            it.copy(
-                serverUrl = setupRepository.getServerUrl(),
-                apiToken = setupRepository.getApiToken()
-            )
-        }
-
-        // ── 加载防检测设置 ───────────────────────────────────────────────
-        viewModelScope.launch {
-            settingsRepository.getStealthPortHopping().collect { v ->
-                _uiState.update { it.copy(stealthPortHopping = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthCandidatePorts().collect { ports ->
-                _uiState.update { it.copy(stealthCandidatePorts = ports.joinToString(",")) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthTimingJitter().collect { v ->
-                _uiState.update { it.copy(stealthTimingJitter = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthJitterMinMs().collect { v ->
-                _uiState.update { it.copy(stealthJitterMinMs = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthJitterMaxMs().collect { v ->
-                _uiState.update { it.copy(stealthJitterMaxMs = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthPacketPadding().collect { v ->
-                _uiState.update { it.copy(stealthPacketPadding = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthPaddingMtu().collect { v ->
-                _uiState.update { it.copy(stealthPaddingMtu = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthKeepaliveRandom().collect { v ->
-                _uiState.update { it.copy(stealthKeepaliveRandom = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthKeepaliveJitterSec().collect { v ->
-                _uiState.update { it.copy(stealthKeepaliveJitterSec = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthDecoyDns().collect { v ->
-                _uiState.update { it.copy(stealthDecoyDns = v) }
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.getStealthAutoReconnect().collect { v ->
-                _uiState.update { it.copy(stealthAutoReconnect = v) }
-            }
-        }
-        // ─────────────────────────────────────────────────────────────────
+        }.collect {}
     }
 
+    viewModelScope.launch {
+        settingsRepository.getSplitTunnelRoutes().collect { routes ->
+            _uiState.update { it.copy(splitTunnelRoutes = routes) }
+        }
+    }
+
+    viewModelScope.launch {
+        settingsRepository.getSplitTunnelApps().collect { apps ->
+            _uiState.update { it.copy(splitTunnelApps = apps) }
+        }
+    }
+
+    viewModelScope.launch {
+        settingsRepository.getSplitTunnelMode().collect { mode ->
+            _uiState.update { it.copy(splitTunnelMode = mode) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getSplitTunnelNetworks().collect { json ->
+            val networks = parseSplitNetworksJson(json)
+            _uiState.update { it.copy(splitTunnelNetworks = networks) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getSplitTunnelAppsV2().collect { json ->
+            val apps = parseSplitAppsJson(json)
+            _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getSplitTunnelAdminLocked().collect { locked ->
+            _uiState.update { it.copy(splitTunnelAdminLocked = locked) }
+        }
+    }
+
+    viewModelScope.launch {
+        settingsRepository.getCheckInterval().collect { interval ->
+            _uiState.update { it.copy(checkInterval = interval) }
+        }
+    }
+
+    viewModelScope.launch {
+        settingsRepository.getConfigPollInterval().collect { interval ->
+            _uiState.update { it.copy(configPollInterval = interval) }
+        }
+    }
+
+    _uiState.update {
+        it.copy(
+            serverUrl = setupRepository.getServerUrl(),
+            apiToken = setupRepository.getApiToken()
+        )
+    }
+
+    // ── 加载防检测设置 ───────────────────────────────────────────────
+    viewModelScope.launch {
+        settingsRepository.getStealthPortHopping().collect { v ->
+            _uiState.update { it.copy(stealthPortHopping = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthCandidatePorts().collect { ports ->
+            _uiState.update { it.copy(stealthCandidatePorts = ports.joinToString(",")) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthTimingJitter().collect { v ->
+            _uiState.update { it.copy(stealthTimingJitter = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthJitterMinMs().collect { v ->
+            _uiState.update { it.copy(stealthJitterMinMs = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthJitterMaxMs().collect { v ->
+            _uiState.update { it.copy(stealthJitterMaxMs = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthPacketPadding().collect { v ->
+            _uiState.update { it.copy(stealthPacketPadding = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthPaddingMtu().collect { v ->
+            _uiState.update { it.copy(stealthPaddingMtu = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthKeepaliveRandom().collect { v ->
+            _uiState.update { it.copy(stealthKeepaliveRandom = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthKeepaliveJitterSec().collect { v ->
+            _uiState.update { it.copy(stealthKeepaliveJitterSec = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthDecoyDns().collect { v ->
+            _uiState.update { it.copy(stealthDecoyDns = v) }
+        }
+    }
+    viewModelScope.launch {
+        settingsRepository.getStealthAutoReconnect().collect { v ->
+            _uiState.update { it.copy(stealthAutoReconnect = v) }
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────
+}
     // ── 防检测设置写入方法 ────────────────────────────────────────────────
 
     fun setStealthPortHopping(enabled: Boolean) {
