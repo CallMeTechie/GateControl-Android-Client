@@ -678,7 +678,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
         private const val PROBE_INTERVAL_MS = 15_000L
 
         /** 轨道 A 默认探测目标（国内公共 DNS，不在 AllowedIPs 内） */
-        const val DEFAULT_BYPASS_PROBE = "10010.com"
+        const val DEFAULT_BYPASS_PROBE = "bing.com"
 
         /** 轨道 B 默认探测目标（VPN 网关，在 AllowedIPs 内） */
         const val DEFAULT_TUNNEL_PROBE = "google.com"
