@@ -170,6 +170,45 @@
     <string name="settings_update_none">当前已是最新版本</string>
     <string name="settings_check_for_updates">检查更新</string>
 
+    <string name="settings_stealth_title">流量隐蔽与协议混淆层</string>
+    <string name="settings_stealth_desc">通过高级流密码填充与传输层突变，绕过深度数据包检测 (DPI) 及特征指纹审查。</string>
+    <string name="settings_stealth_port_hopping">动态端口跳变 (Port Hopping)</string>
+    <string name="settings_stealth_port_hopping_desc">当检测到握手链路质量劣化时，在候选端口组中动态循环切换端点。</string>
+    <string name="settings_stealth_candidate_ports">候选跳变端口</string>
+    <string name="settings_stealth_candidate_ports_hint">用英文逗号分隔，例如：443,80,51820</string>
+    <string name="settings_stealth_jitter">时序抖动混淆 (Timing Jitter)</string>
+    <string name="settings_stealth_jitter_desc">在握手初始化向量之间注入毫秒级的随机延迟间隔，扰乱包间隔特征。</string>
+    <string name="settings_stealth_jitter_min">最小抖动延迟 (毫秒)</string>
+    <string name="settings_stealth_jitter_max">最大抖动延迟 (毫秒)</string>
+    <string name="settings_stealth_padding">数据包大小填充 (Padding)</string>
+    <string name="settings_stealth_padding_desc">在报文尾部追加确定性随机字节以遮蔽底层特定协议固有的特征报文长度。</string>
+    <string name="settings_stealth_padding_mtu">目标填充边界 (MTU)</string>
+    <string name="settings_stealth_keepalive">随机化持久心跳 (Keepalive)</string>
+    <string name="settings_stealth_keepalive_desc">对标准的 25 秒心跳间隔进行平滑抖动，防止基于通信时序相关性的流量分析攻击。</string>
+    <string name="settings_stealth_keepalive_jitter">心跳最大时序抖动 (秒)</string>
+    <string name="settings_stealth_decoy_dns">诱饵 DNS 干扰流 (Chaff)</string>
+    <string name="settings_stealth_decoy_dns_desc">在隧道建立前，抢先向可信节点并发发送伪造的明文 DNS 查询，掩蔽握手特征。</string>
+    <string name="settings_stealth_auto_reconnect">主动断路器强制重连</string>
+    <string name="settings_stealth_auto_reconnect_desc">当检测到上行链路被阻断或封锁时，强制重新初始化虚拟网络接口进行自愈。</string>
+
+    <string name="settings_probe_title">双轨主动探测引擎设置</string>
+    <string name="settings_probe_desc">探测引擎在亮屏时对本地物理网络与出海隧道进行差分裁决。当“本地通但隧道断”触发熔断阈值后，会自动调用混淆层切换高防隐蔽端口进行重连。</string>
+    <string name="settings_probe_track_a">轨道 A：本地直连流探测 (绕过 VPN 网卡)</string>
+    <string name="settings_probe_bypass_target">直连探测主机 IP/域名</string>
+    <string name="settings_probe_bypass_target_hint">例如: 223.5.5.5</string>
+    <string name="settings_probe_bypass_port">直连探测 TCP 端口</string>
+    <string name="settings_probe_bypass_port_hint">默认: 80</string>
+    <string name="settings_probe_track_b">轨道 B：隧道加密流探测 (通过 VPN 转发)</string>
+    <string name="settings_probe_tunnel_target">隧道探测主机 IP/域名</string>
+    <string name="settings_probe_tunnel_target_hint">必须包含在 AllowedIPs 中，例如: 8.8.8.8</string>
+    <string name="settings_probe_tunnel_port">隧道探测 TCP 端口</string>
+    <string name="settings_probe_tunnel_port_hint">默认: 53</string>
+    <string name="settings_probe_breaker_ctrl">引擎熔断器控制参数</string>
+    <string name="settings_probe_timeout">单次探测握手超时阈值 (毫秒)</string>
+    <string name="settings_probe_timeout_hint">默认: 3000</string>
+    <string name="settings_probe_threshold">触发重连阻断连续失败次数</string>
+    <string name="settings_probe_threshold_hint">默认: 3</string>
+
     <string name="setup_title">连接到 GateControl</string>
     <string name="setup_subtitle">配置 VPN 连接</string>
     <string name="setup_qr">扫描二维码</string>
