@@ -2,13 +2,11 @@
 <resources>
     <string name="app_name">GateControl</string>
 
-    <!-- Navigation -->
     <string name="nav_vpn">VPN</string>
     <string name="nav_rdp">RDP</string>
     <string name="nav_services">Services</string>
     <string name="nav_settings">Settings</string>
 
-    <!-- VPN Screen -->
     <string name="vpn_connected">Connected</string>
     <string name="vpn_disconnected">Disconnected</string>
     <string name="vpn_connecting">Connecting&#8230;</string>
@@ -28,14 +26,12 @@
     <string name="vpn_download">Download</string>
     <string name="vpn_upload">Upload</string>
 
-    <!-- Traffic -->
     <string name="traffic_title">Data Usage</string>
     <string name="traffic_24h">24h</string>
     <string name="traffic_7d">7 Days</string>
     <string name="traffic_30d">30 Days</string>
     <string name="traffic_total">Total</string>
 
-    <!-- Services -->
     <string name="services_title">Reachable Services</string>
     <string name="services_empty">No services available</string>
     <string name="services_auth_badge">Auth</string>
@@ -45,7 +41,6 @@
     <string name="dns_fail">DNS leak detected!</string>
     <string name="dns_servers">DNS Servers: %1$s</string>
 
-    <!-- RDP -->
     <string name="rdp_title">RDP Connections</string>
     <string name="rdp_search">Search&#8230;</string>
     <string name="rdp_filter_all">All</string>
@@ -104,7 +99,6 @@
     <string name="rdp_auth_required_title">Authentication required</string>
     <string name="rdp_auth_required_message">The server requires credentials. Enter them to continue.</string>
 
-    <!-- Settings -->
     <string name="settings_save">Save</string>
     <string name="settings_testing">Testing&#8230;</string>
     <string name="settings_connection_failed">Connection failed</string>
@@ -176,7 +170,45 @@
     <string name="settings_update_none">No updates available</string>
     <string name="settings_check_for_updates">Check for Updates</string>
 
-    <!-- Setup -->
+    <string name="settings_stealth_title">Stealth &amp; Protocol Obfuscation</string>
+    <string name="settings_stealth_desc">Advanced cryptographic padding and transport mutations to bypass deep packet inspection (DPI).</string>
+    <string name="settings_stealth_port_hopping">Dynamic Port Hopping</string>
+    <string name="settings_stealth_port_hopping_desc">Cycle endpoints across candidate ports upon handshake degradation.</string>
+    <string name="settings_stealth_candidate_ports">Candidate Ports</string>
+    <string name="settings_stealth_candidate_ports_hint">Comma-separated e.g. 443,80,51820</string>
+    <string name="settings_stealth_jitter">Timing Jitter Obfuscation</string>
+    <string name="settings_stealth_jitter_desc">Inject randomized multi-millisecond intervals between initialization vectors.</string>
+    <string name="settings_stealth_jitter_min">Minimum Jitter (ms)</string>
+    <string name="settings_stealth_jitter_max">Maximum Jitter (ms)</string>
+    <string name="settings_stealth_padding">Packet Size Padding</string>
+    <string name="settings_stealth_padding_desc">Append deterministic random bytes to headers to mask WireGuard signature lengths.</string>
+    <string name="settings_stealth_padding_mtu">Target Padding Boundary (MTU)</string>
+    <string name="settings_stealth_keepalive">Randomized Persistent Keepalive</string>
+    <string name="settings_stealth_keepalive_desc">Dither standard 25s keepalive intervals to prevent traffic timing correlation attacks.</string>
+    <string name="settings_stealth_keepalive_jitter">Keepalive Maximum Jitter (seconds)</string>
+    <string name="settings_stealth_decoy_dns">Decoy DNS Chaff</string>
+    <string name="settings_stealth_decoy_dns_desc">Prepend fake unencrypted DNS queries to trusted nodes prior to handshake execution.</string>
+    <string name="settings_stealth_auto_reconnect">Active Circuit Breaker Reconnect</string>
+    <string name="settings_stealth_auto_reconnect_desc">Forcefully re-initialize virtual network interface when upstream blockages occur.</string>
+
+    <string name="settings_probe_title">Dual-Track Active Probing Engine</string>
+    <string name="settings_probe_desc">Performs screen-on differential analysis on local and encrypted networks. Automatically switches fallback ports when local connectivity is up but tunnel is blocked.</string>
+    <string name="settings_probe_track_a">Track A: Local Direct Prober (Bypass VPN)</string>
+    <string name="settings_probe_bypass_target">Direct Prober Target IP/Domain</string>
+    <string name="settings_probe_bypass_target_hint">e.g. 223.5.5.5</string>
+    <string name="settings_probe_bypass_port">Direct Prober TCP Port</string>
+    <string name="settings_probe_bypass_port_hint">Default: 80</string>
+    <string name="settings_probe_track_b">Track B: Tunnel Encrypted Prober (Via VPN)</string>
+    <string name="settings_probe_tunnel_target">Tunnel Prober Target IP/Domain</string>
+    <string name="settings_probe_tunnel_target_hint">Must be inside AllowedIPs e.g. 8.8.8.8</string>
+    <string name="settings_probe_tunnel_port">Tunnel Prober TCP Port</string>
+    <string name="settings_probe_tunnel_port_hint">Default: 53</string>
+    <string name="settings_probe_breaker_ctrl">Circuit Breaker Parameters</string>
+    <string name="settings_probe_timeout">Handshake Timeout (ms)</string>
+    <string name="settings_probe_timeout_hint">Default: 3000</string>
+    <string name="settings_probe_threshold">Consecutive Failure Threshold</string>
+    <string name="settings_probe_threshold_hint">Default: 3</string>
+
     <string name="setup_title">Connect to GateControl</string>
     <string name="setup_subtitle">Set up your VPN connection</string>
     <string name="setup_qr">Scan QR Code</string>
@@ -187,7 +219,6 @@
     <string name="setup_error">Registration failed: %1$s</string>
     <string name="setup_invalid_config">Invalid WireGuard config</string>
 
-    <!-- Logs -->
     <string name="logs_title">Logs</string>
     <string name="logs_all">All</string>
     <string name="logs_24h">24h</string>
@@ -197,7 +228,6 @@
     <string name="logs_refresh">Refresh</string>
     <string name="logs_export">Export</string>
 
-    <!-- Notifications -->
     <string name="notif_channel_vpn">VPN Status</string>
     <string name="notif_channel_update">Updates</string>
     <string name="notif_channel_rdp">RDP Sessions</string>
@@ -211,12 +241,10 @@
     <string name="notif_peer_expired">Peer has expired</string>
     <string name="peer_disabled_by_server">VPN access has been disabled by the server. Disconnected.</string>
 
-    <!-- Quick Settings Tile -->
     <string name="tile_vpn_label">GateControl VPN</string>
     <string name="tile_label">GateControl VPN</string>
     <string name="tile_not_connected">Not connected</string>
 
-    <!-- Common -->
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
     <string name="save">Save</string>
