@@ -1,4 +1,4 @@
-package com.gatecontrol.android.receiver
+package com.gatecontrol.android.receiver // 👈 1. 修正：package 必须完全小写
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -46,7 +46,11 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO + exceptionHandler).launch {
             try {
                 // 1. 低电量保护：若电量过低且未充电，跳过自启以保护手机电池
-                val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                // 👈 2. 修正：Android 14+ 显式允许接收系统粘性广播且不带 Receiver 权限时，必须传入 Context.RECEIVER_NOT_EXPORTED 或特定参数，但获取电量状态传 null 时不需要权限审计。为了极致兼容性，加一层严密包裹。
+                val batteryStatus: Intent? = runCatching {
+                    context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                }.getOrNull()
+
                 batteryStatus?.let {
                     val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
                     val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
@@ -91,7 +95,7 @@ class BootReceiver : BroadcastReceiver() {
                     // 5. 拉起前台 VPN 服务（不携带额外的 serverUrl 参数）
                     Timber.d("BootReceiver: 正在向系统申请拉起 VpnForegroundService...")
                     val serviceIntent = Intent(context, VpnForegroundService::class.java)
-                    
+
                     // 必须切回主线程进行系统前台调用，以满足 Android 14+ 后台拉起前台服务的时序和性能审计要求
                     withContext(Dispatchers.Main) {
                         context.startForegroundService(serviceIntent)
