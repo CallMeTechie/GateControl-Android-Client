@@ -9,6 +9,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -62,5 +63,29 @@ class PiholeRepositoryTest {
         val ok = repo().setBlocking(false, 300)
         assertEquals(true, ok)
         coVerify { apiClient.setPiholeBlocking(match { it.enabled == false && it.timer == 300 }) }
+    }
+
+    @Test
+    fun `getHistory returns empty list on ok=false`() = runTest {
+        coEvery { apiClient.getPiholeHistory() } returns PiholeHistoryResponse(ok = false, data = null)
+        assertEquals(emptyList<PiholeHistoryPoint>(), repo().getHistory())
+    }
+
+    @Test
+    fun `getHistory returns empty list on exception`() = runTest {
+        coEvery { apiClient.getPiholeHistory() } throws RuntimeException("timeout")
+        assertEquals(emptyList<PiholeHistoryPoint>(), repo().getHistory())
+    }
+
+    @Test
+    fun `getQueryTypes returns empty map on exception`() = runTest {
+        coEvery { apiClient.getPiholeQueryTypes() } throws RuntimeException("boom")
+        assertTrue(repo().getQueryTypes().isEmpty())
+    }
+
+    @Test
+    fun `getHealth returns null on exception`() = runTest {
+        coEvery { apiClient.getPiholeHealth() } throws RuntimeException("boom")
+        assertNull(repo().getHealth())
     }
 }
