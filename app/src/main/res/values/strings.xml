@@ -225,4 +225,32 @@
     <string name="permission_camera">Camera permission required for QR scanning</string>
     <string name="permission_notification">Notification permission required</string>
     <string name="root_warning">This device appears to be rooted. VPN security may be compromised.</string>
+    <!-- Pi-hole -->
+    <string name="nav_pihole">Pi-hole</string>
+    <string name="pihole_title">Pi-hole</string>
+    <string name="pihole_queries">Queries</string>
+    <string name="pihole_blocked">Blocked</string>
+    <string name="pihole_blocklist">Blocklist domains</string>
+    <string name="pihole_active_clients">Active clients</string>
+    <string name="pihole_status">Status</string>
+    <string name="pihole_status_enabled">Active</string>
+    <string name="pihole_status_disabled">Paused</string>
+    <string name="pihole_status_partial">Partial</string>
+    <string name="pihole_status_unknown">Unknown</string>
+    <string name="pihole_history_title">Queries over time</string>
+    <string name="pihole_allowed">Allowed</string>
+    <string name="pihole_top_domains">Top blocked domains</string>
+    <string name="pihole_top_clients">Top clients</string>
+    <string name="pihole_query_types">Query types</string>
+    <string name="pihole_control">Blocking control</string>
+    <string name="pihole_pause_30s">Pause 30s</string>
+    <string name="pihole_pause_5m">Pause 5m</string>
+    <string name="pihole_pause_30m">Pause 30m</string>
+    <string name="pihole_pause_forever">Pause</string>
+    <string name="pihole_resume">Resume</string>
+    <string name="pihole_applying">Applying&#8230;</string>
+    <string name="pihole_action_failed">Action failed</string>
+    <string name="pihole_empty">No Pi-hole data yet</string>
+    <string name="pihole_synced_ago">synced %1$ds ago</string>
+    <string name="pihole_paused_remaining">paused &#183; %1$ds left</string>
 </resources>

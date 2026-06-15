@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
                     isSetupComplete = isSetupComplete,
                     hasRdpPermission = permissions.rdp,
                     hasServicesPermission = permissions.services,
+                    hasPiholePermission = permissions.pihole,
                 )
             }
         }

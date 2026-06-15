@@ -379,6 +379,8 @@ class SettingsViewModel @Inject constructor(
                         traffic = perms.traffic,
                         dns = perms.dns,
                         rdp = perms.rdp,
+                        pihole = perms.pihole,
+                        piholeControl = perms.piholeControl,
                     )
                     val isPro = perms.rdp || perms.traffic || perms.dns
                     _uiState.update {
