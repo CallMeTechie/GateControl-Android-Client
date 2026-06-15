@@ -225,4 +225,7 @@
     <string name="permission_camera">Kameraberechtigung für QR-Scan erforderlich</string>
     <string name="permission_notification">Benachrichtigungsberechtigung erforderlich</string>
     <string name="root_warning">Dieses Gerät scheint gerootet zu sein. Die VPN-Sicherheit könnte beeinträchtigt sein.</string>
+    <string name="pihole_history_title">Anfrageverlauf (24 Std.)</string>
+    <string name="pihole_allowed">Erlaubt</string>
+    <string name="pihole_blocked">Blockiert</string>
 </resources>
