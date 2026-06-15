@@ -267,7 +267,7 @@ data class PiholeSummary(
     val queries: PiholeQueries? = null,
     val gravity: Long? = null,
     val clients: PiholeClients? = null,
-    val blocking: PiholeBlocking = PiholeBlocking(),
+    val blocking: PiholeBlocking? = null,
     val attribution: String? = null,
     @SerializedName("lastSyncAt") val lastSyncAt: Long? = null
 )
@@ -289,7 +289,7 @@ data class PiholeBlocking(
 
 data class PiholeHistoryResponse(
     val ok: Boolean,
-    val data: List<PiholeHistoryPoint> = emptyList()
+    val data: List<PiholeHistoryPoint>? = null
 )
 
 data class PiholeHistoryPoint(
@@ -300,7 +300,7 @@ data class PiholeHistoryPoint(
 
 data class PiholeTopDomainsResponse(
     val ok: Boolean,
-    val data: List<PiholeTopDomain> = emptyList()
+    val data: List<PiholeTopDomain>? = null
 )
 
 data class PiholeTopDomain(
@@ -310,7 +310,7 @@ data class PiholeTopDomain(
 
 data class PiholeTopClientsResponse(
     val ok: Boolean,
-    val data: List<PiholeTopClient> = emptyList()
+    val data: List<PiholeTopClient>? = null
 )
 
 data class PiholeTopClient(
@@ -322,7 +322,7 @@ data class PiholeTopClient(
 
 data class PiholeQueryTypesResponse(
     val ok: Boolean,
-    val data: Map<String, Long> = emptyMap()
+    val data: Map<String, Long>? = null
 )
 
 data class PiholeHealthResponse(
@@ -331,7 +331,7 @@ data class PiholeHealthResponse(
 )
 
 data class PiholeHealth(
-    val instances: List<PiholeInstance> = emptyList(),
+    val instances: List<PiholeInstance>? = null,
     val attribution: String? = null,
     @SerializedName("lastSyncAt") val lastSyncAt: Long? = null
 )
