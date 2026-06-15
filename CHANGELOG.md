@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0] - 2026-06-15
+
+### Features
+- Phase 2 — Pi-hole stats + blocking control in Android client (#17)
+
+---
+
 ## [1.6.0] - 2026-05-31
 
 ### Features
