@@ -381,6 +381,8 @@ class VpnViewModel @Inject constructor(
                         traffic = flags.traffic,
                         dns = flags.dns,
                         rdp = flags.rdp,
+                        pihole = flags.pihole,
+                        piholeControl = flags.piholeControl,
                     )
                 }
             } catch (e: Exception) {
