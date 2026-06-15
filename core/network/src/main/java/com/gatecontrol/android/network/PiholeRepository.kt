@@ -1,12 +1,6 @@
-package com.gatecontrol.android.data
+package com.gatecontrol.android.network
 
-import com.gatecontrol.android.network.ApiClientProvider
-import com.gatecontrol.android.network.PiholeBlockingRequest
-import com.gatecontrol.android.network.PiholeHealth
-import com.gatecontrol.android.network.PiholeHistoryPoint
-import com.gatecontrol.android.network.PiholeSummary
-import com.gatecontrol.android.network.PiholeTopClient
-import com.gatecontrol.android.network.PiholeTopDomain
+import com.gatecontrol.android.data.SetupRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import timber.log.Timber

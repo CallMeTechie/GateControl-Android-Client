@@ -1,12 +1,6 @@
-package com.gatecontrol.android.data
+package com.gatecontrol.android.network
 
-import com.gatecontrol.android.network.ApiClient
-import com.gatecontrol.android.network.ApiClientProvider
-import com.gatecontrol.android.network.PiholeBlocking
-import com.gatecontrol.android.network.PiholeQueries
-import com.gatecontrol.android.network.PiholeSummary
-import com.gatecontrol.android.network.PiholeSummaryResponse
-import com.gatecontrol.android.network.SimpleResponse
+import com.gatecontrol.android.data.SetupRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -37,7 +31,7 @@ class PiholeRepositoryTest {
             data = PiholeSummary(
                 queries = PiholeQueries(total = 64, blocked = 3, percent = 4.7),
                 gravity = 84973,
-                clients = com.gatecontrol.android.network.PiholeClients(active = 3),
+                clients = PiholeClients(active = 3),
                 blocking = PiholeBlocking(state = "enabled", timer = null),
                 attribution = "collapsed",
                 lastSyncAt = 123L
