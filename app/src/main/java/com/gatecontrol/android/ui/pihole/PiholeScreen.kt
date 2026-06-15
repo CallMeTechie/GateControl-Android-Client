@@ -128,11 +128,13 @@ private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
                     text = stringResource(R.string.pihole_pause_30s),
                     onClick = { viewModel.pauseBlocking(30) },
                     enabled = !ui.actionPending,
+                    modifier = Modifier.weight(1f),
                 )
                 com.gatecontrol.android.ui.components.GcOutlineButton(
                     text = stringResource(R.string.pihole_pause_5m),
                     onClick = { viewModel.pauseBlocking(300) },
                     enabled = !ui.actionPending,
+                    modifier = Modifier.weight(1f),
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -140,11 +142,13 @@ private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
                     text = stringResource(R.string.pihole_pause_30m),
                     onClick = { viewModel.pauseBlocking(1800) },
                     enabled = !ui.actionPending,
+                    modifier = Modifier.weight(1f),
                 )
                 com.gatecontrol.android.ui.components.GcOutlineButton(
                     text = stringResource(R.string.pihole_pause_forever),
                     onClick = { viewModel.pauseBlocking(null) },
                     enabled = !ui.actionPending,
+                    modifier = Modifier.weight(1f),
                 )
             }
             com.gatecontrol.android.ui.components.GcPrimaryButton(

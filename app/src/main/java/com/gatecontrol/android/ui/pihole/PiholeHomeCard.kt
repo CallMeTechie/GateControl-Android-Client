@@ -50,11 +50,13 @@ fun PiholeHomeCard(
                         text = stringResource(R.string.pihole_pause_5m),
                         onClick = { viewModel.pauseBlocking(300) },
                         enabled = !ui.actionPending,
+                        modifier = Modifier.weight(1f),
                     )
                     com.gatecontrol.android.ui.components.GcOutlineButton(
                         text = stringResource(R.string.pihole_resume),
                         onClick = { viewModel.resumeBlocking() },
                         enabled = !ui.actionPending,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
