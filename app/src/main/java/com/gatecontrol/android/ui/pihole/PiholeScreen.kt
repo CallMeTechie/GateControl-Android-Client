@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -51,14 +52,14 @@ fun PiholeScreen(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
-        androidx.compose.foundation.layout.Spacer(Modifier.padding(8.dp))
+        androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
 
         when {
             ui.isLoading -> androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
             ui.summary == null -> Text(stringResource(R.string.pihole_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            else -> PullToRefreshBox(isRefreshing = ui.isLoading, onRefresh = { viewModel.refresh() }) {
+            else -> PullToRefreshBox(isRefreshing = ui.isRefreshing, onRefresh = { viewModel.refresh() }) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item { SummaryCards(ui) }
                     item {

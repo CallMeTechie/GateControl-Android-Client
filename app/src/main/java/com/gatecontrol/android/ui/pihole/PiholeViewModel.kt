@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 
 data class PiholeUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val summary: PiholeSummary? = null,
     val history: List<PiholeHistoryPoint> = emptyList(),
     val topDomains: List<PiholeTopDomain> = emptyList(),
@@ -48,25 +49,30 @@ class PiholeViewModel @Inject constructor(
             if (!_uiState.value.actionPending) {
                 _uiState.update { it.copy(isLoading = it.summary == null) }
             }
-            val summary = piholeRepository.getSummary()
-            // While an action is pending, only the confirmation path updates state.
-            if (_uiState.value.actionPending) return@launch
-            val history = piholeRepository.getHistory()
-            val topDomains = piholeRepository.getTopDomains()
-            val topClients = piholeRepository.getTopClients()
-            val queryTypes = piholeRepository.getQueryTypes()
-            val canControl = licenseRepository.hasFeature("piholeControl")
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    error = null,
-                    summary = summary,
-                    history = history,
-                    topDomains = topDomains,
-                    topClients = topClients,
-                    queryTypes = queryTypes,
-                    canControl = canControl,
-                )
+            _uiState.update { it.copy(isRefreshing = true) }
+            try {
+                val summary = piholeRepository.getSummary()
+                // While an action is pending, only the confirmation path updates state.
+                if (_uiState.value.actionPending) return@launch
+                val history = piholeRepository.getHistory()
+                val topDomains = piholeRepository.getTopDomains()
+                val topClients = piholeRepository.getTopClients()
+                val queryTypes = piholeRepository.getQueryTypes()
+                val canControl = licenseRepository.hasFeature("piholeControl")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = null,
+                        summary = summary,
+                        history = history,
+                        topDomains = topDomains,
+                        topClients = topClients,
+                        queryTypes = queryTypes,
+                        canControl = canControl,
+                    )
+                }
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
             }
         }
     }
