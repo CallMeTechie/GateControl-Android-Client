@@ -105,8 +105,8 @@ private fun SummaryCards(ui: PiholeUiState) {
             // Status + sync age (lastSyncAt is epoch ms from the server).
             val syncAge = s.lastSyncAt?.let { ((System.currentTimeMillis() - it) / 1000).coerceAtLeast(0) }
             val statusText = if (syncAge != null)
-                "${statusLabel(s.blocking?.state ?: "unknown")} · ${stringResource(R.string.pihole_synced_ago, syncAge)}"
-            else statusLabel(s.blocking?.state ?: "unknown")
+                "${piholeStatusLabel(s.blocking?.state ?: "unknown")} · ${stringResource(R.string.pihole_synced_ago, syncAge)}"
+            else piholeStatusLabel(s.blocking?.state ?: "unknown")
             KeyValueRow(stringResource(R.string.pihole_status), statusText)
         }
     }
@@ -159,14 +159,6 @@ private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
             )
         }
     }
-}
-
-@Composable
-private fun statusLabel(state: String): String = when (state) {
-    "enabled" -> stringResource(R.string.pihole_status_enabled)
-    "disabled" -> stringResource(R.string.pihole_status_disabled)
-    "partial" -> stringResource(R.string.pihole_status_partial)
-    else -> stringResource(R.string.pihole_status_unknown)
 }
 
 @Composable

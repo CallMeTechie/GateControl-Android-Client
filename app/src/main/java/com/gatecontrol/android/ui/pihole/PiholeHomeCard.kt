@@ -10,6 +10,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import kotlinx.coroutines.delay
 
 @Composable
 fun PiholeHomeCard(
@@ -26,6 +28,14 @@ fun PiholeHomeCard(
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     val s = ui.summary
+
+    // Foreground polling ~30s while this card is in composition (mirrors PiholeScreen).
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            viewModel.refresh()
+        }
+    }
 
     Card(Modifier.fillMaxWidth().clickable { onOpen() }) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -62,12 +72,4 @@ fun PiholeHomeCard(
             }
         }
     }
-}
-
-@Composable
-private fun piholeStatusLabel(state: String): String = when (state) {
-    "enabled" -> stringResource(R.string.pihole_status_enabled)
-    "disabled" -> stringResource(R.string.pihole_status_disabled)
-    "partial" -> stringResource(R.string.pihole_status_partial)
-    else -> stringResource(R.string.pihole_status_unknown)
 }
