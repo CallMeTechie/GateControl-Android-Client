@@ -49,17 +49,23 @@ class PiholeViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = it.summary == null) }
             }
             val summary = piholeRepository.getSummary()
-            // While an action is pending, only the confirmation path (below) updates blocking state.
+            // While an action is pending, only the confirmation path updates state.
             if (_uiState.value.actionPending) return@launch
+            val history = piholeRepository.getHistory()
+            val topDomains = piholeRepository.getTopDomains()
+            val topClients = piholeRepository.getTopClients()
+            val queryTypes = piholeRepository.getQueryTypes()
+            val canControl = licenseRepository.hasFeature("piholeControl")
             _uiState.update {
                 it.copy(
                     isLoading = false,
+                    error = null,
                     summary = summary,
-                    history = piholeRepository.getHistory(),
-                    topDomains = piholeRepository.getTopDomains(),
-                    topClients = piholeRepository.getTopClients(),
-                    queryTypes = piholeRepository.getQueryTypes(),
-                    canControl = licenseRepository.hasFeature("piholeControl"),
+                    history = history,
+                    topDomains = topDomains,
+                    topClients = topClients,
+                    queryTypes = queryTypes,
+                    canControl = canControl,
                 )
             }
         }
@@ -78,14 +84,14 @@ class PiholeViewModel @Inject constructor(
                 return@launch
             }
             // Bounded confirmation polling (server cache is ~30s + async resync).
-            repeat(12) {
+            repeat(12) { attempt ->
                 val s = piholeRepository.getSummary()
                 if (s?.blocking?.state == expected) {
                     _uiState.update { it.copy(actionPending = false, summary = s) }
                     refresh()
                     return@launch
                 }
-                kotlinx.coroutines.delay(5_000)
+                if (attempt < 11) kotlinx.coroutines.delay(5_000)
             }
             // Give up waiting but reflect latest known state; clear pending.
             _uiState.update { it.copy(actionPending = false) }

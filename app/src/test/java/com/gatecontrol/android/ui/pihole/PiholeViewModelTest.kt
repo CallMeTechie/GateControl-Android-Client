@@ -16,6 +16,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -64,5 +66,28 @@ class PiholeViewModelTest {
         coVerify { piholeRepository.setBlocking(false, 300) }
         assertEquals("disabled", vm.uiState.value.summary?.blocking?.state)
         assertTrue(!vm.uiState.value.actionPending)
+    }
+
+    @Test
+    fun `setBlocking failure clears actionPending and sets error`() = runTest {
+        coEvery { piholeRepository.setBlocking(any(), any()) } returns false
+        val vm = vm()
+        vm.pauseBlocking(null)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("blocking_failed", vm.uiState.value.error)
+        assertFalse(vm.uiState.value.actionPending)
+    }
+
+    @Test
+    fun `applyBlocking give-up after 12 polls clears actionPending without error`() = runTest {
+        coEvery { piholeRepository.setBlocking(any(), any()) } returns true
+        coEvery { piholeRepository.getSummary() } returns PiholeSummary(
+            blocking = PiholeBlocking("enabled", null)  // never flips to "disabled"
+        )
+        val vm = vm()
+        vm.pauseBlocking(null)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.uiState.value.error)
+        assertFalse(vm.uiState.value.actionPending)
     }
 }
