@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -35,6 +36,7 @@ private val bottomBarRoutes = setOf(
     Screen.Vpn.route,
     Screen.Rdp.route,
     Screen.Services.route,
+    Screen.Pihole.route,
     Screen.Settings.route,
 )
 
@@ -44,6 +46,7 @@ fun AppNavigation(
     isSetupComplete: Boolean,
     hasRdpPermission: Boolean,
     hasServicesPermission: Boolean,
+    hasPiholePermission: Boolean,
     onlineRdpHostCount: Int = 0,
 ) {
     val startDestination = if (isSetupComplete) Screen.Vpn.route else Screen.Setup.route
@@ -60,6 +63,7 @@ fun AppNavigation(
                     currentRoute = currentRoute,
                     hasRdpPermission = hasRdpPermission,
                     hasServicesPermission = hasServicesPermission,
+                    hasPiholePermission = hasPiholePermission,
                     onlineRdpHostCount = onlineRdpHostCount,
                     onNavigate = { route ->
                         navController.navigate(route) {
@@ -127,6 +131,10 @@ fun AppNavigation(
                 ServicesScreen()
             }
 
+            composable(Screen.Pihole.route) {
+                com.gatecontrol.android.ui.pihole.PiholeScreen()
+            }
+
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToLogs = {
@@ -152,6 +160,7 @@ private fun GcBottomNavigationBar(
     currentRoute: String?,
     hasRdpPermission: Boolean,
     hasServicesPermission: Boolean,
+    hasPiholePermission: Boolean,
     onlineRdpHostCount: Int,
     onNavigate: (String) -> Unit,
 ) {
@@ -219,6 +228,26 @@ private fun GcBottomNavigationBar(
                     )
                 },
                 label = { Text(stringResource(R.string.nav_services)) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
+                ),
+            )
+        }
+
+        // Pi-hole tab (visible when licensed + pihole scope)
+        if (hasPiholePermission) {
+            NavigationBarItem(
+                selected = currentRoute == Screen.Pihole.route,
+                onClick = { onNavigate(Screen.Pihole.route) },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Filled.Shield,
+                        contentDescription = stringResource(R.string.nav_pihole),
+                    )
+                },
+                label = { Text(stringResource(R.string.nav_pihole)) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
