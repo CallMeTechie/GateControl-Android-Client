@@ -120,6 +120,7 @@ fun AppNavigation(
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         }
                     },
+                    onOpenPihole = { navController.navigate(Screen.Pihole.route) },
                 )
             }
 

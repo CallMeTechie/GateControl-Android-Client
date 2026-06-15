@@ -45,6 +45,7 @@ import kotlinx.coroutines.delay
 fun VpnScreen(
     viewModel: VpnViewModel = hiltViewModel(),
     onTokenInvalid: () -> Unit = {},
+    onOpenPihole: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -206,6 +207,11 @@ fun VpnScreen(
         // Traffic usage (requires traffic permission)
         if (permissions.traffic && trafficUsage != null) {
             TrafficUsage(traffic = trafficUsage)
+        }
+
+        // Pi-hole quick card (requires pihole permission)
+        if (permissions.pihole) {
+            com.gatecontrol.android.ui.pihole.PiholeHomeCard(onOpen = onOpenPihole)
         }
 
         // Kill-switch toggle
