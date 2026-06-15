@@ -20,7 +20,9 @@ data class PermissionFlags(
     val services: Boolean,
     val traffic: Boolean,
     val dns: Boolean,
-    val rdp: Boolean
+    val rdp: Boolean,
+    val pihole: Boolean = false,
+    val piholeControl: Boolean = false
 )
 
 data class RegisterResponse(
@@ -252,4 +254,95 @@ data class RdpRouteStatusResponse(
 data class SimpleResponse(
     val ok: Boolean,
     val error: String? = null
+)
+
+// ─── Pi-hole (Phase 2) ───────────────────────────────────────────────
+
+data class PiholeSummaryResponse(
+    val ok: Boolean,
+    val data: PiholeSummary? = null
+)
+
+data class PiholeSummary(
+    val queries: PiholeQueries? = null,
+    val gravity: Long? = null,
+    val clients: PiholeClients? = null,
+    val blocking: PiholeBlocking = PiholeBlocking(),
+    val attribution: String? = null,
+    @SerializedName("lastSyncAt") val lastSyncAt: Long? = null
+)
+
+data class PiholeQueries(
+    val total: Long = 0,
+    val blocked: Long = 0,
+    val percent: Double = 0.0
+)
+
+data class PiholeClients(
+    val active: Int = 0
+)
+
+data class PiholeBlocking(
+    val state: String = "unknown",
+    val timer: Long? = null
+)
+
+data class PiholeHistoryResponse(
+    val ok: Boolean,
+    val data: List<PiholeHistoryPoint> = emptyList()
+)
+
+data class PiholeHistoryPoint(
+    val t: Long,
+    val allowed: Long,
+    val blocked: Long
+)
+
+data class PiholeTopDomainsResponse(
+    val ok: Boolean,
+    val data: List<PiholeTopDomain> = emptyList()
+)
+
+data class PiholeTopDomain(
+    val domain: String,
+    val count: Long
+)
+
+data class PiholeTopClientsResponse(
+    val ok: Boolean,
+    val data: List<PiholeTopClient> = emptyList()
+)
+
+data class PiholeTopClient(
+    val ip: String,
+    val count: Long,
+    val peerId: Int? = null,
+    val peerName: String? = null
+)
+
+data class PiholeQueryTypesResponse(
+    val ok: Boolean,
+    val data: Map<String, Long> = emptyMap()
+)
+
+data class PiholeHealthResponse(
+    val ok: Boolean,
+    val data: PiholeHealth? = null
+)
+
+data class PiholeHealth(
+    val instances: List<PiholeInstance> = emptyList(),
+    val attribution: String? = null,
+    @SerializedName("lastSyncAt") val lastSyncAt: Long? = null
+)
+
+data class PiholeInstance(
+    val id: String,
+    val connected: Boolean,
+    val error: String? = null
+)
+
+data class PiholeBlockingRequest(
+    val enabled: Boolean,
+    val timer: Int? = null
 )
