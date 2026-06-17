@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0] - 2026-06-17
+
+### Features
+- Pause-Countdown + Resume-Fix (optimistisches Modell + Reconciliation) (#18)
+
+---
+
 ## [1.7.0] - 2026-06-15
 
 ### Features
