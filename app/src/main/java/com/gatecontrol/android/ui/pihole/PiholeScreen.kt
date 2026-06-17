@@ -26,12 +26,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.util.findComponentActivity
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PiholeScreen(
-    viewModel: PiholeViewModel = hiltViewModel()
+    viewModel: PiholeViewModel =
+        hiltViewModel(androidx.compose.ui.platform.LocalContext.current.findComponentActivity())
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -58,7 +60,7 @@ fun PiholeScreen(
             ui.isLoading -> androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
-            ui.summary == null -> Text(stringResource(R.string.pihole_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            !ui.everLoaded && ui.summary == null -> Text(stringResource(R.string.pihole_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
             else -> PullToRefreshBox(isRefreshing = ui.isRefreshing, onRefresh = { viewModel.refresh() }) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item { SummaryCards(ui) }
@@ -114,6 +116,24 @@ private fun SummaryCards(ui: PiholeUiState) {
 
 @Composable
 private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
+    val end = ui.pauseEndAtMillis
+    // UI-driven countdown: derive remaining seconds from the absolute end time once per second.
+    val remaining by androidx.compose.runtime.produceState(
+        initialValue = end?.let { ((it - System.currentTimeMillis()) / 1000).coerceAtLeast(0L).toInt() } ?: 0,
+        end,
+    ) {
+        while (end != null) {
+            val rem = ((end - System.currentTimeMillis()) / 1000).coerceAtLeast(0L)
+            value = rem.toInt()
+            if (rem <= 0L) { viewModel.onPauseExpired(); break }
+            delay(1000)
+        }
+    }
+
+    val isFinitePaused = end != null
+    val isPermanentPaused = ui.pausePermanent
+    val isPaused = isFinitePaused || isPermanentPaused
+
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SectionTitle(stringResource(R.string.pihole_control))
@@ -123,40 +143,48 @@ private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
             if (ui.error != null) {
                 Text(stringResource(R.string.pihole_action_failed), color = MaterialTheme.colorScheme.error)
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.gatecontrol.android.ui.components.GcOutlineButton(
-                    text = stringResource(R.string.pihole_pause_30s),
-                    onClick = { viewModel.pauseBlocking(30) },
-                    enabled = !ui.actionPending,
-                    modifier = Modifier.weight(1f),
+
+            if (isFinitePaused && ui.pausedPresetSec == null) {
+                // Generic fallback: server timer with no matching preset.
+                Text(
+                    stringResource(R.string.pihole_paused_mmss, formatMmSs(remaining)),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                com.gatecontrol.android.ui.components.GcOutlineButton(
-                    text = stringResource(R.string.pihole_pause_5m),
-                    onClick = { viewModel.pauseBlocking(300) },
+            } else {
+                @Composable
+                fun presetButton(label: String, sec: Int?, modifier: Modifier) {
+                    val isThisPreset =
+                        (sec == null && isPermanentPaused) || (sec != null && isFinitePaused && ui.pausedPresetSec == sec)
+                    val text = when {
+                        sec == null && isPermanentPaused -> stringResource(R.string.pihole_paused)
+                        sec != null && isThisPreset -> formatMmSs(remaining)
+                        else -> label
+                    }
+                    com.gatecontrol.android.ui.components.GcOutlineButton(
+                        text = text,
+                        onClick = { viewModel.pauseBlocking(sec) },
+                        enabled = !ui.actionPending && !isPaused,
+                        modifier = modifier,
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    presetButton(stringResource(R.string.pihole_pause_30s), 30, Modifier.weight(1f))
+                    presetButton(stringResource(R.string.pihole_pause_5m), 300, Modifier.weight(1f))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    presetButton(stringResource(R.string.pihole_pause_30m), 1800, Modifier.weight(1f))
+                    presetButton(stringResource(R.string.pihole_pause_forever), null, Modifier.weight(1f))
+                }
+            }
+
+            if (isPaused) {
+                com.gatecontrol.android.ui.components.GcPrimaryButton(
+                    text = stringResource(R.string.pihole_resume),
+                    onClick = { viewModel.resumeBlocking() },
                     enabled = !ui.actionPending,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.gatecontrol.android.ui.components.GcOutlineButton(
-                    text = stringResource(R.string.pihole_pause_30m),
-                    onClick = { viewModel.pauseBlocking(1800) },
-                    enabled = !ui.actionPending,
-                    modifier = Modifier.weight(1f),
-                )
-                com.gatecontrol.android.ui.components.GcOutlineButton(
-                    text = stringResource(R.string.pihole_pause_forever),
-                    onClick = { viewModel.pauseBlocking(null) },
-                    enabled = !ui.actionPending,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            com.gatecontrol.android.ui.components.GcPrimaryButton(
-                text = stringResource(R.string.pihole_resume),
-                onClick = { viewModel.resumeBlocking() },
-                enabled = !ui.actionPending,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }

@@ -253,4 +253,6 @@
     <string name="pihole_empty">Noch keine Pi-hole-Daten</string>
     <string name="pihole_synced_ago">Sync vor %1$ds</string>
     <string name="pihole_paused_remaining">pausiert &#183; noch %1$ds</string>
+    <string name="pihole_paused">Pausiert</string>
+    <string name="pihole_paused_mmss">pausiert &#183; %1$s</string>
 </resources>
