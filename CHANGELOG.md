@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1] - 2026-06-28
+
+### Changes
+- Portal auto-open on connect (Android: portalUrl/autoOpenPortal, auto-open + Portal-Button)
+
+---
+
 ## [1.8.0] - 2026-06-17
 
 ### Features
