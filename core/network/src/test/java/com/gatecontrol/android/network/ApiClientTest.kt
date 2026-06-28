@@ -173,6 +173,40 @@ class ApiClientTest {
     }
 
     @Test
+    fun `permissions response deserializes portalUrl and autoOpenPortal`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"ok":true,"permissions":{"services":true,"traffic":false,"dns":false,"rdp":false},"scopes":[],"portalUrl":"https://home.example.com","autoOpenPortal":true}"""
+                )
+        )
+
+        val response = apiClient.getPermissions()
+
+        assertEquals("/api/v1/client/permissions", server.takeRequest().path)
+        assertEquals("https://home.example.com", response.portalUrl)
+        assertTrue(response.autoOpenPortal)
+    }
+
+    @Test
+    fun `permissions response defaults portalUrl to null and autoOpenPortal to false when absent`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"ok":true,"permissions":{"services":true,"traffic":true,"dns":false,"rdp":true},"scopes":["read","write"]}"""
+                )
+        )
+
+        val response = apiClient.getPermissions()
+        server.takeRequest()
+
+        assertEquals(null, response.portalUrl)
+        assertFalse(response.autoOpenPortal)
+    }
+
+    @Test
     fun `checkUpdate returns available flag`() = runTest {
         server.enqueue(
             MockResponse()

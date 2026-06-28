@@ -12,6 +12,7 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
         private const val KEY_PEER_ID = "peer_id"
         private const val KEY_CONFIG_HASH = "config_hash"
         private const val KEY_WG_CONFIG = "wg_config"
+        private const val KEY_PORTAL_URL = "portal_url"
     }
 
     fun save(serverUrl: String, apiToken: String, peerId: Int) {
@@ -45,6 +46,10 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
     fun getWireGuardConfig(): String = storage.getString(KEY_WG_CONFIG, "")
 
     fun hasWireGuardConfig(): Boolean = getWireGuardConfig().isNotEmpty()
+
+    fun getPortalUrl(): String? = storage.getString(KEY_PORTAL_URL, "").ifBlank { null }
+
+    fun setPortalUrl(url: String?) { storage.putString(KEY_PORTAL_URL, url ?: "") }
 
     fun isConfigured(): Boolean = getServerUrl().isNotEmpty() && getApiToken().isNotEmpty()
 

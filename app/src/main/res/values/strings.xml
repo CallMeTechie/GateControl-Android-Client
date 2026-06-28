@@ -21,6 +21,7 @@
     <string name="vpn_handshake">Handshake</string>
     <string name="vpn_received">&#8595; Received</string>
     <string name="vpn_sent">&#8593; Sent</string>
+    <string name="vpn_portal_open">Open portal</string>
     <string name="vpn_kill_switch">Kill-Switch</string>
     <string name="vpn_kill_switch_desc">Block traffic without VPN</string>
     <string name="vpn_kill_switch_system">Configure in system VPN settings</string>

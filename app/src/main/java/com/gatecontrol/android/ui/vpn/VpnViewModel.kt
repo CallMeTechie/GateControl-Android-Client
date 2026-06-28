@@ -63,6 +63,13 @@ class VpnViewModel @Inject constructor(
 
     private var monitoringStarted = false
 
+    private val _portalUrl = MutableStateFlow(setupRepository.getPortalUrl())
+    val portalUrl: StateFlow<String?> = _portalUrl.asStateFlow()
+
+    // ponytail: not cached — auto-open is a per-connect server decision; false until fetch confirms
+    private val _autoOpenPortal = MutableStateFlow(false)
+    val autoOpenPortal: StateFlow<Boolean> = _autoOpenPortal.asStateFlow()
+
     /** Emits true when the stored token is invalid and the user should be
      *  redirected to the Setup screen. Observed by the UI layer. */
     private val _tokenInvalid = MutableStateFlow(false)
@@ -282,6 +289,17 @@ class VpnViewModel @Inject constructor(
         }
     }
 
+    fun openPortal(context: android.content.Context) {
+        val url = portalUrl.value ?: return
+        if (!url.startsWith("https://")) return
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
     fun toggleKillSwitch(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setKillSwitch(enabled)
@@ -384,6 +402,9 @@ class VpnViewModel @Inject constructor(
                         pihole = flags.pihole,
                         piholeControl = flags.piholeControl,
                     )
+                    setupRepository.setPortalUrl(response.portalUrl)
+                    _portalUrl.value = response.portalUrl
+                    _autoOpenPortal.value = response.autoOpenPortal
                 }
             } catch (e: Exception) {
                 Timber.w(e, "VpnViewModel: failed to load permissions")
