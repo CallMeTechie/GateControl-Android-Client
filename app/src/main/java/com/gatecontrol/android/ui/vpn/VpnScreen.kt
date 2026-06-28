@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +65,8 @@ fun VpnScreen(
     val permissions by viewModel.permissions.collectAsState()
     val services by viewModel.services.collectAsState()
     val killSwitchEnabled by viewModel.killSwitchEnabled.collectAsState()
+    val portalUrl by viewModel.portalUrl.collectAsState()
+    val autoOpen by viewModel.autoOpenPortal.collectAsState()
 
     // Bandwidth history ring buffers (60 points each)
     val rxHistory = remember { mutableStateListOf<Long>() }
@@ -126,6 +129,20 @@ fun VpnScreen(
         }
     }
 
+    // Auto-open portal once per tunnel session (connectedSince-keyed, not a plain boolean,
+    // so re-foregrounding the app on the same session does not re-fire the browser).
+    // ponytail: open-once-per-tunnel-session via connectedSince identity; a new user-initiated
+    // connect mints a new connectedSince and re-opens, a blip/re-foreground on the same session
+    // does not. autoOpen is keyed so a delayed permissions fetch that flips it true re-evaluates.
+    var lastOpenedSince by rememberSaveable { mutableStateOf(0L) }
+    LaunchedEffect(tunnelState, portalUrl, autoOpen) {
+        val st = tunnelState
+        if (st is TunnelState.Connected && autoOpen && !portalUrl.isNullOrBlank() && st.connectedSince != lastOpenedSince) {
+            lastOpenedSince = st.connectedSince
+            viewModel.openPortal(context)
+        }
+    }
+
     // Tick every second to update connection duration
     var tick by remember { mutableStateOf(0L) }
     LaunchedEffect(tunnelState) {
@@ -180,6 +197,17 @@ fun VpnScreen(
                 },
                 enabled = !isBusy,
                 loading = isBusy,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        // Portal button — shown when connected and a portal URL is known; gated only on URL
+        // (manual button works even when admin disabled autoappear)
+        if (isConnected && !portalUrl.isNullOrBlank()) {
+            Spacer(Modifier.height(8.dp))
+            GcOutlineButton(
+                text = stringResource(R.string.vpn_portal_open),
+                onClick = { viewModel.openPortal(context) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
