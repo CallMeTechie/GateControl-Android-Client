@@ -13,7 +13,9 @@ data class PingResponse(
 data class PermissionsResponse(
     val ok: Boolean,
     val permissions: PermissionFlags,
-    val scopes: List<String>
+    val scopes: List<String>,
+    @SerializedName("portalUrl") val portalUrl: String? = null,
+    @SerializedName("autoOpenPortal") val autoOpenPortal: Boolean = false,
 )
 
 data class PermissionFlags(
