@@ -7,6 +7,7 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HostnameReportRequest
 import com.gatecontrol.android.tunnel.SplitTunnelConfig
 import com.gatecontrol.android.tunnel.TunnelManager
+import com.gatecontrol.android.tunnel.WgConfigValidator
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
@@ -30,7 +31,7 @@ class TunnelConnector @Inject constructor(
 ) {
 
     suspend fun connectWithUserSettings(): Boolean {
-        val config = setupRepository.getWireGuardConfig()
+        var config = setupRepository.getWireGuardConfig()
         if (config.isEmpty()) {
             Timber.w("TunnelConnector: no WireGuard config available")
             return false
@@ -48,6 +49,7 @@ class TunnelConnector @Inject constructor(
                 if (host != null) apiClientProvider.preResolveDns(host)
             } catch (_: Exception) {
             }
+            config = refreshConfig(serverUrl, config)
         }
 
         val splitTunnelConfig = resolveSplitTunnelConfig(serverUrl)
@@ -65,6 +67,46 @@ class TunnelConnector @Inject constructor(
         } catch (e: Exception) {
             Timber.e(e, "TunnelConnector: connect failed")
             false
+        }
+    }
+
+    /**
+     * Ask the server whether the stored WireGuard config is still current and
+     * adopt the new one if it is not. Runs right after the DNS pre-resolve —
+     * the last moment with working internet before the tunnel comes up.
+     *
+     * Best-effort by design: an unreachable server, a rejected token or a
+     * syntactically broken config must never block the connect, so every
+     * failure path returns the stored config unchanged.
+     */
+    private suspend fun refreshConfig(serverUrl: String, current: String): String {
+        val peerId = setupRepository.getPeerId()
+        if (peerId <= 0) return current
+        return try {
+            val client = apiClientProvider.getClient(serverUrl)
+            val response = client.checkConfigUpdate(
+                peerId,
+                setupRepository.getConfigHash().ifBlank { null },
+            )
+            val fresh = response.config
+            if (!response.updated || fresh.isNullOrBlank()) return current
+
+            val validation = WgConfigValidator.validate(fresh)
+            if (!validation.ok) {
+                Timber.w(
+                    "TunnelConnector: server config rejected (%s), keeping stored config",
+                    validation.errors.joinToString(", "),
+                )
+                return current
+            }
+
+            setupRepository.saveWireGuardConfig(fresh)
+            response.hash?.let { setupRepository.saveConfigHash(it) }
+            Timber.i("TunnelConnector: WireGuard config updated from server")
+            fresh
+        } catch (e: Exception) {
+            Timber.w(e, "TunnelConnector: config check failed, using stored config")
+            current
         }
     }
 
