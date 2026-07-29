@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0] - 2026-07-29
+
+### Features
+- WireGuard-Config bei jedem Verbinden vom Server auffrischen (#19)
+
+---
+
 ## [1.8.1] - 2026-06-28
 
 ### Changes
