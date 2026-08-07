@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -61,7 +61,7 @@ jobs:
     needs: test-gate
     if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
