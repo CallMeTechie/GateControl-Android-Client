@@ -29,7 +29,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
       - name: Verify AAR present
         run: test -f core/rdp/libs/freerdp-android.aar
       - name: Run connected test on emulator
