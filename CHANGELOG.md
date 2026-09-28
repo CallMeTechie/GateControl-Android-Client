@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0] - 2026-09-28
+
+### Features
+- Einrichtungscodes aus dem Token-Assistenten auch ohne Peer einlösen (#21)
+
+---
+
 ## [1.10.0] - 2026-09-28
 
 ### Features
