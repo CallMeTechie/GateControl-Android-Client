@@ -7,10 +7,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import java.util.Locale
+import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
@@ -35,8 +38,13 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var tunnelManager: TunnelManager
     @Inject lateinit var tunnelConnector: TunnelConnector
 
+    /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
+    private var pendingSetupLink by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (savedInstanceState == null) captureSetupLink(intent)
 
         val deepLinkUrl = intent?.data?.getQueryParameter("url")
         val deepLinkToken = intent?.data?.getQueryParameter("token")
@@ -76,6 +84,8 @@ class MainActivity : ComponentActivity() {
                     hasRdpPermission = permissions.rdp,
                     hasServicesPermission = permissions.services,
                     hasPiholePermission = permissions.pihole,
+                    pendingSetupLink = pendingSetupLink,
+                    onSetupLinkConsumed = { pendingSetupLink = null },
                 )
             }
         }
@@ -92,7 +102,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        captureSetupLink(intent)
         handleTileAction(intent)
+    }
+
+    private fun captureSetupLink(intent: Intent?) {
+        val raw = intent?.dataString ?: return
+        if (EnrollmentLink.parse(raw) != null) pendingSetupLink = raw
     }
 
     private fun handleTileAction(intent: Intent?) {

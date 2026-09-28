@@ -208,6 +208,24 @@ data class RegisterRequest(
     val peerId: Int? = null
 )
 
+data class EnrollRequest(
+    val code: String,
+    val hostname: String,
+    val platform: String,
+    val clientVersion: String,
+)
+
+data class EnrollResponse(
+    val ok: Boolean,
+    val token: String? = null,
+    val peerId: Int? = null,
+    val peerName: String? = null,
+    val config: String? = null,
+    val hash: String? = null,
+    val scopes: List<String>? = null,
+    val error: String? = null,
+)
+
 data class HeartbeatRequest(
     val peerId: Int,
     val connected: Boolean,

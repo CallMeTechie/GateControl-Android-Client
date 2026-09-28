@@ -105,6 +105,21 @@ fun SettingsScreen(
             SectionHeader(text = stringResource(R.string.settings_server))
             Spacer(modifier = Modifier.height(8.dp))
 
+            // One-scan setup: VPN + API token bound to this device's peer,
+            // replaces typing the long API token below.
+            GcPrimaryButton(
+                text = stringResource(R.string.settings_enroll_button),
+                onClick = onNavigateToQrScanner,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.settings_enroll_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
             var serverUrlField by remember(uiState.serverUrl) {
                 mutableStateOf(uiState.serverUrl.removePrefix("https://").removePrefix("http://"))
             }

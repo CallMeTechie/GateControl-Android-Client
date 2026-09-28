@@ -50,6 +50,9 @@
                 <data
                     android:scheme="gatecontrol"
                     android:host="setup" />
+                <data
+                    android:scheme="gatecontrol"
+                    android:host="enroll" />
             </intent-filter>
         </activity>
 

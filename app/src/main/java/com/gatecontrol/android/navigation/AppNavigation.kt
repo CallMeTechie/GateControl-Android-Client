@@ -17,13 +17,16 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.navArgument
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.rdp.RdpScreen
 import com.gatecontrol.android.ui.services.ServicesScreen
@@ -48,6 +51,9 @@ fun AppNavigation(
     hasServicesPermission: Boolean,
     hasPiholePermission: Boolean,
     onlineRdpHostCount: Int = 0,
+    /** gatecontrol://enroll link the app was opened with; consumed once shown. */
+    pendingSetupLink: String? = null,
+    onSetupLinkConsumed: () -> Unit = {},
 ) {
     val startDestination = if (isSetupComplete) Screen.Vpn.route else Screen.Setup.route
 
@@ -98,6 +104,35 @@ fun AppNavigation(
                 )
             }
 
+            composable(
+                route = Screen.Enroll.route,
+                arguments = listOf(
+                    navArgument(Screen.Enroll.ARG_LINK) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                // A link opened from outside the app (camera, mail) arrives as
+                // an argument; a scan from the in-app scanner via savedStateHandle.
+                val openedLink = backStackEntry.arguments?.getString(Screen.Enroll.ARG_LINK)
+                val qrResult = backStackEntry.savedStateHandle.get<String>("qr_result") ?: openedLink
+                SetupScreen(
+                    onSetupComplete = {
+                        navController.navigate(Screen.Vpn.route) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        }
+                    },
+                    onNavigateToQr = {
+                        navController.navigate(Screen.QrScanner.route)
+                    },
+                    qrResult = qrResult,
+                    upgradeMode = true,
+                    autoOpenScanner = openedLink == null,
+                )
+            }
+
             composable(Screen.QrScanner.route) {
                 QrScannerScreen(
                     onQrScanned = { scannedData ->
@@ -141,8 +176,10 @@ fun AppNavigation(
                     onNavigateToLogs = {
                         navController.navigate(Screen.Logs.route)
                     },
+                    // Scans land on the setup screen, which understands both the
+                    // setup QR (VPN + API access) and a bare WireGuard config.
                     onNavigateToQrScanner = {
-                        navController.navigate(Screen.QrScanner.route)
+                        navController.navigate(Screen.Enroll.create())
                     },
                 )
             }
@@ -151,6 +188,14 @@ fun AppNavigation(
                 com.gatecontrol.android.ui.settings.LogsScreen(
                     onNavigateBack = { navController.popBackStack() },
                 )
+            }
+        }
+
+        // After NavHost so the graph is set before navigating.
+        LaunchedEffect(pendingSetupLink) {
+            if (pendingSetupLink != null) {
+                navController.navigate(Screen.Enroll.create(pendingSetupLink))
+                onSetupLinkConsumed()
             }
         }
     }

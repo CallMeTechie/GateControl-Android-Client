@@ -184,6 +184,21 @@
     <string name="setup_success">Successfully registered!</string>
     <string name="setup_error">Registration failed: %1$s</string>
     <string name="setup_invalid_config">Invalid WireGuard config</string>
+    <string name="setup_token_or_code">API token or setup code</string>
+    <string name="setup_token_or_code_hint">gc_&#8230; or XXXX-XXXX-XXXX-XXXX</string>
+    <string name="setup_enroll_confirm_title">Connect to server?</string>
+    <string name="setup_enroll_confirm_body">This app will be connected to %1$s and get VPN plus every feature granted there. Only confirm if you trust this server.</string>
+    <string name="setup_enroll_confirm">Connect</string>
+    <string name="setup_enroll_running">Setting up device&#8230;</string>
+    <string name="setup_enroll_success">Device set up</string>
+    <string name="setup_enroll_invalid">The setup code is invalid, expired or already used. Create a new code in GateControl.</string>
+    <string name="setup_enroll_forbidden">The server refused the setup (user disabled or without client permission).</string>
+    <string name="setup_enroll_limit">The server license peer limit has been reached.</string>
+    <string name="setup_enroll_rate_limited">Too many attempts. Please try again in a few minutes.</string>
+    <string name="setup_enroll_failed">Setup failed: %1$s</string>
+    <string name="setup_enroll_https_required">A setup code needs an https server URL.</string>
+    <string name="settings_enroll_button">Connect with setup QR code</string>
+    <string name="settings_enroll_hint">Scan the setup QR code from GateControl (Peers &#8594; QR &#8594; Set up Android app) to unlock all features.</string>
 
     <!-- Logs -->
     <string name="logs_title">Logs</string>
