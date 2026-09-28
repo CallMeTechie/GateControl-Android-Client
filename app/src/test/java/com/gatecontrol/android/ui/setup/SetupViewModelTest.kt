@@ -385,4 +385,39 @@ class SetupViewModelTest {
         verify { setupRepository.save("https://gate.example.com", "gc_typed", 7) }
         assertNotNull(viewModel.uiState.value.statusMessage)
     }
+
+    @Test
+    fun `token code without peer registers with the new token`() = runTest {
+        coEvery { apiClient.enroll(any()) } returns EnrollResponse(ok = true, token = "gc_wizard", peerId = null, config = null)
+        coEvery { apiClient.register(any()) } returns RegisterResponse(
+            ok = true, peerId = 12, peerName = "pixel", config = enrollConfig, hash = "rh",
+        )
+
+        viewModel.onEnrollmentLink(link)
+        viewModel.confirmEnrollment()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { apiClient.register(any()) }
+        verify { setupRepository.save("https://gate.example.com", "gc_wizard", 12) }
+        verify { setupRepository.saveWireGuardConfig(enrollConfig) }
+        verify { setupRepository.saveConfigHash("rh") }
+        assertTrue(viewModel.uiState.value.completedNow)
+    }
+
+    @Test
+    fun `failed registration after a token code restores the previous setup`() = runTest {
+        every { setupRepository.getServerUrl() } returns "https://old.example.com"
+        every { setupRepository.getApiToken() } returns "gc_old"
+        every { setupRepository.getPeerId() } returns 3
+        coEvery { apiClient.enroll(any()) } returns EnrollResponse(ok = true, token = "gc_wizard", peerId = null)
+        coEvery { apiClient.register(any()) } throws RuntimeException("boom")
+
+        viewModel.onEnrollmentLink(link)
+        viewModel.confirmEnrollment()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { setupRepository.save("https://old.example.com", "gc_old", 3) }
+        assertEquals(StatusType.ERROR, viewModel.uiState.value.statusType)
+        assertFalse(viewModel.uiState.value.completedNow)
+    }
 }

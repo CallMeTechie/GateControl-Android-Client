@@ -241,18 +241,28 @@ class SetupViewModel @Inject constructor(
                     ),
                 )
                 val token = response.token
-                val peerId = response.peerId
-                val config = response.config
-                if (!response.ok || token.isNullOrBlank() || peerId == null || peerId <= 0 || config.isNullOrBlank()) {
+                if (!response.ok || token.isNullOrBlank()) {
                     throw IllegalStateException(response.error ?: "enroll_failed")
                 }
-                if (!WgConfigValidator.validate(config).ok) {
+                var peerId = response.peerId ?: -1
+                var config = response.config
+                var hash = response.hash
+                if (peerId <= 0) {
+                    // Code from the token wizard without a peer: register with
+                    // the new token, exactly like a hand-entered token. The old
+                    // setup is restored if that fails.
+                    val registered = registerWithToken(serverUrl, token)
+                    peerId = registered.peerId
+                    config = registered.config
+                    hash = registered.hash
+                }
+                if (config.isNullOrBlank() || !WgConfigValidator.validate(config).ok) {
                     throw IllegalStateException("invalid_config")
                 }
 
                 setupRepository.save(serverUrl, token, peerId)
                 setupRepository.saveWireGuardConfig(config)
-                response.hash?.let { setupRepository.saveConfigHash(it) }
+                hash?.let { setupRepository.saveConfigHash(it) }
                 apiClientProvider.invalidate()
 
                 _uiState.update {
@@ -275,6 +285,30 @@ class SetupViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private suspend fun registerWithToken(serverUrl: String, token: String): com.gatecontrol.android.network.RegisterResponse {
+        val previousUrl = setupRepository.getServerUrl()
+        val previousToken = setupRepository.getApiToken()
+        val previousPeerId = setupRepository.getPeerId()
+        // AuthInterceptor reads the token from the repository.
+        setupRepository.save(serverUrl, token, -1)
+        apiClientProvider.invalidate()
+        return try {
+            val registered = apiClientProvider.getClient(serverUrl).register(
+                RegisterRequest(
+                    hostname = android.os.Build.MODEL ?: "android",
+                    platform = "android",
+                    clientVersion = appVersion,
+                ),
+            )
+            if (!registered.ok || registered.peerId <= 0) throw IllegalStateException("enroll_failed")
+            registered
+        } catch (e: Exception) {
+            setupRepository.save(previousUrl, previousToken, previousPeerId)
+            apiClientProvider.invalidate()
+            throw e
         }
     }
 
