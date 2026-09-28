@@ -5,7 +5,9 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import app.cash.turbine.test
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.network.ApiClient
+import com.gatecontrol.android.network.EnrollResponse
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PingResponse
 import com.gatecontrol.android.network.RegisterRequest
@@ -24,6 +26,8 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -59,6 +63,10 @@ class SetupViewModelTest {
                 every { getPackageInfo("com.gatecontrol.android", 0) } returns PackageInfo().apply { versionName = "1.0.0-test" }
             }
         }
+
+        every { context.getString(any()) } answers { "res-${firstArg<Int>()}" }
+        every { context.getString(any(), *anyVararg()) } answers { "res-${firstArg<Int>()}" }
+        every { apiClientProvider.invalidate() } returns Unit
 
         viewModel = SetupViewModel(setupRepository, apiClientProvider, context)
     }
@@ -303,5 +311,78 @@ class SetupViewModelTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // One-scan setup (gatecontrol://enroll)
+    // -------------------------------------------------------------------------
+
+    private val enrollConfig = "[Interface]\nPrivateKey = YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=\nAddress = 10.8.0.5/32\n\n[Peer]\nPublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=\nEndpoint = vpn.example.com:51820\nAllowedIPs = 0.0.0.0/0"
+    private val link = EnrollmentLink("https://gate.example.com", "AB12-CD34-EF56-7890")
+
+    @Test
+    fun `scanned setup link waits for confirmation before calling the server`() {
+        viewModel.onEnrollmentLink(link)
+
+        assertEquals(link, viewModel.uiState.value.pendingEnrollment)
+        coVerify(exactly = 0) { apiClient.enroll(any()) }
+
+        viewModel.cancelEnrollment()
+        assertNull(viewModel.uiState.value.pendingEnrollment)
+        coVerify(exactly = 0) { apiClient.enroll(any()) }
+    }
+
+    @Test
+    fun `confirmed setup stores token, peer, config and hash`() = runTest {
+        coEvery { apiClient.enroll(any()) } returns EnrollResponse(
+            ok = true, token = "gc_enrolled", peerId = 42, peerName = "pixel",
+            config = enrollConfig, hash = "abc",
+        )
+
+        viewModel.onEnrollmentLink(link)
+        viewModel.confirmEnrollment()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { apiClient.enroll(match { it.code == "AB12-CD34-EF56-7890" && it.platform == "android" }) }
+        verify { setupRepository.save("https://gate.example.com", "gc_enrolled", 42) }
+        verify { setupRepository.saveWireGuardConfig(enrollConfig) }
+        verify { setupRepository.saveConfigHash("abc") }
+        val state = viewModel.uiState.value
+        assertTrue(state.completedNow)
+        assertTrue(state.isSetupComplete)
+        assertNull(state.pendingEnrollment)
+    }
+
+    @Test
+    fun `failed setup keeps the existing configuration`() = runTest {
+        coEvery { apiClient.enroll(any()) } returns EnrollResponse(ok = false, error = "invalid_or_expired")
+
+        viewModel.onEnrollmentLink(link)
+        viewModel.confirmEnrollment()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify(exactly = 0) { setupRepository.clear() }
+        verify(exactly = 0) { setupRepository.save(any(), any(), any()) }
+        val state = viewModel.uiState.value
+        assertEquals(StatusType.ERROR, state.statusType)
+        assertEquals("res-${com.gatecontrol.android.R.string.setup_enroll_invalid}", state.statusMessage)
+        assertFalse(state.completedNow)
+    }
+
+    @Test
+    fun `setup code typed into the token field is redeemed instead of registering`() = runTest {
+        coEvery { apiClient.enroll(any()) } returns EnrollResponse(
+            ok = true, token = "gc_typed", peerId = 7, config = enrollConfig, hash = "h",
+        )
+
+        viewModel.onServerUrlChanged("gate.example.com")
+        viewModel.onApiTokenChanged("ab12 cd34 ef56 7890")
+        viewModel.saveAndRegister()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { apiClient.register(any()) }
+        coVerify { apiClient.enroll(match { it.code == "AB12-CD34-EF56-7890" }) }
+        verify { setupRepository.save("https://gate.example.com", "gc_typed", 7) }
+        assertNotNull(viewModel.uiState.value.statusMessage)
     }
 }

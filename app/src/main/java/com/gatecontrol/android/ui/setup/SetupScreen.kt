@@ -22,8 +22,10 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +34,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +55,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
+import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSecondaryButton
@@ -63,14 +67,30 @@ fun SetupScreen(
     onSetupComplete: () -> Unit,
     onNavigateToQr: () -> Unit,
     qrResult: String? = null,
+    /** Opened from Settings to upgrade an existing (VPN-only) setup. */
+    upgradeMode: Boolean = false,
+    /** Jump straight into the QR scanner once (Settings → "connect with setup QR"). */
+    autoOpenScanner: Boolean = false,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    var scannerOpened by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (autoOpenScanner && !scannerOpened && qrResult == null) {
+            scannerOpened = true
+            onNavigateToQr()
+        }
+    }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // Handle QR scan result
     LaunchedEffect(qrResult) {
         if (qrResult != null && qrResult.isNotEmpty()) {
-            if (qrResult.contains("[Interface]")) {
+            val enrollmentLink = EnrollmentLink.parse(qrResult)
+            if (enrollmentLink != null) {
+                // One-scan setup: VPN + API access, confirmed by the user first
+                viewModel.onEnrollmentLink(enrollmentLink)
+            } else if (qrResult.contains("[Interface]")) {
                 // WireGuard config
                 viewModel.importConfig(qrResult)
             } else if (qrResult.startsWith("gatecontrol://")) {
@@ -104,10 +124,31 @@ fun SetupScreen(
         }
     }
 
-    LaunchedEffect(uiState.isSetupComplete) {
-        if (uiState.isSetupComplete) {
+    // In upgrade mode the app is already set up — only leave once the new
+    // setup has actually been applied.
+    val done = if (upgradeMode) uiState.completedNow else uiState.isSetupComplete
+    LaunchedEffect(done) {
+        if (done) {
             onSetupComplete()
         }
+    }
+
+    uiState.pendingEnrollment?.let { link ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelEnrollment,
+            title = { Text(stringResource(R.string.setup_enroll_confirm_title)) },
+            text = { Text(stringResource(R.string.setup_enroll_confirm_body, link.serverUrl.removePrefix("https://"))) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmEnrollment) {
+                    Text(stringResource(R.string.setup_enroll_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelEnrollment) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 
     Box(
@@ -240,8 +281,8 @@ private fun ManualEntrySection(
         OutlinedTextField(
             value = apiToken,
             onValueChange = onApiTokenChanged,
-            label = { Text(stringResource(R.string.settings_api_token)) },
-            placeholder = { Text(stringResource(R.string.settings_api_token_hint)) },
+            label = { Text(stringResource(R.string.setup_token_or_code)) },
+            placeholder = { Text(stringResource(R.string.setup_token_or_code_hint)) },
             singleLine = true,
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),

@@ -3,8 +3,10 @@ package com.gatecontrol.android.ui.setup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.network.EnrollRequest
 import com.gatecontrol.android.network.RegisterRequest
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import android.content.Context
@@ -15,10 +17,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import timber.log.Timber
 import javax.inject.Inject
 
 enum class StatusType { INFO, SUCCESS, ERROR }
+
+/** Server error code in a JSON error body: {"ok":false,"error":"invalid_or_expired"}. */
+private val ERROR_CODE_RE = Regex("\"error\"\\s*:\\s*\"([a-z_]+)\"")
 
 data class SetupUiState(
     val serverUrl: String = "",
@@ -28,6 +34,10 @@ data class SetupUiState(
     val statusType: StatusType = StatusType.INFO,
     val isSetupComplete: Boolean = false,
     val isManualExpanded: Boolean = false,
+    /** Scanned/opened setup link waiting for the user's confirmation. */
+    val pendingEnrollment: EnrollmentLink? = null,
+    /** True once a setup action succeeded in this screen (not just "already configured"). */
+    val completedNow: Boolean = false,
 )
 
 @HiltViewModel
@@ -113,6 +123,19 @@ class SetupViewModel @Inject constructor(
             return
         }
 
+        // The token field also takes the short setup code shown next to the
+        // server's QR code — typed codes need no confirmation, the user
+        // entered the server URL themselves.
+        EnrollmentLink.normalizeCode(token)?.let { code ->
+            val serverUrl = EnrollmentLink.normalizeServerUrl(url)
+            if (serverUrl == null) {
+                _uiState.update { it.copy(statusMessage = context.getString(R.string.setup_enroll_https_required), statusType = StatusType.ERROR) }
+            } else {
+                enroll(serverUrl, code)
+            }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = "Registering…", statusType = StatusType.INFO) }
             try {
@@ -154,6 +177,7 @@ class SetupViewModel @Inject constructor(
                         statusMessage = "Successfully registered!",
                         statusType = StatusType.SUCCESS,
                         isSetupComplete = true,
+                        completedNow = true,
                     )
                 }
             } catch (e: Exception) {
@@ -169,6 +193,117 @@ class SetupViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * A setup link was scanned or opened. Nothing happens until the user
+     * confirms the server — a foreign QR code must not silently repoint the
+     * app to another server.
+     */
+    fun onEnrollmentLink(link: EnrollmentLink) {
+        _uiState.update { it.copy(pendingEnrollment = link, statusMessage = "") }
+    }
+
+    fun cancelEnrollment() {
+        _uiState.update { it.copy(pendingEnrollment = null) }
+    }
+
+    fun confirmEnrollment() {
+        val link = _uiState.value.pendingEnrollment ?: return
+        _uiState.update { it.copy(pendingEnrollment = null) }
+        enroll(link.serverUrl, link.code)
+    }
+
+    /**
+     * Trades a one-shot setup code for a peer-bound API token plus the
+     * WireGuard config (POST /api/v1/client/enroll). On failure the existing
+     * setup stays untouched — the code may simply have expired.
+     */
+    private fun enroll(serverUrl: String, code: String) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    serverUrl = serverUrl,
+                    statusMessage = context.getString(R.string.setup_enroll_running),
+                    statusType = StatusType.INFO,
+                )
+            }
+            try {
+                apiClientProvider.invalidate()
+                val response = apiClientProvider.getClient(serverUrl).enroll(
+                    EnrollRequest(
+                        code = code,
+                        hostname = android.os.Build.MODEL ?: "android",
+                        platform = "android",
+                        clientVersion = appVersion,
+                    ),
+                )
+                val token = response.token
+                val peerId = response.peerId
+                val config = response.config
+                if (!response.ok || token.isNullOrBlank() || peerId == null || peerId <= 0 || config.isNullOrBlank()) {
+                    throw IllegalStateException(response.error ?: "enroll_failed")
+                }
+                if (!WgConfigValidator.validate(config).ok) {
+                    throw IllegalStateException("invalid_config")
+                }
+
+                setupRepository.save(serverUrl, token, peerId)
+                setupRepository.saveWireGuardConfig(config)
+                response.hash?.let { setupRepository.saveConfigHash(it) }
+                apiClientProvider.invalidate()
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        apiToken = "",
+                        statusMessage = context.getString(R.string.setup_enroll_success),
+                        statusType = StatusType.SUCCESS,
+                        isSetupComplete = true,
+                        completedNow = true,
+                    )
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "enroll failed")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = enrollErrorMessage(e),
+                        statusType = StatusType.ERROR,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun enrollErrorMessage(e: Exception): String {
+        val code = if (e is HttpException) {
+            if (e.code() == 429) {
+                "rate_limited"
+            } else {
+                val body = try {
+                    e.response()?.errorBody()?.string().orEmpty()
+                } catch (_: Exception) {
+                    ""
+                }
+                ERROR_CODE_RE.find(body)?.groupValues?.get(1).orEmpty()
+            }
+        } else {
+            e.message ?: ""
+        }
+        val res = when (code) {
+            "invalid_or_expired" -> R.string.setup_enroll_invalid
+            "user_disabled", "user_not_found", "no_valid_scopes" -> R.string.setup_enroll_forbidden
+            "limit_reached" -> R.string.setup_enroll_limit
+            "rate_limited" -> R.string.setup_enroll_rate_limited
+            else -> null
+        }
+        return if (res != null) {
+            context.getString(res)
+        } else {
+            context.getString(R.string.setup_enroll_failed, e.localizedMessage ?: code)
         }
     }
 
@@ -205,6 +340,7 @@ class SetupViewModel @Inject constructor(
                         statusMessage = "Config imported successfully",
                         statusType = StatusType.SUCCESS,
                         isSetupComplete = true,
+                        completedNow = true,
                     )
                 }
             } catch (e: Exception) {

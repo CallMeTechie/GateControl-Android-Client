@@ -19,6 +19,10 @@ interface ApiClient {
     @POST("api/v1/client/register")
     suspend fun register(@Body request: RegisterRequest): RegisterResponse
 
+    /** Public: trades a one-shot setup code for a peer-bound token + config. */
+    @POST("api/v1/client/enroll")
+    suspend fun enroll(@Body request: EnrollRequest): EnrollResponse
+
     @GET("api/v1/client/config")
     suspend fun getConfig(@Query("peerId") peerId: Int): ConfigResponse
 
