@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0] - 2026-09-28
+
+### Features
+- App mit einem Scan einrichten – Einrichtungs-QR statt API-Token (#20)
+
+---
+
 ## [1.9.0] - 2026-07-29
 
 ### Features
