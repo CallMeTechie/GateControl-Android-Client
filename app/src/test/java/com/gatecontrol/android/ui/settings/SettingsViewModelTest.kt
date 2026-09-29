@@ -47,7 +47,6 @@ class SettingsViewModelTest {
             every { getTheme() } returns flowOf("dark")
             every { getLocale() } returns flowOf("de")
             every { getAutoConnect() } returns flowOf(false)
-            every { getKillSwitch() } returns flowOf(false)
             every { getSplitTunnelEnabled() } returns flowOf(false)
             every { getSplitTunnelRoutes() } returns flowOf("")
             every { getSplitTunnelApps() } returns flowOf("")
@@ -112,19 +111,6 @@ class SettingsViewModelTest {
 
         coVerify { settingsRepository.setAutoConnect(true) }
         assertTrue(viewModel.uiState.value.autoConnect)
-    }
-
-    @Test
-    fun `setKillSwitch updates repository`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coEvery { settingsRepository.setKillSwitch(any()) } returns Unit
-
-        viewModel.setKillSwitch(true)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify { settingsRepository.setKillSwitch(true) }
-        assertTrue(viewModel.uiState.value.killSwitch)
     }
 
     @Test

@@ -2,6 +2,8 @@ package com.gatecontrol.android.util
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 
 /**
@@ -16,4 +18,18 @@ fun Context.findComponentActivity(): ComponentActivity {
         ctx = ctx.baseContext
     }
     error("No ComponentActivity found in the Context chain")
+}
+
+/**
+ * Opens the system VPN settings, where "Always-on VPN" and "Block connections
+ * without VPN" (Android's real kill switch) are configured per app.
+ */
+fun Context.openSystemVpnSettings() {
+    runCatching {
+        startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure {
+        runCatching {
+            startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
 }

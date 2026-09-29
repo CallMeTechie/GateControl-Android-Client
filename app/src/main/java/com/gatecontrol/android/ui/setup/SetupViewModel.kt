@@ -38,7 +38,18 @@ data class SetupUiState(
     val pendingEnrollment: EnrollmentLink? = null,
     /** True once a setup action succeeded in this screen (not just "already configured"). */
     val completedNow: Boolean = false,
+    /** Legacy gatecontrol://setup?url&token link waiting for the user's confirmation. */
+    val pendingTokenSetup: TokenSetupLink? = null,
 )
+
+/** Server URL (https only) + API token from a legacy `gatecontrol://setup` link. */
+data class TokenSetupLink(val serverUrl: String, val token: String) {
+    /** Host (and non-default port) shown in the confirmation dialog. */
+    val displayHost: String
+        get() = serverUrl.removePrefix("https://").substringBefore('/')
+
+    override fun toString(): String = "TokenSetupLink(serverUrl=$serverUrl, token=***)"
+}
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(
@@ -87,13 +98,15 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = "Testing connection…", statusType = StatusType.INFO) }
             try {
-                // Temporarily save token so AuthInterceptor can use it
-                if (token.isNotEmpty()) {
-                    setupRepository.save(url, token, -1)
-                    apiClientProvider.invalidate()
-                }
+                // Side-effect free: the typed token is sent only with this
+                // request and never written to the repository, so a test
+                // cannot break an existing, working setup.
                 val client = apiClientProvider.getClient(url)
-                client.ping()
+                if (token.isNotEmpty() && EnrollmentLink.normalizeCode(token) == null) {
+                    client.pingWithToken(token)
+                } else {
+                    client.ping()
+                }
                 _uiState.update {
                     it.copy(isLoading = false, statusMessage = "Connection successful", statusType = StatusType.SUCCESS)
                 }
@@ -138,6 +151,11 @@ class SetupViewModel @Inject constructor(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = "Registering…", statusType = StatusType.INFO) }
+            // Restored if registration fails — a failed attempt must never
+            // wipe a working setup.
+            val previousUrl = setupRepository.getServerUrl()
+            val previousToken = setupRepository.getApiToken()
+            val previousPeerId = setupRepository.getPeerId()
             try {
                 // Save token BEFORE register call so AuthInterceptor can use it
                 setupRepository.save(url, token, -1)
@@ -149,15 +167,13 @@ class SetupViewModel @Inject constructor(
 
                 val response = client.register(
                     RegisterRequest(
-                        hostname = android.os.Build.MODEL,
+                        hostname = android.os.Build.MODEL ?: "android",
                         platform = "android",
                         clientVersion = appVersion,
                     ),
                 )
 
                 if (!response.ok || response.peerId <= 0) {
-                    setupRepository.clear()
-                    apiClientProvider.invalidate()
                     throw IllegalStateException("Registration rejected by server")
                 }
 
@@ -182,8 +198,8 @@ class SetupViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Timber.w(e, "saveAndRegister failed")
-                // Clean up on failure
-                setupRepository.clear()
+                // Roll back to the previous configuration instead of clearing it
+                setupRepository.save(previousUrl, previousToken, previousPeerId)
                 apiClientProvider.invalidate()
                 _uiState.update {
                     it.copy(
@@ -341,9 +357,47 @@ class SetupViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Legacy `gatecontrol://setup?url=…&token=…` link (QR code). Like an
+     * enrollment link it only takes effect after the user confirmed the
+     * server, and only https servers are accepted.
+     */
     fun handleDeepLink(url: String, token: String) {
-        _uiState.update { it.copy(serverUrl = url, apiToken = token) }
+        val link = parseTokenSetup(url, token)
+        if (link == null) {
+            _uiState.update {
+                it.copy(
+                    pendingTokenSetup = null,
+                    statusMessage = context.getString(R.string.setup_link_https_required),
+                    statusType = StatusType.ERROR,
+                )
+            }
+            return
+        }
+        _uiState.update { it.copy(pendingTokenSetup = link, statusMessage = "") }
+    }
+
+    fun cancelTokenSetup() {
+        _uiState.update { it.copy(pendingTokenSetup = null) }
+    }
+
+    fun confirmTokenSetup() {
+        val link = _uiState.value.pendingTokenSetup ?: return
+        _uiState.update { it.copy(pendingTokenSetup = null, serverUrl = link.serverUrl, apiToken = link.token) }
         saveAndRegister()
+    }
+
+    private fun parseTokenSetup(url: String, token: String): TokenSetupLink? {
+        val trimmedToken = token.trim()
+        if (trimmedToken.isEmpty()) return null
+        val uri = try {
+            java.net.URI(url.trim())
+        } catch (_: Exception) {
+            return null
+        }
+        if (!uri.scheme.equals("https", ignoreCase = true)) return null
+        if (uri.host.isNullOrBlank() || uri.rawUserInfo != null) return null
+        return TokenSetupLink(url.trim().trimEnd('/'), trimmedToken)
     }
 
     private fun ensureHttps(url: String): String {

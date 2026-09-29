@@ -109,6 +109,7 @@ fun SetupScreen(
                 val url = uri.getQueryParameter("url") ?: ""
                 val token = uri.getQueryParameter("token") ?: ""
                 if (url.isNotEmpty() && token.isNotEmpty()) {
+                    // Only opens the confirmation dialog (https servers only)
                     viewModel.handleDeepLink(url, token)
                 }
             } else if (qrResult.startsWith("http")) {
@@ -157,6 +158,28 @@ fun SetupScreen(
             },
             dismissButton = {
                 TextButton(onClick = viewModel::cancelEnrollment) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    // Legacy gatecontrol://setup?url&token link: same confirmation as an
+    // enrollment link — nothing is registered before the user agrees.
+    uiState.pendingTokenSetup?.let { link ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelTokenSetup,
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.extraLarge,
+            title = { Text(stringResource(R.string.setup_enroll_confirm_title), style = MaterialTheme.typography.headlineMedium) },
+            text = { Text(stringResource(R.string.setup_enroll_confirm_body, link.displayHost)) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmTokenSetup) {
+                    Text(stringResource(R.string.setup_enroll_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelTokenSetup) {
                     Text(stringResource(R.string.cancel))
                 }
             },

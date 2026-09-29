@@ -125,7 +125,9 @@ fun LogsScreen(
 
     fun exportLogs() {
         try {
-            val logFile = File(context.cacheDir, "gatecontrol-export.log")
+            // Only cacheDir/export/ is exposed through the FileProvider.
+            val exportDir = File(context.cacheDir, "export").apply { mkdirs() }
+            val logFile = File(exportDir, "gatecontrol-export.log")
             logFile.writeText(rawContent)
             val uri = FileProvider.getUriForFile(
                 context,

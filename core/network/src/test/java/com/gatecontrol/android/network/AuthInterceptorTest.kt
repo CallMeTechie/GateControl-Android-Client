@@ -68,6 +68,24 @@ class AuthInterceptorTest {
     }
 
     @Test
+    fun `explicit token of a connection test is not replaced by the stored one`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+
+        val httpClient = buildClient(token = "stored-token")
+
+        val request = Request.Builder()
+            .url(server.url("/test"))
+            .header("X-API-Token", "typed-token")
+            .build()
+
+        httpClient.newCall(request).execute().use { }
+
+        val recorded = server.takeRequest()
+        assertEquals("typed-token", recorded.getHeader("X-API-Token"))
+        assertEquals(1, recorded.headers.values("X-API-Token").size)
+    }
+
+    @Test
     fun `skips token header when token is empty`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
 

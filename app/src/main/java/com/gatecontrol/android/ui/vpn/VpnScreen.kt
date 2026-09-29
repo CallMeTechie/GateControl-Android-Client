@@ -39,6 +39,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
+import com.gatecontrol.android.util.openSystemVpnSettings
 import com.gatecontrol.android.common.Formatters
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.ui.components.GcBanner
@@ -85,7 +86,6 @@ fun VpnScreen(
     val stats by viewModel.stats.collectAsState()
     val trafficUsage by viewModel.trafficUsage.collectAsState()
     val permissions by viewModel.permissions.collectAsState()
-    val killSwitchEnabled by viewModel.killSwitchEnabled.collectAsState()
     val splitMode by viewModel.splitTunnelMode.collectAsState()
     val theme by viewModel.theme.collectAsState()
     val portalUrl by viewModel.portalUrl.collectAsState()
@@ -293,7 +293,6 @@ fun VpnScreen(
                         isConnected -> stringResource(R.string.vpn_sub_on, host)
                         isBusy -> stringResource(R.string.vpn_sub_connecting, host)
                         isError -> stringResource(R.string.vpn_sub_error)
-                        killSwitchEnabled -> stringResource(R.string.vpn_sub_off_killswitch)
                         else -> stringResource(R.string.vpn_sub_off)
                     },
                     style = MaterialTheme.typography.bodyMedium,
@@ -381,11 +380,13 @@ fun VpnScreen(
             add { m ->
                 GcTile(
                     icon = GcIcons.Lock,
-                    iconTint = if (killSwitchEnabled) extra.accentText else extra.faint,
+                    iconTint = extra.faint,
                     title = stringResource(R.string.vpn_kill_switch),
-                    subtitle = stringResource(if (killSwitchEnabled) R.string.tile_on else R.string.tile_off),
-                    active = killSwitchEnabled,
-                    onClick = { viewModel.toggleKillSwitch(!killSwitchEnabled) },
+                    // Real kill switch = Android "Always-on VPN" + "Block
+                    // connections without VPN"; the app cannot enforce it.
+                    subtitle = stringResource(R.string.vpn_kill_switch_system),
+                    active = false,
+                    onClick = { context.openSystemVpnSettings() },
                     modifier = m,
                 )
             }
