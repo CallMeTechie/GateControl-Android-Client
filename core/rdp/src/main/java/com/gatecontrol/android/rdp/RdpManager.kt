@@ -166,8 +166,9 @@ class RdpManager(
                     resolvedUsername = creds.username
                     resolvedPassword = creds.password
                     resolvedDomain = creds.domain ?: route.domain
-                    val pwInfo = if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "${resolvedPassword!!.length} chars"
-                    Timber.i("RDP connect: decrypted username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "${resolvedUsername!!.length} chars"}, pw=$pwInfo, domain=$resolvedDomain")
+                    // Presence only — never credential values or lengths.
+                    val pwInfo = if (resolvedPassword.isNullOrEmpty()) "EMPTY" else "SET"
+                    Timber.i("RDP connect: decrypted username=${if (resolvedUsername.isNullOrEmpty()) "EMPTY" else "SET"}, pw=$pwInfo, domain=${if (resolvedDomain.isNullOrEmpty()) "EMPTY" else "SET"}")
                 } else {
                     Timber.w("RDP connect: authMode=FULL but e2eePayload is NULL — no auth data!")
                 }

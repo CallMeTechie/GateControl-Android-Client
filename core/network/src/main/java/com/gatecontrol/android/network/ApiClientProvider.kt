@@ -115,6 +115,18 @@ class ApiClientProvider @Inject constructor(
         }
     }
 
+    companion object {
+        /** Headers never written to the HTTP log. */
+        val SENSITIVE_HEADERS = listOf(
+            "X-API-Token",
+            "Authorization",
+            "Proxy-Authorization",
+            "Cookie",
+            "Set-Cookie",
+            "X-Machine-Fingerprint",
+        )
+    }
+
     fun getClient(baseUrl: String): ApiClient {
         val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         return synchronized(lock) {
@@ -132,8 +144,12 @@ class ApiClientProvider @Inject constructor(
 
     private fun buildClient(baseUrl: String): ApiClient {
         val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        // Never log bodies: register/enroll responses carry the WireGuard
+        // private key and API tokens. Debug builds log headers with all
+        // credentials redacted, release builds log nothing.
         val logging = HttpLoggingInterceptor().apply {
-            level = if (isDebuggable) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
+            level = if (isDebuggable) HttpLoggingInterceptor.Level.HEADERS else HttpLoggingInterceptor.Level.NONE
+            SENSITIVE_HEADERS.forEach { redactHeader(it) }
         }
 
         val okHttpClient = OkHttpClient.Builder()

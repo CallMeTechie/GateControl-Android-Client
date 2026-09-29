@@ -58,9 +58,6 @@ class VpnViewModel @Inject constructor(
     private val _services = MutableStateFlow<List<VpnService>>(emptyList())
     val services: StateFlow<List<VpnService>> = _services.asStateFlow()
 
-    val killSwitchEnabled: StateFlow<Boolean> = settingsRepository.getKillSwitch()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-
     /** "off", "exclude" or "include" — shown on the split-tunnel tile. */
     val splitTunnelMode: StateFlow<String> = settingsRepository.getSplitTunnelMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "off")
@@ -94,6 +91,8 @@ class VpnViewModel @Inject constructor(
      * Validate the stored API token against the server via /client/ping.
      * If the server returns 401 → token is expired/deleted → clear local
      * config and signal the UI to redirect to the Setup screen.
+     * Only 401 means "token invalid": a 403 may come from a WAF, reverse
+     * proxy or a missing scope and must not wipe a working setup.
      * Network errors are ignored (offline mode — allow cached config).
      */
     fun validateToken() {
@@ -107,11 +106,13 @@ class VpnViewModel @Inject constructor(
                 client.ping()
                 // Token is valid — nothing to do
             } catch (e: retrofit2.HttpException) {
-                if (e.code() == 401 || e.code() == 403) {
+                if (e.code() == 401) {
                     Timber.w("Token invalid (HTTP ${e.code()}) — clearing config, redirecting to setup")
                     setupRepository.clear()
                     apiClientProvider.invalidate()
                     _tokenInvalid.value = true
+                } else {
+                    Timber.w("Token check returned HTTP ${e.code()} — keeping config")
                 }
             } catch (e: Exception) {
                 // Network error (timeout, DNS, etc.) — allow offline mode
@@ -309,13 +310,6 @@ class VpnViewModel @Inject constructor(
                 android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             )
-        }
-    }
-
-    fun toggleKillSwitch(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setKillSwitch(enabled)
-            Timber.d("VpnViewModel: kill-switch set to $enabled")
         }
     }
 

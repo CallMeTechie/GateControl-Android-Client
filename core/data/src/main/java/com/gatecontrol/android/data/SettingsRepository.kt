@@ -18,7 +18,6 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val THEME = stringPreferencesKey("theme")
         val LOCALE = stringPreferencesKey("locale")
         val AUTO_CONNECT = booleanPreferencesKey("auto_connect")
-        val KILL_SWITCH = booleanPreferencesKey("kill_switch")
         val SPLIT_TUNNEL_ENABLED = booleanPreferencesKey("split_tunnel_enabled")
         val SPLIT_TUNNEL_ROUTES = stringPreferencesKey("split_tunnel_routes")
         val SPLIT_TUNNEL_APPS = stringPreferencesKey("split_tunnel_apps")
@@ -42,8 +41,6 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     }
 
     fun getAutoConnect(): Flow<Boolean> = dataStore.data.map { it[AUTO_CONNECT] ?: false }
-
-    fun getKillSwitch(): Flow<Boolean> = dataStore.data.map { it[KILL_SWITCH] ?: false }
 
     fun getSplitTunnelEnabled(): Flow<Boolean> =
         dataStore.data.map { it[SPLIT_TUNNEL_ENABLED] ?: false }
@@ -82,10 +79,6 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     suspend fun setAutoConnect(value: Boolean) {
         dataStore.edit { it[AUTO_CONNECT] = value }
-    }
-
-    suspend fun setKillSwitch(value: Boolean) {
-        dataStore.edit { it[KILL_SWITCH] = value }
     }
 
     suspend fun setSplitTunnelEnabled(value: Boolean) {

@@ -13,8 +13,10 @@ class AuthInterceptor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val requestBuilder = chain.request().newBuilder()
 
+        // A request that already carries an explicit token (connection test
+        // with a not-yet-saved token) keeps it; otherwise use the stored one.
         val token = sanitizeHeaderValue(tokenProvider())
-        if (token.isNotEmpty()) {
+        if (token.isNotEmpty() && chain.request().header("X-API-Token") == null) {
             requestBuilder.header("X-API-Token", token)
         }
 

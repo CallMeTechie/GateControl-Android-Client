@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.util.openSystemVpnSettings
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcChip
@@ -123,24 +124,23 @@ fun SettingsScreen(
 
         // --- Sicherheit ----------------------------------------------------
         SettingsGroup(stringResource(R.string.settings_group_security)) {
-            GcSwitchRow(
-                label = stringResource(R.string.vpn_kill_switch),
-                description = stringResource(R.string.vpn_kill_switch_desc),
-                checked = uiState.killSwitch,
-                onCheckedChange = { viewModel.setKillSwitch(it) },
-            )
+            // Android has no app-side kill switch: blocking traffic without
+            // VPN is done by the system ("Always-on VPN" + "Block connections
+            // without VPN"). The row explains that and opens those settings.
             GcListRow(
-                title = stringResource(R.string.settings_always_on),
-                description = stringResource(R.string.settings_always_on_desc),
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            android.content.Intent(android.provider.Settings.ACTION_VPN_SETTINGS)
-                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                title = stringResource(R.string.vpn_kill_switch),
+                description = stringResource(R.string.vpn_kill_switch_desc),
+                onClick = { context.openSystemVpnSettings() },
+                trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(R.string.vpn_kill_switch_system),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = extra.muted,
                         )
+                        GcChevron()
                     }
                 },
-                trailing = { GcChevron() },
             )
         }
 
@@ -202,8 +202,12 @@ fun SettingsScreen(
                 uiState = uiState,
                 onCheck = { viewModel.checkForUpdate(versionName) },
                 onInstall = { url ->
-                    runCatching {
-                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                    // Updates are downloaded in the browser — only ever hand
+                    // it an https URL from the server's update response.
+                    if (url.trim().startsWith("https://", ignoreCase = true)) {
+                        runCatching {
+                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url.trim())))
+                        }
                     }
                 },
                 onLater = { viewModel.dismissUpdate() },

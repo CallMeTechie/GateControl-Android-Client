@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import okhttp3.ResponseBody.Companion.toResponseBody
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -55,7 +56,6 @@ class VpnViewModelTest {
         apiClient = mockk(relaxed = true)
         tunnelManager = mockk(relaxed = true)
 
-        every { settingsRepository.getKillSwitch() } returns flowOf(false)
         every { settingsRepository.getSplitTunnelEnabled() } returns flowOf(false)
         every { settingsRepository.getSplitTunnelRoutes() } returns flowOf("")
         every { settingsRepository.getSplitTunnelApps() } returns flowOf("")
@@ -115,28 +115,57 @@ class VpnViewModelTest {
         coVerify(exactly = 0) { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
     }
 
+    // --- validateToken ---
+
+    private fun httpError(code: Int): retrofit2.HttpException = retrofit2.HttpException(
+        retrofit2.Response.error<Any>(
+            code,
+            "{\"ok\":false}".toResponseBody(null),
+        ),
+    )
+
+    @Test
+    fun `validateToken clears setup only on 401`() = runTest {
+        every { setupRepository.getApiToken() } returns "gc_token"
+        coEvery { apiClient.ping() } throws httpError(401)
+
+        viewModel.validateToken()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { setupRepository.clear() }
+        assertTrue(viewModel.tokenInvalid.value)
+    }
+
+    @Test
+    fun `validateToken keeps setup on 403 from WAF, proxy or missing scope`() = runTest {
+        every { setupRepository.getApiToken() } returns "gc_token"
+        coEvery { apiClient.ping() } throws httpError(403)
+
+        viewModel.validateToken()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify(exactly = 0) { setupRepository.clear() }
+        assertFalse(viewModel.tokenInvalid.value)
+    }
+
+    @Test
+    fun `validateToken keeps setup on network errors`() = runTest {
+        every { setupRepository.getApiToken() } returns "gc_token"
+        coEvery { apiClient.ping() } throws java.io.IOException("offline")
+
+        viewModel.validateToken()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify(exactly = 0) { setupRepository.clear() }
+        assertFalse(viewModel.tokenInvalid.value)
+    }
+
     @Test
     fun `disconnect calls tunnelManager disconnect`() = runTest {
         viewModel.disconnect()
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify { tunnelManager.disconnect() }
-    }
-
-    @Test
-    fun `toggleKillSwitch saves to settings`() = runTest {
-        viewModel.toggleKillSwitch(true)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify { settingsRepository.setKillSwitch(true) }
-    }
-
-    @Test
-    fun `toggleKillSwitch false saves false to settings`() = runTest {
-        viewModel.toggleKillSwitch(false)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify { settingsRepository.setKillSwitch(false) }
     }
 
     @Test

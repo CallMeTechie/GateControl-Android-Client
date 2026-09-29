@@ -32,12 +32,24 @@ android {
         }
     }
 
+    // Release signing comes exclusively from the environment (CI secrets).
+    // There is no fallback keystore/password: a release package task without
+    // the secrets fails (see the taskGraph check below). Debug is unaffected.
+    val releaseKeystorePath = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotEmpty() }
+    val releaseStorePassword = System.getenv("KEYSTORE_PASSWORD")?.takeIf { it.isNotEmpty() }
+    val releaseKeyAlias = System.getenv("KEY_ALIAS")?.takeIf { it.isNotEmpty() }
+    val releaseKeyPassword = System.getenv("KEY_PASSWORD")?.takeIf { it.isNotEmpty() }
+    val hasReleaseSigning = releaseKeystorePath != null && releaseStorePassword != null &&
+        releaseKeyAlias != null && releaseKeyPassword != null
+
     signingConfigs {
-        create("release") {
-            storeFile = file(System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotEmpty() } ?: "keystore.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD")?.takeIf { it.isNotEmpty() } ?: "android"
-            keyAlias = System.getenv("KEY_ALIAS")?.takeIf { it.isNotEmpty() } ?: "gatecontrol"
-            keyPassword = System.getenv("KEY_PASSWORD")?.takeIf { it.isNotEmpty() } ?: "android"
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
@@ -49,7 +61,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             ndk {
                 debugSymbolLevel = "FULL"
             }
@@ -170,6 +184,25 @@ dependencies {
 
 kapt {
     correctErrorTypes = true
+}
+
+// Fail release packaging when the signing secrets are missing instead of
+// producing an unsigned or throwaway-signed artifact. Lint/tests on the
+// release variant do not package and stay unaffected.
+gradle.taskGraph.whenReady {
+    val packagesRelease = allTasks.any { task ->
+        task.project == project && (
+            task.name == "packageRelease" || task.name == "signReleaseBundle" ||
+                task.name == "assembleRelease" || task.name == "bundleRelease"
+            )
+    }
+    val signingEnvComplete = listOf("KEYSTORE_PATH", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+        .all { !System.getenv(it).isNullOrEmpty() }
+    if (packagesRelease && !signingEnvComplete) {
+        throw GradleException(
+            "Release signing requires KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD",
+        )
+    }
 }
 
 tasks.withType<Test> {

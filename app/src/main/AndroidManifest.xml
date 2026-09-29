@@ -9,7 +9,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Query all launchable apps for split-tunnel app picker -->
     <queries>
@@ -64,7 +63,20 @@
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Status notification of the user-started WireGuard VPN tunnel (traffic statistics and disconnect action) while the connection is active." />
         </service>
+
+        <!-- Performs Quick Settings tile actions (connect incl. VPN consent,
+             disconnect). NOT exported: other apps must not be able to
+             toggle the VPN. -->
+        <activity
+            android:name=".service.TileActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GateControl.TileAction" />
 
         <service
             android:name=".service.VpnTileService"
@@ -96,7 +108,11 @@
         <service
             android:name=".service.RdpSessionService"
             android:foregroundServiceType="specialUse"
-            android:exported="false" />
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a user-started remote desktop (RDP) session connected while the session screen is in the background." />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"

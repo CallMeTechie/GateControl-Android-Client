@@ -2,6 +2,7 @@ package com.gatecontrol.android.network
 
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.HTTP
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -12,6 +13,10 @@ interface ApiClient {
 
     @GET("api/v1/client/ping")
     suspend fun ping(): PingResponse
+
+    /** Ping with an explicit, not yet stored token (side-effect free connection test). */
+    @GET("api/v1/client/ping")
+    suspend fun pingWithToken(@Header("X-API-Token") token: String): PingResponse
 
     @GET("api/v1/client/permissions")
     suspend fun getPermissions(): PermissionsResponse

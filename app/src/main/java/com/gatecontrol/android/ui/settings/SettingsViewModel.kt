@@ -33,7 +33,6 @@ data class SettingsUiState(
     val theme: String = "dark",
     val locale: String = "de",
     val autoConnect: Boolean = false,
-    val killSwitch: Boolean = false,
     val splitTunnelEnabled: Boolean = false,
     val splitTunnelRoutes: String = "",
     val splitTunnelApps: String = "",
@@ -78,15 +77,13 @@ class SettingsViewModel @Inject constructor(
                 settingsRepository.getTheme(),
                 settingsRepository.getLocale(),
                 settingsRepository.getAutoConnect(),
-                settingsRepository.getKillSwitch(),
                 settingsRepository.getSplitTunnelEnabled()
-            ) { theme, locale, autoConnect, killSwitch, splitTunnelEnabled ->
+            ) { theme, locale, autoConnect, splitTunnelEnabled ->
                 _uiState.update {
                     it.copy(
                         theme = theme,
                         locale = locale,
                         autoConnect = autoConnect,
-                        killSwitch = killSwitch,
                         splitTunnelEnabled = splitTunnelEnabled
                     )
                 }
@@ -169,13 +166,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.setAutoConnect(enabled)
             _uiState.update { it.copy(autoConnect = enabled) }
-        }
-    }
-
-    fun setKillSwitch(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setKillSwitch(enabled)
-            _uiState.update { it.copy(killSwitch = enabled) }
         }
     }
 
@@ -438,7 +428,7 @@ class SettingsViewModel @Inject constructor(
 
     fun exportLogs(cacheDir: File): File? {
         return try {
-            val logFile = File(cacheDir, "gatecontrol-logs.txt")
+            val logFile = File(File(cacheDir, "export").apply { mkdirs() }, "gatecontrol-logs.txt")
             val logDir = File(cacheDir, "logs")
             if (logDir.exists()) {
                 val logs = logDir.listFiles()

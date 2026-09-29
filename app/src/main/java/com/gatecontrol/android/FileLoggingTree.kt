@@ -10,14 +10,20 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Timber tree that writes all log messages to a file in the app's cache directory.
- * The log file is rotated when it exceeds 2 MB.
+ * Timber tree that writes log messages to a file in the app's private cache
+ * directory (cacheDir/logs). The log file is rotated when it exceeds 2 MB.
+ * Messages below [minPriority] are dropped — release builds log INFO and up.
  */
-class FileLoggingTree(context: Context) : Timber.Tree() {
+class FileLoggingTree(
+    context: Context,
+    private val minPriority: Int = Log.INFO,
+) : Timber.Tree() {
 
     private val logDir = File(context.cacheDir, "logs").apply { mkdirs() }
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
     private val maxFileSize = 2 * 1024 * 1024L // 2 MB
+
+    override fun isLoggable(tag: String?, priority: Int): Boolean = priority >= minPriority
 
     override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
         try {

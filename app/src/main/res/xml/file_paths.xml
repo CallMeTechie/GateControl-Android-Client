@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <cache-path name="logs" path="." />
+    <!-- Only the log export directory is shareable; the raw logs in
+         cacheDir/logs and everything else in the cache stay private. -->
+    <cache-path name="export" path="export/" />
 </paths>

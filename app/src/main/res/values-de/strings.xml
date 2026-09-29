@@ -23,8 +23,8 @@
     <string name="vpn_sent">&#8593; Gesendet</string>
     <string name="vpn_portal_open">Portal öffnen</string>
     <string name="vpn_kill_switch">Kill-Switch</string>
-    <string name="vpn_kill_switch_desc">Datenverkehr ohne VPN blockieren</string>
-    <string name="vpn_kill_switch_system">In den System-VPN-Einstellungen konfigurieren</string>
+    <string name="vpn_kill_switch_desc">Android blockiert jeden Verkehr ohne VPN, sobald du in den System-VPN-Einstellungen für GateControl „Durchgehend aktives VPN“ und „Verbindungen ohne VPN blockieren“ einschaltest.</string>
+    <string name="vpn_kill_switch_system">In Android festlegen</string>
     <string name="vpn_bandwidth">Durchsatz</string>
     <string name="vpn_download">Download</string>
     <string name="vpn_upload">Upload</string>
@@ -197,6 +197,7 @@
     <string name="setup_enroll_rate_limited">Zu viele Versuche. Bitte in ein paar Minuten erneut versuchen.</string>
     <string name="setup_enroll_failed">Einrichtung fehlgeschlagen: %1$s</string>
     <string name="setup_enroll_https_required">Für einen Einrichtungscode ist eine https-Server-URL nötig.</string>
+    <string name="setup_link_https_required">Ein Einrichtungslink braucht eine https-Server-URL.</string>
     <string name="settings_enroll_button">Mit Einrichtungs-QR verbinden</string>
     <string name="settings_enroll_hint">Scanne den Einrichtungs-QR-Code aus GateControl (Peers &#8594; QR &#8594; Android-App einrichten), um alle Funktionen freizuschalten.</string>
 
@@ -292,7 +293,6 @@
     <string name="vpn_sub_connecting">Handshake mit %1$s</string>
     <string name="vpn_sub_error">Die Verbindung konnte nicht aufgebaut werden</string>
     <string name="vpn_sub_off">Dein Verkehr ist ungeschützt</string>
-    <string name="vpn_sub_off_killswitch">Kill-Switch blockiert das Internet</string>
     <string name="vpn_retry">Erneut versuchen</string>
     <string name="vpn_logs">Protokoll</string>
     <string name="vpn_tunnel_ip">Tunnel-IP</string>
@@ -338,8 +338,6 @@
     <string name="settings_split_summary_off">Aus · gesamter Verkehr durch VPN</string>
     <string name="settings_split_summary_exclude">Ausnahmen · %1$d Netze, %2$d Apps</string>
     <string name="settings_split_summary_include">Nur Auswahl · %1$d Netze, %2$d Apps</string>
-    <string name="settings_always_on">Immer-aktives VPN</string>
-    <string name="settings_always_on_desc">In den Android-Einstellungen festlegen</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_logs_desc">Ereignisse ansehen und teilen</string>
     <string name="settings_updates">Updates</string>

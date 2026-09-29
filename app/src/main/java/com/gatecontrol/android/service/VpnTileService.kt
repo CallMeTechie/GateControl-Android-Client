@@ -94,28 +94,29 @@ class VpnTileService : TileService() {
         tile.updateTile()
     }
 
-    private fun launchAppWithAction(action: String) {
-        val intent = packageManager.getLaunchIntentForPackage(packageName)
-        if (intent != null) {
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            intent.putExtra(EXTRA_TILE_ACTION, action)
+    /**
+     * Runs a tile action through the non-exported [TileActionActivity]. The
+     * exported MainActivity no longer accepts tile actions, so other apps
+     * cannot toggle the VPN with a crafted intent.
+     */
+    private fun launchTileAction(action: TileAction) {
+        val intent = TileActionActivity.intent(this, action)
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
             val pi = android.app.PendingIntent.getActivity(
-                this, action.hashCode(), intent,
+                this, action.ordinal, intent,
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
-            if (android.os.Build.VERSION.SDK_INT >= 34) {
-                startActivityAndCollapse(pi)
-            } else {
-                @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
-                startActivityAndCollapse(intent)
-            }
+            startActivityAndCollapse(pi)
+        } else {
+            @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
+            startActivityAndCollapse(intent)
         }
     }
 
     private fun sendConnectBroadcast() {
         // Disconnect can be done directly (no permission needed)
         // Connect requires VPN permission → must go through Activity
-        launchAppWithAction(ACTION_TILE_CONNECT)
+        launchTileAction(TileAction.CONNECT)
     }
 
     private fun sendDisconnectBroadcast() {
@@ -127,16 +128,15 @@ class VpnTileService : TileService() {
                     tm.disconnect()
                 } catch (e: Exception) {
                     Timber.e(e, "VpnTileService: direct disconnect failed, launching app")
-                    launchAppWithAction(ACTION_TILE_DISCONNECT)
+                    launchTileAction(TileAction.DISCONNECT)
                 }
             }
         } else {
-            launchAppWithAction(ACTION_TILE_DISCONNECT)
+            launchTileAction(TileAction.DISCONNECT)
         }
     }
 
     companion object {
-        const val EXTRA_TILE_ACTION = "tile_action"
         const val ACTION_TILE_CONNECT = "tile_connect"
         const val ACTION_TILE_DISCONNECT = "tile_disconnect"
     }

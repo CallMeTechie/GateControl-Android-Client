@@ -157,16 +157,24 @@ jobs:
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
-          else
-            keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 \
-              -alias gatecontrol -storepass android -keypass android \
-              -dname "CN=GateControl, OU=Dev, O=GateControl, C=DE"
+          # Release builds must be signed with the real upload key. A missing
+          # secret fails the job instead of silently signing with a throwaway key.
+          MISSING=""
+          [ -z "$KEYSTORE_BASE64" ] && MISSING="$MISSING KEYSTORE_BASE64"
+          [ -z "$KEYSTORE_PASSWORD" ] && MISSING="$MISSING KEYSTORE_PASSWORD"
+          [ -z "$KEY_ALIAS" ] && MISSING="$MISSING KEY_ALIAS"
+          [ -z "$KEY_PASSWORD" ] && MISSING="$MISSING KEY_PASSWORD"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Signing secrets missing:$MISSING"
+            exit 1
           fi
-          echo "KEYSTORE_PATH=$(pwd)/keystore.jks" >> "$GITHUB_ENV"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/keystore.jks" >> "$GITHUB_ENV"
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Build APK and AAB
         if: steps.check_tag.outputs.exists == 'false'
@@ -176,7 +184,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease bundleRelease assembleDebug
+          ./gradlew assembleRelease bundleRelease
 
       - name: Verify R8 obfuscation
         if: steps.check_tag.outputs.exists == 'false'
@@ -208,10 +216,6 @@ jobs:
             zip -r "../../../../GateControl-Android-${NEW_VERSION}-native-debug-symbols.zip" .
             cd -
           fi
-          # Debug APK for crash diagnosis
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/GateControl-Android-${NEW_VERSION}-debug.apk"
-          fi
 
       - name: Commit version bump
         if: steps.check_tag.outputs.exists == 'false'
@@ -236,7 +240,6 @@ jobs:
           generate_release_notes: true
           files: |
             app/build/outputs/apk/release/GateControl-Android-*.apk
-            app/build/outputs/apk/debug/GateControl-Android-*-debug.apk
             app/build/outputs/bundle/release/GateControl-Android-*.aab
             app/build/outputs/mapping/release/GateControl-Android-*-mapping.txt
             app/GateControl-Android-*-native-debug-symbols.zip

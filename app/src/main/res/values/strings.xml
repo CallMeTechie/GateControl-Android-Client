@@ -23,8 +23,8 @@
     <string name="vpn_sent">&#8593; Sent</string>
     <string name="vpn_portal_open">Open portal</string>
     <string name="vpn_kill_switch">Kill-Switch</string>
-    <string name="vpn_kill_switch_desc">Block traffic without VPN</string>
-    <string name="vpn_kill_switch_system">Configure in system VPN settings</string>
+    <string name="vpn_kill_switch_desc">Android blocks all traffic without VPN once you enable \"Always-on VPN\" and \"Block connections without VPN\" for GateControl in the system VPN settings.</string>
+    <string name="vpn_kill_switch_system">Set in Android</string>
     <string name="vpn_bandwidth">Throughput</string>
     <string name="vpn_download">Download</string>
     <string name="vpn_upload">Upload</string>
@@ -197,6 +197,7 @@
     <string name="setup_enroll_rate_limited">Too many attempts. Please try again in a few minutes.</string>
     <string name="setup_enroll_failed">Setup failed: %1$s</string>
     <string name="setup_enroll_https_required">A setup code needs an https server URL.</string>
+    <string name="setup_link_https_required">A setup link needs an https server URL.</string>
     <string name="settings_enroll_button">Connect with setup QR code</string>
     <string name="settings_enroll_hint">Scan the setup QR code from GateControl (Peers &#8594; QR &#8594; Set up Android app) to unlock all features.</string>
 
@@ -292,7 +293,6 @@
     <string name="vpn_sub_connecting">Handshake with %1$s</string>
     <string name="vpn_sub_error">The connection could not be established</string>
     <string name="vpn_sub_off">Your traffic is unprotected</string>
-    <string name="vpn_sub_off_killswitch">Kill switch is blocking the internet</string>
     <string name="vpn_retry">Try again</string>
     <string name="vpn_logs">Log</string>
     <string name="vpn_tunnel_ip">Tunnel IP</string>
@@ -338,8 +338,6 @@
     <string name="settings_split_summary_off">Off · all traffic through VPN</string>
     <string name="settings_split_summary_exclude">Exceptions · %1$d networks, %2$d apps</string>
     <string name="settings_split_summary_include">Selected only · %1$d networks, %2$d apps</string>
-    <string name="settings_always_on">Always-on VPN</string>
-    <string name="settings_always_on_desc">Set it in the Android settings</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_logs_desc">View and share events</string>
     <string name="settings_updates">Updates</string>

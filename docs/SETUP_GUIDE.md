@@ -94,9 +94,10 @@ Für Nutzer ohne GateControl-Server-API — standardmäßiger WireGuard-Import.
 3. Die App verbindet sich künftig beim Start automatisch mit dem VPN
 
 ### Kill-Switch einrichten
-1. Auf dem VPN-Bildschirm: Aktivieren Sie den **Kill-Switch**-Schalter
-2. Alternativ: Öffnen Sie die **Android-Systemeinstellungen > Netzwerk & Internet > VPN > GateControl > Einstellungen**
-3. Aktivieren Sie **Immer aktiv (Always-on VPN)** und **Verbindungen ohne VPN blockieren**
+Den Kill-Switch setzt Android selbst durch — die App kann ihn nicht ein- oder ausschalten.
+1. Tippen Sie auf dem VPN-Bildschirm auf die Kachel **Kill-Switch** (oder unter **Einstellungen > Sicherheit > Kill-Switch**); das öffnet die Android-VPN-Einstellungen
+2. Alternativ: **Android-Systemeinstellungen > Netzwerk & Internet > VPN > GateControl > Einstellungen**
+3. Aktivieren Sie **Durchgehend aktives VPN (Always-on VPN)** und **Verbindungen ohne VPN blockieren**
 
 ### Quick Settings Tile hinzufügen
 1. Wischen Sie vom oberen Bildschirmrand nach unten, um die Quick Settings zu öffnen
