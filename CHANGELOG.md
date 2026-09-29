@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0] - 2026-09-29
+
+### Features
+- neues Design nach Mockup – Start-Orb, vier Tabs, gruppierte Einstellungen
+
+---
+
 ## [1.11.0] - 2026-09-28
 
 ### Features
