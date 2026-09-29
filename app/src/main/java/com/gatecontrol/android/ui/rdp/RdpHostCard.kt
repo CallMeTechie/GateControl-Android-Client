@@ -1,40 +1,43 @@
 package com.gatecontrol.android.ui.rdp
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.network.RdpRoute
-import com.gatecontrol.android.ui.theme.DarkAccent
+import com.gatecontrol.android.ui.components.GcChevron
+import com.gatecontrol.android.ui.components.GcChip
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.theme.MonoFontFamily
 
+/** One RDP host: monitor glyph with status dot, name, address, status/credential chips, WoL row. */
 @Composable
 fun RdpHostCard(
     route: RdpRoute,
@@ -42,161 +45,122 @@ fun RdpHostCard(
     onConnect: () -> Unit,
     onWol: () -> Unit,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val isOnline = route.status?.online == true
     val inMaintenance = route.maintenanceEnabled == true
     val wolEnabled = route.wolEnabled == true
     val extra = GateControlTheme.extraColors
 
-    val sessionBorder = if (isSessionActive) {
-        BorderStroke(2.dp, DarkAccent.copy(alpha = 0.7f))
-    } else {
-        BorderStroke(1.dp, extra.border)
+    val (statusLabel, statusTone, dotColor) = when {
+        inMaintenance -> Triple(stringResource(R.string.rdp_maintenance), GcTone.Warn, extra.warn)
+        isOnline -> Triple(stringResource(R.string.rdp_online), GcTone.Ok, MaterialTheme.colorScheme.primary)
+        else -> Triple(stringResource(R.string.rdp_offline), GcTone.Neutral, extra.faint)
     }
+    val credLabel = when (route.credentialMode.lowercase()) {
+        "full" -> stringResource(R.string.rdp_credential_full)
+        "user_only" -> stringResource(R.string.rdp_credential_user)
+        else -> stringResource(R.string.rdp_credential_none)
+    }
+    val displayHost = if (route.accessMode == "gateway" && route.externalHostname != null) {
+        "${route.externalHostname}:${route.externalPort ?: route.port}"
+    } else {
+        "${route.host}:${route.port}"
+    }
+    val shape = RoundedCornerShape(20.dp)
 
-    Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = sessionBorder,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSessionActive) {
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-        )
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(if (isSessionActive) 2.dp else 1.dp, if (isSessionActive) MaterialTheme.colorScheme.primary else extra.border, shape)
+            .padding(4.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-
-            // --- Top row: name + status badge + WoL button ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Status dot
-                StatusDot(isOnline = isOnline, inMaintenance = inMaintenance)
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Host name
-                Text(
-                    text = route.name,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = "${route.name}, $statusLabel" }
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(Modifier.size(44.dp)) {
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(extra.panel2),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(GcIcons.Monitor, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp))
+                }
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(2.dp)
+                        .clip(CircleShape)
+                        .background(dotColor),
                 )
-
-                // WoL button: visible only when offline and wolEnabled
-                if (!isOnline && wolEnabled) {
-                    IconButton(onClick = onWol, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = stringResource(R.string.rdp_wol),
-                            tint = extra.warn,
-                            modifier = Modifier.size(20.dp)
-                        )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    route.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    displayHost,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFontFamily, fontSize = 12.sp),
+                    color = extra.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    GcChip(statusLabel, tone = statusTone, small = true)
+                    if (isSessionActive) {
+                        GcChip(stringResource(R.string.rdp_session_active), tone = GcTone.Ok, small = true)
+                    } else {
+                        GcChip(credLabel, small = true)
                     }
                 }
             }
-
-            // --- Host:port (monospace, muted) ---
-            val displayHost = if (route.accessMode == "gateway" && route.externalHostname != null) {
-                "${route.externalHostname}:${route.externalPort ?: route.port}"
-            } else {
-                "${route.host}:${route.port}"
-            }
-            Text(
-                text = displayHost,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp
-                ),
-                color = extra.text3,
-                modifier = Modifier.padding(top = 2.dp, start = 20.dp)
-            )
-
-            // --- Tags row: access mode + credential mode + session active ---
-            Row(
-                modifier = Modifier.padding(top = 8.dp, start = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Access mode tag
-                TagChip(
-                    text = when (route.accessMode.lowercase()) {
-                        "gateway" -> "gateway"
-                        else -> "direct"
-                    },
-                    containerColor = extra.blue.copy(alpha = 0.15f),
-                    contentColor = extra.blue
-                )
-
-                // Credential mode tag
-                val credLabel = when (route.credentialMode.lowercase()) {
-                    "full" -> stringResource(R.string.rdp_credential_full)
-                    "user_only" -> stringResource(R.string.rdp_credential_user)
-                    else -> stringResource(R.string.rdp_credential_none)
-                }
-                TagChip(
-                    text = credLabel,
-                    containerColor = extra.accentDim.copy(alpha = 0.15f),
-                    contentColor = extra.accentDim
-                )
-
-                // Session active badge
-                if (isSessionActive) {
-                    TagChip(
-                        text = stringResource(R.string.rdp_session_active),
-                        containerColor = DarkAccent.copy(alpha = 0.2f),
-                        contentColor = DarkAccent
-                    )
-                }
-            }
+            GcChevron()
         }
-    }
-}
 
-// ---------------------------------------------------------------------------
-// Private helpers
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun StatusDot(isOnline: Boolean, inMaintenance: Boolean) {
-    val extra = GateControlTheme.extraColors
-    val color = when {
-        inMaintenance -> extra.warn
-        isOnline -> Color(0xFF22C55E)
-        else -> MaterialTheme.colorScheme.error
-    }
-    Surface(
-        shape = CircleShape,
-        color = color,
-        modifier = Modifier.size(10.dp)
-    ) {}
-}
-
-@Composable
-private fun TagChip(
-    text: String,
-    containerColor: Color,
-    contentColor: Color
-) {
-    Box(
-        modifier = Modifier
-            .padding(0.dp)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(4.dp),
-            color = containerColor
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall,
-                color = contentColor,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-            )
+        if (!isOnline && wolEnabled) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 70.dp, end = 12.dp, top = 4.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    stringResource(R.string.rdp_wol_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extra.muted,
+                    modifier = Modifier.weight(1f),
+                )
+                GcOutlineButton(
+                    text = stringResource(R.string.rdp_wol),
+                    onClick = onWol,
+                    icon = GcIcons.Zap,
+                    fillWidth = false,
+                    minHeight = 40.dp,
+                )
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.rdp
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,7 +65,9 @@ fun RdpConnectSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceVariant
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrimColor = GateControlTheme.extraColors.scrim,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         when (val state = connectState) {
             is ConnectState.Idle -> DetailView(
@@ -122,7 +125,7 @@ private fun DetailView(
     ) {
         Text(
             text = route.name,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -451,7 +454,7 @@ private fun ConnectedView(
         Icon(
             imageVector = Icons.Filled.CheckCircle,
             contentDescription = null,
-            tint = Color(0xFF22C55E),
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(48.dp)
         )
 
@@ -549,17 +552,13 @@ private fun SheetInfoRow(label: String, value: String, mono: Boolean = false) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = extra.text3
-        )
+        com.gatecontrol.android.ui.components.GcSectionLabel(label)
         Text(
             text = value,
             style = if (mono) {
-                MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                MaterialTheme.typography.bodyMedium.copy(fontFamily = com.gatecontrol.android.ui.theme.MonoFontFamily)
             } else {
-                MaterialTheme.typography.bodySmall
+                MaterialTheme.typography.bodyMedium
             },
             color = MaterialTheme.colorScheme.onSurface
         )

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark page color of the Compose theme (bg #0D1015). -->
+    <color name="gc_window_bg">#0D1015</color>
+</resources>

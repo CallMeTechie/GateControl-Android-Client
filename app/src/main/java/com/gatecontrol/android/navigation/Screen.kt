@@ -4,9 +4,15 @@ sealed class Screen(val route: String) {
     data object Setup : Screen("setup")
     data object Vpn : Screen("vpn")
     data object Rdp : Screen("rdp")
-    data object Services : Screen("services")
-    data object Pihole : Screen("pihole")
+    /** Services + Pi-hole; `tab` picks the initial segment. */
+    data object Network : Screen("network?tab={tab}") {
+        const val ARG_TAB = "tab"
+        const val BASE = "network"
+        fun create(tab: String? = null): String = if (tab == null) BASE else "$BASE?tab=$tab"
+    }
     data object Settings : Screen("settings")
+    data object SettingsServer : Screen("settings/server")
+    data object SplitTunnel : Screen("settings/split")
     data object Logs : Screen("settings/logs")
     data object QrScanner : Screen("setup/qr")
     /** Setup screen opened from Settings to connect an existing install (scan starts right away). */

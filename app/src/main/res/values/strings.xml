@@ -25,7 +25,7 @@
     <string name="vpn_kill_switch">Kill-Switch</string>
     <string name="vpn_kill_switch_desc">Block traffic without VPN</string>
     <string name="vpn_kill_switch_system">Configure in system VPN settings</string>
-    <string name="vpn_bandwidth">Bandwidth</string>
+    <string name="vpn_bandwidth">Throughput</string>
     <string name="vpn_download">Download</string>
     <string name="vpn_upload">Upload</string>
 
@@ -47,7 +47,7 @@
     <string name="dns_servers">DNS Servers: %1$s</string>
 
     <!-- RDP -->
-    <string name="rdp_title">RDP Connections</string>
+    <string name="rdp_title">Remote Desktops</string>
     <string name="rdp_search">Search&#8230;</string>
     <string name="rdp_filter_all">All</string>
     <string name="rdp_filter_online">Online</string>
@@ -175,11 +175,11 @@
     <string name="settings_check_for_updates">Check for Updates</string>
 
     <!-- Setup -->
-    <string name="setup_title">Connect to GateControl</string>
-    <string name="setup_subtitle">Set up your VPN connection</string>
+    <string name="setup_title">Welcome to GateControl</string>
+    <string name="setup_subtitle">Set up this device with the details from your administrator. It takes less than a minute.</string>
     <string name="setup_qr">Scan QR Code</string>
-    <string name="setup_manual">Enter Manually</string>
-    <string name="setup_import">Import Config File</string>
+    <string name="setup_manual">Enter setup code</string>
+    <string name="setup_import">Import configuration file</string>
     <string name="setup_registering">Registering&#8230;</string>
     <string name="setup_success">Successfully registered!</string>
     <string name="setup_error">Registration failed: %1$s</string>
@@ -271,4 +271,92 @@
     <string name="pihole_paused_remaining">paused &#183; %1$ds left</string>
     <string name="pihole_paused">Paused</string>
     <string name="pihole_paused_mmss">paused &#183; %1$s</string>
+
+    <!-- Redesign 2026 -->
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_dismiss">Dismiss</string>
+    <string name="common_done">Done</string>
+    <string name="common_hide">Hide</string>
+    <string name="common_show">Show</string>
+    <string name="common_remove_named">Remove %1$s</string>
+    <string name="nav_start">Home</string>
+    <string name="nav_remote">Remote</string>
+    <string name="nav_network">Network</string>
+    <string name="tile_on">On</string>
+    <string name="tile_off">Off</string>
+    <string name="vpn_hero_on">Protected</string>
+    <string name="vpn_hero_off">Not connected</string>
+    <string name="vpn_hero_error">Failed</string>
+    <string name="vpn_sub_on">Encrypted via %1$s</string>
+    <string name="vpn_sub_connecting">Handshake with %1$s</string>
+    <string name="vpn_sub_error">The connection could not be established</string>
+    <string name="vpn_sub_off">Your traffic is unprotected</string>
+    <string name="vpn_sub_off_killswitch">Kill switch is blocking the internet</string>
+    <string name="vpn_retry">Try again</string>
+    <string name="vpn_logs">Log</string>
+    <string name="vpn_tunnel_ip">Tunnel IP</string>
+    <string name="vpn_connected_since">Connected for</string>
+    <string name="vpn_last_handshake">Last handshake</string>
+    <string name="vpn_handshake_ago">%1$d s ago</string>
+    <string name="vpn_live_placeholder">Connect to see live data</string>
+    <string name="vpn_bandwidth_graph_desc">Throughput over the last 60 seconds</string>
+    <string name="vpn_theme_to_dark">Use dark theme</string>
+    <string name="vpn_theme_to_light">Use light theme</string>
+    <string name="vpn_expiry_today">Access expires today.</string>
+    <string name="vpn_expiry_hint">Ask your admin to extend it.</string>
+    <string name="split_tile_exclude">Exceptions active</string>
+    <string name="split_tile_include">Selected only via VPN</string>
+    <string name="dns_tile_idle">Tap to test</string>
+    <string name="dns_tile_ok">No leak · %1$s</string>
+    <string name="dns_tile_fail">Test failed</string>
+    <string name="pihole_tile_blocking">Blocking active</string>
+    <string name="pihole_pause_title">Pause blocking</string>
+    <string name="pihole_chip_30s">30 s</string>
+    <string name="pihole_chip_5m">5 min</string>
+    <string name="pihole_chip_30m">30 min</string>
+    <string name="pihole_history_desc">Bar chart of Pi-hole queries, allowed and blocked</string>
+    <string name="services_vpn_required">Services are only reachable while the VPN is on.</string>
+    <string name="rdp_summary">%1$d hosts · %2$d online</string>
+    <string name="rdp_no_match">No hosts found</string>
+    <string name="rdp_no_match_hint">Adjust search or filters.</string>
+    <string name="rdp_reset_filters">Reset filters</string>
+    <string name="rdp_wol_hint">Start via Wake-on-LAN</string>
+    <string name="logs_level_all">All</string>
+    <string name="logs_level_info">Info</string>
+    <string name="logs_level_warn">Warning</string>
+    <string name="logs_level_error">Error</string>
+    <string name="settings_group_connection">Connection</string>
+    <string name="settings_group_security">Security</string>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_group_help">Help</string>
+    <string name="settings_server_row">Server &amp; registration</string>
+    <string name="settings_server_row_desc">%1$s · QR code, code or file</string>
+    <string name="settings_server_not_configured">No server set up</string>
+    <string name="settings_registered">Registered</string>
+    <string name="settings_registered_peer">Registered · Peer #%1$d</string>
+    <string name="settings_split_summary_off">Off · all traffic through VPN</string>
+    <string name="settings_split_summary_exclude">Exceptions · %1$d networks, %2$d apps</string>
+    <string name="settings_split_summary_include">Selected only · %1$d networks, %2$d apps</string>
+    <string name="settings_always_on">Always-on VPN</string>
+    <string name="settings_always_on_desc">Set it in the Android settings</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_logs_desc">View and share events</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_footer">GateControl %1$s · license managed by the server</string>
+    <string name="settings_manual">Manual</string>
+    <string name="split_tunnel_mode_off">Off</string>
+    <string name="split_tunnel_mode_exclude">Define exceptions</string>
+    <string name="split_tunnel_mode_include">Only selected via VPN</string>
+    <string name="split_tunnel_pick_apps">Choose apps</string>
+    <string name="split_tunnel_selected_count">%1$d selected</string>
+    <string name="split_tunnel_all_apps">All apps</string>
+    <string name="split_tunnel_wifi_current">Current Wi-Fi subnet</string>
+    <string name="split_tunnel_label_required">Label is required</string>
+    <string name="split_tunnel_invalid_cidr">Invalid CIDR (e.g. 172.20.0.0/16)</string>
+    <string name="split_tunnel_reconnect_hint">Changes apply from the next connection.</string>
+    <plurals name="vpn_expiry_days">
+        <item quantity="one">Access expires tomorrow.</item>
+        <item quantity="other">Access expires in %1$d days.</item>
+    </plurals>
 </resources>

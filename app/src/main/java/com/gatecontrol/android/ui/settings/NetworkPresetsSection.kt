@@ -1,18 +1,33 @@
 package com.gatecontrol.android.ui.settings
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.components.GcBanner
+import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcIconButton
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcListRow
+import com.gatecontrol.android.ui.components.GcSwitchRow
+import com.gatecontrol.android.ui.components.GcTextField
+import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.theme.GateControlTheme
 
 data class NetworkEntry(val cidr: String, val label: String)
 
@@ -24,6 +39,7 @@ private val PRIVATE_NETS = listOf(
 )
 private val LINK_LOCAL = NetworkEntry("169.254.0.0/16", "Link-Local")
 
+/** Network presets (switch rows) plus custom networks, as one card. */
 @Composable
 fun NetworkPresetsSection(
     networks: List<NetworkEntry>,
@@ -31,15 +47,13 @@ fun NetworkPresetsSection(
     adminLocked: Boolean,
     onNetworksChanged: (List<NetworkEntry>) -> Unit,
 ) {
+    val extra = GateControlTheme.extraColors
     if (adminLocked) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.split_tunnel_admin_locked), style = MaterialTheme.typography.bodySmall)
+        GcBanner(tone = GcTone.Info, icon = GcIcons.Lock) {
+            Text(stringResource(R.string.split_tunnel_admin_locked), style = MaterialTheme.typography.bodyMedium)
         }
     }
 
-    // Derived state: which presets are active
     val activeCidrs = remember(networks) { networks.map { it.cidr }.toSet() }
     val hasPrivate = PRIVATE_NETS.all { it.cidr in activeCidrs }
     val hasLinkLocal = LINK_LOCAL.cidr in activeCidrs
@@ -48,78 +62,82 @@ fun NetworkPresetsSection(
         val presetCidrs = PRIVATE_NETS.map { it.cidr }.toSet() + LINK_LOCAL.cidr + (wifiSubnet ?: "")
         networks.filter { it.cidr !in presetCidrs }
     }
+    var showDialog by remember { mutableStateOf(false) }
 
-    // Preset checkboxes
-    Text(stringResource(R.string.split_tunnel_presets_label), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(bottom = 4.dp))
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = hasPrivate, onCheckedChange = { checked ->
-            if (adminLocked) return@Checkbox
-            val newNets = if (checked) networks + PRIVATE_NETS.filter { it.cidr !in activeCidrs }
-                else networks.filter { it.cidr !in PRIVATE_NETS.map { p -> p.cidr }.toSet() }
-            onNetworksChanged(newNets)
-        }, enabled = !adminLocked)
-        Text(stringResource(R.string.split_tunnel_private_nets), style = MaterialTheme.typography.bodyMedium)
-    }
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = hasLinkLocal, onCheckedChange = { checked ->
-            if (adminLocked) return@Checkbox
-            onNetworksChanged(if (checked) networks + LINK_LOCAL else networks.filter { it.cidr != LINK_LOCAL.cidr })
-        }, enabled = !adminLocked)
-        Text("Link-Local (169.254.0.0/16)", style = MaterialTheme.typography.bodyMedium)
-    }
-
-    if (wifiSubnet != null) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = hasWifi, onCheckedChange = { checked ->
-                if (adminLocked) return@Checkbox
-                val entry = NetworkEntry(wifiSubnet, "WiFi ($wifiSubnet)")
-                onNetworksChanged(if (checked) networks + entry else networks.filter { it.cidr != wifiSubnet })
-            }, enabled = !adminLocked)
-            Text(stringResource(R.string.split_tunnel_wifi_subnet, wifiSubnet), style = MaterialTheme.typography.bodyMedium)
-        }
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = false, onCheckedChange = {}, enabled = false)
-            Text(stringResource(R.string.split_tunnel_no_wifi), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-
-    // Custom networks
-    if (customNets.isNotEmpty()) {
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.split_tunnel_custom_label), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(bottom = 4.dp))
-        customNets.forEach { net ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(net.label, style = MaterialTheme.typography.bodyMedium)
-                    Text(net.cidr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (!adminLocked) {
-                    IconButton(onClick = { onNetworksChanged(networks.filter { it.cidr != net.cidr }) }) {
-                        Icon(Icons.Default.Close, contentDescription = "Remove")
-                    }
-                }
-            }
-        }
-    }
-
-    // Add button
-    if (!adminLocked) {
-        var showDialog by remember { mutableStateOf(false) }
-        TextButton(onClick = { showDialog = true }) {
-            Text("+ ${stringResource(R.string.split_tunnel_add_network)}")
-        }
-        if (showDialog) {
-            AddNetworkDialog(
-                onDismiss = { showDialog = false },
-                onAdd = { label, cidr ->
-                    onNetworksChanged(networks + NetworkEntry(cidr, label))
-                    showDialog = false
-                }
+    GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+        GcSwitchRow(
+            label = stringResource(R.string.split_tunnel_private_nets),
+            description = PRIVATE_NETS.joinToString(" · ") { it.cidr },
+            checked = hasPrivate,
+            enabled = !adminLocked,
+            onCheckedChange = { checked ->
+                val newNets = if (checked) networks + PRIVATE_NETS.filter { it.cidr !in activeCidrs }
+                    else networks.filter { it.cidr !in PRIVATE_NETS.map { p -> p.cidr }.toSet() }
+                onNetworksChanged(newNets)
+            },
+        )
+        GcSwitchRow(
+            label = "Link-Local",
+            description = LINK_LOCAL.cidr,
+            checked = hasLinkLocal,
+            enabled = !adminLocked,
+            onCheckedChange = { checked ->
+                onNetworksChanged(if (checked) networks + LINK_LOCAL else networks.filter { it.cidr != LINK_LOCAL.cidr })
+            },
+        )
+        if (wifiSubnet != null) {
+            GcSwitchRow(
+                label = stringResource(R.string.split_tunnel_wifi_current),
+                description = wifiSubnet,
+                checked = hasWifi,
+                enabled = !adminLocked,
+                onCheckedChange = { checked ->
+                    val entry = NetworkEntry(wifiSubnet, "WiFi ($wifiSubnet)")
+                    onNetworksChanged(if (checked) networks + entry else networks.filter { it.cidr != wifiSubnet })
+                },
+            )
+        } else {
+            GcSwitchRow(
+                label = stringResource(R.string.split_tunnel_no_wifi),
+                description = null,
+                checked = false,
+                enabled = false,
+                onCheckedChange = {},
             )
         }
+        customNets.forEach { net ->
+            GcListRow(
+                title = net.label,
+                description = net.cidr,
+                descriptionMono = true,
+                trailing = if (adminLocked) null else ({
+                    GcIconButton(
+                        icon = GcIcons.Trash,
+                        contentDescription = stringResource(R.string.common_remove_named, net.label),
+                        onClick = { onNetworksChanged(networks.filter { it.cidr != net.cidr }) },
+                        iconSize = 18.dp,
+                    )
+                }),
+            )
+        }
+        if (!adminLocked) {
+            GcListRow(
+                title = stringResource(R.string.split_tunnel_add_network),
+                titleColor = extra.accentText,
+                onClick = { showDialog = true },
+                leading = { Icon(GcIcons.Plus, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(20.dp)) },
+            )
+        }
+    }
+
+    if (showDialog) {
+        AddNetworkDialog(
+            onDismiss = { showDialog = false },
+            onAdd = { label, cidr ->
+                onNetworksChanged(networks + NetworkEntry(cidr, label))
+                showDialog = false
+            },
+        )
     }
 }
 
@@ -130,25 +148,40 @@ private fun AddNetworkDialog(onDismiss: () -> Unit, onAdd: (label: String, cidr:
     var error by remember { mutableStateOf<String?>(null) }
 
     val cidrRegex = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}$""")
+    val labelRequired = stringResource(R.string.split_tunnel_label_required)
+    val invalidCidr = stringResource(R.string.split_tunnel_invalid_cidr)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.split_tunnel_add_network)) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.extraLarge,
+        title = { Text(stringResource(R.string.split_tunnel_add_network), style = MaterialTheme.typography.headlineMedium) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = label, onValueChange = { label = it; error = null }, label = { Text(stringResource(R.string.split_tunnel_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = cidr, onValueChange = { cidr = it; error = null }, label = { Text("CIDR") }, placeholder = { Text("z.B. 172.20.0.0/16") }, singleLine = true, modifier = Modifier.fillMaxWidth(), isError = error != null, supportingText = error?.let { { Text(it) } })
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                GcTextField(
+                    value = label,
+                    onValueChange = { label = it; error = null },
+                    label = stringResource(R.string.split_tunnel_label),
+                )
+                GcTextField(
+                    value = cidr,
+                    onValueChange = { cidr = it; error = null },
+                    label = "CIDR",
+                    placeholder = "172.20.0.0/16",
+                    mono = true,
+                    error = error,
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                if (label.isBlank()) { error = "Label required"; return@TextButton }
-                if (!cidrRegex.matches(cidr)) { error = "Invalid CIDR"; return@TextButton }
-                val prefix = cidr.split("/")[1].toIntOrNull() ?: 0
-                if (prefix < 0 || prefix > 32) { error = "Prefix 0-32"; return@TextButton }
+                if (label.isBlank()) { error = labelRequired; return@TextButton }
+                if (!cidrRegex.matches(cidr.trim())) { error = invalidCidr; return@TextButton }
+                val prefix = cidr.trim().split("/")[1].toIntOrNull() ?: -1
+                if (prefix < 0 || prefix > 32) { error = invalidCidr; return@TextButton }
                 onAdd(label.trim(), cidr.trim())
             }) { Text(stringResource(R.string.split_tunnel_add_network)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
 }

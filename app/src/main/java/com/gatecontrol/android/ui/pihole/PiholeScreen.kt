@@ -2,17 +2,20 @@ package com.gatecontrol.android.ui.pihole
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -20,22 +23,39 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcFilterChip
+import com.gatecontrol.android.ui.components.GcIconSquare
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcSectionLabel
+import com.gatecontrol.android.ui.components.GcStatCard
+import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.theme.MonoFontFamily
 import com.gatecontrol.android.util.findComponentActivity
 import kotlinx.coroutines.delay
+import java.text.NumberFormat
 
+/** Pi-hole view inside the "Netzwerk" tab (no own title; the tab provides it). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PiholeScreen(
+fun PiholeContent(
+    modifier: Modifier = Modifier,
     viewModel: PiholeViewModel =
-        hiltViewModel(androidx.compose.ui.platform.LocalContext.current.findComponentActivity())
+        hiltViewModel(androidx.compose.ui.platform.LocalContext.current.findComponentActivity()),
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val extra = GateControlTheme.extraColors
 
     // Foreground polling ~30s (lifecycle-bound: stops when screen leaves composition).
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -45,47 +65,52 @@ fun PiholeScreen(
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.pihole_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+    when {
+        ui.isLoading -> Box(modifier.fillMaxSize()) {
+            CircularProgressIndicator(Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.primary)
+        }
+        !ui.everLoaded && ui.summary == null -> Text(
+            stringResource(R.string.pihole_empty),
+            color = extra.muted,
+            modifier = modifier.padding(16.dp),
         )
-        androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
-
-        when {
-            ui.isLoading -> androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
-            !ui.everLoaded && ui.summary == null -> Text(stringResource(R.string.pihole_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            else -> PullToRefreshBox(isRefreshing = ui.isRefreshing, onRefresh = { viewModel.refresh() }) {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item { SummaryCards(ui) }
+        else -> PullToRefreshBox(
+            isRefreshing = ui.isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            modifier = modifier,
+        ) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                item { StatusCard(ui, viewModel) }
+                item { SummaryGrid(ui) }
+                item {
+                    PiholeHistoryChart(
+                        allowed = ui.history.map { it.allowed },
+                        blocked = ui.history.map { it.blocked },
+                    )
+                }
+                if (ui.canControl) item { ControlCard(ui, viewModel) }
+                if (ui.topDomains.isNotEmpty()) {
                     item {
-                        PiholeHistoryChart(
-                            allowed = ui.history.map { it.allowed },
-                            blocked = ui.history.map { it.blocked },
+                        ListCard(
+                            title = stringResource(R.string.pihole_top_domains),
+                            rows = ui.topDomains.map { it.domain to it.count.toString() },
                         )
                     }
-                    if (ui.canControl) item { ControlCard(ui, viewModel) }
-                    item { SectionTitle(stringResource(R.string.pihole_top_domains)) }
-                    items(ui.topDomains) { d ->
-                        KeyValueRow(d.domain, d.count.toString())
+                }
+                if (ui.topClients.isNotEmpty()) {
+                    item {
+                        ListCard(
+                            title = stringResource(R.string.pihole_top_clients),
+                            rows = ui.topClients.map { (it.peerName ?: it.ip) to it.count.toString() },
+                        )
                     }
-                    item { SectionTitle(stringResource(R.string.pihole_top_clients)) }
-                    items(ui.topClients) { c ->
-                        KeyValueRow(c.peerName ?: c.ip, c.count.toString())
-                    }
-                    item { SectionTitle(stringResource(R.string.pihole_query_types)) }
-                    val qtMax = (ui.queryTypes.values.maxOrNull() ?: 1L).coerceAtLeast(1L)
-                    val sortedQueryTypes: List<Pair<String, Long>> =
-                        ui.queryTypes.entries.sortedByDescending { it.value }.map { it.key to it.value }
-                    items(sortedQueryTypes) { (type, count) ->
-                        QueryTypeMeter(type, count, qtMax)
-                    }
+                }
+                if (ui.queryTypes.isNotEmpty()) {
+                    item { QueryTypesCard(ui.queryTypes) }
                 }
             }
         }
@@ -93,31 +118,8 @@ fun PiholeScreen(
 }
 
 @Composable
-private fun SummaryCards(ui: PiholeUiState) {
-    val s = ui.summary ?: return
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            KeyValueRow(stringResource(R.string.pihole_queries), (s.queries?.total ?: 0).toString())
-            KeyValueRow(
-                stringResource(R.string.pihole_blocked),
-                "${s.queries?.blocked ?: 0} (${s.queries?.percent ?: 0.0}%)"
-            )
-            KeyValueRow(stringResource(R.string.pihole_blocklist), (s.gravity ?: 0).toString())
-            KeyValueRow(stringResource(R.string.pihole_active_clients), (s.clients?.active ?: 0).toString())
-            // Status + sync age (lastSyncAt is epoch ms from the server).
-            val syncAge = s.lastSyncAt?.let { ((System.currentTimeMillis() - it) / 1000).coerceAtLeast(0) }
-            val statusText = if (syncAge != null)
-                "${piholeStatusLabel(s.blocking?.state ?: "unknown")} · ${stringResource(R.string.pihole_synced_ago, syncAge)}"
-            else piholeStatusLabel(s.blocking?.state ?: "unknown")
-            KeyValueRow(stringResource(R.string.pihole_status), statusText)
-        }
-    }
-}
-
-@Composable
-private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
+private fun rememberPauseRemaining(ui: PiholeUiState, viewModel: PiholeViewModel): Int {
     val end = ui.pauseEndAtMillis
-    // UI-driven countdown: derive remaining seconds from the absolute end time once per second.
     val remaining by androidx.compose.runtime.produceState(
         initialValue = end?.let { ((it - System.currentTimeMillis()) / 1000).coerceAtLeast(0L).toInt() } ?: 0,
         end,
@@ -129,89 +131,167 @@ private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
             delay(1000)
         }
     }
+    return remaining
+}
 
-    val isFinitePaused = end != null
+@Composable
+private fun StatusCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
+    val extra = GateControlTheme.extraColors
+    val s = ui.summary
+    val remaining = rememberPauseRemaining(ui, viewModel)
+    val paused = ui.pauseEndAtMillis != null || ui.pausePermanent
+    val state = s?.blocking?.state ?: "unknown"
+    val active = !paused && state == "enabled"
+    val title = when {
+        ui.pauseEndAtMillis != null -> stringResource(R.string.pihole_paused_mmss, formatMmSs(remaining))
+        ui.pausePermanent -> stringResource(R.string.pihole_paused)
+        state == "enabled" -> stringResource(R.string.pihole_tile_blocking)
+        else -> piholeStatusLabel(state)
+    }
+    val syncAge = s?.lastSyncAt?.let { ((System.currentTimeMillis() - it) / 1000).coerceAtLeast(0) }
+
+    GcCard(color = if (active) extra.accentBg else if (paused) extra.warnBg else MaterialTheme.colorScheme.surface) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            GcIconSquare(size = 48.dp, background = MaterialTheme.colorScheme.surface) {
+                Icon(
+                    GcIcons.ShieldX,
+                    contentDescription = null,
+                    tint = if (active) extra.accentText else extra.warn,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Column(Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite }) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+                if (syncAge != null) {
+                    Text(
+                        stringResource(R.string.pihole_synced_ago, syncAge),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extra.muted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryGrid(ui: PiholeUiState) {
+    val s = ui.summary ?: return
+    val nf = NumberFormat.getIntegerInstance()
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GcStatCard(stringResource(R.string.pihole_queries), nf.format(s.queries?.total ?: 0), modifier = Modifier.weight(1f))
+            GcStatCard(
+                stringResource(R.string.pihole_blocked),
+                nf.format(s.queries?.blocked ?: 0),
+                subtitle = "%.1f %%".format(s.queries?.percent ?: 0.0),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GcStatCard(stringResource(R.string.pihole_blocklist), nf.format(s.gravity ?: 0), modifier = Modifier.weight(1f))
+            GcStatCard(stringResource(R.string.pihole_active_clients), nf.format(s.clients?.active ?: 0), modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun ControlCard(ui: PiholeUiState, viewModel: PiholeViewModel) {
+    val extra = GateControlTheme.extraColors
+    val remaining = rememberPauseRemaining(ui, viewModel)
+    val isFinitePaused = ui.pauseEndAtMillis != null
     val isPermanentPaused = ui.pausePermanent
     val isPaused = isFinitePaused || isPermanentPaused
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle(stringResource(R.string.pihole_control))
-            if (ui.actionPending) {
-                Text(stringResource(R.string.pihole_applying), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (ui.error != null) {
-                Text(stringResource(R.string.pihole_action_failed), color = MaterialTheme.colorScheme.error)
-            }
-
-            if (isFinitePaused && ui.pausedPresetSec == null) {
-                // Generic fallback: server timer with no matching preset.
-                Text(
-                    stringResource(R.string.pihole_paused_mmss, formatMmSs(remaining)),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                @Composable
-                fun presetButton(label: String, sec: Int?, modifier: Modifier) {
-                    val isThisPreset =
-                        (sec == null && isPermanentPaused) || (sec != null && isFinitePaused && ui.pausedPresetSec == sec)
-                    val text = when {
-                        sec == null && isPermanentPaused -> stringResource(R.string.pihole_paused)
-                        sec != null && isThisPreset -> formatMmSs(remaining)
-                        else -> label
-                    }
-                    com.gatecontrol.android.ui.components.GcOutlineButton(
-                        text = text,
-                        onClick = { viewModel.pauseBlocking(sec) },
-                        enabled = !ui.actionPending && !isPaused,
-                        modifier = modifier,
+    GcCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.pihole_pause_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        if (ui.actionPending) {
+            Text(stringResource(R.string.pihole_applying), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+        }
+        if (ui.error != null) {
+            Text(stringResource(R.string.pihole_action_failed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        if (isFinitePaused && ui.pausedPresetSec == null) {
+            // Generic fallback: server timer with no matching preset.
+            Text(stringResource(R.string.pihole_paused_mmss, formatMmSs(remaining)), color = extra.muted)
+        } else {
+            val presets = listOf(
+                30 to stringResource(R.string.pihole_chip_30s),
+                300 to stringResource(R.string.pihole_chip_5m),
+                1800 to stringResource(R.string.pihole_chip_30m),
+                null to stringResource(R.string.pihole_pause_forever),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                presets.forEach { (sec, label) ->
+                    val isThis = (sec == null && isPermanentPaused) || (sec != null && isFinitePaused && ui.pausedPresetSec == sec)
+                    GcFilterChip(
+                        text = if (isThis && sec != null) formatMmSs(remaining) else label,
+                        selected = isThis,
+                        onClick = { if (!ui.actionPending && !isPaused) viewModel.pauseBlocking(sec) },
+                        modifier = Modifier.weight(1f),
                     )
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    presetButton(stringResource(R.string.pihole_pause_30s), 30, Modifier.weight(1f))
-                    presetButton(stringResource(R.string.pihole_pause_5m), 300, Modifier.weight(1f))
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    presetButton(stringResource(R.string.pihole_pause_30m), 1800, Modifier.weight(1f))
-                    presetButton(stringResource(R.string.pihole_pause_forever), null, Modifier.weight(1f))
-                }
             }
+        }
+        if (isPaused) {
+            GcPrimaryButton(
+                text = stringResource(R.string.pihole_resume),
+                onClick = { viewModel.resumeBlocking() },
+                enabled = !ui.actionPending,
+            )
+        }
+    }
+}
 
-            if (isPaused) {
-                com.gatecontrol.android.ui.components.GcPrimaryButton(
-                    text = stringResource(R.string.pihole_resume),
-                    onClick = { viewModel.resumeBlocking() },
-                    enabled = !ui.actionPending,
-                    modifier = Modifier.fillMaxWidth(),
+@Composable
+private fun ListCard(title: String, rows: List<Pair<String, String>>) {
+    val extra = GateControlTheme.extraColors
+    GcCard(contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.Top) {
+        GcSectionLabel(title, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        rows.forEach { (k, v) ->
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    k,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFontFamily),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
+                Text(v, style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFontFamily), color = extra.muted)
             }
         }
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
-}
-
-@Composable
-private fun KeyValueRow(key: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(key, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-private fun QueryTypeMeter(type: String, count: Long, max: Long) {
-    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(type, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(count.toString(), color = MaterialTheme.colorScheme.onBackground)
+private fun QueryTypesCard(queryTypes: Map<String, Long>) {
+    val extra = GateControlTheme.extraColors
+    val max = (queryTypes.values.maxOrNull() ?: 1L).coerceAtLeast(1L)
+    GcCard(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        GcSectionLabel(stringResource(R.string.pihole_query_types))
+        queryTypes.entries.sortedByDescending { it.value }.forEach { (type, count) ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(type, style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    Text(count.toString(), style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFontFamily), color = MaterialTheme.colorScheme.onSurface)
+                }
+                Box(
+                    Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(extra.panel2),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth((count.toFloat() / max).coerceIn(0f, 1f))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(extra.blue),
+                    )
+                }
+            }
         }
-        androidx.compose.material3.LinearProgressIndicator(
-            progress = { (count.toFloat() / max.toFloat()).coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }

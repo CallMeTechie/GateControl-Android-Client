@@ -2,7 +2,6 @@ package com.gatecontrol.android.ui.settings
 
 import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -10,25 +9,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,6 +33,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import com.gatecontrol.android.ui.components.GcIconSquare
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcSectionLabel
+import com.gatecontrol.android.ui.components.GcSwitchRow
+import com.gatecontrol.android.ui.components.GcTextField
+import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -117,146 +122,134 @@ fun AppPickerSheet(
         } ?: emptyList()
     }
 
-    ModalBottomSheet(onDismissRequest = { onDismiss(currentSelection) }) {
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            // Search bar
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(R.string.split_tunnel_search_apps)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true,
-            )
+    val extra = GateControlTheme.extraColors
+    val toggle: (String) -> Unit = { pkg ->
+        currentSelection = if (pkg in currentSelection) currentSelection - pkg else currentSelection + pkg
+    }
 
-            // System apps toggle
+    ModalBottomSheet(
+        onDismissRequest = { onDismiss(currentSelection) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrimColor = extra.scrim,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column {
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    stringResource(R.string.split_tunnel_show_system),
-                    style = MaterialTheme.typography.bodySmall,
+                    stringResource(R.string.split_tunnel_pick_apps),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
-                Switch(checked = showSystem, onCheckedChange = { showSystem = it })
+                Text(
+                    stringResource(R.string.split_tunnel_selected_count, currentSelection.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = extra.muted,
+                )
             }
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                GcTextField(
+                    value = search,
+                    onValueChange = { search = it },
+                    label = stringResource(R.string.split_tunnel_search_apps),
+                    placeholder = stringResource(R.string.split_tunnel_search_apps),
+                )
+            }
+            GcSwitchRow(
+                label = stringResource(R.string.split_tunnel_show_system),
+                description = null,
+                checked = showSystem,
+                onCheckedChange = { showSystem = it },
+            )
 
-            // App list
             if (apps == null) {
-                // Loading
                 Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
+                    Modifier.fillMaxWidth().height(200.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
                 LazyColumn(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    Modifier.fillMaxWidth().heightIn(max = 420.dp),
                 ) {
                     if (recommendedApps.isNotEmpty() && search.isBlank()) {
                         item(key = "_recommended_header") {
-                            Column(Modifier.padding(vertical = 4.dp)) {
-                                Text(
-                                    stringResource(R.string.split_tunnel_recommended_apps),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Text(
-                                    stringResource(R.string.split_tunnel_recommended_hint),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        items(recommendedApps, key = { it.packageName }) { app ->
-                            val isSelected = app.packageName in currentSelection
-                            val icon = remember(app.packageName) {
-                                try {
-                                    context.packageManager.getApplicationIcon(app.packageName)
-                                } catch (_: Exception) { null }
-                            }
-                            ListItem(
-                                headlineContent = { Text(app.label, maxLines = 1) },
-                                leadingContent = {
-                                    if (icon != null) {
-                                        Image(
-                                            bitmap = icon.toBitmap(40, 40).asImageBitmap(),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(36.dp),
-                                        )
-                                    }
-                                },
-                                trailingContent = {
-                                    if (isSelected) {
-                                        Icon(
-                                            Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
-                                },
-                                modifier = Modifier.clickable {
-                                    currentSelection = if (isSelected) {
-                                        currentSelection - app.packageName
-                                    } else {
-                                        currentSelection + app.packageName
-                                    }
-                                },
+                            GcSectionLabel(
+                                stringResource(R.string.split_tunnel_recommended_apps),
+                                Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                             )
                         }
-                        item(key = "_divider") {
-                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                        items(recommendedApps, key = { "rec_" + it.packageName }) { app ->
+                            AppRow(app, app.packageName in currentSelection, stringResource(R.string.split_tunnel_recommended_hint)) { toggle(app.packageName) }
+                        }
+                        item(key = "_all_header") {
+                            GcSectionLabel(
+                                stringResource(R.string.split_tunnel_all_apps),
+                                Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                            )
                         }
                     }
                     items(filtered, key = { it.packageName }) { app ->
-                        val isSelected = app.packageName in currentSelection
-                        val icon = remember(app.packageName) {
-                            try {
-                                context.packageManager.getApplicationIcon(app.packageName)
-                            } catch (_: Exception) { null }
-                        }
-                        ListItem(
-                            headlineContent = { Text(app.label, maxLines = 1) },
-                            leadingContent = {
-                                if (icon != null) {
-                                    Image(
-                                        bitmap = icon.toBitmap(40, 40).asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(36.dp),
-                                    )
-                                }
-                            },
-                            trailingContent = {
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                }
-                            },
-                            modifier = Modifier.clickable {
-                                currentSelection = if (isSelected) {
-                                    currentSelection - app.packageName
-                                } else {
-                                    currentSelection + app.packageName
-                                }
-                            },
-                        )
+                        AppRow(app, app.packageName in currentSelection, null) { toggle(app.packageName) }
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp)) {
+                GcPrimaryButton(
+                    text = stringResource(R.string.common_done),
+                    onClick = { onDismiss(currentSelection) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppRow(app: AppInfo, selected: Boolean, hint: String?, onToggle: () -> Unit) {
+    val context = LocalContext.current
+    val extra = GateControlTheme.extraColors
+    val icon = remember(app.packageName) {
+        try { context.packageManager.getApplicationIcon(app.packageName) } catch (_: Exception) { null }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = selected, role = Role.Checkbox, onValueChange = { onToggle() })
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        if (icon != null) {
+            Image(
+                bitmap = icon.toBitmap(80, 80).asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)),
+            )
+        } else {
+            GcIconSquare(size = 40.dp) {
+                Text(app.label.take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = extra.muted)
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(app.label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+            if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = extra.muted)
+        }
+        Box(
+            Modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .border(2.dp, if (selected) MaterialTheme.colorScheme.primary else extra.border2, RoundedCornerShape(7.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Icon(GcIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
+            }
         }
     }
 }

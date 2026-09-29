@@ -1,26 +1,40 @@
 package com.gatecontrol.android.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -28,19 +42,32 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.network.NETWORK_TAB_PIHOLE
+import com.gatecontrol.android.ui.network.NetworkScreen
 import com.gatecontrol.android.ui.rdp.RdpScreen
-import com.gatecontrol.android.ui.services.ServicesScreen
+import com.gatecontrol.android.ui.settings.LogsScreen
+import com.gatecontrol.android.ui.settings.ServerSettingsScreen
 import com.gatecontrol.android.ui.settings.SettingsScreen
+import com.gatecontrol.android.ui.settings.SplitTunnelScreen
 import com.gatecontrol.android.ui.setup.QrScannerScreen
 import com.gatecontrol.android.ui.setup.SetupScreen
+import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.vpn.VpnScreen
 
 private val bottomBarRoutes = setOf(
     Screen.Vpn.route,
     Screen.Rdp.route,
-    Screen.Services.route,
-    Screen.Pihole.route,
+    Screen.Network.route,
     Screen.Settings.route,
+)
+
+private data class TabItem(
+    val route: String,
+    val navigateTo: String,
+    val label: Int,
+    val icon: ImageVector,
+    val badge: Int = 0,
 )
 
 @Composable
@@ -62,24 +89,35 @@ fun AppNavigation(
 
     val showBottomBar = currentRoute in bottomBarRoutes
 
+    val navigateToTab: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    val tabs = buildList {
+        add(TabItem(Screen.Vpn.route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield))
+        if (hasRdpPermission) {
+            add(TabItem(Screen.Rdp.route, Screen.Rdp.route, R.string.nav_remote, GcIcons.Monitor, onlineRdpHostCount))
+        }
+        if (hasServicesPermission || hasPiholePermission) {
+            add(TabItem(Screen.Network.route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe))
+        }
+        add(TabItem(Screen.Settings.route, Screen.Settings.route, R.string.nav_settings, GcIcons.Sliders))
+    }
+
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (showBottomBar) {
-                GcBottomNavigationBar(
-                    currentRoute = currentRoute,
-                    hasRdpPermission = hasRdpPermission,
-                    hasServicesPermission = hasServicesPermission,
-                    hasPiholePermission = hasPiholePermission,
-                    onlineRdpHostCount = onlineRdpHostCount,
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                GcTabBar(
+                    tabs = tabs,
+                    isSelected = { tab -> navBackStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true },
+                    onSelect = { tab -> navigateToTab(tab.navigateTo) },
                 )
             }
         },
@@ -155,7 +193,15 @@ fun AppNavigation(
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         }
                     },
-                    onOpenPihole = { navController.navigate(Screen.Pihole.route) },
+                    onOpenPihole = {
+                        // No restoreState: the tab argument must win over a saved Netzwerk state.
+                        navController.navigate(Screen.Network.create(NETWORK_TAB_PIHOLE)) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onOpenSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
+                    onOpenLogs = { navController.navigate(Screen.Logs.route) },
                 )
             }
 
@@ -163,29 +209,47 @@ fun AppNavigation(
                 RdpScreen()
             }
 
-            composable(Screen.Services.route) {
-                ServicesScreen()
-            }
-
-            composable(Screen.Pihole.route) {
-                com.gatecontrol.android.ui.pihole.PiholeScreen()
+            composable(
+                route = Screen.Network.route,
+                arguments = listOf(
+                    navArgument(Screen.Network.ARG_TAB) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                NetworkScreen(
+                    hasServices = hasServicesPermission,
+                    hasPihole = hasPiholePermission,
+                    initialTab = backStackEntry.arguments?.getString(Screen.Network.ARG_TAB),
+                    onGoToStart = { navigateToTab(Screen.Vpn.route) },
+                )
             }
 
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onNavigateToLogs = {
-                        navController.navigate(Screen.Logs.route)
-                    },
-                    // Scans land on the setup screen, which understands both the
-                    // setup QR (VPN + API access) and a bare WireGuard config.
-                    onNavigateToQrScanner = {
-                        navController.navigate(Screen.Enroll.create())
-                    },
+                    onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
+                    onNavigateToServer = { navController.navigate(Screen.SettingsServer.route) },
+                    onNavigateToSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
                 )
             }
 
+            composable(Screen.SettingsServer.route) {
+                ServerSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    // Scans land on the setup screen, which understands both the
+                    // setup QR (VPN + API access) and a bare WireGuard config.
+                    onNavigateToQrScanner = { navController.navigate(Screen.Enroll.create()) },
+                )
+            }
+
+            composable(Screen.SplitTunnel.route) {
+                SplitTunnelScreen(onBack = { navController.popBackStack() })
+            }
+
             composable(Screen.Logs.route) {
-                com.gatecontrol.android.ui.settings.LogsScreen(
+                LogsScreen(
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
@@ -201,123 +265,81 @@ fun AppNavigation(
     }
 }
 
+/** Bottom tab bar from the mockup: pill indicator behind the icon, label below. */
 @Composable
-private fun GcBottomNavigationBar(
-    currentRoute: String?,
-    hasRdpPermission: Boolean,
-    hasServicesPermission: Boolean,
-    hasPiholePermission: Boolean,
-    onlineRdpHostCount: Int,
-    onNavigate: (String) -> Unit,
+private fun GcTabBar(
+    tabs: List<TabItem>,
+    isSelected: (TabItem) -> Boolean,
+    onSelect: (TabItem) -> Unit,
 ) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+    val extra = GateControlTheme.extraColors
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(scheme.surface)
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        // VPN tab
-        NavigationBarItem(
-            selected = currentRoute == Screen.Vpn.route,
-            onClick = { onNavigate(Screen.Vpn.route) },
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Lock,
-                    contentDescription = stringResource(R.string.nav_vpn),
-                )
-            },
-            label = { Text(stringResource(R.string.nav_vpn)) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary,
-                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
-            ),
-        )
-
-        // RDP tab (visible when Pro license / permission)
-        if (hasRdpPermission) {
-            NavigationBarItem(
-                selected = currentRoute == Screen.Rdp.route,
-                onClick = { onNavigate(Screen.Rdp.route) },
-                icon = {
-                    BadgedBox(
-                        badge = {
-                            if (onlineRdpHostCount > 0) {
-                                Badge {
-                                    Text(onlineRdpHostCount.toString())
-                                }
-                            }
-                        },
+        Box(Modifier.fillMaxWidth().height(1.dp).background(extra.border))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
+        ) {
+            tabs.forEach { tab ->
+                val selected = isSelected(tab)
+                val label = stringResource(tab.label)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(72.dp)
+                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
+                        .padding(top = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .width(60.dp)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (selected) extra.accentBg else Color.Transparent),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Star,
-                            contentDescription = stringResource(R.string.nav_rdp),
+                            tab.icon,
+                            contentDescription = null,
+                            tint = if (selected) extra.accentText else extra.muted,
+                            modifier = Modifier.size(22.dp),
                         )
+                        if (tab.badge > 0) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = (-6).dp, y = (-2).dp)
+                                    .height(18.dp)
+                                    .widthIn(min = 18.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(scheme.primary)
+                                    .padding(horizontal = 5.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    tab.badge.toString(),
+                                    color = scheme.onPrimary,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                                )
+                            }
+                        }
                     }
-                },
-                label = { Text(stringResource(R.string.nav_rdp)) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
-                ),
-            )
-        }
-
-        // Services tab (visible when API token present)
-        if (hasServicesPermission) {
-            NavigationBarItem(
-                selected = currentRoute == Screen.Services.route,
-                onClick = { onNavigate(Screen.Services.route) },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Filled.Share,
-                        contentDescription = stringResource(R.string.nav_services),
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (selected) scheme.onSurface else extra.muted,
+                        maxLines = 1,
                     )
-                },
-                label = { Text(stringResource(R.string.nav_services)) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
-                ),
-            )
+                }
+            }
         }
-
-        // Pi-hole tab (visible when licensed + pihole scope)
-        if (hasPiholePermission) {
-            NavigationBarItem(
-                selected = currentRoute == Screen.Pihole.route,
-                onClick = { onNavigate(Screen.Pihole.route) },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Filled.Shield,
-                        contentDescription = stringResource(R.string.nav_pihole),
-                    )
-                },
-                label = { Text(stringResource(R.string.nav_pihole)) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
-                ),
-            )
-        }
-
-        // Settings tab
-        NavigationBarItem(
-            selected = currentRoute == Screen.Settings.route,
-            onClick = { onNavigate(Screen.Settings.route) },
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = stringResource(R.string.nav_settings),
-                )
-            },
-            label = { Text(stringResource(R.string.nav_settings)) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary,
-                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f),
-            ),
-        )
     }
 }

@@ -52,7 +52,8 @@ data class SettingsUiState(
     val error: String? = null,
     val success: String? = null,
     val isPro: Boolean = false,
-    val licenseStatus: String = ""
+    val licenseStatus: String = "",
+    val peerId: Int = 0,
 )
 
 @HiltViewModel
@@ -144,7 +145,8 @@ class SettingsViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 serverUrl = setupRepository.getServerUrl(),
-                apiToken = setupRepository.getApiToken()
+                apiToken = setupRepository.getApiToken(),
+                peerId = setupRepository.getPeerId(),
             )
         }
     }

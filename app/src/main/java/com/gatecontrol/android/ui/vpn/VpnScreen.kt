@@ -1,24 +1,18 @@
 package com.gatecontrol.android.ui.vpn
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,28 +25,56 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
+import com.gatecontrol.android.common.Formatters
 import com.gatecontrol.android.tunnel.TunnelState
+import com.gatecontrol.android.ui.components.GcBanner
+import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcIconButton
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcLabeledValue
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
-import com.gatecontrol.android.ui.components.GcToggleRow
+import com.gatecontrol.android.ui.components.GcTile
+import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.pihole.PiholeTile
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.delay
 
+private const val EXPIRY_WARN_DAYS = 7
+
+/**
+ * Start tab: header, connect orb with state text, connection details,
+ * quick tiles (kill switch, split tunneling, Pi-hole, DNS leak test),
+ * throughput and data usage.
+ */
 @Composable
 fun VpnScreen(
     viewModel: VpnViewModel = hiltViewModel(),
     onTokenInvalid: () -> Unit = {},
     onOpenPihole: () -> Unit = {},
+    onOpenSplitTunnel: () -> Unit = {},
+    onOpenLogs: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val extra = GateControlTheme.extraColors
 
     // VPN permission launcher — Android requires user consent before creating a VPN tunnel
     val vpnPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             viewModel.connect()
@@ -63,10 +85,12 @@ fun VpnScreen(
     val stats by viewModel.stats.collectAsState()
     val trafficUsage by viewModel.trafficUsage.collectAsState()
     val permissions by viewModel.permissions.collectAsState()
-    val services by viewModel.services.collectAsState()
     val killSwitchEnabled by viewModel.killSwitchEnabled.collectAsState()
+    val splitMode by viewModel.splitTunnelMode.collectAsState()
+    val theme by viewModel.theme.collectAsState()
     val portalUrl by viewModel.portalUrl.collectAsState()
     val autoOpen by viewModel.autoOpenPortal.collectAsState()
+    val expiresAt by viewModel.peerExpiresAt.collectAsState()
 
     // Bandwidth history ring buffers (60 points each)
     val rxHistory = remember { mutableStateListOf<Long>() }
@@ -89,6 +113,7 @@ fun VpnScreen(
     LaunchedEffect(Unit) {
         viewModel.startMonitoring()
         viewModel.validateToken()
+        viewModel.loadPeerInfo()
     }
 
     // Redirect to setup if token is invalid
@@ -158,180 +183,307 @@ fun VpnScreen(
     val isBusy = tunnelState is TunnelState.Connecting
         || tunnelState is TunnelState.Disconnecting
         || tunnelState is TunnelState.Reconnecting
+    val isError = tunnelState is TunnelState.Error
+    val host = viewModel.serverUrlHost ?: viewModel.serverHost ?: "—"
 
-    val scrollState = rememberScrollState()
+    val startConnect: () -> Unit = {
+        val prepareIntent = android.net.VpnService.prepare(context)
+        if (prepareIntent != null) vpnPermissionLauncher.launch(prepareIntent) else viewModel.connect()
+    }
+
+    val systemDark = isSystemInDarkTheme()
+    val effectivelyDark = when (theme) {
+        "dark" -> true
+        "light" -> false
+        else -> systemDark
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-
-        // Connection ring
-        ConnectionRing(
-            state = tunnelState,
-            ringSize = 180.dp,
-        )
-
-        // Connect / Disconnect button
-        if (isConnected) {
-            GcOutlineButton(
-                text = stringResource(R.string.vpn_disconnect),
-                onClick = { viewModel.disconnect() },
-                modifier = Modifier.fillMaxWidth(),
+        // --- Header -------------------------------------------------------
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(GcIcons.ShieldCheck, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
+            Column(Modifier.weight(1f)) {
+                Text("GateControl", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+                Text(host, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
+            }
+            GcIconButton(
+                icon = if (effectivelyDark) GcIcons.Sun else GcIcons.Moon,
+                contentDescription = stringResource(
+                    if (effectivelyDark) R.string.vpn_theme_to_light else R.string.vpn_theme_to_dark,
+                ),
+                onClick = { viewModel.setTheme(if (effectivelyDark) "light" else "dark") },
             )
-        } else {
-            GcPrimaryButton(
-                text = stringResource(R.string.vpn_connect),
+        }
+
+        // --- Access expiry ------------------------------------------------
+        var expiryDismissed by rememberSaveable { mutableStateOf(false) }
+        val expiry = expiresAt
+        if (expiry != null && !expiryDismissed) {
+            val msLeft = expiry - System.currentTimeMillis()
+            val daysLeft = (msLeft / 86_400_000L).toInt()
+            if (msLeft > 0 && daysLeft < EXPIRY_WARN_DAYS) {
+                GcBanner(tone = GcTone.Warn, icon = GcIcons.Clock) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append(
+                                    if (daysLeft == 0) stringResource(R.string.vpn_expiry_today)
+                                    else pluralStringResource(R.plurals.vpn_expiry_days, daysLeft, daysLeft),
+                                )
+                            }
+                            append(" ")
+                            append(stringResource(R.string.vpn_expiry_hint))
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    GcIconButton(
+                        icon = GcIcons.Close,
+                        contentDescription = stringResource(R.string.common_dismiss),
+                        onClick = { expiryDismissed = true },
+                        size = 40.dp,
+                        iconSize = 18.dp,
+                    )
+                }
+            }
+        }
+
+        // --- Orb ----------------------------------------------------------
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            val orbHint = when {
+                isConnected -> stringResource(R.string.vpn_disconnect)
+                isBusy -> stringResource(R.string.vpn_connecting)
+                else -> stringResource(R.string.vpn_connect)
+            }
+            ConnectionOrb(
+                state = tunnelState,
+                hint = orbHint,
+                contentDescription = orbHint,
                 onClick = {
-                    // Check VPN permission before connecting
-                    val prepareIntent = android.net.VpnService.prepare(context)
-                    if (prepareIntent != null) {
-                        vpnPermissionLauncher.launch(prepareIntent)
-                    } else {
-                        viewModel.connect()
+                    when {
+                        isConnected -> viewModel.disconnect()
+                        isBusy -> viewModel.disconnect()
+                        else -> startConnect()
                     }
                 },
-                enabled = !isBusy,
-                loading = isBusy,
-                modifier = Modifier.fillMaxWidth(),
             )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            ) {
+                Text(
+                    text = heroTitle(tunnelState),
+                    style = MaterialTheme.typography.displayMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = when {
+                        isConnected -> stringResource(R.string.vpn_sub_on, host)
+                        isBusy -> stringResource(R.string.vpn_sub_connecting, host)
+                        isError -> stringResource(R.string.vpn_sub_error)
+                        killSwitchEnabled -> stringResource(R.string.vpn_sub_off_killswitch)
+                        else -> stringResource(R.string.vpn_sub_off)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = extra.muted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            val st = tunnelState
+            if (st is TunnelState.Error) {
+                GcBanner(tone = GcTone.Error) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)) {
+                                append(stringResource(R.string.vpn_error))
+                                append(". ")
+                            }
+                            append(st.message)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GcPrimaryButton(
+                        text = stringResource(R.string.vpn_retry),
+                        onClick = startConnect,
+                        modifier = Modifier.weight(1f),
+                    )
+                    GcOutlineButton(
+                        text = stringResource(R.string.vpn_logs),
+                        onClick = onOpenLogs,
+                        fillWidth = false,
+                    )
+                }
+            }
+            if (isBusy) {
+                GcOutlineButton(
+                    text = stringResource(R.string.common_cancel),
+                    onClick = { viewModel.disconnect() },
+                    fillWidth = false,
+                )
+            }
+            if (isConnected && !portalUrl.isNullOrBlank()) {
+                GcOutlineButton(
+                    text = stringResource(R.string.vpn_portal_open),
+                    onClick = { viewModel.openPortal(context) },
+                    icon = GcIcons.External,
+                    fillWidth = false,
+                    minHeight = 40.dp,
+                )
+            }
         }
 
-        // Portal button — shown when connected and a portal URL is known; gated only on URL
-        // (manual button works even when admin disabled autoappear)
-        if (isConnected && !portalUrl.isNullOrBlank()) {
-            Spacer(Modifier.height(8.dp))
-            GcOutlineButton(
-                text = stringResource(R.string.vpn_portal_open),
-                onClick = { viewModel.openPortal(context) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        // Stats grid (only show when connected or previously connected)
-        if (isConnected || stats.rxBytes > 0 || stats.txBytes > 0) {
-            val connectedSince = (tunnelState as? TunnelState.Connected)?.connectedSince ?: 0L
-            StatsGrid(
-                stats = stats,
-                serverHost = viewModel.serverHost,
-                connectedSince = connectedSince,
-                currentTimeMillis = tick,
-                locale = "en",
-            )
-        }
-
-        // Bandwidth graph (only when connected)
+        // --- Connection details ------------------------------------------
         if (isConnected) {
-            BandwidthGraph(
-                rxHistory = rxHistory.toList(),
-                txHistory = txHistory.toList(),
-            )
+            val connectedSince = (tunnelState as? TunnelState.Connected)?.connectedSince ?: 0L
+            @Suppress("UNUSED_EXPRESSION")
+            tick // recompose every second
+            val uptime = if (connectedSince > 0) {
+                Formatters.formatDuration((System.currentTimeMillis() - connectedSince) / 1000)
+            } else {
+                "—"
+            }
+            val hsAge = stats.handshakeAgeSeconds
+            GcCard(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    GcLabeledValue(stringResource(R.string.vpn_tunnel_ip), viewModel.tunnelAddress ?: "—", Modifier.weight(1f))
+                    GcLabeledValue(stringResource(R.string.vpn_connected_since), uptime, Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    GcLabeledValue(
+                        stringResource(R.string.vpn_last_handshake),
+                        if (hsAge == Long.MAX_VALUE) "—" else stringResource(R.string.vpn_handshake_ago, hsAge),
+                        Modifier.weight(1f),
+                    )
+                    GcLabeledValue(stringResource(R.string.vpn_server), viewModel.serverHost ?: "—", Modifier.weight(1f))
+                }
+            }
         }
 
-        // Traffic usage (requires traffic permission)
+        // --- Quick tiles --------------------------------------------------
+        val tiles = buildList<@Composable (Modifier) -> Unit> {
+            add { m ->
+                GcTile(
+                    icon = GcIcons.Lock,
+                    iconTint = if (killSwitchEnabled) extra.accentText else extra.faint,
+                    title = stringResource(R.string.vpn_kill_switch),
+                    subtitle = stringResource(if (killSwitchEnabled) R.string.tile_on else R.string.tile_off),
+                    active = killSwitchEnabled,
+                    onClick = { viewModel.toggleKillSwitch(!killSwitchEnabled) },
+                    modifier = m,
+                )
+            }
+            add { m ->
+                GcTile(
+                    icon = GcIcons.Split,
+                    iconTint = extra.blue,
+                    title = stringResource(R.string.settings_split_tunnel),
+                    subtitle = stringResource(
+                        when (splitMode) {
+                            "exclude" -> R.string.split_tile_exclude
+                            "include" -> R.string.split_tile_include
+                            else -> R.string.tile_off
+                        },
+                    ),
+                    onClick = onOpenSplitTunnel,
+                    modifier = m,
+                )
+            }
+            if (permissions.pihole) {
+                add { m -> PiholeTile(onOpen = onOpenPihole, modifier = m) }
+            }
+            if (permissions.dns) {
+                add { m -> DnsLeakTile(viewModel, m) }
+            }
+        }
+        tiles.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { tile -> tile(Modifier.weight(1f)) }
+                if (row.size == 1) Column(Modifier.weight(1f)) {}
+            }
+        }
+
+        // --- Throughput + usage ------------------------------------------
+        BandwidthGraph(
+            rxHistory = rxHistory.toList(),
+            txHistory = txHistory.toList(),
+            connected = isConnected,
+            rxSpeed = stats.rxSpeed,
+            txSpeed = stats.txSpeed,
+        )
+
         if (permissions.traffic && trafficUsage != null) {
             TrafficUsage(traffic = trafficUsage)
-        }
-
-        // Pi-hole quick card (requires pihole permission)
-        if (permissions.pihole) {
-            com.gatecontrol.android.ui.pihole.PiholeHomeCard(onOpen = onOpenPihole)
-        }
-
-        // Kill-switch toggle
-        GcToggleRow(
-            icon = Icons.Default.Lock,
-            label = stringResource(R.string.vpn_kill_switch),
-            description = stringResource(R.string.vpn_kill_switch_desc),
-            checked = killSwitchEnabled,
-            onCheckedChange = { viewModel.toggleKillSwitch(it) },
-        )
-
-        // DNS leak test (requires dns permission)
-        if (permissions.dns) {
-            var dnsTestResult by remember { mutableStateOf<String?>(null) }
-            var dnsTestLoading by remember { mutableStateOf(false) }
-
-            GcOutlineButton(
-                text = if (dnsTestLoading) stringResource(R.string.dns_testing)
-                       else dnsTestResult ?: stringResource(R.string.dns_leak_test),
-                onClick = {
-                    dnsTestLoading = true
-                    viewModel.runDnsLeakTest { result ->
-                        dnsTestResult = result
-                        dnsTestLoading = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }
 
 @Composable
-private fun ServicesSection(
-    services: List<com.gatecontrol.android.network.VpnService>,
-) {
-    val extra = GateControlTheme.extraColors
+private fun heroTitle(state: TunnelState): String = when (state) {
+    is TunnelState.Connected -> stringResource(R.string.vpn_hero_on)
+    is TunnelState.Connecting -> stringResource(R.string.vpn_connecting)
+    is TunnelState.Reconnecting -> stringResource(R.string.vpn_reconnecting, state.attempt, state.maxAttempts)
+    TunnelState.Disconnecting -> stringResource(R.string.vpn_disconnecting)
+    is TunnelState.Error -> stringResource(R.string.vpn_hero_error)
+    TunnelState.Disconnected -> stringResource(R.string.vpn_hero_off)
+}
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.services_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        services.forEach { service ->
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, extra.border),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 12.dp),
-                    ) {
-                        Text(
-                            text = service.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = service.domain,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (service.hasAuth) {
-                        Text(
-                            text = stringResource(R.string.services_auth_badge),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = extra.warn,
-                        )
-                    }
-                }
+@Composable
+private fun DnsLeakTile(viewModel: VpnViewModel, modifier: Modifier) {
+    val extra = GateControlTheme.extraColors
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<Pair<Boolean, String?>?>(null) }
+
+    val spin = androidx.compose.animation.core.rememberInfiniteTransition(label = "dns")
+    val angle by spin.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(1_100, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "dns_spin",
+    )
+
+    val (ok, detail) = result ?: (null to null)
+    GcTile(
+        icon = GcIcons.Globe,
+        iconTint = when (ok) {
+            true -> extra.accentText
+            false -> MaterialTheme.colorScheme.error
+            null -> extra.blue
+        },
+        title = stringResource(R.string.dns_leak_test),
+        subtitle = when {
+            busy -> stringResource(R.string.dns_testing)
+            ok == true -> stringResource(R.string.dns_tile_ok, detail ?: "")
+            ok == false -> stringResource(R.string.dns_tile_fail)
+            else -> stringResource(R.string.dns_tile_idle)
+        },
+        enabled = !busy,
+        onClick = {
+            busy = true
+            viewModel.runDnsLeakTest { success, info ->
+                result = success to info
+                busy = false
             }
-            Spacer(Modifier.height(2.dp))
-        }
-    }
+        },
+        iconModifier = if (busy) Modifier.graphicsLayer { rotationZ = angle } else Modifier,
+        modifier = modifier,
+    )
 }

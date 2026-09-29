@@ -56,7 +56,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
 import com.gatecontrol.android.common.EnrollmentLink
+import com.gatecontrol.android.ui.components.GcBanner
+import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcIconSquare
+import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.components.GcTextField
+import com.gatecontrol.android.ui.components.GcTone
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -73,6 +82,7 @@ fun SetupScreen(
     autoOpenScanner: Boolean = false,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val extra = GateControlTheme.extraColors
 
     var scannerOpened by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -136,7 +146,9 @@ fun SetupScreen(
     uiState.pendingEnrollment?.let { link ->
         AlertDialog(
             onDismissRequest = viewModel::cancelEnrollment,
-            title = { Text(stringResource(R.string.setup_enroll_confirm_title)) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.extraLarge,
+            title = { Text(stringResource(R.string.setup_enroll_confirm_title), style = MaterialTheme.typography.headlineMedium) },
             text = { Text(stringResource(R.string.setup_enroll_confirm_body, link.serverUrl.removePrefix("https://"))) },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmEnrollment) {
@@ -151,62 +163,40 @@ fun SetupScreen(
         )
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
+        val minHeight = maxHeight
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .heightIn(min = minHeight)
+                .padding(start = 20.dp, end = 20.dp, top = 40.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            // Logo
-            Icon(
-                imageVector = Icons.Filled.Lock,
-                contentDescription = null,
-                modifier = Modifier.size(72.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            GcIconSquare(size = 64.dp, background = extra.accentBg) {
+                Icon(
+                    imageVector = GcIcons.ShieldCheck,
+                    contentDescription = null,
+                    modifier = Modifier.size(34.dp),
+                    tint = extra.accentText,
+                )
+            }
 
-            Spacer(Modifier.height(8.dp))
-
-            // Title
             Text(
                 text = stringResource(R.string.setup_title),
-                style = MaterialTheme.typography.headlineLarge,
+                style = MaterialTheme.typography.displayLarge,
                 color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
             )
-
-            // Subtitle
             Text(
                 text = stringResource(R.string.setup_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
+                color = extra.muted,
             )
 
-            Spacer(Modifier.height(16.dp))
-
-            // Primary action: Scan QR
-            GcPrimaryButton(
-                text = stringResource(R.string.setup_qr),
-                onClick = onNavigateToQr,
-                enabled = !uiState.isLoading,
-            )
-
-            // Secondary action: Enter Manually
-            GcSecondaryButton(
-                text = stringResource(R.string.setup_manual),
-                onClick = { viewModel.toggleManualExpanded() },
-                enabled = !uiState.isLoading,
-            )
-
-            // Expandable manual entry section
             AnimatedVisibility(
                 visible = uiState.isManualExpanded,
                 enter = expandVertically(),
@@ -223,20 +213,32 @@ fun SetupScreen(
                 )
             }
 
-            // Outline action: Import Config
-            GcOutlineButton(
-                text = stringResource(R.string.setup_import),
-                onClick = { configFileLauncher.launch("*/*") },
-                enabled = !uiState.isLoading,
-            )
-
-            // Status message
             if (uiState.statusMessage.isNotEmpty()) {
                 SetupStatusMessage(
                     message = uiState.statusMessage,
                     type = uiState.statusType,
                 )
             }
+
+            Spacer(Modifier.weight(1f))
+
+            GcPrimaryButton(
+                text = stringResource(R.string.setup_qr),
+                onClick = onNavigateToQr,
+                enabled = !uiState.isLoading,
+                icon = GcIcons.Qr,
+            )
+            GcOutlineButton(
+                text = stringResource(R.string.setup_manual),
+                onClick = { viewModel.toggleManualExpanded() },
+                enabled = !uiState.isLoading,
+                icon = GcIcons.Key,
+            )
+            GcSecondaryButton(
+                text = stringResource(R.string.setup_import),
+                onClick = { configFileLauncher.launch("*/*") },
+                enabled = !uiState.isLoading,
+            )
         }
     }
 }
@@ -252,22 +254,17 @@ private fun ManualEntrySection(
     onSaveAndRegister: () -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
+    var tokenVisible by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        OutlinedTextField(
+    GcCard(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        GcTextField(
             value = serverUrl,
             onValueChange = onServerUrlChanged,
-            label = { Text(stringResource(R.string.settings_server_url)) },
-            placeholder = { Text(stringResource(R.string.settings_server_url_hint)) },
-            prefix = { Text("https://") },
-            singleLine = true,
+            label = stringResource(R.string.settings_server_url),
+            placeholder = stringResource(R.string.settings_server_url_hint),
+            prefix = "https://",
+            mono = true,
             enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Uri,
                 imeAction = ImeAction.Next,
@@ -276,22 +273,20 @@ private fun ManualEntrySection(
                 onNext = { focusManager.moveFocus(FocusDirection.Down) },
             ),
         )
-
-        var tokenVisible by remember { mutableStateOf(false) }
-        OutlinedTextField(
+        GcTextField(
             value = apiToken,
             onValueChange = onApiTokenChanged,
-            label = { Text(stringResource(R.string.setup_token_or_code)) },
-            placeholder = { Text(stringResource(R.string.setup_token_or_code_hint)) },
-            singleLine = true,
+            label = stringResource(R.string.setup_token_or_code),
+            placeholder = stringResource(R.string.setup_token_or_code_hint),
+            mono = true,
             enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (tokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { tokenVisible = !tokenVisible }) {
                     Icon(
                         imageVector = if (tokenVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (tokenVisible) "Hide token" else "Show token",
+                        contentDescription = stringResource(if (tokenVisible) R.string.common_hide else R.string.common_show),
+                        tint = GateControlTheme.extraColors.muted,
                     )
                 }
             },
@@ -303,19 +298,21 @@ private fun ManualEntrySection(
                 onDone = { focusManager.clearFocus() },
             ),
         )
-
-        GcSecondaryButton(
-            text = stringResource(R.string.settings_test_connection),
-            onClick = onTestConnection,
-            enabled = !isLoading,
-        )
-
-        GcPrimaryButton(
-            text = stringResource(R.string.settings_save_register),
-            onClick = onSaveAndRegister,
-            enabled = !isLoading,
-            loading = isLoading,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GcOutlineButton(
+                text = stringResource(R.string.settings_test_connection),
+                onClick = onTestConnection,
+                enabled = !isLoading,
+                modifier = Modifier.weight(1f),
+            )
+            GcPrimaryButton(
+                text = stringResource(R.string.settings_save_register),
+                onClick = onSaveAndRegister,
+                enabled = !isLoading,
+                loading = isLoading,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
@@ -324,30 +321,16 @@ private fun SetupStatusMessage(
     message: String,
     type: StatusType,
 ) {
-    val (icon, color) = when (type) {
-        StatusType.SUCCESS -> Icons.Filled.CheckCircle to MaterialTheme.colorScheme.primary
-        StatusType.ERROR -> Icons.Filled.Warning to MaterialTheme.colorScheme.error
-        StatusType.INFO -> Icons.Filled.Info to GateControlTheme.extraColors.blue
+    val (icon, tone) = when (type) {
+        StatusType.SUCCESS -> GcIcons.Check to GcTone.Ok
+        StatusType.ERROR -> GcIcons.Alert to GcTone.Error
+        StatusType.INFO -> GcIcons.Alert to GcTone.Info
     }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(20.dp),
-        )
+    GcBanner(tone = tone, icon = icon) {
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
-            color = color,
-            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

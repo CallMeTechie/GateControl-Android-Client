@@ -61,6 +61,17 @@ class VpnViewModel @Inject constructor(
     val killSwitchEnabled: StateFlow<Boolean> = settingsRepository.getKillSwitch()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /** "off", "exclude" or "include" — shown on the split-tunnel tile. */
+    val splitTunnelMode: StateFlow<String> = settingsRepository.getSplitTunnelMode()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "off")
+
+    val theme: StateFlow<String> = settingsRepository.getTheme()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "system")
+
+    /** Peer expiry (epoch millis) from /client/peer-info, null when unlimited or unknown. */
+    private val _peerExpiresAt = MutableStateFlow<Long?>(null)
+    val peerExpiresAt: StateFlow<Long?> = _peerExpiresAt.asStateFlow()
+
     private var monitoringStarted = false
 
     private val _portalUrl = MutableStateFlow(setupRepository.getPortalUrl())
@@ -162,6 +173,7 @@ class VpnViewModel @Inject constructor(
             if (peerId <= 0) return
             val client = apiClientProvider.getClient(serverUrl)
             val response = client.getPeerInfo(peerId)
+            if (response.ok) _peerExpiresAt.value = parseServerTime(response.peer.expiresAt)
             if (response.ok && !response.peer.enabled) {
                 Timber.w("Peer disabled on server (id=$peerId) — disconnecting tunnel")
                 tunnelManager.disconnect()
@@ -341,6 +353,42 @@ class VpnViewModel @Inject constructor(
         }
     }
 
+    /** Load the peer's expiry once (the 60 s monitor loop refreshes it while connected). */
+    fun loadPeerInfo() {
+        viewModelScope.launch {
+            try {
+                val serverUrl = setupRepository.getServerUrl()
+                val peerId = setupRepository.getPeerId()
+                if (serverUrl.isEmpty() || peerId <= 0) return@launch
+                val response = apiClientProvider.getClient(serverUrl).getPeerInfo(peerId)
+                if (response.ok) _peerExpiresAt.value = parseServerTime(response.peer.expiresAt)
+            } catch (e: Exception) {
+                Timber.d("Peer info not loaded (offline): ${e.message}")
+            }
+        }
+    }
+
+    fun setTheme(theme: String) {
+        viewModelScope.launch { settingsRepository.setTheme(theme) }
+    }
+
+    /** Host part of the configured server URL (for the header). */
+    val serverUrlHost: String?
+        get() = setupRepository.getServerUrl().takeIf { it.isNotBlank() }?.let {
+            runCatching { java.net.URI(it).host }.getOrNull()
+        }
+
+    /** Tunnel address from the WireGuard config, without prefix length. */
+    val tunnelAddress: String?
+        get() {
+            val config = setupRepository.getWireGuardConfig()
+            if (config.isEmpty()) return null
+            return runCatching {
+                com.gatecontrol.android.tunnel.TunnelConfig.parse(config).address
+                    .split(",").first().trim().substringBefore("/")
+            }.getOrNull()?.takeIf { it.isNotBlank() }
+        }
+
     /** Derive server hostname from stored WireGuard config. */
     val serverHost: String?
         get() {
@@ -353,24 +401,21 @@ class VpnViewModel @Inject constructor(
             }
         }
 
-    fun runDnsLeakTest(onResult: (String) -> Unit) {
+    /** Asks the server which resolver the tunnel uses; reports (ok, vpnDns or error detail). */
+    fun runDnsLeakTest(onResult: (ok: Boolean, detail: String?) -> Unit) {
         viewModelScope.launch {
             try {
                 val serverUrl = setupRepository.getServerUrl()
                 if (serverUrl.isEmpty()) {
-                    onResult("No server configured")
+                    onResult(false, null)
                     return@launch
                 }
                 val client = apiClientProvider.getClient(serverUrl)
                 val response = client.dnsCheck()
-                if (response.ok) {
-                    onResult("DNS: ${response.vpnDns} (Subnet: ${response.vpnSubnet})")
-                } else {
-                    onResult("DNS check failed")
-                }
+                onResult(response.ok, response.vpnDns)
             } catch (e: Exception) {
                 Timber.w(e, "VpnViewModel: DNS leak test failed")
-                onResult("DNS test error: ${e.localizedMessage}")
+                onResult(false, e.localizedMessage)
             }
         }
     }
@@ -433,6 +478,19 @@ class VpnViewModel @Inject constructor(
         } catch (e: Exception) {
             Timber.w(e, "Failed to parse split-tunnel apps JSON, falling back to empty")
             emptyList()
+        }
+    }
+
+    companion object {
+        /** Accepts ISO-8601 ("…Z" / offset) and SQLite "yyyy-MM-dd HH:mm:ss" (UTC). */
+        internal fun parseServerTime(raw: String?): Long? {
+            if (raw.isNullOrBlank()) return null
+            return runCatching { java.time.Instant.parse(raw).toEpochMilli() }.getOrNull()
+                ?: runCatching { java.time.OffsetDateTime.parse(raw).toInstant().toEpochMilli() }.getOrNull()
+                ?: runCatching {
+                    java.time.LocalDateTime.parse(raw.trim().replace(' ', 'T'))
+                        .toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+                }.getOrNull()
         }
     }
 }
