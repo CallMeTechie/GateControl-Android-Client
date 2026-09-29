@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1] - 2026-09-29
+
+### Fixes
+- targetSdk und compileSdk auf API 36 (Android 16)
+
+---
+
 ## [1.12.0] - 2026-09-29
 
 ### Features
