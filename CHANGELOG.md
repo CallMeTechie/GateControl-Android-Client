@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.2] - 2026-09-29
+
+### Fixes
+- Tile-Aktionen, Setup-Links, Kill-Switch, Diagnose-Logs und Release-Signierung absichern (#22)
+
+---
+
 ## [1.12.1] - 2026-09-29
 
 ### Fixes
