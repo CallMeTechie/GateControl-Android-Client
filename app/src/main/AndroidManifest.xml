@@ -90,7 +90,7 @@
             android:exported="false"
             android:theme="@style/Theme.GateControl"
             android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden"
             android:windowSoftInputMode="adjustResize" />
 
         <service

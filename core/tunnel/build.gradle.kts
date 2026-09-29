@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.gatecontrol.android.core.tunnel"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 31
