@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.3] - 2026-09-30
+
+### Fixes
+- Meldungen übersetzt, Heartbeat an den Server, toter Code entfernt (#27)
+
+---
+
 ## [1.13.2] - 2026-09-30
 
 ### Fixes
