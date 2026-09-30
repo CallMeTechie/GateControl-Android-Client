@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.2] - 2026-09-30
+
+### Fixes
+- Geheimnisse nie im Klartext, RDP-Passwort flüchtig, VPN-Subnetz aus der Config (#26)
+
+---
+
 ## [1.13.1] - 2026-09-30
 
 ### Changes
