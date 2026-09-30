@@ -232,8 +232,19 @@ jobs:
           git config user.email "github-actions@github.com"
           git add app/build.gradle.kts CHANGELOG.md
           git commit -m "chore: bump version to $NEW_VERSION"
-          git tag "$TAG"
-          git push origin main --tags
+          # Push commit and tag atomically: a concurrent push to main (e.g. the
+          # FreeRDP AAR rebuild) must not leave a tag without its commit. On a
+          # race, rebase onto the new main, re-tag and try again.
+          for attempt in 1 2 3; do
+            git tag -f "$TAG"
+            if git push --atomic origin HEAD:main "refs/tags/$TAG"; then
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push version bump after 3 attempts"
+          exit 1
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
