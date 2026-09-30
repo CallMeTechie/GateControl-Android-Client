@@ -57,16 +57,6 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `getCheckInterval returns 30 by default`() = runTest {
-        every { dataStore.data } returns flowOf(preferencesOf())
-
-        repository.getCheckInterval().test {
-            assertEquals(30, awaitItem())
-            awaitComplete()
-        }
-    }
-
-    @Test
     fun `setTheme updates theme value`() = runTest {
         coEvery { dataStore.updateData(any()) } coAnswers {
             val transform = firstArg<suspend (Preferences) -> Preferences>()

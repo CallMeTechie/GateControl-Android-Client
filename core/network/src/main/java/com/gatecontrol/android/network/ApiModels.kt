@@ -235,12 +235,6 @@ data class HeartbeatRequest(
     val hostname: String
 )
 
-data class StatusRequest(
-    val peerId: Int,
-    val status: String,
-    val timestamp: String
-)
-
 data class HostnameReportRequest(
     val hostname: String
 )
@@ -269,6 +263,12 @@ data class WolResponse(
 data class RdpRouteStatusResponse(
     val ok: Boolean,
     val status: RdpRouteStatus?
+)
+
+/** Reply to /client/heartbeat; peerEnabled=false means the admin disabled this peer. */
+data class HeartbeatResponse(
+    val ok: Boolean,
+    val peerEnabled: Boolean? = null,
 )
 
 data class SimpleResponse(

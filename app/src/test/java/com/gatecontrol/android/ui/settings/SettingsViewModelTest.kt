@@ -50,8 +50,6 @@ class SettingsViewModelTest {
             every { getSplitTunnelEnabled() } returns flowOf(false)
             every { getSplitTunnelRoutes() } returns flowOf("")
             every { getSplitTunnelApps() } returns flowOf("")
-            every { getCheckInterval() } returns flowOf(30)
-            every { getConfigPollInterval() } returns flowOf(300)
         }
         setupRepository = mockk {
             every { getServerUrl() } returns "https://gate.example.com"

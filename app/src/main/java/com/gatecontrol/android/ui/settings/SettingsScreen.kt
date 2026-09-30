@@ -214,9 +214,9 @@ fun SettingsScreen(
             )
         }
 
-        if (uiState.error != null) {
+        uiState.error?.let { error ->
             Text(
-                text = uiState.error ?: "",
+                text = error.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )

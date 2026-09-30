@@ -4,6 +4,7 @@ import com.gatecontrol.android.common.HostnameSanitizer
 import com.gatecontrol.android.common.VpnSubnet
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.data.SplitTunnelJson
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HostnameReportRequest
 import com.gatecontrol.android.tunnel.SplitTunnelConfig
@@ -11,8 +12,6 @@ import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import kotlinx.coroutines.flow.first
-import org.json.JSONArray
-import org.json.JSONObject
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -130,11 +129,11 @@ class TunnelConnector @Inject constructor(
                     val preset = client.getSplitTunnelPreset()
                     if (preset.ok && preset.mode != "off" && preset.source != "none") {
                         settingsRepository.setSplitTunnelMode(preset.mode)
-                        val arr = JSONArray()
-                        preset.networks.forEach {
-                            arr.put(JSONObject().put("cidr", it.cidr).put("label", it.label))
-                        }
-                        settingsRepository.setSplitTunnelNetworks(arr.toString())
+                        settingsRepository.setSplitTunnelNetworks(
+                            SplitTunnelJson.encodeNetworks(
+                                preset.networks.map { SplitTunnelJson.Network(it.cidr, it.label) },
+                            ),
+                        )
                         settingsRepository.setSplitTunnelAdminLocked(preset.locked)
                         adminPresetActive = true
 
@@ -142,7 +141,7 @@ class TunnelConnector @Inject constructor(
                         splitTunnelConfig = SplitTunnelConfig(
                             mode = preset.mode,
                             networks = preset.networks.map { it.cidr },
-                            apps = parseSplitAppsJson(userApps),
+                            apps = SplitTunnelJson.decodeApps(userApps),
                         )
                     }
                 } catch (e: Exception) {
@@ -157,8 +156,8 @@ class TunnelConnector @Inject constructor(
                     val appsJson = settingsRepository.getSplitTunnelAppsV2().first()
                     splitTunnelConfig = SplitTunnelConfig(
                         mode = mode,
-                        networks = parseSplitNetworksJsonToCidrs(networksJson),
-                        apps = parseSplitAppsJson(appsJson),
+                        networks = SplitTunnelJson.decodeNetworks(networksJson).map { it.cidr },
+                        apps = SplitTunnelJson.decodeApps(appsJson),
                     )
                 }
             }
@@ -178,28 +177,6 @@ class TunnelConnector @Inject constructor(
             Timber.d("Hostname report: assigned=${response.assigned} changed=${response.changed}")
         } catch (e: Exception) {
             Timber.d(e, "Hostname report skipped: ${e.message}")
-        }
-    }
-
-    private fun parseSplitNetworksJsonToCidrs(json: String): List<String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getJSONObject(it).getString("cidr") }
-        } catch (e: Exception) {
-            Timber.w(e, "Failed to parse split-tunnel networks JSON, falling back to empty")
-            emptyList()
-        }
-    }
-
-    private fun parseSplitAppsJson(json: String): List<String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
-        } catch (e: Exception) {
-            Timber.w(e, "Failed to parse split-tunnel apps JSON, falling back to empty")
-            emptyList()
         }
     }
 }

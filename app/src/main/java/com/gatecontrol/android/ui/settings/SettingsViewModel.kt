@@ -3,15 +3,15 @@ package com.gatecontrol.android.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.UiText
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.data.SplitTunnelJson
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import com.gatecontrol.android.network.UpdateCheckResponse
 import com.gatecontrol.android.common.Validation
-import org.json.JSONArray
-import org.json.JSONObject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,18 +40,14 @@ data class SettingsUiState(
     val splitTunnelNetworks: List<NetworkEntry> = emptyList(),
     val splitTunnelAppsV2: List<String> = emptyList(),
     val splitTunnelAdminLocked: Boolean = false,
-    val checkInterval: Int = 30,
-    val configPollInterval: Int = 300,
     val serverUrl: String = "",
     val apiToken: String = "",
     val connectionTestStatus: ConnectionTestStatus = ConnectionTestStatus.Idle,
     val isLoading: Boolean = false,
     val updateInfo: UpdateCheckResponse? = null,
     val appVersion: String = "",
-    val error: String? = null,
-    val success: String? = null,
+    val error: UiText? = null,
     val isPro: Boolean = false,
-    val licenseStatus: String = "",
     val peerId: Int = 0,
 )
 
@@ -111,13 +107,13 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsRepository.getSplitTunnelNetworks().collect { json ->
-                val networks = parseSplitNetworksJson(json)
+                val networks = SplitTunnelJson.decodeNetworks(json).map { NetworkEntry(it.cidr, it.label) }
                 _uiState.update { it.copy(splitTunnelNetworks = networks) }
             }
         }
         viewModelScope.launch {
             settingsRepository.getSplitTunnelAppsV2().collect { json ->
-                val apps = parseSplitAppsJson(json)
+                val apps = SplitTunnelJson.decodeApps(json)
                 _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
             }
         }
@@ -127,17 +123,7 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            settingsRepository.getCheckInterval().collect { interval ->
-                _uiState.update { it.copy(checkInterval = interval) }
-            }
-        }
 
-        viewModelScope.launch {
-            settingsRepository.getConfigPollInterval().collect { interval ->
-                _uiState.update { it.copy(configPollInterval = interval) }
-            }
-        }
 
         _uiState.update {
             it.copy(
@@ -176,17 +162,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setCheckInterval(seconds: Int) {
-        viewModelScope.launch {
-            settingsRepository.setCheckInterval(seconds)
-        }
-    }
 
-    fun setConfigPollInterval(seconds: Int) {
-        viewModelScope.launch {
-            settingsRepository.setConfigPollInterval(seconds)
-        }
-    }
 
     fun testConnection(url: String, token: String) {
         viewModelScope.launch {
@@ -221,11 +197,11 @@ class SettingsViewModel @Inject constructor(
     fun saveServer(url: String, token: String) {
         val url = ensureHttps(url)
         if (!Validation.validateServerUrl(url)) {
-            _uiState.update { it.copy(error = "Invalid server URL") }
+            _uiState.update { it.copy(error = UiText.Res(R.string.settings_error_invalid_url)) }
             return
         }
         if (!Validation.validateApiToken(token)) {
-            _uiState.update { it.copy(error = "Invalid API token") }
+            _uiState.update { it.copy(error = UiText.Res(R.string.settings_error_invalid_token)) }
             return
         }
 
@@ -254,7 +230,7 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message,
+                        error = UiText.Res(R.string.setup_connection_failed, e.localizedMessage ?: ""),
                         connectionTestStatus = ConnectionTestStatus.Failure
                     )
                 }
@@ -286,45 +262,20 @@ class SettingsViewModel @Inject constructor(
     fun setSplitTunnelNetworks(networks: List<NetworkEntry>) {
         _uiState.update { it.copy(splitTunnelNetworks = networks) }
         viewModelScope.launch {
-            val arr = JSONArray()
-            networks.forEach { arr.put(JSONObject().put("cidr", it.cidr).put("label", it.label)) }
-            settingsRepository.setSplitTunnelNetworks(arr.toString())
+            settingsRepository.setSplitTunnelNetworks(
+                SplitTunnelJson.encodeNetworks(networks.map { SplitTunnelJson.Network(it.cidr, it.label) }),
+            )
         }
     }
 
     fun setSplitTunnelAppsV2(apps: List<String>) {
         _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
         viewModelScope.launch {
-            val arr = JSONArray()
-            apps.forEach { arr.put(JSONObject().put("package", it).put("label", "")) }
-            settingsRepository.setSplitTunnelAppsV2(arr.toString())
+            settingsRepository.setSplitTunnelAppsV2(SplitTunnelJson.encodeApps(apps))
         }
     }
 
-    private fun parseSplitNetworksJson(json: String): List<NetworkEntry> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map {
-                val obj = arr.getJSONObject(it)
-                NetworkEntry(obj.getString("cidr"), obj.optString("label", ""))
-            }
-        } catch (e: Exception) {
-            timber.log.Timber.w(e, "Failed to parse split-tunnel networks JSON")
-            emptyList()
-        }
-    }
 
-    private fun parseSplitAppsJson(json: String): List<String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
-        } catch (e: Exception) {
-            timber.log.Timber.w(e, "Failed to parse split-tunnel apps JSON")
-            emptyList()
-        }
-    }
 
     fun checkForUpdate(currentVersion: String) {
         viewModelScope.launch {
@@ -347,7 +298,7 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Update check: ${e.localizedMessage}"
+                        error = UiText.Res(R.string.settings_error_update_check, e.localizedMessage ?: "")
                     )
                 }
             }
@@ -359,7 +310,6 @@ class SettingsViewModel @Inject constructor(
             try {
                 val serverUrl = setupRepository.getServerUrl()
                 if (serverUrl.isBlank()) {
-                    _uiState.update { it.copy(licenseStatus = "No server configured") }
                     return@launch
                 }
                 val client = apiClientProvider.getClient(serverUrl)
@@ -378,13 +328,12 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isPro = isPro,
-                            licenseStatus = if (isPro) "Pro" else "Community",
                         )
                     }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "License refresh failed")
-                _uiState.update { it.copy(error = "License refresh failed: ${e.localizedMessage}") }
+                _uiState.update { it.copy(error = UiText.Res(R.string.settings_error_license, e.localizedMessage ?: "")) }
             }
         }
     }
@@ -414,14 +363,14 @@ class SettingsViewModel @Inject constructor(
                 if (!validation.ok) {
                     Timber.w("importConfigFromUri rejected: %s", validation.errors.joinToString(", "))
                     _uiState.update {
-                        it.copy(error = context.getString(R.string.setup_invalid_config))
+                        it.copy(error = UiText.Res(R.string.setup_invalid_config))
                     }
                     return@launch
                 }
                 setupRepository.saveWireGuardConfig(config)
-                _uiState.update { it.copy(error = null, success = "Config imported successfully") }
+                _uiState.update { it.copy(error = null) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Import failed: ${e.message}") }
+                _uiState.update { it.copy(error = UiText.Res(R.string.setup_import_failed, e.message ?: "")) }
             }
         }
     }

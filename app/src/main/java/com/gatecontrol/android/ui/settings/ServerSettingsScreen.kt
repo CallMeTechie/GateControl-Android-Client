@@ -151,7 +151,7 @@ fun ServerSettingsScreen(
                         Text(stringResource(R.string.settings_connection_ok), style = MaterialTheme.typography.bodyMedium)
                     }
                     ConnectionTestStatus.Failure -> GcBanner(tone = GcTone.Error, icon = GcIcons.Alert) {
-                        Text(uiState.error ?: stringResource(R.string.settings_connection_fail), style = MaterialTheme.typography.bodyMedium)
+                        Text(uiState.error?.asString() ?: stringResource(R.string.settings_connection_fail), style = MaterialTheme.typography.bodyMedium)
                     }
                     else -> Unit
                 }

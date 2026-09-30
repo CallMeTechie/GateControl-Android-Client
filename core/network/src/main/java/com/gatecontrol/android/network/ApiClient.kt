@@ -38,13 +38,10 @@ interface ApiClient {
     ): ConfigCheckResponse
 
     @POST("api/v1/client/heartbeat")
-    suspend fun sendHeartbeat(@Body request: HeartbeatRequest): SimpleResponse
+    suspend fun sendHeartbeat(@Body request: HeartbeatRequest): HeartbeatResponse
 
     @POST("api/v1/client/peer/hostname")
     suspend fun reportHostname(@Body request: HostnameReportRequest): HostnameReportResponse
-
-    @POST("api/v1/client/status")
-    suspend fun reportStatus(@Body request: StatusRequest): SimpleResponse
 
     @GET("api/v1/client/peer-info")
     suspend fun getPeerInfo(@Query("peerId") peerId: Int): PeerInfoResponse
