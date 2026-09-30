@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1] - 2026-09-30
+
+### Changes
+- Toolchain auf AGP 9.4, Gradle 9.8, Kotlin 2.4 und KSP (#25)
+
+---
+
 ## [1.13.0] - 2026-09-30
 
 ### Features
