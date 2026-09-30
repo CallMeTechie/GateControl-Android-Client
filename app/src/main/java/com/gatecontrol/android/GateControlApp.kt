@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.service.TunnelStateHolder
+import com.gatecontrol.android.service.TunnelSupervisor
 import com.gatecontrol.android.tunnel.TunnelManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -59,6 +60,14 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to register TunnelStateHolder singletons")
         }
 
+        // Tunnel lifecycle outside the UI: Always-on VPN, auto-reconnect, tile state.
+        // Must run before the system starts the VPN service for Always-on.
+        try {
+            EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).tunnelSupervisor().start()
+        } catch (e: Throwable) {
+            Timber.e(e, "Failed to start TunnelSupervisor")
+        }
+
         // Initialize FreeRDP's GlobalApp.sessionMap, which is normally set in
         // GlobalApp.onCreate(). Since GateControlApp extends Application (Hilt
         // requirement), not GlobalApp, that lifecycle never fires. Without this,
@@ -84,6 +93,7 @@ class GateControlApp : Application() {
     interface TileEntryPoint {
         fun tunnelManager(): TunnelManager
         fun setupRepository(): SetupRepository
+        fun tunnelSupervisor(): TunnelSupervisor
     }
 
     private fun installCrashLogger(context: Context) {

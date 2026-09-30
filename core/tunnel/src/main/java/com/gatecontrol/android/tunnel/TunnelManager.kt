@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.VpnService
 import com.wireguard.android.backend.Backend
 import com.wireguard.android.backend.GoBackend
+import com.wireguard.android.backend.Statistics
 import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.Config
 import com.wireguard.config.Interface
@@ -11,9 +12,12 @@ import com.wireguard.config.InetAddresses
 import com.wireguard.config.InetNetwork
 import com.wireguard.config.Peer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.net.InetAddress
@@ -36,6 +40,13 @@ class TunnelManager @Inject constructor(private val context: Context) {
     private var prevTxBytes: Long = 0L
     private var prevStatsTime: Long = 0L
 
+    /** Serialises connect / reconnect / disconnect so they never interleave. */
+    private val lifecycleMutex = Mutex()
+
+    /** Last config brought up, reused by [reconnect]. */
+    @Volatile private var lastConfig: String? = null
+    @Volatile private var lastSplitConfig: SplitTunnelConfig = SplitTunnelConfig()
+
     fun initialize() {
         try {
             backend = GoBackend(context)
@@ -43,6 +54,16 @@ class TunnelManager @Inject constructor(private val context: Context) {
                 override fun getName(): String = TUNNEL_NAME
                 override fun onStateChange(newState: Tunnel.State) {
                     Timber.d("Tunnel state changed: $newState")
+                    // The backend reports DOWN on its own when the system
+                    // tears the VPN down (another VPN app took over, the user
+                    // revoked it in Android settings). Only react while we
+                    // think the tunnel is up — during our own connect,
+                    // reconnect or disconnect the state is managed there.
+                    if (newState == Tunnel.State.DOWN && _state.value is TunnelState.Connected) {
+                        Timber.w("Tunnel was stopped by the system")
+                        resetCounters()
+                        _state.value = TunnelState.Disconnected
+                    }
                 }
             }
             Timber.d("TunnelManager initialized")
@@ -79,13 +100,34 @@ class TunnelManager @Inject constructor(private val context: Context) {
         connectInternal(configString, splitConfig)
     }
 
-    private suspend fun connectInternal(configString: String, splitConfig: SplitTunnelConfig) {
+    /**
+     * Bring the last connected config up again. A fresh [Config] is built, so
+     * the backend restarts the tunnel and resolves the endpoint hostname anew
+     * (the server may have moved to a new IP behind DDNS). Returns false when
+     * there is nothing to reconnect or the attempt failed.
+     */
+    suspend fun reconnect(attempt: Int, maxAttempts: Int): Boolean {
+        val config = lastConfig ?: return false
+        connectInternal(config, lastSplitConfig, TunnelState.Reconnecting(attempt, maxAttempts))
+        return _state.value is TunnelState.Connected
+    }
+
+    /** Called by the system's "Always-on VPN" when it starts our VPN service. */
+    fun setAlwaysOnHandler(handler: () -> Unit) {
+        GoBackend.setAlwaysOnCallback { handler() }
+    }
+
+    private suspend fun connectInternal(
+        configString: String,
+        splitConfig: SplitTunnelConfig,
+        pendingState: TunnelState = TunnelState.Connecting,
+    ) = lifecycleMutex.withLock {
         withContext(Dispatchers.IO) {
             try {
                 val parsedConfig = TunnelConfig.parse(configString)
                 val wgConfig = buildWgConfig(parsedConfig, splitConfig)
 
-                _state.value = TunnelState.Connecting
+                _state.value = pendingState
                 Timber.d("Connecting tunnel with split-tunnel mode: ${splitConfig.mode}")
 
                 val currentBackend = backend ?: run {
@@ -97,13 +139,24 @@ class TunnelManager @Inject constructor(private val context: Context) {
                     ?: throw IllegalStateException("Tunnel not initialized")
 
                 currentBackend.setState(currentTunnel, Tunnel.State.UP, wgConfig)
+                lastConfig = configString
+                lastSplitConfig = splitConfig
 
                 prevRxBytes = 0L
                 prevTxBytes = 0L
                 prevStatsTime = System.currentTimeMillis()
 
+                // The interface is up, but only a handshake proves the server
+                // answers. Stay in the pending state until one arrives (or the
+                // wait runs out — an idle tunnel without keepalive may not
+                // handshake before the first packet; the monitor catches a
+                // peer that really is dead).
+                if (awaitHandshake(currentBackend, currentTunnel)) {
+                    Timber.i("Tunnel connected, handshake completed")
+                } else {
+                    Timber.w("Tunnel up, but no handshake within ${HANDSHAKE_WAIT_MS / 1000} s")
+                }
                 _state.value = TunnelState.Connected()
-                Timber.i("Tunnel connected successfully")
             } catch (e: Exception) {
                 Timber.e(e, "Failed to connect tunnel")
                 _state.value = TunnelState.Error(e.message ?: "Unknown error")
@@ -111,7 +164,24 @@ class TunnelManager @Inject constructor(private val context: Context) {
         }
     }
 
-    suspend fun disconnect() {
+    private suspend fun awaitHandshake(backend: Backend, tunnel: Tunnel): Boolean {
+        val deadline = System.currentTimeMillis() + HANDSHAKE_WAIT_MS
+        while (System.currentTimeMillis() < deadline) {
+            val handshake = runCatching { latestHandshakeMillis(backend.getStatistics(tunnel)) }.getOrDefault(0L)
+            if (handshake > 0L) return true
+            delay(HANDSHAKE_POLL_MS)
+        }
+        return false
+    }
+
+    private fun resetCounters() {
+        _stats.value = TunnelStats()
+        prevRxBytes = 0L
+        prevTxBytes = 0L
+        prevStatsTime = 0L
+    }
+
+    suspend fun disconnect() = lifecycleMutex.withLock {
         withContext(Dispatchers.IO) {
             try {
                 _state.value = TunnelState.Disconnecting
@@ -123,11 +193,9 @@ class TunnelManager @Inject constructor(private val context: Context) {
                 if (currentBackend != null && currentTunnel != null) {
                     currentBackend.setState(currentTunnel, Tunnel.State.DOWN, null)
                 }
+                lastConfig = null
 
-                _stats.value = TunnelStats()
-                prevRxBytes = 0L
-                prevTxBytes = 0L
-                prevStatsTime = 0L
+                resetCounters()
 
                 _state.value = TunnelState.Disconnected
                 Timber.i("Tunnel disconnected")
@@ -152,26 +220,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
             val totalRx = statistics.totalRx()
             val totalTx = statistics.totalTx()
 
-            // Get latest handshake from peer statistics via reflection
-            // (API varies across WireGuard library versions)
-            var latestHandshake = 0L
-            try {
-                val peersMethod = statistics.javaClass.getMethod("peers")
-                val peerKeys = peersMethod.invoke(statistics) as? Set<*>
-                peerKeys?.forEach { key ->
-                    try {
-                        val peerMethod = statistics.javaClass.getMethod("peer", key!!.javaClass)
-                        val peerStats = peerMethod.invoke(statistics, key)
-                        if (peerStats != null) {
-                            val hsField = peerStats.javaClass.getField("latestHandshakeEpochMillis")
-                            val hs = hsField.getLong(peerStats)
-                            if (hs > latestHandshake) latestHandshake = hs
-                        }
-                    } catch (_: Exception) { }
-                }
-            } catch (_: Exception) {
-                Timber.d("Handshake timestamp not available from Statistics API")
-            }
+            val latestHandshake = latestHandshakeMillis(statistics)
 
             val rxSpeed = if (elapsedSec > 0) ((totalRx - prevRxBytes) / elapsedSec).toLong() else 0L
             val txSpeed = if (elapsedSec > 0) ((totalTx - prevTxBytes) / elapsedSec).toLong() else 0L
@@ -197,6 +246,9 @@ class TunnelManager @Inject constructor(private val context: Context) {
     }
 
     fun isConnected(): Boolean = _state.value is TunnelState.Connected
+
+    private fun latestHandshakeMillis(statistics: Statistics): Long =
+        statistics.peers().maxOfOrNull { key -> statistics.peer(key)?.latestHandshakeEpochMillis() ?: 0L } ?: 0L
 
     private fun buildWgConfig(
         parsed: TunnelConfig,
@@ -272,5 +324,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
     companion object {
         private const val TUNNEL_NAME = "gatecontrol"
         private const val VPN_SUBNET = "10.8.0.0/24"
+        private const val HANDSHAKE_WAIT_MS = 10_000L
+        private const val HANDSHAKE_POLL_MS = 250L
     }
 }

@@ -77,6 +77,10 @@ class VpnViewModelTest {
             licenseRepository = licenseRepository,
             apiClientProvider = apiClientProvider,
             tunnelManager = tunnelManager,
+            // Real connector on the same mocks: connect() must go through the shared path.
+            tunnelConnector = com.gatecontrol.android.service.TunnelConnector(
+                setupRepository, settingsRepository, apiClientProvider, tunnelManager,
+            ),
         )
     }
 

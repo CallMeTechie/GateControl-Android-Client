@@ -9,10 +9,8 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
-import com.gatecontrol.android.service.TunnelStateHolder
-import com.gatecontrol.android.tunnel.SplitTunnelConfig
+import com.gatecontrol.android.service.TunnelConnector
 import com.gatecontrol.android.tunnel.TunnelManager
-import com.gatecontrol.android.tunnel.TunnelMonitor
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tunnel.TunnelStats
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,12 +19,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -37,6 +32,7 @@ class VpnViewModel @Inject constructor(
     private val licenseRepository: LicenseRepository,
     private val apiClientProvider: ApiClientProvider,
     private val tunnelManager: TunnelManager,
+    private val tunnelConnector: TunnelConnector,
 ) : ViewModel() {
 
     val tunnelState: StateFlow<TunnelState> = tunnelManager.state
@@ -138,12 +134,6 @@ class VpnViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            tunnelManager.state.collect { state ->
-                TunnelStateHolder.isConnected = state is TunnelState.Connected
-                TunnelStateHolder.serverHost = serverHost
-            }
-        }
-        viewModelScope.launch {
             while (isActive) {
                 delay(1_000)
                 if (tunnelState.value is TunnelState.Connected) {
@@ -189,103 +179,20 @@ class VpnViewModel @Inject constructor(
 
     // --- Actions ---
 
+    /**
+     * Connect through [TunnelConnector] — the same path as the Quick Settings
+     * tile, boot auto-connect and Always-on VPN (config refresh from the
+     * server, admin split-tunnel preset, DNS pre-resolve, hostname report).
+     */
     fun connect() {
         viewModelScope.launch {
-            val config = setupRepository.getWireGuardConfig()
-            if (config.isEmpty()) {
-                Timber.w("VpnViewModel: no WireGuard config available")
-                return@launch
-            }
-            // Pre-resolve server hostname BEFORE VPN starts, so API calls
-            // work after the VPN is up (when system DNS points to 10.8.0.1
-            // which is unreachable from the excluded GateControl app).
-            val serverUrl = setupRepository.getServerUrl()
-            if (serverUrl.isNotEmpty()) {
-                try {
-                    val host = java.net.URI(serverUrl).host
-                    if (host != null) apiClientProvider.preResolveDns(host)
-                } catch (_: Exception) {}
-            }
-            // Fetch admin split-tunnel preset (graceful — never blocks connect)
-            var splitTunnelConfig = SplitTunnelConfig() // default: mode=off
             try {
-                var adminPresetActive = false
-                if (serverUrl.isNotEmpty()) {
-                    try {
-                        val client = apiClientProvider.getClient(serverUrl)
-                        val preset = client.getSplitTunnelPreset()
-                        if (preset.ok && preset.mode != "off" && preset.source != "none") {
-                            // Admin preset exists — store and use it
-                            settingsRepository.setSplitTunnelMode(preset.mode)
-                            val arr = JSONArray()
-                            preset.networks.forEach { arr.put(JSONObject().put("cidr", it.cidr).put("label", it.label)) }
-                            settingsRepository.setSplitTunnelNetworks(arr.toString())
-                            settingsRepository.setSplitTunnelAdminLocked(preset.locked)
-                            adminPresetActive = true
-
-                            // Merge: admin networks + user apps (apps ALWAYS user-controlled)
-                            val userApps = settingsRepository.getSplitTunnelAppsV2().first()
-                            val appsList = parseSplitAppsJson(userApps)
-
-                            splitTunnelConfig = SplitTunnelConfig(
-                                mode = preset.mode,
-                                networks = preset.networks.map { it.cidr },
-                                apps = appsList,
-                            )
-                        }
-                    } catch (e: Exception) {
-                        Timber.w(e, "Split-tunnel preset fetch failed")
-                    }
+                if (!tunnelConnector.connectWithUserSettings()) {
+                    Timber.w("VpnViewModel: connect not possible")
                 }
-
-                // No admin preset — use LOCAL user settings from DataStore
-                if (!adminPresetActive) {
-                    val mode = settingsRepository.getSplitTunnelMode().first()
-                    if (mode != "off") {
-                        val networksJson = settingsRepository.getSplitTunnelNetworks().first()
-                        val appsJson = settingsRepository.getSplitTunnelAppsV2().first()
-                        splitTunnelConfig = SplitTunnelConfig(
-                            mode = mode,
-                            networks = parseSplitNetworksJsonToCidrs(networksJson),
-                            apps = parseSplitAppsJson(appsJson),
-                        )
-                        Timber.d("Split-tunnel: using local config mode=$mode, ${splitTunnelConfig.networks.size} networks, ${splitTunnelConfig.apps.size} apps")
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.w(e, "Split-tunnel config load failed")
-            }
-
-            try {
-                tunnelManager.connect(config, splitTunnelConfig)
-                Timber.d("VpnViewModel: tunnel connect requested")
-                reportDeviceHostname(serverUrl)
             } catch (e: Exception) {
                 Timber.e(e, "VpnViewModel: connect failed")
             }
-        }
-    }
-
-    /**
-     * Fire-and-forget hostname report for internal DNS resolution.
-     * Server rate-limits (3/min/token) and feature-gates (403) — we
-     * never surface failures; they're logged at debug level only.
-     * Uses Build.MODEL as the source — user-set Settings.Global.DEVICE_NAME
-     * would be preferable but requires a Context, which is not in scope
-     * here; can be plumbed through later without changing the API.
-     */
-    private suspend fun reportDeviceHostname(serverUrl: String) {
-        try {
-            val sanitized = com.gatecontrol.android.common.HostnameSanitizer.sanitize(android.os.Build.MODEL)
-            if (sanitized.isNullOrBlank()) return
-
-            val client = apiClientProvider.getClient(serverUrl)
-            val response = client.reportHostname(
-                com.gatecontrol.android.network.HostnameReportRequest(sanitized)
-            )
-            Timber.d("Hostname report: assigned=${response.assigned} changed=${response.changed}")
-        } catch (e: Exception) {
-            Timber.d(e, "Hostname report skipped: ${e.message}")
         }
     }
 
@@ -452,28 +359,6 @@ class VpnViewModel @Inject constructor(
     }
 
     // --- Split-tunnel JSON helpers ---
-
-    private fun parseSplitNetworksJsonToCidrs(json: String): List<String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getJSONObject(it).getString("cidr") }
-        } catch (e: Exception) {
-            Timber.w(e, "Failed to parse split-tunnel networks JSON, falling back to empty")
-            emptyList()
-        }
-    }
-
-    private fun parseSplitAppsJson(json: String): List<String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
-        } catch (e: Exception) {
-            Timber.w(e, "Failed to parse split-tunnel apps JSON, falling back to empty")
-            emptyList()
-        }
-    }
 
     companion object {
         /** Accepts ISO-8601 ("…Z" / offset) and SQLite "yyyy-MM-dd HH:mm:ss" (UTC). */

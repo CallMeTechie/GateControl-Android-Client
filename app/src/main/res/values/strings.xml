@@ -212,13 +212,10 @@
     <string name="logs_export">Export</string>
 
     <!-- Notifications -->
-    <string name="notif_channel_vpn">VPN Status</string>
     <string name="notif_channel_update">Updates</string>
     <string name="notif_channel_rdp">RDP Sessions</string>
-    <string name="notif_vpn_connected">Connected to %1$s</string>
     <string name="notif_vpn_disconnected">VPN Disconnected</string>
     <string name="notif_vpn_reconnecting">Reconnecting&#8230;</string>
-    <string name="notif_vpn_stats">&#8595; %1$s · &#8593; %2$s · %3$s</string>
     <string name="notif_update_title">Update Available</string>
     <string name="notif_update_body">Version %1$s is available</string>
     <string name="notif_peer_expiry">Peer expires in %1$d days</string>

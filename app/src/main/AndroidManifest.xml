@@ -55,19 +55,6 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".service.VpnForegroundService"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Status notification of the user-started WireGuard VPN tunnel (traffic statistics and disconnect action) while the connection is active." />
-        </service>
-
         <!-- Performs Quick Settings tile actions (connect incl. VPN consent,
              disconnect). NOT exported: other apps must not be able to
              toggle the VPN. -->

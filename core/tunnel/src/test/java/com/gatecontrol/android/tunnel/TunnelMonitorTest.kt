@@ -1,9 +1,15 @@
 package com.gatecontrol.android.tunnel
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class TunnelMonitorTest {
+
+    private fun nowSec() = System.currentTimeMillis() / 1000
 
     @Test
     fun `calculateBackoffMs returns 2000ms for attempt 0`() {
@@ -61,5 +67,78 @@ class TunnelMonitorTest {
     @Test
     fun `isHandshakeStale treats zero epoch as stale`() {
         assertTrue(TunnelMonitor.isHandshakeStale(0L, 180L))
+    }
+
+    @Test
+    fun `missing statistics count as failure`() {
+        assertTrue(TunnelMonitor.isFailure(null, null, 180L))
+    }
+
+    @Test
+    fun `fresh handshake is healthy`() {
+        val cur = TunnelStats(txBytes = 500, lastHandshakeEpoch = nowSec() - 10)
+        assertFalse(TunnelMonitor.isFailure(TunnelStats(txBytes = 100), cur, 180L))
+    }
+
+    @Test
+    fun `stale handshake on an idle tunnel is not a failure`() {
+        val prev = TunnelStats(txBytes = 100, lastHandshakeEpoch = nowSec() - 600)
+        val cur = prev.copy()
+        assertFalse(TunnelMonitor.isFailure(prev, cur, 180L))
+    }
+
+    @Test
+    fun `stale handshake while sending is a failure`() {
+        val prev = TunnelStats(txBytes = 100, lastHandshakeEpoch = nowSec() - 600)
+        val cur = prev.copy(txBytes = 400)
+        assertTrue(TunnelMonitor.isFailure(prev, cur, 180L))
+    }
+
+    @Test
+    fun `stale handshake without previous sample is not judged yet`() {
+        val cur = TunnelStats(txBytes = 400, lastHandshakeEpoch = nowSec() - 600)
+        assertFalse(TunnelMonitor.isFailure(null, cur, 180L))
+    }
+
+    @Test
+    fun `reconnects after consecutive failures and resumes`() = runTest {
+        val monitor = TunnelMonitor(intervalMs = 1_000L, failuresBeforeReconnect = 3, maxReconnectAttempts = 5)
+        val attempts = mutableListOf<Int>()
+        monitor.start(
+            scope = backgroundScope,
+            statsProvider = { null },
+            reconnect = { attempt, _ -> attempts += attempt; attempt == 2 },
+        )
+        advanceTimeBy(3_500L)
+        // Third failed check triggers attempt 1 (fails), backoff 2 s, attempt 2 (succeeds).
+        advanceTimeBy(2_100L)
+        assertEquals(listOf(1, 2), attempts)
+        assertTrue(monitor.isRunning)
+        monitor.stop()
+        assertFalse(monitor.isRunning)
+    }
+
+    @Test
+    fun `gives up after max reconnect attempts`() = runTest {
+        val monitor = TunnelMonitor(intervalMs = 1_000L, failuresBeforeReconnect = 1, maxReconnectAttempts = 3)
+        var calls = 0
+        monitor.start(backgroundScope, statsProvider = { null }, reconnect = { _, _ -> calls++; false })
+        advanceTimeBy(60_000L)
+        assertEquals(3, calls)
+        assertFalse(monitor.isRunning)
+    }
+
+    @Test
+    fun `healthy tunnel never reconnects`() = runTest {
+        val monitor = TunnelMonitor(intervalMs = 1_000L, failuresBeforeReconnect = 1)
+        var calls = 0
+        monitor.start(
+            backgroundScope,
+            statsProvider = { TunnelStats(lastHandshakeEpoch = nowSec()) },
+            reconnect = { _, _ -> calls++; true },
+        )
+        advanceTimeBy(30_000L)
+        assertEquals(0, calls)
+        monitor.stop()
     }
 }

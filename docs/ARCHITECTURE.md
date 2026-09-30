@@ -23,7 +23,7 @@ android-client/
 │       │   ├── setup/                 # Ersteinrichtung + QR-Scanner
 │       │   ├── components/            # Wiederverwendbare UI-Bausteine
 │       │   └── theme/                 # Farben, Typografie, Theme-Provider
-│       ├── service/                   # VpnForegroundService, VpnTileService
+│       ├── service/                   # TunnelConnector, TunnelSupervisor, VpnTileService
 │       └── receiver/                  # BootReceiver
 ├── core/
 │   ├── common/              # Shared Utilities
