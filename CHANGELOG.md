@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.3] - 2026-09-30
+
+### Fixes
+- native Bibliotheken 16-KB-kompatibel (Google-Play-Pflicht) (#23)
+
+---
+
 ## [1.12.2] - 2026-09-29
 
 ### Fixes
