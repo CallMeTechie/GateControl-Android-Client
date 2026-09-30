@@ -1,6 +1,7 @@
 package com.gatecontrol.android.service
 
 import com.gatecontrol.android.common.HostnameSanitizer
+import com.gatecontrol.android.common.SplitTunnelMode
 import com.gatecontrol.android.common.VpnSubnet
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
@@ -102,6 +103,10 @@ class TunnelConnector @Inject constructor(
                 )
                 return current
             }
+            if (TunnelConfig.peerCount(fresh) != 1) {
+                Timber.w("TunnelConnector: server config has multiple [Peer] sections, keeping stored config")
+                return current
+            }
 
             setupRepository.saveWireGuardConfig(fresh)
             response.hash?.let { setupRepository.saveConfigHash(it) }
@@ -127,8 +132,9 @@ class TunnelConnector @Inject constructor(
                 try {
                     val client = apiClientProvider.getClient(serverUrl)
                     val preset = client.getSplitTunnelPreset()
-                    if (preset.ok && preset.mode != "off" && preset.source != "none") {
-                        settingsRepository.setSplitTunnelMode(preset.mode)
+                    val presetMode = SplitTunnelMode.fromWire(preset.mode)
+                    if (preset.ok && presetMode != SplitTunnelMode.OFF && preset.source != "none") {
+                        settingsRepository.setSplitTunnelMode(presetMode)
                         settingsRepository.setSplitTunnelNetworks(
                             SplitTunnelJson.encodeNetworks(
                                 preset.networks.map { SplitTunnelJson.Network(it.cidr, it.label) },
@@ -139,7 +145,7 @@ class TunnelConnector @Inject constructor(
 
                         val userApps = settingsRepository.getSplitTunnelAppsV2().first()
                         splitTunnelConfig = SplitTunnelConfig(
-                            mode = preset.mode,
+                            mode = presetMode,
                             networks = preset.networks.map { it.cidr },
                             apps = SplitTunnelJson.decodeApps(userApps),
                         )
@@ -151,7 +157,7 @@ class TunnelConnector @Inject constructor(
 
             if (!adminPresetActive) {
                 val mode = settingsRepository.getSplitTunnelMode().first()
-                if (mode != "off") {
+                if (mode != SplitTunnelMode.OFF) {
                     val networksJson = settingsRepository.getSplitTunnelNetworks().first()
                     val appsJson = settingsRepository.getSplitTunnelAppsV2().first()
                     splitTunnelConfig = SplitTunnelConfig(

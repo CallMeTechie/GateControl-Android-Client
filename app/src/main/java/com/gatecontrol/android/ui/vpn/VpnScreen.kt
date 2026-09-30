@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.vpn
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -397,9 +398,9 @@ fun VpnScreen(
                     title = stringResource(R.string.settings_split_tunnel),
                     subtitle = stringResource(
                         when (splitMode) {
-                            "exclude" -> R.string.split_tile_exclude
-                            "include" -> R.string.split_tile_include
-                            else -> R.string.tile_off
+                            SplitTunnelMode.EXCLUDE -> R.string.split_tile_exclude
+                            SplitTunnelMode.INCLUDE -> R.string.split_tile_include
+                            SplitTunnelMode.OFF -> R.string.tile_off
                         },
                     ),
                     onClick = onOpenSplitTunnel,

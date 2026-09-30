@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.settings
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -84,28 +85,28 @@ fun SplitTunnelScreen(
                 ModeCard(
                     title = stringResource(R.string.split_tunnel_mode_off),
                     desc = stringResource(R.string.split_tunnel_off_desc),
-                    selected = uiState.splitTunnelMode == "off",
+                    selected = uiState.splitTunnelMode == SplitTunnelMode.OFF,
                     enabled = !locked,
-                    onSelect = { viewModel.setSplitTunnelMode("off") },
+                    onSelect = { viewModel.setSplitTunnelMode(SplitTunnelMode.OFF) },
                 )
                 ModeCard(
                     title = stringResource(R.string.split_tunnel_mode_exclude),
                     desc = stringResource(R.string.split_tunnel_exclude_label),
-                    selected = uiState.splitTunnelMode == "exclude",
+                    selected = uiState.splitTunnelMode == SplitTunnelMode.EXCLUDE,
                     enabled = !locked,
-                    onSelect = { viewModel.setSplitTunnelMode("exclude") },
+                    onSelect = { viewModel.setSplitTunnelMode(SplitTunnelMode.EXCLUDE) },
                 )
                 ModeCard(
                     title = stringResource(R.string.split_tunnel_mode_include),
                     desc = stringResource(R.string.split_tunnel_include_label),
-                    selected = uiState.splitTunnelMode == "include",
+                    selected = uiState.splitTunnelMode == SplitTunnelMode.INCLUDE,
                     enabled = !locked,
-                    onSelect = { viewModel.setSplitTunnelMode("include") },
+                    onSelect = { viewModel.setSplitTunnelMode(SplitTunnelMode.INCLUDE) },
                 )
             }
 
-            if (uiState.splitTunnelMode != "off") {
-                val exclude = uiState.splitTunnelMode == "exclude"
+            if (uiState.splitTunnelMode != SplitTunnelMode.OFF) {
+                val exclude = uiState.splitTunnelMode == SplitTunnelMode.EXCLUDE
                 GcSectionLabel(
                     stringResource(
                         if (exclude) R.string.split_tunnel_networks_exclude_header

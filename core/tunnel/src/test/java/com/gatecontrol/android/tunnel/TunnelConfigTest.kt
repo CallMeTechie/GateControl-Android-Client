@@ -121,4 +121,34 @@ class TunnelConfigTest {
         val config = TunnelConfig.parse(validConfig).copy(endpoint = "vpn.example.com")
         assertEquals(51820, config.getServerPort())
     }
+
+    private val secondPeer = """
+
+        [Peer] # second site
+        PublicKey = b3RoZXJwZWVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh=
+        Endpoint = other.example.com:51820
+        AllowedIPs = 192.168.50.0/24
+    """.trimIndent()
+
+    @Test
+    fun `peerCount counts peer sections and ignores comments`() {
+        assertEquals(1, TunnelConfig.peerCount(validConfig))
+        assertEquals(2, TunnelConfig.peerCount(validConfig + "\n" + secondPeer))
+        assertEquals(1, TunnelConfig.peerCount(validConfig + "\n# [Peer]\n"))
+    }
+
+    @Test
+    fun `parse rejects a config with multiple peers instead of dropping one`() {
+        val ex = assertThrows<IllegalArgumentException> {
+            TunnelConfig.parse(validConfig + "\n" + secondPeer)
+        }
+        assertTrue(ex.message!!.contains("2 [Peer] sections"))
+    }
+
+    @Test
+    fun `isSupported requires a valid single-peer config`() {
+        assertTrue(TunnelConfig.isSupported(validConfig))
+        assertFalse(TunnelConfig.isSupported(validConfig + "\n" + secondPeer))
+        assertFalse(TunnelConfig.isSupported("[Interface]\nPrivateKey = x"))
+    }
 }

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.vpn
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import app.cash.turbine.test
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
@@ -59,7 +60,7 @@ class VpnViewModelTest {
         every { settingsRepository.getSplitTunnelEnabled() } returns flowOf(false)
         every { settingsRepository.getSplitTunnelRoutes() } returns flowOf("")
         every { settingsRepository.getSplitTunnelApps() } returns flowOf("")
-        every { settingsRepository.getSplitTunnelMode() } returns flowOf("off")
+        every { settingsRepository.getSplitTunnelMode() } returns flowOf(SplitTunnelMode.OFF)
         every { settingsRepository.getSplitTunnelNetworks() } returns flowOf("[]")
         every { settingsRepository.getSplitTunnelAppsV2() } returns flowOf("[]")
         every { setupRepository.getServerUrl() } returns "https://gate.example.com"

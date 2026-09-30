@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.settings
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
@@ -9,6 +10,7 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.data.SplitTunnelJson
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import com.gatecontrol.android.network.UpdateCheckResponse
 import com.gatecontrol.android.common.Validation
@@ -36,7 +38,7 @@ data class SettingsUiState(
     val splitTunnelEnabled: Boolean = false,
     val splitTunnelRoutes: String = "",
     val splitTunnelApps: String = "",
-    val splitTunnelMode: String = "off",
+    val splitTunnelMode: SplitTunnelMode = SplitTunnelMode.OFF,
     val splitTunnelNetworks: List<NetworkEntry> = emptyList(),
     val splitTunnelAppsV2: List<String> = emptyList(),
     val splitTunnelAdminLocked: Boolean = false,
@@ -254,7 +256,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setSplitTunnelMode(mode: String) {
+    fun setSplitTunnelMode(mode: SplitTunnelMode) {
         _uiState.update { it.copy(splitTunnelMode = mode) }
         viewModelScope.launch { settingsRepository.setSplitTunnelMode(mode) }
     }
@@ -365,6 +367,11 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(error = UiText.Res(R.string.setup_invalid_config))
                     }
+                    return@launch
+                }
+                if (TunnelConfig.peerCount(config) > 1) {
+                    Timber.w("importConfigFromUri rejected: multiple [Peer] sections")
+                    _uiState.update { it.copy(error = UiText.Res(R.string.setup_multi_peer_config)) }
                     return@launch
                 }
                 setupRepository.saveWireGuardConfig(config)

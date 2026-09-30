@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.settings
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -234,9 +235,9 @@ fun SettingsScreen(
 
 @Composable
 private fun splitSummary(ui: SettingsUiState): String = when (ui.splitTunnelMode) {
-    "exclude" -> stringResource(R.string.settings_split_summary_exclude, ui.splitTunnelNetworks.size, ui.splitTunnelAppsV2.size)
-    "include" -> stringResource(R.string.settings_split_summary_include, ui.splitTunnelNetworks.size, ui.splitTunnelAppsV2.size)
-    else -> stringResource(R.string.settings_split_summary_off)
+    SplitTunnelMode.EXCLUDE -> stringResource(R.string.settings_split_summary_exclude, ui.splitTunnelNetworks.size, ui.splitTunnelAppsV2.size)
+    SplitTunnelMode.INCLUDE -> stringResource(R.string.settings_split_summary_include, ui.splitTunnelNetworks.size, ui.splitTunnelAppsV2.size)
+    SplitTunnelMode.OFF -> stringResource(R.string.settings_split_summary_off)
 }
 
 @Composable

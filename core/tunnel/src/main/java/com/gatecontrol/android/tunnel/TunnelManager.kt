@@ -2,6 +2,7 @@ package com.gatecontrol.android.tunnel
 
 import android.content.Context
 import android.net.VpnService
+import com.gatecontrol.android.common.SplitTunnelMode
 import com.gatecontrol.android.common.VpnSubnet
 import com.wireguard.android.backend.Backend
 import com.wireguard.android.backend.GoBackend
@@ -84,12 +85,12 @@ class TunnelManager @Inject constructor(private val context: Context) {
     ) {
         val splitConfig = if (splitTunnelRoutes.isNotEmpty() || excludedApps.isNotEmpty()) {
             SplitTunnelConfig(
-                mode = "include",
+                mode = SplitTunnelMode.INCLUDE,
                 networks = splitTunnelRoutes,
                 apps = excludedApps,
             )
         } else {
-            SplitTunnelConfig() // mode = "off"
+            SplitTunnelConfig() // mode = OFF
         }
         connectInternal(configString, splitConfig)
     }
@@ -129,7 +130,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
                 val wgConfig = buildWgConfig(parsedConfig, splitConfig)
 
                 _state.value = pendingState
-                Timber.d("Connecting tunnel with split-tunnel mode: ${splitConfig.mode}")
+                Timber.d("Connecting tunnel with split-tunnel mode: ${splitConfig.mode.wire}")
 
                 val currentBackend = backend ?: run {
                     initialize()
@@ -266,17 +267,17 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
         // App filtering — excludeApplications and includeApplications are mutually exclusive
         when (splitConfig.mode) {
-            "exclude" -> {
+            SplitTunnelMode.EXCLUDE -> {
                 if (splitConfig.apps.isNotEmpty()) {
                     ifaceBuilder.excludeApplications(splitConfig.apps.toSet())
                 }
             }
-            "include" -> {
+            SplitTunnelMode.INCLUDE -> {
                 if (splitConfig.apps.isNotEmpty()) {
                     ifaceBuilder.includeApplications(splitConfig.apps.toSet())
                 }
             }
-            // "off" — no app filtering
+            SplitTunnelMode.OFF -> Unit // no app filtering
         }
 
         val peerBuilder = Peer.Builder()
@@ -294,7 +295,7 @@ class TunnelManager @Inject constructor(private val context: Context) {
         val vpnSubnet = VpnSubnet.fromAddress(parsed.address) ?: VpnSubnet.DEFAULT
 
         val allowedIpsRaw = when (splitConfig.mode) {
-            "exclude" -> {
+            SplitTunnelMode.EXCLUDE -> {
                 if (splitConfig.networks.isEmpty()) {
                     // No networks excluded — full tunnel (use original AllowedIPs)
                     parsed.allowedIps
@@ -307,11 +308,11 @@ class TunnelManager @Inject constructor(private val context: Context) {
                     (complement + dnsIps + vpnSubnet).distinct().joinToString(",")
                 }
             }
-            "include" -> {
+            SplitTunnelMode.INCLUDE -> {
                 // Only route specified networks + DNS + VPN subnet
                 (splitConfig.networks + dnsIps + vpnSubnet).distinct().joinToString(",")
             }
-            else -> {
+            SplitTunnelMode.OFF -> {
                 // Off — use original AllowedIPs from WG config
                 parsed.allowedIps
             }

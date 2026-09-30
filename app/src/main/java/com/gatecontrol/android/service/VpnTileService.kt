@@ -2,17 +2,13 @@ package com.gatecontrol.android.service
 
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /** Shared state holder so the TileService can read tunnel state without DI. */
 object TunnelStateHolder {
     @Volatile var isConnected: Boolean = false
     @Volatile var serverHost: String? = null
-    @Volatile var tunnelManager: com.gatecontrol.android.tunnel.TunnelManager? = null
-    @Volatile var setupRepository: com.gatecontrol.android.data.SetupRepository? = null
+    @Volatile var supervisor: TunnelSupervisor? = null
 }
 
 /**
@@ -120,17 +116,11 @@ class VpnTileService : TileService() {
     }
 
     private fun sendDisconnectBroadcast() {
-        // Try direct disconnect first, fall back to app launch
-        val tm = TunnelStateHolder.tunnelManager
-        if (tm != null && TunnelStateHolder.isConnected) {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    tm.disconnect()
-                } catch (e: Exception) {
-                    Timber.e(e, "VpnTileService: direct disconnect failed, launching app")
-                    launchTileAction(TileAction.DISCONNECT)
-                }
-            }
+        // Disconnect directly through the app-wide supervisor (its scope outlives
+        // this tile binding); without it, go through the app.
+        val supervisor = TunnelStateHolder.supervisor
+        if (supervisor != null && TunnelStateHolder.isConnected) {
+            supervisor.disconnect()
         } else {
             launchTileAction(TileAction.DISCONNECT)
         }
