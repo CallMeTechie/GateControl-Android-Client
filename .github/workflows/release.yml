@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+concurrency:
+  # One release run at a time: parallel runs race on the version bump push.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   checks: write
@@ -13,10 +18,37 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  decide:
+    name: Release needed?
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - name: Check commit type
+        id: check
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          # Squash merges put the PR title on the first line. ci/docs/test/style
+          # and chore commits (incl. our own "chore: bump version") land on the
+          # default branch without a release and ship with the next fix/feat.
+          # chore(deps) stays releasable: dependency updates can carry fixes.
+          FIRST_LINE=$(printf '%s\n' "$COMMIT_MSG" | head -n1)
+          if printf '%s' "$FIRST_LINE" | grep -qE '^chore\(deps(-dev)?\)!?:'; then
+            RELEASE=true
+          elif printf '%s' "$FIRST_LINE" | grep -qE '^(ci|docs|test|style|chore)(\([^)]*\))?!?:'; then
+            RELEASE=false
+          else
+            RELEASE=true
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "First line: $FIRST_LINE -> release=$RELEASE"
+
   test-gate:
     name: Test Gate
     runs-on: ubuntu-latest
-    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
+    needs: decide
+    if: needs.decide.outputs.release == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -58,8 +90,8 @@ jobs:
   build:
     name: Build and Publish
     runs-on: ubuntu-latest
-    needs: test-gate
-    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
+    needs: [decide, test-gate]
+    if: needs.decide.outputs.release == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
