@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.vpn
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.data.LicenseRepository
@@ -54,9 +55,9 @@ class VpnViewModel @Inject constructor(
     private val _services = MutableStateFlow<List<VpnService>>(emptyList())
     val services: StateFlow<List<VpnService>> = _services.asStateFlow()
 
-    /** "off", "exclude" or "include" — shown on the split-tunnel tile. */
-    val splitTunnelMode: StateFlow<String> = settingsRepository.getSplitTunnelMode()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "off")
+    /** Shown on the split-tunnel tile. */
+    val splitTunnelMode: StateFlow<SplitTunnelMode> = settingsRepository.getSplitTunnelMode()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SplitTunnelMode.OFF)
 
     val theme: StateFlow<String> = settingsRepository.getTheme()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "system")

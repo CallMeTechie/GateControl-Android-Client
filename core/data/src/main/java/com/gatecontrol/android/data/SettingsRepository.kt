@@ -1,5 +1,6 @@
 package com.gatecontrol.android.data
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -49,8 +50,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         dataStore.data.map { it[SPLIT_TUNNEL_APPS] ?: "" }
 
     // New split-tunnel getters (v2 JSON format)
-    fun getSplitTunnelMode(): Flow<String> =
-        dataStore.data.map { it[SPLIT_TUNNEL_MODE] ?: "off" }
+    fun getSplitTunnelMode(): Flow<SplitTunnelMode> =
+        dataStore.data.map { SplitTunnelMode.fromWire(it[SPLIT_TUNNEL_MODE]) }
 
     fun getSplitTunnelNetworks(): Flow<String> =
         dataStore.data.map { it[SPLIT_TUNNEL_NETWORKS] ?: "[]" }
@@ -88,8 +89,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     }
 
     // New split-tunnel setters (v2 JSON format)
-    suspend fun setSplitTunnelMode(mode: String) {
-        dataStore.edit { it[SPLIT_TUNNEL_MODE] = mode }
+    suspend fun setSplitTunnelMode(mode: SplitTunnelMode) {
+        dataStore.edit { it[SPLIT_TUNNEL_MODE] = mode.wire }
     }
 
     suspend fun setSplitTunnelNetworks(json: String) {
@@ -113,7 +114,7 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
             val oldEnabled = prefs[SPLIT_TUNNEL_ENABLED]
             if (oldEnabled != null && prefs[SPLIT_TUNNEL_MODE] == null) {
                 // Mode: old enabled=true was include-mode (only these routes through VPN)
-                prefs[SPLIT_TUNNEL_MODE] = if (oldEnabled) "include" else "off"
+                prefs[SPLIT_TUNNEL_MODE] = if (oldEnabled) SplitTunnelMode.INCLUDE.wire else SplitTunnelMode.OFF.wire
 
                 // Routes: newline/comma-separated CIDRs → JSON with empty labels
                 val oldRoutes = prefs[SPLIT_TUNNEL_ROUTES] ?: ""

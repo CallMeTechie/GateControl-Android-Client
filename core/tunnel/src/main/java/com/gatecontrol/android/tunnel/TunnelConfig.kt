@@ -35,12 +35,29 @@ data class TunnelConfig(
     }
 
     companion object {
+        /**
+         * Number of `[Peer]` sections in [raw]. The app models exactly one
+         * peer (the GateControl server); a config with more would otherwise
+         * silently lose all but one of them.
+         */
+        fun peerCount(raw: String): Int = raw.lines().count { line ->
+            line.substringBefore('#').substringBefore(';').trim().equals("[Peer]", ignoreCase = true)
+        }
+
+        /** True when [raw] is valid and has exactly one `[Peer]` — the only shape the app can use. */
+        fun isSupported(raw: String): Boolean =
+            WgConfigValidator.validate(raw).ok && peerCount(raw) == 1
+
         fun parse(raw: String): TunnelConfig {
             require(raw.isNotBlank()) { "Config input must not be empty" }
 
             val validation = WgConfigValidator.validate(raw)
             require(validation.ok) {
                 "Invalid WireGuard config: ${validation.errors.joinToString(", ")}"
+            }
+            val peers = peerCount(raw)
+            require(peers == 1) {
+                "WireGuard config has $peers [Peer] sections, only one is supported"
             }
 
             val lines = raw.lines()

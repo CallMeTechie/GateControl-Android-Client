@@ -143,6 +143,7 @@
     <string name="setup_registering">Registriere&#8230;</string>
     <string name="setup_success">Erfolgreich registriert!</string>
     <string name="setup_error">Registrierung fehlgeschlagen: %1$s</string>
+    <string name="setup_multi_peer_config">Diese Konfiguration enthält mehrere [Peer]-Abschnitte. GateControl unterstützt genau einen Peer.</string>
     <string name="setup_invalid_config">Ungültige WireGuard-Konfiguration</string>
     <string name="setup_token_or_code">API-Token oder Einrichtungscode</string>
     <string name="setup_token_or_code_hint">gc_&#8230; oder XXXX-XXXX-XXXX-XXXX</string>

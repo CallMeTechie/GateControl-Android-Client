@@ -9,6 +9,7 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.EnrollRequest
 import com.gatecontrol.android.network.RegisterRequest
+import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -273,7 +274,7 @@ class SetupViewModel @Inject constructor(
                     config = registered.config
                     hash = registered.hash
                 }
-                if (config.isNullOrBlank() || !WgConfigValidator.validate(config).ok) {
+                if (config.isNullOrBlank() || !TunnelConfig.isSupported(config)) {
                     throw IllegalStateException("invalid_config")
                 }
 
@@ -416,6 +417,16 @@ class SetupViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             statusMessage = UiText.Res(R.string.setup_invalid_config),
+                            statusType = StatusType.ERROR,
+                        )
+                    }
+                    return@launch
+                }
+                if (TunnelConfig.peerCount(configText) > 1) {
+                    Timber.w("importConfig rejected: multiple [Peer] sections")
+                    _uiState.update {
+                        it.copy(
+                            statusMessage = UiText.Res(R.string.setup_multi_peer_config),
                             statusType = StatusType.ERROR,
                         )
                     }

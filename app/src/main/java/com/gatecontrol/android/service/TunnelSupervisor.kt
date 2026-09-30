@@ -87,6 +87,22 @@ class TunnelSupervisor @Inject constructor(
         }
     }
 
+    /**
+     * Disconnect on behalf of a short-lived caller (Quick Settings tile). Runs
+     * in the app-wide scope so it completes even when the caller is unbound
+     * right away; on failure the tile is refreshed to show the real state.
+     */
+    fun disconnect() {
+        scope.launch {
+            try {
+                tunnelManager.disconnect()
+            } catch (e: Exception) {
+                Timber.e(e, "Disconnect failed")
+                refreshTile()
+            }
+        }
+    }
+
     private fun startMonitor() {
         tunnelMonitor.start(
             scope = scope,

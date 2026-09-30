@@ -3,10 +3,8 @@ package com.gatecontrol.android
 import android.app.Application
 import android.content.Context
 import android.util.Log
-import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.service.TunnelStateHolder
 import com.gatecontrol.android.service.TunnelSupervisor
-import com.gatecontrol.android.tunnel.TunnelManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -51,19 +49,13 @@ class GateControlApp : Application() {
             throw e
         }
 
-        // Register singletons for Quick Settings tile (which can't use Hilt DI)
-        try {
-            val entryPoint = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java)
-            TunnelStateHolder.tunnelManager = entryPoint.tunnelManager()
-            TunnelStateHolder.setupRepository = entryPoint.setupRepository()
-        } catch (e: Throwable) {
-            Timber.e(e, "Failed to register TunnelStateHolder singletons")
-        }
-
         // Tunnel lifecycle outside the UI: Always-on VPN, auto-reconnect, tile state.
         // Must run before the system starts the VPN service for Always-on.
+        // Also registered for the Quick Settings tile, which can't use Hilt DI.
         try {
-            EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).tunnelSupervisor().start()
+            val supervisor = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).tunnelSupervisor()
+            TunnelStateHolder.supervisor = supervisor
+            supervisor.start()
         } catch (e: Throwable) {
             Timber.e(e, "Failed to start TunnelSupervisor")
         }
@@ -91,8 +83,6 @@ class GateControlApp : Application() {
     @EntryPoint
     @InstallIn(SingletonComponent::class)
     interface TileEntryPoint {
-        fun tunnelManager(): TunnelManager
-        fun setupRepository(): SetupRepository
         fun tunnelSupervisor(): TunnelSupervisor
     }
 

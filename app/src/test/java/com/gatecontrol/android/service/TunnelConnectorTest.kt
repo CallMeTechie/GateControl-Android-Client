@@ -1,5 +1,6 @@
 package com.gatecontrol.android.service
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
@@ -70,7 +71,7 @@ class TunnelConnectorTest {
         every { apiClientProvider.getClient(any()) } returns apiClient
         // No admin split-tunnel preset; the connector falls back to user settings.
         coEvery { apiClient.getSplitTunnelPreset() } throws IllegalStateException("no preset")
-        every { settingsRepository.getSplitTunnelMode() } returns flowOf("off")
+        every { settingsRepository.getSplitTunnelMode() } returns flowOf(SplitTunnelMode.OFF)
         coEvery { tunnelManager.connect(any(), any<SplitTunnelConfig>()) } returns Unit
 
         connector = TunnelConnector(
