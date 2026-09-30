@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.5] - 2026-09-30
+
+### Changes
+- pin GitHub Actions to full commit SHAs (#29)
+
+---
+
 ## [1.13.4] - 2026-09-30
 
 ### Fixes
