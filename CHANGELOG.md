@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.4] - 2026-09-30
+
+### Fixes
+- reject multi-peer configs, tile disconnect lifecycle, split-tunnel mode enum (#28)
+
+---
+
 ## [1.13.3] - 2026-09-30
 
 ### Fixes
