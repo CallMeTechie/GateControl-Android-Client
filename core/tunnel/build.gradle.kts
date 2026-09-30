@@ -1,8 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt)
-    kotlin("kapt")
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -31,9 +30,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 }
 
 dependencies {
@@ -43,7 +39,7 @@ dependencies {
 
     implementation(libs.core.ktx)
     implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
     implementation(libs.wireguard.tunnel)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
@@ -51,6 +47,7 @@ dependencies {
 
     testImplementation(libs.junit5.api)
     testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     // Lightweight JSON parser for loading the vendored WG-config golden fixtures
@@ -59,10 +56,13 @@ dependencies {
     testImplementation(libs.org.json)
 }
 
-kapt {
-    correctErrorTypes = true
-}
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }

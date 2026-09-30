@@ -1,12 +1,13 @@
 [versions]
-agp = "8.7.3"
-kotlin = "1.9.25"
+agp = "9.4.1"
+kotlin = "2.4.20"
+ksp = "2.3.12"
 core-ktx = "1.15.0"
 activity-compose = "1.9.3"
 lifecycle = "2.8.7"
 navigation-compose = "2.8.5"
 compose-bom = "2024.12.01"
-hilt = "2.51.1"
+hilt = "2.60.1"
 hilt-navigation-compose = "1.2.0"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
@@ -86,6 +87,8 @@ coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-
 # Testing
 junit5-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit5" }
 junit5-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit5" }
+# Gradle 9 no longer ships the JUnit Platform launcher with the test runtime.
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version = "1.10.2" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
@@ -95,5 +98,6 @@ org-json = { group = "org.json", name = "json", version.ref = "org-json" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }

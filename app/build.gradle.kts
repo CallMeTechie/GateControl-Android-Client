@@ -1,8 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
-    kotlin("kapt")
+    alias(libs.plugins.ksp)
     jacoco
 }
 
@@ -81,18 +81,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 
     buildFeatures {
         compose = true
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15"
-    }
 
     packaging {
         resources {
@@ -145,7 +139,7 @@ dependencies {
 
     // Hilt
     implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
     // CameraX
@@ -170,6 +164,7 @@ dependencies {
     // Testing
     testImplementation(libs.junit5.api)
     testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)
@@ -182,9 +177,6 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.6.1")
 }
 
-kapt {
-    correctErrorTypes = true
-}
 
 // Fail release packaging when the signing secrets are missing instead of
 // producing an unsigned or throwaway-signed artifact. Lint/tests on the
@@ -223,4 +215,10 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         }
     )
     executionData.setFrom(fileTree("build") { include("jacoco/*.exec") })
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
