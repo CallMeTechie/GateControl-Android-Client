@@ -67,7 +67,7 @@ class EncryptedStorage internal constructor(
             null
         }
         if (created == null) {
-            Timber.e("EncryptedStorage: keeping secrets in memory only (not persisted)")
+            Timber.e("EncryptedStorage: keeping stored values in memory only (not persisted)")
         }
         created
     }
