@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0] - 2026-09-30
+
+### Features
+- Always-on-VPN, echter Boot-Autostart und automatische Wiederverbindung (#24)
+
+---
+
 ## [1.12.2] - 2026-09-29
 
 ### Fixes
