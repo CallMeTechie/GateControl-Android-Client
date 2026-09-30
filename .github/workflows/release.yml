@@ -186,6 +186,10 @@ jobs:
         run: |
           ./gradlew assembleRelease bundleRelease
 
+      - name: Verify 16 KB page alignment of native libs
+        if: steps.check_tag.outputs.exists == 'false'
+        run: python3 scripts/check_elf_alignment.py app/build/outputs/apk/release/ app/build/outputs/bundle/release/
+
       - name: Verify R8 obfuscation
         if: steps.check_tag.outputs.exists == 'false'
         run: |
