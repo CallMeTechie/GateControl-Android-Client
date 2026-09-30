@@ -101,7 +101,7 @@ class SetupViewModelTest {
 
             val finalState = states.last()
             assertEquals(StatusType.SUCCESS, finalState.statusType)
-            assertTrue(finalState.statusMessage.isNotEmpty())
+            assertNotNull(finalState.statusMessage)
             assertFalse(finalState.isLoading)
 
             cancelAndIgnoreRemainingEvents()
@@ -470,7 +470,7 @@ class SetupViewModelTest {
         verify(exactly = 0) { setupRepository.save(any(), any(), any()) }
         val state = viewModel.uiState.value
         assertEquals(StatusType.ERROR, state.statusType)
-        assertEquals("res-${com.gatecontrol.android.R.string.setup_enroll_invalid}", state.statusMessage)
+        assertEquals(com.gatecontrol.android.ui.UiText.Res(com.gatecontrol.android.R.string.setup_enroll_invalid), state.statusMessage)
         assertFalse(state.completedNow)
     }
 

@@ -4,7 +4,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -26,8 +25,6 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val SPLIT_TUNNEL_NETWORKS = stringPreferencesKey("split_tunnel_networks")
         val SPLIT_TUNNEL_APPS_V2 = stringPreferencesKey("split_tunnel_apps_v2")
         val SPLIT_TUNNEL_ADMIN_LOCKED = booleanPreferencesKey("split_tunnel_admin_locked")
-        val CHECK_INTERVAL = intPreferencesKey("check_interval")
-        val CONFIG_POLL_INTERVAL = intPreferencesKey("config_poll_interval")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -64,10 +61,7 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     fun getSplitTunnelAdminLocked(): Flow<Boolean> =
         dataStore.data.map { it[SPLIT_TUNNEL_ADMIN_LOCKED] ?: false }
 
-    fun getCheckInterval(): Flow<Int> = dataStore.data.map { it[CHECK_INTERVAL] ?: 30 }
 
-    fun getConfigPollInterval(): Flow<Int> =
-        dataStore.data.map { it[CONFIG_POLL_INTERVAL] ?: 300 }
 
     suspend fun setTheme(value: String) {
         dataStore.edit { it[THEME] = value }
@@ -149,13 +143,5 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         }
     }
 
-    suspend fun setCheckInterval(value: Int) {
-        val clamped = value.coerceIn(5, 300)
-        dataStore.edit { it[CHECK_INTERVAL] = clamped }
-    }
 
-    suspend fun setConfigPollInterval(value: Int) {
-        val clamped = value.coerceIn(30, 3600)
-        dataStore.edit { it[CONFIG_POLL_INTERVAL] = clamped }
-    }
 }

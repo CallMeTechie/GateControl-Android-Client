@@ -3,14 +3,20 @@ package com.gatecontrol.android.service
 import android.content.ComponentName
 import android.content.Context
 import android.service.quicksettings.TileService
+import com.gatecontrol.android.common.HostnameSanitizer
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.network.HeartbeatRequest
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelMonitor
 import com.gatecontrol.android.tunnel.TunnelState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -33,9 +39,11 @@ class TunnelSupervisor @Inject constructor(
     private val tunnelConnector: TunnelConnector,
     private val tunnelMonitor: TunnelMonitor,
     private val setupRepository: SetupRepository,
+    private val apiClientProvider: ApiClientProvider,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var started = false
+    private var heartbeatJob: Job? = null
 
     fun start() {
         if (started) return
@@ -52,10 +60,17 @@ class TunnelSupervisor @Inject constructor(
                 TunnelStateHolder.serverHost = serverHost()
                 refreshTile()
                 when (state) {
-                    is TunnelState.Connected -> if (!tunnelMonitor.isRunning) startMonitor()
+                    is TunnelState.Connected -> {
+                        if (!tunnelMonitor.isRunning) startMonitor()
+                        if (heartbeatJob?.isActive != true) startHeartbeat(state.connectedSince)
+                    }
                     // User disconnect or the system took the VPN away: stop
                     // watching, never fight the user or another VPN app.
-                    TunnelState.Disconnected -> tunnelMonitor.stop()
+                    TunnelState.Disconnected -> {
+                        tunnelMonitor.stop()
+                        heartbeatJob?.cancel()
+                        heartbeatJob = null
+                    }
                     else -> Unit
                 }
             }
@@ -88,6 +103,43 @@ class TunnelSupervisor @Inject constructor(
         )
     }
 
+    /**
+     * Report to the server while connected (last seen, traffic, hostname), the
+     * same heartbeat the desktop clients send. When the server answers that
+     * the peer was disabled, the tunnel is closed — also without the app open.
+     */
+    private fun startHeartbeat(connectedSince: Long) {
+        heartbeatJob = scope.launch {
+            while (isActive) {
+                delay(HEARTBEAT_INTERVAL_MS)
+                if (tunnelManager.state.value !is TunnelState.Connected) continue
+                val peerId = setupRepository.getPeerId()
+                val serverUrl = setupRepository.getServerUrl()
+                if (peerId <= 0 || serverUrl.isEmpty()) continue
+                try {
+                    val stats = tunnelManager.stats.value
+                    val response = apiClientProvider.getClient(serverUrl).sendHeartbeat(
+                        HeartbeatRequest(
+                            peerId = peerId,
+                            connected = true,
+                            rxBytes = stats.rxBytes,
+                            txBytes = stats.txBytes,
+                            uptime = (System.currentTimeMillis() - connectedSince) / 1000,
+                            hostname = HostnameSanitizer.sanitize(android.os.Build.MODEL).orEmpty(),
+                        ),
+                    )
+                    if (response.ok && response.peerEnabled == false) {
+                        Timber.w("Peer disabled on server — disconnecting tunnel")
+                        tunnelManager.disconnect()
+                        apiClientProvider.clearDnsCache()
+                    }
+                } catch (e: Exception) {
+                    Timber.d("Heartbeat failed: %s", e.message)
+                }
+            }
+        }
+    }
+
     private fun serverHost(): String? = runCatching {
         java.net.URI(setupRepository.getServerUrl()).host
     }.getOrNull()
@@ -96,5 +148,9 @@ class TunnelSupervisor @Inject constructor(
         runCatching {
             TileService.requestListeningState(context, ComponentName(context, VpnTileService::class.java))
         }
+    }
+
+    private companion object {
+        const val HEARTBEAT_INTERVAL_MS = 60_000L
     }
 }

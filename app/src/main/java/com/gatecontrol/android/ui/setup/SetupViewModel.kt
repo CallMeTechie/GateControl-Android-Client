@@ -3,6 +3,7 @@ package com.gatecontrol.android.ui.setup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.UiText
 import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
@@ -30,7 +31,7 @@ data class SetupUiState(
     val serverUrl: String = "",
     val apiToken: String = "",
     val isLoading: Boolean = false,
-    val statusMessage: String = "",
+    val statusMessage: UiText? = null,
     val statusType: StatusType = StatusType.INFO,
     val isSetupComplete: Boolean = false,
     val isManualExpanded: Boolean = false,
@@ -74,11 +75,11 @@ class SetupViewModel @Inject constructor(
     val uiState: StateFlow<SetupUiState> = _uiState.asStateFlow()
 
     fun onServerUrlChanged(value: String) {
-        _uiState.update { it.copy(serverUrl = value, statusMessage = "") }
+        _uiState.update { it.copy(serverUrl = value, statusMessage = null) }
     }
 
     fun onApiTokenChanged(value: String) {
-        _uiState.update { it.copy(apiToken = value, statusMessage = "") }
+        _uiState.update { it.copy(apiToken = value, statusMessage = null) }
     }
 
     fun toggleManualExpanded() {
@@ -90,13 +91,13 @@ class SetupViewModel @Inject constructor(
         val token = _uiState.value.apiToken.trim()
         if (url.isBlank()) {
             _uiState.update {
-                it.copy(statusMessage = "Server URL required", statusType = StatusType.ERROR)
+                it.copy(statusMessage = UiText.Res(R.string.setup_error_url_required), statusType = StatusType.ERROR)
             }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "Testing connection…", statusType = StatusType.INFO) }
+            _uiState.update { it.copy(isLoading = true, statusMessage = UiText.Res(R.string.setup_testing_connection), statusType = StatusType.INFO) }
             try {
                 // Side-effect free: the typed token is sent only with this
                 // request and never written to the repository, so a test
@@ -108,14 +109,14 @@ class SetupViewModel @Inject constructor(
                     client.ping()
                 }
                 _uiState.update {
-                    it.copy(isLoading = false, statusMessage = "Connection successful", statusType = StatusType.SUCCESS)
+                    it.copy(isLoading = false, statusMessage = UiText.Res(R.string.settings_connection_ok), statusType = StatusType.SUCCESS)
                 }
             } catch (e: Exception) {
                 Timber.w(e, "testConnection failed")
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Connection failed: ${e.localizedMessage}",
+                        statusMessage = UiText.Res(R.string.setup_connection_failed, e.localizedMessage ?: ""),
                         statusType = StatusType.ERROR,
                     )
                 }
@@ -128,11 +129,11 @@ class SetupViewModel @Inject constructor(
         val token = _uiState.value.apiToken.trim()
 
         if (url.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "Server URL required", statusType = StatusType.ERROR) }
+            _uiState.update { it.copy(statusMessage = UiText.Res(R.string.setup_error_url_required), statusType = StatusType.ERROR) }
             return
         }
         if (token.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "API token required", statusType = StatusType.ERROR) }
+            _uiState.update { it.copy(statusMessage = UiText.Res(R.string.setup_error_token_required), statusType = StatusType.ERROR) }
             return
         }
 
@@ -142,7 +143,7 @@ class SetupViewModel @Inject constructor(
         EnrollmentLink.normalizeCode(token)?.let { code ->
             val serverUrl = EnrollmentLink.normalizeServerUrl(url)
             if (serverUrl == null) {
-                _uiState.update { it.copy(statusMessage = context.getString(R.string.setup_enroll_https_required), statusType = StatusType.ERROR) }
+                _uiState.update { it.copy(statusMessage = UiText.Res(R.string.setup_enroll_https_required), statusType = StatusType.ERROR) }
             } else {
                 enroll(serverUrl, code)
             }
@@ -150,7 +151,7 @@ class SetupViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "Registering…", statusType = StatusType.INFO) }
+            _uiState.update { it.copy(isLoading = true, statusMessage = UiText.Res(R.string.setup_registering), statusType = StatusType.INFO) }
             // Restored if registration fails — a failed attempt must never
             // wipe a working setup.
             val previousUrl = setupRepository.getServerUrl()
@@ -190,7 +191,7 @@ class SetupViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Successfully registered!",
+                        statusMessage = UiText.Res(R.string.setup_success),
                         statusType = StatusType.SUCCESS,
                         isSetupComplete = true,
                         completedNow = true,
@@ -204,7 +205,7 @@ class SetupViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "Registration failed: ${e.localizedMessage}",
+                        statusMessage = UiText.Res(R.string.setup_error, e.localizedMessage ?: ""),
                         statusType = StatusType.ERROR,
                     )
                 }
@@ -218,7 +219,7 @@ class SetupViewModel @Inject constructor(
      * app to another server.
      */
     fun onEnrollmentLink(link: EnrollmentLink) {
-        _uiState.update { it.copy(pendingEnrollment = link, statusMessage = "") }
+        _uiState.update { it.copy(pendingEnrollment = link, statusMessage = null) }
     }
 
     fun cancelEnrollment() {
@@ -242,7 +243,7 @@ class SetupViewModel @Inject constructor(
                 it.copy(
                     isLoading = true,
                     serverUrl = serverUrl,
-                    statusMessage = context.getString(R.string.setup_enroll_running),
+                    statusMessage = UiText.Res(R.string.setup_enroll_running),
                     statusType = StatusType.INFO,
                 )
             }
@@ -285,7 +286,7 @@ class SetupViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         apiToken = "",
-                        statusMessage = context.getString(R.string.setup_enroll_success),
+                        statusMessage = UiText.Res(R.string.setup_enroll_success),
                         statusType = StatusType.SUCCESS,
                         isSetupComplete = true,
                         completedNow = true,
@@ -328,7 +329,7 @@ class SetupViewModel @Inject constructor(
         }
     }
 
-    private fun enrollErrorMessage(e: Exception): String {
+    private fun enrollErrorMessage(e: Exception): UiText {
         val code = if (e is HttpException) {
             if (e.code() == 429) {
                 "rate_limited"
@@ -351,9 +352,9 @@ class SetupViewModel @Inject constructor(
             else -> null
         }
         return if (res != null) {
-            context.getString(res)
+            UiText.Res(res)
         } else {
-            context.getString(R.string.setup_enroll_failed, e.localizedMessage ?: code)
+            UiText.Res(R.string.setup_enroll_failed, e.localizedMessage ?: code)
         }
     }
 
@@ -368,13 +369,13 @@ class SetupViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     pendingTokenSetup = null,
-                    statusMessage = context.getString(R.string.setup_link_https_required),
+                    statusMessage = UiText.Res(R.string.setup_link_https_required),
                     statusType = StatusType.ERROR,
                 )
             }
             return
         }
-        _uiState.update { it.copy(pendingTokenSetup = link, statusMessage = "") }
+        _uiState.update { it.copy(pendingTokenSetup = link, statusMessage = null) }
     }
 
     fun cancelTokenSetup() {
@@ -414,7 +415,7 @@ class SetupViewModel @Inject constructor(
                     Timber.w("importConfig rejected: %s", validation.errors.joinToString(", "))
                     _uiState.update {
                         it.copy(
-                            statusMessage = context.getString(R.string.setup_invalid_config),
+                            statusMessage = UiText.Res(R.string.setup_invalid_config),
                             statusType = StatusType.ERROR,
                         )
                     }
@@ -425,7 +426,7 @@ class SetupViewModel @Inject constructor(
 
                 _uiState.update {
                     it.copy(
-                        statusMessage = "Config imported successfully",
+                        statusMessage = UiText.Res(R.string.setup_config_imported),
                         statusType = StatusType.SUCCESS,
                         isSetupComplete = true,
                         completedNow = true,
@@ -435,7 +436,7 @@ class SetupViewModel @Inject constructor(
                 Timber.w(e, "importConfig failed")
                 _uiState.update {
                     it.copy(
-                        statusMessage = "Import failed: ${e.localizedMessage}",
+                        statusMessage = UiText.Res(R.string.setup_import_failed, e.localizedMessage ?: ""),
                         statusType = StatusType.ERROR,
                     )
                 }

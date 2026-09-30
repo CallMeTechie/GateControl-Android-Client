@@ -236,9 +236,9 @@ fun SetupScreen(
                 )
             }
 
-            if (uiState.statusMessage.isNotEmpty()) {
+            uiState.statusMessage?.let { message ->
                 SetupStatusMessage(
-                    message = uiState.statusMessage,
+                    message = message.asString(),
                     type = uiState.statusType,
                 )
             }
