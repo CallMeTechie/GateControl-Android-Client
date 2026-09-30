@@ -1,11 +1,13 @@
 package com.gatecontrol.android.service
 
 import com.gatecontrol.android.common.HostnameSanitizer
+import com.gatecontrol.android.common.VpnSubnet
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HostnameReportRequest
 import com.gatecontrol.android.tunnel.SplitTunnelConfig
+import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import kotlinx.coroutines.flow.first
@@ -38,6 +40,7 @@ class TunnelConnector @Inject constructor(
         }
 
         val serverUrl = setupRepository.getServerUrl()
+        applyVpnSubnet(config)
 
         // Pre-resolve server hostname before the tunnel comes up. Once the
         // VPN is established the system DNS points to 10.8.0.1, which is
@@ -50,6 +53,7 @@ class TunnelConnector @Inject constructor(
             } catch (_: Exception) {
             }
             config = refreshConfig(serverUrl, config)
+            applyVpnSubnet(config)
         }
 
         val splitTunnelConfig = resolveSplitTunnelConfig(serverUrl)
@@ -108,6 +112,12 @@ class TunnelConnector @Inject constructor(
             Timber.w(e, "TunnelConnector: config check failed, using stored config")
             current
         }
+    }
+
+    /** Tell the DNS workaround which subnet is VPN-internal for this server. */
+    private fun applyVpnSubnet(config: String) {
+        val address = runCatching { TunnelConfig.parse(config).address }.getOrNull() ?: return
+        apiClientProvider.vpnSubnet = VpnSubnet.fromAddress(address) ?: VpnSubnet.DEFAULT
     }
 
     private suspend fun resolveSplitTunnelConfig(serverUrl: String): SplitTunnelConfig {

@@ -2,6 +2,7 @@ package com.gatecontrol.android.tunnel
 
 import android.content.Context
 import android.net.VpnService
+import com.gatecontrol.android.common.VpnSubnet
 import com.wireguard.android.backend.Backend
 import com.wireguard.android.backend.GoBackend
 import com.wireguard.android.backend.Statistics
@@ -290,23 +291,25 @@ class TunnelManager @Inject constructor(private val context: Context) {
             .filter { it.isNotEmpty() }
             .map { if (it.contains(":")) "$it/128" else "$it/32" }
 
+        val vpnSubnet = VpnSubnet.fromAddress(parsed.address) ?: VpnSubnet.DEFAULT
+
         val allowedIpsRaw = when (splitConfig.mode) {
             "exclude" -> {
                 if (splitConfig.networks.isEmpty()) {
                     // No networks excluded — full tunnel (use original AllowedIPs)
                     parsed.allowedIps
                 } else {
-                    // Compute complement: 0.0.0.0/0 minus excluded networks (IPv4)
+                    // Complement of the excluded networks for IPv4 and IPv6 —
+                    // exclude mode means "everything through the VPN except these",
+                    // so IPv6 is tunneled too (minus IPv6 exclusions). DNS + VPN
+                    // subnet are always added to prevent DNS leaks.
                     val complement = CidrComplement.computeAllowedIps(splitConfig.networks)
-                    // Always include ::/0 to prevent IPv6 leaks — exclude mode means
-                    // "everything through VPN except these networks", so IPv6 must also
-                    // be tunneled. Also add DNS + VPN subnet to prevent DNS leaks.
-                    (complement + listOf("::/0") + dnsIps + VPN_SUBNET).distinct().joinToString(",")
+                    (complement + dnsIps + vpnSubnet).distinct().joinToString(",")
                 }
             }
             "include" -> {
                 // Only route specified networks + DNS + VPN subnet
-                (splitConfig.networks + dnsIps + VPN_SUBNET).distinct().joinToString(",")
+                (splitConfig.networks + dnsIps + vpnSubnet).distinct().joinToString(",")
             }
             else -> {
                 // Off — use original AllowedIPs from WG config
@@ -323,7 +326,6 @@ class TunnelManager @Inject constructor(private val context: Context) {
 
     companion object {
         private const val TUNNEL_NAME = "gatecontrol"
-        private const val VPN_SUBNET = "10.8.0.0/24"
         private const val HANDSHAKE_WAIT_MS = 10_000L
         private const val HANDSHAKE_POLL_MS = 250L
     }
