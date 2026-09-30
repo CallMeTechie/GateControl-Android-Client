@@ -1,11 +1,14 @@
 package com.gatecontrol.android.tunnel
 
+import java.math.BigInteger
+import java.net.InetAddress
+
 /**
- * Computes the complement of a set of IPv4 CIDRs within 0.0.0.0/0.
+ * Computes the complement of a set of CIDRs within 0.0.0.0/0 and ::/0.
  * Used for split-tunnel "exclude" mode: given a list of CIDRs to exclude,
- * returns the minimal set of CIDRs that covers everything EXCEPT the excluded ranges.
+ * returns the minimal set of CIDRs that covers everything EXCEPT the excluded ranges,
+ * for IPv4 and IPv6 alike (so IPv6 traffic is tunneled too, minus the exclusions).
  *
- * IPv6 CIDRs (containing ':') are passed through unchanged.
  * Invalid CIDRs are silently skipped.
  */
 object CidrComplement {
@@ -16,17 +19,19 @@ object CidrComplement {
      * @return Minimal set of CIDRs covering 0.0.0.0/0 minus the excluded ranges
      */
     fun computeAllowedIps(excludedCidrs: List<String>): List<String> {
-        val ipv6 = mutableListOf<String>()
+        val ipv6Excludes = mutableListOf<Pair<BigInteger, BigInteger>>()
         val ipv4Excludes = mutableListOf<Pair<Long, Long>>() // (start, end) ranges
 
         for (cidr in excludedCidrs) {
             if (cidr.contains(':')) {
-                ipv6.add(cidr) // pass through IPv6
+                parseCidr6(cidr)?.let { ipv6Excludes.add(it) }
                 continue
             }
             val range = parseCidr(cidr) ?: continue
             ipv4Excludes.add(range)
         }
+
+        val ipv6 = complement6(ipv6Excludes)
 
         if (ipv4Excludes.isEmpty()) {
             return listOf("0.0.0.0/0") + ipv6
@@ -133,5 +138,91 @@ object CidrComplement {
             if (current < 0 || current > 4294967295L) break // overflow guard
         }
         return result
+    }
+
+    // --- IPv6 (128-bit, BigInteger) ---
+
+    private val MAX6: BigInteger = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE)
+
+    internal fun parseCidr6(cidr: String): Pair<BigInteger, BigInteger>? {
+        val parts = cidr.split('/')
+        if (parts.size != 2) return null
+        val prefix = parts[1].toIntOrNull() ?: return null
+        if (prefix < 0 || prefix > 128) return null
+        val addr = parts[0].substringBefore('%')
+        if (!addr.contains(':') || !addr.all { it.isLetterOrDigit() || it == ':' || it == '.' }) return null
+        val bytes = try {
+            // Literal only (contains ':'), so this never performs a DNS lookup.
+            InetAddress.getByName(addr).address
+        } catch (_: Exception) {
+            return null
+        }
+        if (bytes.size != 16) return null
+        val ip = BigInteger(1, bytes)
+        val hostBits = BigInteger.ONE.shiftLeft(128 - prefix).subtract(BigInteger.ONE)
+        val start = ip.andNot(hostBits)
+        return start to start.or(hostBits)
+    }
+
+    internal fun complement6(excludes: List<Pair<BigInteger, BigInteger>>): List<String> {
+        if (excludes.isEmpty()) return listOf("::/0")
+        val sorted = excludes.sortedBy { it.first }
+        val merged = mutableListOf(sorted[0])
+        for (cur in sorted.drop(1)) {
+            val last = merged.last()
+            if (cur.first <= last.second.add(BigInteger.ONE)) {
+                merged[merged.size - 1] = last.first to last.second.max(cur.second)
+            } else {
+                merged.add(cur)
+            }
+        }
+        val result = mutableListOf<String>()
+        var cursor = BigInteger.ZERO
+        for ((start, end) in merged) {
+            if (cursor < start) result += rangeToCidrs6(cursor, start.subtract(BigInteger.ONE))
+            cursor = end.add(BigInteger.ONE)
+            if (cursor > MAX6) break
+        }
+        if (cursor <= MAX6) result += rangeToCidrs6(cursor, MAX6)
+        return result
+    }
+
+    private fun rangeToCidrs6(start: BigInteger, end: BigInteger): List<String> {
+        val result = mutableListOf<String>()
+        var current = start
+        while (current <= end) {
+            var hostBits = 128
+            while (hostBits > 0) {
+                val size = BigInteger.ONE.shiftLeft(hostBits)
+                if (current.mod(size) == BigInteger.ZERO && current.add(size).subtract(BigInteger.ONE) <= end) break
+                hostBits--
+            }
+            result.add("${bigToIp6(current)}/${128 - hostBits}")
+            current = current.add(BigInteger.ONE.shiftLeft(hostBits))
+        }
+        return result
+    }
+
+    /** Canonical RFC 5952 text form (longest zero run compressed to "::"). */
+    internal fun bigToIp6(value: BigInteger): String {
+        val groups = (0 until 8).map { i -> value.shiftRight(112 - 16 * i).toInt() and 0xFFFF }
+        var bestStart = -1
+        var bestLen = 0
+        var i = 0
+        while (i < 8) {
+            if (groups[i] == 0) {
+                var j = i
+                while (j < 8 && groups[j] == 0) j++
+                if (j - i > bestLen && j - i >= 2) { bestStart = i; bestLen = j - i }
+                i = j
+            } else {
+                i++
+            }
+        }
+        val hex = groups.map { Integer.toHexString(it) }
+        if (bestStart < 0) return hex.joinToString(":")
+        val head = hex.subList(0, bestStart).joinToString(":")
+        val tail = hex.subList(bestStart + bestLen, 8).joinToString(":")
+        return "$head::$tail"
     }
 }

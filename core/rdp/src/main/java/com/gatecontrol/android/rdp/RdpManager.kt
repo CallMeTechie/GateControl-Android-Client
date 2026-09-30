@@ -1,8 +1,12 @@
 package com.gatecontrol.android.rdp
 
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.os.PersistableBundle
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.RdpEndSessionRequest
 import com.gatecontrol.android.network.RdpHeartbeatRequest
@@ -22,6 +26,8 @@ class RdpManager(
 
     companion object {
         const val ACCESS_MODE_GATEWAY = "gateway"
+        private const val CLIPBOARD_LABEL = "rdp-password"
+        private const val CLIPBOARD_CLEAR_MS = 60_000L
 
         /** Gateway routes reach the public server endpoint and need no VPN tunnel. */
         fun requiresVpn(accessMode: String?): Boolean =
@@ -245,8 +251,7 @@ class RdpManager(
             // Copy password to clipboard so the user can paste it in the RDP app.
             // The rdp:// URI scheme and .rdp files don't support password passing.
             if (!resolvedPassword.isNullOrEmpty()) {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("rdp-password", resolvedPassword))
+                copyPasswordToClipboard(context, resolvedPassword)
             }
 
             val intent = externalClient.launchIntent(
@@ -326,4 +331,27 @@ class RdpManager(
         }
     }
 
+
+    /**
+     * Put the password on the clipboard for pasting into an external RDP app.
+     * Marked sensitive (hidden from the clipboard preview and keyboard
+     * suggestions) and cleared again after [CLIPBOARD_CLEAR_MS] unless the
+     * user copied something else meanwhile.
+     */
+    private fun copyPasswordToClipboard(context: Context, password: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(CLIPBOARD_LABEL, password).apply {
+            description.extras = PersistableBundle().apply {
+                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+            }
+        }
+        clipboard.setPrimaryClip(clip)
+        Handler(Looper.getMainLooper()).postDelayed({
+            runCatching {
+                if (clipboard.primaryClipDescription?.label == CLIPBOARD_LABEL) {
+                    clipboard.clearPrimaryClip()
+                }
+            }
+        }, CLIPBOARD_CLEAR_MS)
+    }
 }

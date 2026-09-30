@@ -1,5 +1,6 @@
 package com.gatecontrol.android.network
 
+import com.gatecontrol.android.common.VpnSubnet
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.google.gson.Gson
@@ -41,9 +42,20 @@ class ApiClientProvider @Inject constructor(
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
 
     /**
+     * VPN-internal subnet of the current server (from the WireGuard config's
+     * Address). Addresses inside it are never usable from outside the tunnel.
+     * Set by the connect path before the tunnel comes up.
+     */
+    @Volatile
+    var vpnSubnet: String = VpnSubnet.DEFAULT
+
+    private fun isVpnInternal(addr: InetAddress): Boolean =
+        VpnSubnet.contains(vpnSubnet, addr.hostAddress ?: "")
+
+    /**
      * Resolve and cache the server hostname. Safe to call from any thread.
      * Re-resolves to pick up DNS changes, but rejects VPN-internal addresses
-     * (10.8.x.x) that appear when the tunnel's split-horizon DNS is active.
+     * (inside [vpnSubnet]) that appear when the tunnel's split-horizon DNS is active.
      * Call clearDnsCache() on disconnect so the next connect starts fresh.
      */
     suspend fun preResolveDns(hostname: String) {
@@ -54,11 +66,7 @@ class ApiClientProvider @Inject constructor(
                     // Reject VPN-internal addresses — when the tunnel is up,
                     // system DNS may return the VPN gateway (10.8.0.1) instead
                     // of the real public IP.
-                    val isVpnInternal = addresses.all { addr ->
-                        val ip = addr.hostAddress ?: ""
-                        ip.startsWith("10.8.")
-                    }
-                    if (isVpnInternal) {
+                    if (addresses.all(::isVpnInternal)) {
                         timber.log.Timber.d("DNS for $hostname returned VPN-internal address — keeping cache")
                         return@withContext
                     }
@@ -99,12 +107,9 @@ class ApiClientProvider @Inject constructor(
             // can't reach 10.8.0.1 from outside the tunnel, so OkHttp would
             // hit SocketTimeout from the local Wi-Fi IP / ECONNREFUSED via
             // VPN. Filter those out and prefer the pre-resolve cache,
-            // which preResolveDns() guarantees never holds 10.8.x.x.
+            // which preResolveDns() guarantees never holds VPN-internal addresses.
             val systemResults = try {
-                Dns.SYSTEM.lookup(hostname).filter { addr ->
-                    val ip = addr.hostAddress ?: ""
-                    !ip.startsWith("10.8.")
-                }
+                Dns.SYSTEM.lookup(hostname).filterNot(::isVpnInternal)
             } catch (_: Exception) {
                 emptyList()
             }
