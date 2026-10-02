@@ -40,6 +40,7 @@ class TunnelSupervisor @Inject constructor(
     private val tunnelMonitor: TunnelMonitor,
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
+    private val clientPolicyManager: ClientPolicyManager,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var started = false
@@ -52,6 +53,18 @@ class TunnelSupervisor @Inject constructor(
         tunnelManager.setAlwaysOnHandler {
             Timber.i("Always-on VPN start requested by the system")
             connectIfIdle()
+        }
+
+        // Client policy: last known one applies right away (persisted), then
+        // ask the server. Required auto-connect / always-on bring the tunnel up
+        // when the app starts or the policy arrives (VPN consent needed).
+        clientPolicyManager.refreshAsync()
+        scope.launch {
+            clientPolicyManager.policy.collect { policy ->
+                if (policy.autoConnect != com.gatecontrol.android.common.ClientPolicy.AutoConnect.USER) {
+                    connectForPolicy()
+                }
+            }
         }
 
         scope.launch {
@@ -87,6 +100,17 @@ class TunnelSupervisor @Inject constructor(
         }
     }
 
+    /** Connect because the client policy requires it (configured + VPN consent only). */
+    private fun connectForPolicy() {
+        if (!setupRepository.hasWireGuardConfig()) return
+        if (android.net.VpnService.prepare(context) != null) {
+            Timber.w("Client policy requires auto-connect, but VPN consent is missing")
+            return
+        }
+        Timber.i("Client policy requires auto-connect — connecting")
+        connectIfIdle()
+    }
+
     /**
      * Disconnect on behalf of a short-lived caller (Quick Settings tile). Runs
      * in the app-wide scope so it completes even when the caller is unbound
@@ -94,6 +118,11 @@ class TunnelSupervisor @Inject constructor(
      */
     fun disconnect() {
         scope.launch {
+            if (!clientPolicyManager.current().canDisconnect) {
+                Timber.i("Disconnect refused: always-on client policy")
+                refreshTile()
+                return@launch
+            }
             try {
                 tunnelManager.disconnect()
             } catch (e: Exception) {
@@ -144,6 +173,7 @@ class TunnelSupervisor @Inject constructor(
                             hostname = HostnameSanitizer.sanitize(android.os.Build.MODEL).orEmpty(),
                         ),
                     )
+                    clientPolicyManager.noteVersionAsync(response.policyVersion)
                     if (response.ok && response.peerEnabled == false) {
                         Timber.w("Peer disabled on server — disconnecting tunnel")
                         tunnelManager.disconnect()

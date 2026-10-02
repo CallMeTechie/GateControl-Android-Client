@@ -16,6 +16,8 @@ data class PermissionsResponse(
     val scopes: List<String>,
     @SerializedName("portalUrl") val portalUrl: String? = null,
     @SerializedName("autoOpenPortal") val autoOpenPortal: Boolean = false,
+    /** Client policy version (see [ClientPolicyResponse]); null on old servers. */
+    @SerializedName("policyVersion") val policyVersion: String? = null,
 )
 
 data class PermissionFlags(
@@ -269,6 +271,26 @@ data class RdpRouteStatusResponse(
 data class HeartbeatResponse(
     val ok: Boolean,
     val peerEnabled: Boolean? = null,
+    /** Client policy version; differs from the cached one → refetch the policy. */
+    val policyVersion: String? = null,
+)
+
+/** Reply to /client/policy: the effective client policy for this token's peer. */
+data class ClientPolicyResponse(
+    val ok: Boolean,
+    val version: String? = null,
+    val managed: Boolean? = null,
+    val policy: ClientPolicyPayload? = null,
+)
+
+data class ClientPolicyPayload(
+    val killSwitch: String? = null,
+    val autoConnect: String? = null,
+    val autostart: String? = null,
+    val splitTunnelModes: List<String>? = null,
+    val splitTunnelLocked: Boolean? = null,
+    val lockSettings: Boolean? = null,
+    val lockServer: Boolean? = null,
 )
 
 data class SimpleResponse(

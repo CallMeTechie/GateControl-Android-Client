@@ -79,6 +79,17 @@ fun ServerSettingsScreen(
             onBack = onBack,
             backDescription = stringResource(R.string.common_back),
         )
+        if (uiState.policy.lockServer) {
+            // Client policy: server change / re-setup locked by the admin.
+            GcBanner(
+                tone = GcTone.Info,
+                icon = GcIcons.Lock,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            ) {
+                Text(stringResource(R.string.policy_server_locked), style = MaterialTheme.typography.bodyMedium)
+            }
+            return@Column
+        }
         Column(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),

@@ -15,7 +15,7 @@ class TileActionHandlerTest {
 
     private val tunnelConnector: TunnelConnector = mockk(relaxed = true)
     private val tunnelManager: TunnelManager = mockk(relaxed = true)
-    private val handler = TileActionHandler(tunnelConnector, tunnelManager)
+    private val handler = TileActionHandler(tunnelConnector, tunnelManager, fakeClientPolicyManager())
 
     @Test
     fun `only known tile actions are accepted`() {
@@ -50,5 +50,16 @@ class TileActionHandlerTest {
         handler.disconnect()
 
         coVerify { tunnelManager.disconnect() }
+    }
+
+    @Test
+    fun `always-on client policy refuses the tile disconnect`() = kotlinx.coroutines.test.runTest {
+        val locked = TileActionHandler(
+            tunnelConnector,
+            tunnelManager,
+            fakeClientPolicyManager(com.gatecontrol.android.common.ClientPolicy(autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.ALWAYS_ON)),
+        )
+        locked.disconnect()
+        coVerify(exactly = 0) { tunnelManager.disconnect() }
     }
 }

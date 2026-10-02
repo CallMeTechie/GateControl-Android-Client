@@ -7,6 +7,7 @@ import com.gatecontrol.android.ui.UiText
 import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.network.EnrollRequest
 import com.gatecontrol.android.network.RegisterRequest
 import com.gatecontrol.android.tunnel.TunnelConfig
@@ -58,6 +59,7 @@ class SetupViewModel @Inject constructor(
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
     @ApplicationContext private val context: Context,
+    private val clientPolicyManager: ClientPolicyManager,
 ) : ViewModel() {
 
     private val appVersion: String by lazy {
@@ -188,6 +190,8 @@ class SetupViewModel @Inject constructor(
                 response.hash?.let { hash ->
                     setupRepository.saveConfigHash(hash)
                 }
+                // New server / token: the old server's client policy must not stick.
+                resetClientPolicy()
 
                 _uiState.update {
                     it.copy(
@@ -282,6 +286,7 @@ class SetupViewModel @Inject constructor(
                 setupRepository.saveWireGuardConfig(config)
                 hash?.let { setupRepository.saveConfigHash(it) }
                 apiClientProvider.invalidate()
+                resetClientPolicy()
 
                 _uiState.update {
                     it.copy(
@@ -400,6 +405,14 @@ class SetupViewModel @Inject constructor(
         if (!uri.scheme.equals("https", ignoreCase = true)) return null
         if (uri.host.isNullOrBlank() || uri.rawUserInfo != null) return null
         return TokenSetupLink(url.trim().trimEnd('/'), trimmedToken)
+    }
+
+    private suspend fun resetClientPolicy() {
+        try {
+            clientPolicyManager.reset()
+        } catch (e: Exception) {
+            Timber.w(e, "Client policy reset failed")
+        }
     }
 
     private fun ensureHttps(url: String): String {

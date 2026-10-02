@@ -81,7 +81,9 @@ class VpnViewModelTest {
             // Real connector on the same mocks: connect() must go through the shared path.
             tunnelConnector = com.gatecontrol.android.service.TunnelConnector(
                 setupRepository, settingsRepository, apiClientProvider, tunnelManager,
+                com.gatecontrol.android.service.fakeClientPolicyManager(),
             ),
+            clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(),
         )
     }
 
@@ -243,5 +245,26 @@ class VpnViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify(exactly = 0) { apiClient.getPermissions() }
+    }
+
+    @Test
+    fun `always-on client policy refuses the in-app disconnect`() = runTest {
+        val vm = VpnViewModel(
+            setupRepository = setupRepository,
+            settingsRepository = settingsRepository,
+            licenseRepository = licenseRepository,
+            apiClientProvider = apiClientProvider,
+            tunnelManager = tunnelManager,
+            tunnelConnector = com.gatecontrol.android.service.TunnelConnector(
+                setupRepository, settingsRepository, apiClientProvider, tunnelManager,
+                com.gatecontrol.android.service.fakeClientPolicyManager(),
+            ),
+            clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(
+                com.gatecontrol.android.common.ClientPolicy(autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.ALWAYS_ON),
+            ),
+        )
+        vm.disconnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { tunnelManager.disconnect() }
     }
 }

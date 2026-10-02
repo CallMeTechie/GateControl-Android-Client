@@ -304,4 +304,14 @@
     <string name="settings_error_invalid_token">Ungültiger API-Token</string>
     <string name="settings_error_update_check">Update-Prüfung fehlgeschlagen: %1$s</string>
     <string name="settings_error_license">Lizenz konnte nicht aktualisiert werden: %1$s</string>
+    <!-- Client-Richtlinie vom Server -->
+    <string name="policy_locked_hint">Vom Administrator festgelegt</string>
+    <string name="policy_managed_banner">Dieses Gerät wird verwaltet – einige Einstellungen sind vom Administrator festgelegt.</string>
+    <string name="policy_server_locked">Serverwechsel und Neueinrichtung sind vom Administrator gesperrt.</string>
+    <string name="policy_disconnect_locked">Die Verbindung ist vom Administrator als „immer verbunden“ festgelegt.</string>
+    <string name="policy_split_mode_not_allowed">Vom Administrator nicht erlaubt</string>
+    <string name="policy_system_vpn_title">Dein Administrator verlangt ein geschütztes VPN</string>
+    <string name="policy_system_vpn_always_on">Schalte in den Android-VPN-Einstellungen „Durchgehend aktives VPN“ für GateControl ein. Android erlaubt Apps nicht, das selbst zu tun.</string>
+    <string name="policy_system_vpn_kill_switch">Kill-Switch: Schalte in den Android-VPN-Einstellungen „Verbindungen ohne VPN blockieren“ für GateControl ein.</string>
+    <string name="policy_open_vpn_settings">VPN-Einstellungen öffnen</string>
 </resources>

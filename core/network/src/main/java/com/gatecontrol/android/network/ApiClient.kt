@@ -1,5 +1,6 @@
 package com.gatecontrol.android.network
 
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -57,6 +58,13 @@ interface ApiClient {
 
     @GET("api/v1/client/split-tunnel")
     suspend fun getSplitTunnelPreset(): SplitTunnelPresetResponse
+
+    /**
+     * Effective client policy. With the cached version as If-None-Match the
+     * server answers 304 when nothing changed (hence the raw [Response]).
+     */
+    @GET("api/v1/client/policy")
+    suspend fun getClientPolicy(@Header("If-None-Match") ifNoneMatch: String? = null): Response<ClientPolicyResponse>
 
     @GET("api/v1/client/rdp")
     suspend fun getRdpRoutes(): RdpRoutesResponse

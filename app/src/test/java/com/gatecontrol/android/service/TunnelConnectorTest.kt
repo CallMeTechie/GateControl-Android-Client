@@ -79,6 +79,7 @@ class TunnelConnectorTest {
             settingsRepository,
             apiClientProvider,
             tunnelManager,
+            fakeClientPolicyManager(),
         )
     }
 
@@ -135,5 +136,22 @@ class TunnelConnectorTest {
 
         coVerify(exactly = 0) { apiClient.checkConfigUpdate(any(), any()) }
         coVerify { tunnelManager.connect(OLD_CONFIG, any<SplitTunnelConfig>()) }
+    }
+
+    @Test
+    fun `client policy clamps a split mode it does not allow`() = runTest {
+        every { settingsRepository.getSplitTunnelMode() } returns flowOf(SplitTunnelMode.INCLUDE)
+        every { settingsRepository.getSplitTunnelNetworks() } returns flowOf("[]")
+        every { settingsRepository.getSplitTunnelAppsV2() } returns flowOf("[]")
+        coEvery { apiClient.checkConfigUpdate(any(), any()) } returns
+            ConfigCheckResponse(ok = true, updated = false, config = null, hash = STORED_HASH)
+        val restricted = TunnelConnector(
+            setupRepository, settingsRepository, apiClientProvider, tunnelManager,
+            fakeClientPolicyManager(com.gatecontrol.android.common.ClientPolicy(splitTunnelModes = setOf(SplitTunnelMode.OFF, SplitTunnelMode.EXCLUDE))),
+        )
+
+        assertTrue(restricted.connectWithUserSettings())
+
+        coVerify { tunnelManager.connect(OLD_CONFIG, SplitTunnelConfig()) }
     }
 }
