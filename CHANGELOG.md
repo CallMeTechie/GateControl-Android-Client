@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0] - 2026-10-02
+
+### Features
+- send a redacted support bundle from Settings → Hilfe (#31)
+
+---
+
 ## [1.13.5] - 2026-09-30
 
 ### Changes
