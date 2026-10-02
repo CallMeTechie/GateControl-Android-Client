@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0] - 2026-10-02
+
+### Features
+- enforce server client policies (#32)
+
+---
+
 ## [1.14.0] - 2026-10-02
 
 ### Features
