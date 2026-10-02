@@ -92,6 +92,7 @@ fun VpnScreen(
     val portalUrl by viewModel.portalUrl.collectAsState()
     val autoOpen by viewModel.autoOpenPortal.collectAsState()
     val expiresAt by viewModel.peerExpiresAt.collectAsState()
+    val clientPolicy by viewModel.clientPolicy.collectAsState()
 
     // Bandwidth history ring buffers (60 points each)
     val rxHistory = remember { mutableStateListOf<Long>() }
@@ -256,13 +257,19 @@ fun VpnScreen(
             }
         }
 
+        // --- Client policy: kill switch / always-on need the system settings
+        com.gatecontrol.android.ui.components.GcPolicySystemVpnCard(clientPolicy)
+
         // --- Orb ----------------------------------------------------------
         Column(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            // Client policy "always on": no manual disconnect in the app.
+            val disconnectLocked = isConnected && !clientPolicy.canDisconnect
             val orbHint = when {
+                disconnectLocked -> stringResource(R.string.policy_disconnect_locked)
                 isConnected -> stringResource(R.string.vpn_disconnect)
                 isBusy -> stringResource(R.string.vpn_connecting)
                 else -> stringResource(R.string.vpn_connect)
@@ -273,6 +280,7 @@ fun VpnScreen(
                 contentDescription = orbHint,
                 onClick = {
                     when {
+                        disconnectLocked -> Unit
                         isConnected -> viewModel.disconnect()
                         isBusy -> viewModel.disconnect()
                         else -> startConnect()

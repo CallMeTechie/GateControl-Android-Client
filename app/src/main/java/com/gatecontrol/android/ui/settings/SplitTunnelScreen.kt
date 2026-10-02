@@ -64,7 +64,13 @@ fun SplitTunnelScreen(
     val extra = GateControlTheme.extraColors
     var showAppPicker by remember { mutableStateOf(false) }
     val wifiSubnet = remember { WifiSubnetDetector.detect(context) }
-    val locked = uiState.splitTunnelAdminLocked
+    val policy = uiState.policy
+    // Admin preset lock (server split-tunnel preset) or client policy lock.
+    val locked = uiState.splitTunnelAdminLocked || policy.splitTunnelFrozen
+    val appsLocked = policy.lockSettings
+    @Composable
+    fun modeDesc(mode: SplitTunnelMode, default: String): String =
+        if (policy.isModeAllowed(mode)) default else stringResource(R.string.policy_split_mode_not_allowed)
 
     Column(
         modifier = Modifier
@@ -81,26 +87,29 @@ fun SplitTunnelScreen(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (policy.splitTunnelFrozen || policy.splitTunnelModes.size < SplitTunnelMode.entries.size) {
+                com.gatecontrol.android.ui.components.GcPolicyLockedHint(Modifier.padding(horizontal = 4.dp))
+            }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ModeCard(
                     title = stringResource(R.string.split_tunnel_mode_off),
-                    desc = stringResource(R.string.split_tunnel_off_desc),
+                    desc = modeDesc(SplitTunnelMode.OFF, stringResource(R.string.split_tunnel_off_desc)),
                     selected = uiState.splitTunnelMode == SplitTunnelMode.OFF,
-                    enabled = !locked,
+                    enabled = !locked && policy.isModeAllowed(SplitTunnelMode.OFF),
                     onSelect = { viewModel.setSplitTunnelMode(SplitTunnelMode.OFF) },
                 )
                 ModeCard(
                     title = stringResource(R.string.split_tunnel_mode_exclude),
-                    desc = stringResource(R.string.split_tunnel_exclude_label),
+                    desc = modeDesc(SplitTunnelMode.EXCLUDE, stringResource(R.string.split_tunnel_exclude_label)),
                     selected = uiState.splitTunnelMode == SplitTunnelMode.EXCLUDE,
-                    enabled = !locked,
+                    enabled = !locked && policy.isModeAllowed(SplitTunnelMode.EXCLUDE),
                     onSelect = { viewModel.setSplitTunnelMode(SplitTunnelMode.EXCLUDE) },
                 )
                 ModeCard(
                     title = stringResource(R.string.split_tunnel_mode_include),
-                    desc = stringResource(R.string.split_tunnel_include_label),
+                    desc = modeDesc(SplitTunnelMode.INCLUDE, stringResource(R.string.split_tunnel_include_label)),
                     selected = uiState.splitTunnelMode == SplitTunnelMode.INCLUDE,
-                    enabled = !locked,
+                    enabled = !locked && policy.isModeAllowed(SplitTunnelMode.INCLUDE),
                     onSelect = { viewModel.setSplitTunnelMode(SplitTunnelMode.INCLUDE) },
                 )
             }
@@ -153,21 +162,25 @@ fun SplitTunnelScreen(
                                 }
                             },
                             trailing = {
-                                GcIconButton(
-                                    icon = GcIcons.Close,
-                                    contentDescription = stringResource(R.string.common_remove_named, appLabel),
-                                    onClick = { viewModel.setSplitTunnelAppsV2(uiState.splitTunnelAppsV2 - pkg) },
-                                    iconSize = 18.dp,
-                                )
+                                if (!appsLocked) {
+                                    GcIconButton(
+                                        icon = GcIcons.Close,
+                                        contentDescription = stringResource(R.string.common_remove_named, appLabel),
+                                        onClick = { viewModel.setSplitTunnelAppsV2(uiState.splitTunnelAppsV2 - pkg) },
+                                        iconSize = 18.dp,
+                                    )
+                                }
                             },
                         )
                     }
-                    GcListRow(
-                        title = stringResource(R.string.split_tunnel_pick_apps),
-                        titleColor = extra.accentText,
-                        onClick = { showAppPicker = true },
-                        leading = { Icon(GcIcons.Plus, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(20.dp)) },
-                    )
+                    if (!appsLocked) {
+                        GcListRow(
+                            title = stringResource(R.string.split_tunnel_pick_apps),
+                            titleColor = extra.accentText,
+                            onClick = { showAppPicker = true },
+                            leading = { Icon(GcIcons.Plus, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(20.dp)) },
+                        )
+                    }
                 }
             }
 

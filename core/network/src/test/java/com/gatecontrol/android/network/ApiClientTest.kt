@@ -227,4 +227,40 @@ class ApiClientTest {
         assertTrue(response.available)
         assertEquals("2.0.0", response.version)
     }
+
+    @Test
+    fun `client policy is fetched with If-None-Match and 304 maps to not modified`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"ok":true,"version":"ab12","managed":true,"policy":{"killSwitch":"required","autoConnect":"always_on","autostart":"user","splitTunnelModes":["off"],"splitTunnelLocked":false,"lockSettings":true,"lockServer":false}}"""
+                )
+        )
+        server.enqueue(MockResponse().setResponseCode(304))
+
+        val first = apiClient.getClientPolicy(null)
+        val rec1 = server.takeRequest()
+        assertEquals("/api/v1/client/policy", rec1.path)
+        assertEquals(null, rec1.getHeader("If-None-Match"))
+        assertTrue(first.isSuccessful)
+        val body = first.body()
+        assertNotNull(body)
+        assertEquals("ab12", body!!.version)
+        assertEquals("always_on", body.policy?.autoConnect)
+        assertEquals(listOf("off"), body.policy?.splitTunnelModes)
+        assertEquals(true, body.policy?.lockSettings)
+
+        val second = apiClient.getClientPolicy("\"ab12\"")
+        val rec2 = server.takeRequest()
+        assertEquals("\"ab12\"", rec2.getHeader("If-None-Match"))
+        assertEquals(304, second.code())
+    }
+
+    @Test
+    fun `heartbeat carries the policy version`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"ok":true,"peerEnabled":true,"policyVersion":"cd34"}"""))
+        val response = apiClient.sendHeartbeat(HeartbeatRequest(1, true, 0, 0, 0, "phone"))
+        assertEquals("cd34", response.policyVersion)
+    }
 }

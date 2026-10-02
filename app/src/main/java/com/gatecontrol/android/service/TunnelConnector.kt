@@ -30,6 +30,7 @@ class TunnelConnector @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val apiClientProvider: ApiClientProvider,
     private val tunnelManager: TunnelManager,
+    private val clientPolicyManager: ClientPolicyManager,
 ) {
 
     suspend fun connectWithUserSettings(): Boolean {
@@ -56,7 +57,7 @@ class TunnelConnector @Inject constructor(
             applyVpnSubnet(config)
         }
 
-        val splitTunnelConfig = resolveSplitTunnelConfig(serverUrl)
+        val splitTunnelConfig = applyPolicy(resolveSplitTunnelConfig(serverUrl))
 
         return try {
             tunnelManager.connect(config, splitTunnelConfig)
@@ -116,6 +117,23 @@ class TunnelConnector @Inject constructor(
             Timber.w(e, "TunnelConnector: config check failed, using stored config")
             current
         }
+    }
+
+    /**
+     * Client policy: only the split-tunnel modes the admin allows. A locked
+     * server preset already carries the one allowed mode; anything else is
+     * clamped (full tunnel when allowed). Never-fetched policy = unchanged.
+     */
+    private suspend fun applyPolicy(config: SplitTunnelConfig): SplitTunnelConfig {
+        val policy = try { clientPolicyManager.current() } catch (e: Exception) {
+            Timber.w(e, "TunnelConnector: client policy unavailable")
+            return config
+        }
+        val mode = policy.clampMode(config.mode)
+        if (mode == config.mode) return config
+        Timber.i("TunnelConnector: split-tunnel mode %s not allowed by policy, using %s", config.mode, mode)
+        if (mode == SplitTunnelMode.OFF) return SplitTunnelConfig()
+        return config.copy(mode = mode)
     }
 
     /** Tell the DNS workaround which subnet is VPN-internal for this server. */

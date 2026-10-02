@@ -86,6 +86,7 @@ class SettingsViewModelTest {
         viewModel = SettingsViewModel(
             setupRepository, settingsRepository, apiClientProvider, licenseRepository,
             supportBundleCollector, supportBundleUploader,
+            com.gatecontrol.android.service.fakeClientPolicyManager(),
         )
     }
 
@@ -245,6 +246,31 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNotNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `client policy locks auto-connect, split mode and server change`() = runTest {
+        val policy = com.gatecontrol.android.common.ClientPolicy(
+            autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.REQUIRED,
+            splitTunnelModes = setOf(com.gatecontrol.android.common.SplitTunnelMode.OFF),
+            lockServer = true,
+        )
+        val vm = SettingsViewModel(
+            setupRepository, settingsRepository, apiClientProvider, licenseRepository,
+            supportBundleCollector, supportBundleUploader,
+            com.gatecontrol.android.service.fakeClientPolicyManager(policy),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setAutoConnect(false)
+        vm.setSplitTunnelMode(com.gatecontrol.android.common.SplitTunnelMode.INCLUDE)
+        vm.saveServer("https://other.example.com", "gc_othertoken123456")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { settingsRepository.setAutoConnect(any()) }
+        coVerify(exactly = 0) { settingsRepository.setSplitTunnelMode(any()) }
+        io.mockk.verify(exactly = 0) { setupRepository.save(any(), any(), any()) }
+        org.junit.jupiter.api.Assertions.assertEquals(policy, vm.uiState.value.policy)
     }
 
     // ── Support bundle ───────────────────────────────────────────────

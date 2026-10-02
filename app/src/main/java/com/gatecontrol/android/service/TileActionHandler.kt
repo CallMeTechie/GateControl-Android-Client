@@ -26,6 +26,7 @@ enum class TileAction(val wireValue: String) {
 class TileActionHandler @Inject constructor(
     private val tunnelConnector: TunnelConnector,
     private val tunnelManager: TunnelManager,
+    private val clientPolicyManager: ClientPolicyManager,
 ) {
 
     /**
@@ -42,6 +43,11 @@ class TileActionHandler @Inject constructor(
     }
 
     suspend fun disconnect() {
+        // Client policy "always on": no manual disconnect.
+        if (!clientPolicyManager.current().canDisconnect) {
+            Timber.i("Tile disconnect refused: always-on client policy")
+            return
+        }
         try {
             tunnelManager.disconnect()
             Timber.d("Tile disconnect succeeded")

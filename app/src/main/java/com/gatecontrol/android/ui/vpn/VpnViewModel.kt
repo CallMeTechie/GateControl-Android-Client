@@ -10,6 +10,8 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
+import com.gatecontrol.android.common.ClientPolicy
+import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.service.TunnelConnector
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
@@ -34,7 +36,11 @@ class VpnViewModel @Inject constructor(
     private val apiClientProvider: ApiClientProvider,
     private val tunnelManager: TunnelManager,
     private val tunnelConnector: TunnelConnector,
+    private val clientPolicyManager: ClientPolicyManager,
 ) : ViewModel() {
+
+    /** Client policy from the server (unrestricted until one was fetched). */
+    val clientPolicy: StateFlow<ClientPolicy> = clientPolicyManager.policy
 
     val tunnelState: StateFlow<TunnelState> = tunnelManager.state
 
@@ -199,6 +205,11 @@ class VpnViewModel @Inject constructor(
 
     fun disconnect() {
         viewModelScope.launch {
+            // Client policy "always on": no manual disconnect in the app.
+            if (!clientPolicyManager.current().canDisconnect) {
+                Timber.i("VpnViewModel: disconnect refused by always-on client policy")
+                return@launch
+            }
             try {
                 tunnelManager.disconnect()
                 _stats.value = TunnelStats()

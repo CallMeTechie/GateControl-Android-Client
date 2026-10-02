@@ -37,6 +37,9 @@ import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.components.GcPolicyLockedHint
+import com.gatecontrol.android.ui.components.GcPolicyManagedBanner
+import com.gatecontrol.android.ui.components.GcPolicySystemVpnCard
 import com.gatecontrol.android.ui.components.GcScreenTitle
 import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
@@ -104,20 +107,37 @@ fun SettingsScreen(
             }
         }
 
+        // --- Client policy ----------------------------------------------
+        val policy = uiState.policy
+        GcPolicyManagedBanner(policy)
+        GcPolicySystemVpnCard(policy)
+
         // --- Verbindung ----------------------------------------------------
         SettingsGroup(stringResource(R.string.settings_group_connection)) {
-            GcListRow(
-                title = stringResource(R.string.settings_server_row),
-                description = stringResource(R.string.settings_server_row_desc, host.ifBlank { "—" }),
-                onClick = onNavigateToServer,
-                trailing = { GcChevron() },
-            )
+            if (policy.lockServer) {
+                GcListRow(
+                    title = stringResource(R.string.settings_server_row),
+                    description = stringResource(R.string.policy_server_locked),
+                    trailing = { Icon(GcIcons.Lock, contentDescription = null, tint = extra.muted, modifier = Modifier.size(18.dp)) },
+                )
+            } else {
+                GcListRow(
+                    title = stringResource(R.string.settings_server_row),
+                    description = stringResource(R.string.settings_server_row_desc, host.ifBlank { "—" }),
+                    onClick = onNavigateToServer,
+                    trailing = { GcChevron() },
+                )
+            }
             GcSwitchRow(
                 label = stringResource(R.string.settings_auto_connect),
                 description = stringResource(R.string.settings_auto_connect_desc),
-                checked = uiState.autoConnect,
+                checked = policy.forcedAutoConnect ?: uiState.autoConnect,
                 onCheckedChange = { viewModel.setAutoConnect(it) },
+                enabled = !policy.autoConnectLocked,
             )
+            if (policy.autoConnectLocked) {
+                GcPolicyLockedHint(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp))
+            }
             GcListRow(
                 title = stringResource(R.string.settings_split_tunnel),
                 description = splitSummary(uiState),

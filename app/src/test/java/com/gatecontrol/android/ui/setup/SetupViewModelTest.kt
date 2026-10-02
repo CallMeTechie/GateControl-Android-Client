@@ -68,7 +68,7 @@ class SetupViewModelTest {
         every { context.getString(any(), *anyVararg()) } answers { "res-${firstArg<Int>()}" }
         every { apiClientProvider.invalidate() } returns Unit
 
-        viewModel = SetupViewModel(setupRepository, apiClientProvider, context)
+        viewModel = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
     }
 
     @AfterEach
@@ -351,7 +351,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns true
         every { setupRepository.hasWireGuardConfig() } returns false
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider, context)
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
 
         assertTrue(vm.uiState.value.isSetupComplete)
     }
@@ -361,7 +361,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns false
         every { setupRepository.hasWireGuardConfig() } returns true
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider, context)
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
 
         assertTrue(vm.uiState.value.isSetupComplete)
     }
@@ -371,7 +371,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns false
         every { setupRepository.hasWireGuardConfig() } returns false
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider, context)
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
 
         assertFalse(vm.uiState.value.isSetupComplete)
     }

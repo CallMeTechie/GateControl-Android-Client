@@ -304,6 +304,16 @@
     <string name="settings_error_invalid_token">Invalid API token</string>
     <string name="settings_error_update_check">Update check failed: %1$s</string>
     <string name="settings_error_license">License refresh failed: %1$s</string>
+    <!-- Client policy from the server ("Client-Richtlinien") -->
+    <string name="policy_locked_hint">Set by your administrator</string>
+    <string name="policy_managed_banner">This device is managed – some settings are set by your administrator.</string>
+    <string name="policy_server_locked">Changing the server and re-setup are locked by your administrator.</string>
+    <string name="policy_disconnect_locked">Your administrator set the connection to “always connected”.</string>
+    <string name="policy_split_mode_not_allowed">Not allowed by your administrator</string>
+    <string name="policy_system_vpn_title">Your administrator requires a protected VPN</string>
+    <string name="policy_system_vpn_always_on">Turn on “Always-on VPN” for GateControl in the Android VPN settings. Android does not let apps do this themselves.</string>
+    <string name="policy_system_vpn_kill_switch">Kill switch: turn on “Block connections without VPN” for GateControl in the Android VPN settings.</string>
+    <string name="policy_open_vpn_settings">Open VPN settings</string>
 
     <!-- Support bundle (Settings → Help) -->
     <string name="support_send">Send support bundle</string>

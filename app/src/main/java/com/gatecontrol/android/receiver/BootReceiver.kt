@@ -7,6 +7,7 @@ import android.net.VpnService
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.service.TunnelConnector
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
@@ -27,6 +28,7 @@ class BootReceiver : BroadcastReceiver() {
     @Inject lateinit var apiClientProvider: ApiClientProvider
     @Inject lateinit var tunnelConnector: TunnelConnector
     @Inject lateinit var tunnelManager: TunnelManager
+    @Inject lateinit var clientPolicyManager: ClientPolicyManager
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
@@ -36,7 +38,9 @@ class BootReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val autoConnect = settingsRepository.getAutoConnect().first()
+                // Client policy (last known, works offline) may force it.
+                val autoConnect = clientPolicyManager.current().forcedAutoConnect
+                    ?: settingsRepository.getAutoConnect().first()
                 val isConfigured = setupRepository.isConfigured()
 
                 if (autoConnect && isConfigured) {

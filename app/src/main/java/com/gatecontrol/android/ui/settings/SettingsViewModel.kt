@@ -14,6 +14,8 @@ import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import com.gatecontrol.android.network.UpdateCheckResponse
 import com.gatecontrol.android.common.Validation
+import com.gatecontrol.android.common.ClientPolicy
+import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.network.SupportBundleUploader
 import com.gatecontrol.android.support.SupportBundleCollector
 import com.gatecontrol.android.support.SupportRequestHolder
@@ -57,6 +59,8 @@ data class SettingsUiState(
     val error: UiText? = null,
     val isPro: Boolean = false,
     val peerId: Int = 0,
+    /** Client policy from the server (unrestricted until one was fetched). */
+    val policy: ClientPolicy = ClientPolicy.UNRESTRICTED,
     /** Confirmation dialog for "Support-Paket senden" is open. */
     val supportDialogVisible: Boolean = false,
     val supportSending: Boolean = false,
@@ -74,6 +78,7 @@ class SettingsViewModel @Inject constructor(
     private val licenseRepository: LicenseRepository,
     private val supportBundleCollector: SupportBundleCollector,
     private val supportBundleUploader: SupportBundleUploader,
+    private val clientPolicyManager: ClientPolicyManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -135,6 +140,11 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            clientPolicyManager.policy.collect { policy ->
+                _uiState.update { it.copy(policy = policy) }
+            }
+        }
+        viewModelScope.launch {
             settingsRepository.getSplitTunnelAdminLocked().collect { locked ->
                 _uiState.update { it.copy(splitTunnelAdminLocked = locked) }
             }
@@ -172,6 +182,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setAutoConnect(enabled: Boolean) {
+        if (_uiState.value.policy.autoConnectLocked) return
         viewModelScope.launch {
             settingsRepository.setAutoConnect(enabled)
             _uiState.update { it.copy(autoConnect = enabled) }
@@ -227,6 +238,10 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { it.copy(error = UiText.Res(R.string.settings_error_invalid_token)) }
             return
         }
+        if (_uiState.value.policy.lockServer) {
+            _uiState.update { it.copy(error = UiText.Res(R.string.policy_server_locked)) }
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -240,6 +255,8 @@ class SettingsViewModel @Inject constructor(
                 }
 
                 setupRepository.save(url, token, peerId.coerceAtLeast(0))
+                // New server / token: the old server's policy must not stick.
+                clientPolicyManager.reset()
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -278,11 +295,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setSplitTunnelMode(mode: SplitTunnelMode) {
+        val policy = _uiState.value.policy
+        if (policy.splitTunnelFrozen || !policy.isModeAllowed(mode)) return
         _uiState.update { it.copy(splitTunnelMode = mode) }
         viewModelScope.launch { settingsRepository.setSplitTunnelMode(mode) }
     }
 
     fun setSplitTunnelNetworks(networks: List<NetworkEntry>) {
+        if (_uiState.value.policy.splitTunnelFrozen) return
         _uiState.update { it.copy(splitTunnelNetworks = networks) }
         viewModelScope.launch {
             settingsRepository.setSplitTunnelNetworks(
@@ -292,6 +312,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setSplitTunnelAppsV2(apps: List<String>) {
+        if (_uiState.value.policy.lockSettings) return
         _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
         viewModelScope.launch {
             settingsRepository.setSplitTunnelAppsV2(SplitTunnelJson.encodeApps(apps))
@@ -347,6 +368,7 @@ class SettingsViewModel @Inject constructor(
                         pihole = perms.pihole,
                         piholeControl = perms.piholeControl,
                     )
+                    clientPolicyManager.noteVersionAsync(response.policyVersion)
                     val isPro = perms.rdp || perms.traffic || perms.dns
                     _uiState.update {
                         it.copy(
@@ -377,6 +399,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun importConfigFromUri(context: android.content.Context, uri: android.net.Uri) {
+        if (_uiState.value.policy.lockServer) {
+            _uiState.update { it.copy(error = UiText.Res(R.string.policy_server_locked)) }
+            return
+        }
         viewModelScope.launch {
             try {
                 val input = context.contentResolver.openInputStream(uri)
