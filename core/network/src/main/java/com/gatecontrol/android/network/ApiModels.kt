@@ -273,6 +273,10 @@ data class HeartbeatResponse(
     val peerEnabled: Boolean? = null,
     /** Client policy version; differs from the cached one → refetch the policy. */
     val policyVersion: String? = null,
+    /** An admin asked this device for a support bundle (the user is asked first). */
+    val supportBundleRequested: Boolean? = null,
+    /** When the admin asked (server time, UTC) — a new value means a new request. */
+    val supportBundleRequestedAt: String? = null,
 )
 
 /** Reply to /client/policy: the effective client policy for this token's peer. */
@@ -291,6 +295,18 @@ data class ClientPolicyPayload(
     val splitTunnelLocked: Boolean? = null,
     val lockSettings: Boolean? = null,
     val lockServer: Boolean? = null,
+)
+
+data class SupportBundleUploadResponse(
+    val ok: Boolean,
+    val bundle: SupportBundleInfo? = null,
+    val error: String? = null,
+)
+
+data class SupportBundleInfo(
+    val id: Long,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("size_bytes") val sizeBytes: Long = 0,
 )
 
 data class SimpleResponse(

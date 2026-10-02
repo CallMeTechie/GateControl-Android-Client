@@ -8,6 +8,17 @@ import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PingResponse
 import com.gatecontrol.android.network.UpdateCheckResponse
+import com.gatecontrol.android.R
+import com.gatecontrol.android.network.SupportBundleInfo
+import com.gatecontrol.android.network.SupportBundleUploadResponse
+import com.gatecontrol.android.network.SupportBundleUploader
+import com.gatecontrol.android.support.SupportBundleCollector
+import com.gatecontrol.android.support.SupportRequestHolder
+import com.gatecontrol.android.ui.UiText
+import io.mockk.slot
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -21,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -38,6 +50,8 @@ class SettingsViewModelTest {
     private lateinit var licenseRepository: LicenseRepository
     private lateinit var apiClient: ApiClient
     private lateinit var viewModel: SettingsViewModel
+    private lateinit var supportBundleCollector: SupportBundleCollector
+    private lateinit var supportBundleUploader: SupportBundleUploader
 
     @BeforeEach
     fun setUp() {
@@ -63,7 +77,17 @@ class SettingsViewModelTest {
         }
         licenseRepository = mockk()
 
-        viewModel = SettingsViewModel(setupRepository, settingsRepository, apiClientProvider, licenseRepository, com.gatecontrol.android.service.fakeClientPolicyManager())
+        supportBundleCollector = mockk {
+            every { collect(any(), any(), any(), any(), any()) } returns mapOf("schema" to 1)
+        }
+        supportBundleUploader = mockk()
+        SupportRequestHolder.clear()
+
+        viewModel = SettingsViewModel(
+            setupRepository, settingsRepository, apiClientProvider, licenseRepository,
+            supportBundleCollector, supportBundleUploader,
+            com.gatecontrol.android.service.fakeClientPolicyManager(),
+        )
     }
 
     @AfterEach
@@ -233,6 +257,7 @@ class SettingsViewModelTest {
         )
         val vm = SettingsViewModel(
             setupRepository, settingsRepository, apiClientProvider, licenseRepository,
+            supportBundleCollector, supportBundleUploader,
             com.gatecontrol.android.service.fakeClientPolicyManager(policy),
         )
         testDispatcher.scheduler.advanceUntilIdle()
@@ -246,5 +271,84 @@ class SettingsViewModelTest {
         coVerify(exactly = 0) { settingsRepository.setSplitTunnelMode(any()) }
         io.mockk.verify(exactly = 0) { setupRepository.save(any(), any(), any()) }
         org.junit.jupiter.api.Assertions.assertEquals(policy, vm.uiState.value.policy)
+    }
+
+    // ── Support bundle ───────────────────────────────────────────────
+
+    private suspend fun awaitSupportResult(): UiText? {
+        repeat(200) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = viewModel.uiState.value
+            if (!state.supportSending && state.supportMessage != null) return state.supportMessage
+            Thread.sleep(10) // collect() runs on Dispatchers.IO
+        }
+        return viewModel.uiState.value.supportMessage
+    }
+
+    @Test
+    fun `support bundle - dialog first, upload only after confirm`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.requestSupportBundle()
+        assertTrue(viewModel.uiState.value.supportDialogVisible)
+        coVerify(exactly = 0) { supportBundleUploader.upload(any(), any(), any()) }
+
+        viewModel.dismissSupportDialog()
+        assertFalse(viewModel.uiState.value.supportDialogVisible)
+        coVerify(exactly = 0) { supportBundleUploader.upload(any(), any(), any()) }
+    }
+
+    @Test
+    fun `support bundle - sends redacted settings without the token`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        val settings = slot<Map<String, Any?>>()
+        every { supportBundleCollector.collect(any(), any(), capture(settings), any(), any()) } returns mapOf("schema" to 1)
+        coEvery { supportBundleUploader.upload("https://gate.example.com", 1, any()) } returns
+            SupportBundleUploadResponse(ok = true, bundle = SupportBundleInfo(id = 5))
+
+        viewModel.requestSupportBundle()
+        viewModel.sendSupportBundle("1.5.0")
+        val msg = awaitSupportResult()
+
+        assertEquals(UiText.Res(R.string.support_success), msg)
+        assertFalse(viewModel.uiState.value.supportDialogVisible)
+        assertFalse(settings.captured.values.any { it == "gc_testtoken" })
+        assertFalse(settings.captured.keys.any { it.contains("token", ignoreCase = true) })
+        assertEquals("https://gate.example.com", settings.captured["serverUrl"])
+
+        viewModel.consumeSupportMessage()
+        assertNull(viewModel.uiState.value.supportMessage)
+    }
+
+    @Test
+    fun `support bundle - 429 maps to rate limited message`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { supportBundleUploader.upload(any(), any(), any()) } throws
+            HttpException(Response.error<Any>(429, "{\"ok\":false}".toResponseBody(null)))
+        viewModel.sendSupportBundle("1.5.0")
+        assertEquals(UiText.Res(R.string.support_rate_limited), awaitSupportResult())
+    }
+
+    @Test
+    fun `support bundle - admin request is shown and cleared by a successful upload`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        SupportRequestHolder.update(true, "2026-10-02 10:00:00")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.supportRequested)
+
+        coEvery { supportBundleUploader.upload(any(), any(), any()) } returns SupportBundleUploadResponse(ok = true)
+        viewModel.sendSupportBundle("1.5.0")
+        awaitSupportResult()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.supportRequested)
+        io.mockk.verify { supportBundleCollector.collect(any(), any(), any(), "admin_request", any()) }
+    }
+
+    @Test
+    fun `support bundle - not configured shows a message, no dialog`() = runTest {
+        every { setupRepository.getPeerId() } returns -1
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.requestSupportBundle()
+        assertFalse(viewModel.uiState.value.supportDialogVisible)
+        assertEquals(UiText.Res(R.string.support_not_configured), viewModel.uiState.value.supportMessage)
     }
 }

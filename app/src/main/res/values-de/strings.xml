@@ -314,4 +314,23 @@
     <string name="policy_system_vpn_always_on">Schalte in den Android-VPN-Einstellungen „Durchgehend aktives VPN“ für GateControl ein. Android erlaubt Apps nicht, das selbst zu tun.</string>
     <string name="policy_system_vpn_kill_switch">Kill-Switch: Schalte in den Android-VPN-Einstellungen „Verbindungen ohne VPN blockieren“ für GateControl ein.</string>
     <string name="policy_open_vpn_settings">VPN-Einstellungen öffnen</string>
+
+    <!-- Support bundle (Settings → Help) -->
+    <string name="support_send">Support-Paket senden</string>
+    <string name="support_send_desc">Bereinigte Diagnosedaten für deinen Administrator</string>
+    <string name="support_requested">Dein Administrator hat ein Support-Paket angefordert</string>
+    <string name="support_dialog_title">Diagnosedaten an %1$s senden?</string>
+    <string name="support_dialog_includes">Enthalten: App- und Android-Version, Gerät, Tunnelstatus und letzter Handshake, Einstellungen, WireGuard-Konfiguration ohne Schlüssel, Netzwerkschnittstellen, DNS-Server und Routen, die letzten 2000 Logzeilen und aktuelle Fehler.</string>
+    <string name="support_dialog_excludes">Nicht enthalten: private Schlüssel, Preshared Keys, API-Tokens, Passwörter, Einrichtungscodes und Cookies – sie werden vor dem Senden entfernt.</string>
+    <string name="support_dialog_admin">Dein Administrator hat dieses Paket angefordert.</string>
+    <string name="support_dialog_send">Senden</string>
+    <string name="support_dialog_cancel">Abbrechen</string>
+    <string name="support_sending">Wird gesendet…</string>
+    <string name="support_success">Support-Paket gesendet</string>
+    <string name="support_failed">Support-Paket konnte nicht gesendet werden: %1$s</string>
+    <string name="support_rate_limited">Zu viele Support-Pakete – bitte später erneut versuchen.</string>
+    <string name="support_too_large">Das Support-Paket ist zu groß.</string>
+    <string name="support_forbidden">Der Server hat das Support-Paket abgelehnt (Token und Gerät prüfen).</string>
+    <string name="support_unsupported">Der Server unterstützt noch keine Support-Pakete.</string>
+    <string name="support_not_configured">Erst einen Server einrichten – dann kann ein Support-Paket gesendet werden.</string>
 </resources>

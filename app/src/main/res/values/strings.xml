@@ -314,4 +314,23 @@
     <string name="policy_system_vpn_always_on">Turn on “Always-on VPN” for GateControl in the Android VPN settings. Android does not let apps do this themselves.</string>
     <string name="policy_system_vpn_kill_switch">Kill switch: turn on “Block connections without VPN” for GateControl in the Android VPN settings.</string>
     <string name="policy_open_vpn_settings">Open VPN settings</string>
+
+    <!-- Support bundle (Settings → Help) -->
+    <string name="support_send">Send support bundle</string>
+    <string name="support_send_desc">Redacted diagnostics for your administrator</string>
+    <string name="support_requested">Your administrator requested a support bundle</string>
+    <string name="support_dialog_title">Send diagnostics to %1$s?</string>
+    <string name="support_dialog_includes">Included: app and Android version, device, tunnel state and last handshake, settings, WireGuard config without keys, network interfaces, DNS servers and routes, the last 2000 log lines and recent errors.</string>
+    <string name="support_dialog_excludes">Not included: private keys, preshared keys, API tokens, passwords, setup codes and cookies – they are removed before sending.</string>
+    <string name="support_dialog_admin">Your administrator asked for this bundle.</string>
+    <string name="support_dialog_send">Send</string>
+    <string name="support_dialog_cancel">Cancel</string>
+    <string name="support_sending">Sending…</string>
+    <string name="support_success">Support bundle sent</string>
+    <string name="support_failed">Support bundle could not be sent: %1$s</string>
+    <string name="support_rate_limited">Too many support bundles – please try again later.</string>
+    <string name="support_too_large">The support bundle is too large.</string>
+    <string name="support_forbidden">The server rejected the support bundle (check token and device).</string>
+    <string name="support_unsupported">The server does not support support bundles yet.</string>
+    <string name="support_not_configured">Set up a server first – then a support bundle can be sent.</string>
 </resources>

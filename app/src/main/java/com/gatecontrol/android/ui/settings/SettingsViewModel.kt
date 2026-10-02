@@ -16,6 +16,12 @@ import com.gatecontrol.android.network.UpdateCheckResponse
 import com.gatecontrol.android.common.Validation
 import com.gatecontrol.android.common.ClientPolicy
 import com.gatecontrol.android.service.ClientPolicyManager
+import com.gatecontrol.android.network.SupportBundleUploader
+import com.gatecontrol.android.support.SupportBundleCollector
+import com.gatecontrol.android.support.SupportRequestHolder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -55,6 +61,13 @@ data class SettingsUiState(
     val peerId: Int = 0,
     /** Client policy from the server (unrestricted until one was fetched). */
     val policy: ClientPolicy = ClientPolicy.UNRESTRICTED,
+    /** Confirmation dialog for "Support-Paket senden" is open. */
+    val supportDialogVisible: Boolean = false,
+    val supportSending: Boolean = false,
+    /** One-shot result of the last upload (shown as a toast, then consumed). */
+    val supportMessage: UiText? = null,
+    /** An admin asked for a support bundle (heartbeat). */
+    val supportRequested: Boolean = false,
 )
 
 @HiltViewModel
@@ -63,6 +76,8 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val apiClientProvider: ApiClientProvider,
     private val licenseRepository: LicenseRepository,
+    private val supportBundleCollector: SupportBundleCollector,
+    private val supportBundleUploader: SupportBundleUploader,
     private val clientPolicyManager: ClientPolicyManager,
 ) : ViewModel() {
 
@@ -136,6 +151,12 @@ class SettingsViewModel @Inject constructor(
         }
 
 
+
+        viewModelScope.launch {
+            SupportRequestHolder.request.collect { request ->
+                _uiState.update { it.copy(supportRequested = request != null) }
+            }
+        }
 
         _uiState.update {
             it.copy(
@@ -407,6 +428,89 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    // ── Support bundle ("Support-Paket senden") ───────────────────────────
+
+    /** Opens the confirmation dialog (server and peer must be set up). */
+    fun requestSupportBundle() {
+        if (setupRepository.getServerUrl().isBlank() || setupRepository.getPeerId() <= 0) {
+            _uiState.update { it.copy(supportMessage = UiText.Res(R.string.support_not_configured)) }
+            return
+        }
+        _uiState.update { it.copy(supportDialogVisible = true) }
+    }
+
+    fun dismissSupportDialog() {
+        _uiState.update { it.copy(supportDialogVisible = false) }
+    }
+
+    fun consumeSupportMessage() {
+        _uiState.update { it.copy(supportMessage = null) }
+    }
+
+    /**
+     * Collects the redacted bundle and uploads it — only called from the
+     * confirmation dialog.
+     */
+    fun sendSupportBundle(appVersion: String) {
+        if (_uiState.value.supportSending) return
+        val state = _uiState.value
+        val serverUrl = setupRepository.getServerUrl()
+        val peerId = setupRepository.getPeerId()
+        if (serverUrl.isBlank() || peerId <= 0) {
+            _uiState.update { it.copy(supportDialogVisible = false, supportMessage = UiText.Res(R.string.support_not_configured)) }
+            return
+        }
+        val reason = if (state.supportRequested) "admin_request" else "user"
+        _uiState.update { it.copy(supportDialogVisible = false, supportSending = true) }
+        viewModelScope.launch {
+            val message = try {
+                val bundle = withContext(Dispatchers.IO) {
+                    supportBundleCollector.collect(
+                        appVersion = appVersion,
+                        locale = state.locale,
+                        settings = supportSettingsSnapshot(state),
+                        reason = reason,
+                    )
+                }
+                val response = supportBundleUploader.upload(serverUrl, peerId, bundle)
+                if (response.ok) {
+                    SupportRequestHolder.clear()
+                    Timber.i("Support bundle sent (id %s)", response.bundle?.id)
+                    UiText.Res(R.string.support_success)
+                } else {
+                    UiText.Res(R.string.support_failed, response.error ?: "")
+                }
+            } catch (e: HttpException) {
+                Timber.w("Support bundle upload rejected: HTTP %d", e.code())
+                when (e.code()) {
+                    429 -> UiText.Res(R.string.support_rate_limited)
+                    413 -> UiText.Res(R.string.support_too_large)
+                    401, 403 -> UiText.Res(R.string.support_forbidden)
+                    404 -> UiText.Res(R.string.support_unsupported)
+                    else -> UiText.Res(R.string.support_failed, "HTTP ${e.code()}")
+                }
+            } catch (e: Exception) {
+                Timber.w("Support bundle upload failed: %s", e.javaClass.simpleName)
+                UiText.Res(R.string.support_failed, e.localizedMessage ?: e.javaClass.simpleName)
+            }
+            _uiState.update { it.copy(supportSending = false, supportMessage = message) }
+        }
+    }
+
+    /** Settings for the bundle — never the API token. */
+    private fun supportSettingsSnapshot(state: SettingsUiState): Map<String, Any?> = mapOf(
+        "serverUrl" to state.serverUrl,
+        "peerId" to state.peerId,
+        "theme" to state.theme,
+        "locale" to state.locale,
+        "autoConnect" to state.autoConnect,
+        "splitTunnelMode" to state.splitTunnelMode.name,
+        "splitTunnelNetworks" to state.splitTunnelNetworks.map { mapOf("cidr" to it.cidr, "label" to it.label) },
+        "splitTunnelApps" to state.splitTunnelAppsV2,
+        "splitTunnelAdminLocked" to state.splitTunnelAdminLocked,
+        "isPro" to state.isPro,
+    )
 
     fun exportLogs(cacheDir: File): File? {
         return try {
