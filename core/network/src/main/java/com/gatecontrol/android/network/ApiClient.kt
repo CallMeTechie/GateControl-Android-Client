@@ -1,5 +1,6 @@
 package com.gatecontrol.android.network
 
+import okhttp3.RequestBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -42,6 +43,16 @@ interface ApiClient {
 
     @POST("api/v1/client/peer/hostname")
     suspend fun reportHostname(@Body request: HostnameReportRequest): HostnameReportResponse
+
+    /**
+     * Upload a redacted support bundle (gzip JSON, see [SupportBundleUploader]).
+     * Server: gatecontrol docs/feature-support-bundle.md.
+     */
+    @POST("api/v1/client/support-bundle")
+    suspend fun uploadSupportBundle(
+        @Query("peerId") peerId: Int,
+        @Body body: RequestBody,
+    ): SupportBundleUploadResponse
 
     @GET("api/v1/client/peer-info")
     suspend fun getPeerInfo(@Query("peerId") peerId: Int): PeerInfoResponse

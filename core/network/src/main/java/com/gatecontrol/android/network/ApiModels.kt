@@ -269,6 +269,22 @@ data class RdpRouteStatusResponse(
 data class HeartbeatResponse(
     val ok: Boolean,
     val peerEnabled: Boolean? = null,
+    /** An admin asked this device for a support bundle (the user is asked first). */
+    val supportBundleRequested: Boolean? = null,
+    /** When the admin asked (server time, UTC) — a new value means a new request. */
+    val supportBundleRequestedAt: String? = null,
+)
+
+data class SupportBundleUploadResponse(
+    val ok: Boolean,
+    val bundle: SupportBundleInfo? = null,
+    val error: String? = null,
+)
+
+data class SupportBundleInfo(
+    val id: Long,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("size_bytes") val sizeBytes: Long = 0,
 )
 
 data class SimpleResponse(

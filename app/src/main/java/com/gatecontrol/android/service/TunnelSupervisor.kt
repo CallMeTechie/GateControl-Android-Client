@@ -7,6 +7,7 @@ import com.gatecontrol.android.common.HostnameSanitizer
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HeartbeatRequest
+import com.gatecontrol.android.support.SupportRequestHolder
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelMonitor
 import com.gatecontrol.android.tunnel.TunnelState
@@ -144,6 +145,9 @@ class TunnelSupervisor @Inject constructor(
                             hostname = HostnameSanitizer.sanitize(android.os.Build.MODEL).orEmpty(),
                         ),
                     )
+                    // Admin asked for a support bundle: Settings shows it,
+                    // nothing is sent without the user's confirmation.
+                    if (response.ok) SupportRequestHolder.update(response.supportBundleRequested, response.supportBundleRequestedAt)
                     if (response.ok && response.peerEnabled == false) {
                         Timber.w("Peer disabled on server — disconnecting tunnel")
                         tunnelManager.disconnect()

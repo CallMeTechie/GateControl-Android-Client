@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -198,6 +201,18 @@ fun SettingsScreen(
                 onClick = { viewModel.exportLogs(context.cacheDir) },
                 trailing = { Icon(GcIcons.Share, contentDescription = null, tint = extra.faint, modifier = Modifier.size(20.dp)) },
             )
+            // "Support-Paket senden": confirmation dialog → redacted bundle → server
+            GcListRow(
+                title = stringResource(R.string.support_send),
+                description = when {
+                    uiState.supportSending -> stringResource(R.string.support_sending)
+                    uiState.supportRequested -> stringResource(R.string.support_requested)
+                    else -> stringResource(R.string.support_send_desc)
+                },
+                titleColor = if (uiState.supportRequested) extra.accentText else MaterialTheme.colorScheme.onSurface,
+                onClick = if (uiState.supportSending) null else { { viewModel.requestSupportBundle() } },
+                trailing = { Icon(GcIcons.Logs, contentDescription = null, tint = extra.faint, modifier = Modifier.size(20.dp)) },
+            )
             UpdateRow(
                 versionName = versionName,
                 uiState = uiState,
@@ -213,6 +228,24 @@ fun SettingsScreen(
                 },
                 onLater = { viewModel.dismissUpdate() },
             )
+        }
+
+        if (uiState.supportDialogVisible) {
+            SupportBundleDialog(
+                host = host,
+                requestedByAdmin = uiState.supportRequested,
+                onSend = { viewModel.sendSupportBundle(versionName) },
+                onDismiss = { viewModel.dismissSupportDialog() },
+            )
+        }
+
+        // Result of the upload as a toast (resolved in the app language).
+        val supportMessage = uiState.supportMessage?.asString()
+        LaunchedEffect(supportMessage) {
+            if (supportMessage != null) {
+                android.widget.Toast.makeText(context, supportMessage, android.widget.Toast.LENGTH_LONG).show()
+                viewModel.consumeSupportMessage()
+            }
         }
 
         uiState.error?.let { error ->
@@ -299,4 +332,31 @@ private fun UpdateRow(
             )
         }
     }
+}
+
+/** "Diagnosedaten an <server> senden?" — lists what is (not) included. */
+@Composable
+private fun SupportBundleDialog(
+    host: String,
+    requestedByAdmin: Boolean,
+    onSend: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.extraLarge,
+        title = { Text(stringResource(R.string.support_dialog_title, host), style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (requestedByAdmin) {
+                    Text(stringResource(R.string.support_dialog_admin), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.accentText)
+                }
+                Text(stringResource(R.string.support_dialog_includes), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.support_dialog_excludes), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted)
+            }
+        },
+        confirmButton = { TextButton(onClick = onSend) { Text(stringResource(R.string.support_dialog_send)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.support_dialog_cancel)) } },
+    )
 }
