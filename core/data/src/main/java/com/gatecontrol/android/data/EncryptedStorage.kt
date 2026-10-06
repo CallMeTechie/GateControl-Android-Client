@@ -118,9 +118,12 @@ class EncryptedStorage internal constructor(
         store?.first?.remove(key)
     }
 
-    fun clear() {
+    /** Remove every value except the [keep] keys (e.g. the device ID). */
+    fun clear(keep: Set<String> = emptySet()) {
+        val kept = keep.mapNotNull { key -> read(key)?.let { key to it } }.toMap()
         memory.clear()
         store?.first?.clear()
+        if (kept.isNotEmpty()) write(kept, sync = true)
     }
 
     private fun write(entries: Map<String, String>, sync: Boolean) {

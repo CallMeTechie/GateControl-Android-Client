@@ -55,7 +55,8 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
 
     fun isRegistered(): Boolean = getPeerId() > 0
 
+    /** Reset the setup. The device ID stays so machine binding survives a reset. */
     fun clear() {
-        storage.clear()
+        storage.clear(keep = setOf(MachineFingerprint.FALLBACK_KEY))
     }
 }

@@ -333,4 +333,10 @@
     <string name="support_forbidden">The server rejected the support bundle (check token and device).</string>
     <string name="support_unsupported">The server does not support support bundles yet.</string>
     <string name="support_not_configured">Set up a server first – then a support bundle can be sent.</string>
+
+    <!-- Machine binding (device binding on the server) -->
+    <string name="binding_mismatch">This access is bound to a different device. Ask your administrator to reset the device binding.</string>
+    <string name="binding_required">The server requires device binding, but this device sent no device ID. Update the app or contact your administrator.</string>
+    <string name="binding_invalid">The server rejected this device\'s ID. Contact your administrator.</string>
+    <string name="settings_device_id">Device ID %1$s…</string>
 </resources>

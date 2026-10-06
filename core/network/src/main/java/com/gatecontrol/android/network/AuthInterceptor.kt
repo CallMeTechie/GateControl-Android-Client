@@ -7,7 +7,6 @@ class AuthInterceptor(
     private val tokenProvider: () -> String,
     private val versionProvider: () -> String,
     private val platformProvider: () -> String,
-    private val fingerprintProvider: () -> String
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -23,10 +22,8 @@ class AuthInterceptor(
         requestBuilder.header("X-Client-Version", sanitizeHeaderValue(versionProvider()))
         requestBuilder.header("X-Client-Platform", sanitizeHeaderValue(platformProvider()))
 
-        val fingerprint = sanitizeHeaderValue(fingerprintProvider())
-        if (fingerprint.isNotEmpty()) {
-            requestBuilder.header("X-Machine-Fingerprint", fingerprint)
-        }
+        // ServerScopedHeadersInterceptor adds X-Machine-Fingerprint and strips the
+        // token from any hop that leaves the configured server (redirects).
 
         return chain.proceed(requestBuilder.build())
     }

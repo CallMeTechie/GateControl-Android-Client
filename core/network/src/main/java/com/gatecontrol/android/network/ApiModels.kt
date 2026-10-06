@@ -215,6 +215,8 @@ data class EnrollRequest(
     val hostname: String,
     val platform: String,
     val clientVersion: String,
+    /** Device fingerprint for machine binding (also sent as X-Machine-Fingerprint). */
+    val fingerprint: String,
 )
 
 data class EnrollResponse(

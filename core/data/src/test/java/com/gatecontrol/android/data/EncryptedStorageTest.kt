@@ -100,4 +100,16 @@ class EncryptedStorageTest {
         assertTrue(backend.data.isEmpty())
         assertEquals("", s.getString("a", ""))
     }
+
+    @Test
+    fun `clear keeps the requested keys`() {
+        val backend = MapBackend()
+        val s = storage(backend)
+        s.putString("token", "gc_secret")
+        s.putString("device", "abc")
+        s.clear(keep = setOf("device", "missing"))
+        assertEquals("", s.getString("token", ""))
+        assertEquals("abc", s.getString("device", ""))
+        assertEquals(1, backend.data.size)
+    }
 }

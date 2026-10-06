@@ -1,10 +1,11 @@
 package com.gatecontrol.android.network.di
 
 import android.content.Context
-import com.gatecontrol.android.common.MachineId
+import com.gatecontrol.android.data.MachineFingerprint
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.AuthInterceptor
+import com.gatecontrol.android.network.MachineBindingMonitor
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -33,13 +34,14 @@ object NetworkModule {
             }
         },
         platformProvider = { "android" },
-        fingerprintProvider = { MachineId.getFingerprint(context) }
     )
 
     @Provides
     @Singleton
     fun provideApiClientProvider(
         authInterceptor: AuthInterceptor,
-        @ApplicationContext context: Context
-    ): ApiClientProvider = ApiClientProvider(authInterceptor, context)
+        @ApplicationContext context: Context,
+        machineFingerprint: MachineFingerprint,
+        machineBindingMonitor: MachineBindingMonitor,
+    ): ApiClientProvider = ApiClientProvider(authInterceptor, context, machineFingerprint, machineBindingMonitor)
 }

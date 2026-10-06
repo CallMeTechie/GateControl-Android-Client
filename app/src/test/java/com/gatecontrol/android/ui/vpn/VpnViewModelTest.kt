@@ -84,6 +84,7 @@ class VpnViewModelTest {
                 com.gatecontrol.android.service.fakeClientPolicyManager(),
             ),
             clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(),
+            machineBindingMonitor = com.gatecontrol.android.network.MachineBindingMonitor(),
         )
     }
 
@@ -262,6 +263,7 @@ class VpnViewModelTest {
             clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(
                 com.gatecontrol.android.common.ClientPolicy(autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.ALWAYS_ON),
             ),
+            machineBindingMonitor = com.gatecontrol.android.network.MachineBindingMonitor(),
         )
         vm.disconnect()
         testDispatcher.scheduler.advanceUntilIdle()

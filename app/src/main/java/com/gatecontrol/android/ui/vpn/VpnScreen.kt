@@ -44,6 +44,7 @@ import com.gatecontrol.android.util.openSystemVpnSettings
 import com.gatecontrol.android.common.Formatters
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.ui.components.GcBanner
+import com.gatecontrol.android.ui.messageRes
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
@@ -254,6 +255,19 @@ fun VpnScreen(
                         iconSize = 18.dp,
                     )
                 }
+            }
+        }
+
+        // --- Machine binding: the server rejected this device ------------
+        val bindingError by viewModel.machineBindingError.collectAsState()
+        bindingError?.let { err ->
+            GcBanner(tone = GcTone.Error) {
+                Text(
+                    text = stringResource(err.messageRes),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
 
