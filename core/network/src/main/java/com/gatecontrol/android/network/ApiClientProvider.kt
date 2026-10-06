@@ -1,6 +1,7 @@
 package com.gatecontrol.android.network
 
 import com.gatecontrol.android.common.VpnSubnet
+import com.gatecontrol.android.data.MachineFingerprint
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.google.gson.Gson
@@ -13,6 +14,7 @@ import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.Dns
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -26,7 +28,9 @@ import javax.inject.Singleton
 @Singleton
 class ApiClientProvider @Inject constructor(
     private val authInterceptor: AuthInterceptor,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val machineFingerprint: MachineFingerprint,
+    private val machineBindingMonitor: MachineBindingMonitor,
 ) {
     private val cache = mutableMapOf<String, ApiClient>()
     private val lock = Any()
@@ -148,23 +152,7 @@ class ApiClientProvider @Inject constructor(
     }
 
     private fun buildClient(baseUrl: String): ApiClient {
-        val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        // Never log bodies: register/enroll responses carry the WireGuard
-        // private key and API tokens. Debug builds log headers with all
-        // credentials redacted, release builds log nothing.
-        val logging = HttpLoggingInterceptor().apply {
-            level = if (isDebuggable) HttpLoggingInterceptor.Level.HEADERS else HttpLoggingInterceptor.Level.NONE
-            SENSITIVE_HEADERS.forEach { redactHeader(it) }
-        }
-
-        val okHttpClient = OkHttpClient.Builder()
-            .dns(vpnSafeDns)
-            .addInterceptor(authInterceptor)
-            .addInterceptor(logging)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .build()
+        val okHttpClient = buildOkHttpClient(baseUrl)
 
         // Gson that tolerates SQLite boolean fields (0/1 as NUMBER instead of true/false)
         // Uses TypeAdapterFactory to cover both Boolean and Boolean? (nullable) fields
@@ -178,6 +166,30 @@ class ApiClientProvider @Inject constructor(
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiClient::class.java)
+    }
+
+    internal fun buildOkHttpClient(baseUrl: String): OkHttpClient {
+        val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        // Never log bodies: register/enroll responses carry the WireGuard
+        // private key and API tokens. Debug builds log headers with all
+        // credentials redacted, release builds log nothing.
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (isDebuggable) HttpLoggingInterceptor.Level.HEADERS else HttpLoggingInterceptor.Level.NONE
+            SENSITIVE_HEADERS.forEach { redactHeader(it) }
+        }
+
+        return OkHttpClient.Builder()
+            .dns(vpnSafeDns)
+            .addInterceptor(authInterceptor)
+            .addInterceptor(machineBindingMonitor)
+            .addInterceptor(logging)
+            // Network interceptor: runs per hop, so a redirect to another
+            // host never carries the device fingerprint.
+            .addNetworkInterceptor(MachineFingerprintInterceptor(baseUrl.toHttpUrl()) { machineFingerprint.get() })
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .build()
     }
 
     /** Factory that applies LenientBooleanAdapter to both Boolean and Boolean? fields. */

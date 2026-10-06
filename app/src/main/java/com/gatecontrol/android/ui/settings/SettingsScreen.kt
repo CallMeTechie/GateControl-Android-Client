@@ -283,6 +283,16 @@ fun SettingsScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         )
+        if (uiState.deviceIdShort.isNotEmpty()) {
+            // Matches the server's "Gebunden an Gerät ab12cd34…" for machine binding.
+            Text(
+                text = stringResource(R.string.settings_device_id, uiState.deviceIdShort),
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFontFamily),
+                color = extra.faint,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

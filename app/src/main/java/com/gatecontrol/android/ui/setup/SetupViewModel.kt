@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.UiText
 import com.gatecontrol.android.common.EnrollmentLink
+import com.gatecontrol.android.data.MachineFingerprint
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.network.MachineBindingError
+import com.gatecontrol.android.ui.toUiText
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.network.EnrollRequest
@@ -60,6 +63,7 @@ class SetupViewModel @Inject constructor(
     private val apiClientProvider: ApiClientProvider,
     @ApplicationContext private val context: Context,
     private val clientPolicyManager: ClientPolicyManager,
+    private val machineFingerprint: MachineFingerprint,
 ) : ViewModel() {
 
     private val appVersion: String by lazy {
@@ -207,10 +211,12 @@ class SetupViewModel @Inject constructor(
                 // Roll back to the previous configuration instead of clearing it
                 setupRepository.save(previousUrl, previousToken, previousPeerId)
                 apiClientProvider.invalidate()
+                val message = MachineBindingError.from(e)?.toUiText()
+                    ?: UiText.Res(R.string.setup_error, e.localizedMessage ?: "")
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = UiText.Res(R.string.setup_error, e.localizedMessage ?: ""),
+                        statusMessage = message,
                         statusType = StatusType.ERROR,
                     )
                 }
@@ -260,6 +266,7 @@ class SetupViewModel @Inject constructor(
                         hostname = android.os.Build.MODEL ?: "android",
                         platform = "android",
                         clientVersion = appVersion,
+                        fingerprint = machineFingerprint.get(),
                     ),
                 )
                 val token = response.token
@@ -345,6 +352,8 @@ class SetupViewModel @Inject constructor(
                 } catch (_: Exception) {
                     ""
                 }
+                // Binding errors also come from the register call of a token-wizard code.
+                MachineBindingError.fromResponse(e.code(), body)?.let { return it.toUiText() }
                 ERROR_CODE_RE.find(body)?.groupValues?.get(1).orEmpty()
             }
         } else {
@@ -355,6 +364,7 @@ class SetupViewModel @Inject constructor(
             "user_disabled", "user_not_found", "no_valid_scopes" -> R.string.setup_enroll_forbidden
             "limit_reached" -> R.string.setup_enroll_limit
             "rate_limited" -> R.string.setup_enroll_rate_limited
+            "fingerprint_required" -> R.string.binding_required
             else -> null
         }
         return if (res != null) {

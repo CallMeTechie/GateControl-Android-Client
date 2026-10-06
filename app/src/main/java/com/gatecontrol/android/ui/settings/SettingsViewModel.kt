@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.UiText
 import com.gatecontrol.android.data.LicenseRepository
+import com.gatecontrol.android.data.MachineFingerprint
+import com.gatecontrol.android.network.MachineBindingError
+import com.gatecontrol.android.ui.toUiText
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.data.SplitTunnelJson
 import com.gatecontrol.android.data.SettingsRepository
@@ -68,6 +71,8 @@ data class SettingsUiState(
     val supportMessage: UiText? = null,
     /** An admin asked for a support bundle (heartbeat). */
     val supportRequested: Boolean = false,
+    /** First 8 hex chars of the machine fingerprint, as the server shows it. */
+    val deviceIdShort: String = "",
 )
 
 @HiltViewModel
@@ -79,6 +84,7 @@ class SettingsViewModel @Inject constructor(
     private val supportBundleCollector: SupportBundleCollector,
     private val supportBundleUploader: SupportBundleUploader,
     private val clientPolicyManager: ClientPolicyManager,
+    private val machineFingerprint: MachineFingerprint,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -90,6 +96,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun loadInitialState() {
+        viewModelScope.launch {
+            val shortId = runCatching { machineFingerprint.shortId() }.getOrDefault("")
+            _uiState.update { it.copy(deviceIdShort = shortId) }
+        }
+
         viewModelScope.launch {
             combine(
                 settingsRepository.getTheme(),
@@ -483,7 +494,8 @@ class SettingsViewModel @Inject constructor(
                 }
             } catch (e: HttpException) {
                 Timber.w("Support bundle upload rejected: HTTP %d", e.code())
-                when (e.code()) {
+                val bindingError = MachineBindingError.from(e)
+                if (bindingError != null) bindingError.toUiText() else when (e.code()) {
                     429 -> UiText.Res(R.string.support_rate_limited)
                     413 -> UiText.Res(R.string.support_too_large)
                     401, 403 -> UiText.Res(R.string.support_forbidden)
@@ -502,6 +514,7 @@ class SettingsViewModel @Inject constructor(
     private fun supportSettingsSnapshot(state: SettingsUiState): Map<String, Any?> = mapOf(
         "serverUrl" to state.serverUrl,
         "peerId" to state.peerId,
+        "deviceId" to state.deviceIdShort,
         "theme" to state.theme,
         "locale" to state.locale,
         "autoConnect" to state.autoConnect,

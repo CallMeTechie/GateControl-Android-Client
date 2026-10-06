@@ -7,6 +7,8 @@ import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.network.MachineBindingError
+import com.gatecontrol.android.network.MachineBindingMonitor
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
@@ -37,7 +39,11 @@ class VpnViewModel @Inject constructor(
     private val tunnelManager: TunnelManager,
     private val tunnelConnector: TunnelConnector,
     private val clientPolicyManager: ClientPolicyManager,
+    machineBindingMonitor: MachineBindingMonitor,
 ) : ViewModel() {
+
+    /** Last machine-binding rejection of any client API call (null = none). */
+    val machineBindingError: StateFlow<MachineBindingError?> = machineBindingMonitor.error
 
     /** Client policy from the server (unrestricted until one was fetched). */
     val clientPolicy: StateFlow<ClientPolicy> = clientPolicyManager.policy

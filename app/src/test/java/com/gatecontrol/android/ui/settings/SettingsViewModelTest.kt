@@ -52,6 +52,9 @@ class SettingsViewModelTest {
     private lateinit var viewModel: SettingsViewModel
     private lateinit var supportBundleCollector: SupportBundleCollector
     private lateinit var supportBundleUploader: SupportBundleUploader
+    private val machineFingerprint: com.gatecontrol.android.data.MachineFingerprint = mockk {
+        every { shortId() } returns "ab12cd34"
+    }
 
     @BeforeEach
     fun setUp() {
@@ -87,6 +90,7 @@ class SettingsViewModelTest {
             setupRepository, settingsRepository, apiClientProvider, licenseRepository,
             supportBundleCollector, supportBundleUploader,
             com.gatecontrol.android.service.fakeClientPolicyManager(),
+            machineFingerprint,
         )
     }
 
@@ -259,6 +263,7 @@ class SettingsViewModelTest {
             setupRepository, settingsRepository, apiClientProvider, licenseRepository,
             supportBundleCollector, supportBundleUploader,
             com.gatecontrol.android.service.fakeClientPolicyManager(policy),
+            machineFingerprint,
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -314,9 +319,26 @@ class SettingsViewModelTest {
         assertFalse(settings.captured.values.any { it == "gc_testtoken" })
         assertFalse(settings.captured.keys.any { it.contains("token", ignoreCase = true) })
         assertEquals("https://gate.example.com", settings.captured["serverUrl"])
+        assertEquals("ab12cd34", settings.captured["deviceId"])
 
         viewModel.consumeSupportMessage()
         assertNull(viewModel.uiState.value.supportMessage)
+    }
+
+    @Test
+    fun `device id short form is shown`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("ab12cd34", viewModel.uiState.value.deviceIdShort)
+    }
+
+    @Test
+    fun `support bundle - binding mismatch maps to the device binding message`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { supportBundleUploader.upload(any(), any(), any()) } throws HttpException(
+            Response.error<Any>(403, "{\"ok\":false,\"error\":\"Token ist an eine andere Maschine gebunden\"}".toResponseBody(null)),
+        )
+        viewModel.sendSupportBundle("1.5.0")
+        assertEquals(UiText.Res(R.string.binding_mismatch), awaitSupportResult())
     }
 
     @Test

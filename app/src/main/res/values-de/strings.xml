@@ -333,4 +333,10 @@
     <string name="support_forbidden">Der Server hat das Support-Paket abgelehnt (Token und Gerät prüfen).</string>
     <string name="support_unsupported">Der Server unterstützt noch keine Support-Pakete.</string>
     <string name="support_not_configured">Erst einen Server einrichten – dann kann ein Support-Paket gesendet werden.</string>
+
+    <!-- Gerätebindung -->
+    <string name="binding_mismatch">Dieser Zugang ist an ein anderes Gerät gebunden. Bitte den Administrator, die Gerätebindung zurückzusetzen.</string>
+    <string name="binding_required">Der Server verlangt eine Gerätebindung, aber dieses Gerät hat keine Geräte-ID gesendet. Bitte die App aktualisieren oder den Administrator kontaktieren.</string>
+    <string name="binding_invalid">Der Server hat die Geräte-ID dieses Geräts abgelehnt. Bitte den Administrator kontaktieren.</string>
+    <string name="settings_device_id">Geräte-ID %1$s…</string>
 </resources>

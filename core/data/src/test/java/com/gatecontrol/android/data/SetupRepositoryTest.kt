@@ -96,6 +96,6 @@ class SetupRepositoryTest {
     fun `clear delegates to storage clear`() {
         repository.clear()
 
-        verify { storage.clear() }
+        verify { storage.clear(keep = setOf(MachineFingerprint.FALLBACK_KEY)) }
     }
 }

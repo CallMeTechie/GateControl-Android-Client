@@ -12,6 +12,7 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PingResponse
 import com.gatecontrol.android.network.RegisterRequest
 import com.gatecontrol.android.network.RegisterResponse
+import okhttp3.ResponseBody.Companion.toResponseBody
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -42,6 +43,10 @@ class SetupViewModelTest {
     private lateinit var apiClient: ApiClient
     private lateinit var context: Context
     private lateinit var viewModel: SetupViewModel
+    private val fingerprint = "a".repeat(64)
+    private val machineFingerprint: com.gatecontrol.android.data.MachineFingerprint = mockk {
+        every { get() } returns fingerprint
+    }
 
     @BeforeEach
     fun setUp() {
@@ -68,7 +73,7 @@ class SetupViewModelTest {
         every { context.getString(any(), *anyVararg()) } answers { "res-${firstArg<Int>()}" }
         every { apiClientProvider.invalidate() } returns Unit
 
-        viewModel = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
+        viewModel = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager(), machineFingerprint)
     }
 
     @AfterEach
@@ -351,7 +356,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns true
         every { setupRepository.hasWireGuardConfig() } returns false
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager(), machineFingerprint)
 
         assertTrue(vm.uiState.value.isSetupComplete)
     }
@@ -361,7 +366,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns false
         every { setupRepository.hasWireGuardConfig() } returns true
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager(), machineFingerprint)
 
         assertTrue(vm.uiState.value.isSetupComplete)
     }
@@ -371,7 +376,7 @@ class SetupViewModelTest {
         every { setupRepository.isConfigured() } returns false
         every { setupRepository.hasWireGuardConfig() } returns false
 
-        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager())
+        val vm = SetupViewModel(setupRepository, apiClientProvider, context, com.gatecontrol.android.service.fakeClientPolicyManager(), machineFingerprint)
 
         assertFalse(vm.uiState.value.isSetupComplete)
     }
@@ -448,7 +453,9 @@ class SetupViewModelTest {
         viewModel.confirmEnrollment()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { apiClient.enroll(match { it.code == "AB12-CD34-EF56-7890" && it.platform == "android" }) }
+        coVerify {
+            apiClient.enroll(match { it.code == "AB12-CD34-EF56-7890" && it.platform == "android" && it.fingerprint == fingerprint })
+        }
         verify { setupRepository.save("https://gate.example.com", "gc_enrolled", 42) }
         verify { setupRepository.saveWireGuardConfig(enrollConfig) }
         verify { setupRepository.saveConfigHash("abc") }
@@ -472,6 +479,45 @@ class SetupViewModelTest {
         assertEquals(StatusType.ERROR, state.statusType)
         assertEquals(com.gatecontrol.android.ui.UiText.Res(com.gatecontrol.android.R.string.setup_enroll_invalid), state.statusMessage)
         assertFalse(state.completedNow)
+    }
+
+    private fun httpError(code: Int, body: String) = retrofit2.HttpException(
+        retrofit2.Response.error<Any>(
+            code,
+            body.toResponseBody(null),
+        ),
+    )
+
+    @Test
+    fun `enroll without fingerprint shows the device binding message`() = runTest {
+        coEvery { apiClient.enroll(any()) } throws httpError(400, "{\"ok\":false,\"error\":\"fingerprint_required\"}")
+
+        viewModel.onEnrollmentLink(link)
+        viewModel.confirmEnrollment()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            com.gatecontrol.android.ui.UiText.Res(com.gatecontrol.android.R.string.binding_required),
+            viewModel.uiState.value.statusMessage,
+        )
+    }
+
+    @Test
+    fun `register on a token bound to another device shows the binding mismatch`() = runTest {
+        coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0", timestamp = "t")
+        coEvery { apiClient.register(any()) } throws
+            httpError(403, "{\"ok\":false,\"error\":\"Token is bound to a different machine\"}")
+
+        viewModel.onServerUrlChanged("https://gate.example.com")
+        viewModel.onApiTokenChanged("gc_bound_token_123456")
+        viewModel.saveAndRegister()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(StatusType.ERROR, viewModel.uiState.value.statusType)
+        assertEquals(
+            com.gatecontrol.android.ui.UiText.Res(com.gatecontrol.android.R.string.binding_mismatch),
+            viewModel.uiState.value.statusMessage,
+        )
     }
 
     @Test
