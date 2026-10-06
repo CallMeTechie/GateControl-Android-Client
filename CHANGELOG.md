@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0] - 2026-10-06
+
+### Features
+- send device fingerprint so machine binding works on Android (#33)
+
+---
+
 ## [1.15.0] - 2026-10-02
 
 ### Features
