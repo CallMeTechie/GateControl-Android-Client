@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0] - 2026-10-06
+
+### Features
+- automatic portal login after connecting (#34)
+
+---
+
 ## [1.16.0] - 2026-10-06
 
 ### Features
