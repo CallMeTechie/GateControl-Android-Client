@@ -22,7 +22,8 @@ class AuthInterceptor(
         requestBuilder.header("X-Client-Version", sanitizeHeaderValue(versionProvider()))
         requestBuilder.header("X-Client-Platform", sanitizeHeaderValue(platformProvider()))
 
-        // X-Machine-Fingerprint is added per server by MachineFingerprintInterceptor.
+        // ServerScopedHeadersInterceptor adds X-Machine-Fingerprint and strips the
+        // token from any hop that leaves the configured server (redirects).
 
         return chain.proceed(requestBuilder.build())
     }

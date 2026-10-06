@@ -5,28 +5,33 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 /**
- * Adds `X-Machine-Fingerprint` for the server's machine binding.
+ * Keeps credentials and the device fingerprint on the configured server.
  *
  * Registered as a *network* interceptor on the client of one GateControl
- * server, so it sees every hop including redirects: the header goes only to
- * that server (same scheme, host and port) and is stripped from any request
- * that ends up at another host.
+ * server, so it sees every hop including redirects. OkHttp itself only strips
+ * `Authorization` on a cross-host redirect, not custom headers — so for any
+ * request that ends up at another scheme/host/port this removes
+ * `X-API-Token` (added by [AuthInterceptor] or explicitly by a connection
+ * test) and never adds `X-Machine-Fingerprint`. Requests to the server get
+ * the fingerprint for its machine binding.
  */
-class MachineFingerprintInterceptor(
+class ServerScopedHeadersInterceptor(
     private val serverUrl: HttpUrl,
     private val fingerprintProvider: () -> String,
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val builder = request.newBuilder().removeHeader(HEADER)
+        val builder = request.newBuilder().removeHeader(FINGERPRINT_HEADER)
         if (isServer(request.url)) {
             val fingerprint = try {
                 fingerprintProvider()
             } catch (_: Exception) {
                 ""
             }
-            if (FINGERPRINT_RE.matches(fingerprint)) builder.header(HEADER, fingerprint)
+            if (FINGERPRINT_RE.matches(fingerprint)) builder.header(FINGERPRINT_HEADER, fingerprint)
+        } else {
+            builder.removeHeader(TOKEN_HEADER)
         }
         return chain.proceed(builder.build())
     }
@@ -37,7 +42,8 @@ class MachineFingerprintInterceptor(
             url.port == serverUrl.port
 
     companion object {
-        const val HEADER = "X-Machine-Fingerprint"
+        const val FINGERPRINT_HEADER = "X-Machine-Fingerprint"
+        const val TOKEN_HEADER = "X-API-Token"
         private val FINGERPRINT_RE = Regex("^[a-f0-9]{64}$")
     }
 }

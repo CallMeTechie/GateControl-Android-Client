@@ -184,8 +184,8 @@ class ApiClientProvider @Inject constructor(
             .addInterceptor(machineBindingMonitor)
             .addInterceptor(logging)
             // Network interceptor: runs per hop, so a redirect to another
-            // host never carries the device fingerprint.
-            .addNetworkInterceptor(MachineFingerprintInterceptor(baseUrl.toHttpUrl()) { machineFingerprint.get() })
+            // host never carries the API token or the device fingerprint.
+            .addNetworkInterceptor(ServerScopedHeadersInterceptor(baseUrl.toHttpUrl()) { machineFingerprint.get() })
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)

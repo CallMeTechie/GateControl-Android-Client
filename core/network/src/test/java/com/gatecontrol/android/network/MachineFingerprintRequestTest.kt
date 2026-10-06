@@ -107,6 +107,47 @@ class MachineFingerprintRequestTest {
     }
 
     @Test
+    fun `api token goes to the server but not across a redirect to a foreign host`() {
+        server.enqueue(ok())
+        server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", foreign.url("/steal")))
+        foreign.enqueue(ok())
+
+        val http = provider.buildOkHttpClient(server.url("/").toString())
+        http.newCall(Request.Builder().url(server.url("/api/v1/client/ping")).build()).execute().close()
+        http.newCall(Request.Builder().url(server.url("/api/v1/client/traffic")).build()).execute().close()
+
+        assertEquals("gc_token", server.takeRequest().getHeader("X-API-Token"))
+        assertEquals("gc_token", server.takeRequest().getHeader("X-API-Token"))
+        val leaked = foreign.takeRequest()
+        assertEquals("/steal", leaked.path)
+        assertNull(leaked.getHeader("X-API-Token"))
+        assertNull(leaked.getHeader("X-Machine-Fingerprint"))
+    }
+
+    @Test
+    fun `explicit test token is stripped on a foreign host too`() {
+        server.enqueue(MockResponse().setResponseCode(307).setHeader("Location", foreign.url("/x")))
+        foreign.enqueue(ok())
+        val http = provider.buildOkHttpClient(server.url("/").toString())
+        http.newCall(
+            Request.Builder().url(server.url("/api/v1/client/ping")).header("X-API-Token", "typed").build(),
+        ).execute().close()
+        assertEquals("typed", server.takeRequest().getHeader("X-API-Token"))
+        assertNull(foreign.takeRequest().getHeader("X-API-Token"))
+    }
+
+    @Test
+    fun `same host on a different port counts as foreign`() {
+        val http = provider.buildOkHttpClient(server.url("/").toString())
+        foreign.enqueue(ok())
+        // server and foreign are both localhost — only the port differs.
+        http.newCall(Request.Builder().url(foreign.url("/x")).build()).execute().close()
+        val recorded = foreign.takeRequest()
+        assertNull(recorded.getHeader("X-API-Token"))
+        assertNull(recorded.getHeader("X-Machine-Fingerprint"))
+    }
+
+    @Test
     fun `binding rejection is reported and cleared by the next success`() = runTest {
         val api = provider.getClient(server.url("/").toString())
         server.enqueue(
