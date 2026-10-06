@@ -55,6 +55,13 @@ interface ApiClient {
         @Body body: RequestBody,
     ): SupportBundleUploadResponse
 
+    /**
+     * Mints a one-time automatic login link for the portal. Use
+     * [getPortalLink], which validates the answer and never throws.
+     */
+    @POST("api/v1/client/portal-link")
+    suspend fun requestPortalLink(): Response<PortalLinkResponse>
+
     @GET("api/v1/client/peer-info")
     suspend fun getPeerInfo(@Query("peerId") peerId: Int): PeerInfoResponse
 

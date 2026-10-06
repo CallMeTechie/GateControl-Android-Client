@@ -406,3 +406,16 @@ data class PiholeBlockingRequest(
     val enabled: Boolean,
     val timer: Int? = null
 )
+
+/**
+ * One-time portal login link (`POST /client/portal-link`). [url] carries a
+ * single-use ticket: never log, store or report it.
+ */
+data class PortalLinkResponse(
+    val ok: Boolean = false,
+    @SerializedName("url") val url: String? = null,
+    @SerializedName("expiresIn") val expiresIn: Int? = null,
+) {
+    // The ticket must not end up in a log line through an accidental toString().
+    override fun toString(): String = "PortalLinkResponse(ok=$ok, url=${if (url == null) "null" else "[REDACTED]"}, expiresIn=$expiresIn)"
+}

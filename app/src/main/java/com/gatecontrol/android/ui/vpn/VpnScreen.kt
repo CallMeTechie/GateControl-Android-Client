@@ -157,18 +157,11 @@ fun VpnScreen(
         }
     }
 
-    // Auto-open portal once per tunnel session (connectedSince-keyed, not a plain boolean,
-    // so re-foregrounding the app on the same session does not re-fire the browser).
-    // ponytail: open-once-per-tunnel-session via connectedSince identity; a new user-initiated
-    // connect mints a new connectedSince and re-opens, a blip/re-foreground on the same session
-    // does not. autoOpen is keyed so a delayed permissions fetch that flips it true re-evaluates.
-    var lastOpenedSince by rememberSaveable { mutableStateOf(0L) }
+    // Auto-open portal once per tunnel session; the ViewModel keys it on
+    // connectedSince. autoOpen/portalUrl are keys so a delayed permissions
+    // fetch that enables it re-evaluates for the current session.
     LaunchedEffect(tunnelState, portalUrl, autoOpen) {
-        val st = tunnelState
-        if (st is TunnelState.Connected && autoOpen && !portalUrl.isNullOrBlank() && st.connectedSince != lastOpenedSince) {
-            lastOpenedSince = st.connectedSince
-            viewModel.openPortal(context)
-        }
+        viewModel.autoOpenPortalIfNeeded(context, tunnelState)
     }
 
     // Tick every second to update connection duration

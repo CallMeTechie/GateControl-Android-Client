@@ -12,6 +12,7 @@ import com.gatecontrol.android.network.MachineBindingMonitor
 import com.gatecontrol.android.network.PermissionFlags
 import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
+import com.gatecontrol.android.network.getPortalLink
 import com.gatecontrol.android.common.ClientPolicy
 import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.service.TunnelConnector
@@ -19,6 +20,9 @@ import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tunnel.TunnelStats
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,6 +31,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -227,11 +232,69 @@ class VpnViewModel @Inject constructor(
         }
     }
 
+    /** In-flight portal-link fetch; a second tap while it runs is ignored. */
+    private var portalJob: Job? = null
+
+    /** connectedSince of the tunnel session the portal was auto-opened for (0 = none). */
+    private var autoOpenedSince = 0L
+
+    /** Opens the portal on a tap. See [openPortalWithLogin]. */
     fun openPortal(context: android.content.Context) {
-        val url = portalUrl.value ?: return
-        if (!url.startsWith("https://")) return
+        openPortalWithLogin(context)
+    }
+
+    /**
+     * Auto-open once per tunnel session (keyed on connectedSince, not a plain
+     * boolean): re-foregrounding or recomposing on the same session does not
+     * re-open the browser, a new connect mints a new connectedSince and does.
+     * Does nothing until the server enabled auto-open and sent a portal URL,
+     * so a delayed permissions fetch can still trigger it for this session.
+     */
+    fun autoOpenPortalIfNeeded(context: android.content.Context, state: TunnelState) {
+        if (state !is TunnelState.Connected) return
+        if (!autoOpenPortal.value || portalUrl.value.isNullOrBlank()) return
+        if (state.connectedSince == autoOpenedSince) return
+        autoOpenedSince = state.connectedSince
+        openPortalWithLogin(context)
+    }
+
+    /**
+     * Fetches a fresh one-time login link right before opening (never cached:
+     * the ticket is single-use and short-lived) and falls back to the plain
+     * portal URL when the server cannot provide one. The fetch runs in
+     * [viewModelScope] so the tap stays responsive; the browser is started on
+     * the main thread. The link is never logged.
+     */
+    private fun openPortalWithLogin(context: android.content.Context) {
+        val fallback = portalUrl.value ?: return
+        if (!fallback.startsWith("https://")) return
+        if (portalJob?.isActive == true) return
+        val appContext = context.applicationContext ?: context
+        portalJob = viewModelScope.launch {
+            val link = fetchPortalLink(fallback)
+            withContext(Dispatchers.Main) {
+                portalOpener(appContext, link ?: fallback)
+            }
+        }
+    }
+
+    private suspend fun fetchPortalLink(portalUrl: String): String? {
+        val serverUrl = setupRepository.getServerUrl()
+        if (serverUrl.isEmpty()) return null
+        return try {
+            apiClientProvider.getClient(serverUrl).getPortalLink(portalUrl)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Portal link unavailable (${e.javaClass.simpleName})")
+            null
+        }
+    }
+
+    /** Starts the browser for [url]; replaceable in tests. */
+    internal var portalOpener: (android.content.Context, String) -> Unit = { ctx, url ->
         runCatching {
-            context.startActivity(
+            ctx.startActivity(
                 android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             )
