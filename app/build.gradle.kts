@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.gatecontrol.android"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.gatecontrol.client"
