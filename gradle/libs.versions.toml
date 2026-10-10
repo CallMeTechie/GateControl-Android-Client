@@ -22,7 +22,7 @@ junit5 = "5.10.2"
 mockk = "1.14.11"
 turbine = "1.2.1"
 robolectric = "4.17"
-org-json = "20240303"
+org-json = "20260814"
 
 [libraries]
 # AndroidX Core

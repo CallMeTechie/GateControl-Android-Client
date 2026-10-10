@@ -44,7 +44,7 @@ dependencies {
     testImplementation(libs.turbine)
     // org.json.JSONObject is part of the Android SDK at runtime but unavailable
     // in pure JVM unit tests — this standalone JAR provides the same API.
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260814")
 }
 
 tasks.withType<Test> {
