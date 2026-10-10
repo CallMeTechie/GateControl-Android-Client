@@ -123,6 +123,8 @@ fun LogsScreen(
         loadLogs(selectedPeriod)
     }
 
+    val exportChooserTitle = stringResource(R.string.logs_export)
+
     fun exportLogs() {
         try {
             // Only cacheDir/export/ is exposed through the FileProvider.
@@ -139,7 +141,7 @@ fun LogsScreen(
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, context.getString(R.string.logs_export)))
+            context.startActivity(Intent.createChooser(intent, exportChooserTitle))
         } catch (e: Exception) {
             // Silently ignore export errors — log to Timber in production
         }
