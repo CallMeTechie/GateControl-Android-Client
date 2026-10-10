@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.4] - 2026-10-10
+
+### Changes
+- OkHttp 5.5, Retrofit 3 and Compose BOM 2026.09 (#47)
+
+---
+
 ## [1.17.3] - 2026-10-10
 
 ### Changes
