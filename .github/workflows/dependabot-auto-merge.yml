@@ -1,0 +1,75 @@
+name: Dependabot auto-merge
+
+# Squash-merges minor/patch Dependabot PRs once every other check on the PR
+# is green. Major updates (and anything Dependabot cannot classify) are left
+# for manual review.
+#
+# Security: runs on pull_request, not pull_request_target. GitHub grants the
+# write token below to Dependabot's own PRs only (fork PRs stay read-only),
+# and the job never checks out or runs code from the PR.
+#
+# The merge uses GITHUB_TOKEN, so the resulting push does NOT trigger
+# release.yml: merged updates ship with the next real release. Merge a
+# security update manually if it needs an immediate release.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  # A newer push to the same Dependabot PR supersedes the older wait loop.
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    name: auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      statuses: read
+    steps:
+      - name: Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Wait for checks, then merge (minor/patch only)
+        if: steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SELF_WORKFLOW: ${{ github.workflow }}
+        run: |
+          # The other workflows of this event register their checks within
+          # seconds; the head start keeps an empty or partial check list from
+          # being read as "all green".
+          sleep 60
+          for i in $(seq 1 80); do
+            checks=$(gh pr checks "$PR_URL" --json name,workflow,bucket 2>/dev/null || true)
+            [ -n "$checks" ] || checks='[]'
+            others=$(jq --arg wf "$SELF_WORKFLOW" '[.[] | select(.workflow != $wf)]' <<<"$checks")
+            total=$(jq 'length' <<<"$others")
+            fail=$(jq '[.[] | select(.bucket=="fail" or .bucket=="cancel")] | length' <<<"$others")
+            pend=$(jq '[.[] | select(.bucket=="pending")] | length' <<<"$others")
+            if [ "$fail" -gt 0 ]; then
+              echo "::error::Dependabot PR has failing checks - not merging"
+              exit 1
+            fi
+            if [ "$total" -gt 0 ] && [ "$pend" -eq 0 ]; then
+              echo "All $total check(s) passed or skipped - merging $HEAD_SHA"
+              # Refuses to merge if the branch moved after the checks ran.
+              gh pr merge "$PR_URL" --squash --match-head-commit "$HEAD_SHA"
+              exit 0
+            fi
+            echo "waiting: $pend of $total check(s) pending"
+            sleep 30
+          done
+          echo "::error::timed out waiting for checks"
+          exit 1
