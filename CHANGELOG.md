@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1] - 2026-10-10
+
+### Changes
+- bump datastore 1.2.1, coroutines 1.10.2, camerax 1.6.0 (#35)
+
+---
+
 ## [1.17.0] - 2026-10-06
 
 ### Features
