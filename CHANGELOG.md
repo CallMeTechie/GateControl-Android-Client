@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.3] - 2026-10-10
+
+### Changes
+- bump JUnit to 6.1.3 and org.json to 20260814 (#46)
+
+---
+
 ## [1.17.2] - 2026-10-10
 
 ### Changes
