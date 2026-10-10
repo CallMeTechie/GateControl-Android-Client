@@ -13,7 +13,9 @@ class LicenseRepository @Inject constructor() {
         val services: Boolean = false,
         val traffic: Boolean = false,
         val dns: Boolean = false,
-        val rdp: Boolean = false
+        val rdp: Boolean = false,
+        val pihole: Boolean = false,
+        val piholeControl: Boolean = false
     )
 
     private val _permissions = MutableStateFlow(Permissions())
@@ -21,12 +23,21 @@ class LicenseRepository @Inject constructor() {
 
     private var apiTokenMode = false
 
-    fun updatePermissions(services: Boolean, traffic: Boolean, dns: Boolean, rdp: Boolean) {
+    fun updatePermissions(
+        services: Boolean,
+        traffic: Boolean,
+        dns: Boolean,
+        rdp: Boolean,
+        pihole: Boolean = false,
+        piholeControl: Boolean = false
+    ) {
         _permissions.value = Permissions(
             services = services,
             traffic = traffic,
             dns = dns,
-            rdp = rdp
+            rdp = rdp,
+            pihole = pihole,
+            piholeControl = piholeControl
         )
         apiTokenMode = true
     }
@@ -38,6 +49,8 @@ class LicenseRepository @Inject constructor() {
             "services" -> perms.services
             "traffic" -> perms.traffic
             "dns" -> perms.dns
+            "pihole" -> perms.pihole
+            "piholeControl" -> perms.piholeControl
             else -> false
         }
     }

@@ -23,7 +23,7 @@ android-client/
 │       │   ├── setup/                 # Ersteinrichtung + QR-Scanner
 │       │   ├── components/            # Wiederverwendbare UI-Bausteine
 │       │   └── theme/                 # Farben, Typografie, Theme-Provider
-│       ├── service/                   # VpnForegroundService, VpnTileService
+│       ├── service/                   # TunnelConnector, TunnelSupervisor, VpnTileService
 │       └── receiver/                  # BootReceiver
 ├── core/
 │   ├── common/              # Shared Utilities
@@ -63,20 +63,20 @@ Jedes Modul stellt seine Abhängigkeiten über ein Hilt-`@Module` mit `@InstallI
 
 | Bereich | Technologie |
 |---|---|
-| **Sprache** | Kotlin 1.9.24 |
-| **UI-Framework** | Jetpack Compose (BOM 2024.05) |
+| **Sprache** | Kotlin 2.4 (K2-Compiler) |
+| **UI-Framework** | Jetpack Compose (BOM 2024.12, Compose-Compiler-Plugin) |
 | **Design-System** | Material Design 3 |
 | **Navigation** | Compose Navigation |
-| **DI** | Hilt 2.51 |
+| **DI** | Hilt 2.60 (KSP) |
 | **Netzwerk** | Retrofit 2.11 + OkHttp 4.12 |
 | **Serialisierung** | Gson |
-| **VPN** | WireGuard Android Tunnel Library 1.0.20230707 |
+| **VPN** | WireGuard Android Tunnel Library 1.0.20260102 |
 | **Kamera** | CameraX + Google ML Kit Barcode |
 | **Persistenz** | EncryptedSharedPreferences + Jetpack DataStore |
 | **Logging** | Timber |
 | **Coroutines** | kotlinx.coroutines |
 | **Tests** | JUnit 5 + MockK + Turbine + Robolectric |
-| **Build** | Gradle 8.4 (Kotlin DSL), Version Catalog |
+| **Build** | Gradle 9.8, AGP 9.4 (integriertes Kotlin), Kotlin DSL, Version Catalog |
 | **Code Shrinking** | R8 (ProGuard-kompatibel) |
 
 ---

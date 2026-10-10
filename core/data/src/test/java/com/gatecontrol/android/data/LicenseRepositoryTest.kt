@@ -44,4 +44,22 @@ class LicenseRepositoryTest {
 
         assertTrue(repository.isApiTokenMode())
     }
+
+    @Test
+    fun `pihole and piholeControl default to false`() {
+        val repo = LicenseRepository()
+        assertFalse(repo.hasFeature("pihole"))
+        assertFalse(repo.hasFeature("piholeControl"))
+    }
+
+    @Test
+    fun `updatePermissions sets pihole flags`() {
+        val repo = LicenseRepository()
+        repo.updatePermissions(
+            services = false, traffic = false, dns = false, rdp = false,
+            pihole = true, piholeControl = true
+        )
+        assertTrue(repo.hasFeature("pihole"))
+        assertTrue(repo.hasFeature("piholeControl"))
+    }
 }

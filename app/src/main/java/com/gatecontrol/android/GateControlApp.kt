@@ -2,11 +2,9 @@ package com.gatecontrol.android
 
 import android.app.Application
 import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.os.Environment
-import com.gatecontrol.android.data.SetupRepository
+import android.util.Log
 import com.gatecontrol.android.service.TunnelStateHolder
-import com.gatecontrol.android.tunnel.TunnelManager
+import com.gatecontrol.android.service.TunnelSupervisor
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -38,23 +36,28 @@ class GateControlApp : Application() {
         }
 
         try {
-            if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            if (BuildConfig.DEBUG) {
                 Timber.plant(Timber.DebugTree())
             }
-            // Always plant a file-based tree so logs are available in release builds
-            Timber.plant(FileLoggingTree(this))
+            // Always plant a file-based tree so logs are available in release
+            // builds (app-private cacheDir/logs); release keeps INFO and up.
+            Timber.plant(
+                FileLoggingTree(this, minPriority = if (BuildConfig.DEBUG) Log.DEBUG else Log.INFO),
+            )
         } catch (e: Throwable) {
             writeCrashToFile("timber_init", e)
             throw e
         }
 
-        // Register singletons for Quick Settings tile (which can't use Hilt DI)
+        // Tunnel lifecycle outside the UI: Always-on VPN, auto-reconnect, tile state.
+        // Must run before the system starts the VPN service for Always-on.
+        // Also registered for the Quick Settings tile, which can't use Hilt DI.
         try {
-            val entryPoint = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java)
-            TunnelStateHolder.tunnelManager = entryPoint.tunnelManager()
-            TunnelStateHolder.setupRepository = entryPoint.setupRepository()
+            val supervisor = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).tunnelSupervisor()
+            TunnelStateHolder.supervisor = supervisor
+            supervisor.start()
         } catch (e: Throwable) {
-            Timber.e(e, "Failed to register TunnelStateHolder singletons")
+            Timber.e(e, "Failed to start TunnelSupervisor")
         }
 
         // Initialize FreeRDP's GlobalApp.sessionMap, which is normally set in
@@ -80,11 +83,15 @@ class GateControlApp : Application() {
     @EntryPoint
     @InstallIn(SingletonComponent::class)
     interface TileEntryPoint {
-        fun tunnelManager(): TunnelManager
-        fun setupRepository(): SetupRepository
+        fun tunnelSupervisor(): TunnelSupervisor
     }
 
     private fun installCrashLogger(context: Context) {
+        crashDir = try {
+            File(context.filesDir, CRASH_DIR_NAME)
+        } catch (_: Exception) {
+            null
+        }
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
@@ -97,7 +104,18 @@ class GateControlApp : Application() {
     }
 
     companion object {
+        const val CRASH_DIR_NAME = "crash"
+        private const val MAX_CRASH_FILES = 10
+
+        /** App-private crash report directory (filesDir/crash), set before Hilt init. */
+        @Volatile private var crashDir: File? = null
+
+        /**
+         * Writes a crash report to app-private storage only — never to shared
+         * storage such as Downloads, where any app could read it.
+         */
         private fun writeCrashToFile(tag: String, throwable: Throwable) {
+            val dir = crashDir ?: return
             val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
             val fileName = "gatecontrol_crash_${tag}_$timestamp.txt"
 
@@ -111,24 +129,16 @@ class GateControlApp : Application() {
             pw.println()
             throwable.printStackTrace(pw)
             pw.flush()
-            val content = sw.toString()
 
-            // Try multiple locations — at least one should work
-            val candidates = listOf(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                Environment.getExternalStorageDirectory(),
-                File("/sdcard/Download"),
-                File("/storage/emulated/0/Download"),
-            )
-
-            for (dir in candidates) {
-                try {
-                    dir.mkdirs()
-                    File(dir, fileName).writeText(content)
-                    return // success
-                } catch (_: Exception) {
-                    // try next
-                }
+            try {
+                dir.mkdirs()
+                dir.listFiles { f -> f.isFile && f.name.startsWith("gatecontrol_crash_") }
+                    ?.sortedByDescending { it.lastModified() }
+                    ?.drop(MAX_CRASH_FILES - 1)
+                    ?.forEach { it.delete() }
+                File(dir, fileName).writeText(sw.toString())
+            } catch (_: Exception) {
+                // Last resort — nothing else to do while crashing
             }
         }
     }

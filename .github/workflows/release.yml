@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+concurrency:
+  # One release run at a time: parallel runs race on the version bump push.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   checks: write
@@ -13,22 +18,49 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  decide:
+    name: Release needed?
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - name: Check commit type
+        id: check
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          # Squash merges put the PR title on the first line. ci/docs/test/style
+          # and chore commits (incl. our own "chore: bump version") land on the
+          # default branch without a release and ship with the next fix/feat.
+          # chore(deps) stays releasable: dependency updates can carry fixes.
+          FIRST_LINE=$(printf '%s\n' "$COMMIT_MSG" | head -n1)
+          if printf '%s' "$FIRST_LINE" | grep -qE '^chore\(deps(-dev)?\)!?:'; then
+            RELEASE=true
+          elif printf '%s' "$FIRST_LINE" | grep -qE '^(ci|docs|test|style|chore)(\([^)]*\))?!?:'; then
+            RELEASE=false
+          else
+            RELEASE=true
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "First line: $FIRST_LINE -> release=$RELEASE"
+
   test-gate:
     name: Test Gate
     runs-on: ubuntu-latest
-    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
+    needs: decide
+    if: needs.decide.outputs.release == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Run unit tests
         run: ./gradlew test --continue
@@ -50,7 +82,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results
           path: "**/build/test-results/test/*.xml"
@@ -58,24 +90,24 @@ jobs:
   build:
     name: Build and Publish
     runs-on: ubuntu-latest
-    needs: test-gate
-    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
+    needs: [decide, test-gate]
+    if: needs.decide.outputs.release == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Determine version bump
         id: bump
@@ -157,16 +189,24 @@ jobs:
         if: steps.check_tag.outputs.exists == 'false'
         shell: bash
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
-          else
-            keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 \
-              -alias gatecontrol -storepass android -keypass android \
-              -dname "CN=GateControl, OU=Dev, O=GateControl, C=DE"
+          # Release builds must be signed with the real upload key. A missing
+          # secret fails the job instead of silently signing with a throwaway key.
+          MISSING=""
+          [ -z "$KEYSTORE_BASE64" ] && MISSING="$MISSING KEYSTORE_BASE64"
+          [ -z "$KEYSTORE_PASSWORD" ] && MISSING="$MISSING KEYSTORE_PASSWORD"
+          [ -z "$KEY_ALIAS" ] && MISSING="$MISSING KEY_ALIAS"
+          [ -z "$KEY_PASSWORD" ] && MISSING="$MISSING KEY_PASSWORD"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Signing secrets missing:$MISSING"
+            exit 1
           fi
-          echo "KEYSTORE_PATH=$(pwd)/keystore.jks" >> "$GITHUB_ENV"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/keystore.jks" >> "$GITHUB_ENV"
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Build APK and AAB
         if: steps.check_tag.outputs.exists == 'false'
@@ -176,7 +216,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease bundleRelease assembleDebug
+          ./gradlew assembleRelease bundleRelease
+
+      - name: Verify 16 KB page alignment of native libs
+        if: steps.check_tag.outputs.exists == 'false'
+        run: python3 scripts/check_elf_alignment.py app/build/outputs/apk/release/ app/build/outputs/bundle/release/
 
       - name: Verify R8 obfuscation
         if: steps.check_tag.outputs.exists == 'false'
@@ -208,10 +252,6 @@ jobs:
             zip -r "../../../../GateControl-Android-${NEW_VERSION}-native-debug-symbols.zip" .
             cd -
           fi
-          # Debug APK for crash diagnosis
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/GateControl-Android-${NEW_VERSION}-debug.apk"
-          fi
 
       - name: Commit version bump
         if: steps.check_tag.outputs.exists == 'false'
@@ -224,19 +264,29 @@ jobs:
           git config user.email "github-actions@github.com"
           git add app/build.gradle.kts CHANGELOG.md
           git commit -m "chore: bump version to $NEW_VERSION"
-          git tag "$TAG"
-          git push origin main --tags
+          # Push commit and tag atomically: a concurrent push to main (e.g. the
+          # FreeRDP AAR rebuild) must not leave a tag without its commit. On a
+          # race, rebase onto the new main, re-tag and try again.
+          for attempt in 1 2 3; do
+            git tag -f "$TAG"
+            if git push --atomic origin HEAD:main "refs/tags/$TAG"; then
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push version bump after 3 attempts"
+          exit 1
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ steps.bump.outputs.tag }}
           name: "GateControl Android ${{ steps.bump.outputs.tag }}"
           generate_release_notes: true
           files: |
             app/build/outputs/apk/release/GateControl-Android-*.apk
-            app/build/outputs/apk/debug/GateControl-Android-*-debug.apk
             app/build/outputs/bundle/release/GateControl-Android-*.aab
             app/build/outputs/mapping/release/GateControl-Android-*-mapping.txt
             app/GateControl-Android-*-native-debug-symbols.zip

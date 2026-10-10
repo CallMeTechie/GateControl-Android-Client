@@ -111,13 +111,14 @@ class RdpSessionActivity : ComponentActivity() {
         sessionStartMs = System.currentTimeMillis()
         rdpRouteId = params.routeId
 
-        // Diagnostic log for RDP debugging — written to Downloads folder
+        // Diagnostic log for RDP debugging — debug builds only, app-private storage
         diagLog = RdpDiagnosticLog(this)
         diagLog.log("=== RDP Session Start ===")
         diagLog.log("Host: ${params.host}:${params.port}")
-        diagLog.log("Username: ${if (params.username.isNullOrEmpty()) "EMPTY" else "${params.username} (${params.username?.length} chars)"}")
-        diagLog.log("Password: ${if (params.password.isNullOrEmpty()) "EMPTY" else "SET (${params.password?.length} chars)"}")
-        diagLog.log("Domain: ${params.domain ?: "null"}")
+        // Never log usernames, passwords or their lengths — only presence.
+        diagLog.log("Username: ${if (params.username.isNullOrEmpty()) "EMPTY" else "SET"}")
+        diagLog.log("Password: ${if (params.password.isNullOrEmpty()) "EMPTY" else "SET"}")
+        diagLog.log("Domain: ${if (params.domain.isNullOrEmpty()) "EMPTY" else "SET"}")
         diagLog.log("Resolution: ${params.resolutionWidth}x${params.resolutionHeight} @${params.colorDepth}bpp")
         diagLog.log("NLA: see bookmark advancedSettings.security")
         diagLog.log("AdminSession: ${params.adminSession}")
@@ -130,10 +131,8 @@ class RdpSessionActivity : ComponentActivity() {
                 runBlocking { certVerdictChannel.receive() }
             },
             authenticate = { username, password ->
-                val uLen = username.length
-                val pLen = password.length
-                val hasCredentials = uLen > 0 || pLen > 0
-                diagLog.log("OnAuthenticate called: username=${uLen} chars, password=${pLen} chars, hasCredentials=$hasCredentials")
+                val hasCredentials = username.isNotEmpty() || password.isNotEmpty()
+                diagLog.log("OnAuthenticate called: hasCredentials=$hasCredentials")
                 if (!hasCredentials) {
                     Timber.w("OnAuthenticate: no auth data available — rejecting")
                     diagLog.log("OnAuthenticate: REJECTING (no credentials in StringBuilder params)")
@@ -190,6 +189,7 @@ class RdpSessionActivity : ComponentActivity() {
         }
         notifyServerSessionEnd()
         stopRdpService()
+        if (::diagLog.isInitialized) diagLog.close()
     }
 
     private fun finishSession() {

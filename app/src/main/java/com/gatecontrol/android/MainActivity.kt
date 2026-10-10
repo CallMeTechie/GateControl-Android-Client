@@ -7,39 +7,41 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import java.util.Locale
+import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.navigation.AppNavigation
-import com.gatecontrol.android.service.TunnelConnector
-import com.gatecontrol.android.service.VpnTileService
-import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import timber.log.Timber
 import javax.inject.Inject
 
+/**
+ * Exported entry point (launcher + gatecontrol:// links). It deliberately
+ * acts on no intent extras: Quick Settings tile actions run in the
+ * non-exported [com.gatecontrol.android.service.TileActionActivity], and
+ * setup links only open a confirmation dialog.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var setupRepository: SetupRepository
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var licenseRepository: LicenseRepository
-    @Inject lateinit var tunnelManager: TunnelManager
-    @Inject lateinit var tunnelConnector: TunnelConnector
+
+    /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
+    private var pendingSetupLink by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val deepLinkUrl = intent?.data?.getQueryParameter("url")
-        val deepLinkToken = intent?.data?.getQueryParameter("token")
+        if (savedInstanceState == null) captureSetupLink(intent)
 
         setContent {
             val theme by settingsRepository.getTheme()
@@ -75,70 +77,22 @@ class MainActivity : ComponentActivity() {
                     isSetupComplete = isSetupComplete,
                     hasRdpPermission = permissions.rdp,
                     hasServicesPermission = permissions.services,
+                    hasPiholePermission = permissions.pihole,
+                    pendingSetupLink = pendingSetupLink,
+                    onSetupLinkConsumed = { pendingSetupLink = null },
                 )
             }
         }
-
-        if (deepLinkUrl != null && deepLinkToken != null) {
-            intent?.putExtra("deep_link_url", deepLinkUrl)
-            intent?.putExtra("deep_link_token", deepLinkToken)
-        }
-
-        // Handle Quick Settings tile actions
-        handleTileAction(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleTileAction(intent)
+        captureSetupLink(intent)
     }
 
-    private fun handleTileAction(intent: Intent?) {
-        val tileAction = intent?.getStringExtra(VpnTileService.EXTRA_TILE_ACTION) ?: return
-        // Clear the extra so it doesn't re-trigger on configuration change
-        intent.removeExtra(VpnTileService.EXTRA_TILE_ACTION)
-
-        when (tileAction) {
-            VpnTileService.ACTION_TILE_CONNECT -> {
-                Timber.d("MainActivity: Tile connect action received")
-                val prepareIntent = android.net.VpnService.prepare(this)
-                if (prepareIntent != null) {
-                    // VPN permission not yet granted — user needs to approve
-                    // The permission dialog will show, but we can't auto-connect after
-                    // For now, just open the app (user sees VPN screen and can tap Connect)
-                    Timber.d("MainActivity: VPN permission required, showing app")
-                } else {
-                    // Permission already granted — connect via the shared
-                    // TunnelConnector so the user's split-tunnel app/network
-                    // exceptions and the DNS pre-resolve workaround are
-                    // applied (otherwise the tile path would silently start
-                    // a full tunnel with no exceptions).
-                    CoroutineScope(Dispatchers.IO).launch {
-                        try {
-                            val started = tunnelConnector.connectWithUserSettings()
-                            if (started) {
-                                Timber.d("MainActivity: Tile connect succeeded")
-                            } else {
-                                Timber.w("MainActivity: Tile connect aborted (no config)")
-                            }
-                        } catch (e: Exception) {
-                            Timber.e(e, "MainActivity: Tile connect failed")
-                        }
-                    }
-                }
-            }
-            VpnTileService.ACTION_TILE_DISCONNECT -> {
-                Timber.d("MainActivity: Tile disconnect action received")
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        tunnelManager.disconnect()
-                        Timber.d("MainActivity: Tile disconnect succeeded")
-                    } catch (e: Exception) {
-                        Timber.e(e, "MainActivity: Tile disconnect failed")
-                    }
-                }
-            }
-        }
+    private fun captureSetupLink(intent: Intent?) {
+        val raw = intent?.dataString ?: return
+        if (EnrollmentLink.parse(raw) != null) pendingSetupLink = raw
     }
 }

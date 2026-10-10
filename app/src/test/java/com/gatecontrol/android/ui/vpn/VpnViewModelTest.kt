@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.vpn
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import app.cash.turbine.test
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
@@ -20,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import okhttp3.ResponseBody.Companion.toResponseBody
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -55,11 +57,10 @@ class VpnViewModelTest {
         apiClient = mockk(relaxed = true)
         tunnelManager = mockk(relaxed = true)
 
-        every { settingsRepository.getKillSwitch() } returns flowOf(false)
         every { settingsRepository.getSplitTunnelEnabled() } returns flowOf(false)
         every { settingsRepository.getSplitTunnelRoutes() } returns flowOf("")
         every { settingsRepository.getSplitTunnelApps() } returns flowOf("")
-        every { settingsRepository.getSplitTunnelMode() } returns flowOf("off")
+        every { settingsRepository.getSplitTunnelMode() } returns flowOf(SplitTunnelMode.OFF)
         every { settingsRepository.getSplitTunnelNetworks() } returns flowOf("[]")
         every { settingsRepository.getSplitTunnelAppsV2() } returns flowOf("[]")
         every { setupRepository.getServerUrl() } returns "https://gate.example.com"
@@ -77,6 +78,13 @@ class VpnViewModelTest {
             licenseRepository = licenseRepository,
             apiClientProvider = apiClientProvider,
             tunnelManager = tunnelManager,
+            // Real connector on the same mocks: connect() must go through the shared path.
+            tunnelConnector = com.gatecontrol.android.service.TunnelConnector(
+                setupRepository, settingsRepository, apiClientProvider, tunnelManager,
+                com.gatecontrol.android.service.fakeClientPolicyManager(),
+            ),
+            clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(),
+            machineBindingMonitor = com.gatecontrol.android.network.MachineBindingMonitor(),
         )
     }
 
@@ -115,6 +123,51 @@ class VpnViewModelTest {
         coVerify(exactly = 0) { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
     }
 
+    // --- validateToken ---
+
+    private fun httpError(code: Int): retrofit2.HttpException = retrofit2.HttpException(
+        retrofit2.Response.error<Any>(
+            code,
+            "{\"ok\":false}".toResponseBody(null),
+        ),
+    )
+
+    @Test
+    fun `validateToken clears setup only on 401`() = runTest {
+        every { setupRepository.getApiToken() } returns "gc_token"
+        coEvery { apiClient.ping() } throws httpError(401)
+
+        viewModel.validateToken()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { setupRepository.clear() }
+        assertTrue(viewModel.tokenInvalid.value)
+    }
+
+    @Test
+    fun `validateToken keeps setup on 403 from WAF, proxy or missing scope`() = runTest {
+        every { setupRepository.getApiToken() } returns "gc_token"
+        coEvery { apiClient.ping() } throws httpError(403)
+
+        viewModel.validateToken()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify(exactly = 0) { setupRepository.clear() }
+        assertFalse(viewModel.tokenInvalid.value)
+    }
+
+    @Test
+    fun `validateToken keeps setup on network errors`() = runTest {
+        every { setupRepository.getApiToken() } returns "gc_token"
+        coEvery { apiClient.ping() } throws java.io.IOException("offline")
+
+        viewModel.validateToken()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify(exactly = 0) { setupRepository.clear() }
+        assertFalse(viewModel.tokenInvalid.value)
+    }
+
     @Test
     fun `disconnect calls tunnelManager disconnect`() = runTest {
         viewModel.disconnect()
@@ -124,28 +177,14 @@ class VpnViewModelTest {
     }
 
     @Test
-    fun `toggleKillSwitch saves to settings`() = runTest {
-        viewModel.toggleKillSwitch(true)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify { settingsRepository.setKillSwitch(true) }
-    }
-
-    @Test
-    fun `toggleKillSwitch false saves false to settings`() = runTest {
-        viewModel.toggleKillSwitch(false)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify { settingsRepository.setKillSwitch(false) }
-    }
-
-    @Test
     fun `loadPermissions updates license repository`() = runTest {
         val flags = PermissionFlags(
             services = true,
             traffic = true,
             dns = false,
             rdp = true,
+            pihole = true,
+            piholeControl = true,
         )
         coEvery { apiClient.getPermissions() } returns PermissionsResponse(
             ok = true,
@@ -162,6 +201,8 @@ class VpnViewModelTest {
                 traffic = true,
                 dns = false,
                 rdp = true,
+                pihole = true,
+                piholeControl = true,
             )
         }
     }
@@ -205,5 +246,181 @@ class VpnViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify(exactly = 0) { apiClient.getPermissions() }
+    }
+
+    @Test
+    fun `always-on client policy refuses the in-app disconnect`() = runTest {
+        val vm = VpnViewModel(
+            setupRepository = setupRepository,
+            settingsRepository = settingsRepository,
+            licenseRepository = licenseRepository,
+            apiClientProvider = apiClientProvider,
+            tunnelManager = tunnelManager,
+            tunnelConnector = com.gatecontrol.android.service.TunnelConnector(
+                setupRepository, settingsRepository, apiClientProvider, tunnelManager,
+                com.gatecontrol.android.service.fakeClientPolicyManager(),
+            ),
+            clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(
+                com.gatecontrol.android.common.ClientPolicy(autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.ALWAYS_ON),
+            ),
+            machineBindingMonitor = com.gatecontrol.android.network.MachineBindingMonitor(),
+        )
+        vm.disconnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { tunnelManager.disconnect() }
+    }
+
+    // --- Portal auto-login ---
+
+    private val portal = "https://portal.example.com"
+    private val opened = mutableListOf<String>()
+    private val context = mockk<android.content.Context>(relaxed = true)
+
+    private fun enablePortal(autoOpen: Boolean = true) {
+        coEvery { apiClient.getPermissions() } returns PermissionsResponse(
+            ok = true,
+            permissions = PermissionFlags(services = false, traffic = false, dns = false, rdp = false),
+            scopes = emptyList(),
+            portalUrl = portal,
+            autoOpenPortal = autoOpen,
+        )
+        viewModel.loadPermissions()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.portalOpener = { _, url -> opened += url }
+    }
+
+    private fun portalLink(url: String?) = retrofit2.Response.success(
+        com.gatecontrol.android.network.PortalLinkResponse(ok = true, url = url, expiresIn = 60),
+    )
+
+    @Test
+    fun `openPortal opens the one-time login link`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } returns portalLink("$portal/auto?t=ticket1")
+
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("$portal/auto?t=ticket1"), opened)
+    }
+
+    @Test
+    fun `openPortal fetches a fresh link on every tap`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } returnsMany listOf(
+            portalLink("$portal/auto?t=a"),
+            portalLink("$portal/auto?t=b"),
+        )
+
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("$portal/auto?t=a", "$portal/auto?t=b"), opened)
+        coVerify(exactly = 2) { apiClient.requestPortalLink() }
+    }
+
+    @Test
+    fun `openPortal falls back to the portal URL on 404`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } returns retrofit2.Response.error(
+            404, "{}".toResponseBody(null),
+        )
+
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(portal), opened)
+    }
+
+    @Test
+    fun `openPortal falls back to the portal URL after the 5 s timeout`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } coAnswers {
+            kotlinx.coroutines.delay(30_000)
+            portalLink("$portal/auto?t=late")
+        }
+
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceTimeBy(4_900)
+        testDispatcher.scheduler.runCurrent()
+        assertTrue(opened.isEmpty())
+        testDispatcher.scheduler.advanceTimeBy(200)
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(listOf(portal), opened)
+    }
+
+    @Test
+    fun `openPortal falls back to the portal URL on host mismatch`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } returns portalLink("https://evil.example.com/auto?t=x")
+
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(portal), opened)
+    }
+
+    @Test
+    fun `openPortal falls back to the portal URL on network error`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } throws java.io.IOException("offline")
+
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(portal), opened)
+    }
+
+    @Test
+    fun `openPortal ignores a second tap while the link is loading`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } coAnswers {
+            kotlinx.coroutines.delay(1_000)
+            portalLink("$portal/auto?t=x")
+        }
+
+        viewModel.openPortal(context)
+        viewModel.openPortal(context)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, opened.size)
+        coVerify(exactly = 1) { apiClient.requestPortalLink() }
+    }
+
+    @Test
+    fun `auto-open calls the endpoint once per tunnel session`() = runTest {
+        enablePortal()
+        coEvery { apiClient.requestPortalLink() } returns portalLink("$portal/auto?t=x")
+        val session = TunnelState.Connected(connectedSince = 1_000L)
+
+        viewModel.autoOpenPortalIfNeeded(context, session)
+        testDispatcher.scheduler.advanceUntilIdle()
+        // Recomposition / re-foreground on the same session
+        viewModel.autoOpenPortalIfNeeded(context, session)
+        viewModel.autoOpenPortalIfNeeded(context, TunnelState.Connected(connectedSince = 1_000L))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { apiClient.requestPortalLink() }
+        assertEquals(1, opened.size)
+
+        // A new connect is a new session
+        viewModel.autoOpenPortalIfNeeded(context, TunnelState.Connected(connectedSince = 2_000L))
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 2) { apiClient.requestPortalLink() }
+    }
+
+    @Test
+    fun `auto-open does nothing when disabled or not connected`() = runTest {
+        enablePortal(autoOpen = false)
+
+        viewModel.autoOpenPortalIfNeeded(context, TunnelState.Connected(connectedSince = 1_000L))
+        viewModel.autoOpenPortalIfNeeded(context, TunnelState.Disconnected)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { apiClient.requestPortalLink() }
+        assertTrue(opened.isEmpty())
     }
 }

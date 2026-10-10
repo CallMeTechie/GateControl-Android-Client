@@ -13,14 +13,20 @@ data class PingResponse(
 data class PermissionsResponse(
     val ok: Boolean,
     val permissions: PermissionFlags,
-    val scopes: List<String>
+    val scopes: List<String>,
+    @SerializedName("portalUrl") val portalUrl: String? = null,
+    @SerializedName("autoOpenPortal") val autoOpenPortal: Boolean = false,
+    /** Client policy version (see [ClientPolicyResponse]); null on old servers. */
+    @SerializedName("policyVersion") val policyVersion: String? = null,
 )
 
 data class PermissionFlags(
     val services: Boolean,
     val traffic: Boolean,
     val dns: Boolean,
-    val rdp: Boolean
+    val rdp: Boolean,
+    val pihole: Boolean = false,
+    val piholeControl: Boolean = false
 )
 
 data class RegisterResponse(
@@ -204,6 +210,26 @@ data class RegisterRequest(
     val peerId: Int? = null
 )
 
+data class EnrollRequest(
+    val code: String,
+    val hostname: String,
+    val platform: String,
+    val clientVersion: String,
+    /** Device fingerprint for machine binding (also sent as X-Machine-Fingerprint). */
+    val fingerprint: String,
+)
+
+data class EnrollResponse(
+    val ok: Boolean,
+    val token: String? = null,
+    val peerId: Int? = null,
+    val peerName: String? = null,
+    val config: String? = null,
+    val hash: String? = null,
+    val scopes: List<String>? = null,
+    val error: String? = null,
+)
+
 data class HeartbeatRequest(
     val peerId: Int,
     val connected: Boolean,
@@ -211,12 +237,6 @@ data class HeartbeatRequest(
     val txBytes: Long,
     val uptime: Long,
     val hostname: String
-)
-
-data class StatusRequest(
-    val peerId: Int,
-    val status: String,
-    val timestamp: String
 )
 
 data class HostnameReportRequest(
@@ -249,7 +269,153 @@ data class RdpRouteStatusResponse(
     val status: RdpRouteStatus?
 )
 
+/** Reply to /client/heartbeat; peerEnabled=false means the admin disabled this peer. */
+data class HeartbeatResponse(
+    val ok: Boolean,
+    val peerEnabled: Boolean? = null,
+    /** Client policy version; differs from the cached one → refetch the policy. */
+    val policyVersion: String? = null,
+    /** An admin asked this device for a support bundle (the user is asked first). */
+    val supportBundleRequested: Boolean? = null,
+    /** When the admin asked (server time, UTC) — a new value means a new request. */
+    val supportBundleRequestedAt: String? = null,
+)
+
+/** Reply to /client/policy: the effective client policy for this token's peer. */
+data class ClientPolicyResponse(
+    val ok: Boolean,
+    val version: String? = null,
+    val managed: Boolean? = null,
+    val policy: ClientPolicyPayload? = null,
+)
+
+data class ClientPolicyPayload(
+    val killSwitch: String? = null,
+    val autoConnect: String? = null,
+    val autostart: String? = null,
+    val splitTunnelModes: List<String>? = null,
+    val splitTunnelLocked: Boolean? = null,
+    val lockSettings: Boolean? = null,
+    val lockServer: Boolean? = null,
+)
+
+data class SupportBundleUploadResponse(
+    val ok: Boolean,
+    val bundle: SupportBundleInfo? = null,
+    val error: String? = null,
+)
+
+data class SupportBundleInfo(
+    val id: Long,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("size_bytes") val sizeBytes: Long = 0,
+)
+
 data class SimpleResponse(
     val ok: Boolean,
     val error: String? = null
 )
+
+// ─── Pi-hole (Phase 2) ───────────────────────────────────────────────
+
+data class PiholeSummaryResponse(
+    val ok: Boolean,
+    val data: PiholeSummary? = null
+)
+
+data class PiholeSummary(
+    val queries: PiholeQueries? = null,
+    val gravity: Long? = null,
+    val clients: PiholeClients? = null,
+    val blocking: PiholeBlocking? = null,
+    val attribution: String? = null,
+    @SerializedName("lastSyncAt") val lastSyncAt: Long? = null
+)
+
+data class PiholeQueries(
+    val total: Long = 0,
+    val blocked: Long = 0,
+    val percent: Double = 0.0
+)
+
+data class PiholeClients(
+    val active: Int = 0
+)
+
+data class PiholeBlocking(
+    val state: String = "unknown",
+    val timer: Long? = null
+)
+
+data class PiholeHistoryResponse(
+    val ok: Boolean,
+    val data: List<PiholeHistoryPoint>? = null
+)
+
+data class PiholeHistoryPoint(
+    val t: Long,
+    val allowed: Long,
+    val blocked: Long
+)
+
+data class PiholeTopDomainsResponse(
+    val ok: Boolean,
+    val data: List<PiholeTopDomain>? = null
+)
+
+data class PiholeTopDomain(
+    val domain: String,
+    val count: Long
+)
+
+data class PiholeTopClientsResponse(
+    val ok: Boolean,
+    val data: List<PiholeTopClient>? = null
+)
+
+data class PiholeTopClient(
+    val ip: String,
+    val count: Long,
+    val peerId: Int? = null,
+    val peerName: String? = null
+)
+
+data class PiholeQueryTypesResponse(
+    val ok: Boolean,
+    val data: Map<String, Long>? = null
+)
+
+data class PiholeHealthResponse(
+    val ok: Boolean,
+    val data: PiholeHealth? = null
+)
+
+data class PiholeHealth(
+    val instances: List<PiholeInstance>? = null,
+    val attribution: String? = null,
+    @SerializedName("lastSyncAt") val lastSyncAt: Long? = null
+)
+
+data class PiholeInstance(
+    val id: String,
+    val connected: Boolean,
+    val error: String? = null
+)
+
+data class PiholeBlockingRequest(
+    val enabled: Boolean,
+    val timer: Int? = null
+)
+
+/**
+ * One-time portal login link (`POST /client/portal-link`). [url] carries a
+ * single-use ticket: never log, store or report it.
+ */
+data class PortalLinkResponse(
+    val ok: Boolean = false,
+    @SerializedName("url") val url: String? = null,
+    @SerializedName("expiresIn") val expiresIn: Int? = null,
+) {
+    // The ticket must not end up in a log line through an accidental toString().
+    override fun toString(): String = "PortalLinkResponse(ok=$ok, url=${if (url == null) "null" else "[REDACTED]"}, expiresIn=$expiresIn)"
+}

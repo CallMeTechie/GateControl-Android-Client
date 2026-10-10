@@ -1,0 +1,5 @@
+{
+  "name": "valid_whitespace",
+  "config": "[Interface]\n   PrivateKey = CyeI87ssPVm18g0yRG9AZV0vdIe9qtkKvFKsOlTCTHI=    \nAddress = 10.8.0.2/32   # the tunnel address\nDNS = 10.8.0.1\n\n[Peer]\n   PublicKey = 86R0I45ZRx/P7WQdj+GkW+q0+MU0cS4Zccy+CVTTvY4=\nEndpoint = gate.example.com:51820  # server endpoint\n   AllowedIPs = 0.0.0.0/0\n",
+  "expect": "valid"
+}

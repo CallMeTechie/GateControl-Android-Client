@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Window background matches the Compose theme's page color (light: bg #F3F5F8). -->
     <style name="Theme.GateControl" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">@color/gc_window_bg</item>
     </style>
+
+    <!-- Invisible host for Quick Settings tile actions (TileActionActivity):
+         only the system VPN consent dialog may appear on top of it. -->
+    <style name="Theme.GateControl.TileAction" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+    <color name="gc_window_bg">#F3F5F8</color>
 </resources>

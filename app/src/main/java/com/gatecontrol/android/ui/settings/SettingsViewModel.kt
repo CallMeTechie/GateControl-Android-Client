@@ -1,15 +1,30 @@
 package com.gatecontrol.android.ui.settings
 
+import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.UiText
 import com.gatecontrol.android.data.LicenseRepository
+import com.gatecontrol.android.data.MachineFingerprint
+import com.gatecontrol.android.network.MachineBindingError
+import com.gatecontrol.android.ui.toUiText
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.data.SplitTunnelJson
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.tunnel.TunnelConfig
+import com.gatecontrol.android.tunnel.WgConfigValidator
 import com.gatecontrol.android.network.UpdateCheckResponse
 import com.gatecontrol.android.common.Validation
-import org.json.JSONArray
-import org.json.JSONObject
+import com.gatecontrol.android.common.ClientPolicy
+import com.gatecontrol.android.service.ClientPolicyManager
+import com.gatecontrol.android.network.SupportBundleUploader
+import com.gatecontrol.android.support.SupportBundleCollector
+import com.gatecontrol.android.support.SupportRequestHolder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,26 +46,33 @@ data class SettingsUiState(
     val theme: String = "dark",
     val locale: String = "de",
     val autoConnect: Boolean = false,
-    val killSwitch: Boolean = false,
     val splitTunnelEnabled: Boolean = false,
     val splitTunnelRoutes: String = "",
     val splitTunnelApps: String = "",
-    val splitTunnelMode: String = "off",
+    val splitTunnelMode: SplitTunnelMode = SplitTunnelMode.OFF,
     val splitTunnelNetworks: List<NetworkEntry> = emptyList(),
     val splitTunnelAppsV2: List<String> = emptyList(),
     val splitTunnelAdminLocked: Boolean = false,
-    val checkInterval: Int = 30,
-    val configPollInterval: Int = 300,
     val serverUrl: String = "",
     val apiToken: String = "",
     val connectionTestStatus: ConnectionTestStatus = ConnectionTestStatus.Idle,
     val isLoading: Boolean = false,
     val updateInfo: UpdateCheckResponse? = null,
     val appVersion: String = "",
-    val error: String? = null,
-    val success: String? = null,
+    val error: UiText? = null,
     val isPro: Boolean = false,
-    val licenseStatus: String = ""
+    val peerId: Int = 0,
+    /** Client policy from the server (unrestricted until one was fetched). */
+    val policy: ClientPolicy = ClientPolicy.UNRESTRICTED,
+    /** Confirmation dialog for "Support-Paket senden" is open. */
+    val supportDialogVisible: Boolean = false,
+    val supportSending: Boolean = false,
+    /** One-shot result of the last upload (shown as a toast, then consumed). */
+    val supportMessage: UiText? = null,
+    /** An admin asked for a support bundle (heartbeat). */
+    val supportRequested: Boolean = false,
+    /** First 8 hex chars of the machine fingerprint, as the server shows it. */
+    val deviceIdShort: String = "",
 )
 
 @HiltViewModel
@@ -58,7 +80,11 @@ class SettingsViewModel @Inject constructor(
     private val setupRepository: SetupRepository,
     private val settingsRepository: SettingsRepository,
     private val apiClientProvider: ApiClientProvider,
-    private val licenseRepository: LicenseRepository
+    private val licenseRepository: LicenseRepository,
+    private val supportBundleCollector: SupportBundleCollector,
+    private val supportBundleUploader: SupportBundleUploader,
+    private val clientPolicyManager: ClientPolicyManager,
+    private val machineFingerprint: MachineFingerprint,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -71,19 +97,22 @@ class SettingsViewModel @Inject constructor(
 
     private fun loadInitialState() {
         viewModelScope.launch {
+            val shortId = runCatching { machineFingerprint.shortId() }.getOrDefault("")
+            _uiState.update { it.copy(deviceIdShort = shortId) }
+        }
+
+        viewModelScope.launch {
             combine(
                 settingsRepository.getTheme(),
                 settingsRepository.getLocale(),
                 settingsRepository.getAutoConnect(),
-                settingsRepository.getKillSwitch(),
                 settingsRepository.getSplitTunnelEnabled()
-            ) { theme, locale, autoConnect, killSwitch, splitTunnelEnabled ->
+            ) { theme, locale, autoConnect, splitTunnelEnabled ->
                 _uiState.update {
                     it.copy(
                         theme = theme,
                         locale = locale,
                         autoConnect = autoConnect,
-                        killSwitch = killSwitch,
                         splitTunnelEnabled = splitTunnelEnabled
                     )
                 }
@@ -111,14 +140,19 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsRepository.getSplitTunnelNetworks().collect { json ->
-                val networks = parseSplitNetworksJson(json)
+                val networks = SplitTunnelJson.decodeNetworks(json).map { NetworkEntry(it.cidr, it.label) }
                 _uiState.update { it.copy(splitTunnelNetworks = networks) }
             }
         }
         viewModelScope.launch {
             settingsRepository.getSplitTunnelAppsV2().collect { json ->
-                val apps = parseSplitAppsJson(json)
+                val apps = SplitTunnelJson.decodeApps(json)
                 _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
+            }
+        }
+        viewModelScope.launch {
+            clientPolicyManager.policy.collect { policy ->
+                _uiState.update { it.copy(policy = policy) }
             }
         }
         viewModelScope.launch {
@@ -127,22 +161,19 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            settingsRepository.getCheckInterval().collect { interval ->
-                _uiState.update { it.copy(checkInterval = interval) }
-            }
-        }
+
 
         viewModelScope.launch {
-            settingsRepository.getConfigPollInterval().collect { interval ->
-                _uiState.update { it.copy(configPollInterval = interval) }
+            SupportRequestHolder.request.collect { request ->
+                _uiState.update { it.copy(supportRequested = request != null) }
             }
         }
 
         _uiState.update {
             it.copy(
                 serverUrl = setupRepository.getServerUrl(),
-                apiToken = setupRepository.getApiToken()
+                apiToken = setupRepository.getApiToken(),
+                peerId = setupRepository.getPeerId(),
             )
         }
     }
@@ -162,16 +193,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setAutoConnect(enabled: Boolean) {
+        if (_uiState.value.policy.autoConnectLocked) return
         viewModelScope.launch {
             settingsRepository.setAutoConnect(enabled)
             _uiState.update { it.copy(autoConnect = enabled) }
-        }
-    }
-
-    fun setKillSwitch(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setKillSwitch(enabled)
-            _uiState.update { it.copy(killSwitch = enabled) }
         }
     }
 
@@ -182,17 +207,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setCheckInterval(seconds: Int) {
-        viewModelScope.launch {
-            settingsRepository.setCheckInterval(seconds)
-        }
-    }
 
-    fun setConfigPollInterval(seconds: Int) {
-        viewModelScope.launch {
-            settingsRepository.setConfigPollInterval(seconds)
-        }
-    }
 
     fun testConnection(url: String, token: String) {
         viewModelScope.launch {
@@ -227,11 +242,15 @@ class SettingsViewModel @Inject constructor(
     fun saveServer(url: String, token: String) {
         val url = ensureHttps(url)
         if (!Validation.validateServerUrl(url)) {
-            _uiState.update { it.copy(error = "Invalid server URL") }
+            _uiState.update { it.copy(error = UiText.Res(R.string.settings_error_invalid_url)) }
             return
         }
         if (!Validation.validateApiToken(token)) {
-            _uiState.update { it.copy(error = "Invalid API token") }
+            _uiState.update { it.copy(error = UiText.Res(R.string.settings_error_invalid_token)) }
+            return
+        }
+        if (_uiState.value.policy.lockServer) {
+            _uiState.update { it.copy(error = UiText.Res(R.string.policy_server_locked)) }
             return
         }
 
@@ -247,6 +266,8 @@ class SettingsViewModel @Inject constructor(
                 }
 
                 setupRepository.save(url, token, peerId.coerceAtLeast(0))
+                // New server / token: the old server's policy must not stick.
+                clientPolicyManager.reset()
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -260,7 +281,7 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message,
+                        error = UiText.Res(R.string.setup_connection_failed, e.localizedMessage ?: ""),
                         connectionTestStatus = ConnectionTestStatus.Failure
                     )
                 }
@@ -284,53 +305,32 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setSplitTunnelMode(mode: String) {
+    fun setSplitTunnelMode(mode: SplitTunnelMode) {
+        val policy = _uiState.value.policy
+        if (policy.splitTunnelFrozen || !policy.isModeAllowed(mode)) return
         _uiState.update { it.copy(splitTunnelMode = mode) }
         viewModelScope.launch { settingsRepository.setSplitTunnelMode(mode) }
     }
 
     fun setSplitTunnelNetworks(networks: List<NetworkEntry>) {
+        if (_uiState.value.policy.splitTunnelFrozen) return
         _uiState.update { it.copy(splitTunnelNetworks = networks) }
         viewModelScope.launch {
-            val arr = JSONArray()
-            networks.forEach { arr.put(JSONObject().put("cidr", it.cidr).put("label", it.label)) }
-            settingsRepository.setSplitTunnelNetworks(arr.toString())
+            settingsRepository.setSplitTunnelNetworks(
+                SplitTunnelJson.encodeNetworks(networks.map { SplitTunnelJson.Network(it.cidr, it.label) }),
+            )
         }
     }
 
     fun setSplitTunnelAppsV2(apps: List<String>) {
+        if (_uiState.value.policy.lockSettings) return
         _uiState.update { it.copy(splitTunnelAppsV2 = apps) }
         viewModelScope.launch {
-            val arr = JSONArray()
-            apps.forEach { arr.put(JSONObject().put("package", it).put("label", "")) }
-            settingsRepository.setSplitTunnelAppsV2(arr.toString())
+            settingsRepository.setSplitTunnelAppsV2(SplitTunnelJson.encodeApps(apps))
         }
     }
 
-    private fun parseSplitNetworksJson(json: String): List<NetworkEntry> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map {
-                val obj = arr.getJSONObject(it)
-                NetworkEntry(obj.getString("cidr"), obj.optString("label", ""))
-            }
-        } catch (e: Exception) {
-            timber.log.Timber.w(e, "Failed to parse split-tunnel networks JSON")
-            emptyList()
-        }
-    }
 
-    private fun parseSplitAppsJson(json: String): List<String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getJSONObject(it).getString("package") }
-        } catch (e: Exception) {
-            timber.log.Timber.w(e, "Failed to parse split-tunnel apps JSON")
-            emptyList()
-        }
-    }
 
     fun checkForUpdate(currentVersion: String) {
         viewModelScope.launch {
@@ -353,7 +353,7 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = "Update check: ${e.localizedMessage}"
+                        error = UiText.Res(R.string.settings_error_update_check, e.localizedMessage ?: "")
                     )
                 }
             }
@@ -365,7 +365,6 @@ class SettingsViewModel @Inject constructor(
             try {
                 val serverUrl = setupRepository.getServerUrl()
                 if (serverUrl.isBlank()) {
-                    _uiState.update { it.copy(licenseStatus = "No server configured") }
                     return@launch
                 }
                 val client = apiClientProvider.getClient(serverUrl)
@@ -377,18 +376,20 @@ class SettingsViewModel @Inject constructor(
                         traffic = perms.traffic,
                         dns = perms.dns,
                         rdp = perms.rdp,
+                        pihole = perms.pihole,
+                        piholeControl = perms.piholeControl,
                     )
+                    clientPolicyManager.noteVersionAsync(response.policyVersion)
                     val isPro = perms.rdp || perms.traffic || perms.dns
                     _uiState.update {
                         it.copy(
                             isPro = isPro,
-                            licenseStatus = if (isPro) "Pro" else "Community",
                         )
                     }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "License refresh failed")
-                _uiState.update { it.copy(error = "License refresh failed: ${e.localizedMessage}") }
+                _uiState.update { it.copy(error = UiText.Res(R.string.settings_error_license, e.localizedMessage ?: "")) }
             }
         }
     }
@@ -409,26 +410,124 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun importConfigFromUri(context: android.content.Context, uri: android.net.Uri) {
+        if (_uiState.value.policy.lockServer) {
+            _uiState.update { it.copy(error = UiText.Res(R.string.policy_server_locked)) }
+            return
+        }
         viewModelScope.launch {
             try {
                 val input = context.contentResolver.openInputStream(uri)
                 val config = input?.bufferedReader()?.readText() ?: return@launch
                 input.close()
-                if (!config.contains("[Interface]") || !config.contains("PrivateKey")) {
-                    _uiState.update { it.copy(error = "Invalid WireGuard config file") }
+                val validation = WgConfigValidator.validate(config)
+                if (!validation.ok) {
+                    Timber.w("importConfigFromUri rejected: %s", validation.errors.joinToString(", "))
+                    _uiState.update {
+                        it.copy(error = UiText.Res(R.string.setup_invalid_config))
+                    }
+                    return@launch
+                }
+                if (TunnelConfig.peerCount(config) > 1) {
+                    Timber.w("importConfigFromUri rejected: multiple [Peer] sections")
+                    _uiState.update { it.copy(error = UiText.Res(R.string.setup_multi_peer_config)) }
                     return@launch
                 }
                 setupRepository.saveWireGuardConfig(config)
-                _uiState.update { it.copy(error = null, success = "Config imported successfully") }
+                _uiState.update { it.copy(error = null) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Import failed: ${e.message}") }
+                _uiState.update { it.copy(error = UiText.Res(R.string.setup_import_failed, e.message ?: "")) }
             }
         }
     }
 
+    // ── Support bundle ("Support-Paket senden") ───────────────────────────
+
+    /** Opens the confirmation dialog (server and peer must be set up). */
+    fun requestSupportBundle() {
+        if (setupRepository.getServerUrl().isBlank() || setupRepository.getPeerId() <= 0) {
+            _uiState.update { it.copy(supportMessage = UiText.Res(R.string.support_not_configured)) }
+            return
+        }
+        _uiState.update { it.copy(supportDialogVisible = true) }
+    }
+
+    fun dismissSupportDialog() {
+        _uiState.update { it.copy(supportDialogVisible = false) }
+    }
+
+    fun consumeSupportMessage() {
+        _uiState.update { it.copy(supportMessage = null) }
+    }
+
+    /**
+     * Collects the redacted bundle and uploads it — only called from the
+     * confirmation dialog.
+     */
+    fun sendSupportBundle(appVersion: String) {
+        if (_uiState.value.supportSending) return
+        val state = _uiState.value
+        val serverUrl = setupRepository.getServerUrl()
+        val peerId = setupRepository.getPeerId()
+        if (serverUrl.isBlank() || peerId <= 0) {
+            _uiState.update { it.copy(supportDialogVisible = false, supportMessage = UiText.Res(R.string.support_not_configured)) }
+            return
+        }
+        val reason = if (state.supportRequested) "admin_request" else "user"
+        _uiState.update { it.copy(supportDialogVisible = false, supportSending = true) }
+        viewModelScope.launch {
+            val message = try {
+                val bundle = withContext(Dispatchers.IO) {
+                    supportBundleCollector.collect(
+                        appVersion = appVersion,
+                        locale = state.locale,
+                        settings = supportSettingsSnapshot(state),
+                        reason = reason,
+                    )
+                }
+                val response = supportBundleUploader.upload(serverUrl, peerId, bundle)
+                if (response.ok) {
+                    SupportRequestHolder.clear()
+                    Timber.i("Support bundle sent (id %s)", response.bundle?.id)
+                    UiText.Res(R.string.support_success)
+                } else {
+                    UiText.Res(R.string.support_failed, response.error ?: "")
+                }
+            } catch (e: HttpException) {
+                Timber.w("Support bundle upload rejected: HTTP %d", e.code())
+                val bindingError = MachineBindingError.from(e)
+                if (bindingError != null) bindingError.toUiText() else when (e.code()) {
+                    429 -> UiText.Res(R.string.support_rate_limited)
+                    413 -> UiText.Res(R.string.support_too_large)
+                    401, 403 -> UiText.Res(R.string.support_forbidden)
+                    404 -> UiText.Res(R.string.support_unsupported)
+                    else -> UiText.Res(R.string.support_failed, "HTTP ${e.code()}")
+                }
+            } catch (e: Exception) {
+                Timber.w("Support bundle upload failed: %s", e.javaClass.simpleName)
+                UiText.Res(R.string.support_failed, e.localizedMessage ?: e.javaClass.simpleName)
+            }
+            _uiState.update { it.copy(supportSending = false, supportMessage = message) }
+        }
+    }
+
+    /** Settings for the bundle — never the API token. */
+    private fun supportSettingsSnapshot(state: SettingsUiState): Map<String, Any?> = mapOf(
+        "serverUrl" to state.serverUrl,
+        "peerId" to state.peerId,
+        "deviceId" to state.deviceIdShort,
+        "theme" to state.theme,
+        "locale" to state.locale,
+        "autoConnect" to state.autoConnect,
+        "splitTunnelMode" to state.splitTunnelMode.name,
+        "splitTunnelNetworks" to state.splitTunnelNetworks.map { mapOf("cidr" to it.cidr, "label" to it.label) },
+        "splitTunnelApps" to state.splitTunnelAppsV2,
+        "splitTunnelAdminLocked" to state.splitTunnelAdminLocked,
+        "isPro" to state.isPro,
+    )
+
     fun exportLogs(cacheDir: File): File? {
         return try {
-            val logFile = File(cacheDir, "gatecontrol-logs.txt")
+            val logFile = File(File(cacheDir, "export").apply { mkdirs() }, "gatecontrol-logs.txt")
             val logDir = File(cacheDir, "logs")
             if (logDir.exists()) {
                 val logs = logDir.listFiles()

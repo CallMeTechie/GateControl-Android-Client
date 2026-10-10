@@ -7,24 +7,23 @@ class AuthInterceptor(
     private val tokenProvider: () -> String,
     private val versionProvider: () -> String,
     private val platformProvider: () -> String,
-    private val fingerprintProvider: () -> String
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val requestBuilder = chain.request().newBuilder()
 
+        // A request that already carries an explicit token (connection test
+        // with a not-yet-saved token) keeps it; otherwise use the stored one.
         val token = sanitizeHeaderValue(tokenProvider())
-        if (token.isNotEmpty()) {
+        if (token.isNotEmpty() && chain.request().header("X-API-Token") == null) {
             requestBuilder.header("X-API-Token", token)
         }
 
         requestBuilder.header("X-Client-Version", sanitizeHeaderValue(versionProvider()))
         requestBuilder.header("X-Client-Platform", sanitizeHeaderValue(platformProvider()))
 
-        val fingerprint = sanitizeHeaderValue(fingerprintProvider())
-        if (fingerprint.isNotEmpty()) {
-            requestBuilder.header("X-Machine-Fingerprint", fingerprint)
-        }
+        // ServerScopedHeadersInterceptor adds X-Machine-Fingerprint and strips the
+        // token from any hop that leaves the configured server (redirects).
 
         return chain.proceed(requestBuilder.build())
     }

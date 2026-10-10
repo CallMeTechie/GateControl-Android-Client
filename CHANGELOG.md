@@ -1,5 +1,145 @@
 # Changelog
 
+## [1.17.0] - 2026-10-06
+
+### Features
+- automatic portal login after connecting (#34)
+
+---
+
+## [1.16.0] - 2026-10-06
+
+### Features
+- send device fingerprint so machine binding works on Android (#33)
+
+---
+
+## [1.15.0] - 2026-10-02
+
+### Features
+- enforce server client policies (#32)
+
+---
+
+## [1.14.0] - 2026-10-02
+
+### Features
+- send a redacted support bundle from Settings → Hilfe (#31)
+
+---
+
+## [1.13.5] - 2026-09-30
+
+### Changes
+- pin GitHub Actions to full commit SHAs (#29)
+
+---
+
+## [1.13.4] - 2026-09-30
+
+### Fixes
+- reject multi-peer configs, tile disconnect lifecycle, split-tunnel mode enum (#28)
+
+---
+
+## [1.13.3] - 2026-09-30
+
+### Fixes
+- Meldungen übersetzt, Heartbeat an den Server, toter Code entfernt (#27)
+
+---
+
+## [1.13.2] - 2026-09-30
+
+### Fixes
+- Geheimnisse nie im Klartext, RDP-Passwort flüchtig, VPN-Subnetz aus der Config (#26)
+
+---
+
+## [1.13.1] - 2026-09-30
+
+### Changes
+- Toolchain auf AGP 9.4, Gradle 9.8, Kotlin 2.4 und KSP (#25)
+
+---
+
+## [1.13.0] - 2026-09-30
+
+### Features
+- Always-on-VPN, echter Boot-Autostart und automatische Wiederverbindung (#24)
+
+---
+
+## [1.12.2] - 2026-09-29
+
+### Fixes
+- Tile-Aktionen, Setup-Links, Kill-Switch, Diagnose-Logs und Release-Signierung absichern (#22)
+
+---
+
+## [1.12.1] - 2026-09-29
+
+### Fixes
+- targetSdk und compileSdk auf API 36 (Android 16)
+
+---
+
+## [1.12.0] - 2026-09-29
+
+### Features
+- neues Design nach Mockup – Start-Orb, vier Tabs, gruppierte Einstellungen
+
+---
+
+## [1.11.0] - 2026-09-28
+
+### Features
+- Einrichtungscodes aus dem Token-Assistenten auch ohne Peer einlösen (#21)
+
+---
+
+## [1.10.0] - 2026-09-28
+
+### Features
+- App mit einem Scan einrichten – Einrichtungs-QR statt API-Token (#20)
+
+---
+
+## [1.9.0] - 2026-07-29
+
+### Features
+- WireGuard-Config bei jedem Verbinden vom Server auffrischen (#19)
+
+---
+
+## [1.8.1] - 2026-06-28
+
+### Changes
+- Portal auto-open on connect (Android: portalUrl/autoOpenPortal, auto-open + Portal-Button)
+
+---
+
+## [1.8.0] - 2026-06-17
+
+### Features
+- Pause-Countdown + Resume-Fix (optimistisches Modell + Reconciliation) (#18)
+
+---
+
+## [1.7.0] - 2026-06-15
+
+### Features
+- Phase 2 — Pi-hole stats + blocking control in Android client (#17)
+
+---
+
+## [1.6.0] - 2026-05-31
+
+### Features
+- integrate shared validator into TunnelConfig + import flows (#14)
+
+---
+
 ## [1.5.0] - 2026-05-24
 
 ### Features

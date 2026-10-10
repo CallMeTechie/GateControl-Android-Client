@@ -1,7 +1,10 @@
 package com.gatecontrol.android.network
 
+import retrofit2.Response
+import okhttp3.RequestBody
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.HTTP
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -13,11 +16,19 @@ interface ApiClient {
     @GET("api/v1/client/ping")
     suspend fun ping(): PingResponse
 
+    /** Ping with an explicit, not yet stored token (side-effect free connection test). */
+    @GET("api/v1/client/ping")
+    suspend fun pingWithToken(@Header("X-API-Token") token: String): PingResponse
+
     @GET("api/v1/client/permissions")
     suspend fun getPermissions(): PermissionsResponse
 
     @POST("api/v1/client/register")
     suspend fun register(@Body request: RegisterRequest): RegisterResponse
+
+    /** Public: trades a one-shot setup code for a peer-bound token + config. */
+    @POST("api/v1/client/enroll")
+    suspend fun enroll(@Body request: EnrollRequest): EnrollResponse
 
     @GET("api/v1/client/config")
     suspend fun getConfig(@Query("peerId") peerId: Int): ConfigResponse
@@ -29,13 +40,27 @@ interface ApiClient {
     ): ConfigCheckResponse
 
     @POST("api/v1/client/heartbeat")
-    suspend fun sendHeartbeat(@Body request: HeartbeatRequest): SimpleResponse
+    suspend fun sendHeartbeat(@Body request: HeartbeatRequest): HeartbeatResponse
 
     @POST("api/v1/client/peer/hostname")
     suspend fun reportHostname(@Body request: HostnameReportRequest): HostnameReportResponse
 
-    @POST("api/v1/client/status")
-    suspend fun reportStatus(@Body request: StatusRequest): SimpleResponse
+    /**
+     * Upload a redacted support bundle (gzip JSON, see [SupportBundleUploader]).
+     * Server: gatecontrol docs/feature-support-bundle.md.
+     */
+    @POST("api/v1/client/support-bundle")
+    suspend fun uploadSupportBundle(
+        @Query("peerId") peerId: Int,
+        @Body body: RequestBody,
+    ): SupportBundleUploadResponse
+
+    /**
+     * Mints a one-time automatic login link for the portal. Use
+     * [getPortalLink], which validates the answer and never throws.
+     */
+    @POST("api/v1/client/portal-link")
+    suspend fun requestPortalLink(): Response<PortalLinkResponse>
 
     @GET("api/v1/client/peer-info")
     suspend fun getPeerInfo(@Query("peerId") peerId: Int): PeerInfoResponse
@@ -51,6 +76,13 @@ interface ApiClient {
 
     @GET("api/v1/client/split-tunnel")
     suspend fun getSplitTunnelPreset(): SplitTunnelPresetResponse
+
+    /**
+     * Effective client policy. With the cached version as If-None-Match the
+     * server answers 304 when nothing changed (hence the raw [Response]).
+     */
+    @GET("api/v1/client/policy")
+    suspend fun getClientPolicy(@Header("If-None-Match") ifNoneMatch: String? = null): Response<ClientPolicyResponse>
 
     @GET("api/v1/client/rdp")
     suspend fun getRdpRoutes(): RdpRoutesResponse
@@ -91,4 +123,25 @@ interface ApiClient {
         @Query("platform") platform: String = "android",
         @Query("client") client: String = "gatecontrol"
     ): UpdateCheckResponse
+
+    @GET("api/v1/pihole/summary")
+    suspend fun getPiholeSummary(): PiholeSummaryResponse
+
+    @GET("api/v1/pihole/history")
+    suspend fun getPiholeHistory(): PiholeHistoryResponse
+
+    @GET("api/v1/pihole/top-domains")
+    suspend fun getPiholeTopDomains(): PiholeTopDomainsResponse
+
+    @GET("api/v1/pihole/top-clients")
+    suspend fun getPiholeTopClients(): PiholeTopClientsResponse
+
+    @GET("api/v1/pihole/query-types")
+    suspend fun getPiholeQueryTypes(): PiholeQueryTypesResponse
+
+    @GET("api/v1/pihole/health")
+    suspend fun getPiholeHealth(): PiholeHealthResponse
+
+    @POST("api/v1/pihole/blocking")
+    suspend fun setPiholeBlocking(@Body request: PiholeBlockingRequest): SimpleResponse
 }

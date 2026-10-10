@@ -9,7 +9,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Query all launchable apps for split-tunnel app picker -->
     <queries>
@@ -50,18 +49,21 @@
                 <data
                     android:scheme="gatecontrol"
                     android:host="setup" />
+                <data
+                    android:scheme="gatecontrol"
+                    android:host="enroll" />
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".service.VpnForegroundService"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-        </service>
+        <!-- Performs Quick Settings tile actions (connect incl. VPN consent,
+             disconnect). NOT exported: other apps must not be able to
+             toggle the VPN. -->
+        <activity
+            android:name=".service.TileActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GateControl.TileAction" />
 
         <service
             android:name=".service.VpnTileService"
@@ -87,13 +89,17 @@
             android:exported="false"
             android:theme="@style/Theme.GateControl"
             android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden"
             android:windowSoftInputMode="adjustResize" />
 
         <service
             android:name=".service.RdpSessionService"
             android:foregroundServiceType="specialUse"
-            android:exported="false" />
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a user-started remote desktop (RDP) session connected while the session screen is in the background." />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"

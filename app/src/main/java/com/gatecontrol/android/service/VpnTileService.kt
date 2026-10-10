@@ -2,17 +2,13 @@ package com.gatecontrol.android.service
 
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /** Shared state holder so the TileService can read tunnel state without DI. */
 object TunnelStateHolder {
     @Volatile var isConnected: Boolean = false
     @Volatile var serverHost: String? = null
-    @Volatile var tunnelManager: com.gatecontrol.android.tunnel.TunnelManager? = null
-    @Volatile var setupRepository: com.gatecontrol.android.data.SetupRepository? = null
+    @Volatile var supervisor: TunnelSupervisor? = null
 }
 
 /**
@@ -94,49 +90,43 @@ class VpnTileService : TileService() {
         tile.updateTile()
     }
 
-    private fun launchAppWithAction(action: String) {
-        val intent = packageManager.getLaunchIntentForPackage(packageName)
-        if (intent != null) {
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            intent.putExtra(EXTRA_TILE_ACTION, action)
+    /**
+     * Runs a tile action through the non-exported [TileActionActivity]. The
+     * exported MainActivity no longer accepts tile actions, so other apps
+     * cannot toggle the VPN with a crafted intent.
+     */
+    private fun launchTileAction(action: TileAction) {
+        val intent = TileActionActivity.intent(this, action)
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
             val pi = android.app.PendingIntent.getActivity(
-                this, action.hashCode(), intent,
+                this, action.ordinal, intent,
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
-            if (android.os.Build.VERSION.SDK_INT >= 34) {
-                startActivityAndCollapse(pi)
-            } else {
-                @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
-                startActivityAndCollapse(intent)
-            }
+            startActivityAndCollapse(pi)
+        } else {
+            @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
+            startActivityAndCollapse(intent)
         }
     }
 
     private fun sendConnectBroadcast() {
         // Disconnect can be done directly (no permission needed)
         // Connect requires VPN permission → must go through Activity
-        launchAppWithAction(ACTION_TILE_CONNECT)
+        launchTileAction(TileAction.CONNECT)
     }
 
     private fun sendDisconnectBroadcast() {
-        // Try direct disconnect first, fall back to app launch
-        val tm = TunnelStateHolder.tunnelManager
-        if (tm != null && TunnelStateHolder.isConnected) {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    tm.disconnect()
-                } catch (e: Exception) {
-                    Timber.e(e, "VpnTileService: direct disconnect failed, launching app")
-                    launchAppWithAction(ACTION_TILE_DISCONNECT)
-                }
-            }
+        // Disconnect directly through the app-wide supervisor (its scope outlives
+        // this tile binding); without it, go through the app.
+        val supervisor = TunnelStateHolder.supervisor
+        if (supervisor != null && TunnelStateHolder.isConnected) {
+            supervisor.disconnect()
         } else {
-            launchAppWithAction(ACTION_TILE_DISCONNECT)
+            launchTileAction(TileAction.DISCONNECT)
         }
     }
 
     companion object {
-        const val EXTRA_TILE_ACTION = "tile_action"
         const val ACTION_TILE_CONNECT = "tile_connect"
         const val ACTION_TILE_DISCONNECT = "tile_disconnect"
     }

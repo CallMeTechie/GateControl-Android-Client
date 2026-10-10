@@ -1,0 +1,6 @@
+{
+  "name": "invalid_bad_key",
+  "config": "[Interface]\nPrivateKey = tooshortkey\nAddress = 10.8.0.2/32\nDNS = 10.8.0.1\n\n[Peer]\nPublicKey = 86R0I45ZRx/P7WQdj+GkW+q0+MU0cS4Zccy+CVTTvY4=\nEndpoint = gate.example.com:51820\nAllowedIPs = 0.0.0.0/0\n",
+  "expect": "invalid",
+  "errorContains": "iface_privatekey_format"
+}

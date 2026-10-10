@@ -1,0 +1,6 @@
+{
+  "name": "invalid_two_interface",
+  "config": "[Interface]\nPrivateKey = CyeI87ssPVm18g0yRG9AZV0vdIe9qtkKvFKsOlTCTHI=\nAddress = 10.8.0.2/32\n\n[Interface]\nPrivateKey = T2UTKYFhz1rNVYXSguzk4cMyiW3Zkinvd3SM9hVICDg=\nAddress = 10.8.0.3/32\n\n[Peer]\nPublicKey = 86R0I45ZRx/P7WQdj+GkW+q0+MU0cS4Zccy+CVTTvY4=\nEndpoint = gate.example.com:51820\nAllowedIPs = 0.0.0.0/0\n",
+  "expect": "invalid",
+  "errorContains": "interface_count"
+}

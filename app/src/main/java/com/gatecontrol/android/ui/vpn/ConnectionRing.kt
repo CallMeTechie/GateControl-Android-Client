@@ -1,5 +1,7 @@
 package com.gatecontrol.android.ui.vpn
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -8,15 +10,15 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,164 +26,114 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.gatecontrol.android.R
 import com.gatecontrol.android.tunnel.TunnelState
-import com.gatecontrol.android.ui.theme.DarkAccent
-import com.gatecontrol.android.ui.theme.DarkError
-import com.gatecontrol.android.ui.theme.DarkWarn
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.theme.GateControlTheme
 
-private val ColorConnected = DarkAccent
-private val ColorConnecting = DarkWarn
-private val ColorDisconnected = Color(0xFF4B5563)
-private val ColorError = DarkError
-
+/** Accent color for a tunnel state: on = accent, busy = warn, error = err, off = faint. */
 @Composable
-fun ConnectionRing(
-    state: TunnelState,
-    modifier: Modifier = Modifier,
-    ringSize: Dp = 160.dp,
-) {
-    val isAnimating = state is TunnelState.Connecting
-        || state is TunnelState.Disconnecting
-        || state is TunnelState.Reconnecting
-
-    val ringColor = when (state) {
-        is TunnelState.Connected -> ColorConnected
-        is TunnelState.Connecting, is TunnelState.Reconnecting -> ColorConnecting
-        is TunnelState.Disconnecting -> ColorDisconnected
-        is TunnelState.Error -> ColorError
-        TunnelState.Disconnected -> ColorDisconnected
+fun tunnelStateColor(state: TunnelState): Color {
+    val extra = GateControlTheme.extraColors
+    return when (state) {
+        is TunnelState.Connected -> MaterialTheme.colorScheme.primary
+        is TunnelState.Connecting, is TunnelState.Reconnecting, TunnelState.Disconnecting -> extra.warn
+        is TunnelState.Error -> MaterialTheme.colorScheme.error
+        TunnelState.Disconnected -> extra.faint
     }
+}
 
-    val fillAlpha by animateFloatAsState(
-        targetValue = if (state is TunnelState.Connected) 0.15f else 0.05f,
-        animationSpec = tween(600),
-        label = "fill_alpha",
+/**
+ * The big round connect button of the start screen: a 196 dp ring (full when
+ * connected or failed, a spinning arc while connecting, empty when off)
+ * around a panel disc with the power glyph and a short hint.
+ */
+@Composable
+fun ConnectionOrb(
+    state: TunnelState,
+    hint: String,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    orbSize: Dp = 196.dp,
+) {
+    val extra = GateControlTheme.extraColors
+    val busy = state is TunnelState.Connecting || state is TunnelState.Reconnecting || state is TunnelState.Disconnecting
+    val full = state is TunnelState.Connected || state is TunnelState.Error
+    val color by animateColorAsState(tunnelStateColor(state), tween(400), label = "orb_color")
+    val halo by animateColorAsState(
+        when (state) {
+            is TunnelState.Connected -> extra.accentBg
+            is TunnelState.Error -> extra.errorBg
+            else -> Color.Transparent
+        },
+        tween(400),
+        label = "orb_halo",
+    )
+    val sweep by animateFloatAsState(
+        targetValue = if (full) 360f else if (busy) 90f else 0f,
+        animationSpec = tween(600, easing = FastOutSlowInEasing),
+        label = "orb_sweep",
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "ring_spin")
-    val spinAngle by infiniteTransition.animateFloat(
+    val transition = rememberInfiniteTransition(label = "orb")
+    val spin by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1_200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "spin_angle",
+        animationSpec = infiniteRepeatable(tween(1_100, easing = LinearEasing), RepeatMode.Restart),
+        label = "orb_spin",
     )
+    val breathe by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "orb_breathe",
+    )
+    val track = extra.border
 
     Box(
-        modifier = modifier.size(ringSize),
+        modifier = modifier
+            .size(orbSize)
+            .scale(if (busy) breathe else 1f)
+            .clip(CircleShape)
+            .background(halo)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(ringSize)) {
+        Canvas(Modifier.fillMaxSize()) {
             val stroke = 6.dp.toPx()
-            val inset = stroke / 2f
-
-            // Filled circle (semi-transparent background)
-            drawCircle(
-                color = ringColor.copy(alpha = fillAlpha),
-                radius = size.minDimension / 2f - inset,
-            )
-
-            if (isAnimating) {
-                // Spinning arc segment
-                rotate(spinAngle) {
-                    drawArc(
-                        color = ringColor,
-                        startAngle = -90f,
-                        sweepAngle = 240f,
-                        useCenter = false,
-                        style = Stroke(width = stroke, cap = StrokeCap.Round),
-                    )
+            val inset = size.width * 8f / 196f
+            val arcSize = androidx.compose.ui.geometry.Size(size.width - 2 * inset, size.height - 2 * inset)
+            val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+            drawArc(track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
+            if (sweep > 0f) {
+                rotate(if (busy) spin else 0f) {
+                    drawArc(color, -90f, sweep, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
-            } else {
-                // Full ring
-                drawCircle(
-                    color = ringColor,
-                    radius = size.minDimension / 2f - inset,
-                    style = Stroke(width = stroke),
-                )
             }
         }
-
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            when (state) {
-                is TunnelState.Connected -> {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = ColorConnected,
-                        modifier = Modifier.size(32.dp),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.vpn_connected),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ColorConnected,
-                    )
-                }
-                is TunnelState.Connecting -> {
-                    Text(
-                        text = stringResource(R.string.vpn_connecting),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ColorConnecting,
-                    )
-                }
-                is TunnelState.Reconnecting -> {
-                    Text(
-                        text = stringResource(
-                            R.string.vpn_reconnecting,
-                            state.attempt,
-                            state.maxAttempts,
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ColorConnecting,
-                    )
-                }
-                is TunnelState.Disconnecting -> {
-                    Text(
-                        text = stringResource(R.string.vpn_disconnecting),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ColorDisconnected,
-                    )
-                }
-                is TunnelState.Error -> {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = ColorError,
-                        modifier = Modifier.size(32.dp),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.vpn_error),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ColorError,
-                    )
-                }
-                TunnelState.Disconnected -> {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = null,
-                        tint = ColorDisconnected,
-                        modifier = Modifier.size(32.dp),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.vpn_disconnected),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ColorDisconnected,
-                    )
-                }
-            }
+        Column(
+            modifier = Modifier
+                .size(orbSize * (132f / 196f))
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, extra.border, CircleShape),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        ) {
+            Icon(GcIcons.Power, contentDescription = null, tint = color, modifier = Modifier.size(40.dp))
+            Text(hint, style = MaterialTheme.typography.titleSmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize), color = extra.muted)
         }
     }
 }

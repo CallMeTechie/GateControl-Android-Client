@@ -8,6 +8,17 @@ import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.PingResponse
 import com.gatecontrol.android.network.UpdateCheckResponse
+import com.gatecontrol.android.R
+import com.gatecontrol.android.network.SupportBundleInfo
+import com.gatecontrol.android.network.SupportBundleUploadResponse
+import com.gatecontrol.android.network.SupportBundleUploader
+import com.gatecontrol.android.support.SupportBundleCollector
+import com.gatecontrol.android.support.SupportRequestHolder
+import com.gatecontrol.android.ui.UiText
+import io.mockk.slot
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -21,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -38,6 +50,11 @@ class SettingsViewModelTest {
     private lateinit var licenseRepository: LicenseRepository
     private lateinit var apiClient: ApiClient
     private lateinit var viewModel: SettingsViewModel
+    private lateinit var supportBundleCollector: SupportBundleCollector
+    private lateinit var supportBundleUploader: SupportBundleUploader
+    private val machineFingerprint: com.gatecontrol.android.data.MachineFingerprint = mockk {
+        every { shortId() } returns "ab12cd34"
+    }
 
     @BeforeEach
     fun setUp() {
@@ -47,12 +64,9 @@ class SettingsViewModelTest {
             every { getTheme() } returns flowOf("dark")
             every { getLocale() } returns flowOf("de")
             every { getAutoConnect() } returns flowOf(false)
-            every { getKillSwitch() } returns flowOf(false)
             every { getSplitTunnelEnabled() } returns flowOf(false)
             every { getSplitTunnelRoutes() } returns flowOf("")
             every { getSplitTunnelApps() } returns flowOf("")
-            every { getCheckInterval() } returns flowOf(30)
-            every { getConfigPollInterval() } returns flowOf(300)
         }
         setupRepository = mockk {
             every { getServerUrl() } returns "https://gate.example.com"
@@ -66,7 +80,18 @@ class SettingsViewModelTest {
         }
         licenseRepository = mockk()
 
-        viewModel = SettingsViewModel(setupRepository, settingsRepository, apiClientProvider, licenseRepository)
+        supportBundleCollector = mockk {
+            every { collect(any(), any(), any(), any(), any()) } returns mapOf("schema" to 1)
+        }
+        supportBundleUploader = mockk()
+        SupportRequestHolder.clear()
+
+        viewModel = SettingsViewModel(
+            setupRepository, settingsRepository, apiClientProvider, licenseRepository,
+            supportBundleCollector, supportBundleUploader,
+            com.gatecontrol.android.service.fakeClientPolicyManager(),
+            machineFingerprint,
+        )
     }
 
     @AfterEach
@@ -112,19 +137,6 @@ class SettingsViewModelTest {
 
         coVerify { settingsRepository.setAutoConnect(true) }
         assertTrue(viewModel.uiState.value.autoConnect)
-    }
-
-    @Test
-    fun `setKillSwitch updates repository`() = runTest {
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coEvery { settingsRepository.setKillSwitch(any()) } returns Unit
-
-        viewModel.setKillSwitch(true)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify { settingsRepository.setKillSwitch(true) }
-        assertTrue(viewModel.uiState.value.killSwitch)
     }
 
     @Test
@@ -238,5 +250,127 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNotNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `client policy locks auto-connect, split mode and server change`() = runTest {
+        val policy = com.gatecontrol.android.common.ClientPolicy(
+            autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.REQUIRED,
+            splitTunnelModes = setOf(com.gatecontrol.android.common.SplitTunnelMode.OFF),
+            lockServer = true,
+        )
+        val vm = SettingsViewModel(
+            setupRepository, settingsRepository, apiClientProvider, licenseRepository,
+            supportBundleCollector, supportBundleUploader,
+            com.gatecontrol.android.service.fakeClientPolicyManager(policy),
+            machineFingerprint,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setAutoConnect(false)
+        vm.setSplitTunnelMode(com.gatecontrol.android.common.SplitTunnelMode.INCLUDE)
+        vm.saveServer("https://other.example.com", "gc_othertoken123456")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { settingsRepository.setAutoConnect(any()) }
+        coVerify(exactly = 0) { settingsRepository.setSplitTunnelMode(any()) }
+        io.mockk.verify(exactly = 0) { setupRepository.save(any(), any(), any()) }
+        org.junit.jupiter.api.Assertions.assertEquals(policy, vm.uiState.value.policy)
+    }
+
+    // ── Support bundle ───────────────────────────────────────────────
+
+    private suspend fun awaitSupportResult(): UiText? {
+        repeat(200) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = viewModel.uiState.value
+            if (!state.supportSending && state.supportMessage != null) return state.supportMessage
+            Thread.sleep(10) // collect() runs on Dispatchers.IO
+        }
+        return viewModel.uiState.value.supportMessage
+    }
+
+    @Test
+    fun `support bundle - dialog first, upload only after confirm`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.requestSupportBundle()
+        assertTrue(viewModel.uiState.value.supportDialogVisible)
+        coVerify(exactly = 0) { supportBundleUploader.upload(any(), any(), any()) }
+
+        viewModel.dismissSupportDialog()
+        assertFalse(viewModel.uiState.value.supportDialogVisible)
+        coVerify(exactly = 0) { supportBundleUploader.upload(any(), any(), any()) }
+    }
+
+    @Test
+    fun `support bundle - sends redacted settings without the token`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        val settings = slot<Map<String, Any?>>()
+        every { supportBundleCollector.collect(any(), any(), capture(settings), any(), any()) } returns mapOf("schema" to 1)
+        coEvery { supportBundleUploader.upload("https://gate.example.com", 1, any()) } returns
+            SupportBundleUploadResponse(ok = true, bundle = SupportBundleInfo(id = 5))
+
+        viewModel.requestSupportBundle()
+        viewModel.sendSupportBundle("1.5.0")
+        val msg = awaitSupportResult()
+
+        assertEquals(UiText.Res(R.string.support_success), msg)
+        assertFalse(viewModel.uiState.value.supportDialogVisible)
+        assertFalse(settings.captured.values.any { it == "gc_testtoken" })
+        assertFalse(settings.captured.keys.any { it.contains("token", ignoreCase = true) })
+        assertEquals("https://gate.example.com", settings.captured["serverUrl"])
+        assertEquals("ab12cd34", settings.captured["deviceId"])
+
+        viewModel.consumeSupportMessage()
+        assertNull(viewModel.uiState.value.supportMessage)
+    }
+
+    @Test
+    fun `device id short form is shown`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("ab12cd34", viewModel.uiState.value.deviceIdShort)
+    }
+
+    @Test
+    fun `support bundle - binding mismatch maps to the device binding message`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { supportBundleUploader.upload(any(), any(), any()) } throws HttpException(
+            Response.error<Any>(403, "{\"ok\":false,\"error\":\"Token ist an eine andere Maschine gebunden\"}".toResponseBody(null)),
+        )
+        viewModel.sendSupportBundle("1.5.0")
+        assertEquals(UiText.Res(R.string.binding_mismatch), awaitSupportResult())
+    }
+
+    @Test
+    fun `support bundle - 429 maps to rate limited message`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { supportBundleUploader.upload(any(), any(), any()) } throws
+            HttpException(Response.error<Any>(429, "{\"ok\":false}".toResponseBody(null)))
+        viewModel.sendSupportBundle("1.5.0")
+        assertEquals(UiText.Res(R.string.support_rate_limited), awaitSupportResult())
+    }
+
+    @Test
+    fun `support bundle - admin request is shown and cleared by a successful upload`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+        SupportRequestHolder.update(true, "2026-10-02 10:00:00")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.supportRequested)
+
+        coEvery { supportBundleUploader.upload(any(), any(), any()) } returns SupportBundleUploadResponse(ok = true)
+        viewModel.sendSupportBundle("1.5.0")
+        awaitSupportResult()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.supportRequested)
+        io.mockk.verify { supportBundleCollector.collect(any(), any(), any(), "admin_request", any()) }
+    }
+
+    @Test
+    fun `support bundle - not configured shows a message, no dialog`() = runTest {
+        every { setupRepository.getPeerId() } returns -1
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.requestSupportBundle()
+        assertFalse(viewModel.uiState.value.supportDialogVisible)
+        assertEquals(UiText.Res(R.string.support_not_configured), viewModel.uiState.value.supportMessage)
     }
 }

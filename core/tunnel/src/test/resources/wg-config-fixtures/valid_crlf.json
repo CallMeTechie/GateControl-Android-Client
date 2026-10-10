@@ -1,0 +1,5 @@
+{
+  "name": "valid_crlf",
+  "config": "[Interface]\r\nPrivateKey = CyeI87ssPVm18g0yRG9AZV0vdIe9qtkKvFKsOlTCTHI=\r\nAddress = 10.8.0.2/32\r\nDNS = 10.8.0.1\r\n\r\n[Peer]\r\nPublicKey = 86R0I45ZRx/P7WQdj+GkW+q0+MU0cS4Zccy+CVTTvY4=\r\nEndpoint = gate.example.com:51820\r\nAllowedIPs = 0.0.0.0/0\r\n",
+  "expect": "valid"
+}

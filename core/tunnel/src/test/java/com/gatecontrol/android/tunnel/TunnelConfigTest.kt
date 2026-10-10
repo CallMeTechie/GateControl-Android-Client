@@ -14,8 +14,8 @@ class TunnelConfigTest {
         MTU = 1420
 
         [Peer]
-        PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==
-        PresharedKey = cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eA==
+        PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=
+        PresharedKey = cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eCE=
         Endpoint = vpn.example.com:51820
         AllowedIPs = 0.0.0.0/0
         PersistentKeepalive = 25
@@ -35,8 +35,8 @@ class TunnelConfigTest {
     fun `parse extracts peer fields`() {
         val config = TunnelConfig.parse(validConfig)
 
-        assertEquals("c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==", config.publicKey)
-        assertEquals("cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eA==", config.presharedKey)
+        assertEquals("c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=", config.publicKey)
+        assertEquals("cHJlc2hhcmVka2V5YmFzZTY0ZW5jb2RlZHh4eHh4eCE=", config.presharedKey)
         assertEquals("vpn.example.com:51820", config.endpoint)
         assertEquals("0.0.0.0/0", config.allowedIps)
         assertEquals(25, config.persistentKeepalive)
@@ -50,7 +50,7 @@ class TunnelConfigTest {
             Address = 10.8.0.5/32
 
             [Peer]
-            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==
+            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=
             Endpoint = vpn.example.com:51820
             AllowedIPs = 0.0.0.0/0
         """.trimIndent()
@@ -74,7 +74,7 @@ class TunnelConfigTest {
         assertTrue(output.contains("DNS = 1.1.1.1, 8.8.8.8"))
         assertTrue(output.contains("MTU = 1420"))
         assertTrue(output.contains("[Peer]"))
-        assertTrue(output.contains("PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA=="))
+        assertTrue(output.contains("PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE="))
         assertTrue(output.contains("Endpoint = vpn.example.com:51820"))
         assertTrue(output.contains("AllowedIPs = 0.0.0.0/0"))
         assertTrue(output.contains("PersistentKeepalive = 25"))
@@ -94,7 +94,7 @@ class TunnelConfigTest {
             Address = 10.8.0.5/32
 
             [Peer]
-            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh4eA==
+            PublicKey = c2VydmVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh5eiE=
             Endpoint = vpn.example.com:51820
             AllowedIPs = 0.0.0.0/0
         """.trimIndent()
@@ -120,5 +120,35 @@ class TunnelConfigTest {
     fun `getServerPort returns default port when missing`() {
         val config = TunnelConfig.parse(validConfig).copy(endpoint = "vpn.example.com")
         assertEquals(51820, config.getServerPort())
+    }
+
+    private val secondPeer = """
+
+        [Peer] # second site
+        PublicKey = b3RoZXJwZWVycHVibGlja2V5YmFzZTY0ZW5jb2RlZHh=
+        Endpoint = other.example.com:51820
+        AllowedIPs = 192.168.50.0/24
+    """.trimIndent()
+
+    @Test
+    fun `peerCount counts peer sections and ignores comments`() {
+        assertEquals(1, TunnelConfig.peerCount(validConfig))
+        assertEquals(2, TunnelConfig.peerCount(validConfig + "\n" + secondPeer))
+        assertEquals(1, TunnelConfig.peerCount(validConfig + "\n# [Peer]\n"))
+    }
+
+    @Test
+    fun `parse rejects a config with multiple peers instead of dropping one`() {
+        val ex = assertThrows<IllegalArgumentException> {
+            TunnelConfig.parse(validConfig + "\n" + secondPeer)
+        }
+        assertTrue(ex.message!!.contains("2 [Peer] sections"))
+    }
+
+    @Test
+    fun `isSupported requires a valid single-peer config`() {
+        assertTrue(TunnelConfig.isSupported(validConfig))
+        assertFalse(TunnelConfig.isSupported(validConfig + "\n" + secondPeer))
+        assertFalse(TunnelConfig.isSupported("[Interface]\nPrivateKey = x"))
     }
 }

@@ -1,13 +1,12 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt)
-    kotlin("kapt")
+    alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.gatecontrol.android.core.rdp"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 31
@@ -35,9 +34,6 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 }
 
 dependencies {
@@ -47,7 +43,7 @@ dependencies {
 
     implementation(libs.core.ktx)
     implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
@@ -71,16 +67,20 @@ dependencies {
 
     testImplementation(libs.junit5.api)
     testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation("org.json:json:20240303")
 }
 
-kapt {
-    correctErrorTypes = true
-}
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }

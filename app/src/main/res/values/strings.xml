@@ -3,14 +3,11 @@
     <string name="app_name">GateControl</string>
 
     <!-- Navigation -->
-    <string name="nav_vpn">VPN</string>
-    <string name="nav_rdp">RDP</string>
     <string name="nav_services">Services</string>
     <string name="nav_settings">Settings</string>
 
     <!-- VPN Screen -->
     <string name="vpn_connected">Connected</string>
-    <string name="vpn_disconnected">Disconnected</string>
     <string name="vpn_connecting">Connecting&#8230;</string>
     <string name="vpn_disconnecting">Disconnecting&#8230;</string>
     <string name="vpn_reconnecting">Reconnecting (%1$d/%2$d)&#8230;</string>
@@ -18,13 +15,13 @@
     <string name="vpn_connect">Connect</string>
     <string name="vpn_disconnect">Disconnect</string>
     <string name="vpn_server">Server</string>
-    <string name="vpn_handshake">Handshake</string>
     <string name="vpn_received">&#8595; Received</string>
     <string name="vpn_sent">&#8593; Sent</string>
+    <string name="vpn_portal_open">Open portal</string>
     <string name="vpn_kill_switch">Kill-Switch</string>
-    <string name="vpn_kill_switch_desc">Block traffic without VPN</string>
-    <string name="vpn_kill_switch_system">Configure in system VPN settings</string>
-    <string name="vpn_bandwidth">Bandwidth</string>
+    <string name="vpn_kill_switch_desc">Android blocks all traffic without VPN once you enable \"Always-on VPN\" and \"Block connections without VPN\" for GateControl in the system VPN settings.</string>
+    <string name="vpn_kill_switch_system">Set in Android</string>
+    <string name="vpn_bandwidth">Throughput</string>
     <string name="vpn_download">Download</string>
     <string name="vpn_upload">Upload</string>
 
@@ -36,17 +33,13 @@
     <string name="traffic_total">Total</string>
 
     <!-- Services -->
-    <string name="services_title">Reachable Services</string>
     <string name="services_empty">No services available</string>
     <string name="services_auth_badge">Auth</string>
     <string name="dns_leak_test">DNS Leak Test</string>
     <string name="dns_testing">Testing&#8230;</string>
-    <string name="dns_pass">No DNS leak detected</string>
-    <string name="dns_fail">DNS leak detected!</string>
-    <string name="dns_servers">DNS Servers: %1$s</string>
 
     <!-- RDP -->
-    <string name="rdp_title">RDP Connections</string>
+    <string name="rdp_title">Remote Desktops</string>
     <string name="rdp_search">Search&#8230;</string>
     <string name="rdp_filter_all">All</string>
     <string name="rdp_filter_online">Online</string>
@@ -57,11 +50,7 @@
     <string name="rdp_connect">Connect</string>
     <string name="rdp_disconnect">Disconnect</string>
     <string name="rdp_wol">Wake up</string>
-    <string name="rdp_wol_sending">Sending Wake-on-LAN&#8230;</string>
-    <string name="rdp_wol_waiting">Waiting for host&#8230;</string>
     <string name="rdp_session_active">Session active</string>
-    <string name="rdp_no_vpn">VPN connection required</string>
-    <string name="rdp_host_unreachable">Host not reachable</string>
     <string name="rdp_maintenance_warning">Host is in maintenance window. Connect anyway?</string>
     <string name="rdp_maintenance_bypass">Connect Anyway</string>
     <string name="rdp_enter_password">Enter Password</string>
@@ -69,26 +58,17 @@
     <string name="rdp_credential_full">Auto-login</string>
     <string name="rdp_credential_user">Username provided</string>
     <string name="rdp_credential_none">Manual login</string>
-    <string name="rdp_no_client">No RDP client installed. Install Microsoft Remote Desktop?</string>
     <string name="rdp_progress_vpn">Checking VPN&#8230;</string>
     <string name="rdp_progress_tcp">Checking host&#8230;</string>
     <string name="rdp_progress_creds">Loading credentials&#8230;</string>
     <string name="rdp_progress_launch">Launching client&#8230;</string>
     <string name="rdp_progress_session">Starting session&#8230;</string>
     <string name="rdp_progress_done">Connected</string>
-    <string name="rdp_timeout_warning">Session expires in %1$d minutes</string>
     <string name="rdp_password_copied">Password copied to clipboard</string>
     <string name="rdp_empty">No RDP hosts configured</string>
-    <string name="rdp_pro_required">Pro license required</string>
     <string name="rdp_error_forbidden">RDP is not available. A Pro license or the required token permission is missing.</string>
     <string name="rdp_error_network">Could not reach the server. Check your connection and try again.</string>
     <string name="rdp_error_server">Failed to load RDP hosts. Please try again later.</string>
-    <string name="rdp_embedded_connecting">Connecting to remote desktop&#8230;</string>
-    <string name="rdp_embedded_reconnecting">Reconnecting&#8230; (%1$d/%2$d)</string>
-    <string name="rdp_embedded_disconnect_confirm">End RDP session?</string>
-    <string name="rdp_embedded_disconnect_message">The remote desktop session will be disconnected.</string>
-    <string name="rdp_embedded_connection_lost">Connection lost</string>
-    <string name="rdp_embedded_reconnect_failed">Reconnection failed after %1$d attempts</string>
     <string name="rdp_progress_service">Starting service&#8230;</string>
     <string name="notif_rdp_session">RDP: %1$s</string>
     <string name="notif_rdp_duration">Session: %1$s</string>
@@ -106,7 +86,6 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
-    <string name="settings_server">Server</string>
     <string name="settings_server_url">Server URL</string>
     <string name="settings_server_url_hint">gate.example.com</string>
     <string name="settings_api_token">API Token</string>
@@ -115,23 +94,14 @@
     <string name="settings_save_register">Save &amp; Register</string>
     <string name="settings_connection_ok">Connection successful</string>
     <string name="settings_connection_fail">Connection failed</string>
-    <string name="settings_tunnel">Tunnel</string>
     <string name="settings_split_tunnel">Split Tunneling</string>
-    <string name="settings_split_tunnel_desc">Route only specific traffic through VPN</string>
-    <string name="settings_split_routes">IP Routes (one per line)</string>
-    <string name="settings_split_routes_hint">10.0.0.0/8\n192.168.0.0/16</string>
-    <string name="settings_split_apps">Excluded Apps</string>
     <string name="split_tunnel_search_apps">Search apps&#8230;</string>
     <string name="split_tunnel_show_system">Show system apps</string>
-    <string name="split_tunnel_presets_label">Network Presets</string>
     <string name="split_tunnel_private_nets">Private Networks (172/192)</string>
-    <string name="split_tunnel_wifi_subnet">WiFi Subnet (%1$s)</string>
     <string name="split_tunnel_no_wifi">WiFi Subnet (not connected)</string>
-    <string name="split_tunnel_custom_label">Custom Networks</string>
     <string name="split_tunnel_add_network">Add Network</string>
     <string name="split_tunnel_label">Label</string>
     <string name="split_tunnel_admin_locked">Configured by administrator</string>
-    <string name="split_tunnel_enabled_label">Split Tunneling</string>
     <string name="split_tunnel_off_desc">All traffic through VPN</string>
     <string name="split_tunnel_exclude_label">Full VPN — define exceptions</string>
     <string name="split_tunnel_include_label">Only selected networks through VPN</string>
@@ -139,49 +109,58 @@
     <string name="split_tunnel_networks_include_header">ONLY these networks through VPN</string>
     <string name="split_tunnel_apps_exclude_header">These apps NOT through VPN</string>
     <string name="split_tunnel_apps_include_header">ONLY these apps through VPN</string>
-    <string name="split_tunnel_add_app">Add App</string>
     <string name="split_tunnel_recommended_apps">Recommended</string>
     <string name="split_tunnel_recommended_hint">May cause issues with wireless connections when VPN is active</string>
-    <string name="settings_split_save">Save Routes</string>
-    <string name="settings_split_saved">Routes saved</string>
     <string name="settings_config_import">Config Import</string>
     <string name="settings_import_qr">Scan QR Code</string>
     <string name="settings_import_file">Import .conf File</string>
-    <string name="settings_app">App</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_language">Language</string>
     <string name="settings_auto_connect">Auto-connect</string>
     <string name="settings_auto_connect_desc">Connect on app start</string>
-    <string name="settings_check_interval">Check Interval (seconds)</string>
-    <string name="settings_poll_interval">Config Poll Interval (seconds)</string>
     <string name="settings_license">License</string>
     <string name="settings_license_community">Community</string>
     <string name="settings_license_pro">Pro</string>
     <string name="settings_license_activate">Activate License</string>
     <string name="settings_license_refresh">Refresh License</string>
     <string name="settings_license_managed">License is managed server-side</string>
-    <string name="settings_logs">Logs</string>
     <string name="settings_logs_view">View Logs</string>
     <string name="settings_logs_export">Export Logs</string>
-    <string name="settings_about">About</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_update_available">Update available: %1$s</string>
     <string name="settings_update_install">Install</string>
     <string name="settings_update_later">Later</string>
     <string name="settings_update_none">No updates available</string>
-    <string name="settings_check_for_updates">Check for Updates</string>
 
     <!-- Setup -->
-    <string name="setup_title">Connect to GateControl</string>
-    <string name="setup_subtitle">Set up your VPN connection</string>
+    <string name="setup_title">Welcome to GateControl</string>
+    <string name="setup_subtitle">Set up this device with the details from your administrator. It takes less than a minute.</string>
     <string name="setup_qr">Scan QR Code</string>
-    <string name="setup_manual">Enter Manually</string>
-    <string name="setup_import">Import Config File</string>
+    <string name="setup_manual">Enter setup code</string>
+    <string name="setup_import">Import configuration file</string>
     <string name="setup_registering">Registering&#8230;</string>
     <string name="setup_success">Successfully registered!</string>
     <string name="setup_error">Registration failed: %1$s</string>
+    <string name="setup_multi_peer_config">This config contains several [Peer] sections. GateControl supports exactly one peer.</string>
+    <string name="setup_invalid_config">Invalid WireGuard config</string>
+    <string name="setup_token_or_code">API token or setup code</string>
+    <string name="setup_token_or_code_hint">gc_&#8230; or XXXX-XXXX-XXXX-XXXX</string>
+    <string name="setup_enroll_confirm_title">Connect to server?</string>
+    <string name="setup_enroll_confirm_body">This app will be connected to %1$s and get VPN plus every feature granted there. Only confirm if you trust this server.</string>
+    <string name="setup_enroll_confirm">Connect</string>
+    <string name="setup_enroll_running">Setting up device&#8230;</string>
+    <string name="setup_enroll_success">Device set up</string>
+    <string name="setup_enroll_invalid">The setup code is invalid, expired or already used. Create a new code in GateControl.</string>
+    <string name="setup_enroll_forbidden">The server refused the setup (user disabled or without client permission).</string>
+    <string name="setup_enroll_limit">The server license peer limit has been reached.</string>
+    <string name="setup_enroll_rate_limited">Too many attempts. Please try again in a few minutes.</string>
+    <string name="setup_enroll_failed">Setup failed: %1$s</string>
+    <string name="setup_enroll_https_required">A setup code needs an https server URL.</string>
+    <string name="setup_link_https_required">A setup link needs an https server URL.</string>
+    <string name="settings_enroll_button">Connect with setup QR code</string>
+    <string name="settings_enroll_hint">Scan the setup QR code from GateControl (Peers &#8594; QR &#8594; Set up Android app) to unlock all features.</string>
 
     <!-- Logs -->
     <string name="logs_title">Logs</string>
@@ -194,34 +173,170 @@
     <string name="logs_export">Export</string>
 
     <!-- Notifications -->
-    <string name="notif_channel_vpn">VPN Status</string>
-    <string name="notif_channel_update">Updates</string>
     <string name="notif_channel_rdp">RDP Sessions</string>
-    <string name="notif_vpn_connected">Connected to %1$s</string>
-    <string name="notif_vpn_disconnected">VPN Disconnected</string>
-    <string name="notif_vpn_reconnecting">Reconnecting&#8230;</string>
-    <string name="notif_vpn_stats">&#8595; %1$s · &#8593; %2$s · %3$s</string>
-    <string name="notif_update_title">Update Available</string>
-    <string name="notif_update_body">Version %1$s is available</string>
-    <string name="notif_peer_expiry">Peer expires in %1$d days</string>
-    <string name="notif_peer_expired">Peer has expired</string>
     <string name="peer_disabled_by_server">VPN access has been disabled by the server. Disconnected.</string>
 
     <!-- Quick Settings Tile -->
-    <string name="tile_vpn_label">GateControl VPN</string>
     <string name="tile_label">GateControl VPN</string>
     <string name="tile_not_connected">Not connected</string>
 
     <!-- Common -->
     <string name="cancel">Cancel</string>
-    <string name="ok">OK</string>
-    <string name="save">Save</string>
     <string name="error">Error</string>
     <string name="retry">Retry</string>
     <string name="close">Close</string>
-    <string name="open_settings">Open Settings</string>
-    <string name="permission_vpn">VPN permission required</string>
     <string name="permission_camera">Camera permission required for QR scanning</string>
-    <string name="permission_notification">Notification permission required</string>
-    <string name="root_warning">This device appears to be rooted. VPN security may be compromised.</string>
+    <!-- Pi-hole -->
+    <string name="nav_pihole">Pi-hole</string>
+    <string name="pihole_title">Pi-hole</string>
+    <string name="pihole_queries">Queries</string>
+    <string name="pihole_blocked">Blocked</string>
+    <string name="pihole_blocklist">Blocklist domains</string>
+    <string name="pihole_active_clients">Active clients</string>
+    <string name="pihole_status_enabled">Active</string>
+    <string name="pihole_status_disabled">Paused</string>
+    <string name="pihole_status_partial">Partial</string>
+    <string name="pihole_status_unknown">Unknown</string>
+    <string name="pihole_history_title">Queries over time</string>
+    <string name="pihole_allowed">Allowed</string>
+    <string name="pihole_top_domains">Top blocked domains</string>
+    <string name="pihole_top_clients">Top clients</string>
+    <string name="pihole_query_types">Query types</string>
+    <string name="pihole_pause_forever">Pause</string>
+    <string name="pihole_resume">Resume</string>
+    <string name="pihole_applying">Applying&#8230;</string>
+    <string name="pihole_action_failed">Action failed</string>
+    <string name="pihole_empty">No Pi-hole data yet</string>
+    <string name="pihole_synced_ago">synced %1$ds ago</string>
+    <string name="pihole_paused">Paused</string>
+    <string name="pihole_paused_mmss">paused &#183; %1$s</string>
+
+    <!-- Redesign 2026 -->
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_dismiss">Dismiss</string>
+    <string name="common_done">Done</string>
+    <string name="common_hide">Hide</string>
+    <string name="common_show">Show</string>
+    <string name="common_remove_named">Remove %1$s</string>
+    <string name="nav_start">Home</string>
+    <string name="nav_remote">Remote</string>
+    <string name="nav_network">Network</string>
+    <string name="tile_off">Off</string>
+    <string name="vpn_hero_on">Protected</string>
+    <string name="vpn_hero_off">Not connected</string>
+    <string name="vpn_hero_error">Failed</string>
+    <string name="vpn_sub_on">Encrypted via %1$s</string>
+    <string name="vpn_sub_connecting">Handshake with %1$s</string>
+    <string name="vpn_sub_error">The connection could not be established</string>
+    <string name="vpn_sub_off">Your traffic is unprotected</string>
+    <string name="vpn_retry">Try again</string>
+    <string name="vpn_logs">Log</string>
+    <string name="vpn_tunnel_ip">Tunnel IP</string>
+    <string name="vpn_connected_since">Connected for</string>
+    <string name="vpn_last_handshake">Last handshake</string>
+    <string name="vpn_handshake_ago">%1$d s ago</string>
+    <string name="vpn_live_placeholder">Connect to see live data</string>
+    <string name="vpn_bandwidth_graph_desc">Throughput over the last 60 seconds</string>
+    <string name="vpn_theme_to_dark">Use dark theme</string>
+    <string name="vpn_theme_to_light">Use light theme</string>
+    <string name="vpn_expiry_today">Access expires today.</string>
+    <string name="vpn_expiry_hint">Ask your admin to extend it.</string>
+    <string name="split_tile_exclude">Exceptions active</string>
+    <string name="split_tile_include">Selected only via VPN</string>
+    <string name="dns_tile_idle">Tap to test</string>
+    <string name="dns_tile_ok">No leak · %1$s</string>
+    <string name="dns_tile_fail">Test failed</string>
+    <string name="pihole_tile_blocking">Blocking active</string>
+    <string name="pihole_pause_title">Pause blocking</string>
+    <string name="pihole_chip_30s">30 s</string>
+    <string name="pihole_chip_5m">5 min</string>
+    <string name="pihole_chip_30m">30 min</string>
+    <string name="pihole_history_desc">Bar chart of Pi-hole queries, allowed and blocked</string>
+    <string name="services_vpn_required">Services are only reachable while the VPN is on.</string>
+    <string name="rdp_summary">%1$d hosts · %2$d online</string>
+    <string name="rdp_no_match">No hosts found</string>
+    <string name="rdp_no_match_hint">Adjust search or filters.</string>
+    <string name="rdp_reset_filters">Reset filters</string>
+    <string name="rdp_wol_hint">Start via Wake-on-LAN</string>
+    <string name="logs_level_all">All</string>
+    <string name="logs_level_info">Info</string>
+    <string name="logs_level_warn">Warning</string>
+    <string name="logs_level_error">Error</string>
+    <string name="settings_group_connection">Connection</string>
+    <string name="settings_group_security">Security</string>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_group_help">Help</string>
+    <string name="settings_server_row">Server &amp; registration</string>
+    <string name="settings_server_row_desc">%1$s · QR code, code or file</string>
+    <string name="settings_server_not_configured">No server set up</string>
+    <string name="settings_registered">Registered</string>
+    <string name="settings_registered_peer">Registered · Peer #%1$d</string>
+    <string name="settings_split_summary_off">Off · all traffic through VPN</string>
+    <string name="settings_split_summary_exclude">Exceptions · %1$d networks, %2$d apps</string>
+    <string name="settings_split_summary_include">Selected only · %1$d networks, %2$d apps</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_logs_desc">View and share events</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_footer">GateControl %1$s · license managed by the server</string>
+    <string name="settings_manual">Manual</string>
+    <string name="split_tunnel_mode_off">Off</string>
+    <string name="split_tunnel_mode_exclude">Define exceptions</string>
+    <string name="split_tunnel_mode_include">Only selected via VPN</string>
+    <string name="split_tunnel_pick_apps">Choose apps</string>
+    <string name="split_tunnel_selected_count">%1$d selected</string>
+    <string name="split_tunnel_all_apps">All apps</string>
+    <string name="split_tunnel_wifi_current">Current Wi-Fi subnet</string>
+    <string name="split_tunnel_label_required">Label is required</string>
+    <string name="split_tunnel_invalid_cidr">Invalid CIDR (e.g. 172.20.0.0/16)</string>
+    <string name="split_tunnel_reconnect_hint">Changes apply from the next connection.</string>
+    <plurals name="vpn_expiry_days">
+        <item quantity="one">Access expires tomorrow.</item>
+        <item quantity="other">Access expires in %1$d days.</item>
+    </plurals>
+    <string name="setup_error_url_required">Server URL required</string>
+    <string name="setup_error_token_required">API token required</string>
+    <string name="setup_testing_connection">Testing connection&#8230;</string>
+    <string name="setup_connection_failed">Connection failed: %1$s</string>
+    <string name="setup_config_imported">Config imported successfully</string>
+    <string name="setup_import_failed">Import failed: %1$s</string>
+    <string name="settings_error_invalid_url">Invalid server URL</string>
+    <string name="settings_error_invalid_token">Invalid API token</string>
+    <string name="settings_error_update_check">Update check failed: %1$s</string>
+    <string name="settings_error_license">License refresh failed: %1$s</string>
+    <!-- Client policy from the server ("Client-Richtlinien") -->
+    <string name="policy_locked_hint">Set by your administrator</string>
+    <string name="policy_managed_banner">This device is managed – some settings are set by your administrator.</string>
+    <string name="policy_server_locked">Changing the server and re-setup are locked by your administrator.</string>
+    <string name="policy_disconnect_locked">Your administrator set the connection to “always connected”.</string>
+    <string name="policy_split_mode_not_allowed">Not allowed by your administrator</string>
+    <string name="policy_system_vpn_title">Your administrator requires a protected VPN</string>
+    <string name="policy_system_vpn_always_on">Turn on “Always-on VPN” for GateControl in the Android VPN settings. Android does not let apps do this themselves.</string>
+    <string name="policy_system_vpn_kill_switch">Kill switch: turn on “Block connections without VPN” for GateControl in the Android VPN settings.</string>
+    <string name="policy_open_vpn_settings">Open VPN settings</string>
+
+    <!-- Support bundle (Settings → Help) -->
+    <string name="support_send">Send support bundle</string>
+    <string name="support_send_desc">Redacted diagnostics for your administrator</string>
+    <string name="support_requested">Your administrator requested a support bundle</string>
+    <string name="support_dialog_title">Send diagnostics to %1$s?</string>
+    <string name="support_dialog_includes">Included: app and Android version, device, tunnel state and last handshake, settings, WireGuard config without keys, network interfaces, DNS servers and routes, the last 2000 log lines and recent errors.</string>
+    <string name="support_dialog_excludes">Not included: private keys, preshared keys, API tokens, passwords, setup codes and cookies – they are removed before sending.</string>
+    <string name="support_dialog_admin">Your administrator asked for this bundle.</string>
+    <string name="support_dialog_send">Send</string>
+    <string name="support_dialog_cancel">Cancel</string>
+    <string name="support_sending">Sending…</string>
+    <string name="support_success">Support bundle sent</string>
+    <string name="support_failed">Support bundle could not be sent: %1$s</string>
+    <string name="support_rate_limited">Too many support bundles – please try again later.</string>
+    <string name="support_too_large">The support bundle is too large.</string>
+    <string name="support_forbidden">The server rejected the support bundle (check token and device).</string>
+    <string name="support_unsupported">The server does not support support bundles yet.</string>
+    <string name="support_not_configured">Set up a server first – then a support bundle can be sent.</string>
+
+    <!-- Machine binding (device binding on the server) -->
+    <string name="binding_mismatch">This access is bound to a different device. Ask your administrator to reset the device binding.</string>
+    <string name="binding_required">The server requires device binding, but this device sent no device ID. Update the app or contact your administrator.</string>
+    <string name="binding_invalid">The server rejected this device\'s ID. Contact your administrator.</string>
+    <string name="settings_device_id">Device ID %1$s…</string>
 </resources>

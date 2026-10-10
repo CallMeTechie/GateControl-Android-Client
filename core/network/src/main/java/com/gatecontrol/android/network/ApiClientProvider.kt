@@ -1,5 +1,7 @@
 package com.gatecontrol.android.network
 
+import com.gatecontrol.android.common.VpnSubnet
+import com.gatecontrol.android.data.MachineFingerprint
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.google.gson.Gson
@@ -12,6 +14,7 @@ import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.Dns
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -25,7 +28,9 @@ import javax.inject.Singleton
 @Singleton
 class ApiClientProvider @Inject constructor(
     private val authInterceptor: AuthInterceptor,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val machineFingerprint: MachineFingerprint,
+    private val machineBindingMonitor: MachineBindingMonitor,
 ) {
     private val cache = mutableMapOf<String, ApiClient>()
     private val lock = Any()
@@ -41,9 +46,20 @@ class ApiClientProvider @Inject constructor(
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
 
     /**
+     * VPN-internal subnet of the current server (from the WireGuard config's
+     * Address). Addresses inside it are never usable from outside the tunnel.
+     * Set by the connect path before the tunnel comes up.
+     */
+    @Volatile
+    var vpnSubnet: String = VpnSubnet.DEFAULT
+
+    private fun isVpnInternal(addr: InetAddress): Boolean =
+        VpnSubnet.contains(vpnSubnet, addr.hostAddress ?: "")
+
+    /**
      * Resolve and cache the server hostname. Safe to call from any thread.
      * Re-resolves to pick up DNS changes, but rejects VPN-internal addresses
-     * (10.8.x.x) that appear when the tunnel's split-horizon DNS is active.
+     * (inside [vpnSubnet]) that appear when the tunnel's split-horizon DNS is active.
      * Call clearDnsCache() on disconnect so the next connect starts fresh.
      */
     suspend fun preResolveDns(hostname: String) {
@@ -54,11 +70,7 @@ class ApiClientProvider @Inject constructor(
                     // Reject VPN-internal addresses — when the tunnel is up,
                     // system DNS may return the VPN gateway (10.8.0.1) instead
                     // of the real public IP.
-                    val isVpnInternal = addresses.all { addr ->
-                        val ip = addr.hostAddress ?: ""
-                        ip.startsWith("10.8.")
-                    }
-                    if (isVpnInternal) {
+                    if (addresses.all(::isVpnInternal)) {
                         timber.log.Timber.d("DNS for $hostname returned VPN-internal address — keeping cache")
                         return@withContext
                     }
@@ -99,12 +111,9 @@ class ApiClientProvider @Inject constructor(
             // can't reach 10.8.0.1 from outside the tunnel, so OkHttp would
             // hit SocketTimeout from the local Wi-Fi IP / ECONNREFUSED via
             // VPN. Filter those out and prefer the pre-resolve cache,
-            // which preResolveDns() guarantees never holds 10.8.x.x.
+            // which preResolveDns() guarantees never holds VPN-internal addresses.
             val systemResults = try {
-                Dns.SYSTEM.lookup(hostname).filter { addr ->
-                    val ip = addr.hostAddress ?: ""
-                    !ip.startsWith("10.8.")
-                }
+                Dns.SYSTEM.lookup(hostname).filterNot(::isVpnInternal)
             } catch (_: Exception) {
                 emptyList()
             }
@@ -113,6 +122,18 @@ class ApiClientProvider @Inject constructor(
                 "DNS lookup failed for $hostname (system DNS returned only VPN-internal addresses, no cache)"
             )
         }
+    }
+
+    companion object {
+        /** Headers never written to the HTTP log. */
+        val SENSITIVE_HEADERS = listOf(
+            "X-API-Token",
+            "Authorization",
+            "Proxy-Authorization",
+            "Cookie",
+            "Set-Cookie",
+            "X-Machine-Fingerprint",
+        )
     }
 
     fun getClient(baseUrl: String): ApiClient {
@@ -131,19 +152,7 @@ class ApiClientProvider @Inject constructor(
     }
 
     private fun buildClient(baseUrl: String): ApiClient {
-        val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        val logging = HttpLoggingInterceptor().apply {
-            level = if (isDebuggable) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
-        }
-
-        val okHttpClient = OkHttpClient.Builder()
-            .dns(vpnSafeDns)
-            .addInterceptor(authInterceptor)
-            .addInterceptor(logging)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .build()
+        val okHttpClient = buildOkHttpClient(baseUrl)
 
         // Gson that tolerates SQLite boolean fields (0/1 as NUMBER instead of true/false)
         // Uses TypeAdapterFactory to cover both Boolean and Boolean? (nullable) fields
@@ -157,6 +166,30 @@ class ApiClientProvider @Inject constructor(
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiClient::class.java)
+    }
+
+    internal fun buildOkHttpClient(baseUrl: String): OkHttpClient {
+        val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        // Never log bodies: register/enroll responses carry the WireGuard
+        // private key and API tokens. Debug builds log headers with all
+        // credentials redacted, release builds log nothing.
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (isDebuggable) HttpLoggingInterceptor.Level.HEADERS else HttpLoggingInterceptor.Level.NONE
+            SENSITIVE_HEADERS.forEach { redactHeader(it) }
+        }
+
+        return OkHttpClient.Builder()
+            .dns(vpnSafeDns)
+            .addInterceptor(authInterceptor)
+            .addInterceptor(machineBindingMonitor)
+            .addInterceptor(logging)
+            // Network interceptor: runs per hop, so a redirect to another
+            // host never carries the API token or the device fingerprint.
+            .addNetworkInterceptor(ServerScopedHeadersInterceptor(baseUrl.toHttpUrl()) { machineFingerprint.get() })
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .build()
     }
 
     /** Factory that applies LenientBooleanAdapter to both Boolean and Boolean? fields. */
