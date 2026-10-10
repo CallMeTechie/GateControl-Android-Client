@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.2] - 2026-10-10
+
+### Changes
+- bump the gradle group with 12 updates (#38)
+
+---
+
 ## [1.17.1] - 2026-10-10
 
 ### Changes
