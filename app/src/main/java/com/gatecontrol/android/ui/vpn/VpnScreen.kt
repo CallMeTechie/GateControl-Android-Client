@@ -127,11 +127,12 @@ fun VpnScreen(
 
     // Show notification when peer is disabled on server
     val peerDisabled by viewModel.peerDisabled.collectAsState()
+    val peerDisabledMessage = stringResource(R.string.peer_disabled_by_server)
     LaunchedEffect(peerDisabled) {
         if (peerDisabled) {
             android.widget.Toast.makeText(
                 context,
-                context.getString(R.string.peer_disabled_by_server),
+                peerDisabledMessage,
                 android.widget.Toast.LENGTH_LONG,
             ).show()
         }
