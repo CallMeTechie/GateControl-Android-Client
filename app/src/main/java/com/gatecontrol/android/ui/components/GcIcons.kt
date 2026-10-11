@@ -81,4 +81,7 @@ object GcIcons {
     val Spinner = icon("Spinner", 3f, "M21 12a9 9 0 1 1-9-9")
     val Alert = icon("Alert", 2f, circle(12f, 12f, 10f), "M12 8v4M12 16h.01")
     val Logs = icon("Logs", 2f, "M4 6h16M4 12h16M4 18h10")
+    val Bell = icon("Bell", 2f, "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9", "M10.3 21a1.94 1.94 0 0 0 3.4 0")
+    val Home = icon("Home", 2f, "M3 10l9-7 9 7v11H3z")
+    val Battery = icon("Battery", 2f, rect(2f, 7f, 16f, 10f, 2f), "M22 11v2")
 }

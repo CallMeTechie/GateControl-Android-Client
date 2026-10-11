@@ -54,6 +54,14 @@ import com.gatecontrol.android.ui.setup.QrScannerScreen
 import com.gatecontrol.android.ui.setup.SetupScreen
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.vpn.VpnScreen
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gatecontrol.android.push.PushNavTarget
+import com.gatecontrol.android.push.PushNavigation
+import com.gatecontrol.android.ui.notifications.InboxScreen
+import com.gatecontrol.android.ui.notifications.InboxViewModel
+import com.gatecontrol.android.ui.notifications.NotificationDetailScreen
+import com.gatecontrol.android.ui.notifications.NotificationSettingsScreen
 
 private val bottomBarRoutes = setOf(
     Screen.Vpn.route,
@@ -187,7 +195,11 @@ fun AppNavigation(
             }
 
             composable(Screen.Vpn.route) {
+                val inboxViewModel: InboxViewModel = hiltViewModel()
+                val unread by inboxViewModel.unreadCount.collectAsStateWithLifecycle()
                 VpnScreen(
+                    unreadCount = unread,
+                    onOpenInbox = { navController.navigate(Screen.Inbox.route) { launchSingleTop = true } },
                     onTokenInvalid = {
                         navController.navigate(Screen.Setup.route) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
@@ -229,6 +241,7 @@ fun AppNavigation(
 
             composable(Screen.Settings.route) {
                 SettingsScreen(
+                    onNavigateToNotifications = { navController.navigate(Screen.SettingsNotifications.route) },
                     onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
                     onNavigateToServer = { navController.navigate(Screen.SettingsServer.route) },
                     onNavigateToSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
@@ -244,6 +257,30 @@ fun AppNavigation(
                 )
             }
 
+            composable(Screen.Inbox.route) {
+                InboxScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpen = { id -> navController.navigate(Screen.NotificationDetail.create(id)) },
+                    onOpenSettings = { navController.navigate(Screen.SettingsNotifications.route) },
+                )
+            }
+
+            composable(
+                route = Screen.NotificationDetail.route,
+                arguments = listOf(navArgument(Screen.NotificationDetail.ARG_ID) { type = NavType.LongType }),
+            ) {
+                NotificationDetailScreen(
+                    onBack = {
+                        if (!navController.popBackStack()) navController.navigate(Screen.Inbox.route)
+                    },
+                    onNavigate = { target -> openPushTarget(navController, target, navigateToTab) },
+                )
+            }
+
+            composable(Screen.SettingsNotifications.route) {
+                NotificationSettingsScreen(onBack = { navController.popBackStack() })
+            }
+
             composable(Screen.SplitTunnel.route) {
                 SplitTunnelScreen(onBack = { navController.popBackStack() })
             }
@@ -255,12 +292,34 @@ fun AppNavigation(
             }
         }
 
+        // A tapped push message (PushOpenActivity) — only once the app is set up.
+        val pushTarget by PushNavigation.pending.collectAsStateWithLifecycle()
+        LaunchedEffect(pushTarget, isSetupComplete) {
+            val target = pushTarget ?: return@LaunchedEffect
+            if (!isSetupComplete) return@LaunchedEffect
+            PushNavigation.consume(target)
+            openPushTarget(navController, target, navigateToTab)
+        }
+
         // After NavHost so the graph is set before navigating.
         LaunchedEffect(pendingSetupLink) {
             if (pendingSetupLink != null) {
                 navController.navigate(Screen.Enroll.create(pendingSetupLink))
                 onSetupLinkConsumed()
             }
+        }
+    }
+}
+
+/** Opens the screen a push message points to. */
+private fun openPushTarget(navController: NavHostController, target: PushNavTarget, navigateToTab: (String) -> Unit) {
+    when (target) {
+        PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.route) { launchSingleTop = true }
+        is PushNavTarget.Detail -> navController.navigate(Screen.NotificationDetail.create(target.id))
+        PushNavTarget.Vpn -> navigateToTab(Screen.Vpn.route)
+        PushNavTarget.Services -> navController.navigate(Screen.Network.create()) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
         }
     }
 }

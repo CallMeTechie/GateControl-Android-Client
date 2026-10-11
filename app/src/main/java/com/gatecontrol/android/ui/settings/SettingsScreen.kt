@@ -48,20 +48,25 @@ import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
+import com.gatecontrol.android.notify.PushMode
+import com.gatecontrol.android.ui.notifications.NotificationSettingsViewModel
 
 /**
  * Settings overview: status card of the server connection, then grouped
- * cards (Verbindung, Sicherheit, Darstellung, Lizenz, Hilfe). Server setup
+ * cards (Verbindung, Sicherheit, Benachrichtigungen, Darstellung, Lizenz, Hilfe). Server setup
  * and split tunneling open as their own pages.
  */
 @Composable
 fun SettingsScreen(
+    onNavigateToNotifications: () -> Unit,
     onNavigateToLogs: () -> Unit,
     onNavigateToServer: () -> Unit,
     onNavigateToSplitTunnel: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
+    pushViewModel: NotificationSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pushState by pushViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val extra = GateControlTheme.extraColors
 
@@ -165,6 +170,24 @@ fun SettingsScreen(
                         GcChevron()
                     }
                 },
+            )
+        }
+
+        // --- Benachrichtigungen (notification center) ------------------------
+        SettingsGroup(stringResource(R.string.push_title_settings)) {
+            GcListRow(
+                title = stringResource(R.string.push_title_settings),
+                description = if (pushState.enabled) {
+                    stringResource(
+                        R.string.push_settings_row_on,
+                        stringResource(if (pushState.mode == PushMode.ALWAYS) R.string.push_mode_short_always else R.string.push_mode_short_vpn),
+                    )
+                } else {
+                    stringResource(R.string.push_settings_row_off)
+                },
+                onClick = onNavigateToNotifications,
+                leading = { Icon(GcIcons.Bell, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                trailing = { GcChevron() },
             )
         }
 
