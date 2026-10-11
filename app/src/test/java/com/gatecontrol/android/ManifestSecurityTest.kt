@@ -59,6 +59,15 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `trusted WLANs declare the location permissions Android needs for the SSID`() {
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        // Fine needs coarse alongside on Android 12+; background for SSIDs while the app is not in use.
+        assertTrue("android.permission.ACCESS_FINE_LOCATION" in permissions)
+        assertTrue("android.permission.ACCESS_COARSE_LOCATION" in permissions)
+        assertTrue("android.permission.ACCESS_BACKGROUND_LOCATION" in permissions)
+    }
+
+    @Test
     fun `every specialUse foreground service declares its subtype`() {
         val specialUse = components("service")
             .filter { it.androidAttr("foregroundServiceType").contains("specialUse") }

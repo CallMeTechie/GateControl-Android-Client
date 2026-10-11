@@ -80,6 +80,15 @@ interface ApiClient {
     suspend fun getSplitTunnelPreset(): SplitTunnelPresetResponse
 
     /**
+     * Is this device in the server's own LAN ("Heimnetz")? The server decides
+     * (`same_lan`), and only for requests through the tunnel. Raw
+     * [Response]: 404 means an older server without the endpoint. Use
+     * [probeHomeNetwork], which classifies and never throws.
+     */
+    @GET("api/v1/client/home-network")
+    suspend fun getHomeNetwork(): Response<HomeNetworkResponse>
+
+    /**
      * Effective client policy. With the cached version as If-None-Match the
      * server answers 304 when nothing changed (hence the raw [Response]).
      */

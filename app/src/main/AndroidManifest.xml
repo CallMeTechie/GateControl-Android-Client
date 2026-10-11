@@ -12,6 +12,13 @@
     <!-- Notification center: "GateControl ausnehmen" asks to be exempted from
          battery optimisation so the push connection survives Doze. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Trusted WLANs by name (SSID): Android only reveals the WLAN name with
+         a location permission, in the background only with "Allow all the
+         time". Requested only when the user adds a WLAN name; the app never
+         uses the location itself. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Query all launchable apps for split-tunnel app picker -->
     <queries>

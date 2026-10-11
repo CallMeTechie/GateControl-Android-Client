@@ -62,11 +62,14 @@ fun SettingsScreen(
     onNavigateToLogs: () -> Unit,
     onNavigateToServer: () -> Unit,
     onNavigateToSplitTunnel: () -> Unit,
+    onNavigateToTrustedNetworks: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
     pushViewModel: NotificationSettingsViewModel = hiltViewModel(),
+    trustedViewModel: TrustedNetworksViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pushState by pushViewModel.uiState.collectAsStateWithLifecycle()
+    val trustedState by trustedViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val extra = GateControlTheme.extraColors
 
@@ -147,6 +150,12 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_split_tunnel),
                 description = splitSummary(uiState),
                 onClick = onNavigateToSplitTunnel,
+                trailing = { GcChevron() },
+            )
+            GcListRow(
+                title = stringResource(R.string.settings_trusted_networks),
+                description = trustedNetworksSummary(trustedState.settings, trustedState.locked),
+                onClick = onNavigateToTrustedNetworks,
                 trailing = { GcChevron() },
             )
         }

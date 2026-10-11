@@ -65,4 +65,44 @@ class SettingsRepositoryTest {
 
         repository.setTheme("light")
     }
+
+    @Test
+    fun `trusted networks are off with home detection on by default`() = runTest {
+        every { dataStore.data } returns flowOf(preferencesOf())
+
+        repository.getTrustedNetworkSettings().test {
+            assertEquals(TrustedNetworkSettings(enabled = false, homeEnabled = true, ssids = emptySet(), lastActedKey = null), awaitItem())
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `trusted networks read stored values`() = runTest {
+        every { dataStore.data } returns flowOf(
+            preferencesOf(
+                SettingsRepository.TRUSTED_NET_ENABLED to true,
+                SettingsRepository.TRUSTED_NET_HOME_ENABLED to false,
+                SettingsRepository.TRUSTED_NET_SSIDS to setOf("Heimnetz", "Büro"),
+                SettingsRepository.TRUSTED_NET_LAST_KEY to "cell",
+            ),
+        )
+
+        repository.getTrustedNetworkSettings().test {
+            assertEquals(TrustedNetworkSettings(true, false, setOf("Heimnetz", "Büro"), "cell"), awaitItem())
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `updateTrustedSsids transforms the stored set`() = runTest {
+        var written: Preferences? = null
+        coEvery { dataStore.updateData(any()) } coAnswers {
+            val transform = firstArg<suspend (Preferences) -> Preferences>()
+            transform(preferencesOf(SettingsRepository.TRUSTED_NET_SSIDS to setOf("A"))).also { written = it }
+        }
+
+        repository.updateTrustedSsids { it + "B" }
+
+        assertEquals(setOf("A", "B"), written?.get(SettingsRepository.TRUSTED_NET_SSIDS))
+    }
 }
