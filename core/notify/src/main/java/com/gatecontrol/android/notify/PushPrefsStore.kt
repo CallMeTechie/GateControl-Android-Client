@@ -84,6 +84,7 @@ class PushPrefsStore @Inject constructor(private val dataStore: DataStore<Prefer
         val TOPICS = stringPreferencesKey("push_topics")
         val SERVER = stringPreferencesKey("push_server")
         val QUIET = stringPreferencesKey("push_quiet")
+        val START_HINT_DISMISSED = booleanPreferencesKey("push_start_hint_dismissed")
         const val QUIET_NONE = "none"
 
         const val MAX_PENDING_ACKS = 1000
@@ -110,6 +111,13 @@ class PushPrefsStore @Inject constructor(private val dataStore: DataStore<Prefer
     val quiet: Flow<QuietInfo> = dataStore.data.map { p -> parseQuiet(p[QUIET]) }.distinctUntilChanged()
 
     suspend fun current(): PushSettings = settings.first()
+
+    /** The start screen's "notifications are off" hint was closed. */
+    val startHintDismissed: Flow<Boolean> = dataStore.data.map { it[START_HINT_DISMISSED] ?: false }.distinctUntilChanged()
+
+    suspend fun setStartHintDismissed(dismissed: Boolean) {
+        dataStore.edit { it[START_HINT_DISMISSED] = dismissed }
+    }
 
     /** Remembers the quiet hours of `hello` / `GET push/prefs`; an unknown value changes nothing. */
     suspend fun saveQuiet(info: QuietInfo) {

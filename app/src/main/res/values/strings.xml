@@ -345,6 +345,10 @@
     <string name="push_inbox_title">Messages</string>
     <string name="push_inbox_open">Messages, %1$d unread</string>
     <string name="push_inbox_open_none">Messages</string>
+    <string name="push_bell_off">Notifications are off – tap to turn them on</string>
+    <string name="push_start_hint_title">Notifications are off</string>
+    <string name="push_start_hint_text">Turn them on to get alerts from your GateControl server right away, even without the VPN.</string>
+    <string name="push_start_hint_blocked">Notifications are on in GateControl, but Android blocks them.</string>
     <string name="push_inbox_mark_all">Mark all read</string>
     <string name="push_inbox_filter_all">All</string>
     <string name="push_inbox_filter_all_new">All · %1$d new</string>

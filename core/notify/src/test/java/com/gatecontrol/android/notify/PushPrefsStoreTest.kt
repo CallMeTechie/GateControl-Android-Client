@@ -26,6 +26,14 @@ class PushPrefsStoreTest {
     }
 
     @Test
+    fun `start hint dismissal is remembered`() = runBlocking {
+        val store = testStore(dir)
+        assertFalse(store.startHintDismissed.first())
+        store.setStartHintDismissed(true)
+        assertTrue(store.startHintDismissed.first())
+    }
+
+    @Test
     fun `last seq never moves backwards`() = runBlocking {
         val store = testStore(dir)
         assertNull(store.lastSeq())

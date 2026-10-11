@@ -62,6 +62,13 @@ import com.gatecontrol.android.ui.notifications.InboxScreen
 import com.gatecontrol.android.ui.notifications.InboxViewModel
 import com.gatecontrol.android.ui.notifications.NotificationDetailScreen
 import com.gatecontrol.android.ui.notifications.NotificationSettingsScreen
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.gatecontrol.android.ui.notifications.notificationsAllowed
+import com.gatecontrol.android.ui.notifications.bellState
 
 private val bottomBarRoutes = setOf(
     Screen.Vpn.route,
@@ -197,9 +204,24 @@ fun AppNavigation(
             composable(Screen.Vpn.route) {
                 val inboxViewModel: InboxViewModel = hiltViewModel()
                 val unread by inboxViewModel.unreadCount.collectAsStateWithLifecycle()
+                val bellInputs by inboxViewModel.bellInputs.collectAsStateWithLifecycle()
+                val context = LocalContext.current
+                var systemAllowed by remember { mutableStateOf(true) }
+                LifecycleResumeEffect(Unit) {
+                    systemAllowed = notificationsAllowed(context)
+                    onPauseOrDispose { }
+                }
+                val bell = bellState(bellInputs?.first, bellInputs?.second ?: true, systemAllowed)
                 VpnScreen(
                     unreadCount = unread,
-                    onOpenInbox = { navController.navigate(Screen.Inbox.route) { launchSingleTop = true } },
+                    bell = bell,
+                    // Nothing arrives yet: the bell leads to where notifications are switched on.
+                    onOpenInbox = {
+                        val target = if (bell.pushOff) Screen.SettingsNotifications.route else Screen.Inbox.route
+                        navController.navigate(target) { launchSingleTop = true }
+                    },
+                    onEnableNotifications = { navController.navigate(Screen.SettingsNotifications.route) { launchSingleTop = true } },
+                    onDismissPushHint = inboxViewModel::dismissStartHint,
                     onTokenInvalid = {
                         navController.navigate(Screen.Setup.route) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }

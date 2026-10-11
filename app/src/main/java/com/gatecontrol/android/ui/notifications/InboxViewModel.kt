@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.notify.PushPrefsStore
 import com.gatecontrol.android.notify.PushRepository
+import com.gatecontrol.android.notify.PushSettings
 import com.gatecontrol.android.notify.model.PushMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +40,7 @@ private fun PushMessage.isExpired(now: java.time.Instant = java.time.Instant.now
 @HiltViewModel
 class InboxViewModel @Inject constructor(
     private val repository: PushRepository,
-    store: PushPrefsStore,
+    private val store: PushPrefsStore,
 ) : ViewModel() {
 
     private val filter = MutableStateFlow<String?>(null)
@@ -49,6 +50,15 @@ class InboxViewModel @Inject constructor(
     val unreadCount: StateFlow<Int> = repository.inbox.items
         .map { list -> list.count { it.isUnread && !it.isExpired() } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    /** Push settings and whether the start screen's hint was closed (input of [bellState]); null until loaded. */
+    val bellInputs: StateFlow<Pair<PushSettings, Boolean>?> =
+        combine(store.settings, store.startHintDismissed) { s, dismissed -> s to dismissed }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun dismissStartHint() {
+        viewModelScope.launch { store.setStartHintDismissed(true) }
+    }
 
     val uiState: StateFlow<InboxUiState> = combine(
         repository.inbox.items,
