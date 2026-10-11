@@ -58,6 +58,8 @@ import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcLabeledValue
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcSecondaryButton
+import com.gatecontrol.android.ui.notifications.BellState
 import com.gatecontrol.android.ui.components.GcTile
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.pihole.PiholeTile
@@ -80,7 +82,11 @@ fun VpnScreen(
     onOpenLogs: () -> Unit = {},
     /** Unread messages of the notification center (bell badge). */
     unreadCount: Int = 0,
+    /** Whether notifications arrive at all; when not, the bell leads to the settings. */
+    bell: BellState = BellState(),
     onOpenInbox: () -> Unit = {},
+    onEnableNotifications: () -> Unit = {},
+    onDismissPushHint: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val extra = GateControlTheme.extraColors
@@ -221,12 +227,26 @@ fun VpnScreen(
             }
             Box {
                 GcIconButton(
-                    icon = GcIcons.Bell,
-                    contentDescription = if (unreadCount > 0) stringResource(R.string.push_inbox_open, unreadCount)
-                    else stringResource(R.string.push_inbox_open_none),
+                    icon = if (bell.pushOff) GcIcons.BellOff else GcIcons.Bell,
+                    contentDescription = when {
+                        bell.pushOff -> stringResource(R.string.push_bell_off)
+                        unreadCount > 0 -> stringResource(R.string.push_inbox_open, unreadCount)
+                        else -> stringResource(R.string.push_inbox_open_none)
+                    },
                     onClick = onOpenInbox,
+                    tint = if (bell.pushOff) extra.warn else extra.muted,
                 )
-                if (unreadCount > 0) {
+                if (bell.pushOff) {
+                    // Small warning dot: nothing arrives until notifications are switched on.
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 10.dp, end = 10.dp)
+                            .size(9.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(extra.warn),
+                    )
+                } else if (unreadCount > 0) {
                     Box(
                         Modifier
                             .align(Alignment.TopEnd)
@@ -253,6 +273,36 @@ fun VpnScreen(
                 ),
                 onClick = { viewModel.setTheme(if (effectivelyDark) "light" else "dark") },
             )
+        }
+
+        // --- Notifications are off ---------------------------------------
+        if (bell.showHint) {
+            GcBanner(tone = GcTone.Warn, icon = GcIcons.BellOff) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        stringResource(R.string.push_start_hint_title),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        stringResource(if (bell.blocked) R.string.push_start_hint_blocked else R.string.push_start_hint_text),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    GcSecondaryButton(
+                        text = stringResource(R.string.push_inbox_enable),
+                        onClick = onEnableNotifications,
+                        fillWidth = false,
+                    )
+                }
+                GcIconButton(
+                    icon = GcIcons.Close,
+                    contentDescription = stringResource(R.string.common_dismiss),
+                    onClick = onDismissPushHint,
+                    size = 40.dp,
+                    iconSize = 18.dp,
+                )
+            }
         }
 
         // --- Access expiry ------------------------------------------------
