@@ -1,0 +1,227 @@
+package com.gatecontrol.android.push
+
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationChannelGroup
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.net.Uri
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.gatecontrol.android.MainActivity
+import com.gatecontrol.android.R
+import com.gatecontrol.android.data.SettingsRepository
+import com.gatecontrol.android.notify.ChannelImportance
+import com.gatecontrol.android.notify.ChannelSpec
+import com.gatecontrol.android.notify.PushChannels
+import com.gatecontrol.android.notify.PushPresenter
+import com.gatecontrol.android.notify.PushStatus
+import com.gatecontrol.android.notify.model.PushAction
+import com.gatecontrol.android.notify.model.PushActionType
+import com.gatecontrol.android.notify.model.PushMessage
+import com.gatecontrol.android.notify.model.PushPriority
+import com.gatecontrol.android.notify.model.PushTopic
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
+import java.time.Instant
+import java.util.Locale
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Notifications of the notification center: channels, one notification
+ * per message (or per collapse key) with its actions, and the single
+ * ongoing notification of [PushService]. Texts follow the language chosen
+ * in the app, not only the system language.
+ */
+@Singleton
+class PushNotifier @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository,
+) : PushPresenter {
+
+    companion object {
+        const val ONGOING_ID = 1003
+        private const val GROUP_ID = "push"
+        private const val MAX_ACTIONS = 3
+        private const val ACTION_SEEN = "seen"
+    }
+
+    private val nm: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
+
+    /** Context in the app language (Settings → Darstellung → Sprache). */
+    private suspend fun localized(): Context {
+        val lang = runCatching { settingsRepository.getLocale().first() }.getOrNull() ?: return context
+        val config = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(lang)) }
+        return context.createConfigurationContext(config)
+    }
+
+    private fun importance(i: ChannelImportance): Int = when (i) {
+        ChannelImportance.MIN -> NotificationManager.IMPORTANCE_MIN
+        ChannelImportance.LOW -> NotificationManager.IMPORTANCE_LOW
+        ChannelImportance.DEFAULT -> NotificationManager.IMPORTANCE_DEFAULT
+        ChannelImportance.HIGH -> NotificationManager.IMPORTANCE_HIGH
+    }
+
+    private fun channelName(ctx: Context, spec: ChannelSpec): String =
+        spec.key?.let { PushText.channelName(it) }?.let { ctx.getString(it) }
+            ?: spec.label
+            ?: PushText.fallbackLabel(spec.id.removePrefix(PushChannels.topicChannelId("")))
+
+    /** Creates (or renames) the channels. Importance of an existing channel is the user's. */
+    private fun createChannels(ctx: Context, specs: List<ChannelSpec>) {
+        nm.createNotificationChannelGroup(NotificationChannelGroup(GROUP_ID, ctx.getString(R.string.push_channel_group)))
+        for (spec in specs) {
+            val channel = NotificationChannel(spec.id, channelName(ctx, spec), importance(spec.importance)).apply {
+                group = GROUP_ID
+                if (spec.id == PushChannels.CONNECTION || spec.id == PushChannels.SILENT) {
+                    setShowBadge(false)
+                    setSound(null, null)
+                    enableVibration(false)
+                }
+            }
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    suspend fun ensureFixedChannels() {
+        createChannels(localized(), PushChannels.fixed())
+    }
+
+    override suspend fun ensureTopicChannels(topics: List<PushTopic>) {
+        val ctx = localized()
+        createChannels(ctx, PushChannels.fixed() + PushChannels.forTopics(topics.filter { it.isPlugin }))
+    }
+
+    override suspend fun show(message: PushMessage, notificationId: Int, channel: ChannelSpec, quiet: Boolean) {
+        val ctx = localized()
+        if (nm.getNotificationChannel(channel.id) == null) createChannels(ctx, listOf(channel))
+
+        val topicLabel = PushText.topicLabel(message.topic)?.let { ctx.getString(it) } ?: PushText.fallbackLabel(message.topic)
+        val priority = message.priorityLevel
+        val sub = if (priority == PushPriority.CRITICAL) ctx.getString(R.string.push_priority_critical) + " · " + topicLabel else topicLabel
+        val whenMs = runCatching { Instant.parse(message.createdAt).toEpochMilli() }.getOrNull() ?: System.currentTimeMillis()
+
+        val builder = NotificationCompat.Builder(ctx, channel.id)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(message.title)
+            .setSubText(sub)
+            .setWhen(whenMs)
+            .setShowWhen(true)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(priority != PushPriority.CRITICAL)
+            .setSilent(quiet || message.silent)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(
+                when {
+                    message.silent || priority == PushPriority.INFO -> NotificationCompat.PRIORITY_LOW
+                    priority == PushPriority.CRITICAL -> NotificationCompat.PRIORITY_HIGH
+                    else -> NotificationCompat.PRIORITY_DEFAULT
+                },
+            )
+            .setContentIntent(openIntent(message, null, slot = 0))
+            .setDeleteIntent(receiverIntent(PushActionReceiver.ACTION_DISMISSED, message, null, slot = 1))
+        if (priority == PushPriority.CRITICAL) builder.setColor(0xFFFF8080.toInt())
+        if (message.body.isNotBlank()) {
+            builder.setContentText(message.body.lineSequence().first())
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(message.body))
+        }
+
+        // Server actions, with "Gesehen" after the first one (mockup: Details · Gesehen · 1 h stumm).
+        val seen = PushAction(ACTION_SEEN, ctx.getString(R.string.push_action_seen), PushActionType.ACK)
+        val actions = (message.actions.take(1) + seen + message.actions.drop(1)).take(MAX_ACTIONS)
+        actions.forEachIndexed { i, action ->
+            val pi = when {
+                action.id == ACTION_SEEN -> receiverIntent(PushActionReceiver.ACTION_READ, message, null, slot = 2 + i)
+                action.type in PushActionType.BACKGROUND -> receiverIntent(PushActionReceiver.ACTION_RUN, message, action, slot = 2 + i)
+                else -> openIntent(message, action, slot = 2 + i)
+            }
+            builder.addAction(0, action.label, pi)
+        }
+
+        post(notificationId, builder.build())
+    }
+
+    override fun cancel(notificationId: Int) {
+        NotificationManagerCompat.from(context).cancel(notificationId)
+    }
+
+    /** Distinct data URI per message and slot: PendingIntents must not overwrite each other. */
+    private fun uri(message: PushMessage, slot: Int): Uri =
+        Uri.parse("gatecontrol-push://message/${message.id}/${message.seq}/$slot")
+
+    private fun openIntent(message: PushMessage, action: PushAction?, slot: Int): PendingIntent {
+        val intent = PushOpenActivity.intent(context, message.id, action).setData(uri(message, slot))
+        return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    private fun receiverIntent(op: String, message: PushMessage, action: PushAction?, slot: Int): PendingIntent {
+        val intent = PushActionReceiver.intent(context, op, message.id, action).setData(uri(message, slot))
+        return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    // ─── Ongoing notification of the push service ───────────────────────
+
+    /** Text of the ongoing notification: VPN state + push state ("VPN verbunden · Mitteilungen empfangsbereit"). */
+    suspend fun ongoingText(vpnConnected: Boolean, status: PushStatus): String {
+        val ctx = localized()
+        val vpn = ctx.getString(if (vpnConnected) R.string.push_ongoing_vpn_on else R.string.push_ongoing_vpn_off)
+        val push = ctx.getString(
+            when (status) {
+                is PushStatus.Connected -> R.string.push_ongoing_ready
+                is PushStatus.Blocked -> R.string.push_ongoing_blocked
+                is PushStatus.Waiting -> R.string.push_ongoing_waiting
+                else -> R.string.push_ongoing_connecting
+            },
+        )
+        return "$vpn · $push"
+    }
+
+    suspend fun ongoing(text: String): Notification {
+        val ctx = localized()
+        createChannels(ctx, PushChannels.fixed())
+        val tap = PendingIntent.getActivity(
+            context, 0,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Builder(ctx, PushChannels.CONNECTION)
+            .setSmallIcon(R.drawable.ic_vpn_tile)
+            .setContentTitle(ctx.getString(R.string.app_name))
+            .setContentText(text)
+            .setOngoing(true)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFERRED)
+            .setContentIntent(tap)
+            .build()
+    }
+
+    fun updateOngoing(notification: Notification) {
+        post(ONGOING_ID, notification)
+    }
+
+    private fun post(id: Int, notification: Notification) {
+        if (!canPost()) return
+        try {
+            NotificationManagerCompat.from(context).notify(id, notification)
+        } catch (_: SecurityException) {
+            // Permission revoked between the check and the call: the inbox still has the message.
+        }
+    }
+
+    /** POST_NOTIFICATIONS exists from Android 13; before, posting needs no runtime permission. */
+    private fun canPost(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+}

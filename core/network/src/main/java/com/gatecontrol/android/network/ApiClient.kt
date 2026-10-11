@@ -8,6 +8,7 @@ import retrofit2.http.Header
 import retrofit2.http.HTTP
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -123,6 +124,25 @@ interface ApiClient {
         @Query("platform") platform: String = "android",
         @Query("client") client: String = "gatecontrol"
     ): UpdateCheckResponse
+
+    // ─── Notification center (push) ─────────────────────────────────
+    // The stream itself (GET api/v1/client/push) runs on its own client,
+    // see ApiClientProvider.streamingClient and core/notify.
+
+    @POST("api/v1/client/push/ack")
+    suspend fun pushAck(@Body request: PushAckRequest): SimpleResponse
+
+    @GET("api/v1/client/push/inbox")
+    suspend fun pushInbox(
+        @Query("limit") limit: Int = 100,
+        @Query("before") before: Long? = null,
+    ): PushInboxResponse
+
+    @PUT("api/v1/client/push/prefs")
+    suspend fun pushPrefs(@Body request: PushPrefsRequest): SimpleResponse
+
+    @POST("api/v1/client/push/test")
+    suspend fun pushTest(): PushTestResponse
 
     @GET("api/v1/pihole/summary")
     suspend fun getPiholeSummary(): PiholeSummaryResponse

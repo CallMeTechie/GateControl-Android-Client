@@ -11,6 +11,13 @@ sealed class Screen(val route: String) {
         fun create(tab: String? = null): String = if (tab == null) BASE else "$BASE?tab=$tab"
     }
     data object Settings : Screen("settings")
+    /** Notification center: inbox ("Mitteilungen") and one message. */
+    data object Inbox : Screen("inbox")
+    data object NotificationDetail : Screen("inbox/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long): String = "inbox/$id"
+    }
+    data object SettingsNotifications : Screen("settings/notifications")
     data object SettingsServer : Screen("settings/server")
     data object SplitTunnel : Screen("settings/split")
     data object Logs : Screen("settings/logs")

@@ -110,6 +110,7 @@ class MachineBindingMonitor @Inject constructor() : Interceptor {
             "/client/heartbeat", "/client/status", "/client/peer-info", "/client/config",
             "/client/config/check", "/client/traffic", "/client/policy", "/client/support-bundle",
             "/client/register", "/client/enroll",
+            "/client/push", "/client/push/ack", "/client/push/inbox", "/client/push/prefs",
         )
     }
 }

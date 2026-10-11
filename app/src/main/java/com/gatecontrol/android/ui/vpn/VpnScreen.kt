@@ -3,7 +3,14 @@ package com.gatecontrol.android.ui.vpn
 import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,6 +78,9 @@ fun VpnScreen(
     onOpenPihole: () -> Unit = {},
     onOpenSplitTunnel: () -> Unit = {},
     onOpenLogs: () -> Unit = {},
+    /** Unread messages of the notification center (bell badge). */
+    unreadCount: Int = 0,
+    onOpenInbox: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val extra = GateControlTheme.extraColors
@@ -208,6 +218,33 @@ fun VpnScreen(
             Column(Modifier.weight(1f)) {
                 Text("GateControl", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
                 Text(host, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
+            }
+            Box {
+                GcIconButton(
+                    icon = GcIcons.Bell,
+                    contentDescription = if (unreadCount > 0) stringResource(R.string.push_inbox_open, unreadCount)
+                    else stringResource(R.string.push_inbox_open_none),
+                    onClick = onOpenInbox,
+                )
+                if (unreadCount > 0) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 6.dp, end = 4.dp)
+                            .height(18.dp)
+                            .widthIn(min = 18.dp)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                            .padding(horizontal = 5.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (unreadCount > 99) "99+" else unreadCount.toString(),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                        )
+                    }
+                }
             }
             GcIconButton(
                 icon = if (effectivelyDark) GcIcons.Sun else GcIcons.Moon,

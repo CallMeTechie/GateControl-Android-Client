@@ -73,6 +73,36 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `push service is a non-exported specialUse service with its subtype`() {
+        val push = components("service").firstOrNull { it.androidAttr("name").endsWith("push.PushService") }
+        assertNotNull(push, "PushService must be declared")
+        assertEquals("false", push!!.androidAttr("exported"))
+        assertEquals("specialUse", push.androidAttr("foregroundServiceType"))
+        val props = push.getElementsByTagName("property")
+        val subtype = (0 until props.length).map { props.item(it) as Element }
+            .first { it.androidAttr("name") == "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" }
+        assertTrue(subtype.androidAttr("value").contains("without Google services"))
+    }
+
+    @Test
+    fun `push receiver and open activity are not exported`() {
+        val receiver = components("receiver").first { it.androidAttr("name").endsWith("PushActionReceiver") }
+        assertEquals("false", receiver.androidAttr("exported"))
+        assertEquals(0, receiver.getElementsByTagName("intent-filter").length)
+        val activity = components("activity").first { it.androidAttr("name").endsWith("PushOpenActivity") }
+        assertEquals("false", activity.androidAttr("exported"))
+        assertEquals(0, activity.getElementsByTagName("intent-filter").length)
+    }
+
+    @Test
+    fun `push permissions are declared`() {
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        assertTrue("android.permission.POST_NOTIFICATIONS" in permissions)
+        assertTrue("android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" in permissions)
+        assertTrue("android.permission.FOREGROUND_SERVICE_SPECIAL_USE" in permissions)
+    }
+
+    @Test
     fun `file provider only exposes the export directory`() {
         val xml = moduleFile("src/main/res/xml/file_paths.xml").readText()
         assertFalse(xml.contains("path=\".\""), "whole cache dir must not be shared")

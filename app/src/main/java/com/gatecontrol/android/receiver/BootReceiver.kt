@@ -7,6 +7,7 @@ import android.net.VpnService
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.push.PushController
 import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.service.TunnelConnector
 import com.gatecontrol.android.tunnel.TunnelManager
@@ -29,10 +30,14 @@ class BootReceiver : BroadcastReceiver() {
     @Inject lateinit var tunnelConnector: TunnelConnector
     @Inject lateinit var tunnelManager: TunnelManager
     @Inject lateinit var clientPolicyManager: ClientPolicyManager
+    @Inject lateinit var pushController: PushController
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         Timber.d("BootReceiver: BOOT_COMPLETED received")
+
+        // Notification center, mode "always": its foreground service may start from BOOT_COMPLETED.
+        runCatching { pushController.onBoot() }
 
         val pendingResult = goAsync()
 

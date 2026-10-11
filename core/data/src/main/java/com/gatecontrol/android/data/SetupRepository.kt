@@ -1,5 +1,8 @@
 package com.gatecontrol.android.data
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,6 +18,11 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
         private const val KEY_PORTAL_URL = "portal_url"
     }
 
+    private val _revision = MutableStateFlow(0L)
+
+    /** Bumped whenever server URL or token are saved or the setup is reset (never carries them). */
+    val revision: StateFlow<Long> = _revision.asStateFlow()
+
     fun save(serverUrl: String, apiToken: String, peerId: Int) {
         // Use synchronous commit (not apply) so the values are immediately
         // readable by AuthInterceptor when testConnection() calls ping()
@@ -25,6 +33,7 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
             KEY_API_TOKEN to apiToken,
             KEY_PEER_ID to peerId,
         )
+        _revision.value += 1
     }
 
     fun getServerUrl(): String = storage.getString(KEY_SERVER_URL, "")
@@ -58,5 +67,6 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
     /** Reset the setup. The device ID stays so machine binding survives a reset. */
     fun clear() {
         storage.clear(keep = setOf(MachineFingerprint.FALLBACK_KEY))
+        _revision.value += 1
     }
 }
