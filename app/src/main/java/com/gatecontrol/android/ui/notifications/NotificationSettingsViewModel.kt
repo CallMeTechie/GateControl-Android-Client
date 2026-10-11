@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 /** One topic row: switch on = messages of this topic are wanted on this device. */
@@ -100,6 +102,10 @@ class NotificationSettingsViewModel @Inject constructor(
 
     private val local = MutableStateFlow(Local(batteryRestricted = platform.isBatteryRestricted()))
     private val effects = Channel<SettingsEffect>(Channel.BUFFERED)
+
+    // Switch and mode dialog run one after the other: a switch-on still reading the
+    // store must not reopen the dialog the user has just confirmed.
+    private val switchLock = Mutex()
     val effect: Flow<SettingsEffect> = effects.receiveAsFlow()
 
     private val host: String = runCatching { java.net.URI(setupRepository.getServerUrl()).host }.getOrNull().orEmpty()
@@ -141,23 +147,27 @@ class NotificationSettingsViewModel @Inject constructor(
 
     fun setEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            if (enabled && !store.current().modeChosen) {
-                // Decision 2: on the first switch-on "Immer, auch ohne VPN" is proposed.
-                local.update { it.copy(modeDialogVisible = true) }
-                return@launch
+            switchLock.withLock {
+                if (enabled && !store.current().modeChosen) {
+                    // Decision 2: on the first switch-on "Immer, auch ohne VPN" is proposed.
+                    local.update { it.copy(modeDialogVisible = true) }
+                    return@launch
+                }
+                store.setEnabled(enabled)
+                if (enabled) afterEnable(store.current().mode)
             }
-            store.setEnabled(enabled)
-            if (enabled) afterEnable(store.current().mode)
         }
     }
 
     /** Mode picked in the first-time dialog: switches push on. */
     fun confirmMode(mode: PushMode) {
         viewModelScope.launch {
-            local.update { it.copy(modeDialogVisible = false) }
-            store.setMode(mode)
-            store.setEnabled(true)
-            afterEnable(mode)
+            switchLock.withLock {
+                local.update { it.copy(modeDialogVisible = false) }
+                store.setMode(mode)
+                store.setEnabled(true)
+                afterEnable(mode)
+            }
         }
     }
 
