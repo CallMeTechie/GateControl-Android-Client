@@ -129,6 +129,8 @@ class PushController @Inject constructor(
      */
     fun onForeground() {
         val scope = scope ?: return
+        // Notifications may just have been allowed: show the current state in the ongoing card.
+        notifier.repostOngoing()
         val d = lastDesired
         if (d != null && d.configured && d.enabled && d.mode == PushMode.ALWAYS && client.currentOwner() != PushService.OWNER) {
             apply(d)

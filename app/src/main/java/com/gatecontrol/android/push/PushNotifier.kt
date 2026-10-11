@@ -209,16 +209,33 @@ class PushNotifier @Inject constructor(
             .build()
     }
 
+    /** Last ongoing notification that could not be posted (no permission yet); see [repostOngoing]. */
+    @Volatile
+    private var pendingOngoing: Notification? = null
+
     fun updateOngoing(notification: Notification) {
-        post(ONGOING_ID, notification)
+        pendingOngoing = if (post(ONGOING_ID, notification)) null else notification
     }
 
-    private fun post(id: Int, notification: Notification) {
-        if (!canPost()) return
-        try {
+    /**
+     * Posts the latest ongoing notification again if it could not be posted
+     * before. On first setup the push service starts before Android allows
+     * notifications: the switch to "empfangsbereit" was dropped then, and the
+     * card kept saying "verbinden…" until the text changed again (VPN).
+     */
+    fun repostOngoing() {
+        pendingOngoing?.let { if (post(ONGOING_ID, it)) pendingOngoing = null }
+    }
+
+    /** True when the notification was handed to Android. */
+    private fun post(id: Int, notification: Notification): Boolean {
+        if (!canPost()) return false
+        return try {
             NotificationManagerCompat.from(context).notify(id, notification)
+            true
         } catch (_: SecurityException) {
             // Permission revoked between the check and the call: the inbox still has the message.
+            false
         }
     }
 

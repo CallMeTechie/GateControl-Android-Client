@@ -45,18 +45,26 @@ class PushControllerTest {
     }
     private lateinit var store: PushPrefsStore
     private lateinit var controller: PushController
+    private val notifier: PushNotifier = mockk(relaxed = true)
 
     @BeforeEach
     fun setUp() {
         store = PushPrefsStore(
             PreferenceDataStoreFactory.create(scope = scope, produceFile = { File(dir, "c.preferences_pb") }),
         )
-        controller = PushController(mockk<Context>(relaxed = true), store, client, repository, setup, tunnelManager, mockk(relaxed = true))
+        controller = PushController(mockk<Context>(relaxed = true), store, client, repository, setup, tunnelManager, notifier)
     }
 
     @AfterEach
     fun tearDown() {
         scope.cancel()
+    }
+
+    @Test
+    fun `coming to the foreground reposts an ongoing card that could not be shown`() {
+        controller.start(scope)
+        controller.onForeground()
+        verify { notifier.repostOngoing() }
     }
 
     @Test
