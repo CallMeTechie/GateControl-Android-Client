@@ -457,4 +457,16 @@
     <string name="push_settings_row_off">Aus – zum Einrichten tippen</string>
     <string name="push_mode_short_always">immer</string>
     <string name="push_mode_short_vpn">nur mit VPN</string>
+
+    <!-- Home-screen widget -->
+    <string name="widget_label">GateControl VPN</string>
+    <string name="widget_description">VPN-Status mit Verbinden-Knopf und deinen ungelesenen Mitteilungen</string>
+    <string name="widget_title">GateControl</string>
+    <string name="widget_connected">VPN verbunden</string>
+    <string name="widget_disconnected">VPN aus</string>
+    <string name="widget_connecting">Verbinde…</string>
+    <string name="widget_disconnecting">Trenne…</string>
+    <string name="widget_error">VPN-Fehler</string>
+    <string name="widget_connect">Verbinden</string>
+    <string name="widget_disconnect">Trennen</string>
 </resources>

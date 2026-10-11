@@ -60,6 +60,14 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start TunnelSupervisor")
         }
 
+        // Home-screen widget: redraw on VPN, inbox and policy changes.
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.widget.VpnWidget.WidgetEntryPoint::class.java)
+                .widgetState().start()
+        } catch (e: Throwable) {
+            Timber.e(e, "Failed to start the widget state")
+        }
+
         // Initialize FreeRDP's GlobalApp.sessionMap, which is normally set in
         // GlobalApp.onCreate(). Since GateControlApp extends Application (Hilt
         // requirement), not GlobalApp, that lifecycle never fires. Without this,
