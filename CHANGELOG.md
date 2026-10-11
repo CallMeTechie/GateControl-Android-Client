@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0] - 2026-10-11
+
+### Features
+- the bell shows when notifications are off (#52)
+
+---
+
 ## [1.18.1] - 2026-10-11
 
 ### Fixes
