@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.1] - 2026-10-11
+
+### Fixes
+- info messages show on the lock screen (#53)
+
+---
+
 ## [1.19.0] - 2026-10-11
 
 ### Features
