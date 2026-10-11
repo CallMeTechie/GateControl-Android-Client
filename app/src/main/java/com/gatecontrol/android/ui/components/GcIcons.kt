@@ -85,4 +85,8 @@ object GcIcons {
     val BellOff = icon("BellOff", 2f, "M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5", "M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7", "M10.3 21a1.94 1.94 0 0 0 3.4 0", "M2 2l20 20")
     val Home = icon("Home", 2f, "M3 10l9-7 9 7v11H3z")
     val Battery = icon("Battery", 2f, rect(2f, 7f, 16f, 10f, 2f), "M22 11v2")
+    val Wifi = icon(
+        "Wifi", 2f,
+        "M2 8.8a15 15 0 0 1 20 0", "M5 12.9a10 10 0 0 1 14 0", "M8.5 16.4a5 5 0 0 1 7 0", "M12 20h.01",
+    )
 }

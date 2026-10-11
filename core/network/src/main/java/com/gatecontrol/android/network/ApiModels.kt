@@ -299,6 +299,21 @@ data class ClientPolicyPayload(
     val lockServer: Boolean? = null,
 )
 
+/**
+ * Reply to /client/home-network. [sameLan] is true only for a request
+ * through the VPN tunnel whose WireGuard endpoint lies inside the server's
+ * LAN; a direct request always gets false (a reverse proxy or SNAT router
+ * can make internet clients look like LAN sources). Missing on servers
+ * that predate it.
+ */
+data class HomeNetworkResponse(
+    val ok: Boolean = false,
+    val lan: List<String>? = null,
+    @SerializedName("same_lan") val sameLan: Boolean? = null,
+    /** "tunnel" or "direct": how the request reached the server. */
+    val via: String? = null,
+)
+
 data class SupportBundleUploadResponse(
     val ok: Boolean,
     val bundle: SupportBundleInfo? = null,

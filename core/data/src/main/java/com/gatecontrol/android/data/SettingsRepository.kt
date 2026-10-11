@@ -6,10 +6,23 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * "Vertrauenswürdige WLANs": in a trusted WLAN the VPN disconnects, outside
+ * it connects again. [lastActedKey] is the network identity the monitor
+ * last handled — it only acts when the identity changes.
+ */
+data class TrustedNetworkSettings(
+    val enabled: Boolean = false,
+    val homeEnabled: Boolean = true,
+    val ssids: Set<String> = emptySet(),
+    val lastActedKey: String? = null,
+)
 
 @Singleton
 class SettingsRepository @Inject constructor(private val dataStore: DataStore<Preferences>) {
@@ -26,6 +39,11 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val SPLIT_TUNNEL_NETWORKS = stringPreferencesKey("split_tunnel_networks")
         val SPLIT_TUNNEL_APPS_V2 = stringPreferencesKey("split_tunnel_apps_v2")
         val SPLIT_TUNNEL_ADMIN_LOCKED = booleanPreferencesKey("split_tunnel_admin_locked")
+        // Trusted WLANs
+        val TRUSTED_NET_ENABLED = booleanPreferencesKey("trusted_net_enabled")
+        val TRUSTED_NET_HOME_ENABLED = booleanPreferencesKey("trusted_net_home_enabled")
+        val TRUSTED_NET_SSIDS = stringSetPreferencesKey("trusted_net_ssids")
+        val TRUSTED_NET_LAST_KEY = stringPreferencesKey("trusted_net_last_key")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -61,6 +79,36 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     fun getSplitTunnelAdminLocked(): Flow<Boolean> =
         dataStore.data.map { it[SPLIT_TUNNEL_ADMIN_LOCKED] ?: false }
+
+    fun getTrustedNetworkSettings(): Flow<TrustedNetworkSettings> = dataStore.data.map { prefs ->
+        TrustedNetworkSettings(
+            enabled = prefs[TRUSTED_NET_ENABLED] ?: false,
+            homeEnabled = prefs[TRUSTED_NET_HOME_ENABLED] ?: true,
+            ssids = prefs[TRUSTED_NET_SSIDS] ?: emptySet(),
+            lastActedKey = prefs[TRUSTED_NET_LAST_KEY],
+        )
+    }
+
+    suspend fun setTrustedNetworksEnabled(value: Boolean) {
+        dataStore.edit { it[TRUSTED_NET_ENABLED] = value }
+    }
+
+    suspend fun setTrustedHomeEnabled(value: Boolean) {
+        dataStore.edit { it[TRUSTED_NET_HOME_ENABLED] = value }
+    }
+
+    suspend fun setTrustedSsids(ssids: Set<String>) {
+        dataStore.edit { it[TRUSTED_NET_SSIDS] = ssids }
+    }
+
+    /** Atomic add / remove, so two quick edits never overwrite each other. */
+    suspend fun updateTrustedSsids(transform: (Set<String>) -> Set<String>) {
+        dataStore.edit { it[TRUSTED_NET_SSIDS] = transform(it[TRUSTED_NET_SSIDS] ?: emptySet()) }
+    }
+
+    suspend fun setTrustedLastActedKey(key: String) {
+        dataStore.edit { it[TRUSTED_NET_LAST_KEY] = key }
+    }
 
 
 

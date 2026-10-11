@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.gatecontrol.android.service.TunnelStateHolder
 import com.gatecontrol.android.service.TunnelSupervisor
+import com.gatecontrol.android.trustednet.TrustedNetworkMonitor
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -60,6 +61,13 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start TunnelSupervisor")
         }
 
+        // Trusted WLANs: disconnect in a trusted WLAN, connect again outside it.
+        try {
+            EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).trustedNetworkMonitor().start()
+        } catch (e: Throwable) {
+            Timber.e(e, "Failed to start the trusted-network monitor")
+        }
+
         // Home-screen widget: redraw on VPN, inbox and policy changes.
         try {
             EntryPointAccessors.fromApplication(this, com.gatecontrol.android.widget.VpnWidget.WidgetEntryPoint::class.java)
@@ -92,6 +100,7 @@ class GateControlApp : Application() {
     @InstallIn(SingletonComponent::class)
     interface TileEntryPoint {
         fun tunnelSupervisor(): TunnelSupervisor
+        fun trustedNetworkMonitor(): TrustedNetworkMonitor
     }
 
     private fun installCrashLogger(context: Context) {
