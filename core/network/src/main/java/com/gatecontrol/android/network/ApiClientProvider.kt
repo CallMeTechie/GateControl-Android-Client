@@ -151,6 +151,20 @@ class ApiClientProvider @Inject constructor(
         }
     }
 
+    /**
+     * Client for long-lived streams (push, `GET /api/v1/client/push`): the
+     * same DNS, interceptors (token, client headers, machine binding) and
+     * connect timeout as [getClient], but no read timeout — the stream is
+     * idle between events. Dead connections are detected by the caller
+     * (keepalive watchdog in core/notify).
+     */
+    fun streamingClient(baseUrl: String): OkHttpClient {
+        val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        return buildOkHttpClient(normalizedUrl).newBuilder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+    }
+
     private fun buildClient(baseUrl: String): ApiClient {
         val okHttpClient = buildOkHttpClient(baseUrl)
 
