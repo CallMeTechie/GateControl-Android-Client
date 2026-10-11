@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.2] - 2026-10-11
+
+### Fixes
+- every stream attempt on a fresh connection (#54)
+
+---
+
 ## [1.19.1] - 2026-10-11
 
 ### Fixes
