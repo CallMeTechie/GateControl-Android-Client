@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Notification center: "GateControl ausnehmen" asks to be exempted from
+         battery optimisation so the push connection survives Doze. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Query all launchable apps for split-tunnel app picker -->
     <queries>
@@ -100,6 +103,32 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a user-started remote desktop (RDP) session connected while the session screen is in the background." />
         </service>
+
+        <!-- Notification center (mode "always"): holds the push connection
+             to the user's own server. Started only by the app itself. -->
+        <service
+            android:name=".push.PushService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a persistent connection to the user's own GateControl server to receive notifications without Google services (no FCM)." />
+        </service>
+
+        <!-- Notification buttons and swipe-away of push messages. NOT exported:
+             only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".push.PushActionReceiver"
+            android:exported="false" />
+
+        <!-- Opens a tapped push message (detail, app route, portal). NOT
+             exported, so MainActivity keeps acting on no intent extras. -->
+        <activity
+            android:name=".push.PushOpenActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GateControl.TileAction" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

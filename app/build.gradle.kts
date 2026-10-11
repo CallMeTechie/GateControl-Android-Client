@@ -108,6 +108,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:data"))
     implementation(project(":core:network"))
+    implementation(project(":core:notify"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:rdp"))
 
@@ -153,6 +154,10 @@ dependencies {
 
     // Retrofit (needed for HttpException in error handling)
     implementation(libs.retrofit)
+    implementation(libs.okhttp)
+
+    // DataStore (push settings in tests)
+    implementation(libs.datastore.preferences)
 
     // Logging
     implementation(libs.timber)

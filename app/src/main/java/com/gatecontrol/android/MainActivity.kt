@@ -18,6 +18,7 @@ import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.navigation.AppNavigation
+import com.gatecontrol.android.push.PushController
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var setupRepository: SetupRepository
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var licenseRepository: LicenseRepository
+    @Inject lateinit var pushController: PushController
 
     /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
     private var pendingSetupLink by mutableStateOf<String?>(null)
@@ -83,6 +85,13 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Battery-optimisation state may have changed in the system settings;
+        // a push service refused in the background can start now.
+        pushController.onForeground()
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -7,6 +7,7 @@ import com.gatecontrol.android.common.HostnameSanitizer
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HeartbeatRequest
+import com.gatecontrol.android.push.PushController
 import com.gatecontrol.android.support.SupportRequestHolder
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelMonitor
@@ -29,7 +30,8 @@ import javax.inject.Singleton
  * - answers Android's "Always-on VPN" start (boot, lockdown mode) by
  *   connecting with the user's settings,
  * - runs [TunnelMonitor] while connected and reconnects a dead tunnel,
- * - keeps the Quick Settings tile in sync with the real tunnel state.
+ * - keeps the Quick Settings tile in sync with the real tunnel state,
+ * - hosts the push client of the notification center (see PushController).
  *
  * Started once from [com.gatecontrol.android.GateControlApp.onCreate].
  */
@@ -42,6 +44,7 @@ class TunnelSupervisor @Inject constructor(
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
     private val clientPolicyManager: ClientPolicyManager,
+    private val pushController: PushController,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var started = false
@@ -50,6 +53,10 @@ class TunnelSupervisor @Inject constructor(
     fun start() {
         if (started) return
         started = true
+
+        // Notification center: own service (mode "always") or, in mode
+        // "only with VPN", the push client runs in this scope while connected.
+        pushController.start(scope)
 
         tunnelManager.setAlwaysOnHandler {
             Timber.i("Always-on VPN start requested by the system")
