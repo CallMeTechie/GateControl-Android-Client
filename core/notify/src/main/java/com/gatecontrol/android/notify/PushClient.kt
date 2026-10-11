@@ -26,8 +26,12 @@ sealed interface PushStatus {
 
     data object Connecting : PushStatus
 
-    /** Stream open since [since] (epoch ms); [via] = direct | tunnel as the server sees it. */
-    data class Connected(val via: String, val since: Long) : PushStatus
+    /**
+     * Stream open since [since] (epoch ms); [via] = direct | tunnel as the
+     * server sees it. [serverControl]: the server sent `hello.state`, so it
+     * also pushes `control` events — the heartbeat may slow down.
+     */
+    data class Connected(val via: String, val since: Long, val serverControl: Boolean = false) : PushStatus
 
     /** Next attempt at [retryAt] (epoch ms). */
     data class Waiting(val retryAt: Long, val reason: WaitReason) : PushStatus
@@ -50,6 +54,7 @@ class PushClient @Inject constructor(
     private val store: PushPrefsStore,
     private val repository: PushRepository,
     private val platform: PushPlatform,
+    private val control: ServerControlSink,
 ) {
     private data class Kick(val reason: String, val force: Boolean)
 
@@ -59,6 +64,19 @@ class PushClient @Inject constructor(
 
     private val _status = MutableStateFlow<PushStatus>(PushStatus.Off)
     val status: StateFlow<PushStatus> = _status.asStateFlow()
+
+    /**
+     * True while the stream is open to a server that pushes `control`
+     * events (it sent `hello.state`). Then polling for policy, peer state and
+     * support requests is only a fallback.
+     */
+    private val _controlLive = MutableStateFlow(false)
+    val controlLive: StateFlow<Boolean> = _controlLive.asStateFlow()
+
+    private fun setStatus(value: PushStatus) {
+        _status.value = value
+        _controlLive.value = value is PushStatus.Connected && value.serverControl
+    }
 
     private val kicks = Channel<Kick>(Channel.CONFLATED)
     private val lock = Any()
@@ -88,12 +106,12 @@ class PushClient @Inject constructor(
             job = null
             this.owner = null
         }
-        _status.value = idle
+        setStatus(idle)
     }
 
     /** Status while nobody runs the client (e.g. waiting for the VPN). */
     fun setIdleStatus(idle: PushStatus) {
-        if (!isRunning) _status.value = idle
+        if (!isRunning) setStatus(idle)
     }
 
     /**
@@ -121,13 +139,13 @@ class PushClient @Inject constructor(
             val url = endpoint.serverUrl()
             val base = url.takeIf { it.isNotEmpty() }?.let { (if (it.endsWith("/")) it else "$it/").toHttpUrlOrNull() }
             if (base == null) {
-                _status.value = PushStatus.Off
+                setStatus(PushStatus.Off)
                 kicks.receive()
                 continue
             }
             if (store.bindServer(url)) repository.inbox.clear()
 
-            _status.value = PushStatus.Connecting
+            setStatus(PushStatus.Connecting)
             val outcome = connectOnce(url, base, runScope)
             if (outcome is StreamOutcome.Kicked ||
                 (outcome is StreamOutcome.Ended && outcome.openForMs >= PushRetryPolicy.STABLE_MS)
@@ -139,11 +157,11 @@ class PushClient @Inject constructor(
             Timber.i("Push: stream ended (%s) → %s", outcome.logName(), decision)
             when (decision) {
                 is RetryDecision.After -> if (decision.delayMs > 0) {
-                    _status.value = PushStatus.Waiting(clock() + decision.delayMs, decision.reason)
+                    setStatus(PushStatus.Waiting(clock() + decision.delayMs, decision.reason))
                     waitForRetry(decision)
                 }
                 is RetryDecision.Blocked -> {
-                    _status.value = PushStatus.Blocked(decision.reason)
+                    setStatus(PushStatus.Blocked(decision.reason))
                     val blockedFor = endpoint.credentialKey()
                     while (true) {
                         val k = kicks.receive()
@@ -178,8 +196,12 @@ class PushClient @Inject constructor(
                     when (event) {
                         is PushEvent.Hello -> {
                             via = event.via
-                            _status.value = PushStatus.Connected(event.via, clock())
+                            setStatus(PushStatus.Connected(event.via, clock(), serverControl = event.state != null))
                             repository.onHello(event)
+                            event.state?.let { state ->
+                                runCatching { control.onServerState(state) }
+                                    .onFailure { Timber.w("Push: server state not applied (%s)", it.javaClass.simpleName) }
+                            }
                             sideJob?.cancel()
                             sideJob = runScope.launch { repository.afterConnect() }
                         }
@@ -187,6 +209,11 @@ class PushClient @Inject constructor(
                             repository.onNotification(event.message.copy(receivedAt = clock(), via = via))
                         is PushEvent.Read -> repository.onRead(event.ids)
                         is PushEvent.Revoke -> repository.onRevoke(event.ids)
+                        is PushEvent.Control -> {
+                            Timber.i("Push: control %s", event.control.javaClass.simpleName)
+                            runCatching { control.onControl(event.control) }
+                                .onFailure { Timber.w("Push: control not applied (%s)", it.javaClass.simpleName) }
+                        }
                         is PushEvent.Ignored -> Timber.d("Push: event %s ignored (%s)", event.type, event.reason)
                     }
                 },

@@ -11,6 +11,7 @@ import com.gatecontrol.android.network.HostnameReportRequest
 import com.gatecontrol.android.tunnel.SplitTunnelConfig
 import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.TunnelManager
+import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import kotlinx.coroutines.flow.first
 import timber.log.Timber
@@ -73,6 +74,27 @@ class TunnelConnector @Inject constructor(
             Timber.e(e, "TunnelConnector: connect failed")
             false
         }
+    }
+
+    /**
+     * The server said the peer's config changed (push `config_changed`, or
+     * `hello.state.config_hash` differs from the stored hash): run the same
+     * config check as before a connect now. The new config is stored; a
+     * connected tunnel is brought up again with it through the normal
+     * connect path (split tunnel, policy). Returns true when a new config
+     * was stored.
+     */
+    suspend fun syncConfigFromServer(): Boolean {
+        val serverUrl = setupRepository.getServerUrl()
+        val current = setupRepository.getWireGuardConfig()
+        if (serverUrl.isEmpty() || current.isEmpty()) return false
+        val fresh = refreshConfig(serverUrl, current)
+        if (fresh == current) return false
+        if (tunnelManager.state.value is TunnelState.Connected) {
+            Timber.i("TunnelConnector: applying the new config to the running tunnel")
+            connectWithUserSettings()
+        }
+        return true
     }
 
     /**

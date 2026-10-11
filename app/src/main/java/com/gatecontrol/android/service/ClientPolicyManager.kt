@@ -29,7 +29,8 @@ import javax.inject.Singleton
  * - [refresh] asks the server (If-None-Match with the cached version, 304 =
  *   unchanged). Any failure keeps the last known policy.
  * - [noteVersion] is fed with the policyVersion of heartbeat/permissions
- *   answers and refreshes when it differs.
+ *   answers and refreshes when it differs; the push stream's control
+ *   events refresh right away (see ServerControlHandler).
  * - [applyToSettings] forces the stored settings the policy fixes
  *   (auto-connect, allowed split-tunnel mode).
  */
@@ -101,6 +102,19 @@ class ClientPolicyManager @Inject constructor(
 
     fun refreshAsync() {
         launchSafely { refresh() }
+    }
+
+    /**
+     * The push stream named a policy version (`hello.state`, `control`): the
+     * same opaque value as the heartbeat's policyVersion and the ETag.
+     * Refresh unless it is the cached one (null = unknown → refresh); the
+     * refresh itself is conditional (304 when unchanged).
+     */
+    fun refreshUnlessCurrentAsync(version: String?) {
+        launchSafely {
+            if (version != null && repository.current()?.version == version) return@launchSafely
+            refresh()
+        }
     }
 
     /** New server / token: the old server's policy must not stick. */

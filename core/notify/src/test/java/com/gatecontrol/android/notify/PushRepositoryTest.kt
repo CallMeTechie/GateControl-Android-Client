@@ -4,6 +4,7 @@ import com.gatecontrol.android.notify.model.PushAction
 import com.gatecontrol.android.notify.model.PushActionType
 import com.gatecontrol.android.notify.model.PushState
 import com.google.gson.JsonParser
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -27,6 +28,7 @@ class PushRepositoryTest {
     private val requests = CopyOnWriteArrayList<Pair<String, String>>()
     @Volatile private var ackStatus = 200
     @Volatile private var inboxBody = """{"ok":true,"items":[],"unread":0}"""
+    @Volatile private var prefsGet: MockResponse = MockResponse().setBody("""{"ok":true,"enabled":true}""")
 
     private lateinit var store: PushPrefsStore
     private lateinit var inbox: InboxCache
@@ -44,6 +46,7 @@ class PushRepositoryTest {
                 return when {
                     path.startsWith("/api/v1/client/push/ack") -> MockResponse().setResponseCode(ackStatus).setBody("""{"ok":${ackStatus == 200}}""")
                     path.startsWith("/api/v1/client/push/inbox") -> MockResponse().setBody(inboxBody)
+                    path.startsWith("/api/v1/client/push/prefs") && request.method == "GET" -> prefsGet
                     path.startsWith("/api/v1/client/push/prefs") -> MockResponse().setBody("""{"ok":true}""")
                     path.startsWith("/api/v1/client/push/test") -> MockResponse().setBody("""{"ok":true,"seq":130}""")
                     else -> MockResponse().setResponseCode(404)
@@ -219,5 +222,30 @@ class PushRepositoryTest {
     @Test
     fun `test message returns its seq`() = runBlocking {
         assertEquals(130L, repo.requestTest().getOrNull())
+    }
+
+    @Test
+    fun `quiet hours come from GET push prefs and older servers change nothing`() = runBlocking {
+        prefsGet = MockResponse().setBody(
+            """{"ok":true,"enabled":true,"mode":"always","muted_topics":[],"restricted":false,
+               "quiet":{"from":"22:00","to":"07:00","tz":"Europe/Berlin","critical_bypass":false}}""",
+        )
+        assertTrue(repo.refreshQuiet())
+        val known = store.quiet.first()
+        assertEquals("07:00", known.hours?.to)
+        assertFalse(known.hours!!.criticalBypass)
+        assertTrue(requests.any { it.first == "/api/v1/client/push/prefs" })
+
+        // Server without quiet hours (field missing) or without the route: what is known stays.
+        prefsGet = MockResponse().setBody("""{"ok":true,"enabled":true}""")
+        assertFalse(repo.refreshQuiet())
+        prefsGet = MockResponse().setResponseCode(404)
+        assertFalse(repo.refreshQuiet())
+        assertEquals(known, store.quiet.first())
+
+        // Removed in the portal: none.
+        prefsGet = MockResponse().setBody("""{"ok":true,"quiet":null}""")
+        assertTrue(repo.refreshQuiet())
+        assertEquals(com.gatecontrol.android.notify.model.QuietInfo.NONE, store.quiet.first())
     }
 }

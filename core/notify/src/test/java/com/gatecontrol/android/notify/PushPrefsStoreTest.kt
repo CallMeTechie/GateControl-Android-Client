@@ -1,5 +1,8 @@
 package com.gatecontrol.android.notify
 
+import com.gatecontrol.android.notify.model.QuietHours
+import com.gatecontrol.android.notify.model.QuietInfo
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -61,5 +64,22 @@ class PushPrefsStoreTest {
         assertTrue(s.isLocallyMuted("devices", 1_500))
         assertFalse(s.isLocallyMuted("devices", 2_500))
         assertFalse(s.isLocallyMuted("services", 1_500))
+    }
+
+    @Test
+    fun `quiet hours are kept per server and unknown values change nothing`() = runBlocking {
+        val store = testStore(dir)
+        store.bindServer("https://a.example.com")
+        assertEquals(QuietInfo.UNKNOWN, store.quiet.first())
+        val hours = QuietInfo(true, QuietHours("22:00", "07:00", "Europe/Berlin", true))
+        store.saveQuiet(hours)
+        assertEquals(hours, store.quiet.first())
+        store.saveQuiet(QuietInfo.UNKNOWN)
+        assertEquals(hours, store.quiet.first())
+        store.saveQuiet(QuietInfo.NONE)
+        assertEquals(QuietInfo.NONE, store.quiet.first())
+        store.saveQuiet(hours)
+        store.bindServer("https://b.example.com")
+        assertEquals(QuietInfo.UNKNOWN, store.quiet.first())
     }
 }

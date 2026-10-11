@@ -8,9 +8,14 @@ import timber.log.Timber
 /** Upper bound for the portal-link request before falling back to the plain portal URL. */
 const val PORTAL_LINK_TIMEOUT_MS = 5_000L
 
+/** The server ignores longer portal targets (`next`). */
+private const val MAX_NEXT_LENGTH = 100
+
 /**
  * Fetches a fresh one-time automatic login link for the portal
- * (`POST /api/v1/client/portal-link`).
+ * (`POST /api/v1/client/portal-link`), optionally landing on the portal
+ * tab [next] (`/portal#benachrichtigungen`; checked by the server, ignored
+ * by servers that predate it).
  *
  * Returns the link, or null when the caller has to fall back to the plain
  * [portalUrl]: non-2xx status, network error, no answer within [timeoutMs],
@@ -22,9 +27,11 @@ const val PORTAL_LINK_TIMEOUT_MS = 5_000L
 suspend fun ApiClient.getPortalLink(
     portalUrl: String,
     timeoutMs: Long = PORTAL_LINK_TIMEOUT_MS,
+    next: String? = null,
 ): String? {
+    val target = next?.trim()?.takeIf { it.startsWith("/") && !it.startsWith("//") && it.length <= MAX_NEXT_LENGTH }
     val response = try {
-        withTimeoutOrNull(timeoutMs) { requestPortalLink() }
+        withTimeoutOrNull(timeoutMs) { requestPortalLink(PortalLinkRequest(next = target)) }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {

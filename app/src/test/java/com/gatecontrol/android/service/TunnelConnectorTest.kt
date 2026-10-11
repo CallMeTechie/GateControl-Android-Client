@@ -154,4 +154,49 @@ class TunnelConnectorTest {
 
         coVerify { tunnelManager.connect(OLD_CONFIG, SplitTunnelConfig()) }
     }
+
+    // --- config_changed (push) ---
+
+    @Test
+    fun `pushed config change is stored and applied to a running tunnel`() = runTest {
+        every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(
+            com.gatecontrol.android.tunnel.TunnelState.Connected(connectedSince = 1L),
+        )
+        coEvery { apiClient.checkConfigUpdate(PEER_ID, STORED_HASH) } returns
+            ConfigCheckResponse(ok = true, updated = true, config = NEW_CONFIG, hash = "hash-new")
+
+        assertTrue(connector.syncConfigFromServer())
+
+        verify { setupRepository.saveWireGuardConfig(NEW_CONFIG) }
+        verify { setupRepository.saveConfigHash("hash-new") }
+        coVerify { tunnelManager.connect(NEW_CONFIG, any<SplitTunnelConfig>()) }
+    }
+
+    @Test
+    fun `pushed config change without a tunnel is only stored`() = runTest {
+        every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(
+            com.gatecontrol.android.tunnel.TunnelState.Disconnected,
+        )
+        coEvery { apiClient.checkConfigUpdate(PEER_ID, STORED_HASH) } returns
+            ConfigCheckResponse(ok = true, updated = true, config = NEW_CONFIG, hash = "hash-new")
+
+        assertTrue(connector.syncConfigFromServer())
+
+        verify { setupRepository.saveWireGuardConfig(NEW_CONFIG) }
+        coVerify(exactly = 0) { tunnelManager.connect(any(), any<SplitTunnelConfig>()) }
+    }
+
+    @Test
+    fun `pushed config change that the server does not confirm changes nothing`() = runTest {
+        every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(
+            com.gatecontrol.android.tunnel.TunnelState.Connected(connectedSince = 1L),
+        )
+        coEvery { apiClient.checkConfigUpdate(PEER_ID, STORED_HASH) } returns
+            ConfigCheckResponse(ok = true, updated = false, config = null, hash = STORED_HASH)
+
+        org.junit.jupiter.api.Assertions.assertFalse(connector.syncConfigFromServer())
+
+        coVerify(exactly = 0) { tunnelManager.connect(any(), any<SplitTunnelConfig>()) }
+        verify(exactly = 0) { setupRepository.saveWireGuardConfig(any()) }
+    }
 }

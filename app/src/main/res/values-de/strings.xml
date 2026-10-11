@@ -440,6 +440,11 @@
     <string name="push_section_quiet">Ruhezeiten</string>
     <string name="push_quiet_desc">Ruhezeiten legst du im Portal fest; sie gelten für alle deine Geräte. In der Ruhezeit kommen Mitteilungen still an, Kritisches meldet sich trotzdem, außer du hast das abgeschaltet.</string>
     <string name="push_quiet_open_portal">Im Portal ändern</string>
+    <string name="push_quiet_window">Ruhezeit</string>
+    <string name="push_quiet_range">%1$s – %2$s</string>
+    <string name="push_quiet_zone">Zeitzone %1$s</string>
+    <string name="push_quiet_none">keine</string>
+    <string name="push_quiet_critical">Kritisches trotzdem melden</string>
     <string name="push_mode_dialog_title">Wie sollen Mitteilungen ankommen?</string>
     <string name="push_mode_dialog_text">Empfohlen: immer, auch ohne VPN. GateControl hält dann eine eigene Verbindung zu deinem Server und bittet um eine Ausnahme von der Akkuoptimierung.</string>
     <string name="push_mode_dialog_always">Immer (empfohlen)</string>

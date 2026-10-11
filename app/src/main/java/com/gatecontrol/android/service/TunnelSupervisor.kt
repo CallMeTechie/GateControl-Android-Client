@@ -7,18 +7,17 @@ import com.gatecontrol.android.common.HostnameSanitizer
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HeartbeatRequest
+import com.gatecontrol.android.notify.PushClient
 import com.gatecontrol.android.push.PushController
-import com.gatecontrol.android.support.SupportRequestHolder
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelMonitor
 import com.gatecontrol.android.tunnel.TunnelState
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -31,7 +30,8 @@ import javax.inject.Singleton
  *   connecting with the user's settings,
  * - runs [TunnelMonitor] while connected and reconnects a dead tunnel,
  * - keeps the Quick Settings tile in sync with the real tunnel state,
- * - hosts the push client of the notification center (see PushController).
+ * - hosts the push client of the notification center (see PushController),
+ * - sends the heartbeat while connected (see [startHeartbeat]).
  *
  * Started once from [com.gatecontrol.android.GateControlApp.onCreate].
  */
@@ -45,6 +45,8 @@ class TunnelSupervisor @Inject constructor(
     private val apiClientProvider: ApiClientProvider,
     private val clientPolicyManager: ClientPolicyManager,
     private val pushController: PushController,
+    private val pushClient: PushClient,
+    private val serverControl: ServerControlHandler,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var started = false
@@ -82,6 +84,7 @@ class TunnelSupervisor @Inject constructor(
                 refreshTile()
                 when (state) {
                     is TunnelState.Connected -> {
+                        PeerStateHolder.clear()
                         if (!tunnelMonitor.isRunning) startMonitor()
                         if (heartbeatJob?.isActive != true) startHeartbeat(state.connectedSince)
                     }
@@ -158,42 +161,43 @@ class TunnelSupervisor @Inject constructor(
 
     /**
      * Report to the server while connected (last seen, traffic, hostname), the
-     * same heartbeat the desktop clients send. When the server answers that
-     * the peer was disabled, the tunnel is closed — also without the app open.
+     * same heartbeat the desktop clients send. The answer drives policy,
+     * support requests and "peer disabled" ([ServerControlHandler]) — also
+     * without the app open. First one right after connecting, then every
+     * 60 s, or every 15 min while the push stream delivers those changes
+     * itself ([HeartbeatScheduler]).
      */
     private fun startHeartbeat(connectedSince: Long) {
         heartbeatJob = scope.launch {
-            while (isActive) {
-                delay(HEARTBEAT_INTERVAL_MS)
-                if (tunnelManager.state.value !is TunnelState.Connected) continue
-                val peerId = setupRepository.getPeerId()
-                val serverUrl = setupRepository.getServerUrl()
-                if (peerId <= 0 || serverUrl.isEmpty()) continue
-                try {
-                    val stats = tunnelManager.stats.value
-                    val response = apiClientProvider.getClient(serverUrl).sendHeartbeat(
-                        HeartbeatRequest(
-                            peerId = peerId,
-                            connected = true,
-                            rxBytes = stats.rxBytes,
-                            txBytes = stats.txBytes,
-                            uptime = (System.currentTimeMillis() - connectedSince) / 1000,
-                            hostname = HostnameSanitizer.sanitize(android.os.Build.MODEL).orEmpty(),
-                        ),
-                    )
-                    clientPolicyManager.noteVersionAsync(response.policyVersion)
-                    // Admin asked for a support bundle: Settings shows it,
-                    // nothing is sent without the user's confirmation.
-                    if (response.ok) SupportRequestHolder.update(response.supportBundleRequested, response.supportBundleRequestedAt)
-                    if (response.ok && response.peerEnabled == false) {
-                        Timber.w("Peer disabled on server — disconnecting tunnel")
-                        tunnelManager.disconnect()
-                        apiClientProvider.clearDnsCache()
-                    }
-                } catch (e: Exception) {
-                    Timber.d("Heartbeat failed: %s", e.message)
-                }
-            }
+            HeartbeatScheduler(pushClient.controlLive).run { sendHeartbeat(connectedSince) }
+        }
+    }
+
+    /** One heartbeat; true when the server answered. */
+    private suspend fun sendHeartbeat(connectedSince: Long): Boolean {
+        if (tunnelManager.state.value !is TunnelState.Connected) return false
+        val peerId = setupRepository.getPeerId()
+        val serverUrl = setupRepository.getServerUrl()
+        if (peerId <= 0 || serverUrl.isEmpty()) return false
+        return try {
+            val stats = tunnelManager.stats.value
+            val response = apiClientProvider.getClient(serverUrl).sendHeartbeat(
+                HeartbeatRequest(
+                    peerId = peerId,
+                    connected = true,
+                    rxBytes = stats.rxBytes,
+                    txBytes = stats.txBytes,
+                    uptime = (System.currentTimeMillis() - connectedSince) / 1000,
+                    hostname = HostnameSanitizer.sanitize(android.os.Build.MODEL).orEmpty(),
+                ),
+            )
+            serverControl.onHeartbeat(response)
+            response.ok
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Heartbeat failed: %s", e.message)
+            false
         }
     }
 
@@ -207,7 +211,4 @@ class TunnelSupervisor @Inject constructor(
         }
     }
 
-    private companion object {
-        const val HEARTBEAT_INTERVAL_MS = 60_000L
-    }
 }

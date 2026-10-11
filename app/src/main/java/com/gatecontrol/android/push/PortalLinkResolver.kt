@@ -10,11 +10,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * URL for `open_portal`: the portal's one-time auto-login link (the same
- * flow as "Portal öffnen" on the start screen). The login link always
- * lands on the portal home — it takes no target path — so the path is only
- * used when no link can be minted (then the plain portal URL + path, on the
- * portal's own origin only). Null when no portal is known.
+ * URL for `open_portal` and the portal buttons of the notification center:
+ * the portal's one-time auto-login link (the same flow as "Portal öffnen"
+ * on the start screen) with the target tab as `next`, so the user lands on
+ * it signed in. The server checks `next` (portal tabs only, else `/portal`);
+ * servers that predate it ignore it and land on the portal home. When no
+ * link can be minted, the plain portal URL + path is used (on the portal's
+ * own origin only). Null when no portal is known.
  */
 @Singleton
 class PortalLinkResolver @Inject constructor(
@@ -28,7 +30,7 @@ class PortalLinkResolver @Inject constructor(
             null
         } else {
             try {
-                apiClientProvider.getClient(serverUrl).getPortalLink(portal)
+                apiClientProvider.getClient(serverUrl).getPortalLink(portal, next = path)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -37,6 +39,11 @@ class PortalLinkResolver @Inject constructor(
             }
         }
         return link ?: withPath(portal, path)
+    }
+
+    companion object {
+        /** Settings › Benachrichtigungen: "Meine Benachrichtigungen" in the portal (quiet hours, subscriptions). */
+        const val NOTIFICATION_SETTINGS = "/portal#benachrichtigungen"
     }
 
     internal fun withPath(portal: String, path: String?): String {

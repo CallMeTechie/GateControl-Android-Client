@@ -72,6 +72,32 @@ class PortalLinkTest {
     }
 
     @Test
+    fun `without a target the body is empty JSON (older servers unchanged)`() = runBlocking {
+        server.enqueue(ok("$portalUrl/auto?t=x"))
+        apiClient.getPortalLink(portalUrl)
+        assertEquals("{}", server.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `the portal target is sent as next`() = runBlocking {
+        val link = "$portalUrl/auto?t=x&next=%2Fportal%23benachrichtigungen"
+        server.enqueue(ok(link))
+        assertEquals(link, apiClient.getPortalLink(portalUrl, next = "/portal#benachrichtigungen"))
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/client/portal-link", recorded.path)
+        assertEquals("""{"next":"/portal#benachrichtigungen"}""", recorded.body.readUtf8())
+    }
+
+    @Test
+    fun `targets that are no portal path are not sent`() = runBlocking {
+        for (bad in listOf("https://evil.example.com/", "//evil.example.com", "portal", "/" + "x".repeat(120))) {
+            server.enqueue(ok("$portalUrl/auto?t=x"))
+            apiClient.getPortalLink(portalUrl, next = bad)
+            assertEquals("{}", server.takeRequest().body.readUtf8(), bad)
+        }
+    }
+
+    @Test
     fun `falls back on 404`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"ok":false}"""))
         assertNull(apiClient.getPortalLink(portalUrl))

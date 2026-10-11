@@ -98,3 +98,53 @@ data class PushTopic(
         val CORE = listOf(SECURITY, DEVICES, SERVICES, SYSTEM, ADMIN_NOTICE)
     }
 }
+
+/**
+ * Quiet hours of the person (set in the portal, `hello.quiet` /
+ * `GET push/prefs` → `quiet`). The server applies them (`silent:true`);
+ * the app only shows them. [from]/[to] are `HH:MM` in [tz].
+ */
+data class QuietHours(
+    val from: String,
+    val to: String,
+    /** IANA zone; null = the server's own. */
+    val tz: String?,
+    /** Critical messages still sound during quiet hours. */
+    val criticalBypass: Boolean,
+)
+
+/**
+ * What this device knows about the quiet hours: [known] is false while no
+ * server ever said (older servers); [hours] null with [known] = none set.
+ */
+data class QuietInfo(val known: Boolean, val hours: QuietHours?) {
+    companion object {
+        val UNKNOWN = QuietInfo(false, null)
+        val NONE = QuietInfo(true, null)
+    }
+}
+
+/**
+ * `hello.state`: the server's view of this device, sent on every (re)connect
+ * by servers that also send `control` events. Every field may be missing
+ * (null) — then nothing is known about it. A token without a bound peer
+ * gets `peer_enabled:false` and no config hash.
+ */
+data class ServerState(
+    /** Client policy version: opaque text (16 hex), the same as heartbeat `policyVersion` and the policy ETag. */
+    val policyVersion: String? = null,
+    val peerEnabled: Boolean? = null,
+    val supportBundleRequested: Boolean? = null,
+    /** Server time (UTC) as the heartbeat sends it, `YYYY-MM-DD HH:MM:SS`; compared as text. */
+    val supportBundleRequestedAt: String? = null,
+    /** Hash of the peer's current WireGuard config (as `config/check` uses it). */
+    val configHash: String? = null,
+)
+
+/** `event: control`: the server tells the device right away what heartbeat polling used to find out. */
+sealed interface ServerControl {
+    data class PolicyChanged(val version: String?) : ServerControl
+    data class SupportBundleRequested(val requestedAt: String?) : ServerControl
+    data class PeerState(val enabled: Boolean) : ServerControl
+    data object ConfigChanged : ServerControl
+}
