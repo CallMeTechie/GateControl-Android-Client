@@ -70,6 +70,11 @@ class PushStreamClient(
         onOpen: suspend () -> Unit = {},
         onEvent: suspend (PushEvent) -> Unit,
     ): StreamOutcome {
+        // Every attempt on a fresh connection. A pooled one may be dead without
+        // anyone noticing (VPN switched on or off, network changed): the
+        // stream would sit on it in silence until the watchdog gives up, and
+        // the next attempt would pick the same dead connection again.
+        client.connectionPool.evictAll()
         val lastActivity = AtomicLong(clock())
         val signals = Channel<Signal>(Channel.UNLIMITED)
         val tracked = client.newBuilder()

@@ -53,6 +53,18 @@ class PushStreamClientTest {
     }
 
     @Test
+    fun `every attempt opens a fresh connection instead of reusing a pooled one`() {
+        val hello = "event: hello\ndata: {\"keepalive_s\":25,\"via\":\"direct\"}\n\n"
+        server.enqueue(sse(hello))
+        server.enqueue(sse(hello))
+        connect()
+        connect()
+        assertEquals(0, server.takeRequest().sequenceNumber)
+        // 0 again: not the second request on the first (possibly dead) connection.
+        assertEquals(0, server.takeRequest().sequenceNumber)
+    }
+
+    @Test
     fun `events arrive in order and keepalive comments are skipped`() {
         server.enqueue(
             sse(

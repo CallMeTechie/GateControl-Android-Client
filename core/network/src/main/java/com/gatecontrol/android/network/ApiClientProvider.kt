@@ -164,6 +164,9 @@ class ApiClientProvider @Inject constructor(
         val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         return buildOkHttpClient(normalizedUrl).newBuilder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
+            // HTTP/2 pings: a connection that died under the stream (network
+            // or VPN change) fails within seconds instead of staying silent.
+            .pingInterval(20, TimeUnit.SECONDS)
             .build()
     }
 
