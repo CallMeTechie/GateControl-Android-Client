@@ -7,6 +7,7 @@ activity-compose = "1.9.3"
 lifecycle = "2.8.7"
 navigation-compose = "2.10.2"
 compose-bom = "2026.09.00"
+glance = "1.2.0"
 hilt = "2.60.1"
 hilt-navigation-compose = "1.4.0"
 retrofit = "3.0.0"
@@ -25,6 +26,8 @@ robolectric = "4.17"
 org-json = "20260814"
 
 [libraries]
+glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 # AndroidX Core
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }

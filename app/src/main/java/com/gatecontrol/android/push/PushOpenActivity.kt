@@ -39,6 +39,16 @@ class PushOpenActivity : ComponentActivity() {
             finish()
             return
         }
+        // The bell on the home-screen widget: straight to "Mitteilungen".
+        if (intent.getBooleanExtra(EXTRA_INBOX, false)) {
+            PushNavigation.request(PushNavTarget.Inbox)
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+            return
+        }
         val id = intent.getLongExtra(EXTRA_ID, -1L)
         val actionId = intent.getStringExtra(EXTRA_ACTION_ID)
         val actionType = intent.getStringExtra(EXTRA_ACTION_TYPE)
@@ -79,6 +89,13 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_ACTION_ID = "com.gatecontrol.android.push.extra.ACTION_ID"
         private const val EXTRA_ACTION_TYPE = "com.gatecontrol.android.push.extra.ACTION_TYPE"
         private const val EXTRA_TARGET = "com.gatecontrol.android.push.extra.TARGET"
+        private const val EXTRA_INBOX = "com.gatecontrol.android.push.extra.INBOX"
+
+        /** Opens "Mitteilungen" (the widget's bell). */
+        fun inboxIntent(context: Context): Intent =
+            Intent(context, PushOpenActivity::class.java)
+                .putExtra(EXTRA_INBOX, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
         private const val LINK_TIMEOUT_MS = 8_000L
 
         /** Outlives the (immediately finished) activity; the ack is short. */
