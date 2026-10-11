@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.3] - 2026-10-11
+
+### Fixes
+- the ongoing card no longer sticks at "verbinden" (#55)
+
+---
+
 ## [1.19.2] - 2026-10-11
 
 ### Fixes
