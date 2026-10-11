@@ -37,11 +37,13 @@ class ApiClientProvider @Inject constructor(
 
     /**
      * DNS cache for VPN-safe resolution. When the VPN is active, Android's
-     * system DNS points to the VPN-internal resolver (10.8.0.1) but the
-     * GateControl app is excluded from the VPN (VpnService requirement).
-     * System DNS lookups fail with EAI_NODATA because 10.8.0.1 is unreachable
-     * outside the tunnel. We cache DNS results resolved BEFORE the VPN starts
-     * and fall back to the cache when system DNS fails.
+     * system DNS points to the VPN-internal resolver (10.8.0.1). The app's own
+     * traffic goes through the tunnel unless a per-app split tunnel leaves the
+     * GateControl app out; then 10.8.0.1 is unreachable for it and system DNS
+     * lookups fail with EAI_NODATA. Split-horizon DNS may also answer the
+     * server's own name with a VPN-internal address. We cache DNS results
+     * resolved BEFORE the VPN starts and fall back to the cache when system
+     * DNS fails.
      */
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
 
