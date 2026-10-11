@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0] - 2026-10-11
+
+### Features
+- home-screen widget with VPN switch and unread messages (#56)
+
+---
+
 ## [1.19.3] - 2026-10-11
 
 ### Fixes
