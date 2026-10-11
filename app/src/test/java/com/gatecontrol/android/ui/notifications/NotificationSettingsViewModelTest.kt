@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.RepeatedTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.Closeable
@@ -96,7 +97,8 @@ class NotificationSettingsViewModelTest {
         assertFalse(await { store.current() }.enabled)
     }
 
-    @Test
+    // Repeated: switch-on and confirm race on the store; the dialog must stay closed every time.
+    @RepeatedTest(30)
     fun `confirming always enables push and asks for the notification permission`() {
         val vm = vm()
         vm.refreshSystemState(notificationsAllowed = false)
