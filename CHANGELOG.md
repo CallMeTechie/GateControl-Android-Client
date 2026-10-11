@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0] - 2026-10-11
+
+### Features
+- trusted WLANs disconnect and reconnect the VPN automatically (#57)
+
+---
+
 ## [1.20.0] - 2026-10-11
 
 ### Features
