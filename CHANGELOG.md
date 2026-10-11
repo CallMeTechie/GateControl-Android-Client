@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0] - 2026-10-11
+
+### Features
+- self-hosted push notifications (notification center) (#48)
+
+---
+
 ## [1.17.4] - 2026-10-10
 
 ### Changes
