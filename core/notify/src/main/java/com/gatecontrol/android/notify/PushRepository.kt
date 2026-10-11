@@ -51,6 +51,7 @@ class PushRepository @Inject constructor(
 
     suspend fun onHello(hello: PushEvent.Hello) {
         store.saveTopics(hello.topics)
+        store.saveQuiet(hello.quiet)
         runCatching { presenter.ensureTopicChannels(hello.topics) }
             .onFailure { Timber.w("Push: channels not created (%s)", it.javaClass.simpleName) }
     }
@@ -210,6 +211,26 @@ class PushRepository @Inject constructor(
             throw e
         } catch (e: Exception) {
             Timber.d("Push: inbox refresh failed (%s)", e.javaClass.simpleName)
+            false
+        }
+    }
+
+    /**
+     * Reads the person's quiet hours (`GET push/prefs`, read only) for the
+     * settings screen. Older servers without them (404, no `quiet` field)
+     * leave what is known unchanged.
+     */
+    suspend fun refreshQuiet(): Boolean {
+        val url = endpoint.serverUrl()
+        if (url.isEmpty()) return false
+        return try {
+            val info = PushEventParser.quietInfo(endpoint.api(url).getPushPrefs())
+            store.saveQuiet(info)
+            info.known
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Push: prefs not read (%s)", e.javaClass.simpleName)
             false
         }
     }

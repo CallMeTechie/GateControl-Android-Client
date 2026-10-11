@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.gatecontrol.android.notify.model.PushTopic
+import com.gatecontrol.android.notify.model.QuietHours
+import com.gatecontrol.android.notify.model.QuietInfo
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
@@ -81,6 +83,8 @@ class PushPrefsStore @Inject constructor(private val dataStore: DataStore<Prefer
         val SYNCED_PREFS = stringPreferencesKey("push_synced_prefs")
         val TOPICS = stringPreferencesKey("push_topics")
         val SERVER = stringPreferencesKey("push_server")
+        val QUIET = stringPreferencesKey("push_quiet")
+        const val QUIET_NONE = "none"
 
         const val MAX_PENDING_ACKS = 1000
         val gson = Gson()
@@ -102,7 +106,17 @@ class PushPrefsStore @Inject constructor(private val dataStore: DataStore<Prefer
     /** Last topic list from `hello` (for the settings screen while offline). */
     val topics: Flow<List<PushTopic>> = dataStore.data.map { p -> parseTopics(p[TOPICS]) }.distinctUntilChanged()
 
+    /** Quiet hours as the server last reported them (unknown until one did). */
+    val quiet: Flow<QuietInfo> = dataStore.data.map { p -> parseQuiet(p[QUIET]) }.distinctUntilChanged()
+
     suspend fun current(): PushSettings = settings.first()
+
+    /** Remembers the quiet hours of `hello` / `GET push/prefs`; an unknown value changes nothing. */
+    suspend fun saveQuiet(info: QuietInfo) {
+        if (!info.known) return
+        val raw = info.hours?.let { gson.toJson(it) } ?: QUIET_NONE
+        dataStore.edit { it[QUIET] = raw }
+    }
 
     suspend fun setEnabled(enabled: Boolean) {
         dataStore.edit {
@@ -193,6 +207,7 @@ class PushPrefsStore @Inject constructor(private val dataStore: DataStore<Prefer
                 it.remove(PENDING_ACKS)
                 it.remove(SYNCED_PREFS)
                 it.remove(TOPICS)
+                it.remove(QUIET)
             }
         }
         return changed
@@ -202,6 +217,18 @@ class PushPrefsStore @Inject constructor(private val dataStore: DataStore<Prefer
         if (raw.isNullOrBlank()) emptyMap() else gson.fromJson<Map<String, Long>>(raw, mutesType) ?: emptyMap()
     } catch (_: Exception) {
         emptyMap()
+    }
+
+    private fun parseQuiet(raw: String?): QuietInfo = when {
+        raw.isNullOrBlank() -> QuietInfo.UNKNOWN
+        raw == QUIET_NONE -> QuietInfo.NONE
+        else -> try {
+            gson.fromJson(raw, QuietHours::class.java)
+                ?.takeIf { it.from.isNotEmpty() && it.to.isNotEmpty() }
+                ?.let { QuietInfo(true, it) } ?: QuietInfo.UNKNOWN
+        } catch (_: Exception) {
+            QuietInfo.UNKNOWN
+        }
     }
 
     private fun parseTopics(raw: String?): List<PushTopic> = try {

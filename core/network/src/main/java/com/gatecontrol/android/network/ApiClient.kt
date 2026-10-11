@@ -1,5 +1,6 @@
 package com.gatecontrol.android.network
 
+import com.google.gson.JsonObject
 import retrofit2.Response
 import okhttp3.RequestBody
 import retrofit2.http.Body
@@ -61,7 +62,7 @@ interface ApiClient {
      * [getPortalLink], which validates the answer and never throws.
      */
     @POST("api/v1/client/portal-link")
-    suspend fun requestPortalLink(): Response<PortalLinkResponse>
+    suspend fun requestPortalLink(@Body request: PortalLinkRequest = PortalLinkRequest()): Response<PortalLinkResponse>
 
     @GET("api/v1/client/peer-info")
     suspend fun getPeerInfo(@Query("peerId") peerId: Int): PeerInfoResponse
@@ -137,6 +138,14 @@ interface ApiClient {
         @Query("limit") limit: Int = 100,
         @Query("before") before: Long? = null,
     ): PushInboxResponse
+
+    /**
+     * Stored device preferences plus the person's quiet hours (read only).
+     * Raw JSON: whether `quiet` is missing (older server) or null (none set)
+     * matters, see core/notify PushEventParser.quietInfo.
+     */
+    @GET("api/v1/client/push/prefs")
+    suspend fun getPushPrefs(): JsonObject
 
     @PUT("api/v1/client/push/prefs")
     suspend fun pushPrefs(@Body request: PushPrefsRequest): SimpleResponse

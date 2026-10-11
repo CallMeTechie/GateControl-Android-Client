@@ -10,6 +10,7 @@ import com.gatecontrol.android.notify.PushPrefsStore
 import com.gatecontrol.android.notify.PushRepository
 import com.gatecontrol.android.notify.PushStatus
 import com.gatecontrol.android.notify.model.PushTopic
+import com.gatecontrol.android.notify.model.QuietInfo
 import com.gatecontrol.android.push.PortalLinkResolver
 import com.gatecontrol.android.push.PushController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +31,26 @@ data class TopicRow(val id: String, val label: String?, val muted: Boolean, val 
 
 enum class TestState { Idle, Sending, Sent, Failed }
 
+/** Quiet hours as the settings screen shows them (read only; changed in the portal). */
+sealed interface QuietDisplay {
+    /** The server never said (older server, or not reached yet): only the hint is shown. */
+    data object Unknown : QuietDisplay
+
+    /** No quiet hours set: "keine". */
+    data object None : QuietDisplay
+
+    /** [from]–[to]; [zone] only when it differs from the device's time zone. */
+    data class Window(val from: String, val to: String, val zone: String?, val criticalBypass: Boolean) : QuietDisplay
+
+    companion object {
+        fun from(info: QuietInfo, deviceZone: String): QuietDisplay {
+            if (!info.known) return Unknown
+            val h = info.hours ?: return None
+            return Window(h.from, h.to, h.tz?.takeIf { it != deviceZone }, h.criticalBypass)
+        }
+    }
+}
+
 data class NotificationSettingsUiState(
     val enabled: Boolean = false,
     val mode: PushMode = PushMode.ALWAYS,
@@ -44,6 +65,7 @@ data class NotificationSettingsUiState(
     val modeDialogVisible: Boolean = false,
     val testState: TestState = TestState.Idle,
     val portalAvailable: Boolean = false,
+    val quiet: QuietDisplay = QuietDisplay.Unknown,
 )
 
 /** One-shot requests to the screen (permissions, system dialogs, browser). */
@@ -82,9 +104,11 @@ class NotificationSettingsViewModel @Inject constructor(
 
     private val host: String = runCatching { java.net.URI(setupRepository.getServerUrl()).host }.getOrNull().orEmpty()
 
+    private val deviceZone: String = runCatching { java.time.ZoneId.systemDefault().id }.getOrDefault("")
+
     val uiState: StateFlow<NotificationSettingsUiState> = combine(
-        store.settings, store.topics, client.status, local,
-    ) { s, topics, status, l ->
+        store.settings, store.topics, client.status, local, store.quiet,
+    ) { s, topics, status, l, quiet ->
         NotificationSettingsUiState(
             enabled = s.enabled,
             mode = s.mode,
@@ -96,8 +120,14 @@ class NotificationSettingsViewModel @Inject constructor(
             modeDialogVisible = l.modeDialogVisible,
             testState = l.testState,
             portalAvailable = setupRepository.getPortalUrl()?.startsWith("https://") == true,
+            quiet = QuietDisplay.from(quiet, deviceZone),
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, NotificationSettingsUiState())
+
+    init {
+        // Current quiet hours (also when the stream is not open); hello.quiet updates them too.
+        viewModelScope.launch { repository.refreshQuiet() }
+    }
 
     private fun topicRows(topics: List<PushTopic>, muted: Set<String>): List<TopicRow> =
         topics.map { TopicRow(it.id, if (it.isPlugin) it.label else null, it.id in muted && !it.isLocked, it.isLocked) }
@@ -176,9 +206,10 @@ class NotificationSettingsViewModel @Inject constructor(
 
     fun retry() = controller.retry()
 
+    /** "Im Portal ändern": straight to "Meine Benachrichtigungen", signed in. */
     fun openQuietHoursInPortal() {
         viewModelScope.launch {
-            val url = portalLinkResolver.resolve(null)
+            val url = portalLinkResolver.resolve(PortalLinkResolver.NOTIFICATION_SETTINGS)
             effects.send(if (url != null) SettingsEffect.OpenUrl(url) else SettingsEffect.PortalUnavailable)
         }
     }

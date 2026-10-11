@@ -9,6 +9,8 @@ import com.gatecontrol.android.notify.PushPrefsStore
 import com.gatecontrol.android.notify.PushRepository
 import com.gatecontrol.android.notify.PushStatus
 import com.gatecontrol.android.notify.model.PushTopic
+import com.gatecontrol.android.notify.model.QuietHours
+import com.gatecontrol.android.notify.model.QuietInfo
 import com.gatecontrol.android.push.PortalLinkResolver
 import com.gatecontrol.android.push.PushController
 import io.mockk.coEvery
@@ -179,5 +181,51 @@ class NotificationSettingsViewModelTest {
         assertTrue(s.portalAvailable)
         vm.retry()
         verify { controller.retry() }
+    }
+
+    // --- Quiet hours (read only) and the portal deep link ---
+
+    @Test
+    fun `quiet hours map to unknown, none and a window`() {
+        val berlin = QuietHours("22:00", "07:00", "Europe/Berlin", true)
+        assertEquals(QuietDisplay.Unknown, QuietDisplay.from(QuietInfo.UNKNOWN, "Europe/Berlin"))
+        assertEquals(QuietDisplay.None, QuietDisplay.from(QuietInfo.NONE, "Europe/Berlin"))
+        // Zone only shown when it differs from the device's.
+        assertEquals(
+            QuietDisplay.Window("22:00", "07:00", null, true),
+            QuietDisplay.from(QuietInfo(true, berlin), "Europe/Berlin"),
+        )
+        assertEquals(
+            QuietDisplay.Window("22:00", "07:00", "Europe/Berlin", true),
+            QuietDisplay.from(QuietInfo(true, berlin), "America/New_York"),
+        )
+        assertEquals(
+            QuietDisplay.Window("23:00", "06:30", null, false),
+            QuietDisplay.from(QuietInfo(true, QuietHours("23:00", "06:30", null, false)), "Europe/Berlin"),
+        )
+    }
+
+    @Test
+    fun `the screen reads the quiet hours from the server and shows what the store holds`() {
+        val vm = vm()
+        await { vm.uiState.first { it.quiet == QuietDisplay.Unknown } }
+        io.mockk.coVerify { repository.refreshQuiet() }
+        await { store.saveQuiet(QuietInfo(true, QuietHours("22:00", "07:00", null, false))) }
+        val s = await { vm.uiState.first { it.quiet is QuietDisplay.Window } }
+        assertEquals(QuietDisplay.Window("22:00", "07:00", null, false), s.quiet)
+        await { store.saveQuiet(QuietInfo.NONE) }
+        await { vm.uiState.first { it.quiet == QuietDisplay.None } }
+    }
+
+    @Test
+    fun `change in the portal opens Meine Benachrichtigungen with auto-login`() {
+        coEvery { portal.resolve(any()) } returns "https://portal.example.com/auto?t=x&next=%2Fportal%23benachrichtigungen"
+        val vm = vm()
+        vm.openQuietHoursInPortal()
+        assertEquals(
+            SettingsEffect.OpenUrl("https://portal.example.com/auto?t=x&next=%2Fportal%23benachrichtigungen"),
+            await { vm.effect.first() },
+        )
+        io.mockk.coVerify { portal.resolve("/portal#benachrichtigungen") }
     }
 }

@@ -14,7 +14,9 @@ import com.gatecontrol.android.network.TrafficStats
 import com.gatecontrol.android.network.VpnService
 import com.gatecontrol.android.network.getPortalLink
 import com.gatecontrol.android.common.ClientPolicy
+import com.gatecontrol.android.notify.PushClient
 import com.gatecontrol.android.service.ClientPolicyManager
+import com.gatecontrol.android.service.PeerStateHolder
 import com.gatecontrol.android.service.TunnelConnector
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
@@ -45,6 +47,7 @@ class VpnViewModel @Inject constructor(
     private val tunnelConnector: TunnelConnector,
     private val clientPolicyManager: ClientPolicyManager,
     machineBindingMonitor: MachineBindingMonitor,
+    private val pushClient: PushClient,
 ) : ViewModel() {
 
     /** Last machine-binding rejection of any client API call (null = none). */
@@ -97,9 +100,11 @@ class VpnViewModel @Inject constructor(
     private val _tokenInvalid = MutableStateFlow(false)
     val tokenInvalid: StateFlow<Boolean> = _tokenInvalid.asStateFlow()
 
-    /** Emits true when the peer was disabled on the server and the tunnel was disconnected. */
-    private val _peerDisabled = MutableStateFlow(false)
-    val peerDisabled: StateFlow<Boolean> = _peerDisabled.asStateFlow()
+    /**
+     * True when the peer was disabled on the server and the tunnel was
+     * disconnected — by this screen's check, the heartbeat or a push event.
+     */
+    val peerDisabled: StateFlow<Boolean> = PeerStateHolder.disabled
 
     /**
      * Validate the stored API token against the server via /client/ping.
@@ -159,11 +164,12 @@ class VpnViewModel @Inject constructor(
                 }
             }
         }
-        // Periodic peer status check — detect server-side peer disabling
+        // Periodic peer status check — detect server-side peer disabling.
+        // Skipped while the push stream delivers that right away (control events).
         viewModelScope.launch {
             while (isActive) {
-                delay(60_000) // Check every 60 seconds
-                if (tunnelState.value is TunnelState.Connected) {
+                delay(PEER_CHECK_INTERVAL_MS)
+                if (shouldCheckPeer(tunnelState.value, pushClient.controlLive.value)) {
                     checkPeerEnabled()
                 }
             }
@@ -188,7 +194,7 @@ class VpnViewModel @Inject constructor(
                 tunnelManager.disconnect()
                 _stats.value = TunnelStats()
                 apiClientProvider.clearDnsCache()
-                _peerDisabled.value = true
+                PeerStateHolder.markDisabled()
             }
         } catch (e: Exception) {
             Timber.d("Peer status check failed (offline): ${e.message}")
@@ -442,6 +448,16 @@ class VpnViewModel @Inject constructor(
     // --- Split-tunnel JSON helpers ---
 
     companion object {
+        internal const val PEER_CHECK_INTERVAL_MS = 60_000L
+
+        /**
+         * The screen's own peer check runs while the tunnel is up and no push
+         * stream with control events is open (that one reports a disabled
+         * peer right away; the heartbeat remains the background fallback).
+         */
+        internal fun shouldCheckPeer(state: TunnelState, pushControlLive: Boolean): Boolean =
+            state is TunnelState.Connected && !pushControlLive
+
         /** Accepts ISO-8601 ("…Z" / offset) and SQLite "yyyy-MM-dd HH:mm:ss" (UTC). */
         internal fun parseServerTime(raw: String?): Long? {
             if (raw.isNullOrBlank()) return null

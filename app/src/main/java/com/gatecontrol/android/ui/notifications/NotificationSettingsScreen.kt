@@ -243,6 +243,39 @@ fun NotificationSettingsScreen(
 
             // --- Ruhezeiten (set per person in the portal) ---------------
             Group(stringResource(R.string.push_section_quiet)) {
+                when (val quiet = ui.quiet) {
+                    is QuietDisplay.Window -> {
+                        GcListRow(
+                            title = stringResource(R.string.push_quiet_window),
+                            description = quiet.zone?.let { stringResource(R.string.push_quiet_zone, it) },
+                            trailing = {
+                                Text(
+                                    stringResource(R.string.push_quiet_range, quiet.from, quiet.to),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            },
+                        )
+                        // Read only: set per person in the portal.
+                        GcSwitchRow(
+                            label = stringResource(R.string.push_quiet_critical),
+                            description = null,
+                            checked = quiet.criticalBypass,
+                            onCheckedChange = {},
+                            enabled = false,
+                        )
+                    }
+                    QuietDisplay.None -> GcListRow(
+                        title = stringResource(R.string.push_quiet_window),
+                        trailing = {
+                            Text(
+                                stringResource(R.string.push_quiet_none),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = extra.muted,
+                            )
+                        },
+                    )
+                    QuietDisplay.Unknown -> Unit
+                }
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(stringResource(R.string.push_quiet_desc), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                     if (ui.portalAvailable) {

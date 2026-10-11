@@ -440,6 +440,11 @@
     <string name="push_section_quiet">Quiet hours</string>
     <string name="push_quiet_desc">Quiet hours are set per person in the portal and apply to all your devices. During them messages arrive silently; critical ones still sound unless you turned that off.</string>
     <string name="push_quiet_open_portal">Change in the portal</string>
+    <string name="push_quiet_window">Quiet hours</string>
+    <string name="push_quiet_range">%1$s – %2$s</string>
+    <string name="push_quiet_zone">Time zone %1$s</string>
+    <string name="push_quiet_none">none</string>
+    <string name="push_quiet_critical">Still alert for critical messages</string>
     <string name="push_mode_dialog_title">How should messages arrive?</string>
     <string name="push_mode_dialog_text">Recommended: always, also without VPN. GateControl then keeps its own connection to your server and asks to be exempted from battery optimisation.</string>
     <string name="push_mode_dialog_always">Always (recommended)</string>

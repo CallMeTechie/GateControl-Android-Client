@@ -1,6 +1,7 @@
 package com.gatecontrol.android.ui.vpn
 
 import com.gatecontrol.android.common.SplitTunnelMode
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
@@ -45,6 +46,10 @@ class VpnViewModelTest {
     private lateinit var apiClient: ApiClient
     private lateinit var tunnelManager: TunnelManager
     private lateinit var viewModel: VpnViewModel
+    private val pushControlLive = kotlinx.coroutines.flow.MutableStateFlow(false)
+    private val pushClient: com.gatecontrol.android.notify.PushClient = mockk(relaxed = true) {
+        every { controlLive } returns pushControlLive
+    }
 
     @BeforeEach
     fun setUp() {
@@ -85,6 +90,7 @@ class VpnViewModelTest {
             ),
             clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(),
             machineBindingMonitor = com.gatecontrol.android.network.MachineBindingMonitor(),
+            pushClient = pushClient,
         )
     }
 
@@ -264,6 +270,7 @@ class VpnViewModelTest {
                 com.gatecontrol.android.common.ClientPolicy(autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.ALWAYS_ON),
             ),
             machineBindingMonitor = com.gatecontrol.android.network.MachineBindingMonitor(),
+            pushClient = pushClient,
         )
         vm.disconnect()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -422,5 +429,43 @@ class VpnViewModelTest {
 
         coVerify(exactly = 0) { apiClient.requestPortalLink() }
         assertTrue(opened.isEmpty())
+    }
+
+    // --- Peer check vs. push control events ---
+
+    @Test
+    fun `peer check runs only while connected and push control is not live`() {
+        assertTrue(VpnViewModel.shouldCheckPeer(TunnelState.Connected(connectedSince = 1L), pushControlLive = false))
+        assertFalse(VpnViewModel.shouldCheckPeer(TunnelState.Connected(connectedSince = 1L), pushControlLive = true))
+        assertFalse(VpnViewModel.shouldCheckPeer(TunnelState.Disconnected, pushControlLive = false))
+    }
+
+    @Test
+    fun `the 60 s peer check pauses while push is live and resumes when it drops`() = runTest {
+        every { tunnelManager.state } returns kotlinx.coroutines.flow.MutableStateFlow(TunnelState.Connected(connectedSince = 1L))
+        val vm = VpnViewModel(
+            setupRepository = setupRepository,
+            settingsRepository = settingsRepository,
+            licenseRepository = licenseRepository,
+            apiClientProvider = apiClientProvider,
+            tunnelManager = tunnelManager,
+            tunnelConnector = com.gatecontrol.android.service.TunnelConnector(
+                setupRepository, settingsRepository, apiClientProvider, tunnelManager,
+                com.gatecontrol.android.service.fakeClientPolicyManager(),
+            ),
+            clientPolicyManager = com.gatecontrol.android.service.fakeClientPolicyManager(),
+            machineBindingMonitor = com.gatecontrol.android.network.MachineBindingMonitor(),
+            pushClient = pushClient,
+        )
+        pushControlLive.value = true
+        vm.startMonitoring()
+        testDispatcher.scheduler.advanceTimeBy(3 * VpnViewModel.PEER_CHECK_INTERVAL_MS + 1_000)
+        coVerify(exactly = 0) { apiClient.getPeerInfo(any()) }
+
+        pushControlLive.value = false
+        testDispatcher.scheduler.advanceTimeBy(VpnViewModel.PEER_CHECK_INTERVAL_MS)
+        coVerify(exactly = 1) { apiClient.getPeerInfo(42) }
+        // The monitoring loops never end on their own: stop them before runTest drains the scheduler.
+        vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
     }
 }

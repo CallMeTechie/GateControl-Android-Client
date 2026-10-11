@@ -9,8 +9,14 @@ import com.gatecontrol.android.notify.model.PushMessage
 import com.gatecontrol.android.notify.model.PushPriority
 import com.gatecontrol.android.notify.model.PushState
 import com.gatecontrol.android.notify.model.PushTopic
+import com.gatecontrol.android.notify.model.QuietHours
+import com.gatecontrol.android.notify.model.QuietInfo
+import com.gatecontrol.android.notify.model.ServerControl
+import com.gatecontrol.android.notify.model.ServerState
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 
 /** One parsed server-sent event of `GET /api/v1/client/push`. */
 sealed interface PushEvent {
@@ -19,6 +25,10 @@ sealed interface PushEvent {
         val via: String,
         val unread: Int,
         val topics: List<PushTopic>,
+        /** `hello.state`; null on servers without control events. */
+        val state: ServerState? = null,
+        /** `hello.quiet`; unknown on servers that do not send it. */
+        val quiet: QuietInfo = QuietInfo.UNKNOWN,
     ) : PushEvent
 
     data class Notification(val message: PushMessage) : PushEvent
@@ -28,6 +38,9 @@ sealed interface PushEvent {
 
     /** Withdrawn by the server (e.g. replaced by an all-clear). Notification ids. */
     data class Revoke(val ids: List<Long>) : PushEvent
+
+    /** `event: control` (no id, not acked): something changed on the server. */
+    data class Control(val control: ServerControl) : PushEvent
 
     /** Unknown or malformed event (future types, `policy`, …): ignored. */
     data class Ignored(val type: String?, val reason: String) : PushEvent
@@ -57,10 +70,16 @@ object PushEventParser {
     val ACTION_ID_RE = Regex("^[A-Za-z0-9_.:-]{1,40}$")
     private val PORTAL_PATH_RE = Regex("^/[A-Za-z0-9._~!$&'()*+,;=:@%/?#-]{0,300}$")
     private val CONTROL_RE = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]")
+    private val POLICY_VERSION_RE = Regex("^[A-Za-z0-9._:-]{1,64}$")
+    private val CONFIG_HASH_RE = Regex("^[A-Za-z0-9+/=_.:-]{1,128}$")
+    private val TIMESTAMP_RE = Regex("^[0-9TZ:+. -]{1,40}$")
+    private val HHMM_RE = Regex("^([01][0-9]|2[0-3]):[0-5][0-9]$")
+    private val TZ_RE = Regex("^[A-Za-z0-9_+/-]{1,64}$")
 
     fun parse(type: String?, id: String?, data: String): PushEvent = try {
         when (type) {
-            "hello" -> hello(gson.fromJson(data, PushHelloDto::class.java))
+            "hello" -> hello(gson.fromJson(data, PushHelloDto::class.java), objectOrEmpty(data))
+            "control" -> control(JsonParser.parseString(data).asJsonObject)
             "notification" -> notification(gson.fromJson(data, PushNotificationDto::class.java), id)
             "read" -> PushEvent.Read(ids(gson.fromJson(data, PushIdsDto::class.java)))
             "revoke" -> PushEvent.Revoke(ids(gson.fromJson(data, PushIdsDto::class.java)))
@@ -71,7 +90,7 @@ object PushEventParser {
         PushEvent.Ignored(type, "malformed_${e.javaClass.simpleName}")
     }
 
-    private fun hello(dto: PushHelloDto?): PushEvent.Hello {
+    private fun hello(dto: PushHelloDto?, raw: JsonObject): PushEvent.Hello {
         val topics = dto?.topics.orEmpty().mapNotNull { t ->
             val tid = t.id?.takeIf { TOPIC_RE.matches(it) } ?: return@mapNotNull null
             PushTopic(tid, clean(t.label, 80).ifBlank { tid })
@@ -81,8 +100,84 @@ object PushEventParser {
             via = if (dto?.via == "tunnel") "tunnel" else "direct",
             unread = (dto?.unread ?: 0).coerceAtLeast(0),
             topics = topics,
+            state = raw.obj("state")?.let(::serverState),
+            quiet = quietInfo(raw),
         )
     }
+
+    /** `hello.state`; fields that are missing or malformed stay null (= unknown). */
+    fun serverState(o: JsonObject): ServerState = ServerState(
+        policyVersion = policyVersion(o.get("policy_version")),
+        peerEnabled = o.bool("peer_enabled"),
+        supportBundleRequested = o.bool("support_bundle_requested"),
+        supportBundleRequestedAt = timestamp(o.str("support_bundle_requested_at")),
+        configHash = o.str("config_hash")?.takeIf { CONFIG_HASH_RE.matches(it) },
+    )
+
+    private fun control(o: JsonObject): PushEvent {
+        val control = when (o.str("type")) {
+            "policy_changed" -> ServerControl.PolicyChanged(policyVersion(o.get("policy_version")))
+            "support_bundle_requested" -> ServerControl.SupportBundleRequested(timestamp(o.str("requested_at")))
+            "peer_state" -> ServerControl.PeerState(o.bool("enabled") ?: return PushEvent.Ignored("control", "invalid"))
+            "config_changed" -> ServerControl.ConfigChanged
+            else -> return PushEvent.Ignored("control", "unknown_control")
+        }
+        return PushEvent.Control(control)
+    }
+
+    /**
+     * Quiet hours of `hello` or of the `GET push/prefs` answer ([o] is the
+     * whole object): unknown when the field is missing (older server) or
+     * malformed, none when it is null.
+     */
+    fun quietInfo(o: JsonObject): QuietInfo {
+        if (!o.has("quiet")) return QuietInfo.UNKNOWN
+        val q = o.get("quiet")
+        if (q == null || q.isJsonNull) return QuietInfo.NONE
+        if (!q.isJsonObject) return QuietInfo.UNKNOWN
+        val qo = q.asJsonObject
+        val from = qo.str("from")?.takeIf { HHMM_RE.matches(it) } ?: return QuietInfo.UNKNOWN
+        val to = qo.str("to")?.takeIf { HHMM_RE.matches(it) } ?: return QuietInfo.UNKNOWN
+        if (from == to) return QuietInfo.NONE
+        return QuietInfo(
+            known = true,
+            hours = QuietHours(
+                from = from,
+                to = to,
+                tz = qo.str("tz")?.takeIf { TZ_RE.matches(it) },
+                criticalBypass = qo.bool("critical_bypass") ?: true,
+            ),
+        )
+    }
+
+    /**
+     * Opaque version text (the server sends 16 hex characters, as in the
+     * heartbeat and the policy ETag); a number is taken as its text.
+     * Anything else is unknown. Never compared other than for equality.
+     */
+    private fun policyVersion(e: JsonElement?): String? {
+        if (e == null || !e.isJsonPrimitive) return null
+        val p = e.asJsonPrimitive
+        val text = when {
+            p.isNumber -> p.asBigDecimal.stripTrailingZeros().toPlainString()
+            p.isString -> p.asString
+            else -> return null
+        }
+        return text.takeIf { POLICY_VERSION_RE.matches(it) }
+    }
+
+    private fun objectOrEmpty(data: String): JsonObject =
+        runCatching { JsonParser.parseString(data).takeIf { it.isJsonObject }?.asJsonObject }.getOrNull() ?: JsonObject()
+
+    private fun timestamp(value: String?): String? = value?.trim()?.takeIf { TIMESTAMP_RE.matches(it) }
+
+    private fun JsonObject.obj(key: String): JsonObject? = get(key)?.takeIf { it.isJsonObject }?.asJsonObject
+
+    private fun JsonObject.str(key: String): String? =
+        get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+
+    private fun JsonObject.bool(key: String): Boolean? =
+        get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
 
     private fun notification(dto: PushNotificationDto?, sseId: String?): PushEvent {
         val message = toMessage(dto, sseId?.toLongOrNull())

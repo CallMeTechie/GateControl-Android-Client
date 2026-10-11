@@ -13,6 +13,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -38,6 +39,7 @@ class PushClientTest {
     private lateinit var store: PushPrefsStore
     private val presenter = FakePresenter()
     private val platform = FakePlatform()
+    private val control = FakeControlSink()
     private lateinit var client: PushClient
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -73,7 +75,7 @@ class PushClientTest {
         store = testStore(dir)
         runBlocking { store.setEnabled(true) }
         val repo = PushRepository(endpoint, store, InboxCache(File(dir, "inbox.json")), presenter, platform)
-        client = PushClient(endpoint, store, repo, platform).apply {
+        client = PushClient(endpoint, store, repo, platform, control).apply {
             stream = PushStreamClient(watchdogTickMs = 50)
             policy = PushRetryPolicy(Random(1))
         }
@@ -166,5 +168,45 @@ class PushClientTest {
         assertTrue(client.isRunning)
         client.stop(owner = "service")
         assertEquals(PushStatus.Off, client.status.value)
+    }
+
+    @Test
+    fun `control events reach the sink and hello state marks the stream as control-live`() {
+        streams += openSse(
+            "event: hello\ndata: {\"keepalive_s\":25,\"via\":\"direct\",\"quiet\":null," +
+                "\"state\":{\"policy_version\":\"00000000000000a7\",\"peer_enabled\":true,\"support_bundle_requested\":false}}\n\n" +
+                "event: control\ndata: {\"type\":\"policy_changed\",\"policy_version\":\"00000000000000a8\"}\n\n" +
+                "event: control\ndata: {\"type\":\"config_changed\"}\n\n",
+        )
+        client.start(scope, "test")
+        val connected = awaitStatus { it is PushStatus.Connected } as PushStatus.Connected
+        assertTrue(connected.serverControl)
+        runBlocking { withTimeout(5_000) { client.controlLive.first { it } } }
+        runBlocking { withTimeout(5_000) { while (control.controls.size < 2) kotlinx.coroutines.delay(20) } }
+        assertEquals(listOf(com.gatecontrol.android.notify.model.ServerState("00000000000000a7", true, false, null, null)), control.states.toList())
+        assertEquals(
+            listOf(
+                com.gatecontrol.android.notify.model.ServerControl.PolicyChanged("00000000000000a8"),
+                com.gatecontrol.android.notify.model.ServerControl.ConfigChanged,
+            ),
+            control.controls.toList(),
+        )
+        // Control events carry no id: nothing to acknowledge, the resume position stays.
+        assertNull(runBlocking { store.lastSeq() })
+        assertEquals(com.gatecontrol.android.notify.model.QuietInfo.NONE, runBlocking { store.quiet.first() })
+
+        client.stop()
+        runBlocking { withTimeout(5_000) { client.controlLive.first { !it } } }
+    }
+
+    @Test
+    fun `an older server without hello state is not control-live`() {
+        streams += openSse("event: hello\ndata: {\"keepalive_s\":25,\"via\":\"direct\"}\n\n")
+        client.start(scope, "test")
+        val connected = awaitStatus { it is PushStatus.Connected } as PushStatus.Connected
+        assertFalse(connected.serverControl)
+        assertFalse(client.controlLive.value)
+        assertTrue(control.states.isEmpty())
+        assertEquals(com.gatecontrol.android.notify.model.QuietInfo.UNKNOWN, runBlocking { store.quiet.first() })
     }
 }

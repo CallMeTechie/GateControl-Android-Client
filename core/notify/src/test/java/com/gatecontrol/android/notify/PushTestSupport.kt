@@ -79,3 +79,15 @@ fun message(
     createdAt = "2026-10-10T21:42:03Z", expiresAt = null, collapseKey = collapseKey, silent = silent,
     route = null, actions = emptyList(), state = state,
 )
+
+class FakeControlSink : ServerControlSink {
+    val states = CopyOnWriteArrayList<com.gatecontrol.android.notify.model.ServerState>()
+    val controls = CopyOnWriteArrayList<com.gatecontrol.android.notify.model.ServerControl>()
+    override fun onServerState(state: com.gatecontrol.android.notify.model.ServerState) {
+        states += state
+    }
+
+    override fun onControl(control: com.gatecontrol.android.notify.model.ServerControl) {
+        controls += control
+    }
+}

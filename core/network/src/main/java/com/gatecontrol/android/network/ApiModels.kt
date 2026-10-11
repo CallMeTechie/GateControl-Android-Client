@@ -419,3 +419,13 @@ data class PortalLinkResponse(
     // The ticket must not end up in a log line through an accidental toString().
     override fun toString(): String = "PortalLinkResponse(ok=$ok, url=${if (url == null) "null" else "[REDACTED]"}, expiresIn=$expiresIn)"
 }
+
+/**
+ * Body of `POST /client/portal-link`. [next] is the portal tab to land on
+ * after the automatic login (`/portal`, `/portal#<tab>`, `/#<tab>`); the
+ * server checks it and falls back to `/portal`. Older servers ignore it.
+ * Null is left out of the JSON (`{}`).
+ */
+data class PortalLinkRequest(
+    @SerializedName("next") val next: String? = null,
+)
