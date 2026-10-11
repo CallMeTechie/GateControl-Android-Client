@@ -15,6 +15,8 @@ data class ChannelSpec(
     val key: String?,
     /** Label from the server (`hello.topics`) for plugin topics. */
     val label: String? = null,
+    /** false: the channel has no sound and no vibration. */
+    val sound: Boolean = true,
 )
 
 /**
@@ -24,13 +26,19 @@ data class ChannelSpec(
  * * one channel per topic: `security` (high), `devices`, `services`,
  *   `system`, `admin_notice` and every plugin topic from `hello` (default) —
  *   so sound and vibration can be set per topic in Android.
- * * `info` — info messages (low: no sound, no banner).
+ * * `info` — info messages: default importance but without sound and
+ *   vibration, so they still show on the lock screen (a low channel counts
+ *   as "silent", which Pixel and others hide there). Replaces the old low
+ *   channel `push_info`, whose importance the app can no longer raise.
  * * `silent` — `silent:true` (quiet hours, all-clear): low, posted silently.
  * * `connection` — the one ongoing notification of the push service (min).
  */
 object PushChannels {
     const val CRITICAL = "push_critical"
-    const val INFO = "push_info"
+    const val INFO = "push_info_quiet"
+
+    /** Earlier info channel (low importance); deleted when the channels are set up. */
+    const val LEGACY_INFO = "push_info"
     const val SILENT = "push_silent"
     const val CONNECTION = "push_connection"
     private const val TOPIC_PREFIX = "push_topic_"
@@ -40,12 +48,15 @@ object PushChannels {
     const val KEY_SILENT = "silent"
     const val KEY_CONNECTION = "connection"
 
+    private val INFO_SPEC = ChannelSpec(INFO, ChannelImportance.DEFAULT, KEY_INFO, sound = false)
+    private val SILENT_SPEC = ChannelSpec(SILENT, ChannelImportance.LOW, KEY_SILENT, sound = false)
+
     /** Channels that always exist. */
     fun fixed(): List<ChannelSpec> = listOf(
         ChannelSpec(CRITICAL, ChannelImportance.HIGH, KEY_CRITICAL),
-        ChannelSpec(INFO, ChannelImportance.LOW, KEY_INFO),
-        ChannelSpec(SILENT, ChannelImportance.LOW, KEY_SILENT),
-        ChannelSpec(CONNECTION, ChannelImportance.MIN, KEY_CONNECTION),
+        INFO_SPEC,
+        SILENT_SPEC,
+        ChannelSpec(CONNECTION, ChannelImportance.MIN, KEY_CONNECTION, sound = false),
     ) + PushTopic.CORE.map { topicChannel(it, null) }
 
     fun topicChannelId(topic: String): String = TOPIC_PREFIX + topic
@@ -62,9 +73,9 @@ object PushChannels {
 
     /** Priority → channel. */
     fun channelFor(message: PushMessage): ChannelSpec = when {
-        message.silent -> ChannelSpec(SILENT, ChannelImportance.LOW, KEY_SILENT)
+        message.silent -> SILENT_SPEC
         message.priorityLevel == PushPriority.CRITICAL -> ChannelSpec(CRITICAL, ChannelImportance.HIGH, KEY_CRITICAL)
-        message.priorityLevel == PushPriority.INFO -> ChannelSpec(INFO, ChannelImportance.LOW, KEY_INFO)
+        message.priorityLevel == PushPriority.INFO -> INFO_SPEC
         else -> topicChannel(message.topic, null)
     }
 
