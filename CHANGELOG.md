@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1] - 2026-10-11
+
+### Fixes
+- mode dialog no longer reopens after a quick confirm (#50)
+
+---
+
 ## [1.18.0] - 2026-10-11
 
 ### Features
