@@ -21,7 +21,11 @@ class PushChannelsTest {
         assertEquals(PushChannels.CRITICAL, PushChannels.channelFor(msg("critical")).id)
         assertEquals(ChannelImportance.HIGH, PushChannels.channelFor(msg("critical")).importance)
         assertEquals(PushChannels.INFO, PushChannels.channelFor(msg("info")).id)
-        assertEquals(ChannelImportance.LOW, PushChannels.channelFor(msg("info")).importance)
+        // Info: no sound, but not a "silent" (low) channel — those are hidden on the lock screen.
+        assertEquals(ChannelImportance.DEFAULT, PushChannels.channelFor(msg("info")).importance)
+        assertEquals(false, PushChannels.channelFor(msg("info")).sound)
+        assertEquals(true, PushChannels.channelFor(msg("normal")).sound)
+        assertEquals("push_info_quiet", PushChannels.INFO)
         assertEquals("push_topic_devices", PushChannels.channelFor(msg("normal")).id)
         assertEquals("push_topic_devices", PushChannels.channelFor(msg("high")).id)
         assertEquals(ChannelImportance.DEFAULT, PushChannels.channelFor(msg("high")).importance)
@@ -33,6 +37,7 @@ class PushChannelsTest {
         val c = PushChannels.channelFor(msg("critical", silent = true))
         assertEquals(PushChannels.SILENT, c.id)
         assertEquals(ChannelImportance.LOW, c.importance)
+        assertEquals(false, c.sound)
     }
 
     @Test

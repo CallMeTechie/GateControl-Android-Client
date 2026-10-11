@@ -78,14 +78,16 @@ class PushNotifier @Inject constructor(
     /** Creates (or renames) the channels. Importance of an existing channel is the user's. */
     private fun createChannels(ctx: Context, specs: List<ChannelSpec>) {
         nm.createNotificationChannelGroup(NotificationChannelGroup(GROUP_ID, ctx.getString(R.string.push_channel_group)))
+        // The old low info channel kept info messages off the lock screen; its successor replaces it.
+        if (nm.getNotificationChannel(PushChannels.LEGACY_INFO) != null) nm.deleteNotificationChannel(PushChannels.LEGACY_INFO)
         for (spec in specs) {
             val channel = NotificationChannel(spec.id, channelName(ctx, spec), importance(spec.importance)).apply {
                 group = GROUP_ID
-                if (spec.id == PushChannels.CONNECTION || spec.id == PushChannels.SILENT) {
-                    setShowBadge(false)
+                if (!spec.sound) {
                     setSound(null, null)
                     enableVibration(false)
                 }
+                if (spec.id == PushChannels.CONNECTION || spec.id == PushChannels.SILENT) setShowBadge(false)
             }
             nm.createNotificationChannel(channel)
         }
@@ -121,7 +123,7 @@ class PushNotifier @Inject constructor(
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setPriority(
                 when {
-                    message.silent || priority == PushPriority.INFO -> NotificationCompat.PRIORITY_LOW
+                    message.silent -> NotificationCompat.PRIORITY_LOW
                     priority == PushPriority.CRITICAL -> NotificationCompat.PRIORITY_HIGH
                     else -> NotificationCompat.PRIORITY_DEFAULT
                 },
