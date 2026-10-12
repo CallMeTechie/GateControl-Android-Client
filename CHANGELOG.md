@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.1] - 2026-10-12
+
+### Fixes
+- the release build no longer crashes at start (#58)
+
+---
+
 ## [1.21.0] - 2026-10-11
 
 ### Features
