@@ -5,6 +5,8 @@ import android.content.Context
 import android.util.Log
 import com.gatecontrol.android.service.TunnelStateHolder
 import com.gatecontrol.android.service.TunnelSupervisor
+import com.gatecontrol.android.support.CrashReportUploader
+import com.gatecontrol.android.support.CrashReports
 import com.gatecontrol.android.trustednet.TrustedNetworkMonitor
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -12,15 +14,16 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.components.SingletonComponent
 import timber.log.Timber
-import java.io.File
-import java.io.PrintWriter
-import java.io.StringWriter
-import java.text.SimpleDateFormat
-import java.util.Date
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @HiltAndroidApp
 class GateControlApp : Application() {
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
     override fun attachBaseContext(base: Context) {
         // Install crash handler as early as possible — before Hilt init in super.attachBaseContext
@@ -76,6 +79,16 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start the widget state")
         }
 
+        // Crash reports of earlier runs go to the server as a support bundle.
+        try {
+            val uploader = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).crashReportUploader()
+            if (CrashReports.pending().isNotEmpty()) {
+                appScope.launch { uploader.uploadPending(BuildConfig.VERSION_NAME, Locale.getDefault().language) }
+            }
+        } catch (e: Throwable) {
+            Timber.e(e, "Failed to start the crash report upload")
+        }
+
         // Initialize FreeRDP's GlobalApp.sessionMap, which is normally set in
         // GlobalApp.onCreate(). Since GateControlApp extends Application (Hilt
         // requirement), not GlobalApp, that lifecycle never fires. Without this,
@@ -101,62 +114,17 @@ class GateControlApp : Application() {
     interface TileEntryPoint {
         fun tunnelSupervisor(): TunnelSupervisor
         fun trustedNetworkMonitor(): TrustedNetworkMonitor
+        fun crashReportUploader(): CrashReportUploader
     }
 
     private fun installCrashLogger(context: Context) {
-        crashDir = try {
-            File(context.filesDir, CRASH_DIR_NAME)
-        } catch (_: Exception) {
-            null
-        }
+        CrashReports.init(context)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            try {
-                writeCrashToFile("uncaught_${thread.name}", throwable)
-            } catch (_: Exception) {
-                // Last resort
-            }
+            CrashReports.write("uncaught_${thread.name}", throwable)
             defaultHandler?.uncaughtException(thread, throwable)
         }
     }
 
-    companion object {
-        const val CRASH_DIR_NAME = "crash"
-        private const val MAX_CRASH_FILES = 10
-
-        /** App-private crash report directory (filesDir/crash), set before Hilt init. */
-        @Volatile private var crashDir: File? = null
-
-        /**
-         * Writes a crash report to app-private storage only — never to shared
-         * storage such as Downloads, where any app could read it.
-         */
-        private fun writeCrashToFile(tag: String, throwable: Throwable) {
-            val dir = crashDir ?: return
-            val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
-            val fileName = "gatecontrol_crash_${tag}_$timestamp.txt"
-
-            val sw = StringWriter()
-            val pw = PrintWriter(sw)
-            pw.println("=== GateControl Crash Report ===")
-            pw.println("Tag: $tag")
-            pw.println("Time: $timestamp")
-            pw.println("Android: ${android.os.Build.VERSION.SDK_INT}")
-            pw.println("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
-            pw.println()
-            throwable.printStackTrace(pw)
-            pw.flush()
-
-            try {
-                dir.mkdirs()
-                dir.listFiles { f -> f.isFile && f.name.startsWith("gatecontrol_crash_") }
-                    ?.sortedByDescending { it.lastModified() }
-                    ?.drop(MAX_CRASH_FILES - 1)
-                    ?.forEach { it.delete() }
-                File(dir, fileName).writeText(sw.toString())
-            } catch (_: Exception) {
-                // Last resort — nothing else to do while crashing
-            }
-        }
-    }
+    private fun writeCrashToFile(tag: String, throwable: Throwable) = CrashReports.write(tag, throwable)
 }

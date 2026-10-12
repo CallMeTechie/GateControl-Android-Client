@@ -1,5 +1,6 @@
 package com.gatecontrol.android.service
 
+import com.gatecontrol.android.support.CrashReports
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HeartbeatResponse
@@ -58,7 +59,7 @@ class ServerControlHandler @Inject constructor(
 ) : ServerControlSink {
 
     /** Replaceable in tests. */
-    internal var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    internal var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
 
     private val configLock = Mutex()
 

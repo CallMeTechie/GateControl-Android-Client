@@ -1,5 +1,6 @@
 package com.gatecontrol.android.service
 
+import com.gatecontrol.android.support.CrashReports
 import com.gatecontrol.android.common.ClientPolicy
 import com.gatecontrol.android.data.ClientPolicyRepository
 import com.gatecontrol.android.data.SettingsRepository
@@ -41,7 +42,7 @@ class ClientPolicyManager @Inject constructor(
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
     private val refreshLock = Mutex()
 
     /** Effective policy (unrestricted until one was fetched). */

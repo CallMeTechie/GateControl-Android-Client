@@ -132,6 +132,9 @@ dependencies {
     // Home-screen widget
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
+    // Glance updates widgets through WorkManager; its own pin (2.7.1) crashes
+    // the release build at start (WorkDatabase stripped by R8).
+    implementation(libs.work.runtime)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.push
 
+import com.gatecontrol.android.support.CrashReports
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -60,7 +61,7 @@ class PushActionReceiver : BroadcastReceiver() {
         private const val EXTRA_ACTION_TYPE = "com.gatecontrol.android.push.extra.ACTION_TYPE"
         private const val TIMEOUT_MS = 8_000L
 
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
         /** Explicit intent to this non-exported receiver. */
         fun intent(context: Context, op: String, id: Long, action: PushAction?): Intent =

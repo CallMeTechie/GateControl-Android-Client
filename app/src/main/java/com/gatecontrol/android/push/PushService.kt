@@ -1,5 +1,6 @@
 package com.gatecontrol.android.push
 
+import com.gatecontrol.android.support.CrashReports
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -37,7 +38,7 @@ class PushService : Service() {
     @Inject lateinit var notifier: PushNotifier
     @Inject lateinit var tunnelManager: TunnelManager
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
     private var updates: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null

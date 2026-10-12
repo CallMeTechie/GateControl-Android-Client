@@ -1,5 +1,6 @@
 package com.gatecontrol.android.push
 
+import com.gatecontrol.android.support.CrashReports
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -99,7 +100,7 @@ class PushOpenActivity : ComponentActivity() {
         private const val LINK_TIMEOUT_MS = 8_000L
 
         /** Outlives the (immediately finished) activity; the ack is short. */
-        private val ackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val ackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
         /** Explicit intent to this non-exported activity. */
         fun intent(context: Context, id: Long, action: PushAction?): Intent =

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.widget
 
+import com.gatecontrol.android.support.CrashReports
 import android.content.Context
 import androidx.glance.appwidget.updateAll
 import com.gatecontrol.android.data.SetupRepository
@@ -32,7 +33,7 @@ class WidgetState @Inject constructor(
     private val setupRepository: SetupRepository,
     clientPolicyManager: ClientPolicyManager,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
     private var started = false
 
     val model: StateFlow<WidgetModel> = combine(

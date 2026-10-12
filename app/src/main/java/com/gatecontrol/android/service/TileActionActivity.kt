@@ -1,5 +1,6 @@
 package com.gatecontrol.android.service
 
+import com.gatecontrol.android.support.CrashReports
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -74,7 +75,7 @@ class TileActionActivity : ComponentActivity() {
         const val EXTRA_ACTION = "com.gatecontrol.android.extra.TILE_ACTION"
 
         /** Outlives the (immediately finished) activity; tunnel calls are short. */
-        private val actionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val actionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
         /** Explicit intent to this non-exported component. */
         fun intent(context: Context, action: TileAction): Intent =
