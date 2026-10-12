@@ -1,5 +1,6 @@
 package com.gatecontrol.android.service
 
+import com.gatecontrol.android.support.CrashReports
 import android.content.ComponentName
 import android.content.Context
 import android.service.quicksettings.TileService
@@ -48,7 +49,7 @@ class TunnelSupervisor @Inject constructor(
     private val pushClient: PushClient,
     private val serverControl: ServerControlHandler,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
     private var started = false
     private var heartbeatJob: Job? = null
 

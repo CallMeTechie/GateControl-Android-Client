@@ -1,5 +1,6 @@
 package com.gatecontrol.android.trustednet
 
+import com.gatecontrol.android.support.CrashReports
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
@@ -99,7 +100,7 @@ class TrustedNetworkMonitor @Inject constructor(
     private val tunnelConnector: TunnelConnector,
     private val clientPolicyManager: ClientPolicyManager,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
     private val connectivity: ConnectivityManager? by lazy { context.getSystemService(ConnectivityManager::class.java) }
     private val networks = ConcurrentHashMap<Network, NetworkCapabilities>()
     /** Home answers through the tunnel, per network connection (handle-based key). */

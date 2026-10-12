@@ -73,6 +73,11 @@
 -keep,allowobfuscation,allowshrinking class * extends androidx.lifecycle.ViewModel
 -keep class * extends dagger.hilt.android.lifecycle.HiltViewModel { *; }
 
+# ── Room (WorkManager, used by the Glance widget) ──────
+# R8 full mode keeps no constructor for a bare -keep class: Room creates the
+# generated *_Impl by reflection, without it WorkManager crashes at app start.
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
+
 # ── General ───────────────────────────────────────────────
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

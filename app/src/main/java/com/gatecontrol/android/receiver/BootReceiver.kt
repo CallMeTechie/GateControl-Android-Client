@@ -1,5 +1,6 @@
 package com.gatecontrol.android.receiver
 
+import com.gatecontrol.android.support.CrashReports
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -41,7 +42,7 @@ class BootReceiver : BroadcastReceiver() {
 
         val pendingResult = goAsync()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO + CrashReports.coroutineHandler).launch {
             try {
                 // Client policy (last known, works offline) may force it.
                 val autoConnect = clientPolicyManager.current().forcedAutoConnect
