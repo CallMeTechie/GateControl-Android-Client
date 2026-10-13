@@ -33,7 +33,7 @@ jobs:
           - device: tablet
             profile: pixel_tablet
           - device: fold
-            profile: pixel_fold
+            profile: '7.6in Foldable'
           - device: phone
             profile: pixel_7
     steps:
