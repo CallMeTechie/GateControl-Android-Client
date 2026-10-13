@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0] - 2026-10-13
+
+### Features
+- favourites, status dot and opening routes signed in (#59)
+
+---
+
 ## [1.21.1] - 2026-10-12
 
 ### Fixes
