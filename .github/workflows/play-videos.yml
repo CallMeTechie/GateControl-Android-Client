@@ -18,7 +18,8 @@ on:
       - '.github/workflows/play-videos.yml'
 
 permissions:
-  contents: read
+  # Pushes the results to the play-review-media branch (see the last step).
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -104,6 +105,25 @@ jobs:
       - name: Server log
         if: failure()
         run: docker logs gc 2>&1 | tail -150
+
+      # Also as a branch: easy to look at in the browser and to fetch with git.
+      - name: Publish to the play-review-media branch
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          M="$RUNNER_TEMP/media"; P="$RUNNER_TEMP/publish"
+          mkdir -p "$P/screenshots" && cd "$P"
+          cp "$M"/*.mp4 . 2>/dev/null || true
+          cp "$M"/screenshots/*.png screenshots/ 2>/dev/null || true
+          cp "$M"/fail-*.png . 2>/dev/null || true
+          printf '# Play review media\n\nRecorded by `.github/workflows/play-videos.yml` from %s (run %s).\nUpload the MP4s to YouTube as "unlisted" and paste the links into Play Console › App-Inhalte.\n' \
+            "${{ github.sha }}" "${{ github.run_id }}" > README.md
+          git init -q -b play-review-media
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Play review media from ${{ github.sha }}"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" HEAD:play-review-media
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

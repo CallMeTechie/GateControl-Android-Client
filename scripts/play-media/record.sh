@@ -36,7 +36,19 @@ rec_stop() {
   adb pull "/sdcard/$REC_NAME.mp4" "$OUT/segments/$REC_NAME.mp4" >/dev/null || echo "::warning::segment $REC_NAME missing"
 }
 shot() { adb exec-out screencap -p > "$OUT/screenshots/$1.png"; }
-tap() { $UI tap "$@" || { echo "::error::step failed: tap $*"; adb exec-out screencap -p > "$OUT/fail-$(date +%s).png"; return 1; }; }
+# What is on screen, as a CI annotation (artifacts are not always at hand).
+diag() {
+  local texts
+  texts=$($UI dump 2>/dev/null | sed -E "s/ \[[0-9,]+\]\[[0-9,]+\]$//" | tr '\n' '|' | head -c 1800)
+  echo "::notice title=$1::${texts:-<no texts>}"
+}
+tap() {
+  $UI tap "$@" >/dev/null 2>&1 && return 0
+  echo "::error::step failed: tap $*"
+  diag "screen when 'tap $1' failed"
+  adb exec-out screencap -p > "$OUT/fail-$(date +%s).png"
+  return 1
+}
 tap_opt() { $UI tap "$1" --optional --timeout "${2:-4}"; }
 wait_text() { $UI wait "$@"; }
 key() { adb shell input keyevent "$1"; sleep 0.8; }
@@ -59,7 +71,9 @@ adb shell am broadcast -a com.android.systemui.demo -e command battery -e level 
 adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false >/dev/null
 sleep 8
 
-adb shell "am start -a android.intent.action.VIEW -d '$LINK' $PKG" >/dev/null
+adb shell "am start -a android.intent.action.VIEW -d '$LINK' $PKG"
+sleep 6
+diag "after the setup link"
 tap "Connect" --timeout 40 || exit 1           # "Connect to server?" confirmation
 wait_text "Device set up" --timeout 60 --contains || true
 sleep 6
