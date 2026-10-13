@@ -60,6 +60,11 @@ import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.notifications.BellState
+import com.gatecontrol.android.location.DeviceLocator
+import com.gatecontrol.android.location.LocationServerStatus
+import com.gatecontrol.android.location.LocationShareViewModel
+import com.gatecontrol.android.ui.location.LocationShareBanner
+import com.gatecontrol.android.ui.location.SatelliteButton
 import com.gatecontrol.android.ui.components.GcTile
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.pihole.PiholeTile
@@ -89,6 +94,9 @@ fun VpnScreen(
     onDismissPushHint: () -> Unit = {},
     /** Quick actions of the plugins (all, pinning). */
     onOpenQuickActions: () -> Unit = {},
+    /** Settings › Standortfreigabe (permission missing, not allowed). */
+    onOpenLocationSettings: () -> Unit = {},
+    locationViewModel: LocationShareViewModel = hiltViewModel(),
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val extra = GateControlTheme.extraColors
@@ -112,6 +120,14 @@ fun VpnScreen(
     val autoOpen by viewModel.autoOpenPortal.collectAsState()
     val expiresAt by viewModel.peerExpiresAt.collectAsState()
     val clientPolicy by viewModel.clientPolicy.collectAsState()
+    val locationEnabled by locationViewModel.enabled.collectAsState()
+    val locationServer by locationViewModel.server.collectAsState()
+    val locationState by locationViewModel.state.collectAsState()
+    LaunchedEffect(locationEnabled) { if (locationEnabled) locationViewModel.refresh() }
+    // Shown only when switched on and the server neither lacks the feature nor forbids it.
+    val showSatellite = locationEnabled &&
+        locationServer !is LocationServerStatus.Unsupported &&
+        locationServer !is LocationServerStatus.NotAllowed
 
     // Bandwidth history ring buffers (60 points each)
     val rxHistory = remember { mutableStateListOf<Long>() }
@@ -227,6 +243,14 @@ fun VpnScreen(
                 Text("GateControl", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
                 Text(host, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
             }
+            if (showSatellite) {
+                SatelliteButton(
+                    state = locationState,
+                    onClick = {
+                        if (DeviceLocator.hasPermission(context)) locationViewModel.shareNow() else onOpenLocationSettings()
+                    },
+                )
+            }
             Box {
                 GcIconButton(
                     icon = if (bell.pushOff) GcIcons.BellOff else GcIcons.Bell,
@@ -274,6 +298,16 @@ fun VpnScreen(
                     if (effectivelyDark) R.string.vpn_theme_to_light else R.string.vpn_theme_to_dark,
                 ),
                 onClick = { viewModel.setTheme(if (effectivelyDark) "light" else "dark") },
+            )
+        }
+
+        // --- Location sharing: progress / result of the last tap ----------
+        if (locationEnabled) {
+            LocationShareBanner(
+                state = locationState,
+                host = host,
+                onDismiss = locationViewModel::dismiss,
+                onOpenSettings = onOpenLocationSettings,
             )
         }
 

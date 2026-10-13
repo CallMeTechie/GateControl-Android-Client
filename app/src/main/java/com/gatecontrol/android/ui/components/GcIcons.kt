@@ -100,6 +100,8 @@ object GcIcons {
     val Logs = icon("Logs", 2f, "M4 6h16M4 12h16M4 18h10")
     val Bell = icon("Bell", 2f, "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9", "M10.3 21a1.94 1.94 0 0 0 3.4 0")
     val BellOff = icon("BellOff", 2f, "M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5", "M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7", "M10.3 21a1.94 1.94 0 0 0 3.4 0", "M2 2l20 20")
+    /** Location sharing on tap (start screen, settings). */
+    val Satellite = icon("Satellite", 2f, "M13 7 9 3 5 7l4 4", "m17 11 4 4-4 4-4-4", "m8 12 4 4 6-6-4-4Z", "m16 8 3-3", "M9 21a6 6 0 0 0-6-6")
     val Home = icon("Home", 2f, "M3 10l9-7 9 7v11H3z")
     val Battery = icon("Battery", 2f, rect(2f, 7f, 16f, 10f, 2f), "M22 11v2")
     val Wifi = icon(

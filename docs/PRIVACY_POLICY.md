@@ -29,6 +29,8 @@ Alle folgenden Daten gehen nur an **deinen eigenen GateControl-Server** — vera
 
 Für **vertrauenswürdige WLANs** liest die App den Namen (SSID) des verbundenen WLANs. Android gibt den WLAN-Namen nur mit Standort-Berechtigung heraus — auch im Hintergrund, damit das VPN in einem vertrauenswürdigen WLAN automatisch getrennt und außerhalb wieder verbunden werden kann, wenn die App geschlossen ist. Die App erhebt dafür Standortdaten, **verwendet aber keine Koordinaten**, speichert keinen Standort und sendet weder Standort noch WLAN-Namen an irgendjemanden. Die Funktion ist optional und standardmäßig aus.
 
+Die **Standortfreigabe** (Einstellungen › Standortfreigabe, standardmäßig aus) ist davon getrennt: Nur wenn du auf das Satelliten-Symbol auf dem Startbildschirm tippst, ermittelt die App einmal deinen genauen Standort (Koordinaten, Genauigkeit, Höhe, Zeitpunkt) und sendet ihn an **deinen eigenen GateControl-Server**. Dort sehen ihn du und die Administratoren auf einer Karte. Es gibt keine Ortung im Hintergrund und keine automatische Übertragung. Der Server behält die letzten 20 Standorte je Gerät höchstens 30 Tage; du kannst sie in der App jederzeit löschen. Die Karte im Server lädt Kartenbilder von OpenStreetMap — dabei erfährt OpenStreetMap den angezeigten Kartenausschnitt, aber nicht dein Gerät. Nichts geht an CallMeTechie, Google oder andere Dritte.
+
 ### Kamera
 
 Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder werden weder gespeichert noch übertragen. Die Erkennung (Google ML Kit) läuft vollständig auf dem Gerät.
@@ -43,7 +45,7 @@ Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder 
 | Dienst im Vordergrund | Verbindung der Benachrichtigungszentrale und Remote-Desktop-Sitzungen |
 | Start nach dem Hochfahren | optional: automatisch verbinden |
 | Akku-Optimierung ausnehmen | optional: Benachrichtigungen auch im Ruhezustand |
-| Standort (auch im Hintergrund) | optional: WLAN-Namen für vertrauenswürdige WLANs (siehe oben) |
+| Standort (auch im Hintergrund) | optional: WLAN-Namen für vertrauenswürdige WLANs; Standort auf Tipp an den eigenen Server (siehe oben) |
 | Kamera | Einrichtungs-QR-Code |
 
 ### Speicherung und Löschung
@@ -83,6 +85,8 @@ Everything below goes only to **your own GateControl server** — its operator (
 
 For **trusted Wi-Fi networks** the app reads the name (SSID) of the connected Wi-Fi. Android only reveals the Wi-Fi name with the location permission — also in the background, so the VPN can disconnect automatically in a trusted Wi-Fi and connect again outside it while the app is closed. The app collects location data for this but **does not use coordinates**, does not store any location and never sends location or Wi-Fi names to anyone. The feature is optional and off by default.
 
+**Location sharing** (Settings › Location sharing, off by default) is separate: only when you tap the satellite button on the start screen does the app get your precise location once (coordinates, accuracy, altitude, time) and send it to **your own GateControl server**. You and the administrators see it there on a map. There is no background location and no automatic sending. The server keeps the last 20 locations per device for at most 30 days; you can delete them in the app at any time. The map on the server loads map images from OpenStreetMap — OpenStreetMap learns the map area shown, not your device. Nothing goes to CallMeTechie, Google or other third parties.
+
 ### Camera
 
 Only to scan the setup QR code when you open the scanner. No images are stored or transmitted. Recognition (Google ML Kit) runs entirely on the device.
@@ -97,7 +101,7 @@ Only to scan the setup QR code when you open the scanner. No images are stored o
 | Foreground service | Notification center connection and remote desktop sessions |
 | Start at boot | optional: connect automatically |
 | Ignore battery optimisation | optional: notifications while the device sleeps |
-| Location (incl. background) | optional: Wi-Fi names for trusted Wi-Fi (see above) |
+| Location (incl. background) | optional: Wi-Fi names for trusted Wi-Fi; location on tap to your own server (see above) |
 | Camera | Setup QR code |
 
 ### Retention and deletion
