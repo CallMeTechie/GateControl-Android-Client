@@ -66,14 +66,37 @@ data class GcWindowLayout(
          */
         const val TWO_PANE_MIN_WIDTH_DP = 720
 
-        fun compute(widthDp: Int, heightDp: Int, hinges: List<HingeBounds> = emptyList()): GcWindowLayout {
+        /** Narrowest list that still reads well beside a detail pane. */
+        const val MIN_LIST_WIDTH_DP = 300
+
+        /** Width of the navigation rail (AppNavigation). */
+        const val RAIL_WIDTH_DP = 88
+
+        /**
+         * @param density pixels per dp, to place a hinge (window pixels) in dp.
+         */
+        fun compute(
+            widthDp: Int,
+            heightDp: Int,
+            hinges: List<HingeBounds> = emptyList(),
+            density: Float = 1f,
+        ): GcWindowLayout {
             val separating = hinges.filter { it.isSeparating }
-            val vertical = separating.firstOrNull { it.isVertical }?.let { HingeSplit(it.left, it.right) }
+            var vertical = separating.firstOrNull { it.isVertical }?.let { HingeSplit(it.left, it.right) }
             val horizontal = separating.firstOrNull { !it.isVertical }?.let { HingeSplit(it.top, it.bottom) }
+            var useRail = widthDp >= RAIL_MIN_WIDTH_DP
+            if (vertical != null) {
+                // Book posture: the list gets the half left of the hinge. A
+                // rail would leave too little of it, so the bottom bar stays;
+                // if even the whole half is too narrow, no split at the hinge.
+                val leftDp = (vertical.startPx / density).toInt()
+                if (useRail && leftDp - RAIL_WIDTH_DP < MIN_LIST_WIDTH_DP) useRail = false
+                if (leftDp < MIN_LIST_WIDTH_DP) vertical = null
+            }
             return GcWindowLayout(
                 widthDp = widthDp,
                 heightDp = heightDp,
-                useRail = widthDp >= RAIL_MIN_WIDTH_DP,
+                useRail = useRail,
                 twoPane = widthDp >= TWO_PANE_MIN_WIDTH_DP || vertical != null,
                 verticalHinge = vertical,
                 horizontalHinge = horizontal,
@@ -124,7 +147,9 @@ fun rememberGcWindowLayout(): GcWindowLayout {
             bottom = it.bounds.bottom,
         )
     }
-    return remember(widthDp, heightDp, hinges) { GcWindowLayout.compute(widthDp, heightDp, hinges) }
+    return remember(widthDp, heightDp, hinges, density.density) {
+        GcWindowLayout.compute(widthDp, heightDp, hinges, density.density)
+    }
 }
 
 /**

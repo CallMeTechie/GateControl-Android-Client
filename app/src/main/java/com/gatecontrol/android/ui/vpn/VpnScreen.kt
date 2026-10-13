@@ -613,8 +613,9 @@ fun VpnScreen(
     when {
         layout.horizontalHinge != null -> TabletopHome(
             hinge = layout.horizontalHinge,
-            top = { headerSection(); heroSection() },
-            bottom = { bannerSection(); detailSection(); panelSection() },
+            // Only the switch above the fold: the header moves below it.
+            top = { heroSection() },
+            bottom = { headerSection(); bannerSection(); detailSection(); panelSection() },
         )
         layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
             Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }

@@ -77,4 +77,29 @@ class GcWindowLayoutTest {
         val hinge = HingeSplit(100f, 120f)
         assertEquals(380f, GcWindowLayout.firstPaneWidthPx(availablePx = 1200f, paneStartPx = 231f, hinge = hinge, preferredPx = 380f))
     }
+
+    @Test
+    fun `book posture on a narrow foldable - bottom bar so the list keeps the left half`() {
+        // 673 dp wide at 2.625 px/dp, hinge in the middle (884 px = 337 dp).
+        val hinge = HingeBounds(isVertical = true, isSeparating = true, left = 884f, top = 0f, right = 884f, bottom = 2208f)
+        val l = GcWindowLayout.compute(widthDp = 673, heightDp = 841, hinges = listOf(hinge), density = 2.625f)
+        assertFalse(l.useRail)
+        assertTrue(l.twoPane)
+        assertEquals(HingeSplit(884f, 884f), l.verticalHinge)
+    }
+
+    @Test
+    fun `book posture with a wide left half keeps the rail`() {
+        val hinge = HingeBounds(isVertical = true, isSeparating = true, left = 1100f, top = 0f, right = 1100f, bottom = 1840f)
+        val l = GcWindowLayout.compute(widthDp = 840, heightDp = 700, hinges = listOf(hinge), density = 2.625f)
+        assertTrue(l.useRail) // 419 dp left of the hinge
+    }
+
+    @Test
+    fun `a hinge too far left for a list is not split at`() {
+        val hinge = HingeBounds(isVertical = true, isSeparating = true, left = 500f, top = 0f, right = 500f, bottom = 1800f)
+        val l = GcWindowLayout.compute(widthDp = 640, heightDp = 860, hinges = listOf(hinge), density = 2.625f)
+        assertNull(l.verticalHinge)
+        assertFalse(l.twoPane)
+    }
 }

@@ -23,7 +23,7 @@ rotate() { # 0 = natural, 1 = 90°, …
   adb shell settings put system user_rotation "$1"
   sleep 3
 }
-# Foldable postures: 0 closed, 1 half opened, 2 open (pixel_fold emulator).
+# Foldable device states (SDK "7.6in Foldable" emulator): 1 closed, 2 half opened, 3 open.
 posture() {
   adb shell cmd device_state state "$1" >/dev/null 2>&1 || adb emu posture "$1" >/dev/null 2>&1
   sleep 4
@@ -86,21 +86,21 @@ case "$DEVICE" in
     rotate 0
     ;;
   fold)
-    posture 2                                     # fully open
+    posture 3                                     # fully open
     shot 01-open-home
     connect && shot 02-open-home-connected
     nav "Settings"; sleep 2; shot 03-open-settings
     notifications_on
     inbox 04-open
-    posture 1                                     # half open
+    posture 2                                     # half open
     nav "Settings"; sleep 2; shot 05-book-settings
     nav "Home"; sleep 2; shot 06-book-home
     rotate 1                                      # hinge now horizontal: tabletop
     sleep 2; shot 07-tabletop-home
     rotate 0
-    posture 0                                     # closed: outer display
+    posture 1                                     # closed: outer display
     sleep 3; app_front; shot 08-closed-home
-    posture 2
+    posture 3
     ;;
   phone)
     rotate 1                                      # landscape

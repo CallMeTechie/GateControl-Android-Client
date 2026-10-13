@@ -13,10 +13,12 @@ in `AppNavigation` and handed down via `LocalGcWindowLayout`.
 Foldables (postures from `currentWindowAdaptiveInfo()`, material3-adaptive):
 
 - **Flat / fully open:** the fold is ignored; the window width decides.
-- **Book posture** (half open, vertical hinge): always two panes, split exactly
-  at the hinge (`GcTwoPane`), nothing is drawn across it.
-- **Tabletop** (half open, horizontal hinge): home shows the connection and
-  the switch above the fold, everything else scrolls below it.
+- **Book posture** (half open, vertical hinge): two panes, split exactly at
+  the hinge (`GcTwoPane`), nothing is drawn across it. If the half left of the
+  hinge would leave the list under 300 dp next to the rail, the bottom bar
+  stays instead.
+- **Tabletop** (half open, horizontal hinge): home shows only the connection
+  switch above the fold; header, details and tiles scroll below it.
 - **Closed** (outer display): a normal phone.
 
 Details:

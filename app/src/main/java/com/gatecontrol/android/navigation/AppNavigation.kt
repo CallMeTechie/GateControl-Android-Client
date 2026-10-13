@@ -624,7 +624,7 @@ private fun GcNavRail(
         Column(
             Modifier
                 .fillMaxHeight()
-                .width(88.dp)
+                .width(GcWindowLayout.RAIL_WIDTH_DP.dp)
                 .background(MaterialTheme.colorScheme.surface)
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 20.dp),
