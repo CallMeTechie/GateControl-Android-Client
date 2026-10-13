@@ -19,6 +19,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        // "github" (APK on GitHub, updates itself through the update check) or
+        // "play" (AAB for Google Play: updates come from Play only, as Play
+        // policy requires). release.yml builds the AAB with -Pgc.distribution=play.
+        val distribution = providers.gradleProperty("gc.distribution").getOrElse("github")
+        require(distribution == "github" || distribution == "play") { "gc.distribution must be github or play" }
+        buildConfigField("String", "DISTRIBUTION", "\"$distribution\"")
+
         vectorDrawables {
             useSupportLibrary = true
         }

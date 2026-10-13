@@ -16,6 +16,9 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # fastlane: no update banner, no usage statistics
+  FASTLANE_SKIP_UPDATE_CHECK: 'true'
+  FASTLANE_OPT_OUT_USAGE: 'true'
 
 jobs:
   decide:
@@ -221,7 +224,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease bundleRelease
+          # GitHub APK (updates itself through the update check), then the
+          # Google Play AAB without it (-Pgc.distribution=play, Play policy).
+          ./gradlew assembleRelease
+          cp app/build/outputs/mapping/release/mapping.txt "$RUNNER_TEMP/apk-mapping.txt"
+          ./gradlew bundleRelease -Pgc.distribution=play
 
       - name: Verify 16 KB page alignment of native libs
         if: steps.check_tag.outputs.exists == 'false'
@@ -249,8 +256,9 @@ jobs:
         run: |
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/GateControl-Android-${NEW_VERSION}.apk"
           mv app/build/outputs/bundle/release/app-release.aab "app/build/outputs/bundle/release/GateControl-Android-${NEW_VERSION}.aab"
-          # Package R8 mapping file for Play Console
+          # R8 mapping of the Play AAB (uploaded with it) and of the GitHub APK
           cp app/build/outputs/mapping/release/mapping.txt "app/build/outputs/mapping/release/GateControl-Android-${NEW_VERSION}-mapping.txt"
+          cp "$RUNNER_TEMP/apk-mapping.txt" "app/build/outputs/mapping/release/GateControl-Android-${NEW_VERSION}-apk-mapping.txt"
           # Package native debug symbols for Play Console
           if [ -d app/build/outputs/native-debug-symbols/release ]; then
             cd app/build/outputs/native-debug-symbols/release

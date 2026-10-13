@@ -1,76 +1,113 @@
-# GateControl VPN Client — Privacy Policy
+# GateControl — Datenschutzerklärung / Privacy Policy
 
-## Overview
+*Stand / Last updated: 13. Oktober 2026 / October 13, 2026*
 
-GateControl VPN Client is a self-hosted VPN management app. It connects exclusively to **your own GateControl server**. We do not operate any cloud infrastructure, relay servers, or data collection endpoints.
-
----
-
-## Data Collection
-
-**We do not collect, store, or transmit any personal data.**
-
-Specifically, the app does **not**:
-
-- Send analytics or telemetry to any third party
-- Track your location, browsing activity, or app usage
-- Display advertisements
-- Share data with advertising networks or data brokers
-- Store personal data on any server we control
+[Deutsch](#deutsch) · [English](#english)
 
 ---
 
-## Network Communication
+## Deutsch
 
-All network traffic is directed exclusively to the GateControl server URL that **you configure during setup**. The app communicates with:
+### Kurz gesagt
 
-- **Your GateControl server** — for VPN configuration, license validation, and service management
-- **Your WireGuard endpoint** — for encrypted VPN tunnel traffic
+GateControl ist die App zu einem **selbst gehosteten** GateControl-Server. Sie spricht ausschließlich mit dem Server, den du bei der Einrichtung angibst (und über dessen VPN-Tunnel). Der Herausgeber der App (CallMeTechie) betreibt dafür keine Server und erhält **keine Daten** von der App. Es gibt kein Tracking, keine Werbung und keine Analyse- oder Werbe-SDKs.
 
-No data is sent to any other destination.
+### Welche Daten die App verarbeitet und wohin sie gehen
+
+Alle folgenden Daten gehen nur an **deinen eigenen GateControl-Server** — verantwortlich dafür ist dessen Betreiber (oft du selbst oder dein Administrator):
+
+| Daten | Zweck |
+|---|---|
+| Zugangsdaten (Server-Adresse, API-Token, WireGuard-Schlüssel) | Verbindung und VPN-Tunnel. Verschlüsselt auf dem Gerät gespeichert (Android Keystore). |
+| Gerätename/-modell, App-Version, Verbindungsdauer, Datenvolumen | Statusmeldung („Heartbeat“), damit der Server das Gerät anzeigen und verwalten kann. |
+| Benachrichtigungs-Einstellungen und Lesebestätigungen | Eigene Benachrichtigungszentrale; Mitteilungen kommen direkt vom Server, nicht über Google- oder andere Push-Dienste. |
+| Support-Pakete (nur wenn du sie sendest) | Fehlersuche: App-Protokoll, Netzwerk- und Tunnelstatus, Einstellungen. Geheimnisse (Schlüssel, Tokens, Passwörter) werden vor dem Senden geschwärzt. |
+| Absturzberichte | Nach einem Absturz sendet die App beim nächsten Start den Fehlerbericht als geschwärztes Support-Paket an deinen Server. |
+| Schnellaktionen | Ausgelöste Aktionen (z. B. „Licht an“) gehen an deinen Server und dessen Plugins. |
+
+### Standort
+
+Für **vertrauenswürdige WLANs** liest die App den Namen (SSID) des verbundenen WLANs. Android gibt den WLAN-Namen nur mit Standort-Berechtigung heraus — auch im Hintergrund, damit das VPN in einem vertrauenswürdigen WLAN automatisch getrennt und außerhalb wieder verbunden werden kann, wenn die App geschlossen ist. Die App erhebt dafür Standortdaten, **verwendet aber keine Koordinaten**, speichert keinen Standort und sendet weder Standort noch WLAN-Namen an irgendjemanden. Die Funktion ist optional und standardmäßig aus.
+
+### Kamera
+
+Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder werden weder gespeichert noch übertragen. Die Erkennung (Google ML Kit) läuft vollständig auf dem Gerät.
+
+### Berechtigungen
+
+| Berechtigung | Zweck |
+|---|---|
+| VPN-Dienst | WireGuard-Tunnel zu deinem Server |
+| Internet, Netzwerkstatus | Verbindung zum Server, Erkennen von Netzwechseln |
+| Benachrichtigungen | VPN-Status und Mitteilungen deines Servers |
+| Dienst im Vordergrund | Verbindung der Benachrichtigungszentrale und Remote-Desktop-Sitzungen |
+| Start nach dem Hochfahren | optional: automatisch verbinden |
+| Akku-Optimierung ausnehmen | optional: Benachrichtigungen auch im Ruhezustand |
+| Standort (auch im Hintergrund) | optional: WLAN-Namen für vertrauenswürdige WLANs (siehe oben) |
+| Kamera | Einrichtungs-QR-Code |
+
+### Speicherung und Löschung
+
+Daten auf dem Gerät werden gelöscht, wenn du die App deinstallierst oder ihre Daten löschst. Daten auf deinem Server verwaltet dessen Betreiber.
+
+### Kinder
+
+Die App richtet sich an Betreiber und Nutzer eines GateControl-Servers und nicht an Kinder unter 13 Jahren.
+
+### Kontakt
+
+Fragen zum Datenschutz: [GitHub-Issues](https://github.com/CallMeTechie/GateControl-Android-Client/issues) oder [callmetechie.de](https://callmetechie.de). Zu Daten auf deinem Server wende dich an dessen Betreiber.
 
 ---
 
-## Permissions
+## English
 
-The app requests the following Android permissions:
+### In short
+
+GateControl is the app for a **self-hosted** GateControl server. It only talks to the server you enter during setup (and through its VPN tunnel). The publisher of the app (CallMeTechie) runs no servers for it and receives **no data** from the app. No tracking, no ads, no analytics or advertising SDKs.
+
+### What the app processes and where it goes
+
+Everything below goes only to **your own GateControl server** — its operator (often you or your administrator) is responsible for it:
+
+| Data | Purpose |
+|---|---|
+| Credentials (server address, API token, WireGuard keys) | Connection and VPN tunnel. Stored encrypted on the device (Android Keystore). |
+| Device name/model, app version, connection time, traffic volume | Status report ("heartbeat") so the server can list and manage the device. |
+| Notification settings and read receipts | Built-in notification center; messages come straight from the server, not through Google or other push services. |
+| Support bundles (only when you send one) | Troubleshooting: app log, network and tunnel status, settings. Secrets (keys, tokens, passwords) are redacted before sending. |
+| Crash reports | After a crash the app sends the report as a redacted support bundle to your server at the next start. |
+| Quick actions | Actions you run (e.g. "lights on") go to your server and its plugins. |
+
+### Location
+
+For **trusted Wi-Fi networks** the app reads the name (SSID) of the connected Wi-Fi. Android only reveals the Wi-Fi name with the location permission — also in the background, so the VPN can disconnect automatically in a trusted Wi-Fi and connect again outside it while the app is closed. The app collects location data for this but **does not use coordinates**, does not store any location and never sends location or Wi-Fi names to anyone. The feature is optional and off by default.
+
+### Camera
+
+Only to scan the setup QR code when you open the scanner. No images are stored or transmitted. Recognition (Google ML Kit) runs entirely on the device.
+
+### Permissions
 
 | Permission | Purpose |
 |---|---|
-| **INTERNET** | Required to establish the VPN connection to your server |
-| **CAMERA** | Used solely for scanning QR codes during initial server setup. Camera access is only activated when you explicitly open the QR scanner. No images or video are stored or transmitted. |
-| **VPN Service** | Required by Android to create the WireGuard VPN tunnel |
-| **Boot Completed** | Optional auto-connect on device startup (user-configurable) |
-| **Notifications** | To display VPN connection status |
+| VPN service | WireGuard tunnel to your server |
+| Internet, network state | Connection to the server, noticing network changes |
+| Notifications | VPN status and messages from your server |
+| Foreground service | Notification center connection and remote desktop sessions |
+| Start at boot | optional: connect automatically |
+| Ignore battery optimisation | optional: notifications while the device sleeps |
+| Location (incl. background) | optional: Wi-Fi names for trusted Wi-Fi (see above) |
+| Camera | Setup QR code |
 
----
+### Retention and deletion
 
-## Data Storage
+Data on the device is deleted when you uninstall the app or clear its data. Data on your server is managed by its operator.
 
-All configuration data (server URL, API token, WireGuard keys) is stored **locally on your device** using Android's EncryptedSharedPreferences (AES-256). No credentials are stored in plain text.
+### Children
 
-RDP credentials (Pro feature) use end-to-end encryption (ECDH + AES-256-GCM) and are never stored unencrypted on the device.
+The app is meant for operators and users of a GateControl server and is not directed at children under 13.
 
----
+### Contact
 
-## Third-Party Services
-
-The app uses **Google ML Kit** (on-device barcode scanning) for QR code recognition. ML Kit runs entirely on-device and does not transmit any data to Google servers.
-
-No other third-party SDKs or services are included.
-
----
-
-## Children's Privacy
-
-This app is intended for IT administrators and technical users. It is not directed at children under the age of 13 and does not knowingly collect information from children.
-
----
-
-## Contact
-
-For privacy-related inquiries, please open an issue on our [GitHub repository](https://github.com/CallMeTechie/GateControl-Android-Client) or contact the server administrator of your GateControl instance.
-
----
-
-*Last updated: April 6, 2026*
+Privacy questions: [GitHub issues](https://github.com/CallMeTechie/GateControl-Android-Client/issues) or [callmetechie.de](https://callmetechie.de). For data on your server, contact its operator.

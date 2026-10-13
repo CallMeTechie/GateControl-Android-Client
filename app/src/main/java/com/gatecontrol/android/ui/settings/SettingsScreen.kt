@@ -265,7 +265,14 @@ fun SettingsScreen(
                 onClick = if (uiState.supportSending) null else { { viewModel.requestSupportBundle() } },
                 trailing = { Icon(GcIcons.Logs, contentDescription = null, tint = extra.faint, modifier = Modifier.size(20.dp)) },
             )
-            UpdateRow(
+            if (com.gatecontrol.android.BuildConfig.DISTRIBUTION == "play") {
+                // Google Play build: updates come from Play only (Play policy).
+                GcListRow(
+                    title = stringResource(R.string.settings_updates),
+                    description = stringResource(R.string.settings_version, versionName) + " · " +
+                        stringResource(R.string.settings_update_play),
+                )
+            } else UpdateRow(
                 versionName = versionName,
                 uiState = uiState,
                 onCheck = { viewModel.checkForUpdate(versionName) },
