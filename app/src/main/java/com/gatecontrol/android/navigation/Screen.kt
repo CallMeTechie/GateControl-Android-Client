@@ -22,6 +22,8 @@ sealed class Screen(val route: String) {
     data object SplitTunnel : Screen("settings/split")
     data object TrustedNetworks : Screen("settings/trusted-networks")
     data object LocationSharing : Screen("settings/location")
+    /** Diagnose & Problem melden (Settings › Hilfe, start screen on connection problems). */
+    data object Diagnosis : Screen("settings/diagnosis")
     data object QuickActions : Screen("quick-actions")
     data object Logs : Screen("settings/logs")
     data object QrScanner : Screen("setup/qr")

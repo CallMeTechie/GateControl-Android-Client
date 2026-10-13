@@ -66,6 +66,7 @@ fun SettingsScreen(
     onNavigateToSplitTunnel: () -> Unit,
     onNavigateToTrustedNetworks: () -> Unit,
     onNavigateToLocation: () -> Unit = {},
+    onNavigateToDiagnosis: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     pushViewModel: NotificationSettingsViewModel = hiltViewModel(),
@@ -269,6 +270,13 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_logs_export),
                 onClick = { viewModel.exportLogs(context.cacheDir) },
                 trailing = { Icon(GcIcons.Share, contentDescription = null, tint = extra.faint, modifier = Modifier.size(20.dp)) },
+            )
+            // "Diagnose & Problem melden": checks + report with description (ui/diagnosis)
+            GcListRow(
+                title = stringResource(R.string.diag_settings_row),
+                description = stringResource(R.string.diag_settings_row_desc),
+                onClick = onNavigateToDiagnosis,
+                trailing = { GcChevron() },
             )
             // "Support-Paket senden": confirmation dialog → redacted bundle → server
             GcListRow(
