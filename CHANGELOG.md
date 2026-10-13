@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0] - 2026-10-13
+
+### Features
+- Google Play build without self-update, Play-ready location notice and listing (#62)
+
+---
+
 ## [1.23.0] - 2026-10-13
 
 ### Features
