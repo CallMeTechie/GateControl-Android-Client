@@ -1,0 +1,106 @@
+name: Google Play Promote
+
+# Moves a release that is already on Google Play to another track — e.g. a
+# test version to production. Started by hand (or on request) only; every
+# normal release goes to the test track (release.yml, vars.PLAY_TRACK).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'App version, e.g. 1.23.0 (empty = latest GitHub release)'
+        required: false
+        default: ''
+      from_track:
+        description: 'Track the release is on now'
+        required: true
+        default: 'internal'
+        type: choice
+        options: [internal, alpha, beta]
+      to_track:
+        description: 'Target track'
+        required: true
+        default: 'production'
+        type: choice
+        options: [production, beta, alpha]
+      rollout:
+        description: 'Share of users (production): 1 = 100 %, 0.2 = 20 %'
+        required: true
+        default: '1'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  promote:
+    name: Promote on Google Play
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ruby/setup-ruby@762794c140bbeda0f1224786aa33b4b46783a6c1 # v1.326.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Resolve version code
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          fi
+          VERSION="${VERSION#v}"
+          if ! [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid version '$VERSION'"
+            exit 1
+          fi
+          # Same scheme as app/build.gradle.kts: major*10000 + minor*100 + patch
+          CODE=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Promoting $VERSION (versionCode $CODE)"
+
+      - name: Promote
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          FROM: ${{ inputs.from_track }}
+          TO: ${{ inputs.to_track }}
+          ROLLOUT: ${{ inputs.rollout }}
+          CODE: ${{ steps.version.outputs.code }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::Secret PLAY_SERVICE_ACCOUNT_JSON is missing"
+            exit 1
+          fi
+          if ! [[ "$ROLLOUT" =~ ^(1|1\.0|0?\.[0-9]+)$ ]]; then
+            echo "::error::Rollout must be between 0 and 1"
+            exit 1
+          fi
+          KEY="$RUNNER_TEMP/play-service-account.json"
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$KEY"
+          STATUS=completed
+          EXTRA=()
+          if [ "$TO" = "production" ] && [ "$ROLLOUT" != "1" ] && [ "$ROLLOUT" != "1.0" ]; then
+            STATUS=inProgress
+            EXTRA=(--rollout "$ROLLOUT")
+          fi
+          bundle exec fastlane supply \
+            --package_name com.gatecontrol.client \
+            --json_key "$KEY" \
+            --track "$FROM" \
+            --track_promote_to "$TO" \
+            --track_promote_release_status "$STATUS" \
+            --version_code "$CODE" \
+            "${EXTRA[@]}" \
+            --skip_upload_aab true \
+            --skip_upload_apk true \
+            --skip_upload_metadata true \
+            --skip_upload_changelogs true \
+            --skip_upload_images true \
+            --skip_upload_screenshots true
+          rm -f "$KEY"

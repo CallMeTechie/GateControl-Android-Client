@@ -1,0 +1,83 @@
+name: Google Play Upload
+
+# Uploads the AAB of an existing GitHub release to a Google Play test track:
+# for releases made before the Play upload existed, or after a failed upload.
+# Normal releases are uploaded by release.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'GitHub release, e.g. 1.23.0 (empty = latest)'
+        required: false
+        default: ''
+      track:
+        description: 'Test track'
+        required: true
+        default: 'internal'
+        type: choice
+        options: [internal, alpha, beta]
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  upload:
+    name: Upload to Google Play
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ruby/setup-ruby@762794c140bbeda0f1224786aa33b4b46783a6c1 # v1.326.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Download release files
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          fi
+          VERSION="${VERSION#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version '$VERSION'"
+            exit 1
+          fi
+          mkdir -p dl
+          gh release download "v$VERSION" -R "$GITHUB_REPOSITORY" -D dl \
+            -p "GateControl-Android-$VERSION.aab" -p "GateControl-Android-$VERSION-mapping.txt"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          VERSION: ${{ steps.release.outputs.version }}
+          TRACK: ${{ inputs.track }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::Secret PLAY_SERVICE_ACCOUNT_JSON is missing"
+            exit 1
+          fi
+          KEY="$RUNNER_TEMP/play-service-account.json"
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$KEY"
+          META="$RUNNER_TEMP/play-metadata"
+          python3 scripts/play_release_notes.py CHANGELOG.md "$META" "$VERSION"
+          bundle exec fastlane supply \
+            --package_name com.gatecontrol.client \
+            --json_key "$KEY" \
+            --aab "dl/GateControl-Android-$VERSION.aab" \
+            --mapping "dl/GateControl-Android-$VERSION-mapping.txt" \
+            --track "$TRACK" \
+            --release_status completed \
+            --metadata_path "$META" \
+            --skip_upload_metadata true \
+            --skip_upload_images true \
+            --skip_upload_screenshots true \
+            --skip_upload_apk true
+          rm -f "$KEY"
