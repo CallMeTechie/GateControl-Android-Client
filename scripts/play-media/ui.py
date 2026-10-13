@@ -81,8 +81,9 @@ def main(argv):
         root = dump()
         for node in (root.iter("node") if root is not None else []):
             t = node.get("text") or node.get("content-desc")
-            if t:
-                print(repr(t), node.get("bounds"))
+            edit = node.get("class") == "android.widget.EditText"
+            if t or edit:
+                print(("[field] " if edit else "") + repr(t or ""), node.get("bounds"))
         return 0
     if cmd == "field":
         index = int(argv[1])

@@ -77,7 +77,9 @@ adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 tap "Enter setup code" --timeout 40 || exit 1
 $UI field 0 || { diag "no server URL field"; exit 1; }
 adb shell input text "10.0.2.2:8443"
-key KEYCODE_ENTER                                # IME "next" → the code field
+echo "::notice title=setup code::length ${#CODE}"
+tap "XXXX-XXXX-XXXX-XXXX" --contains || $UI field 1   # the code field's placeholder
+sleep 0.5
 adb shell input text "${CODE//-/}"
 sleep 0.5
 key KEYCODE_BACK                                 # hide the keyboard
