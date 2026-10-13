@@ -46,6 +46,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val TRUSTED_NET_LAST_KEY = stringPreferencesKey("trusted_net_last_key")
         // Services: favourites by domain (stable when a route is edited)
         val SERVICE_FAVORITES = stringSetPreferencesKey("service_favorites")
+        // Quick actions pinned to the start screen, shortcuts, tiles and widget (JSON list)
+        val QUICK_ACTION_PINS = stringPreferencesKey("quick_action_pins")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -115,6 +117,14 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     /** Favourite services (domains), shown on top of the list. */
     fun getServiceFavorites(): Flow<Set<String>> =
         dataStore.data.map { it[SERVICE_FAVORITES] ?: emptySet() }
+
+    /** Pinned quick actions as JSON (format owned by the app's QuickActionRepository). */
+    fun getQuickActionPins(): Flow<String?> = dataStore.data.map { it[QUICK_ACTION_PINS] }
+
+    /** Atomic read-modify-write of the pinned quick actions. */
+    suspend fun updateQuickActionPins(transform: (String?) -> String) {
+        dataStore.edit { it[QUICK_ACTION_PINS] = transform(it[QUICK_ACTION_PINS]) }
+    }
 
     /** Adds or removes [domain]; atomic, so two quick taps never lose one. */
     suspend fun toggleServiceFavorite(domain: String) {

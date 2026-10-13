@@ -21,6 +21,7 @@ sealed class Screen(val route: String) {
     data object SettingsServer : Screen("settings/server")
     data object SplitTunnel : Screen("settings/split")
     data object TrustedNetworks : Screen("settings/trusted-networks")
+    data object QuickActions : Screen("quick-actions")
     data object Logs : Screen("settings/logs")
     data object QrScanner : Screen("setup/qr")
     /** Setup screen opened from Settings to connect an existing install (scan starts right away). */

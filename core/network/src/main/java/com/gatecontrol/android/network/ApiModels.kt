@@ -464,3 +464,32 @@ data class PortalLinkResponse(
 data class PortalLinkRequest(
     @SerializedName("next") val next: String? = null,
 )
+
+/**
+ * A plugin "quick action" (`GET /client/actions`): a button, or a switch
+ * with [state] "on"/"off". [confirm]: ask before running.
+ */
+data class QuickAction(
+    @SerializedName("plugin") val plugin: String? = null,
+    @SerializedName("pluginName") val pluginName: String? = null,
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("subtitle") val subtitle: String? = null,
+    @SerializedName("icon") val icon: String? = null,
+    @SerializedName("kind") val kind: String? = null,
+    @SerializedName("state") val state: String? = null,
+    @SerializedName("confirm") val confirm: Boolean? = null,
+)
+
+data class QuickActionsResponse(
+    val ok: Boolean = false,
+    val actions: List<QuickAction>? = null,
+)
+
+/** Answer of `POST /client/actions/{plugin}/{id}`; [state] = the switch's new state. */
+data class QuickActionRunResponse(
+    val ok: Boolean = false,
+    val message: String? = null,
+    val state: String? = null,
+    val error: String? = null,
+)

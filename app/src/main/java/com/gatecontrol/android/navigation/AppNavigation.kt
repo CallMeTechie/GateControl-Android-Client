@@ -51,6 +51,7 @@ import com.gatecontrol.android.ui.settings.ServerSettingsScreen
 import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.settings.SplitTunnelScreen
 import com.gatecontrol.android.ui.settings.TrustedNetworksScreen
+import com.gatecontrol.android.ui.quickactions.QuickActionsScreen
 import com.gatecontrol.android.ui.setup.QrScannerScreen
 import com.gatecontrol.android.ui.setup.SetupScreen
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -237,6 +238,7 @@ fun AppNavigation(
                     },
                     onOpenSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
                     onOpenLogs = { navController.navigate(Screen.Logs.route) },
+                    onOpenQuickActions = { navController.navigate(Screen.QuickActions.route) { launchSingleTop = true } },
                 )
             }
 
@@ -311,6 +313,10 @@ fun AppNavigation(
 
             composable(Screen.TrustedNetworks.route) {
                 TrustedNetworksScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.QuickActions.route) {
+                QuickActionsScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Screen.Logs.route) {
