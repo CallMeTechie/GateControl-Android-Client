@@ -77,9 +77,11 @@ adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 tap "Enter setup code" --timeout 40 || exit 1
 $UI field 0 || { diag "no server URL field"; exit 1; }
 adb shell input text "10.0.2.2:8443"
-$UI field 1 || { diag "no code field"; exit 1; }
-adb shell input text "$CODE"
+key KEYCODE_ENTER                                # IME "next" → the code field
+adb shell input text "${CODE//-/}"
+sleep 0.5
 key KEYCODE_BACK                                 # hide the keyboard
+diag "setup form filled"
 tap "Save & Register" || exit 1
 tap_opt "Connect" 10                             # confirmation, if the app asks
 wait_text "Device set up" --timeout 60 --contains || wait_text "Connect" --timeout 30 || diag "after setup"
