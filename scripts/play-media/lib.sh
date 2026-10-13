@@ -67,8 +67,16 @@ setup_app() { # APK LINK
 
   # Set up like a person would: "Enter setup code", server URL, code.
   local CODE="${LINK##*code=}"
-  adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-  tap "Enter setup code" --timeout 40 || return 1
+  # A freshly booted emulator sometimes shows "System UI isn't responding":
+  # wait it out and start the app again.
+  local try
+  for try in 1 2 3; do
+    adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+    $UI tap "Enter setup code" --timeout 40 >/dev/null 2>&1 && break
+    $UI tap "Wait" --optional --timeout 3
+    [ "$try" = 3 ] && { tap "Enter setup code" --timeout 5 || return 1; }
+    sleep 5
+  done
   $UI fill 0 "10.0.2.2:8443" || { diag "server URL not typed"; return 1; }
   echo "::notice title=setup code::length ${#CODE}"
   $UI fill 1 "${CODE//-/}" --secret || { diag "no code field"; return 1; }
