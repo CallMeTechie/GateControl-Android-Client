@@ -42,7 +42,10 @@ rec_stop() {
   adb shell pkill -INT screenrecord >/dev/null 2>&1
   wait "$REC_PID" 2>/dev/null
   sleep 1.5
-  adb pull "/sdcard/$REC_NAME.mp4" "$OUT/segments/$REC_NAME.mp4" >/dev/null || echo "::warning::segment $REC_NAME missing"
+  adb pull "/sdcard/$REC_NAME.mp4" "$OUT/segments/$REC_NAME.mp4" >/dev/null 2>&1
+  local size
+  size=$(stat -c %s "$OUT/segments/$REC_NAME.mp4" 2>/dev/null || echo 0)
+  [ "$size" -gt 20000 ] || echo "::warning title=segment $REC_NAME::missing or empty ($size bytes)"
 }
 shot() { adb exec-out screencap -p > "$OUT/screenshots/$1.png"; }
 # What is on screen, as a CI annotation (artifacts are not always at hand).
@@ -181,8 +184,9 @@ shade_close
 rec_stop
 
 # ── Video 3: foreground service (notifications without Google) ─────
+adb shell am force-stop "$PKG"
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-sleep 3
+sleep 5
 rec_start fgs 01 "Notifications from the user's own server, without Google services: the user chooses 'Always'."
 nav "Settings"
 tap "Off – tap to set up" --contains || tap "Notifications"
@@ -210,3 +214,4 @@ adb shell am broadcast -a com.android.systemui.demo -e command exit >/dev/null
 adb logcat -d > "$OUT/logcat.txt" 2>/dev/null
 adb logcat -d -b crash > "$OUT/crash.txt" 2>/dev/null
 ls -la "$OUT/segments" "$OUT/screenshots"
+exit 0

@@ -62,5 +62,7 @@ CODE=$(docker exec gc node -e "
   process.stdout.write('\\nSETUPCODE=' + r.code + '\\n');
 " | sed -n 's/^SETUPCODE=\([0-9A-F-]\{19\}\)$/\1/p' | tail -1)
 [ -n "$CODE" ] || { echo "::error::no setup code"; exit 1; }
+# The app would open the portal after every connect; not part of the videos.
+docker exec gc node -e "require('/app/src/services/settings').set('portal.autoappear', '0')" >/dev/null
 echo "gatecontrol://enroll?url=https%3A%2F%2F10.0.2.2%3A8443&code=$CODE" > "$OUT/enroll-link.txt"
 echo "setup link written"

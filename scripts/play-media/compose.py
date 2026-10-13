@@ -21,7 +21,11 @@ NAMES = {
 
 
 def run(*cmd):
-    subprocess.run(cmd, check=True, capture_output=True)
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        tail = " | ".join(r.stderr.strip().splitlines()[-6:])
+        print(f"::error title=ffmpeg failed::{tail}")
+        raise SystemExit(1)
 
 
 def duration(path):
@@ -45,7 +49,7 @@ def main(out):
         for name, caption in segs:
             src = os.path.join(seg_dir, name + ".mp4")
             if not os.path.exists(src) or os.path.getsize(src) < 1000:
-                print(f"skip missing segment {name}")
+                print(f"::warning title=compose::skip missing segment {name}")
                 continue
             cap = os.path.join(work, name + ".txt")
             with open(cap, "w", encoding="utf-8") as c:
@@ -76,7 +80,7 @@ def main(out):
                 "-preset", "veryfast", "-crf", "20", "-r", "30", final)
         else:
             os.replace(joined, final)
-        print(f"{final}: {duration(final):.1f} s (raw {total:.1f} s)")
+        print(f"::notice title={os.path.basename(final)}::{duration(final):.1f} s (raw {total:.1f} s, {len(parts)} segments)")
 
 
 if __name__ == "__main__":

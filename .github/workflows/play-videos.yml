@@ -118,6 +118,7 @@ jobs:
           cp "$M"/screenshots/*.png screenshots/ 2>/dev/null || true
           cp "$M"/fail-*.png . 2>/dev/null || true
           cp "$M"/logcat.txt "$M"/crash.txt . 2>/dev/null || true
+          mkdir -p segments && cp "$M"/segments/*.mp4 segments/ 2>/dev/null || true
           printf '# Play review media\n\nRecorded by `.github/workflows/play-videos.yml` from %s (run %s).\nUpload the MP4s to YouTube as "unlisted" and paste the links into Play Console › App-Inhalte.\n' \
             "${{ github.sha }}" "${{ github.run_id }}" > README.md
           git init -q -b play-review-media
