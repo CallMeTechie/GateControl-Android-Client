@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.0] - 2026-10-13
+
+### Features
+- diagnostics assistant and layouts for tablets and foldables (#67)
+
+---
+
 ## [1.26.0] - 2026-10-13
 
 ### Features
