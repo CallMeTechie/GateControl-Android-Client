@@ -139,7 +139,6 @@
     <string name="settings_update_available">Update available: %1$s</string>
     <string name="settings_update_install">Install</string>
     <string name="settings_update_later">Later</string>
-    <string name="settings_update_play">Updates come through Google Play</string>
     <string name="settings_update_none">No updates available</string>
 
     <!-- Setup -->
@@ -553,4 +552,14 @@
     <string name="quick_actions_widget_label">Quick actions</string>
     <string name="quick_actions_widget_description">Pinned quick actions of your plugins</string>
     <string name="quick_actions_widget_empty">No quick action pinned</string>
+    <string name="play_update_check">Tap to check for updates</string>
+    <string name="play_update_checking">Checking …</string>
+    <string name="play_update_uptodate">Up to date</string>
+    <string name="play_update_available">A new version is available on Google Play</string>
+    <string name="play_update_install">Update</string>
+    <string name="play_update_downloading">Downloading update … %1$s</string>
+    <string name="play_update_downloaded">Update downloaded – restart to install</string>
+    <string name="play_update_restart">Restart</string>
+    <string name="play_update_not_from_play">Not installed from Google Play – updates through Play are not possible</string>
+    <string name="play_update_failed">Update check failed</string>
 </resources>
