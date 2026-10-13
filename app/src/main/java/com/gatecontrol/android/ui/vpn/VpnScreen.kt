@@ -481,6 +481,11 @@ fun VpnScreen(
             }
         }
 
+        // --- Google Play update (Play build) --------------------------------
+        if (com.gatecontrol.android.update.PlayUpdater.enabled) {
+            com.gatecontrol.android.ui.update.PlayUpdateBanner()
+        }
+
         // --- Quick actions of the plugins ----------------------------------
         com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenAll = onOpenQuickActions)
 

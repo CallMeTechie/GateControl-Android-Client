@@ -11,6 +11,7 @@ glance = "1.2.0"
 # Glance pulls WorkManager 2.7.1 (Room 2.2.5) whose database R8 full mode strips.
 work = "2.11.2"
 browser = "1.9.0"
+play-app-update = "2.1.0"
 hilt = "2.60.1"
 hilt-navigation-compose = "1.4.0"
 retrofit = "3.0.0"
@@ -33,6 +34,7 @@ glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", versi
 glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+play-app-update = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "play-app-update" }
 # AndroidX Core
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }

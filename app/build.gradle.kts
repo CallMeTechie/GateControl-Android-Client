@@ -146,6 +146,9 @@ dependencies {
     // Services open in a Custom Tab (in-app browser)
     implementation(libs.browser)
 
+    // Google Play in-app updates (Play distribution, see BuildConfig.DISTRIBUTION)
+    implementation(libs.play.app.update)
+
     // Gson (via the Retrofit converter, as in core): pinned quick actions
     implementation(libs.retrofit.gson)
     debugImplementation(libs.compose.ui.tooling)
