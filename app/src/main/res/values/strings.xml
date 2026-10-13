@@ -519,6 +519,8 @@
     <string name="trusted_add">Add</string>
     <string name="trusted_perm_title">Location permission for Wi-Fi names</string>
     <string name="trusted_perm_explain">GateControl collects location data to recognise the name of the connected Wi-Fi and to disconnect the VPN automatically in your trusted Wi-Fi networks, even when the app is closed or not in use. The location never leaves your device and is not stored. For this to work in the background, choose “Allow all the time” in the settings afterwards.</string>
+    <string name="trusted_bg_title">Location in the background</string>
+    <string name="trusted_bg_explain">GateControl collects location data to recognise the name of the connected Wi-Fi even when the app is closed or not in use – only then can the VPN disconnect automatically when you get home. The location never leaves your device and is not stored. On the next page choose “Allow all the time”.</string>
     <string name="trusted_perm_continue">Continue</string>
     <string name="trusted_perm_missing">Location permission missing – Wi-Fi names are not recognised.</string>
     <string name="trusted_perm_foreground_only">Location only allowed “while using the app” – Wi-Fi names are not recognised in the background. Choose “Allow all the time”.</string>
