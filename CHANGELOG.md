@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0] - 2026-10-13
+
+### Features
+- plugin quick actions on the start screen, as shortcuts, tiles and widget (#60)
+
+---
+
 ## [1.22.0] - 2026-10-13
 
 ### Features
