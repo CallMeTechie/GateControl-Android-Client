@@ -5,13 +5,15 @@ sped up evenly to fit.
 
   compose.py OUT_DIR
 """
-import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
 
-FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONT = os.environ.get("CAPTION_FONT", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
+STILL_SECONDS = 3.5
 LIMITS = {"vpn": 88.0, "location": 29.5, "fgs": 29.5}
 NAMES = {
     "vpn": "gatecontrol-vpn-service.mp4",
@@ -21,6 +23,8 @@ NAMES = {
 
 
 def run(*cmd):
+    if cmd and cmd[0] == "ffmpeg":
+        cmd = (FFMPEG,) + cmd[1:]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         tail = " | ".join(r.stderr.strip().splitlines()[-6:])
@@ -28,10 +32,16 @@ def run(*cmd):
         raise SystemExit(1)
 
 
+def probe(path):
+    """(has video, seconds) of [path] — ffmpeg only, no ffprobe."""
+    r = subprocess.run([FFMPEG, "-hide_banner", "-i", path], capture_output=True, text=True)
+    m = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", r.stderr)
+    secs = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3)) if m else 0.0
+    return "Video:" in r.stderr, secs
+
+
 def duration(path):
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", path],
-                         check=True, capture_output=True, text=True).stdout
-    return float(json.loads(out)["format"]["duration"])
+    return probe(path)[1]
 
 
 def main(out):
@@ -48,9 +58,21 @@ def main(out):
         parts = []
         for name, caption in segs:
             src = os.path.join(seg_dir, name + ".mp4")
-            if not os.path.exists(src) or os.path.getsize(src) < 1000:
+            if not os.path.exists(src):
                 print(f"::warning title=compose::skip missing segment {name}")
                 continue
+            has_video, secs = probe(src)
+            if not has_video:
+                print(f"::warning title=compose::skip empty segment {name}")
+                continue
+            if secs < 0.3:
+                # screenrecord writes a single frame when nothing on screen moves.
+                frame = os.path.join(work, name + ".png")
+                still = os.path.join(work, name + "-still.mp4")
+                run("ffmpeg", "-y", "-i", src, "-frames:v", "1", "-update", "1", frame)
+                run("ffmpeg", "-y", "-loop", "1", "-t", str(STILL_SECONDS), "-i", frame,
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30", still)
+                src = still
             cap = os.path.join(work, name + ".txt")
             with open(cap, "w", encoding="utf-8") as c:
                 c.write("\n".join(textwrap.wrap(caption, 34)))
@@ -63,6 +85,9 @@ def main(out):
             )
             run("ffmpeg", "-y", "-i", src, "-vf", vf, "-an", "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", "20", "-r", "30", dst)
+            if duration(dst) < 0.3:
+                print(f"::warning title=compose::segment {name} has no frames after encoding, skipped")
+                continue
             parts.append(dst)
         if not parts:
             continue
