@@ -113,6 +113,8 @@ jobs:
           TOKEN: ${{ github.token }}
         run: |
           M="$RUNNER_TEMP/media"; P="$RUNNER_TEMP/publish"
+          # A failed run must not replace good videos with nothing.
+          [ "$(ls "$M"/*.mp4 2>/dev/null | wc -l)" -eq 3 ] || { echo "::warning::not all three videos – play-review-media left as it is"; exit 0; }
           mkdir -p "$P/screenshots" && cd "$P"
           cp "$M"/*.mp4 . 2>/dev/null || true
           cp "$M"/screenshots/*.png screenshots/ 2>/dev/null || true
