@@ -28,7 +28,16 @@ rec_start() { # VIDEO SEGMENT CAPTION
   REC_PID=$!
   sleep 1.2
 }
+# Reports (once) when the app process is gone, with the crash buffer.
+alive() {
+  adb shell pidof "$PKG" >/dev/null 2>&1 && return 0
+  local crash
+  crash=$(adb logcat -d -b crash 2>/dev/null | tail -40 | tr '\n' '|' | head -c 3000)
+  echo "::error title=app not running after $1::${crash:-<empty crash buffer>}"
+  return 1
+}
 rec_stop() {
+  alive "$REC_NAME"
   sleep 0.8
   adb shell pkill -INT screenrecord >/dev/null 2>&1
   wait "$REC_PID" 2>/dev/null
@@ -99,6 +108,7 @@ adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 sleep 6
 shot 01-home-disconnected
 
+adb logcat -c
 # ── Video 1: VPN service ────────────────────────────────────────────
 rec_start vpn 01 "GateControl is the app for the user's own, self-hosted GateControl server."
 sleep 3
@@ -200,4 +210,6 @@ shade_close
 rec_stop
 
 adb shell am broadcast -a com.android.systemui.demo -e command exit >/dev/null
+adb logcat -d > "$OUT/logcat.txt" 2>/dev/null
+adb logcat -d -b crash > "$OUT/crash.txt" 2>/dev/null
 ls -la "$OUT/segments" "$OUT/screenshots"
