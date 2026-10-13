@@ -91,8 +91,28 @@ data class VpnService(
     val name: String,
     val domain: String,
     val url: String,
-    val hasAuth: Boolean
+    val hasAuth: Boolean,
+    /** Route monitoring: "up" | "down"; null when not monitored or an older server. */
+    val status: String? = null,
+    /** "route" (GateControl login page) | "basic" | "none"; null on older servers. */
+    val auth: String? = null,
+    /** The route allows the automatic login from the apps ([ServiceOpenResponse]). */
+    val appLogin: Boolean? = null,
 )
+
+/**
+ * Answer of `POST /client/services/{id}/open`: [url] is a one-time login
+ * link when [autoLogin], else the route's address.
+ */
+data class ServiceOpenResponse(
+    val ok: Boolean = false,
+    @SerializedName("url") val url: String? = null,
+    @SerializedName("autoLogin") val autoLogin: Boolean? = null,
+    @SerializedName("expiresIn") val expiresIn: Int? = null,
+) {
+    // The ticket must not end up in a log line through an accidental toString().
+    override fun toString(): String = "ServiceOpenResponse(ok=$ok, url=${if (url == null) "null" else "[REDACTED]"}, autoLogin=$autoLogin)"
+}
 
 data class DnsCheckResponse(
     val ok: Boolean,

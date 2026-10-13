@@ -73,6 +73,14 @@ interface ApiClient {
     @GET("api/v1/client/services")
     suspend fun getServices(): ServicesResponse
 
+    /**
+     * Address to open a service, with a one-time automatic login when the
+     * route allows it. Use [getServiceLink], which validates the answer and
+     * never throws.
+     */
+    @POST("api/v1/client/services/{id}/open")
+    suspend fun requestServiceLink(@Path("id") id: Int): Response<ServiceOpenResponse>
+
     @GET("api/v1/client/dns-check")
     suspend fun dnsCheck(): DnsCheckResponse
 

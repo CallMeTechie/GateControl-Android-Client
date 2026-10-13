@@ -34,6 +34,13 @@
 
     <!-- Services -->
     <string name="services_empty">Keine Dienste verfügbar</string>
+    <string name="services_favorites">Favoriten</string>
+    <string name="services_all">Alle Dienste</string>
+    <string name="services_favorite_add">Zu Favoriten hinzufügen</string>
+    <string name="services_favorite_remove">Aus Favoriten entfernen</string>
+    <string name="services_status_up">Online</string>
+    <string name="services_status_down">Nicht erreichbar</string>
+    <string name="services_auto_login_badge">Auto-Login</string>
     <string name="services_auth_badge">Auth</string>
     <string name="dns_leak_test">DNS-Leak-Test</string>
     <string name="dns_testing">Teste&#8230;</string>
