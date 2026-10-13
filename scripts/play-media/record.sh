@@ -65,6 +65,21 @@ tap_opt() { $UI tap "$1" --optional --timeout "${2:-4}"; }
 wait_text() { $UI wait "$@"; }
 key() { adb shell input keyevent "$1"; sleep 0.8; }
 nav() { $UI tap "$1" --optional --timeout 6; sleep 1; }
+# VPN state from the system: waits until it is up / down (max S seconds).
+vpn_wait() { # up|down S
+  local i
+  for i in $(seq 1 "$2"); do
+    if adb shell dumpsys connectivity 2>/dev/null | grep -E "NetworkAgentInfo" | grep -qE "Transports: VPN|VPN CONNECTED"; then
+      [ "$1" = up ] && return 0
+    else
+      [ "$1" = down ] && return 0
+    fi
+    sleep 1
+  done
+  echo "::warning title=vpn::not $1 after $2 s"
+  return 1
+}
+app_front() { adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1; sleep 2.5; }
 shade_open() { adb shell cmd statusbar expand-notifications; sleep "${1:-3}"; }
 shade_close() { adb shell cmd statusbar collapse; sleep 0.8; }
 
@@ -101,6 +116,7 @@ $UI tap "Cancel" --optional --timeout 40
 sleep 3
 diag "after setup"
 tap_opt "Not now" 3; tap_opt "Later" 2; tap_opt "Close" 2
+tap_opt "Dismiss" 4                              # "Notifications are off" hint
 # Demo mode hides notification icons; turn that part off so the VPN key shows.
 adb shell am broadcast -a com.android.systemui.demo -e command exit >/dev/null
 adb shell am force-stop "$PKG"
@@ -123,12 +139,15 @@ rec_stop
 shot 02-home-connected
 
 rec_start vpn 03 "Connected. The key icon shows the active VPN. Traffic to the user's server is encrypted end to end."
-shade_open 4
-shade_close
+sleep 4
 rec_stop
 
 rec_start vpn 04 "Purpose: secure remote access to the user's home network and own services (NAS, smart home, remote desktop)."
-nav "Network"; sleep 3; shot 03-network
+adb shell input swipe 540 1700 540 1000 400
+sleep 3.5
+shot 03-connected-details
+adb shell input swipe 540 900 540 1700 400
+sleep 1
 rec_stop
 
 rec_start vpn 05 "The user decides which apps or networks use the tunnel (split tunneling)."
@@ -171,16 +190,19 @@ rec_stop
 rec_start location 04 "App closed. Leaving the trusted Wi-Fi: the VPN connects automatically in the background."
 key KEYCODE_HOME
 adb shell svc wifi disable
-sleep 10
-shade_open 3
-shade_close
+vpn_wait up 40
+sleep 2
+app_front
+sleep 2
 rec_stop
 
 rec_start location 05 "Back in the trusted Wi-Fi: the VPN disconnects automatically. No location is sent anywhere."
+key KEYCODE_HOME
 adb shell svc wifi enable
-sleep 12
-shade_open 3
-shade_close
+vpn_wait down 40
+sleep 2
+app_front
+sleep 2
 rec_stop
 
 # ── Video 3: foreground service (notifications without Google) ─────
@@ -189,7 +211,7 @@ adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 sleep 5
 rec_start fgs 01 "Notifications from the user's own server, without Google services: the user chooses 'Always'."
 nav "Settings"
-tap "Off – tap to set up" --contains || tap "Notifications"
+tap "Notifications" --scroll || tap "Off – tap to set up" --contains --scroll
 sleep 1.5
 tap "Receive notifications"
 tap "Always (recommended)" --timeout 8 || tap "Always, also without VPN" --contains
@@ -204,7 +226,7 @@ shade_close
 rec_stop
 
 rec_start fgs 03 "Messages from the server arrive right away, also when the VPN is off."
-tap "Request a test message" --contains
+tap "Request a test message" --contains --scroll
 sleep 4
 shade_open 4
 shade_close

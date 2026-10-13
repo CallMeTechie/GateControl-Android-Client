@@ -59,7 +59,7 @@ def main(out):
                 "scale=720:-2,fps=30,format=yuv420p,"
                 f"drawtext=fontfile={FONT}:textfile={cap}:fontsize=30:fontcolor=white:"
                 "line_spacing=8:box=1:boxcolor=black@0.72:boxborderw=22:"
-                "x=(w-text_w)/2:y=h-text_h-120"
+                "x=(w-text_w)/2:y=h-text_h-190"
             )
             run("ffmpeg", "-y", "-i", src, "-vf", vf, "-an", "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", "20", "-r", "30", dst)

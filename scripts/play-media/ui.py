@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tiny UI driver for the Play review recordings (adb + uiautomator dump).
 
-  ui.py tap TEXT [--timeout S] [--contains] [--optional]
+  ui.py tap TEXT [--timeout S] [--contains] [--optional] [--scroll]
   ui.py wait TEXT [--timeout S] [--contains]
   ui.py field INDEX [--timeout S]   (taps the INDEX-th text field, 0-based)
   ui.py fill INDEX TEXT [--secret]  (types TEXT into that field; checks it unless secret)
@@ -129,7 +129,15 @@ def main(argv):
     optional = "--optional" in argv
     if "--timeout" in argv:
         timeout = float(argv[argv.index("--timeout") + 1])
-    pos = wait_for(text, timeout, contains)
+    pos = wait_for(text, timeout if "--scroll" not in argv else min(timeout, 3), contains)
+    if pos is None and "--scroll" in argv:
+        # Scroll the page up step by step until the text shows.
+        for _ in range(6):
+            adb("shell", "input", "swipe", "540", "1700", "540", "900", "300")
+            time.sleep(0.8)
+            pos = wait_for(text, 2, contains)
+            if pos:
+                break
     if pos is None:
         print(f"ui.py: '{text}' not found", file=sys.stderr)
         if not optional:
