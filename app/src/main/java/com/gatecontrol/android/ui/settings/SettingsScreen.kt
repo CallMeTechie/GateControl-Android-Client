@@ -50,6 +50,8 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
 import com.gatecontrol.android.notify.PushMode
 import com.gatecontrol.android.ui.notifications.NotificationSettingsViewModel
+import com.gatecontrol.android.location.LocationShareViewModel
+import com.gatecontrol.android.ui.location.locationSharingSummary
 
 /**
  * Settings overview: status card of the server connection, then grouped
@@ -63,13 +65,17 @@ fun SettingsScreen(
     onNavigateToServer: () -> Unit,
     onNavigateToSplitTunnel: () -> Unit,
     onNavigateToTrustedNetworks: () -> Unit,
+    onNavigateToLocation: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
+    locationViewModel: LocationShareViewModel = hiltViewModel(),
     pushViewModel: NotificationSettingsViewModel = hiltViewModel(),
     trustedViewModel: TrustedNetworksViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pushState by pushViewModel.uiState.collectAsStateWithLifecycle()
     val trustedState by trustedViewModel.uiState.collectAsStateWithLifecycle()
+    val locationEnabled by locationViewModel.enabled.collectAsStateWithLifecycle()
+    val locationServer by locationViewModel.server.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val extra = GateControlTheme.extraColors
 
@@ -156,6 +162,17 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_trusted_networks),
                 description = trustedNetworksSummary(trustedState.settings, trustedState.locked),
                 onClick = onNavigateToTrustedNetworks,
+                trailing = { GcChevron() },
+            )
+        }
+
+        // --- Standortfreigabe (location on tap) ------------------------------
+        SettingsGroup(stringResource(R.string.location_title)) {
+            GcListRow(
+                title = stringResource(R.string.location_title),
+                description = locationSharingSummary(locationEnabled, locationServer),
+                onClick = onNavigateToLocation,
+                leading = { Icon(GcIcons.Satellite, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
                 trailing = { GcChevron() },
             )
         }

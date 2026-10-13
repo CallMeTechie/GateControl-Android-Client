@@ -92,6 +92,18 @@ interface ApiClient {
         @Query("lang") lang: String? = null,
     ): Response<QuickActionRunResponse>
 
+    /** Location sharing: may this device send, last stored position (404 on older servers). */
+    @GET("api/v1/client/location")
+    suspend fun getLocationStatus(): Response<LocationStatusResponse>
+
+    /** Sends one position, only after the user tapped the satellite button. */
+    @POST("api/v1/client/location")
+    suspend fun reportLocation(@Body request: LocationReportRequest): Response<LocationReportResponse>
+
+    /** Deletes every position the server keeps for this device. */
+    @HTTP(method = "DELETE", path = "api/v1/client/location")
+    suspend fun deleteLocations(): Response<LocationDeleteResponse>
+
     @GET("api/v1/client/dns-check")
     suspend fun dnsCheck(): DnsCheckResponse
 

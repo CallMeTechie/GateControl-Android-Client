@@ -56,7 +56,7 @@ Die App sendet Daten nur an den vom Nutzer betriebenen Server; CallMeTechie erh�
 | **App-Info und -Leistung → Absturzprotokolle** | erhoben, nicht geteilt, nicht optional (automatisch), Zweck: App-Funktionalität |
 | **App-Info und -Leistung → Diagnose** | erhoben, nicht geteilt, optional (Support-Paket), Zweck: App-Funktionalität |
 | **Geräte- oder andere IDs** | erhoben, nicht geteilt, nicht optional, Zweck: App-Funktionalität (Gerätename/Modell im Status an den eigenen Server) |
-| Standort | **nicht** erhoben (wird nur auf dem Gerät für den WLAN-Namen genutzt, nie übertragen) |
+| **Standort → Genauer Standort** | erhoben (ab 1.26: Standortfreigabe), **nicht geteilt** (geht nur an den eigenen Server des Nutzers), **optional**, Zweck: App-Funktionalität; nur auf Tipp, nicht im Hintergrund. Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
 | Persönliche Daten, Finanzen, Nachrichten, Fotos, Kontakte, Web-Verlauf | nein |
 
 ### Berechtigungen und Erklärungen

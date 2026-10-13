@@ -493,3 +493,44 @@ data class QuickActionRunResponse(
     val state: String? = null,
     val error: String? = null,
 )
+
+/**
+ * Location sharing on tap (`/api/v1/client/location`). [allowed] = the
+ * administrator lets this device's user share it; [last] = the last
+ * position the server keeps for this device.
+ */
+data class LocationStatusResponse(
+    val ok: Boolean = false,
+    val allowed: Boolean = false,
+    val last: LocationFix? = null,
+    val keep: Int? = null,
+    @SerializedName("retention_days") val retentionDays: Int? = null,
+)
+
+/** One position as the server stores it; [at] = epoch ms. */
+data class LocationFix(
+    val lat: Double = 0.0,
+    val lng: Double = 0.0,
+    val accuracy: Double? = null,
+    val at: Long = 0,
+)
+
+data class LocationReportRequest(
+    val lat: Double,
+    val lng: Double,
+    val accuracy: Double?,
+    val altitude: Double?,
+    val provider: String?,
+    @SerializedName("captured_at") val capturedAt: Long,
+)
+
+data class LocationReportResponse(
+    val ok: Boolean = false,
+    val at: Long? = null,
+    val error: String? = null,
+)
+
+data class LocationDeleteResponse(
+    val ok: Boolean = false,
+    val deleted: Int? = null,
+)

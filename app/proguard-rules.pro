@@ -80,6 +80,8 @@
 
 # ── Quick action pins (Gson, stored in DataStore across app updates) ──
 -keep class com.gatecontrol.android.quickactions.QuickActionItem { *; }
+# Last location sent (Gson, settings storage).
+-keep class com.gatecontrol.android.location.SentLocation { *; }
 
 # ── General ───────────────────────────────────────────────
 -keepattributes SourceFile,LineNumberTable

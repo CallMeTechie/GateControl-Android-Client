@@ -48,6 +48,10 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val SERVICE_FAVORITES = stringSetPreferencesKey("service_favorites")
         // Quick actions pinned to the start screen, shortcuts, tiles and widget (JSON list)
         val QUICK_ACTION_PINS = stringPreferencesKey("quick_action_pins")
+        /** Location sharing on tap (satellite button on the start screen). */
+        val LOCATION_SHARING = booleanPreferencesKey("location_sharing")
+        /** Last position sent, JSON (format owned by the app's LocationShareRepository). */
+        val LOCATION_LAST_SENT = stringPreferencesKey("location_last_sent")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -124,6 +128,18 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     /** Atomic read-modify-write of the pinned quick actions. */
     suspend fun updateQuickActionPins(transform: (String?) -> String) {
         dataStore.edit { it[QUICK_ACTION_PINS] = transform(it[QUICK_ACTION_PINS]) }
+    }
+
+    fun getLocationSharing(): Flow<Boolean> = dataStore.data.map { it[LOCATION_SHARING] ?: false }
+
+    suspend fun setLocationSharing(value: Boolean) {
+        dataStore.edit { it[LOCATION_SHARING] = value }
+    }
+
+    fun getLocationLastSent(): Flow<String?> = dataStore.data.map { it[LOCATION_LAST_SENT] }
+
+    suspend fun setLocationLastSent(value: String?) {
+        dataStore.edit { if (value == null) it.remove(LOCATION_LAST_SENT) else it[LOCATION_LAST_SENT] = value }
     }
 
     /** Adds or removes [domain]; atomic, so two quick taps never lose one. */
