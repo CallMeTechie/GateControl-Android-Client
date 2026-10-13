@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0] - 2026-10-13
+
+### Features
+- updates from Google Play inside the app (#63)
+
+---
+
 ## [1.24.0] - 2026-10-13
 
 ### Features
