@@ -71,11 +71,18 @@ adb shell am broadcast -a com.android.systemui.demo -e command battery -e level 
 adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false >/dev/null
 sleep 8
 
-adb shell "am start -a android.intent.action.VIEW -d '$LINK' $PKG"
-sleep 6
-diag "after the setup link"
-tap "Connect" --timeout 40 || exit 1           # "Connect to server?" confirmation
-wait_text "Device set up" --timeout 60 --contains || true
+# Set up like a person would: "Enter setup code", server URL, code.
+CODE="${LINK##*code=}"
+adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+tap "Enter setup code" --timeout 40 || exit 1
+$UI field 0 || { diag "no server URL field"; exit 1; }
+adb shell input text "10.0.2.2:8443"
+$UI field 1 || { diag "no code field"; exit 1; }
+adb shell input text "$CODE"
+key KEYCODE_BACK                                 # hide the keyboard
+tap "Save & Register" || exit 1
+tap_opt "Connect" 10                             # confirmation, if the app asks
+wait_text "Device set up" --timeout 60 --contains || wait_text "Connect" --timeout 30 || diag "after setup"
 sleep 6
 tap_opt "Not now" 3; tap_opt "Later" 2; tap_opt "Close" 2
 # Demo mode hides notification icons; turn that part off so the VPN key shows.

@@ -3,6 +3,7 @@
 
   ui.py tap TEXT [--timeout S] [--contains] [--optional]
   ui.py wait TEXT [--timeout S] [--contains]
+  ui.py field INDEX [--timeout S]   (taps the INDEX-th text field, 0-based)
   ui.py dump
 
 Finds a node whose text or content-desc equals (or contains) TEXT and taps
@@ -83,6 +84,23 @@ def main(argv):
             if t:
                 print(repr(t), node.get("bounds"))
         return 0
+    if cmd == "field":
+        index = int(argv[1])
+        timeout = float(argv[argv.index("--timeout") + 1]) if "--timeout" in argv else 20.0
+        end = time.time() + timeout
+        while time.time() < end:
+            root = dump()
+            fields = [n for n in (root.iter("node") if root is not None else []) if n.get("class") == "android.widget.EditText"]
+            if len(fields) > index:
+                m = BOUNDS.match(fields[index].get("bounds") or "")
+                if m:
+                    x1, y1, x2, y2 = map(int, m.groups())
+                    adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
+                    time.sleep(0.8)
+                    return 0
+            time.sleep(0.7)
+        print(f"ui.py: text field {index} not found", file=sys.stderr)
+        return 1
     text = argv[1]
     timeout = 20.0
     contains = "--contains" in argv
