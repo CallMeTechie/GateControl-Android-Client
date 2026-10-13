@@ -187,6 +187,9 @@ tap "Add current Wi-Fi"; sleep 2.5
 shot 06-trusted-wifi
 rec_stop
 
+# Back to the start screen first: reopening the app shows the VPN state there.
+key KEYCODE_BACK
+nav "Home"
 rec_start location 04 "App closed. Leaving the trusted Wi-Fi: the VPN connects automatically in the background."
 key KEYCODE_HOME
 adb shell svc wifi disable
