@@ -5,7 +5,8 @@ Writes the bullet points of the newest CHANGELOG section ("## [x.y.z] ...")
 as fastlane `changelogs/default.txt` for de-DE and en-US. Play allows 500
 characters per language; longer notes are cut at a line break.
 
-Usage: play_release_notes.py <CHANGELOG.md> <metadata dir>
+Usage: play_release_notes.py <CHANGELOG.md> <metadata dir> [version]
+(version: take that section instead of the newest one)
 """
 import pathlib
 import re
@@ -14,11 +15,13 @@ import sys
 LIMIT = 500
 
 
-def latest_notes(changelog: str) -> str:
-    sections = re.split(r"^## \[", changelog, flags=re.M)
-    if len(sections) < 2:
+def latest_notes(changelog: str, version: str = "") -> str:
+    sections = re.split(r"^## \[", changelog, flags=re.M)[1:]
+    if version:
+        sections = [s for s in sections if s.startswith(version + "]")]
+    if not sections:
         return ""
-    body = sections[1].split("\n", 1)[1] if "\n" in sections[1] else ""
+    body = sections[0].split("\n", 1)[1] if "\n" in sections[0] else ""
     body = body.split("\n---", 1)[0]
     lines = [l.strip() for l in body.splitlines() if l.strip().startswith("- ")]
     return "\n".join("• " + l[2:].strip() for l in lines)
@@ -37,7 +40,8 @@ def cap(text: str, limit: int = LIMIT) -> str:
 
 def main() -> int:
     changelog, metadata = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-    notes = cap(latest_notes(changelog.read_text(encoding="utf-8"))) or "•"
+    version = sys.argv[3].lstrip("v") if len(sys.argv) > 3 else ""
+    notes = cap(latest_notes(changelog.read_text(encoding="utf-8"), version)) or "•"
     for lang in ("de-DE", "en-US"):
         target = metadata / lang / "changelogs" / "default.txt"
         target.parent.mkdir(parents=True, exist_ok=True)
