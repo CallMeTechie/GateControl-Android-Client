@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -349,12 +350,21 @@ fun GcListRow(
     trailing: (@Composable () -> Unit)? = null,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     descriptionMono: Boolean = false,
+    /** Shown in the detail pane next to the list (wide screens). */
+    selected: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .then(if (selected) Modifier.background(GateControlTheme.extraColors.accentBg) else Modifier)
+            .then(
+                when {
+                    onClick == null -> Modifier
+                    selected -> Modifier.selectable(selected = true, role = Role.Button, onClick = onClick)
+                    else -> Modifier.clickable(role = Role.Button, onClick = onClick)
+                },
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -431,7 +441,12 @@ fun GcSubpageBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        GcIconButton(GcIcons.Back, contentDescription = backDescription, onClick = onBack, tint = MaterialTheme.colorScheme.onBackground)
+        // In the detail pane of a list-detail layout the list stays visible: no way back needed.
+        if (com.gatecontrol.android.ui.adaptive.LocalInDetailPane.current) {
+            Spacer(Modifier.width(12.dp))
+        } else {
+            GcIconButton(GcIcons.Back, contentDescription = backDescription, onClick = onBack, tint = MaterialTheme.colorScheme.onBackground)
+        }
         Text(
             title,
             style = MaterialTheme.typography.headlineMedium,

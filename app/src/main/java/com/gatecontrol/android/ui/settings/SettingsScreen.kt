@@ -66,6 +66,9 @@ fun SettingsScreen(
     onNavigateToSplitTunnel: () -> Unit,
     onNavigateToTrustedNetworks: () -> Unit,
     onNavigateToLocation: () -> Unit = {},
+    onNavigateToDiagnosis: () -> Unit = {},
+    /** Page shown next to the list on wide screens; its row is highlighted. */
+    selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     pushViewModel: NotificationSettingsViewModel = hiltViewModel(),
@@ -140,6 +143,7 @@ fun SettingsScreen(
                     description = stringResource(R.string.settings_server_row_desc, host.ifBlank { "—" }),
                     onClick = onNavigateToServer,
                     trailing = { GcChevron() },
+                    selected = selectedPane == SettingsPane.Server,
                 )
             }
             GcSwitchRow(
@@ -157,12 +161,14 @@ fun SettingsScreen(
                 description = splitSummary(uiState),
                 onClick = onNavigateToSplitTunnel,
                 trailing = { GcChevron() },
+                selected = selectedPane == SettingsPane.SplitTunnel,
             )
             GcListRow(
                 title = stringResource(R.string.settings_trusted_networks),
                 description = trustedNetworksSummary(trustedState.settings, trustedState.locked),
                 onClick = onNavigateToTrustedNetworks,
                 trailing = { GcChevron() },
+                selected = selectedPane == SettingsPane.TrustedNetworks,
             )
         }
 
@@ -174,6 +180,7 @@ fun SettingsScreen(
                 onClick = onNavigateToLocation,
                 leading = { Icon(GcIcons.Satellite, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
                 trailing = { GcChevron() },
+                selected = selectedPane == SettingsPane.Location,
             )
         }
 
@@ -214,6 +221,7 @@ fun SettingsScreen(
                 onClick = onNavigateToNotifications,
                 leading = { Icon(GcIcons.Bell, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
                 trailing = { GcChevron() },
+                selected = selectedPane == SettingsPane.Notifications,
             )
         }
 
@@ -264,11 +272,20 @@ fun SettingsScreen(
                 description = stringResource(R.string.settings_logs_desc),
                 onClick = onNavigateToLogs,
                 trailing = { GcChevron() },
+                selected = selectedPane == SettingsPane.Logs,
             )
             GcListRow(
                 title = stringResource(R.string.settings_logs_export),
                 onClick = { viewModel.exportLogs(context.cacheDir) },
                 trailing = { Icon(GcIcons.Share, contentDescription = null, tint = extra.faint, modifier = Modifier.size(20.dp)) },
+            )
+            // "Diagnose & Problem melden": checks + report with description (ui/diagnosis)
+            GcListRow(
+                title = stringResource(R.string.diag_settings_row),
+                description = stringResource(R.string.diag_settings_row_desc),
+                onClick = onNavigateToDiagnosis,
+                trailing = { GcChevron() },
+                selected = selectedPane == SettingsPane.Diagnosis,
             )
             // "Support-Paket senden": confirmation dialog → redacted bundle → server
             GcListRow(

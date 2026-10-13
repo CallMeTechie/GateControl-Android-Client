@@ -7,6 +7,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import com.gatecontrol.android.ui.adaptive.GcTwoPane
+import com.gatecontrol.android.ui.adaptive.GcWindowLayout
+import com.gatecontrol.android.ui.adaptive.LocalGcWindowLayout
+import com.gatecontrol.android.ui.adaptive.rememberGcWindowLayout
+import com.gatecontrol.android.ui.notifications.NotificationDetailViewModel
+import com.gatecontrol.android.ui.settings.SettingsPane
+import com.gatecontrol.android.ui.settings.SettingsViewModel
+import kotlinx.coroutines.flow.map
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
@@ -52,6 +69,7 @@ import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.settings.SplitTunnelScreen
 import com.gatecontrol.android.ui.settings.TrustedNetworksScreen
 import com.gatecontrol.android.ui.location.LocationSharingScreen
+import com.gatecontrol.android.ui.diagnosis.DiagnosisScreen
 import com.gatecontrol.android.ui.quickactions.QuickActionsScreen
 import com.gatecontrol.android.ui.setup.QrScannerScreen
 import com.gatecontrol.android.ui.setup.SetupScreen
@@ -125,29 +143,58 @@ fun AppNavigation(
         if (hasServicesPermission || hasPiholePermission) {
             add(TabItem(Screen.Network.route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe))
         }
-        add(TabItem(Screen.Settings.route, Screen.Settings.route, R.string.nav_settings, GcIcons.Sliders))
+        add(TabItem(Screen.Settings.route, Screen.Settings.create(), R.string.nav_settings, GcIcons.Sliders))
     }
 
+    // Tablet, unfolded foldable, phone in landscape: rail instead of the
+    // bottom bar, list and detail side by side (docs/LARGE_SCREENS.md).
+    val layout = rememberGcWindowLayout()
+
+    /** A settings page: beside the settings list on wide screens, else its own route. */
+    val openSettingsPane: (SettingsPane) -> Unit = { pane ->
+        if (layout.twoPane) {
+            // No restoreState: the pane argument must win over a saved settings state.
+            navController.navigate(Screen.Settings.create(pane.key)) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+            }
+        } else {
+            navController.navigate(pane.route()) { launchSingleTop = true }
+        }
+    }
+    val isTabSelected: (TabItem) -> Boolean = { tab ->
+        navBackStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true
+    }
+
+    CompositionLocalProvider(LocalGcWindowLayout provides layout) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (showBottomBar) {
+            if (showBottomBar && !layout.useRail) {
                 GcTabBar(
                     tabs = tabs,
-                    isSelected = { tab -> navBackStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true },
+                    isSelected = isTabSelected,
                     onSelect = { tab -> navigateToTab(tab.navigateTo) },
                 )
             }
         },
     ) { innerPadding ->
+        Row(Modifier.padding(innerPadding).fillMaxSize()) {
+        if (showBottomBar && layout.useRail) {
+            GcNavRail(
+                tabs = tabs,
+                isSelected = isTabSelected,
+                onSelect = { tab -> navigateToTab(tab.navigateTo) },
+            )
+        }
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
         ) {
             composable(Screen.Setup.route) { backStackEntry ->
                 val qrResult = backStackEntry.savedStateHandle.get<String>("qr_result")
-                SetupScreen(
+                GcContentWidth { SetupScreen(
                     onSetupComplete = {
                         navController.navigate(Screen.Vpn.route) {
                             popUpTo(Screen.Setup.route) { inclusive = true }
@@ -157,7 +204,7 @@ fun AppNavigation(
                         navController.navigate(Screen.QrScanner.route)
                     },
                     qrResult = qrResult,
-                )
+                ) }
             }
 
             composable(
@@ -174,7 +221,7 @@ fun AppNavigation(
                 // an argument; a scan from the in-app scanner via savedStateHandle.
                 val openedLink = backStackEntry.arguments?.getString(Screen.Enroll.ARG_LINK)
                 val qrResult = backStackEntry.savedStateHandle.get<String>("qr_result") ?: openedLink
-                SetupScreen(
+                GcContentWidth { SetupScreen(
                     onSetupComplete = {
                         navController.navigate(Screen.Vpn.route) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
@@ -186,7 +233,7 @@ fun AppNavigation(
                     qrResult = qrResult,
                     upgradeMode = true,
                     autoOpenScanner = openedLink == null,
-                )
+                ) }
             }
 
             composable(Screen.QrScanner.route) {
@@ -220,10 +267,10 @@ fun AppNavigation(
                     bell = bell,
                     // Nothing arrives yet: the bell leads to where notifications are switched on.
                     onOpenInbox = {
-                        val target = if (bell.pushOff) Screen.SettingsNotifications.route else Screen.Inbox.route
-                        navController.navigate(target) { launchSingleTop = true }
+                        if (bell.pushOff) openSettingsPane(SettingsPane.Notifications)
+                        else navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
                     },
-                    onEnableNotifications = { navController.navigate(Screen.SettingsNotifications.route) { launchSingleTop = true } },
+                    onEnableNotifications = { openSettingsPane(SettingsPane.Notifications) },
                     onDismissPushHint = inboxViewModel::dismissStartHint,
                     onTokenInvalid = {
                         navController.navigate(Screen.Setup.route) {
@@ -237,15 +284,16 @@ fun AppNavigation(
                             launchSingleTop = true
                         }
                     },
-                    onOpenSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
-                    onOpenLogs = { navController.navigate(Screen.Logs.route) },
+                    onOpenSplitTunnel = { openSettingsPane(SettingsPane.SplitTunnel) },
+                    onOpenLogs = { openSettingsPane(SettingsPane.Logs) },
                     onOpenQuickActions = { navController.navigate(Screen.QuickActions.route) { launchSingleTop = true } },
-                    onOpenLocationSettings = { navController.navigate(Screen.LocationSharing.route) { launchSingleTop = true } },
+                    onOpenLocationSettings = { openSettingsPane(SettingsPane.Location) },
+                    onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
                 )
             }
 
             composable(Screen.Rdp.route) {
-                RdpScreen()
+                GcContentWidth(maxWidth = 840.dp) { RdpScreen() }
             }
 
             composable(
@@ -258,71 +306,169 @@ fun AppNavigation(
                     },
                 ),
             ) { backStackEntry ->
-                NetworkScreen(
-                    hasServices = hasServicesPermission,
-                    hasPihole = hasPiholePermission,
-                    initialTab = backStackEntry.arguments?.getString(Screen.Network.ARG_TAB),
-                    onGoToStart = { navigateToTab(Screen.Vpn.route) },
-                )
+                GcContentWidth(maxWidth = 840.dp) {
+                    NetworkScreen(
+                        hasServices = hasServicesPermission,
+                        hasPihole = hasPiholePermission,
+                        initialTab = backStackEntry.arguments?.getString(Screen.Network.ARG_TAB),
+                        onGoToStart = { navigateToTab(Screen.Vpn.route) },
+                    )
+                }
             }
 
-            composable(Screen.Settings.route) {
-                SettingsScreen(
-                    onNavigateToNotifications = { navController.navigate(Screen.SettingsNotifications.route) },
-                    onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
-                    onNavigateToServer = { navController.navigate(Screen.SettingsServer.route) },
-                    onNavigateToSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
-                    onNavigateToTrustedNetworks = { navController.navigate(Screen.TrustedNetworks.route) },
-                    onNavigateToLocation = { navController.navigate(Screen.LocationSharing.route) },
-                )
+            composable(
+                route = Screen.Settings.route,
+                arguments = listOf(
+                    navArgument(Screen.Settings.ARG_PANE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                if (layout.twoPane) {
+                    val requested = SettingsPane.fromKey(backStackEntry.arguments?.getString(Screen.Settings.ARG_PANE))
+                    val settingsViewModel: SettingsViewModel = hiltViewModel()
+                    val serverLocked by remember(settingsViewModel) {
+                        settingsViewModel.uiState.map { it.policy.lockServer }
+                    }.collectAsStateWithLifecycle(initialValue = false)
+                    var paneKey by rememberSaveable(requested) { mutableStateOf(requested?.key) }
+                    // Nothing picked yet: the first page that can be opened.
+                    val pane = SettingsPane.fromKey(paneKey)
+                        ?: if (serverLocked) SettingsPane.SplitTunnel else SettingsPane.Server
+                    GcTwoPane(
+                        list = {
+                            SettingsScreen(
+                                onNavigateToNotifications = { paneKey = SettingsPane.Notifications.key },
+                                onNavigateToLogs = { paneKey = SettingsPane.Logs.key },
+                                onNavigateToServer = { paneKey = SettingsPane.Server.key },
+                                onNavigateToSplitTunnel = { paneKey = SettingsPane.SplitTunnel.key },
+                                onNavigateToTrustedNetworks = { paneKey = SettingsPane.TrustedNetworks.key },
+                                onNavigateToLocation = { paneKey = SettingsPane.Location.key },
+                                onNavigateToDiagnosis = { paneKey = SettingsPane.Diagnosis.key },
+                                selectedPane = pane,
+                                viewModel = settingsViewModel,
+                            )
+                        },
+                        detail = {
+                            key(pane) {
+                                SettingsPaneContent(
+                                    pane = pane,
+                                    onOpenEnroll = { navController.navigate(Screen.Enroll.create()) },
+                                )
+                            }
+                        },
+                    )
+                } else {
+                    SettingsScreen(
+                        onNavigateToNotifications = { navController.navigate(Screen.SettingsNotifications.route) },
+                        onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
+                        onNavigateToServer = { navController.navigate(Screen.SettingsServer.route) },
+                        onNavigateToSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
+                        onNavigateToTrustedNetworks = { navController.navigate(Screen.TrustedNetworks.route) },
+                        onNavigateToLocation = { navController.navigate(Screen.LocationSharing.route) },
+                        onNavigateToDiagnosis = { navController.navigate(Screen.Diagnosis.route) { launchSingleTop = true } },
+                    )
+                }
             }
 
             composable(Screen.SettingsServer.route) {
-                ServerSettingsScreen(
-                    onBack = { navController.popBackStack() },
-                    // Scans land on the setup screen, which understands both the
-                    // setup QR (VPN + API access) and a bare WireGuard config.
-                    onNavigateToQrScanner = { navController.navigate(Screen.Enroll.create()) },
-                )
+                GcContentWidth {
+                    ServerSettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        // Scans land on the setup screen, which understands both the
+                        // setup QR (VPN + API access) and a bare WireGuard config.
+                        onNavigateToQrScanner = { navController.navigate(Screen.Enroll.create()) },
+                    )
+                }
             }
 
-            composable(Screen.Inbox.route) {
-                InboxScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpen = { id -> navController.navigate(Screen.NotificationDetail.create(id)) },
-                    onOpenSettings = { navController.navigate(Screen.SettingsNotifications.route) },
-                )
+            composable(
+                route = Screen.Inbox.route,
+                arguments = listOf(
+                    navArgument(Screen.Inbox.ARG_SELECT) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val requested = backStackEntry.arguments?.getString(Screen.Inbox.ARG_SELECT)?.toLongOrNull()
+                if (layout.twoPane) {
+                    var selected by rememberSaveable(requested) { mutableStateOf(requested) }
+                    GcTwoPane(
+                        listWidth = 420.dp,
+                        list = {
+                            InboxScreen(
+                                onBack = { navController.popBackStack() },
+                                onOpen = { id -> selected = id },
+                                onOpenSettings = { openSettingsPane(SettingsPane.Notifications) },
+                                selectedId = selected,
+                            )
+                        },
+                        detail = {
+                            val id = selected
+                            if (id == null) {
+                                InboxPanePlaceholder()
+                            } else {
+                                val detailViewModel: NotificationDetailViewModel = hiltViewModel(key = "inbox-pane")
+                                LaunchedEffect(id) { detailViewModel.show(id) }
+                                NotificationDetailScreen(
+                                    onBack = { selected = null },
+                                    onNavigate = { target ->
+                                        if (target is PushNavTarget.Detail) selected = target.id
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout)
+                                    },
+                                    viewModel = detailViewModel,
+                                )
+                            }
+                        },
+                    )
+                } else {
+                    GcContentWidth {
+                        InboxScreen(
+                            onBack = { navController.popBackStack() },
+                            onOpen = { id -> navController.navigate(Screen.NotificationDetail.create(id)) },
+                            onOpenSettings = { openSettingsPane(SettingsPane.Notifications) },
+                        )
+                    }
+                }
             }
 
             composable(
                 route = Screen.NotificationDetail.route,
                 arguments = listOf(navArgument(Screen.NotificationDetail.ARG_ID) { type = NavType.LongType }),
             ) {
-                NotificationDetailScreen(
-                    onBack = {
-                        if (!navController.popBackStack()) navController.navigate(Screen.Inbox.route)
-                    },
-                    onNavigate = { target -> openPushTarget(navController, target, navigateToTab) },
-                )
+                GcContentWidth {
+                    NotificationDetailScreen(
+                        onBack = {
+                            if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
+                        },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout) },
+                    )
+                }
             }
 
             composable(Screen.SettingsNotifications.route) {
-                NotificationSettingsScreen(onBack = { navController.popBackStack() })
+                GcContentWidth { NotificationSettingsScreen(onBack = { navController.popBackStack() }) }
             }
 
             composable(Screen.SplitTunnel.route) {
-                SplitTunnelScreen(onBack = { navController.popBackStack() })
+                GcContentWidth { SplitTunnelScreen(onBack = { navController.popBackStack() }) }
             }
 
             composable(Screen.TrustedNetworks.route) {
-                TrustedNetworksScreen(onBack = { navController.popBackStack() })
+                GcContentWidth { TrustedNetworksScreen(onBack = { navController.popBackStack() }) }
             }
             composable(Screen.LocationSharing.route) {
-                LocationSharingScreen(onBack = { navController.popBackStack() })
+                GcContentWidth { LocationSharingScreen(onBack = { navController.popBackStack() }) }
+            }
+            composable(Screen.Diagnosis.route) {
+                GcContentWidth { DiagnosisScreen(onBack = { navController.popBackStack() }) }
             }
 
             composable(Screen.QuickActions.route) {
-                QuickActionsScreen(onBack = { navController.popBackStack() })
+                GcContentWidth { QuickActionsScreen(onBack = { navController.popBackStack() }) }
             }
 
             composable(Screen.Logs.route) {
@@ -338,7 +484,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab)
+            openPushTarget(navController, target, navigateToTab, layout)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -348,14 +494,26 @@ fun AppNavigation(
                 onSetupLinkConsumed()
             }
         }
+        }
+    }
     }
 }
 
 /** Opens the screen a push message points to. */
-private fun openPushTarget(navController: NavHostController, target: PushNavTarget, navigateToTab: (String) -> Unit) {
+private fun openPushTarget(
+    navController: NavHostController,
+    target: PushNavTarget,
+    navigateToTab: (String) -> Unit,
+    layout: GcWindowLayout,
+) {
     when (target) {
-        PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.route) { launchSingleTop = true }
-        is PushNavTarget.Detail -> navController.navigate(Screen.NotificationDetail.create(target.id))
+        PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
+        // Wide screens: the message opens beside the inbox list.
+        is PushNavTarget.Detail -> if (layout.twoPane) {
+            navController.navigate(Screen.Inbox.create(target.id)) { launchSingleTop = true }
+        } else {
+            navController.navigate(Screen.NotificationDetail.create(target.id))
+        }
         PushNavTarget.Vpn -> navigateToTab(Screen.Vpn.route)
         PushNavTarget.Services -> navController.navigate(Screen.Network.create()) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -387,58 +545,166 @@ private fun GcTabBar(
         ) {
             tabs.forEach { tab ->
                 val selected = isSelected(tab)
-                val label = stringResource(tab.label)
-                Column(
+                TabItemContent(
+                    tab = tab,
+                    selected = selected,
                     modifier = Modifier
                         .weight(1f)
                         .height(72.dp)
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
                         .padding(top = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Icon with pill indicator, badge and label: one entry of the tab bar or the rail. */
+@Composable
+private fun TabItemContent(tab: TabItem, selected: Boolean, modifier: Modifier) {
+    val extra = GateControlTheme.extraColors
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(
+            Modifier
+                .width(60.dp)
+                .height(32.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (selected) extra.accentBg else Color.Transparent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                tab.icon,
+                contentDescription = null,
+                tint = if (selected) extra.accentText else extra.muted,
+                modifier = Modifier.size(22.dp),
+            )
+            if (tab.badge > 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-6).dp, y = (-2).dp)
+                        .height(18.dp)
+                        .widthIn(min = 18.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(scheme.primary)
+                        .padding(horizontal = 5.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        Modifier
-                            .width(60.dp)
-                            .height(32.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (selected) extra.accentBg else Color.Transparent),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            tab.icon,
-                            contentDescription = null,
-                            tint = if (selected) extra.accentText else extra.muted,
-                            modifier = Modifier.size(22.dp),
-                        )
-                        if (tab.badge > 0) {
-                            Box(
-                                Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = (-6).dp, y = (-2).dp)
-                                    .height(18.dp)
-                                    .widthIn(min = 18.dp)
-                                    .clip(RoundedCornerShape(9.dp))
-                                    .background(scheme.primary)
-                                    .padding(horizontal = 5.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    tab.badge.toString(),
-                                    color = scheme.onPrimary,
-                                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
-                                )
-                            }
-                        }
-                    }
                     Text(
-                        label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (selected) scheme.onSurface else extra.muted,
-                        maxLines = 1,
+                        tab.badge.toString(),
+                        color = scheme.onPrimary,
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
                     )
                 }
             }
         }
+        Text(
+            stringResource(tab.label),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) scheme.onSurface else extra.muted,
+            maxLines = 1,
+        )
+    }
+}
+
+/** Navigation rail for wide windows: the tab bar's entries on the left edge. */
+@Composable
+private fun GcNavRail(
+    tabs: List<TabItem>,
+    isSelected: (TabItem) -> Boolean,
+    onSelect: (TabItem) -> Unit,
+) {
+    val extra = GateControlTheme.extraColors
+    Row(Modifier.fillMaxHeight()) {
+        Column(
+            Modifier
+                .fillMaxHeight()
+                .width(GcWindowLayout.RAIL_WIDTH_DP.dp)
+                .background(MaterialTheme.colorScheme.surface)
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                GcIcons.ShieldCheck,
+                contentDescription = null,
+                tint = extra.accentText,
+                modifier = Modifier.padding(bottom = 12.dp).size(28.dp),
+            )
+            tabs.forEach { tab ->
+                val selected = isSelected(tab)
+                TabItemContent(
+                    tab = tab,
+                    selected = selected,
+                    modifier = Modifier
+                        .width(80.dp)
+                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
+                        .padding(vertical = 6.dp),
+                )
+            }
+        }
+        Box(Modifier.width(1.dp).fillMaxHeight().background(extra.border))
+    }
+}
+
+/** Single-column pages on wide windows: centred, at most [maxWidth] wide. */
+@Composable
+private fun GcContentWidth(maxWidth: Dp = 720.dp, content: @Composable () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Box(Modifier.widthIn(max = maxWidth).fillMaxSize()) { content() }
+    }
+}
+
+/** Route of a settings page on phones (own screen). */
+private fun SettingsPane.route(): String = when (this) {
+    SettingsPane.Server -> Screen.SettingsServer.route
+    SettingsPane.SplitTunnel -> Screen.SplitTunnel.route
+    SettingsPane.TrustedNetworks -> Screen.TrustedNetworks.route
+    SettingsPane.Location -> Screen.LocationSharing.route
+    SettingsPane.Notifications -> Screen.SettingsNotifications.route
+    SettingsPane.Logs -> Screen.Logs.route
+    SettingsPane.Diagnosis -> Screen.Diagnosis.route
+}
+
+/** A settings page in the detail pane beside the settings list. */
+@Composable
+private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit) {
+    when (pane) {
+        SettingsPane.Server -> ServerSettingsScreen(onBack = {}, onNavigateToQrScanner = onOpenEnroll)
+        SettingsPane.SplitTunnel -> SplitTunnelScreen(onBack = {})
+        SettingsPane.TrustedNetworks -> TrustedNetworksScreen(onBack = {})
+        SettingsPane.Location -> LocationSharingScreen(onBack = {})
+        SettingsPane.Notifications -> NotificationSettingsScreen(onBack = {})
+        SettingsPane.Logs -> LogsScreen(onNavigateBack = {})
+        SettingsPane.Diagnosis -> DiagnosisScreen(onBack = {})
+    }
+}
+
+/** Detail pane of the inbox before a message is picked. */
+@Composable
+private fun InboxPanePlaceholder() {
+    val extra = GateControlTheme.extraColors
+    Column(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(GcIcons.Bell, contentDescription = null, tint = extra.faint, modifier = Modifier.size(40.dp))
+        Text(
+            stringResource(R.string.push_inbox_pick),
+            style = MaterialTheme.typography.bodyLarge,
+            color = extra.muted,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 12.dp),
+        )
     }
 }

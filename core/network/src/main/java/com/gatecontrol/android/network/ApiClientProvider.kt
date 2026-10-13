@@ -33,6 +33,7 @@ class ApiClientProvider @Inject constructor(
     private val machineBindingMonitor: MachineBindingMonitor,
 ) {
     private val cache = mutableMapOf<String, ApiClient>()
+    private val speedTestCache = mutableMapOf<String, ApiClient>()
     private val lock = Any()
 
     /**
@@ -150,6 +151,27 @@ class ApiClientProvider @Inject constructor(
     fun invalidate() {
         synchronized(lock) {
             cache.clear()
+            speedTestCache.clear()
+        }
+    }
+
+    /**
+     * Client for the diagnosis speed test (`/client/speedtest/…`): the same
+     * DNS and interceptors (token, client headers, machine binding) as
+     * [getClient], with timeouts long enough for a bulk transfer. The call
+     * timeout bounds a whole transfer, including reading the body.
+     */
+    fun speedTestClient(baseUrl: String): ApiClient {
+        val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        return synchronized(lock) {
+            speedTestCache.getOrPut(normalizedUrl) {
+                val okHttp = buildOkHttpClient(normalizedUrl).newBuilder()
+                    .readTimeout(20, TimeUnit.SECONDS)
+                    .writeTimeout(20, TimeUnit.SECONDS)
+                    .callTimeout(40, TimeUnit.SECONDS)
+                    .build()
+                buildRetrofit(normalizedUrl, okHttp)
+            }
         }
     }
 
@@ -170,9 +192,9 @@ class ApiClientProvider @Inject constructor(
             .build()
     }
 
-    private fun buildClient(baseUrl: String): ApiClient {
-        val okHttpClient = buildOkHttpClient(baseUrl)
+    private fun buildClient(baseUrl: String): ApiClient = buildRetrofit(baseUrl, buildOkHttpClient(baseUrl))
 
+    private fun buildRetrofit(baseUrl: String, okHttpClient: OkHttpClient): ApiClient {
         // Gson that tolerates SQLite boolean fields (0/1 as NUMBER instead of true/false)
         // Uses TypeAdapterFactory to cover both Boolean and Boolean? (nullable) fields
         val gson = GsonBuilder()

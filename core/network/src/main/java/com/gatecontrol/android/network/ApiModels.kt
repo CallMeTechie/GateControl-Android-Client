@@ -534,3 +534,22 @@ data class LocationDeleteResponse(
     val ok: Boolean = false,
     val deleted: Int? = null,
 )
+
+/**
+ * Speed test limits of the own server (`GET /client/speedtest`, 404 on
+ * older servers). [viaTunnel] = this request reached the server through
+ * the VPN tunnel.
+ */
+data class SpeedTestInfoResponse(
+    val ok: Boolean = false,
+    @SerializedName("maxDownloadBytes") val maxDownloadBytes: Long = 0,
+    @SerializedName("maxUploadBytes") val maxUploadBytes: Long = 0,
+    @SerializedName("viaTunnel") val viaTunnel: Boolean? = null,
+)
+
+/** Answer of `POST /client/speedtest/upload`: bytes received, server-side duration. */
+data class SpeedTestUploadResponse(
+    val ok: Boolean = false,
+    val bytes: Long = 0,
+    @SerializedName("serverMs") val serverMs: Long? = null,
+)

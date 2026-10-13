@@ -2,6 +2,7 @@ package com.gatecontrol.android.ui.notifications
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +62,8 @@ fun InboxScreen(
     onBack: () -> Unit,
     onOpen: (Long) -> Unit,
     onOpenSettings: () -> Unit,
+    /** Message shown in the detail pane next to the list (wide screens); highlighted. */
+    selectedId: Long? = null,
     viewModel: InboxViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
@@ -145,7 +148,7 @@ fun InboxScreen(
                     GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
                         messages.forEachIndexed { i, m ->
                             if (i > 0) GcRowDivider(Modifier.padding(start = 72.dp))
-                            InboxRow(m, ui.topicLabels[m.topic], onClick = { onOpen(m.id) })
+                            InboxRow(m, ui.topicLabels[m.topic], selected = m.id == selectedId, onClick = { onOpen(m.id) })
                         }
                     }
                 }
@@ -155,7 +158,7 @@ fun InboxScreen(
 }
 
 @Composable
-private fun InboxRow(message: PushMessage, serverLabel: String?, onClick: () -> Unit) {
+private fun InboxRow(message: PushMessage, serverLabel: String?, selected: Boolean = false, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
     val (fg, bg) = messageColors(message)
     val unread = message.isUnread
@@ -172,7 +175,8 @@ private fun InboxRow(message: PushMessage, serverLabel: String?, onClick: () -> 
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .clickable(role = Role.Button, onClick = onClick)
+            .then(if (selected) Modifier.background(extra.accentBg) else Modifier)
+            .selectable(selected = selected, role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),

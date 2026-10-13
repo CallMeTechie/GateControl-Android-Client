@@ -3,6 +3,7 @@ package com.gatecontrol.android.network
 import com.google.gson.JsonObject
 import retrofit2.Response
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -12,6 +13,7 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 interface ApiClient {
 
@@ -106,6 +108,21 @@ interface ApiClient {
 
     @GET("api/v1/client/dns-check")
     suspend fun dnsCheck(): DnsCheckResponse
+
+    // ─── Speed test against the own server (diagnosis) ──────────────
+    // Run on ApiClientProvider.speedTestClient (longer timeouts), see
+    // SpeedTestClient. 404 on servers without the endpoints.
+
+    @GET("api/v1/client/speedtest")
+    suspend fun getSpeedTestInfo(): Response<SpeedTestInfoResponse>
+
+    /** [bytes] of filler as application/octet-stream; read it as a stream. */
+    @Streaming
+    @GET("api/v1/client/speedtest/download")
+    suspend fun speedTestDownload(@Query("bytes") bytes: Long): Response<ResponseBody>
+
+    @POST("api/v1/client/speedtest/upload")
+    suspend fun speedTestUpload(@Body body: RequestBody): Response<SpeedTestUploadResponse>
 
     @GET("api/v1/client/split-tunnel")
     suspend fun getSplitTunnelPreset(): SplitTunnelPresetResponse

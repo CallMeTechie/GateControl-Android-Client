@@ -55,7 +55,14 @@ class NotificationDetailViewModel @Inject constructor(
         const val ARG_ID = "id"
     }
 
-    private val id: Long = savedStateHandle.get<Long>(ARG_ID) ?: savedStateHandle.get<String>(ARG_ID)?.toLongOrNull() ?: -1L
+    /**
+     * The message shown: from the route argument (own screen) or set via
+     * [show] (detail pane next to the inbox on wide screens).
+     */
+    private val selected = MutableStateFlow(
+        savedStateHandle.get<Long>(ARG_ID) ?: savedStateHandle.get<String>(ARG_ID)?.toLongOrNull() ?: -1L,
+    )
+    private val id: Long get() = selected.value
     private val host = runCatching { java.net.URI(setupRepository.getServerUrl()).host }.getOrNull().orEmpty()
     private val loaded = MutableStateFlow(false)
     private val busy = MutableStateFlow<String?>(null)
@@ -63,9 +70,9 @@ class NotificationDetailViewModel @Inject constructor(
     val effect: Flow<DetailEffect> = effects.receiveAsFlow()
 
     val uiState: StateFlow<NotificationDetailUiState> = combine(
-        repository.inbox.items, store.topics, loaded, busy,
-    ) { items, topics, isLoaded, busyAction ->
-        val m = items.firstOrNull { it.id == id }
+        repository.inbox.items, store.topics, loaded, busy, selected,
+    ) { items, topics, isLoaded, busyAction, shownId ->
+        val m = items.firstOrNull { it.id == shownId }
         NotificationDetailUiState(
             loaded = isLoaded,
             message = m,
@@ -80,8 +87,19 @@ class NotificationDetailViewModel @Inject constructor(
             repository.inbox.load()
             loaded.value = true
             // Opening the message marks it read here, on the server and on the person's other devices.
-            if (repository.inbox.get(id)?.isUnread == true) repository.markRead(listOf(id))
+            markReadIfUnread(id)
         }
+    }
+
+    /** Shows another message (detail pane); opening it marks it read. */
+    fun show(messageId: Long) {
+        if (messageId == selected.value) return
+        selected.value = messageId
+        if (loaded.value) viewModelScope.launch { markReadIfUnread(messageId) }
+    }
+
+    private suspend fun markReadIfUnread(messageId: Long) {
+        if (messageId >= 0 && repository.inbox.get(messageId)?.isUnread == true) repository.markRead(listOf(messageId))
     }
 
     fun runAction(action: PushAction) {

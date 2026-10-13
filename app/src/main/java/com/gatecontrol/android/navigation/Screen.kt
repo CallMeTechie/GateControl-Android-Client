@@ -10,9 +10,18 @@ sealed class Screen(val route: String) {
         const val BASE = "network"
         fun create(tab: String? = null): String = if (tab == null) BASE else "$BASE?tab=$tab"
     }
-    data object Settings : Screen("settings")
-    /** Notification center: inbox ("Mitteilungen") and one message. */
-    data object Inbox : Screen("inbox")
+    /** `pane` picks the page shown next to the list on wide screens (SettingsPane.key). */
+    data object Settings : Screen("settings?pane={pane}") {
+        const val ARG_PANE = "pane"
+        const val BASE = "settings"
+        fun create(pane: String? = null): String = if (pane == null) BASE else "$BASE?pane=$pane"
+    }
+    /** Notification center: inbox ("Mitteilungen") and one message; `select` opens one beside the list on wide screens. */
+    data object Inbox : Screen("inbox?select={select}") {
+        const val ARG_SELECT = "select"
+        const val BASE = "inbox"
+        fun create(select: Long? = null): String = if (select == null) BASE else "$BASE?select=$select"
+    }
     data object NotificationDetail : Screen("inbox/{id}") {
         const val ARG_ID = "id"
         fun create(id: Long): String = "inbox/$id"
@@ -22,6 +31,8 @@ sealed class Screen(val route: String) {
     data object SplitTunnel : Screen("settings/split")
     data object TrustedNetworks : Screen("settings/trusted-networks")
     data object LocationSharing : Screen("settings/location")
+    /** Diagnose & Problem melden (Settings › Hilfe, start screen on connection problems). */
+    data object Diagnosis : Screen("settings/diagnosis")
     data object QuickActions : Screen("quick-actions")
     data object Logs : Screen("settings/logs")
     data object QrScanner : Screen("setup/qr")
