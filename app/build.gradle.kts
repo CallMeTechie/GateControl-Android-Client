@@ -36,6 +36,12 @@ android {
         // from other libraries and bloat the install size.
         ndk {
             abiFilters += setOf("arm64-v8a")
+            // Emulator recordings (.github/workflows/play-videos.yml) add
+            // x86_64 with -Pgc.extraAbis=x86_64: the WireGuard library ships it,
+            // under arm64 translation it crashes. Release builds never set this.
+            (project.findProperty("gc.extraAbis") as String?)
+                ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+                ?.let { abiFilters += it }
         }
     }
 
