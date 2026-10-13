@@ -74,7 +74,7 @@ jobs:
               <application android:networkSecurityConfig="@xml/recording_network_security" />
           </manifest>
           XML
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug -Pgc.extraAbis=x86_64
           cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/app.apk"
 
       - name: Start a throwaway GateControl server
