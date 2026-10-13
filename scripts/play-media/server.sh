@@ -55,10 +55,12 @@ curl -sf --cacert "$CA/ca.pem" --resolve 10.0.2.2:8443:127.0.0.1 https://10.0.2.
   || { docker logs tls | tail -40; exit 1; }
 
 # One-shot setup code for the admin user (as "Android-App einrichten" does).
+# The service logs to stdout too: pick the code out by its shape.
 CODE=$(docker exec gc node -e "
   const e = require('/app/src/services/clientEnrollment');
   const r = e.createCode({ userId: 1, name: 'Pixel 9' });
-  process.stdout.write(r.code);
-")
+  process.stdout.write('\\nSETUPCODE=' + r.code + '\\n');
+" | sed -n 's/^SETUPCODE=\([0-9A-F-]\{19\}\)$/\1/p' | tail -1)
+[ -n "$CODE" ] || { echo "::error::no setup code"; exit 1; }
 echo "gatecontrol://enroll?url=https%3A%2F%2F10.0.2.2%3A8443&code=$CODE" > "$OUT/enroll-link.txt"
 echo "setup link written"
