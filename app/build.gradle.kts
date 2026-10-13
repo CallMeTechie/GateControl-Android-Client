@@ -138,6 +138,9 @@ dependencies {
 
     // Services open in a Custom Tab (in-app browser)
     implementation(libs.browser)
+
+    // Gson (via the Retrofit converter, as in core): pinned quick actions
+    implementation(libs.retrofit.gson)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 

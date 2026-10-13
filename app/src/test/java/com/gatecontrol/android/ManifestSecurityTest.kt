@@ -45,6 +45,22 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `quick action activity is not exported and has no intent filter`() {
+        val activity = components("activity")
+            .firstOrNull { it.androidAttr("name").endsWith("QuickActionActivity") }
+        assertNotNull(activity, "QuickActionActivity must be declared")
+        assertEquals("false", activity!!.androidAttr("exported"))
+        assertEquals(0, activity.getElementsByTagName("intent-filter").length)
+    }
+
+    @Test
+    fun `quick action tiles can only be bound by the system`() {
+        val tiles = components("service").filter { it.androidAttr("name").contains("QuickActionTile") }
+        assertEquals(3, tiles.size)
+        tiles.forEach { assertEquals("android.permission.BIND_QUICK_SETTINGS_TILE", it.androidAttr("permission")) }
+    }
+
+    @Test
     fun `exported MainActivity no longer handles tile extras`() {
         val source = moduleFile("src/main/java/com/gatecontrol/android/MainActivity.kt").readText()
         assertFalse(source.contains("TILE_ACTION"), "MainActivity must not act on tile extras")

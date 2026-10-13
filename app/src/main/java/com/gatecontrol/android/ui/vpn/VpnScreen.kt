@@ -87,6 +87,8 @@ fun VpnScreen(
     onOpenInbox: () -> Unit = {},
     onEnableNotifications: () -> Unit = {},
     onDismissPushHint: () -> Unit = {},
+    /** Quick actions of the plugins (all, pinning). */
+    onOpenQuickActions: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val extra = GateControlTheme.extraColors
@@ -478,6 +480,9 @@ fun VpnScreen(
                 }
             }
         }
+
+        // --- Quick actions of the plugins ----------------------------------
+        com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenAll = onOpenQuickActions)
 
         // --- Quick tiles --------------------------------------------------
         val tiles = buildList<@Composable (Modifier) -> Unit> {

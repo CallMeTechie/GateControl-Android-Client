@@ -99,6 +99,61 @@
                 android:resource="@xml/vpn_widget_info" />
         </receiver>
 
+        <!-- Home-screen widget with the pinned quick actions of the plugins -->
+        <receiver
+            android:name=".quickactions.QuickActionsWidgetReceiver"
+            android:exported="true"
+            android:label="@string/quick_actions_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_actions_widget_info" />
+        </receiver>
+
+        <!-- Runs one quick action (app shortcut, widget, tile). NOT exported:
+             only this app's shortcuts and pending intents can start it. -->
+        <activity
+            android:name=".quickactions.QuickActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GateControl.TileAction" />
+
+        <service
+            android:name=".quickactions.QuickActionTile1"
+            android:icon="@drawable/ic_quick_action"
+            android:label="@string/quick_action_tile_1"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".quickactions.QuickActionTile2"
+            android:icon="@drawable/ic_quick_action"
+            android:label="@string/quick_action_tile_2"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".quickactions.QuickActionTile3"
+            android:icon="@drawable/ic_quick_action"
+            android:label="@string/quick_action_tile_3"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".receiver.BootReceiver"
             android:exported="true">

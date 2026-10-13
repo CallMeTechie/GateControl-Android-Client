@@ -109,4 +109,5 @@ object GcIcons {
     private const val STAR = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"
     val Star = icon("Star", 2f, STAR)
     val StarFilled = filledIcon("StarFilled", STAR)
+    val Bolt = icon("Bolt", 2f, "M13 2 4 14h7l-1 8 9-12h-7l1-8z")
 }

@@ -78,6 +78,9 @@
 # generated *_Impl by reflection, without it WorkManager crashes at app start.
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 
+# ── Quick action pins (Gson, stored in DataStore across app updates) ──
+-keep class com.gatecontrol.android.quickactions.QuickActionItem { *; }
+
 # ── General ───────────────────────────────────────────────
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

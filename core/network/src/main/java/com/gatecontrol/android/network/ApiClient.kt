@@ -81,6 +81,17 @@ interface ApiClient {
     @POST("api/v1/client/services/{id}/open")
     suspend fun requestServiceLink(@Path("id") id: Int): Response<ServiceOpenResponse>
 
+    /** Quick actions of the plugins for this device's user (404 on older servers). */
+    @GET("api/v1/client/actions")
+    suspend fun getQuickActions(@Query("lang") lang: String? = null): Response<QuickActionsResponse>
+
+    @POST("api/v1/client/actions/{plugin}/{id}")
+    suspend fun runQuickAction(
+        @Path("plugin") plugin: String,
+        @Path("id") id: String,
+        @Query("lang") lang: String? = null,
+    ): Response<QuickActionRunResponse>
+
     @GET("api/v1/client/dns-check")
     suspend fun dnsCheck(): DnsCheckResponse
 
