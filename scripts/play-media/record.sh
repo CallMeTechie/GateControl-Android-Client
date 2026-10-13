@@ -84,12 +84,9 @@ sleep 8
 CODE="${LINK##*code=}"
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 tap "Enter setup code" --timeout 40 || exit 1
-$UI field 0 || { diag "no server URL field"; exit 1; }
-adb shell input text "10.0.2.2:8443"
+$UI fill 0 "10.0.2.2:8443" || { diag "server URL not typed"; exit 1; }
 echo "::notice title=setup code::length ${#CODE}"
-tap "XXXX-XXXX-XXXX-XXXX" --contains || $UI field 1   # the code field's placeholder
-sleep 0.5
-adb shell input text "${CODE//-/}"
+$UI fill 1 "${CODE//-/}" --secret || { diag "no code field"; exit 1; }
 sleep 0.5
 key KEYCODE_BACK                                 # hide the keyboard
 diag "setup form filled"

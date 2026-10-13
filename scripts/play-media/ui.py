@@ -4,6 +4,7 @@
   ui.py tap TEXT [--timeout S] [--contains] [--optional]
   ui.py wait TEXT [--timeout S] [--contains]
   ui.py field INDEX [--timeout S]   (taps the INDEX-th text field, 0-based)
+  ui.py fill INDEX TEXT [--secret]  (types TEXT into that field; checks it unless secret)
   ui.py dump
 
 Finds a node whose text or content-desc equals (or contains) TEXT and taps
@@ -85,6 +86,26 @@ def main(argv):
             if t or edit:
                 print(("[field] " if edit else "") + repr(t or ""), node.get("bounds"))
         return 0
+    if cmd == "fill":
+        index, value = int(argv[1]), argv[2]
+        secret = "--secret" in argv
+        for _ in range(4):
+            if main(["field", str(index), "--timeout", "10"]) != 0:
+                return 1
+            adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
+            for _ in range(3):
+                adb("shell", "input", "keyevent", *(["KEYCODE_DEL"] * 20))
+            time.sleep(0.4)
+            adb("shell", "input", "text", value)
+            time.sleep(0.8)
+            if secret:
+                return 0
+            root = dump()
+            fields = [n for n in (root.iter("node") if root is not None else []) if n.get("class") == "android.widget.EditText"]
+            if len(fields) > index and (fields[index].get("text") or "").strip() == value:
+                return 0
+        print(f"ui.py: could not fill field {index}", file=sys.stderr)
+        return 1
     if cmd == "field":
         index = int(argv[1])
         timeout = float(argv[argv.index("--timeout") + 1]) if "--timeout" in argv else 20.0
