@@ -44,6 +44,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val TRUSTED_NET_HOME_ENABLED = booleanPreferencesKey("trusted_net_home_enabled")
         val TRUSTED_NET_SSIDS = stringSetPreferencesKey("trusted_net_ssids")
         val TRUSTED_NET_LAST_KEY = stringPreferencesKey("trusted_net_last_key")
+        // Services: favourites by domain (stable when a route is edited)
+        val SERVICE_FAVORITES = stringSetPreferencesKey("service_favorites")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -108,6 +110,18 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     suspend fun setTrustedLastActedKey(key: String) {
         dataStore.edit { it[TRUSTED_NET_LAST_KEY] = key }
+    }
+
+    /** Favourite services (domains), shown on top of the list. */
+    fun getServiceFavorites(): Flow<Set<String>> =
+        dataStore.data.map { it[SERVICE_FAVORITES] ?: emptySet() }
+
+    /** Adds or removes [domain]; atomic, so two quick taps never lose one. */
+    suspend fun toggleServiceFavorite(domain: String) {
+        dataStore.edit {
+            val current = it[SERVICE_FAVORITES] ?: emptySet()
+            it[SERVICE_FAVORITES] = if (domain in current) current - domain else current + domain
+        }
     }
 
 

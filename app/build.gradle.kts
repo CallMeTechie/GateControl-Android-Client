@@ -135,6 +135,9 @@ dependencies {
     // Glance updates widgets through WorkManager; its own pin (2.7.1) crashes
     // the release build at start (WorkDatabase stripped by R8).
     implementation(libs.work.runtime)
+
+    // Services open in a Custom Tab (in-app browser)
+    implementation(libs.browser)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 
