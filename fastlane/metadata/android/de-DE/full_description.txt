@@ -1,0 +1,30 @@
+GateControl ist die App zu deinem eigenen GateControl-Server – dem selbst gehosteten Gateway für dein Heimnetz oder Büro. Die App verbindet dein Smartphone per WireGuard® sicher mit deinem Netz und bringt deine Dienste, dein Smart Home und den Fernzugriff an einen Ort.
+
+Voraussetzung: ein eigener GateControl-Server (selbst gehostet). Die App selbst sammelt keine Daten und spricht nur mit deinem Server.
+
+VPN
+• WireGuard-Tunnel mit einem Tipp, auch als Schnelleinstellungs-Kachel und Widget
+• Automatisch verbinden, Always-on-VPN, automatisches Wiederverbinden
+• Vertrauenswürdige WLANs: zu Hause trennt das VPN automatisch, unterwegs verbindet es sich wieder
+• Split-Tunneling nach Netzen oder Apps
+• DNS-Leck-Test, Verbindungs- und Traffic-Anzeige
+
+Dienste
+• Alle freigegebenen Dienste deines Servers auf einen Blick, mit Favoriten und Online-Status
+• Öffnen direkt in der App – mit automatischer Anmeldung, wo dein Administrator sie erlaubt
+• Remote Desktop (RDP) mit Wake-on-LAN
+
+Schnellaktionen und Benachrichtigungen
+• Licht, Klima, Fahrzeug und mehr aus den Plugins deines Servers – auf dem Startbildschirm, als App-Verknüpfung, Kachel und Widget
+• Eigene Benachrichtigungszentrale ohne fremde Push-Dienste: Meldungen kommen direkt von deinem Server
+
+Einrichtung
+• Einrichtungscode oder QR-Code vom Server scannen – fertig
+• Einstellungen können vom Administrator zentral vorgegeben werden
+
+Datenschutz
+• Kein Tracking, keine Werbung, keine Analyse-SDKs
+• Zugangsdaten verschlüsselt auf dem Gerät
+• Support-Pakete und Absturzberichte gehen – geschwärzt – nur an deinen eigenen Server
+
+WireGuard ist eine eingetragene Marke von Jason A. Donenfeld.

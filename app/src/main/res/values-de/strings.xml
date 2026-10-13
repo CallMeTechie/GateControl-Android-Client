@@ -139,6 +139,7 @@
     <string name="settings_update_available">Update verfügbar: %1$s</string>
     <string name="settings_update_install">Installieren</string>
     <string name="settings_update_later">Später</string>
+    <string name="settings_update_play">Updates kommen über Google Play</string>
     <string name="settings_update_none">Keine Updates verfügbar</string>
 
     <!-- Setup -->
@@ -518,7 +519,7 @@
     <string name="trusted_add_manual_invalid">Kein gültiger WLAN-Name (höchstens 32 Bytes).</string>
     <string name="trusted_add">Hinzufügen</string>
     <string name="trusted_perm_title">Standort-Berechtigung für WLAN-Namen</string>
-    <string name="trusted_perm_explain">Android verrät den WLAN-Namen nur mit Standort-Berechtigung; GateControl nutzt den Standort selbst nicht. Damit das auch im Hintergrund klappt, wähle danach in den Einstellungen „Immer zulassen“.</string>
+    <string name="trusted_perm_explain">GateControl erhebt Standortdaten, um den Namen des verbundenen WLANs zu erkennen und das VPN in deinen vertrauenswürdigen WLANs automatisch zu trennen – auch wenn die App geschlossen ist oder nicht verwendet wird. Der Standort verlässt dein Gerät nicht und wird nicht gespeichert. Damit das im Hintergrund klappt, wähle danach in den Einstellungen „Immer zulassen“.</string>
     <string name="trusted_perm_continue">Weiter</string>
     <string name="trusted_perm_missing">Standort-Berechtigung fehlt – WLAN-Namen werden nicht erkannt.</string>
     <string name="trusted_perm_foreground_only">Standort nur „während der Nutzung“ erlaubt – im Hintergrund werden WLAN-Namen nicht erkannt. Wähle „Immer zulassen“.</string>
