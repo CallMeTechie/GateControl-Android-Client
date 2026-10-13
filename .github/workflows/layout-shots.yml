@@ -93,6 +93,12 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Emulator device profiles
+        if: matrix.device == 'fold'
+        run: |
+          AVD="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+          echo "::notice title=foldable profiles::$("$AVD" list device -c 2>&1 | grep -iE 'fold|resizable' | tr '\n' ' ')"
+
       - name: Screenshots on the emulator
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
