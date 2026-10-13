@@ -133,7 +133,7 @@ jobs:
         env:
           TOKEN: ${{ github.token }}
         run: |
-          cd shots
+          mkdir -p shots && cd shots
           [ -n "$(find . -name '*.png' | head -1)" ] || { echo "::warning::no screenshots"; exit 0; }
           printf '# Large-screen screenshots\n\nFrom %s (run %s), `.github/workflows/layout-shots.yml`.\n' \
             "${{ github.sha }}" "${{ github.run_id }}" > README.md
