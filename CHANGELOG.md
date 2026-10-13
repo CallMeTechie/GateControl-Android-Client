@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.1] - 2026-10-13
+
+### Fixes
+- explain background location right before asking for it (#64)
+
+---
+
 ## [1.25.0] - 2026-10-13
 
 ### Features
