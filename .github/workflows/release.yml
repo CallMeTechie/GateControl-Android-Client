@@ -92,6 +92,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [decide, test-gate]
     if: needs.decide.outputs.release == 'true'
+    env:
+      # Google Play upload runs once the service account key is stored as a secret.
+      PLAY_CONFIGURED: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+      # Track for every release (internal | alpha | beta); production only via play-promote.yml.
+      PLAY_TRACK: ${{ vars.PLAY_TRACK || 'internal' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -290,3 +295,37 @@ jobs:
             app/build/outputs/bundle/release/GateControl-Android-*.aab
             app/build/outputs/mapping/release/GateControl-Android-*-mapping.txt
             app/GateControl-Android-*-native-debug-symbols.zip
+
+      # ─── Google Play: every release goes to a test track ─────────────
+      # Production happens only on request through play-promote.yml.
+      - name: Setup Ruby (fastlane)
+        if: steps.check_tag.outputs.exists == 'false' && env.PLAY_CONFIGURED == 'true'
+        uses: ruby/setup-ruby@762794c140bbeda0f1224786aa33b4b46783a6c1 # v1.326.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Upload to Google Play
+        if: steps.check_tag.outputs.exists == 'false' && env.PLAY_CONFIGURED == 'true'
+        shell: bash
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          KEY="$RUNNER_TEMP/play-service-account.json"
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$KEY"
+          META="$RUNNER_TEMP/play-metadata"
+          python3 scripts/play_release_notes.py CHANGELOG.md "$META"
+          bundle exec fastlane supply \
+            --package_name com.gatecontrol.client \
+            --json_key "$KEY" \
+            --aab "app/build/outputs/bundle/release/GateControl-Android-${NEW_VERSION}.aab" \
+            --mapping "app/build/outputs/mapping/release/GateControl-Android-${NEW_VERSION}-mapping.txt" \
+            --track "$PLAY_TRACK" \
+            --release_status completed \
+            --metadata_path "$META" \
+            --skip_upload_metadata true \
+            --skip_upload_images true \
+            --skip_upload_screenshots true \
+            --skip_upload_apk true
+          rm -f "$KEY"
