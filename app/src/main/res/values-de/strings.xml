@@ -519,6 +519,8 @@
     <string name="trusted_add">Hinzufügen</string>
     <string name="trusted_perm_title">Standort-Berechtigung für WLAN-Namen</string>
     <string name="trusted_perm_explain">GateControl erhebt Standortdaten, um den Namen des verbundenen WLANs zu erkennen und das VPN in deinen vertrauenswürdigen WLANs automatisch zu trennen – auch wenn die App geschlossen ist oder nicht verwendet wird. Der Standort verlässt dein Gerät nicht und wird nicht gespeichert. Damit das im Hintergrund klappt, wähle danach in den Einstellungen „Immer zulassen“.</string>
+    <string name="trusted_bg_title">Standort im Hintergrund</string>
+    <string name="trusted_bg_explain">GateControl erhebt Standortdaten, um den Namen des verbundenen WLANs auch dann zu erkennen, wenn die App geschlossen ist oder nicht verwendet wird – nur so kann das VPN zu Hause automatisch trennen. Der Standort verlässt dein Gerät nicht und wird nicht gespeichert. Wähle auf der nächsten Seite „Immer zulassen“.</string>
     <string name="trusted_perm_continue">Weiter</string>
     <string name="trusted_perm_missing">Standort-Berechtigung fehlt – WLAN-Namen werden nicht erkannt.</string>
     <string name="trusted_perm_foreground_only">Standort nur „während der Nutzung“ erlaubt – im Hintergrund werden WLAN-Namen nicht erkannt. Wähle „Immer zulassen“.</string>

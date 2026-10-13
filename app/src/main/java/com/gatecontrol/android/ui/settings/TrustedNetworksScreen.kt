@@ -110,6 +110,8 @@ fun TrustedNetworksScreen(
     val extra = GateControlTheme.extraColors
     var access by remember { mutableStateOf(locationAccess(context)) }
     var showRationale by rememberSaveable { mutableStateOf(false) }
+    // Play policy: a prominent disclosure right before the background request too.
+    var showBackgroundRationale by rememberSaveable { mutableStateOf(false) }
     var addCurrentAfterGrant by rememberSaveable { mutableStateOf(false) }
     var manualSsid by rememberSaveable { mutableStateOf("") }
     var manualError by rememberSaveable { mutableStateOf(false) }
@@ -226,7 +228,7 @@ fun TrustedNetworksScreen(
                 PermissionWarning(
                     access = access,
                     onGrant = { showRationale = true },
-                    onBackground = { backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION) },
+                    onBackground = { showBackgroundRationale = true },
                     onLocationSettings = {
                         runCatching {
                             context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -305,6 +307,25 @@ fun TrustedNetworksScreen(
                 icon = GcIcons.Plus,
             )
         }
+    }
+
+    if (showBackgroundRationale) {
+        AlertDialog(
+            onDismissRequest = { showBackgroundRationale = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.extraLarge,
+            title = { Text(stringResource(R.string.trusted_bg_title), style = MaterialTheme.typography.titleLarge) },
+            text = { Text(stringResource(R.string.trusted_bg_explain), style = MaterialTheme.typography.bodyMedium) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBackgroundRationale = false
+                    backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                }) { Text(stringResource(R.string.trusted_perm_continue)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBackgroundRationale = false }) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
     }
 
     if (showRationale) {
