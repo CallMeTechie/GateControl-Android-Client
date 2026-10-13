@@ -86,8 +86,11 @@ key KEYCODE_BACK                                 # hide the keyboard
 diag "setup form filled"
 tap "Save & Register" || exit 1
 tap_opt "Connect" 10                             # confirmation, if the app asks
-wait_text "Device set up" --timeout 60 --contains || wait_text "Connect" --timeout 30 || diag "after setup"
-sleep 6
+# After the setup the app connects right away. Decline the VPN consent here:
+# the VPN video shows it when the user taps Connect.
+$UI tap "Cancel" --optional --timeout 40
+sleep 3
+diag "after setup"
 tap_opt "Not now" 3; tap_opt "Later" 2; tap_opt "Close" 2
 # Demo mode hides notification icons; turn that part off so the VPN key shows.
 adb shell am broadcast -a com.android.systemui.demo -e command exit >/dev/null
