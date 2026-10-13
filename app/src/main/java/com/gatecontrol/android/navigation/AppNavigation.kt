@@ -69,6 +69,7 @@ import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.settings.SplitTunnelScreen
 import com.gatecontrol.android.ui.settings.TrustedNetworksScreen
 import com.gatecontrol.android.ui.location.LocationSharingScreen
+import com.gatecontrol.android.ui.diagnosis.DiagnosisScreen
 import com.gatecontrol.android.ui.quickactions.QuickActionsScreen
 import com.gatecontrol.android.ui.setup.QrScannerScreen
 import com.gatecontrol.android.ui.setup.SetupScreen
@@ -287,6 +288,7 @@ fun AppNavigation(
                     onOpenLogs = { openSettingsPane(SettingsPane.Logs) },
                     onOpenQuickActions = { navController.navigate(Screen.QuickActions.route) { launchSingleTop = true } },
                     onOpenLocationSettings = { openSettingsPane(SettingsPane.Location) },
+                    onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
                 )
             }
 
@@ -343,6 +345,7 @@ fun AppNavigation(
                                 onNavigateToSplitTunnel = { paneKey = SettingsPane.SplitTunnel.key },
                                 onNavigateToTrustedNetworks = { paneKey = SettingsPane.TrustedNetworks.key },
                                 onNavigateToLocation = { paneKey = SettingsPane.Location.key },
+                                onNavigateToDiagnosis = { paneKey = SettingsPane.Diagnosis.key },
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
                             )
@@ -364,6 +367,7 @@ fun AppNavigation(
                         onNavigateToSplitTunnel = { navController.navigate(Screen.SplitTunnel.route) },
                         onNavigateToTrustedNetworks = { navController.navigate(Screen.TrustedNetworks.route) },
                         onNavigateToLocation = { navController.navigate(Screen.LocationSharing.route) },
+                        onNavigateToDiagnosis = { navController.navigate(Screen.Diagnosis.route) { launchSingleTop = true } },
                     )
                 }
             }
@@ -458,6 +462,9 @@ fun AppNavigation(
             }
             composable(Screen.LocationSharing.route) {
                 GcContentWidth { LocationSharingScreen(onBack = { navController.popBackStack() }) }
+            }
+            composable(Screen.Diagnosis.route) {
+                GcContentWidth { DiagnosisScreen(onBack = { navController.popBackStack() }) }
             }
 
             composable(Screen.QuickActions.route) {
@@ -665,6 +672,7 @@ private fun SettingsPane.route(): String = when (this) {
     SettingsPane.Location -> Screen.LocationSharing.route
     SettingsPane.Notifications -> Screen.SettingsNotifications.route
     SettingsPane.Logs -> Screen.Logs.route
+    SettingsPane.Diagnosis -> Screen.Diagnosis.route
 }
 
 /** A settings page in the detail pane beside the settings list. */
@@ -677,6 +685,7 @@ private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit) {
         SettingsPane.Location -> LocationSharingScreen(onBack = {})
         SettingsPane.Notifications -> NotificationSettingsScreen(onBack = {})
         SettingsPane.Logs -> LogsScreen(onNavigateBack = {})
+        SettingsPane.Diagnosis -> DiagnosisScreen(onBack = {})
     }
 }
 

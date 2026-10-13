@@ -46,6 +46,16 @@ notifications_on() {
   tap "Request a test message" --contains --scroll --scroll-at 0.7
   sleep 5
 }
+# Diagnostics: run all checks, screenshot the result.
+diagnosis() {
+  nav "Settings"; sleep 1
+  tap "Diagnostics & report a problem" --scroll --scroll-at 0.2 || return 1
+  sleep 1.5
+  tap "Start diagnostics" || return 1
+  wait_text "Check again" --timeout 90 || diag "diagnosis not finished"
+  sleep 1
+  shot "$1-diagnosis"
+}
 inbox() {
   nav "Home"; sleep 1
   tap "Messages" --contains || return 1
@@ -69,6 +79,7 @@ case "$DEVICE" in
     tap "Split tunneling" --contains; sleep 2; shot 04-settings-split
     notifications_on; shot 05-settings-notifications
     inbox 06
+    diagnosis 09
     rotate 1                                      # portrait
     nav "Home"; sleep 2; shot 07-portrait-home
     nav "Settings"; sleep 2; shot 08-portrait-settings
@@ -98,6 +109,7 @@ case "$DEVICE" in
     nav "Settings"; sleep 2; shot 03-landscape-settings
     rotate 0
     nav "Home"; sleep 2; shot 04-portrait-home
+    diagnosis 05
     ;;
 esac
 

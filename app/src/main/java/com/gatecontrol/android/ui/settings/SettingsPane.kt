@@ -11,6 +11,7 @@ enum class SettingsPane(val key: String) {
     Location("location"),
     Notifications("notifications"),
     Logs("logs"),
+    Diagnosis("diagnosis"),
     ;
 
     companion object {

@@ -105,6 +105,8 @@ fun VpnScreen(
     onOpenQuickActions: () -> Unit = {},
     /** Settings › Standortfreigabe (permission missing, not allowed). */
     onOpenLocationSettings: () -> Unit = {},
+    /** Diagnosis screen, offered when the connection has a problem. */
+    onOpenDiagnosis: () -> Unit = {},
     locationViewModel: LocationShareViewModel = hiltViewModel(),
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -474,6 +476,12 @@ fun VpnScreen(
                         fillWidth = false,
                     )
                 }
+                GcSecondaryButton(
+                    text = stringResource(R.string.diag_home_check),
+                    onClick = onOpenDiagnosis,
+                    icon = GcIcons.Activity,
+                    fillWidth = false,
+                )
             }
             if (isBusy) {
                 GcOutlineButton(
@@ -517,6 +525,15 @@ fun VpnScreen(
                         Modifier.weight(1f),
                     )
                     GcLabeledValue(stringResource(R.string.vpn_server), viewModel.serverHost ?: "—", Modifier.weight(1f))
+                }
+                // Stale handshake: offer the diagnosis.
+                if (hsAge != Long.MAX_VALUE && hsAge > com.gatecontrol.android.diagnosis.HANDSHAKE_OK_SEC) {
+                    GcSecondaryButton(
+                        text = stringResource(R.string.diag_home_check),
+                        onClick = onOpenDiagnosis,
+                        icon = GcIcons.Activity,
+                        fillWidth = false,
+                    )
                 }
             }
         }

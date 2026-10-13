@@ -112,4 +112,8 @@ object GcIcons {
     val Star = icon("Star", 2f, STAR)
     val StarFilled = filledIcon("StarFilled", STAR)
     val Bolt = icon("Bolt", 2f, "M13 2 4 14h7l-1 8 9-12h-7l1-8z")
+    /** Pulse line: diagnosis ("Diagnose"). */
+    val Activity = icon("Activity", 2f, "M22 12h-4l-3 9L9 3l-3 9H2")
+    /** Skipped check. */
+    val Minus = icon("Minus", 2.2f, "M5 12h14")
 }

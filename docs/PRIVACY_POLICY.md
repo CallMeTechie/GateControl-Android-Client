@@ -21,7 +21,8 @@ Alle folgenden Daten gehen nur an **deinen eigenen GateControl-Server** — vera
 | Zugangsdaten (Server-Adresse, API-Token, WireGuard-Schlüssel) | Verbindung und VPN-Tunnel. Verschlüsselt auf dem Gerät gespeichert (Android Keystore). |
 | Gerätename/-modell, App-Version, Verbindungsdauer, Datenvolumen | Statusmeldung („Heartbeat“), damit der Server das Gerät anzeigen und verwalten kann. |
 | Benachrichtigungs-Einstellungen und Lesebestätigungen | Eigene Benachrichtigungszentrale; Mitteilungen kommen direkt vom Server, nicht über Google- oder andere Push-Dienste. |
-| Support-Pakete (nur wenn du sie sendest) | Fehlersuche: App-Protokoll, Netzwerk- und Tunnelstatus, Einstellungen. Geheimnisse (Schlüssel, Tokens, Passwörter) werden vor dem Senden geschwärzt. |
+| Support-Pakete (nur wenn du sie sendest) | Fehlersuche: App-Protokoll, Netzwerk- und Tunnelstatus, Einstellungen; bei „Problem melden“ zusätzlich deine optionale Problembeschreibung und die Diagnose-Ergebnisse. Geheimnisse (Schlüssel, Tokens, Passwörter) werden vor dem Senden geschwärzt. |
+| Diagnose (nur wenn du sie startest) | Prüft die Verbindung zu deinem Server, inklusive kurzem Geschwindigkeitstest (Testdaten zu und von deinem Server) und Ping an das VPN-Gateway. Die Ergebnisse bleiben auf dem Gerät, bis du „Problem melden“ wählst. |
 | Absturzberichte | Nach einem Absturz sendet die App beim nächsten Start den Fehlerbericht als geschwärztes Support-Paket an deinen Server. |
 | Schnellaktionen | Ausgelöste Aktionen (z. B. „Licht an“) gehen an deinen Server und dessen Plugins. |
 
@@ -77,7 +78,8 @@ Everything below goes only to **your own GateControl server** — its operator (
 | Credentials (server address, API token, WireGuard keys) | Connection and VPN tunnel. Stored encrypted on the device (Android Keystore). |
 | Device name/model, app version, connection time, traffic volume | Status report ("heartbeat") so the server can list and manage the device. |
 | Notification settings and read receipts | Built-in notification center; messages come straight from the server, not through Google or other push services. |
-| Support bundles (only when you send one) | Troubleshooting: app log, network and tunnel status, settings. Secrets (keys, tokens, passwords) are redacted before sending. |
+| Support bundles (only when you send one) | Troubleshooting: app log, network and tunnel status, settings; with "Report a problem" also your optional problem description and the diagnosis results. Secrets (keys, tokens, passwords) are redacted before sending. |
+| Diagnostics (only when you start them) | Checks the connection to your server, including a short speed test (test data to and from your server) and a ping to the VPN gateway. The results stay on the device until you choose "Report a problem". |
 | Crash reports | After a crash the app sends the report as a redacted support bundle to your server at the next start. |
 | Quick actions | Actions you run (e.g. "lights on") go to your server and its plugins. |
 

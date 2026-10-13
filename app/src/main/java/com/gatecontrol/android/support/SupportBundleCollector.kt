@@ -45,6 +45,8 @@ object SupportRequestHolder {
  *   network  — interfaces (no MAC), active network: transports, DNS, routes
  *   logs     — last [MAX_LOG_LINES] lines of cacheDir/logs (FileLoggingTree)
  *   errors   — recent W/E lines
+ *   description — optional problem description of the user ("Problem melden")
+ *   diagnosis   — optional diagnosis results (see diagnosis/DiagnosisPayload)
  * Every string passes [SupportRedactor]; the uploader redacts once more.
  */
 @Singleton
@@ -60,6 +62,8 @@ class SupportBundleCollector @Inject constructor(
         settings: Map<String, Any?>,
         reason: String = "user",
         nowMillis: Long = System.currentTimeMillis(),
+        description: String? = null,
+        diagnosis: Map<String, Any?>? = null,
     ): Map<String, Any?> {
         val notes = mutableListOf<String>()
         val logs = runCatching { readLogs(File(context.cacheDir, "logs")) }
@@ -83,6 +87,9 @@ class SupportBundleCollector @Inject constructor(
             "notes" to notes,
             "redaction" to "android-v1",
         )
+        // Extra top-level keys; older servers validate only `schema` and keep them.
+        description?.trim()?.takeIf { it.isNotEmpty() }?.let { bundle["description"] = truncate(it, MAX_DESCRIPTION) }
+        if (diagnosis != null) bundle["diagnosis"] = diagnosis
         @Suppress("UNCHECKED_CAST")
         return SupportRedactor.redactValue(bundle) as Map<String, Any?>
     }
@@ -159,6 +166,7 @@ class SupportBundleCollector @Inject constructor(
         private const val MAX_LINE_LENGTH = 2000
         private const val MAX_ERROR_LINES = 100
         private const val MAX_TEXT = 64 * 1024
+        private const val MAX_DESCRIPTION = 2000
         private const val MAX_ROUTES = 200
         private const val MAX_READ_BYTES = 2L * 1024 * 1024
         private val ERROR_LINE = Regex(" [EWA]/|\\b(error|exception|failed|fatal)\\b", RegexOption.IGNORE_CASE)
