@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.0] - 2026-10-13
+
+### Features
+- share the location on tap with a satellite button (#65)
+
+---
+
 ## [1.25.1] - 2026-10-13
 
 ### Fixes
