@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tiny UI driver for the Play review recordings (adb + uiautomator dump).
 
-  ui.py tap TEXT [--timeout S] [--contains] [--optional] [--scroll]
+  ui.py tap TEXT [--timeout S] [--contains] [--optional] [--scroll [--scroll-at FRACTION]]
   ui.py wait TEXT [--timeout S] [--contains]
   ui.py field INDEX [--timeout S]   (taps the INDEX-th text field, 0-based)
   ui.py fill INDEX TEXT [--secret]  (types TEXT into that field; checks it unless secret)
@@ -59,6 +59,18 @@ def find(root, text, contains):
                 if best is None or score < best[0]:
                     best = (score, ((x1 + x2) // 2, (y1 + y2) // 2))
     return best[1] if best else None
+
+
+def screen_size():
+    """Screen size in pixels as currently rotated (bounds of the root node)."""
+    root = dump()
+    for node in (root.iter("node") if root is not None else []):
+        m = BOUNDS.match(node.get("bounds") or "")
+        if m:
+            x1, y1, x2, y2 = map(int, m.groups())
+            if x2 > x1 and y2 > y1:
+                return x2, y2
+    return 1080, 2400
 
 
 def wait_for(text, timeout, contains):
@@ -131,9 +143,13 @@ def main(argv):
         timeout = float(argv[argv.index("--timeout") + 1])
     pos = wait_for(text, timeout if "--scroll" not in argv else min(timeout, 3), contains)
     if pos is None and "--scroll" in argv:
-        # Scroll the page up step by step until the text shows.
+        # Scroll the page up step by step until the text shows; on wide
+        # screens --scroll-at picks the pane (0.25 = left quarter).
+        frac = float(argv[argv.index("--scroll-at") + 1]) if "--scroll-at" in argv else 0.5
+        w, h = screen_size()
+        x = str(int(w * frac))
         for _ in range(6):
-            adb("shell", "input", "swipe", "540", "1700", "540", "900", "300")
+            adb("shell", "input", "swipe", x, str(int(h * 0.72)), x, str(int(h * 0.38)), "300")
             time.sleep(0.8)
             pos = wait_for(text, 2, contains)
             if pos:

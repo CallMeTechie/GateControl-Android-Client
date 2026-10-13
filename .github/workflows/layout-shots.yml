@@ -1,0 +1,144 @@
+name: Large-screen screenshots
+
+# Screenshots of the tablet / foldable / landscape layouts against a
+# throwaway GateControl server (same setup as play-videos.yml): rail, home in
+# two columns, settings and messages as list + detail, book and tabletop
+# posture. Results go to the layout-screens branch and the run's artifact.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/src/main/java/com/gatecontrol/android/ui/adaptive/**'
+      - 'app/src/main/java/com/gatecontrol/android/navigation/**'
+      - 'scripts/play-media/layout-shots.sh'
+      - 'scripts/play-media/lib.sh'
+      - '.github/workflows/layout-shots.yml'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  shots:
+    name: Screenshots (${{ matrix.device }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: tablet
+            profile: pixel_tablet
+          - device: fold
+            profile: pixel_fold
+          - device: phone
+            profile: pixel_7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Test CA and server certificate for 10.0.2.2
+        run: |
+          D="$RUNNER_TEMP/ca"; mkdir -p "$D"; cd "$D"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=GateControl screenshot CA" \
+            -keyout ca.key -out ca.pem
+          openssl req -newkey rsa:2048 -nodes -subj "/CN=10.0.2.2" -keyout server.key -out server.csr
+          printf 'subjectAltName=IP:10.0.2.2\nextendedKeyUsage=serverAuth\n' > ext.cnf
+          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 2 \
+            -extfile ext.cnf -out server.pem
+          echo "APP_CA_DIR=$D" >> "$GITHUB_ENV"
+
+      - name: Debug build that trusts the test CA (this job only)
+        run: |
+          mkdir -p app/src/debug/res/xml app/src/debug/res/raw
+          cp "$APP_CA_DIR/ca.pem" app/src/debug/res/raw/recording_ca.pem
+          cat > app/src/debug/res/xml/recording_network_security.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config>
+              <base-config>
+                  <trust-anchors>
+                      <certificates src="system" />
+                      <certificates src="@raw/recording_ca" />
+                  </trust-anchors>
+              </base-config>
+          </network-security-config>
+          XML
+          cat > app/src/debug/AndroidManifest.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application android:networkSecurityConfig="@xml/recording_network_security" />
+          </manifest>
+          XML
+          ./gradlew assembleDebug -Pgc.extraAbis=x86_64
+          cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/app.apk"
+
+      - name: Start a throwaway GateControl server
+        run: scripts/play-media/server.sh "$RUNNER_TEMP/media"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Screenshots on the emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          script: scripts/play-media/layout-shots.sh "$RUNNER_TEMP/app.apk" "$RUNNER_TEMP/media/enroll-link.txt" "$RUNNER_TEMP/media" ${{ matrix.device }}
+
+      - name: Server log
+        if: failure()
+        run: docker logs gc 2>&1 | tail -150
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: layout-${{ matrix.device }}
+          path: |
+            ${{ runner.temp }}/media/screenshots/
+            ${{ runner.temp }}/media/fail-*.png
+            ${{ runner.temp }}/media/crash-*.txt
+          retention-days: 14
+
+  publish:
+    name: Publish to the layout-screens branch
+    needs: shots
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: layout-*
+          path: shots
+      - name: Push
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          cd shots
+          [ -n "$(find . -name '*.png' | head -1)" ] || { echo "::warning::no screenshots"; exit 0; }
+          printf '# Large-screen screenshots\n\nFrom %s (run %s), `.github/workflows/layout-shots.yml`.\n' \
+            "${{ github.sha }}" "${{ github.run_id }}" > README.md
+          git init -q -b layout-screens
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Large-screen screenshots from ${{ github.sha }}"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" HEAD:layout-screens

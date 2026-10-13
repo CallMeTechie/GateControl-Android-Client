@@ -360,6 +360,7 @@
     <string name="push_inbox_filter_all">Alle</string>
     <string name="push_inbox_filter_all_new">Alle · %1$d neu</string>
     <string name="push_inbox_today">Heute</string>
+    <string name="push_inbox_pick">Wähle links eine Mitteilung, um sie hier zu lesen.</string>
     <string name="push_inbox_yesterday">Gestern</string>
     <string name="push_inbox_empty">Noch keine Mitteilungen</string>
     <string name="push_inbox_empty_desc">Hier erscheinen Mitteilungen deines GateControl-Servers.</string>

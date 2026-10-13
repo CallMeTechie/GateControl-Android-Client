@@ -12,6 +12,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import com.gatecontrol.android.ui.adaptive.GcTwoPane
+import com.gatecontrol.android.ui.adaptive.HingeSplit
+import com.gatecontrol.android.ui.adaptive.LocalGcWindowLayout
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -229,13 +238,7 @@ fun VpnScreen(
         else -> systemDark
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    val headerSection: @Composable () -> Unit = {
         // --- Header -------------------------------------------------------
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(GcIcons.ShieldCheck, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
@@ -300,7 +303,8 @@ fun VpnScreen(
                 onClick = { viewModel.setTheme(if (effectivelyDark) "light" else "dark") },
             )
         }
-
+    }
+    val bannerSection: @Composable ColumnScope.() -> Unit = {
         // --- Location sharing: progress / result of the last tap ----------
         if (locationEnabled) {
             LocationShareBanner(
@@ -390,7 +394,8 @@ fun VpnScreen(
 
         // --- Client policy: kill switch / always-on need the system settings
         com.gatecontrol.android.ui.components.GcPolicySystemVpnCard(clientPolicy)
-
+    }
+    val heroSection: @Composable ColumnScope.() -> Unit = {
         // --- Orb ----------------------------------------------------------
         Column(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
@@ -487,7 +492,8 @@ fun VpnScreen(
                 )
             }
         }
-
+    }
+    val detailSection: @Composable ColumnScope.() -> Unit = {
         // --- Connection details ------------------------------------------
         if (isConnected) {
             val connectedSince = (tunnelState as? TunnelState.Connected)?.connectedSince ?: 0L
@@ -514,7 +520,8 @@ fun VpnScreen(
                 }
             }
         }
-
+    }
+    val panelSection: @Composable ColumnScope.() -> Unit = {
         // --- Google Play update (Play build) --------------------------------
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
             com.gatecontrol.android.ui.update.PlayUpdateBanner()
@@ -580,6 +587,73 @@ fun VpnScreen(
         if (permissions.traffic && trafficUsage != null) {
             TrafficUsage(traffic = trafficUsage)
         }
+    }
+
+    // Phones: one column. Wide windows: connection on the left, everything
+    // else on the right, split at the hinge of a half-opened foldable.
+    // Tabletop posture: connection above the fold, the rest below it.
+    val layout = LocalGcWindowLayout.current
+    when {
+        layout.horizontalHinge != null -> TabletopHome(
+            hinge = layout.horizontalHinge,
+            top = { headerSection(); heroSection() },
+            bottom = { bannerSection(); detailSection(); panelSection() },
+        )
+        layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
+            Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }
+            GcTwoPane(
+                listWidth = 420.dp,
+                divider = false,
+                list = {
+                    HomeColumn { heroSection(); detailSection() }
+                },
+                detail = {
+                    HomeColumn { bannerSection(); panelSection() }
+                },
+            )
+        }
+        else -> HomeColumn(Modifier.padding(top = 20.dp)) {
+            headerSection()
+            bannerSection()
+            heroSection()
+            detailSection()
+            panelSection()
+        }
+    }
+
+}
+
+/** A scrolling column of home sections. */
+@Composable
+private fun HomeColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        content = content,
+    )
+}
+
+/**
+ * Half-opened foldable lying flat (tabletop): connection and switch on the
+ * upper half, details and tiles scroll on the lower half.
+ */
+@Composable
+private fun TabletopHome(
+    hinge: HingeSplit,
+    top: @Composable ColumnScope.() -> Unit,
+    bottom: @Composable ColumnScope.() -> Unit,
+) {
+    val density = LocalDensity.current
+    var startY by remember { mutableFloatStateOf(0f) }
+    Column(Modifier.fillMaxSize().onGloballyPositioned { startY = it.positionInWindow().y }) {
+        val topHeight = with(density) { (hinge.startPx - startY).coerceAtLeast(0f).toDp() }
+        val gap = with(density) { (hinge.endPx - hinge.startPx).coerceAtLeast(0f).toDp() }
+        HomeColumn(Modifier.height(topHeight).padding(top = 12.dp), content = top)
+        Spacer(Modifier.height(gap))
+        HomeColumn(Modifier.weight(1f).padding(top = 12.dp), content = bottom)
     }
 }
 
