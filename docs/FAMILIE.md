@@ -1,7 +1,9 @@
 # Familie (family plugin tab)
 
 Developer notes for the "Familie" tab: the app side (part C) of the
-`gatecontrol-familie` plugin 1.0.0. The server side is the core client
+`gatecontrol-familie` plugin 1.0.0, plus the 1.1 modules "Abholen &
+Fahrten" (`rides`) and "Notfall-Karte" (`emergency`) — see
+[Familie 1.1](#familie-11-rides-and-emergency-card). The server side is the core client
 plugin API (`GET /api/v1/client/plugins`, `ALL
 /api/v1/client/plugins/:id/api/*`, GateControl ≥ 1.164.0) and the plugin's
 own app API (contract B3). Everything goes to the user's own GateControl
@@ -43,11 +45,15 @@ every other call of the app.
 | `familie/push/` | `FamiliePush` (parse `data.familie`, routing, buttons), `FamiliePushHandler`, `FamilieActionReceiver`, `FamilieLocateActivity`, `FamilieOpenActivity`, `FamilieLocalNotifier` |
 | `familie/locate/` | `LocateAnswerer` (fix + answer/fail), `FamiliePermissions` (pure permission decisions) |
 | `familie/places/` | `GeofenceRegistrar`, `GeofenceReceiver`, `PlaceTriggerWorker` |
+| `familie/rides/` | 1.1: `RideModels`, `RideLogic` (who may take / decline / give back, "Offen" vs. week, reminder time, place reminder draft) |
+| `familie/emergency/` | 1.1: `EmergencyModels`, `EmergencyCache` (AES-GCM file, `CacheCipher`), `EmergencyCacheStore` (Keystore key, no-backup dir), `EmergencyRepository` |
+| `familie/FamilieShortcuts.kt` | 1.1: dynamic app shortcut "Notfall-Karte" |
 | `ui/familie/` | screens, `FamilieTab.kt` (dest → screen, two-pane), `OsmMap.kt` |
 
 Screens are addressed by `FamilieDest` (`home`, `shopping/<listId>`,
 `tasks`, `dates`, `locate/<child>[/<request>]`, `sos/<id>/<user>/<lat>/<lon>/<acc>`,
-`child`, `places`, `place/<id|new>`): route `familie?dest=` (tab; on wide
+`child`, `places`, `place/<id|new>`, 1.1: `rides[/<rideId>]`,
+`emergency[/<userId>]`): route `familie?dest=` (tab; on wide
 windows the screen beside the start screen, `GcTwoPane`) and
 `familie/page?dest=` (phones).
 
@@ -131,6 +137,9 @@ to `FamiliePushHandler`:
 | `shopping_going` | shopping sync | – | that list |
 | `date`, `arrival` | – | – | Termine / start |
 | `sos_ack` (and anything else on topic `sos`, child) | shown as the parent's acknowledgement on Mein Handy | – | Mein Handy |
+| `ride_ask` (1.1) | refreshes an open rides screen | Ich mache es (`POST rides/<id>/take`), Kann nicht (`…/decline`) | Abholen & Fahrten (the ride highlighted) |
+| `ride_reminder`, `ride_open`, `ride_taken`, `ride_released`, `ride_unassigned` (1.1) | refreshes an open rides screen and the start screen | – | Abholen & Fahrten |
+| `locate_age_hint` (1.1, parents) | – | – | Kind orten of that child |
 
 Buttons work without opening the app (`FamilieActionReceiver`, not
 exported); on success the notification goes and the message is read
@@ -198,10 +207,13 @@ maps; it is in maintenance mode but stable and small.
 
 `app/src/test/.../familie/`: `FamilieJsonTest` (parsers, bodies),
 `ShoppingSyncTest` (view, merge, outbox replay, batching, offline),
+`RideLogicTest` (1.1 ride actions, sections, reminder, place reminder),
+`EmergencyCacheTest` (1.1 encrypted round trip, other login / key,
+changed file, no plain text on disk),
 `FamiliePushTest` (parse, routing, buttons, freshness), `FamilieLogicTest`
 (tab visibility, owner key, permission decisions, geofence selection,
 destinations, agenda, API paths), `FamilieApiTest` (bridge paths, error
-codes, offline). Core: `PushEventParserTest` (`dataJson`),
+codes, offline). Core: `ApiClientTest` (PUT, PATCH / DELETE with query), `PushEventParserTest` (`dataJson`),
 `PushRepositoryTest` (hook once, also when muted). `ManifestSecurityTest`
 checks the new components are not exported.
 
@@ -211,3 +223,82 @@ Needs a real device / server: background answer with the screen off
 (Doze, push service running), geofence transitions, the Play services
 missing case, the OSM map and Geocoder, notification buttons from the
 lock screen.
+
+## Familie 1.1: rides and emergency card
+
+Contract: plugin 1.1.0 (`GET me` → `modules.rides`, `modules.emergency`,
+`modules.wall`; the wall module has no app UI). Both screens follow the
+module switches like every other card.
+
+### Abholen & Fahrten (`rides`, mockup AppPickup)
+
+- `FamilieApi`: `rides(from, to)` (the screen asks today … +7),
+  `createRide`, `updateRide(id, draft, series)` (`PATCH rides/<id>`,
+  `?series=1` for the whole series), `deleteRide(id, series)`,
+  `takeRide`, `releaseRide`, `declineRide`, `setRideDriver`
+  (`{userId}|{label}|{clear:true}`), `askRide`. Ride ids are text (`12`
+  or `<seriesId>:<date>`), checked against `FamilieJson.RIDE_ID_RE`
+  before they become a path segment.
+- Screen: "Offen" = open rides somebody asked for or that start within
+  24 h, plus my own taken rides within 24 h ("Du holst Tim ab" +
+  "Rückgängig", reminder time); then "Diese Woche" (weekday, title, time,
+  who drives / "noch niemand eingetragen" + "Übernehmen", cancelled ones
+  struck through). "Ich mache es": parents and adult members (`age ≥ 18`);
+  "Kann nicht": parents, once; "Wer kann …? fragen" again after 5 minutes.
+- Parents create / edit: title, for whom, date, time, place as text and
+  optionally a point from the 1.0 place picker (`FamiliePlacePicker`, also
+  used by the place editor), driver (member, label such as "Familie
+  Weber", or open), driver reminder 0–120 min, one-off or weekly
+  (weekdays, optional end), "Gleich fragen". A series occurrence is
+  changed alone or with the whole series (a series change does not send a
+  date; the series' weekdays cannot be changed in the app — delete and
+  create again). A changed driver goes through `POST rides/<id>/driver`.
+- Children: "Bitte abholen" creates a ride for themselves (`childIds:
+  [me]`, `ask: true`, no driver).
+- After "Ich mache es" on a ride with coordinates (and module `places`
+  on) the app offers "Orts-Erinnerung anlegen": a 1.0 place reminder for
+  me (arrive, 150 m, note "Tim einsammeln", once), then the geofences
+  re-sync.
+- Start screen: card with the next rides (`overview.rides.next`), open
+  count, "Bitte abholen" for children.
+
+### Notfall-Karte (`emergency`, mockup AppEmergency)
+
+- `GET emergency`, `PUT emergency/members/<userId>` (own card; parents any
+  card), `PUT emergency/contacts` (parents). New core call
+  `ApiClient.pluginPut`. The PUT body carries blood type (`A+ … 0-`, null
+  = unknown), weight, allergies, medication, conditions, notes, insurance
+  and the member's numbers; name and birthdate come from the member list
+  and are not sent.
+- Screen: member chips, the card (allergies highlighted, blood type,
+  medication, conditions, notes), the member's and the family's numbers
+  with a dial button (`ACTION_DIAL`, no `CALL_PHONE` permission),
+  insurance number masked (last 4 digits) until tapped, fixed "Notruf
+  112" (local, not from the server), "offline gespeichert" chip. The
+  editor suggests labels (Kinderarzt, Giftnotruf, …), never numbers.
+- Offline: every successful `GET emergency` is written to
+  `no_backup/familie/emergency.bin` (never in a backup): `GCE1` header +
+  AES-256-GCM (`iv(12) || ciphertext+tag`) of `{owner, savedAt, data}`.
+  The key is a non-exportable Android Keystore key
+  (`gatecontrol_familie_emergency`, no user authentication so the card
+  opens in an emergency); no `androidx.security-crypto`. A copy of another
+  login (`owner` = hash of server + token), a changed file or a lost key
+  count as no copy and the file is deleted. Without a Keystore the card
+  still shows, only nothing is stored. The screen shows the copy at once,
+  refreshes on every open / resume and says "Stand: <time>" while it
+  cannot reach the server. The copy is also refreshed on app start when
+  the module is on, and removed when the module goes off, the member
+  leaves the family or the plugin disappears.
+- App shortcut: dynamic shortcut `familie:emergency` ("Notfall-Karte",
+  long press on the app icon) while the module is on, opening
+  `FamilieOpenActivity` → `emergency`. `QuickActionSurfaces` keeps the
+  `familie:` shortcuts (first) when it sets the quick-action shortcuts.
+- Nothing of the card is logged or shown in a notification.
+
+### Device checks for 1.1
+
+Notification buttons of `ride_ask` from the lock screen; the place
+reminder after taking a ride firing at the hall; the emergency shortcut
+(launcher long press, also while offline / in flight mode); the card
+after a reboot and after clearing the app's data (copy gone, new key);
+the dialer intent on a tablet without telephony.
