@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.0] - 2026-10-14
+
+### Features
+- presence without trusted networks, home detection through gateways (#74)
+
+---
+
 ## [1.30.0] - 2026-10-14
 
 ### Features
