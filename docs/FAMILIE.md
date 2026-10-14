@@ -250,11 +250,19 @@ module switches like every other card.
   used by the place editor), driver (member, label such as "Familie
   Weber", or open), driver reminder 0–120 min, one-off or weekly
   (weekdays, optional end), "Gleich fragen". A series occurrence is
-  changed alone or with the whole series (a series change does not send a
-  date; the series' weekdays cannot be changed in the app — delete and
-  create again). A changed driver goes through `POST rides/<id>/driver`.
+  changed alone or with the whole series. The date of a series occurrence
+  cannot move (the server refuses it); a series change sends no date but
+  the rule (weekdays, end, from the ride's `repeat`) and the driver
+  (`null` clears it). A changed driver of one ride goes through `POST
+  rides/<id>/driver` (the family gets "ride_taken"). A cancelled
+  occurrence can be reopened (`PATCH {status:"open"}`).
+- Errors of the final plugin: `already_taken` (409, with the `driver`:
+  "Schon übernommen – Marc fährt"), `cancelled` (409), `too_soon` (429,
+  ask), `parents_only`, `forbidden` (give back by someone else); the
+  screen reloads after every refused action.
 - Children: "Bitte abholen" creates a ride for themselves (`childIds:
-  [me]`, `ask: true`, no driver).
+  [me]`, `ask: true`, no driver, never a series) and can cancel their own
+  one-off request (`DELETE rides/<id>`).
 - After "Ich mache es" on a ride with coordinates (and module `places`
   on) the app offers "Orts-Erinnerung anlegen": a 1.0 place reminder for
   me (arrive, 150 m, note "Tim einsammeln", once), then the geofences
@@ -269,7 +277,9 @@ module switches like every other card.
   `ApiClient.pluginPut`. The PUT body carries blood type (`A+ … 0-`, null
   = unknown), weight, allergies, medication, conditions, notes, insurance
   and the member's numbers; name and birthdate come from the member list
-  and are not sent.
+  and are not sent. Weight 0.5–400 kg (0.1 steps), a number needs a
+  digit; an `invalid` answer's `field` (`allergies`, `contacts.0.phone`,
+  …) is shown at that field of the open form.
 - Screen: member chips, the card (allergies highlighted, blood type,
   medication, conditions, notes), the member's and the family's numbers
   with a dial button (`ACTION_DIAL`, no `CALL_PHONE` permission),

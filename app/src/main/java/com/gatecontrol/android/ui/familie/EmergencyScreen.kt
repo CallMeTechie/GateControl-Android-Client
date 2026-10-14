@@ -92,6 +92,7 @@ fun EmergencyScreen(onBack: () -> Unit, initialUserId: Int? = null, viewModel: E
     val message by viewModel.message.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
     val saving by viewModel.saving.collectAsStateWithLifecycle()
+    val fieldError by viewModel.fieldError.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selected by rememberSaveable { mutableStateOf(initialUserId) }
     var form by remember { mutableStateOf<EmergencyForm?>(null) }
@@ -160,13 +161,21 @@ fun EmergencyScreen(onBack: () -> Unit, initialUserId: Int? = null, viewModel: E
         is EmergencyForm.Member -> EmergencyMemberDialog(
             member = f.member,
             saving = saving,
-            onDismiss = { form = null },
+            fieldError = fieldError,
+            onDismiss = {
+                form = null
+                viewModel.clearFieldError()
+            },
             onSave = { draft -> viewModel.saveMember(f.member.userId, draft) },
         )
         EmergencyForm.Contacts -> EmergencyContactsDialog(
             contacts = card?.contacts.orEmpty(),
             saving = saving,
-            onDismiss = { form = null },
+            fieldError = fieldError,
+            onDismiss = {
+                form = null
+                viewModel.clearFieldError()
+            },
             onSave = viewModel::saveContacts,
         )
         null -> Unit

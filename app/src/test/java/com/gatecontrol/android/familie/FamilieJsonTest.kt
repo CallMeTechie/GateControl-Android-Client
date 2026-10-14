@@ -411,4 +411,48 @@ class FamilieJsonTest {
             "at most 20 family numbers",
         )
     }
+
+    @Test
+    fun `final 1_1 plugin additions - series rule, start, error details`() {
+        val r = FamilieJson.rideIn(
+            json(
+                """{ "ok": true, "notified": 2, "ride": { "id": "3:2026-10-16", "seriesId": 3, "date": "2026-10-16", "time": "17:00",
+                     "title": "Schwimmen", "status": "open", "startAt": "2026-10-16T15:00:00Z",
+                     "repeat": { "weekdays": [4, 9, 2], "startDate": "2026-10-01", "endDate": null } } }""",
+            ),
+        )!!
+        assertEquals(com.gatecontrol.android.familie.rides.RideRule(listOf(2, 4), "2026-10-01", null), r.rule)
+        assertEquals("2026-10-16T15:00:00Z", r.startAt)
+
+        val taken = json("""{ "ok": false, "code": "already_taken", "driver": { "userId": 4, "name": "Marc" } }""")
+        assertEquals("Marc", FamilieJson.errorDriver(taken))
+        assertEquals("Familie Weber", FamilieJson.errorDriver(json("""{ "driver": { "label": "Familie Weber" } }""")))
+        assertEquals("contacts.0.phone", FamilieJson.errorField(json("""{ "code": "invalid", "field": "contacts.0.phone" }""")))
+        assertNull(FamilieJson.errorField(json("""{ "field": "<script>" }""")))
+
+        // The whole series: rule and driver in the PATCH (null clears it).
+        val d = com.gatecontrol.android.familie.rides.RideDraft(
+            date = "2026-10-16", time = "17:00", title = "Schwimmen", childIds = listOf(5),
+            repeat = com.gatecontrol.android.familie.rides.RideRepeat(listOf(2, 4), "2026-12-18"),
+        )
+        val series = FamilieJson.rideBody(d, create = false, series = true, withDriver = true)
+        assertTrue(series.get("driver").isJsonNull)
+        assertEquals("""{"weekdays":[2,4],"endDate":"2026-12-18"}""", series.get("repeat").toString())
+        val one = FamilieJson.rideBody(d.copy(repeat = null, driver = com.gatecontrol.android.familie.rides.DriverChoice.Member(3)), create = false)
+        assertFalse(one.has("driver"), "one ride: the driver has its own call")
+
+        // Emergency: weight 0.5–400 in 0.1 steps, a phone needs a digit.
+        assertEquals(32.5, com.gatecontrol.android.familie.emergency.EmergencyMember.weight(32.54))
+        assertNull(com.gatecontrol.android.familie.emergency.EmergencyMember.weight(0.4))
+        assertNull(com.gatecontrol.android.familie.emergency.EmergencyMember.weight(401.0))
+        assertFalse(com.gatecontrol.android.familie.emergency.EmergencyContact.PHONE_RE.matches("()"))
+        val body = FamilieJson.emergencyContactsBody(listOf(com.gatecontrol.android.familie.emergency.EmergencyContact("x", "( )", "")))
+        assertEquals("[]", body.get("contacts").toString())
+        val card = FamilieJson.emergency(
+            json("""{ "members": [ { "userId": 5, "name": "Tim", "weightKg": 450, "updatedBy": { "userId": 9, "name": null } } ] }"""),
+        )
+        assertNull(card.members.single().weightKg)
+        assertEquals(9, card.members.single().updatedBy)
+        assertNull(card.members.single().updatedByName)
+    }
 }

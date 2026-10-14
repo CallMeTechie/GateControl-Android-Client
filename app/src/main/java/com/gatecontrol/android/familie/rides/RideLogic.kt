@@ -42,6 +42,10 @@ object RideLogic {
 
     fun canEdit(me: FamilieMe): Boolean = me.isParent
 
+    /** A child cancels its own one-off "Bitte abholen" (parents cancel through the edit form). */
+    fun canCancelOwn(ride: Ride, me: FamilieMe): Boolean =
+        !me.isParent && !ride.isCancelled && !ride.isSeries && ride.requestedBy?.userId == me.userId
+
     /** "Wer kann …?" again: open, and the last ask is at least 5 minutes ago. */
     fun canAsk(ride: Ride, nowMs: Long, askedAtMs: Long?): Boolean =
         ride.isOpen && (askedAtMs == null || nowMs - askedAtMs >= ASK_PAUSE_MS)

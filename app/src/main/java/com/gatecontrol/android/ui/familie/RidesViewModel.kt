@@ -28,7 +28,8 @@ import javax.inject.Inject
 
 /** One-shot notices of the rides screen. */
 sealed interface RidesNotice {
-    data class Error(val code: String?) : RidesNotice
+    /** [detail]: who drives a ride that was `already_taken`. */
+    data class Error(val code: String?, val detail: String? = null) : RidesNotice
 
     data object Asked : RidesNotice
 
@@ -105,7 +106,7 @@ class RidesViewModel @Inject constructor(
                 onOk()
                 refresh()
             } else {
-                _notice.value = RidesNotice.Error(r.errorCode())
+                _notice.value = RidesNotice.Error(r.errorCode(), (r as? FamilieResult.Failed)?.detail)
                 // The ride may have changed meanwhile (taken by someone else …).
                 refresh()
             }
@@ -129,13 +130,24 @@ class RidesViewModel @Inject constructor(
         if (draft.ask == true) _notice.value = RidesNotice.Requested
     }) { api.createRide(draft) }
 
-    /** Change a ride; the driver goes through its own call when it changed. */
+    /**
+     * Change a ride. A changed driver of one ride goes through `POST …/driver`
+     * (it tells the family); the driver of a whole series is part of the PATCH.
+     */
     fun update(ride: Ride, draft: RideDraft, series: Boolean, driver: DriverChoice?) = act {
-        val r = api.updateRide(ride.id, draft, series)
-        if (r is FamilieResult.Ok && driver != null) api.setRideDriver(ride.id, driver) else r
+        if (series) {
+            api.updateRide(ride.id, draft.copy(driver = driver ?: DriverChoice.None), series = true, withDriver = driver != null)
+        } else {
+            val r = api.updateRide(ride.id, draft, series = false)
+            if (r is FamilieResult.Ok && driver != null) api.setRideDriver(ride.id, driver) else r
+        }
     }
 
+    /** Cancel an occurrence (parents; a child its own one-off request), or remove the whole [series]. */
     fun delete(ride: Ride, series: Boolean) = act { api.deleteRide(ride.id, series) }
+
+    /** A cancelled ride takes place after all. */
+    fun reopen(ride: Ride) = act { api.reopenRide(ride.id) }
 
     fun dismissPlaceOffer() {
         _offerPlace.value = null

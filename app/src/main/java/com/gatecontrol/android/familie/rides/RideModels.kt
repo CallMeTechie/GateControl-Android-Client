@@ -38,6 +38,10 @@ data class Ride(
     val askedAt: String?,
     val remindMinutes: Int,
     val note: String,
+    /** The series' rule (weekdays, first date, end), null for a one-off ride. */
+    val rule: RideRule? = null,
+    /** Start as an instant (server addition). */
+    val startAt: String? = null,
 ) {
     val isOpen: Boolean get() = status == STATUS_OPEN
     val isTaken: Boolean get() = status == STATUS_TAKEN
@@ -73,6 +77,9 @@ data class RideRepeat(
     val endDate: String? = null,
 )
 
+/** The rule of a weekly series as the server returns it (`repeat`). */
+data class RideRule(val weekdays: List<Int>, val startDate: String?, val endDate: String?)
+
 /** Body of `POST rides` / `PATCH rides/<id>`. */
 data class RideDraft(
     val date: String,
@@ -85,6 +92,7 @@ data class RideDraft(
     val driver: DriverChoice = DriverChoice.None,
     val remindMinutes: Int = Ride.DEFAULT_REMIND,
     val note: String = "",
+    /** New ride: makes it a series; change of the whole series: its new rule. */
     val repeat: RideRepeat? = null,
     /** "Wer kann …?" right away (children: always). */
     val ask: Boolean? = null,

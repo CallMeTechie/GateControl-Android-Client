@@ -37,6 +37,10 @@ class EmergencyViewModel @Inject constructor(
     private val _saving = MutableStateFlow(false)
     val saving: StateFlow<Boolean> = _saving.asStateFlow()
 
+    private val _fieldError = MutableStateFlow<String?>(null)
+    /** The field the server refused (`allergies`, `contacts.0.phone`, …), shown at that field of the open form. */
+    val fieldError: StateFlow<String?> = _fieldError.asStateFlow()
+
     private val _saved = MutableStateFlow(0)
     /** Counts successful saves: the open form closes. */
     val saved: StateFlow<Int> = _saved.asStateFlow()
@@ -59,15 +63,24 @@ class EmergencyViewModel @Inject constructor(
     private fun save(call: suspend () -> FamilieResult<Unit>) {
         viewModelScope.launch {
             _saving.value = true
+            _fieldError.value = null
             val r = call()
             _saving.value = false
-            if (r is FamilieResult.Ok) _saved.value += 1 else _message.value = r.errorCode()
+            when {
+                r is FamilieResult.Ok -> _saved.value += 1
+                r is FamilieResult.Failed && r.field != null -> _fieldError.value = r.field
+                else -> _message.value = r.errorCode()
+            }
         }
     }
 
     fun saveMember(userId: Int, draft: EmergencyMemberDraft) = save { emergency.saveMember(userId, draft) }
 
     fun saveContacts(contacts: List<EmergencyContact>) = save { emergency.saveContacts(contacts) }
+
+    fun clearFieldError() {
+        _fieldError.value = null
+    }
 
     fun clearMessage() {
         _message.value = null

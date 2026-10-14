@@ -382,6 +382,10 @@
     <string name="familie_ride_place_note">%1$s einsammeln</string>
     <string name="familie_ride_place_created">Orts-Erinnerung angelegt.</string>
     <string name="familie_ride_place_created_perm">Orts-Erinnerung angelegt. Erlaube unter „Orts-Erinnerungen“ den Standort „immer“, damit sie auslöst.</string>
+    <string name="familie_error_already_taken">Das hat schon jemand übernommen.</string>
+    <string name="familie_error_already_taken_by">Schon übernommen – %1$s fährt.</string>
+    <string name="familie_error_cancelled">Diese Fahrt ist abgesagt.</string>
+    <string name="familie_ride_reopen">Fahrt findet doch statt</string>
     <plurals name="familie_rides_open_count">
         <item quantity="one">%1$d Fahrt offen</item>
         <item quantity="other">%1$d Fahrten offen</item>
@@ -430,7 +434,7 @@
     <string name="familie_emergency_family_contacts_hint">Diese Nummern sieht jeder in der Familie auf jeder Karte, z. B. Kinderarzt oder Giftnotruf. Bitte die Nummern selbst nachsehen und eintragen.</string>
     <string name="familie_emergency_member_contacts">Eigene Nummern von %1$s</string>
     <string name="familie_emergency_weight_label">Gewicht (kg)</string>
-    <string name="familie_emergency_weight_invalid">Bitte ein Gewicht in kg eingeben.</string>
+    <string name="familie_emergency_weight_invalid">Bitte ein Gewicht zwischen 0,5 und 400 kg eingeben.</string>
     <string name="familie_emergency_contact_label">Bezeichnung</string>
     <string name="familie_emergency_contact_phone">Telefon</string>
     <string name="familie_emergency_contact_note">Hinweis</string>
@@ -439,6 +443,8 @@
     <string name="familie_emergency_contact_add">Nummer hinzufügen</string>
     <string name="familie_emergency_contact_remove_cd">Nummer entfernen: %1$s</string>
     <string name="familie_emergency_contact_suggest">Vorschläge:</string>
+    <string name="familie_emergency_field_refused">Der Server hat diese Angabe nicht angenommen – bitte prüfen.</string>
+    <string name="familie_emergency_contact_needs_digit">Die Nummer braucht mindestens eine Ziffer.</string>
     <string-array name="familie_emergency_label_suggestions">
         <item>Kinderarzt</item>
         <item>Hausarzt</item>

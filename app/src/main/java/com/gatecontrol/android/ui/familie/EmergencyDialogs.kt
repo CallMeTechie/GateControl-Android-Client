@@ -53,6 +53,7 @@ private fun List<EmergencyContact>.sendable(): List<EmergencyContact>? {
 fun EmergencyMemberDialog(
     member: EmergencyMember,
     saving: Boolean,
+    fieldError: String?,
     onDismiss: () -> Unit,
     onSave: (EmergencyMemberDraft) -> Unit,
 ) {
@@ -67,8 +68,10 @@ fun EmergencyMemberDialog(
     var insNumber by rememberSaveable { mutableStateOf(member.insurance?.number.orEmpty()) }
     var contacts by rememberSaveable(saver = ContactsSaver) { mutableStateOf(member.contacts) }
 
-    val weightKg = weight.replace(',', '.').trim().takeIf { it.isNotEmpty() }?.toDoubleOrNull()
-    val weightOk = weight.isBlank() || (weightKg != null && weightKg > 0 && weightKg < 500)
+    val weightKg = EmergencyMember.weight(weight.replace(',', '.').trim().takeIf { it.isNotEmpty() }?.toDoubleOrNull())
+    val weightOk = weight.isBlank() || weightKg != null
+    val refused = stringResource(R.string.familie_emergency_field_refused)
+    fun err(name: String): String? = if (fieldError == name) refused else null
     val sendable = contacts.sendable()
 
     FamilieFormDialog(
@@ -95,23 +98,24 @@ fun EmergencyMemberDialog(
             GcFilterChip(text = stringResource(R.string.familie_emergency_unknown), selected = blood == null, onClick = { blood = null })
             EmergencyMember.BLOOD_TYPES.forEach { t -> GcFilterChip(text = t, selected = blood == t, onClick = { blood = t }) }
         }
+        err("bloodType")?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
         GcTextField(
             value = weight,
             onValueChange = { v -> weight = v.filter { it.isDigit() || it == ',' || it == '.' }.take(6) },
             label = stringResource(R.string.familie_emergency_weight_label),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            error = if (weightOk) null else stringResource(R.string.familie_emergency_weight_invalid),
+            error = if (weightOk) err("weightKg") else stringResource(R.string.familie_emergency_weight_invalid),
         )
-        GcTextField(value = allergies, onValueChange = { allergies = it.take(EmergencyMember.MAX_TEXT) }, label = stringResource(R.string.familie_emergency_allergies), placeholder = stringResource(R.string.familie_emergency_allergies_hint), singleLine = false)
-        GcTextField(value = medications, onValueChange = { medications = it.take(EmergencyMember.MAX_TEXT) }, label = stringResource(R.string.familie_emergency_medications), singleLine = false)
-        GcTextField(value = conditions, onValueChange = { conditions = it.take(EmergencyMember.MAX_TEXT) }, label = stringResource(R.string.familie_emergency_conditions), singleLine = false)
-        GcTextField(value = notes, onValueChange = { notes = it.take(EmergencyMember.MAX_NOTES) }, label = stringResource(R.string.familie_emergency_notes), singleLine = false)
+        GcTextField(value = allergies, onValueChange = { allergies = it.take(EmergencyMember.MAX_TEXT) }, label = stringResource(R.string.familie_emergency_allergies), placeholder = stringResource(R.string.familie_emergency_allergies_hint), singleLine = false, error = err("allergies"))
+        GcTextField(value = medications, onValueChange = { medications = it.take(EmergencyMember.MAX_TEXT) }, label = stringResource(R.string.familie_emergency_medications), singleLine = false, error = err("medications"))
+        GcTextField(value = conditions, onValueChange = { conditions = it.take(EmergencyMember.MAX_TEXT) }, label = stringResource(R.string.familie_emergency_conditions), singleLine = false, error = err("conditions"))
+        GcTextField(value = notes, onValueChange = { notes = it.take(EmergencyMember.MAX_NOTES) }, label = stringResource(R.string.familie_emergency_notes), singleLine = false, error = err("notes"))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GcTextField(value = insName, onValueChange = { insName = it.take(EmergencyInsurance.MAX_NAME) }, label = stringResource(R.string.familie_emergency_insurance), modifier = Modifier.weight(1f))
+            GcTextField(value = insName, onValueChange = { insName = it.take(EmergencyInsurance.MAX_NAME) }, label = stringResource(R.string.familie_emergency_insurance), modifier = Modifier.weight(1f), error = err("insurance"))
             GcTextField(value = insNumber, onValueChange = { insNumber = it.take(EmergencyInsurance.MAX_NUMBER) }, label = stringResource(R.string.familie_emergency_insurance_number_label), modifier = Modifier.weight(1f))
         }
         Text(stringResource(R.string.familie_emergency_member_contacts, member.name), style = MaterialTheme.typography.titleSmall, color = extra.muted)
-        ContactsEditor(contacts, EmergencyMember.MAX_CONTACTS) { contacts = it }
+        ContactsEditor(contacts, EmergencyMember.MAX_CONTACTS, fieldError) { contacts = it }
     }
 }
 
@@ -120,6 +124,7 @@ fun EmergencyMemberDialog(
 fun EmergencyContactsDialog(
     contacts: List<EmergencyContact>,
     saving: Boolean,
+    fieldError: String?,
     onDismiss: () -> Unit,
     onSave: (List<EmergencyContact>) -> Unit,
 ) {
@@ -132,7 +137,7 @@ fun EmergencyContactsDialog(
         onSave = { onSave(sendable.orEmpty()) },
     ) {
         Text(stringResource(R.string.familie_emergency_family_contacts_hint), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
-        ContactsEditor(list, com.gatecontrol.android.familie.emergency.EmergencyCard.MAX_FAMILY_CONTACTS) { list = it }
+        ContactsEditor(list, com.gatecontrol.android.familie.emergency.EmergencyCard.MAX_FAMILY_CONTACTS, fieldError) { list = it }
     }
 }
 
@@ -142,8 +147,16 @@ fun EmergencyContactsDialog(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ContactsEditor(contacts: List<EmergencyContact>, max: Int, onChange: (List<EmergencyContact>) -> Unit) {
+private fun ContactsEditor(contacts: List<EmergencyContact>, max: Int, fieldError: String?, onChange: (List<EmergencyContact>) -> Unit) {
     val extra = GateControlTheme.extraColors
+    val refused = stringResource(R.string.familie_emergency_field_refused)
+    // `contacts.<i>.<part>` of a refused save, or `contacts.<i>` / `contacts` (the row / the list).
+    fun err(i: Int, part: String): String? = when (fieldError) {
+        "contacts.$i.$part" -> refused
+        "contacts.$i" -> if (part == "phone") refused else null
+        else -> null
+    }
+    if (fieldError == "contacts") Text(refused, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     fun update(i: Int, c: EmergencyContact) = onChange(contacts.toMutableList().also { it[i] = c })
     contacts.forEachIndexed { i, c ->
         GcCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -153,6 +166,7 @@ private fun ContactsEditor(contacts: List<EmergencyContact>, max: Int, onChange:
                     onValueChange = { update(i, c.copy(label = it.take(EmergencyContact.MAX_LABEL))) },
                     label = stringResource(R.string.familie_emergency_contact_label),
                     modifier = Modifier.weight(1f),
+                    error = err(i, "label"),
                 )
                 GcIconButton(
                     GcIcons.Trash,
@@ -166,13 +180,18 @@ private fun ContactsEditor(contacts: List<EmergencyContact>, max: Int, onChange:
                 onValueChange = { update(i, c.copy(phone = EmergencyContact.cleanPhone(it))) },
                 label = stringResource(R.string.familie_emergency_contact_phone),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                error = if (c.phone.isNotBlank() && c.label.isBlank()) stringResource(R.string.familie_emergency_contact_needs_label) else null,
+                error = when {
+                    c.phone.isNotBlank() && c.label.isBlank() -> stringResource(R.string.familie_emergency_contact_needs_label)
+                    c.phone.isNotBlank() && c.phone.none { it.isDigit() } -> stringResource(R.string.familie_emergency_contact_needs_digit)
+                    else -> err(i, "phone")
+                },
             )
             GcTextField(
                 value = c.note,
                 onValueChange = { update(i, c.copy(note = it.take(EmergencyContact.MAX_NOTE))) },
                 label = stringResource(R.string.familie_emergency_contact_note),
                 placeholder = stringResource(R.string.familie_emergency_contact_note_hint),
+                error = err(i, "note"),
             )
         }
     }

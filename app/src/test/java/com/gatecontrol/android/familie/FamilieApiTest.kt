@@ -137,6 +137,15 @@ class FamilieApiTest {
         familie.deleteRide("12")
         coVerify { api.pluginDelete("gatecontrol-familie", "rides/12", emptyMap()) }
 
+        coEvery { api.pluginPost(any(), "rides/12/take", any()) } returns
+            error(409, """{"ok":false,"code":"already_taken","error":"x","driver":{"userId":4,"name":"Marc"}}""")
+        assertEquals(FamilieResult.Failed("already_taken", 409, detail = "Marc"), familie.takeRide("12"))
+
+        val reopen = slot<JsonObject>()
+        coEvery { api.pluginPatch(any(), "rides/3:2026-10-14", capture(reopen), any()) } returns ok("""{"ok":true}""")
+        familie.reopenRide("3:2026-10-14")
+        assertEquals("""{"status":"open"}""", reopen.captured.toString())
+
         // Anything that is not a ride id never reaches the server.
         assertEquals(FamilieResult.Failed(FamilieApi.CODE_INVALID, 0), familie.takeRide("../me"))
         assertEquals(FamilieResult.Failed(FamilieApi.CODE_INVALID, 0), familie.deleteRide("12/../x"))
@@ -156,6 +165,10 @@ class FamilieApiTest {
         )
         assertEquals(FamilieResult.Ok(Unit), familie.putEmergencyMember(5, draft))
         assertEquals("A+", body.captured.get("bloodType").asString)
+
+        coEvery { api.pluginPut(any(), "emergency/members/6", any()) } returns
+            error(400, """{"ok":false,"code":"invalid","field":"contacts.0.phone"}""")
+        assertEquals(FamilieResult.Failed("invalid", 400, field = "contacts.0.phone"), familie.putEmergencyMember(6, draft))
 
         coEvery { api.pluginPut(any(), "emergency/contacts", any()) } returns error(403, """{"ok":false,"code":"parents_only"}""")
         assertEquals(FamilieResult.Failed("parents_only", 403), familie.putEmergencyContacts(emptyList()))

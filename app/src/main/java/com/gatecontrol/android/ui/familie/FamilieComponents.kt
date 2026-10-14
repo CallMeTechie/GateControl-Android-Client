@@ -68,6 +68,8 @@ fun familieErrorRes(code: String?): Int = when (code) {
     "no_permission" -> R.string.familie_locate_fail_permission
     "location_off" -> R.string.familie_locate_fail_off
     "timeout" -> R.string.familie_locate_fail_timeout
+    "already_taken" -> R.string.familie_error_already_taken
+    "cancelled" -> R.string.familie_error_cancelled
     else -> R.string.familie_error_generic
 }
 

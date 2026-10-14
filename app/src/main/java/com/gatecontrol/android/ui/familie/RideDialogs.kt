@@ -64,6 +64,7 @@ fun RideEditDialog(
     onDismiss: () -> Unit,
     onSave: (RideDraft, Boolean, DriverChoice?) -> Unit,
     onDelete: ((Boolean) -> Unit)?,
+    onReopen: (() -> Unit)? = null,
 ) {
     val extra = GateControlTheme.extraColors
     val onlyChild = profile.everyone.filter { it.isChild }.singleOrNull()?.userId
@@ -89,8 +90,8 @@ fun RideEditDialog(
     var driverLabel by rememberSaveable { mutableStateOf((initialDriver as? DriverChoice.Label)?.label.orEmpty()) }
     var remind by rememberSaveable { mutableIntStateOf(ride?.remindMinutes ?: Ride.DEFAULT_REMIND) }
     var weekly by rememberSaveable { mutableStateOf(false) }
-    var weekdays by rememberSaveable { mutableStateOf(listOf(LocalDate.now().dayOfWeek.value)) }
-    var endDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var weekdays by rememberSaveable { mutableStateOf(ride?.rule?.weekdays ?: listOf(LocalDate.now().dayOfWeek.value)) }
+    var endDate by rememberSaveable { mutableStateOf(ride?.rule?.endDate) }
     var note by rememberSaveable { mutableStateOf(ride?.note.orEmpty()) }
     var ask by rememberSaveable { mutableStateOf(askDefault) }
     var series by rememberSaveable { mutableStateOf(false) }
@@ -100,8 +101,10 @@ fun RideEditDialog(
         DRIVER_LABEL -> driverLabel.trim().takeIf { it.isNotEmpty() }?.let { DriverChoice.Label(it) } ?: DriverChoice.None
         else -> DriverChoice.None
     }
+    // The rule of a series is shown (and sent) when the whole series is edited.
+    val editRule = ride?.isSeries == true && series && ride.rule != null
     val valid = title.isNotBlank() && time != null && childIds.isNotEmpty() &&
-        (!weekly || weekdays.isNotEmpty()) &&
+        ((!weekly && !editRule) || weekdays.isNotEmpty()) &&
         (driverKind != DRIVER_LABEL || driverLabel.isNotBlank()) &&
         (driverKind != DRIVER_MEMBER || driverUser != null)
 
@@ -122,13 +125,20 @@ fun RideEditDialog(
                 driver = driver,
                 remindMinutes = remind,
                 note = note,
-                repeat = if (ride == null && weekly) RideRepeat(weekdays.sorted(), endDate) else null,
+                repeat = when {
+                    ride == null && weekly -> RideRepeat(weekdays.sorted(), endDate)
+                    editRule -> RideRepeat(weekdays.sorted(), endDate)
+                    else -> null
+                },
                 ask = if (ride == null) ask && driver == DriverChoice.None else null,
             )
             onSave(draft, ride?.isSeries == true && series, if (ride != null && driver != initialDriver) driver else null)
         },
-        onDelete = if (ride != null && onDelete != null) ({ onDelete(ride.isSeries && series) }) else null,
+        onDelete = if (ride != null && onDelete != null && (!ride.isCancelled || (ride.isSeries && series))) ({ onDelete(ride.isSeries && series) }) else null,
     ) {
+        if (ride?.isCancelled == true && onReopen != null && !series) {
+            GcOutlineButton(text = stringResource(R.string.familie_ride_reopen), onClick = onReopen, icon = GcIcons.Refresh)
+        }
         if (ride?.isSeries == true) {
             GcSegmented(
                 options = listOf(false to stringResource(R.string.familie_ride_scope_one), true to stringResource(R.string.familie_ride_scope_series)),
@@ -155,7 +165,8 @@ fun RideEditDialog(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!series) {
+            // The date of a series occurrence cannot move (the server refuses it).
+            if (ride?.isSeries != true) {
                 FamilieDateField(
                     label = stringResource(if (weekly) R.string.familie_task_first_date else R.string.familie_ride_date),
                     value = date,
@@ -219,14 +230,16 @@ fun RideEditDialog(
             }
         }
 
-        if (ride == null) {
+        if (ride == null || editRule) {
             Text(stringResource(R.string.familie_ride_repeat), style = MaterialTheme.typography.titleSmall, color = extra.muted)
-            GcSegmented(
-                options = listOf(false to stringResource(R.string.familie_ride_once), true to stringResource(R.string.familie_ride_weekly)),
-                selected = weekly,
-                onSelect = { weekly = it },
-            )
-            if (weekly) {
+            if (ride == null) {
+                GcSegmented(
+                    options = listOf(false to stringResource(R.string.familie_ride_once), true to stringResource(R.string.familie_ride_weekly)),
+                    selected = weekly,
+                    onSelect = { weekly = it },
+                )
+            }
+            if (weekly || editRule) {
                 val names = weekdayNames()
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     (1..7).forEach { d ->

@@ -89,7 +89,11 @@ fun RidesScreen(onBack: () -> Unit, highlight: String? = null, viewModel: RidesV
     var confirmDelete by remember { mutableStateOf<Pair<Ride, Boolean>?>(null) }
 
     val noticeText = when (val n = notice) {
-        is RidesNotice.Error -> familieErrorText(n.code)
+        is RidesNotice.Error -> if (n.code == "already_taken" && n.detail != null) {
+            stringResource(R.string.familie_error_already_taken_by, n.detail)
+        } else {
+            familieErrorText(n.code)
+        }
         RidesNotice.Asked -> stringResource(R.string.familie_ride_asked)
         RidesNotice.Requested -> stringResource(R.string.familie_ride_requested)
         is RidesNotice.PlaceCreated -> stringResource(if (n.needsPermission) R.string.familie_ride_place_created_perm else R.string.familie_ride_place_created)
@@ -135,6 +139,7 @@ fun RidesScreen(onBack: () -> Unit, highlight: String? = null, viewModel: RidesV
                                     askedAtMs = askedAt[ride.id] ?: FamilieFormat.parseInstant(ride.askedAt)?.toEpochMilli(),
                                     viewModel = viewModel,
                                     onEdit = { form = RideForm.Edit(ride) },
+                                    onCancelOwn = { confirmDelete = ride to false },
                                 )
                             }
                         }
@@ -145,7 +150,14 @@ fun RidesScreen(onBack: () -> Unit, highlight: String? = null, viewModel: RidesV
                             GcCard(contentPadding = PaddingValues(vertical = 2.dp), verticalArrangement = Arrangement.Top) {
                                 sections.week.forEachIndexed { i, ride ->
                                     if (i > 0) GcRowDivider()
-                                    WeekRow(ride, p, highlighted = ride.id == highlight, onTake = { viewModel.take(ride) }, onEdit = { form = RideForm.Edit(ride) })
+                                    WeekRow(
+                                        ride,
+                                        p,
+                                        highlighted = ride.id == highlight,
+                                        onTake = { viewModel.take(ride) },
+                                        onEdit = { form = RideForm.Edit(ride) },
+                                        onCancelOwn = { confirmDelete = ride to false },
+                                    )
                                 }
                             }
                         }
@@ -193,6 +205,10 @@ fun RidesScreen(onBack: () -> Unit, highlight: String? = null, viewModel: RidesV
                 },
                 onDelete = { series ->
                     confirmDelete = f.ride to series
+                    form = null
+                },
+                onReopen = {
+                    viewModel.reopen(f.ride)
                     form = null
                 },
             )
@@ -254,6 +270,7 @@ private fun AttentionCard(
     askedAtMs: Long?,
     viewModel: RidesViewModel,
     onEdit: () -> Unit,
+    onCancelOwn: () -> Unit,
 ) {
     val extra = GateControlTheme.extraColors
     val me = p.me
@@ -327,22 +344,31 @@ private fun AttentionCard(
             }
         }
         if (ride.note.isNotBlank()) Text(ride.note, style = MaterialTheme.typography.bodySmall, color = extra.muted)
+        if (RideLogic.canCancelOwn(ride, me)) {
+            TextButton(onClick = onCancelOwn, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                Text(stringResource(R.string.familie_ride_cancel_one), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 
 @Composable
-private fun WeekRow(ride: Ride, p: FamilieProfile, highlighted: Boolean, onTake: () -> Unit, onEdit: () -> Unit) {
+private fun WeekRow(ride: Ride, p: FamilieProfile, highlighted: Boolean, onTake: () -> Unit, onEdit: () -> Unit, onCancelOwn: () -> Unit) {
     val extra = GateControlTheme.extraColors
     val me = p.me
     val day = FamilieFormat.parseDate(ride.date)
     val names = weekdayNames()
-    val editable = RideLogic.canEdit(me) && !ride.isCancelled
+    val click: (() -> Unit)? = when {
+        RideLogic.canEdit(me) -> onEdit
+        RideLogic.canCancelOwn(ride, me) -> onCancelOwn
+        else -> null
+    }
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 60.dp)
             .then(if (highlighted) Modifier.background(extra.accentBg) else Modifier)
-            .then(if (editable) Modifier.clickable(role = Role.Button, onClick = onEdit) else Modifier)
+            .then(if (click != null) Modifier.clickable(role = Role.Button, onClick = click) else Modifier)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

@@ -17,7 +17,7 @@ data class EmergencyContact(
         const val MAX_LABEL = 60
         const val MAX_PHONE = 30
         const val MAX_NOTE = 80
-        val PHONE_RE = Regex("^[0-9 +/()\\-]{1,30}$")
+        val PHONE_RE = Regex("^(?=.*\\d)[0-9 +/()\\-]{1,30}$")
 
         /** Phone input as the server accepts it: other characters out, capped. */
         fun cleanPhone(value: String): String = value.filter { it.isDigit() || it in " +/()-" }.trim().take(MAX_PHONE)
@@ -59,6 +59,12 @@ data class EmergencyMember(
         const val MAX_TEXT = 300
         const val MAX_NOTES = 500
         const val MAX_CONTACTS = 10
+        const val MIN_WEIGHT = 0.5
+        const val MAX_WEIGHT = 400.0
+
+        /** Weight as the server takes it: 0.5–400 kg in 0.1 steps, else null. */
+        fun weight(kg: Double?): Double? =
+            kg?.takeIf { it.isFinite() && it in MIN_WEIGHT..MAX_WEIGHT }?.let { Math.round(it * 10) / 10.0 }
 
         /** The wire values; "0" (zero) as written in Germany, "O" accepted when reading. */
         val BLOOD_TYPES = listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "0+", "0-")

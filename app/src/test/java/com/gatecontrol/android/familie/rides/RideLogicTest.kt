@@ -58,6 +58,14 @@ class RideLogicTest {
 
         assertTrue(RideLogic.canEdit(anna))
         assertFalse(RideLogic.canEdit(jonas))
+
+        // A child cancels its own one-off request, nothing else.
+        val request = ride().copy(requestedBy = RidePerson(5, "Tim"))
+        assertTrue(RideLogic.canCancelOwn(request, tim))
+        assertFalse(RideLogic.canCancelOwn(ride(), tim), "asked for by Anna")
+        assertFalse(RideLogic.canCancelOwn(request.copy(seriesId = 3), tim), "no series")
+        assertFalse(RideLogic.canCancelOwn(request.copy(status = Ride.STATUS_CANCELLED), tim))
+        assertFalse(RideLogic.canCancelOwn(request, anna), "parents use the edit form")
     }
 
     @Test

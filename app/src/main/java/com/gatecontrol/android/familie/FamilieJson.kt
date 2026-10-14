@@ -11,6 +11,7 @@ import com.gatecontrol.android.familie.rides.Ride
 import com.gatecontrol.android.familie.rides.RideDraft
 import com.gatecontrol.android.familie.rides.RideDriver
 import com.gatecontrol.android.familie.rides.RidePerson
+import com.gatecontrol.android.familie.rides.RideRule
 import com.gatecontrol.android.familie.shopping.ShoppingItem
 import com.gatecontrol.android.familie.shopping.ShoppingList
 import com.gatecontrol.android.familie.shopping.ShoppingOp
@@ -115,6 +116,16 @@ object FamilieJson {
 
     /** The open request a refused `POST locate/<child>` points to. */
     fun refusedRequestId(o: JsonObject?): Int? = o?.int("requestId")?.takeIf { it > 0 }
+
+    private val FIELD_RE = Regex("^[A-Za-z][A-Za-z0-9_.]{0,59}$")
+
+    /** The refused input of an `invalid` answer (`field`, e.g. `contacts.0.phone`). */
+    fun errorField(o: JsonObject?): String? = o?.str("field")?.takeIf { FIELD_RE.matches(it) }
+
+    /** Who drives an `already_taken` ride (`driver: {userId, name} | {label}`). */
+    fun errorDriver(o: JsonObject?): String? = o?.obj("driver")?.let { d ->
+        clean(d.str("name") ?: d.str("label"), 60).takeIf { it.isNotBlank() }
+    }
 
     /** `{ ok:false, code, error }` → code (or null). */
     fun errorCode(o: JsonObject?): String? = o?.str("code")?.takeIf { it.length <= 40 && it.all { c -> c.isLetterOrDigit() || c == '_' } }
@@ -537,6 +548,11 @@ object FamilieJson {
             askedAt = stamp(o.str("askedAt")),
             remindMinutes = (o.int("remindMinutes") ?: Ride.DEFAULT_REMIND).coerceIn(0, Ride.MAX_REMIND),
             note = clean(o.str("note"), 200),
+            rule = o.obj("repeat")?.let { rep ->
+                val days = rep.ints("weekdays").filter { it in 1..7 }.distinct().sorted()
+                if (days.isEmpty()) null else RideRule(days, date(rep.str("startDate")), date(rep.str("endDate")))
+            },
+            startAt = stamp(o.str("startAt")),
         )
     }
 
@@ -558,9 +574,10 @@ object FamilieJson {
     /**
      * `POST rides` / `PATCH rides/<id>`. [create] adds what only a new ride
      * takes (driver, repeat, ask); a change sets the driver through its own
-     * call. A change of the whole [series] keeps the series' dates.
+     * call — except for the whole [series] ([withDriver]: `driver` object or
+     * null). A change of the whole series keeps the series' dates.
      */
-    fun rideBody(d: RideDraft, create: Boolean = true, series: Boolean = false): JsonObject = JsonObject().apply {
+    fun rideBody(d: RideDraft, create: Boolean = true, series: Boolean = false, withDriver: Boolean = false): JsonObject = JsonObject().apply {
         if (!series || create) addProperty("date", d.date)
         addProperty("time", d.time)
         addProperty("title", d.title.trim().take(80))
@@ -585,6 +602,8 @@ object FamilieJson {
         if (create) {
             if (d.driver !is DriverChoice.None) add("driver", driverBody(d.driver))
             d.ask?.let { addProperty("ask", it) }
+        } else if (withDriver) {
+            add("driver", if (d.driver is DriverChoice.None) JsonNull.INSTANCE else driverBody(d.driver))
         }
     }
 
@@ -621,7 +640,7 @@ object FamilieJson {
             birthdate = date(o.str("birthdate")),
             age = o.int("age")?.takeIf { it in 0..150 },
             bloodType = bloodType(o.str("bloodType")),
-            weightKg = o.dbl("weightKg")?.takeIf { it > 0 && it < 500 },
+            weightKg = o.dbl("weightKg")?.takeIf { it in EmergencyMember.MIN_WEIGHT..EmergencyMember.MAX_WEIGHT },
             allergies = clean(o.str("allergies"), EmergencyMember.MAX_TEXT),
             medications = clean(o.str("medications"), EmergencyMember.MAX_TEXT),
             conditions = clean(o.str("conditions"), EmergencyMember.MAX_TEXT),
@@ -644,7 +663,7 @@ object FamilieJson {
 
     private fun contactsArray(list: List<EmergencyContact>, max: Int): JsonArray = JsonArray().apply {
         list.mapNotNull { c ->
-            val phone = EmergencyContact.cleanPhone(c.phone).takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val phone = EmergencyContact.cleanPhone(c.phone).takeIf { p -> p.any { it.isDigit() } } ?: return@mapNotNull null
             c.copy(label = c.label.trim().take(EmergencyContact.MAX_LABEL), phone = phone, note = c.note.trim().take(EmergencyContact.MAX_NOTE))
         }.take(max).forEach { c ->
             add(JsonObject().apply {
@@ -658,7 +677,7 @@ object FamilieJson {
     /** `PUT emergency/members/<userId>` (the name and birthdate come from the member list). */
     fun emergencyMemberBody(d: EmergencyMemberDraft): JsonObject = JsonObject().apply {
         add("bloodType", bloodType(d.bloodType)?.let { JsonPrimitive(it) } ?: JsonNull.INSTANCE)
-        add("weightKg", d.weightKg?.takeIf { it > 0 && it < 500 }?.let { JsonPrimitive(it) } ?: JsonNull.INSTANCE)
+        add("weightKg", EmergencyMember.weight(d.weightKg)?.let { JsonPrimitive(it) } ?: JsonNull.INSTANCE)
         addProperty("allergies", d.allergies.trim().take(EmergencyMember.MAX_TEXT))
         addProperty("medications", d.medications.trim().take(EmergencyMember.MAX_TEXT))
         addProperty("conditions", d.conditions.trim().take(EmergencyMember.MAX_TEXT))

@@ -28,9 +28,18 @@ sealed interface FamilieResult<out T> {
     /**
      * The server answered with an error: [code] from `{ok:false, code}` or
      * `http_<status>`. [retryAfter] (s) with too_soon / daily_limit;
-     * [requestId] when a locate request was refused because one is open.
+     * [requestId] when a locate request was refused because one is open;
+     * [field] names the refused input of an `invalid` answer (e.g.
+     * `contacts.0.phone`); [detail] the driver of an `already_taken` ride.
      */
-    data class Failed(val code: String, val http: Int, val retryAfter: Int? = null, val requestId: Int? = null) : FamilieResult<Nothing>
+    data class Failed(
+        val code: String,
+        val http: Int,
+        val retryAfter: Int? = null,
+        val requestId: Int? = null,
+        val field: String? = null,
+        val detail: String? = null,
+    ) : FamilieResult<Nothing>
 
     /** No answer (network, VPN, timeout). */
     data object Offline : FamilieResult<Nothing>
@@ -114,6 +123,8 @@ class FamilieApi @Inject constructor(
         http = http,
         retryAfter = FamilieJson.retryAfter(body),
         requestId = FamilieJson.refusedRequestId(body),
+        field = FamilieJson.errorField(body),
+        detail = FamilieJson.errorDriver(body),
     )
 
     private suspend fun <T> get(path: String?, query: Map<String, String> = emptyMap(), plugin: String = FAMILIE_PLUGIN, parse: (JsonObject) -> T?): FamilieResult<T> {
@@ -284,11 +295,26 @@ class FamilieApi @Inject constructor(
     suspend fun createRide(draft: RideDraft): FamilieResult<Created<Ride>> =
         post(path("rides"), FamilieJson.rideBody(draft, create = true), parse = { Created(FamilieJson.rideIn(it)) })
 
-    /** Parents; for a series occurrence only that one, with [series] the whole series. */
-    suspend fun updateRide(id: String, draft: RideDraft, series: Boolean = false): FamilieResult<Unit> =
-        patch(rideId(id)?.let { path("rides", it) }, FamilieJson.rideBody(draft, create = false, series = series), seriesQuery(series), parse = unit)
+    /**
+     * Parents; for a series occurrence only that one, with [series] the whole
+     * series (then [withDriver] sets the series' driver from the draft).
+     */
+    suspend fun updateRide(id: String, draft: RideDraft, series: Boolean = false, withDriver: Boolean = false): FamilieResult<Unit> =
+        patch(
+            rideId(id)?.let { path("rides", it) },
+            FamilieJson.rideBody(draft, create = false, series = series, withDriver = series && withDriver),
+            seriesQuery(series),
+            parse = unit,
+        )
 
-    /** Parents; an occurrence of a series is cancelled, with [series] the series goes. */
+    /** Parents: a cancelled occurrence is open again (`PATCH {status:"open"}`). */
+    suspend fun reopenRide(id: String): FamilieResult<Unit> =
+        patch(rideId(id)?.let { path("rides", it) }, JsonObject().apply { addProperty("status", Ride.STATUS_OPEN) }, parse = unit)
+
+    /**
+     * An occurrence (or a one-off ride) is cancelled — parents, or the child
+     * who asked for a one-off ride; with [series] the whole series goes (parents).
+     */
     suspend fun deleteRide(id: String, series: Boolean = false): FamilieResult<Unit> =
         delete(rideId(id)?.let { path("rides", it) }, seriesQuery(series))
 
