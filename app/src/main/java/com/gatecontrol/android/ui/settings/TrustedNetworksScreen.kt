@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.data.TrustedNetworkSettings
+import com.gatecontrol.android.network.HomeSite
 import com.gatecontrol.android.trustednet.HomeCheck
 import com.gatecontrol.android.trustednet.TrustedNetSnapshot
 import com.gatecontrol.android.ui.components.GcBanner
@@ -387,7 +388,15 @@ private fun HomeStatusLine(ui: TrustedNetworksUiState) {
         ui.network.kind != TrustedNetSnapshot.Kind.WIFI -> stringResource(R.string.trusted_home_no) to extra.muted
         ui.status.key != ui.network.key || home == HomeCheck.CHECKING || home == HomeCheck.OFF ->
             stringResource(R.string.trusted_home_checking) to extra.muted
-        home == HomeCheck.HOME -> stringResource(R.string.trusted_home_yes) to extra.accentText
+        home == HomeCheck.HOME -> {
+            val site = ui.status.site
+            val gateway = site?.name
+            when {
+                site?.type != HomeSite.Type.GATEWAY -> stringResource(R.string.trusted_home_yes)
+                gateway != null -> stringResource(R.string.trusted_home_yes_gateway, gateway)
+                else -> stringResource(R.string.trusted_home_yes_gateway_unnamed)
+            } to extra.accentText
+        }
         home == HomeCheck.NOT_HOME -> stringResource(R.string.trusted_home_no) to extra.muted
         home == HomeCheck.UNSUPPORTED -> stringResource(R.string.trusted_home_unsupported) to extra.warn
         home == HomeCheck.NEXT_CONNECT -> stringResource(R.string.trusted_home_next_connect) to extra.muted

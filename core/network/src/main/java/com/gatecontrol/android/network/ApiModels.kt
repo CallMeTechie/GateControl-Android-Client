@@ -1,5 +1,6 @@
 package com.gatecontrol.android.network
 
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 
 // --- Responses ---
@@ -320,11 +321,12 @@ data class ClientPolicyPayload(
 )
 
 /**
- * Reply to /client/home-network. [sameLan] is true only for a request
- * through the VPN tunnel whose WireGuard endpoint lies inside the server's
- * LAN; a direct request always gets false (a reverse proxy or SNAT router
- * can make internet clients look like LAN sources). Missing on servers
- * that predate it.
+ * Reply to /client/home-network. [sameLan] is true when the device is in
+ * the server's own LAN (only for a request through the VPN tunnel whose
+ * WireGuard endpoint lies inside that LAN) or, from core 1.167 on, at the
+ * site of one of its gateways (same public address as the gateway and a
+ * `local` address inside a LAN the gateway routes; also for direct
+ * requests). Missing on servers that predate it.
  */
 data class HomeNetworkResponse(
     val ok: Boolean = false,
@@ -332,6 +334,13 @@ data class HomeNetworkResponse(
     @SerializedName("same_lan") val sameLan: Boolean? = null,
     /** "tunnel" or "direct": how the request reached the server. */
     val via: String? = null,
+    /**
+     * Core 1.167+: `null` or `{type: "server" | "gateway", gatewayId?, name?}`.
+     * Kept raw on purpose: an explicit `null` (a server that knows gateway
+     * sites) must stay distinguishable from a missing key (an older one),
+     * see [parseHomeSite].
+     */
+    val site: JsonElement? = null,
 )
 
 data class SupportBundleUploadResponse(
