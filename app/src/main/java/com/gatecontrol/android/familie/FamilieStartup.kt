@@ -1,6 +1,7 @@
 package com.gatecontrol.android.familie
 
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.familie.emergency.EmergencyRepository
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
 import com.gatecontrol.android.familie.shopping.ShoppingRepository
 import com.gatecontrol.android.support.CrashReports
@@ -24,6 +25,7 @@ class FamilieStartup @Inject constructor(
     private val repository: FamilieRepository,
     private val registrar: GeofenceRegistrar,
     private val shopping: ShoppingRepository,
+    private val emergency: EmergencyRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
@@ -35,12 +37,17 @@ class FamilieStartup @Inject constructor(
             val familie = plugins.state.value.familieApi
             when {
                 familie -> {
-                    repository.refreshProfile()
+                    val profile = repository.refreshProfile().valueOrNull()
                     registrar.syncFromServer()
                     shopping.syncIfPending()
+                    // Keep the offline copy of the emergency card fresh for when it is needed.
+                    if (profile?.modules?.emergency == true) emergency.refresh()
                 }
-                // The server answered and the plugin is gone: no reminders any more.
-                listed -> registrar.clear()
+                // The server answered and the plugin is gone: no reminders, no emergency card any more.
+                listed -> {
+                    registrar.clear()
+                    repository.forgetEmergency()
+                }
             }
         }.invokeOnCompletion { e -> if (e != null) Timber.w("Familie: start-up work failed (%s)", e.javaClass.simpleName) }
     }

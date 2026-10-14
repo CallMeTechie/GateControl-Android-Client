@@ -105,4 +105,59 @@ class FamilieApiTest {
         every { setup.isConfigured() } returns false
         assertEquals(FamilieResult.NotConfigured, familie.me())
     }
+
+    // ─── 1.1: rides and emergency card ───────────────────────────────
+
+    @Test
+    fun `ride calls use the ride id as one path segment and series as a query`() = runBlocking {
+        coEvery { api.pluginGet(any(), "rides", any()) } returns ok("""{"ok":true,"rides":[]}""")
+        assertEquals(FamilieResult.Ok(emptyList<com.gatecontrol.android.familie.rides.Ride>()), familie.rides("2026-10-14", "2026-10-21"))
+        coVerify { api.pluginGet("gatecontrol-familie", "rides", mapOf("from" to "2026-10-14", "to" to "2026-10-21")) }
+
+        coEvery { api.pluginPost(any(), any(), any()) } returns ok("""{"ok":true}""")
+        familie.takeRide("3:2026-10-14")
+        familie.releaseRide("12")
+        familie.declineRide("12")
+        familie.askRide("12")
+        coVerify { api.pluginPost("gatecontrol-familie", "rides/3:2026-10-14/take", any()) }
+        coVerify { api.pluginPost("gatecontrol-familie", "rides/12/release", any()) }
+        coVerify { api.pluginPost("gatecontrol-familie", "rides/12/decline", any()) }
+        coVerify { api.pluginPost("gatecontrol-familie", "rides/12/ask", any()) }
+
+        val driver = slot<JsonObject>()
+        coEvery { api.pluginPost(any(), "rides/12/driver", capture(driver)) } returns ok("""{"ok":true}""")
+        familie.setRideDriver("12", com.gatecontrol.android.familie.rides.DriverChoice.None)
+        assertEquals("""{"clear":true}""", driver.captured.toString())
+
+        coEvery { api.pluginPatch(any(), any(), any(), any()) } returns ok("""{"ok":true}""")
+        coEvery { api.pluginDelete(any(), any(), any()) } returns ok("""{"ok":true}""")
+        val draft = com.gatecontrol.android.familie.rides.RideDraft(date = "2026-10-14", time = "16:00", title = "Tim abholen", childIds = listOf(5))
+        familie.updateRide("3:2026-10-14", draft, series = true)
+        coVerify { api.pluginPatch("gatecontrol-familie", "rides/3:2026-10-14", any(), mapOf("series" to "1")) }
+        familie.deleteRide("12")
+        coVerify { api.pluginDelete("gatecontrol-familie", "rides/12", emptyMap()) }
+
+        // Anything that is not a ride id never reaches the server.
+        assertEquals(FamilieResult.Failed(FamilieApi.CODE_INVALID, 0), familie.takeRide("../me"))
+        assertEquals(FamilieResult.Failed(FamilieApi.CODE_INVALID, 0), familie.deleteRide("12/../x"))
+    }
+
+    @Test
+    fun `emergency card is read raw for the offline copy and written with put`() = runBlocking {
+        coEvery { api.pluginGet(any(), "emergency", any()) } returns ok("""{"ok":true,"members":[],"contacts":[],"updatedAt":"2026-10-14T12:00:00Z"}""")
+        val fetch = (familie.emergency() as FamilieResult.Ok).value
+        assertEquals("2026-10-14T12:00:00Z", fetch.raw.get("updatedAt").asString)
+
+        val body = slot<JsonObject>()
+        coEvery { api.pluginPut(any(), "emergency/members/5", capture(body)) } returns ok("""{"ok":true}""")
+        val draft = com.gatecontrol.android.familie.emergency.EmergencyMemberDraft(
+            bloodType = "A+", weightKg = 32.0, allergies = "Erdnüsse", medications = "", conditions = "", notes = "",
+            insurance = null, contacts = emptyList(),
+        )
+        assertEquals(FamilieResult.Ok(Unit), familie.putEmergencyMember(5, draft))
+        assertEquals("A+", body.captured.get("bloodType").asString)
+
+        coEvery { api.pluginPut(any(), "emergency/contacts", any()) } returns error(403, """{"ok":false,"code":"parents_only"}""")
+        assertEquals(FamilieResult.Failed("parents_only", 403), familie.putEmergencyContacts(emptyList()))
+    }
 }

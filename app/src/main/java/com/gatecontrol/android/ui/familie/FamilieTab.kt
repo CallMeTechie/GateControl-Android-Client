@@ -42,6 +42,8 @@ fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> 
         FamilieDest.Child -> ChildScreen(onBack = onBack)
         FamilieDest.Places -> PlacesScreen(onBack = onBack, onEdit = { id -> onOpen(FamilieDest.PlaceEdit(id)) })
         is FamilieDest.PlaceEdit -> PlaceEditScreen(placeId = dest.placeId, onDone = onBack)
+        is FamilieDest.Rides -> RidesScreen(onBack = onBack, highlight = dest.rideId)
+        is FamilieDest.Emergency -> EmergencyScreen(onBack = onBack, initialUserId = dest.userId)
     }
 }
 

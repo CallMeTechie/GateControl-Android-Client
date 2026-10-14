@@ -1,5 +1,6 @@
 package com.gatecontrol.android.familie
 
+import com.gatecontrol.android.familie.emergency.EmergencyCacheStore
 import com.gatecontrol.android.familie.push.FamiliePushEvent
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,6 +32,8 @@ data class SosState(
 class FamilieRepository @Inject constructor(
     private val api: FamilieApi,
     private val storage: FamilieStorage,
+    private val shortcuts: FamilieShortcuts,
+    private val emergencyCache: EmergencyCacheStore,
 ) {
     private data class StoredProfile(val owner: String? = null, val profile: FamilieProfile? = null)
 
@@ -78,6 +81,10 @@ class FamilieRepository @Inject constructor(
                     _profileError.value = null
                     storage.write(FILE, StoredProfile(storage.ownerKey(), result.value))
                 }
+                val emergency = result.value.modules.emergency
+                // Module switched off: the health data leaves the phone too.
+                if (!emergency) emergencyCache.clear()
+                shortcuts.update(emergency)
             }
             is FamilieResult.Failed -> {
                 _profileError.value = result.code
@@ -87,6 +94,7 @@ class FamilieRepository @Inject constructor(
                         _profile.value = null
                         storage.delete(FILE)
                     }
+                    forgetEmergency()
                 }
             }
             else -> _profileError.value = FamilieApi.CODE_OFFLINE
@@ -97,6 +105,12 @@ class FamilieRepository @Inject constructor(
     /** The profile, from the server when possible, else the stored one. */
     suspend fun profileOrCached(): FamilieProfile? =
         refreshProfile().valueOrNull() ?: _profile.value
+
+    /** No member (any more), or the plugin is gone: no emergency card on this phone. */
+    suspend fun forgetEmergency() {
+        emergencyCache.clear()
+        shortcuts.update(false)
+    }
 
     fun emit(event: FamiliePushEvent) {
         _events.tryEmit(event)

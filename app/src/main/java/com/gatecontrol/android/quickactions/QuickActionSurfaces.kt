@@ -8,6 +8,7 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.glance.appwidget.updateAll
 import com.gatecontrol.android.R
+import com.gatecontrol.android.familie.FamilieShortcuts
 import timber.log.Timber
 
 /**
@@ -30,15 +31,18 @@ object QuickActionSurfaces {
     }
 
     private fun publishShortcuts(context: Context, pins: List<QuickActionItem>) {
-        val shortcuts = pins.take(MAX_SHORTCUTS).mapIndexed { index, item ->
+        // Other features' shortcuts (Familie: "Notfall-Karte") stay and come first.
+        // Rebuilt (the system hands them back without their icon).
+        val kept = ShortcutManagerCompat.getDynamicShortcuts(context).mapNotNull { FamilieShortcuts.rebuild(context, it) }
+        val shortcuts = pins.take((MAX_SHORTCUTS - kept.size).coerceAtLeast(0)).mapIndexed { index, item ->
             ShortcutInfoCompat.Builder(context, "qa:${item.key}")
                 .setShortLabel(item.title)
                 .setLongLabel(listOfNotNull(item.title, item.subtitle).joinToString(" · ").take(25))
                 .setIcon(IconCompat.createWithResource(context, R.drawable.ic_quick_action_shortcut))
                 .setIntent(QuickActionActivity.intent(context, item))
-                .setRank(index)
+                .setRank(kept.size + index)
                 .build()
         }
-        ShortcutManagerCompat.setDynamicShortcuts(context, shortcuts)
+        ShortcutManagerCompat.setDynamicShortcuts(context, kept + shortcuts)
     }
 }

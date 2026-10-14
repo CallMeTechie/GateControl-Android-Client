@@ -54,6 +54,16 @@ sealed interface FamilieDest {
         override val key get() = if (placeId == null) "place/new" else "place/$placeId"
     }
 
+    /** Abholen & Fahrten; [rideId] (`12`, `3:2026-10-14`) is the ride a message was about. */
+    data class Rides(val rideId: String? = null) : FamilieDest {
+        override val key get() = if (rideId == null) "rides" else "rides/$rideId"
+    }
+
+    /** Notfall-Karte, opened at [userId]'s card (else the caller's own). */
+    data class Emergency(val userId: Int? = null) : FamilieDest {
+        override val key get() = if (userId == null) "emergency" else "emergency/$userId"
+    }
+
     companion object {
         private val UUID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
@@ -85,6 +95,16 @@ sealed interface FamilieDest {
                     "new" -> PlaceEdit(null)
                     null -> null
                     else -> int(1)?.let { PlaceEdit(it) }
+                }
+                "rides" -> when (p.size) {
+                    1 -> Rides()
+                    2 -> p[1].takeIf { FamilieJson.RIDE_ID_RE.matches(it) }?.let { Rides(it) }
+                    else -> null
+                }
+                "emergency" -> when (p.size) {
+                    1 -> Emergency()
+                    2 -> int(1)?.takeIf { it > 0 }?.let { Emergency(it) }
+                    else -> null
                 }
                 else -> null
             }

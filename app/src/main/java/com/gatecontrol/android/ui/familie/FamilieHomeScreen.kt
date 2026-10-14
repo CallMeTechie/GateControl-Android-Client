@@ -170,7 +170,11 @@ private fun HomeCards(
         ChildCard(p, selected == FamilieDest.Child, onOpen)
     }
 
+    if (p.modules.emergency) EmergencyEntry(selected is FamilieDest.Emergency, onOpen)
+
     if (p.modules.tasks) TodayCard(p, overview, selected == FamilieDest.Tasks, onOpen, onTaskDone)
+
+    if (p.modules.rides) RidesCard(p, overview, selected is FamilieDest.Rides, onOpen)
 
     if (p.modules.shopping) ShoppingCard(shopping, selected, onOpen)
 
@@ -471,6 +475,74 @@ private fun DatesCard(overview: FamilieOverview?, selected: Boolean, onOpen: (Fa
                 onClick = { onOpen(FamilieDest.Dates) },
             )
         }
+    }
+}
+
+/** Abholen & Fahrten (1.1): the next rides (24 h), how many are open; children: "Bitte abholen". */
+@Composable
+private fun RidesCard(p: FamilieProfile, overview: FamilieOverview?, selected: Boolean, onOpen: (FamilieDest) -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val rides = overview?.rides
+    FamilieSectionCard(
+        title = stringResource(R.string.familie_rides_title),
+        icon = GcIcons.Car,
+        link = stringResource(R.string.familie_open),
+        onLink = { onOpen(FamilieDest.Rides()) },
+        selected = selected,
+    ) {
+        if (rides != null && rides.open > 0) {
+            GcChip(
+                pluralStringResource(R.plurals.familie_rides_open_count, rides.open, rides.open),
+                tone = GcTone.Warn,
+                small = true,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+        val next = rides?.next.orEmpty()
+        if (next.isEmpty()) {
+            Text(
+                stringResource(if (overview == null) R.string.familie_loading_short else R.string.familie_rides_home_none),
+                style = MaterialTheme.typography.bodyMedium,
+                color = extra.muted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+        next.take(3).forEach { r ->
+            val nobody = r.isOpen && r.driver == null
+            GcListRow(
+                title = r.title,
+                description = rideWhen(r) + " · " + rideDriverLine(r, p.me),
+                leading = { Icon(GcIcons.Car, contentDescription = null, tint = if (nobody) extra.warn else extra.accentText, modifier = Modifier.size(20.dp)) },
+                onClick = { onOpen(FamilieDest.Rides(r.id)) },
+            )
+        }
+        if (!p.me.isParent) {
+            GcOutlineButton(
+                text = stringResource(R.string.familie_ride_request),
+                onClick = { onOpen(FamilieDest.Rides()) },
+                icon = GcIcons.Car,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+    }
+}
+
+/** Notfall-Karte entry (1.1): always reachable, also offline. */
+@Composable
+private fun EmergencyEntry(selected: Boolean, onOpen: (FamilieDest) -> Unit) {
+    GcCard(
+        borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
+        contentPadding = PaddingValues(0.dp),
+        verticalArrangement = Arrangement.Top,
+    ) {
+        GcListRow(
+            title = stringResource(R.string.familie_emergency_title),
+            description = stringResource(R.string.familie_emergency_sub),
+            onClick = { onOpen(FamilieDest.Emergency()) },
+            leading = { Icon(GcIcons.Medical, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(22.dp)) },
+            trailing = { GcChevron() },
+            selected = selected,
+        )
     }
 }
 

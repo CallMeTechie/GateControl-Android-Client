@@ -1,6 +1,12 @@
 package com.gatecontrol.android.familie
 
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.familie.emergency.EmergencyCard
+import com.gatecontrol.android.familie.emergency.EmergencyContact
+import com.gatecontrol.android.familie.emergency.EmergencyMemberDraft
+import com.gatecontrol.android.familie.rides.DriverChoice
+import com.gatecontrol.android.familie.rides.Ride
+import com.gatecontrol.android.familie.rides.RideDraft
 import com.gatecontrol.android.familie.shopping.ShoppingOp
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
 import com.gatecontrol.android.network.ApiClient
@@ -120,14 +126,19 @@ class FamilieApi @Inject constructor(
         return call(FAMILIE_PLUGIN, { pluginPost(FAMILIE_PLUGIN, p, body) }, parse)
     }
 
-    private suspend fun <T> patch(path: String?, body: JsonObject, parse: (JsonObject) -> T?): FamilieResult<T> {
+    private suspend fun <T> patch(path: String?, body: JsonObject, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?): FamilieResult<T> {
         val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(FAMILIE_PLUGIN, { pluginPatch(FAMILIE_PLUGIN, p, body) }, parse)
+        return call(FAMILIE_PLUGIN, { pluginPatch(FAMILIE_PLUGIN, p, body, query) }, parse)
     }
 
-    private suspend fun delete(path: String?): FamilieResult<Unit> {
+    private suspend fun <T> put(path: String?, body: JsonObject, parse: (JsonObject) -> T?): FamilieResult<T> {
         val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(FAMILIE_PLUGIN, { pluginDelete(FAMILIE_PLUGIN, p) }) { }
+        return call(FAMILIE_PLUGIN, { pluginPut(FAMILIE_PLUGIN, p, body) }, parse)
+    }
+
+    private suspend fun delete(path: String?, query: Map<String, String> = emptyMap()): FamilieResult<Unit> {
+        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
+        return call(FAMILIE_PLUGIN, { pluginDelete(FAMILIE_PLUGIN, p, query) }) { }
     }
 
     private val unit: (JsonObject) -> Unit = { }
@@ -154,7 +165,7 @@ class FamilieApi @Inject constructor(
 
     suspend fun createTask(draft: TaskDraft): FamilieResult<Unit> = post(path("tasks"), FamilieJson.taskBody(draft), unit)
 
-    suspend fun updateTask(id: Int, draft: TaskDraft): FamilieResult<Unit> = patch(path("tasks", id), FamilieJson.taskBody(draft), unit)
+    suspend fun updateTask(id: Int, draft: TaskDraft): FamilieResult<Unit> = patch(path("tasks", id), FamilieJson.taskBody(draft), parse = unit)
 
     suspend fun deleteTask(id: Int): FamilieResult<Unit> = delete(path("tasks", id))
 
@@ -179,7 +190,7 @@ class FamilieApi @Inject constructor(
 
     suspend fun createDate(draft: EventDraft): FamilieResult<Unit> = post(path("dates"), FamilieJson.eventBody(draft), unit)
 
-    suspend fun updateDate(id: String, draft: EventDraft): FamilieResult<Unit> = patch(path("dates", id), FamilieJson.eventBody(draft), unit)
+    suspend fun updateDate(id: String, draft: EventDraft): FamilieResult<Unit> = patch(path("dates", id), FamilieJson.eventBody(draft), parse = unit)
 
     suspend fun deleteDate(id: String): FamilieResult<Unit> = delete(path("dates", id))
 
@@ -234,7 +245,7 @@ class FamilieApi @Inject constructor(
 
     suspend fun createPlace(draft: PlaceDraft): FamilieResult<Unit> = post(path("places"), FamilieJson.placeBody(draft), unit)
 
-    suspend fun updatePlace(id: Int, draft: PlaceDraft): FamilieResult<Unit> = patch(path("places", id), FamilieJson.placeBody(draft), unit)
+    suspend fun updatePlace(id: Int, draft: PlaceDraft): FamilieResult<Unit> = patch(path("places", id), FamilieJson.placeBody(draft), parse = unit)
 
     suspend fun deletePlace(id: Int): FamilieResult<Unit> = delete(path("places", id))
 
@@ -250,4 +261,65 @@ class FamilieApi @Inject constructor(
             },
             unit,
         )
+
+    // ─── rides (1.1) ─────────────────────────────────────────────────
+
+    /** A ride id as a path segment (`12` or `3:2026-10-14`); anything else is refused. */
+    private fun rideId(id: String): String? = id.takeIf { FamilieJson.RIDE_ID_RE.matches(it) }
+
+    private fun seriesQuery(series: Boolean): Map<String, String> = if (series) mapOf("series" to "1") else emptyMap()
+
+    /** Rides from [from] to [to] (`YYYY-MM-DD`, ≤ 62 days; the server's default: today … +7). */
+    suspend fun rides(from: String? = null, to: String? = null): FamilieResult<List<Ride>> =
+        get(
+            path("rides"),
+            buildMap {
+                if (from != null) put("from", from)
+                if (to != null) put("to", to)
+            },
+            parse = FamilieJson::rides,
+        )
+
+    /** The created ride (its first occurrence), null when the answer does not carry it. */
+    suspend fun createRide(draft: RideDraft): FamilieResult<Created<Ride>> =
+        post(path("rides"), FamilieJson.rideBody(draft, create = true), parse = { Created(FamilieJson.rideIn(it)) })
+
+    /** Parents; for a series occurrence only that one, with [series] the whole series. */
+    suspend fun updateRide(id: String, draft: RideDraft, series: Boolean = false): FamilieResult<Unit> =
+        patch(rideId(id)?.let { path("rides", it) }, FamilieJson.rideBody(draft, create = false, series = series), seriesQuery(series), parse = unit)
+
+    /** Parents; an occurrence of a series is cancelled, with [series] the series goes. */
+    suspend fun deleteRide(id: String, series: Boolean = false): FamilieResult<Unit> =
+        delete(rideId(id)?.let { path("rides", it) }, seriesQuery(series))
+
+    private suspend fun rideAction(id: String, action: String, body: JsonObject = JsonObject()): FamilieResult<Unit> =
+        post(rideId(id)?.let { path("rides", it, action) }, body, unit)
+
+    /** "Ich mache es": the caller drives. */
+    suspend fun takeRide(id: String): FamilieResult<Unit> = rideAction(id, "take")
+
+    /** "Rückgängig": the driver gives the ride back. */
+    suspend fun releaseRide(id: String): FamilieResult<Unit> = rideAction(id, "release")
+
+    /** "Kann nicht" (parents). */
+    suspend fun declineRide(id: String): FamilieResult<Unit> = rideAction(id, "decline")
+
+    suspend fun setRideDriver(id: String, driver: DriverChoice): FamilieResult<Unit> = rideAction(id, "driver", FamilieJson.driverBody(driver))
+
+    /** "Wer kann …?": push to the parents who have not declined (≥ 5 min apart). */
+    suspend fun askRide(id: String): FamilieResult<Unit> = rideAction(id, "ask")
+
+    // ─── emergency card (1.1) ────────────────────────────────────────
+
+    /** The card and the answer as it came (for the encrypted offline copy). */
+    data class EmergencyFetch(val card: EmergencyCard, val raw: JsonObject)
+
+    suspend fun emergency(): FamilieResult<EmergencyFetch> =
+        get(path("emergency"), parse = { EmergencyFetch(FamilieJson.emergency(it), it) })
+
+    suspend fun putEmergencyMember(userId: Int, draft: EmergencyMemberDraft): FamilieResult<Unit> =
+        put(path("emergency", "members", userId), FamilieJson.emergencyMemberBody(draft), unit)
+
+    suspend fun putEmergencyContacts(contacts: List<EmergencyContact>): FamilieResult<Unit> =
+        put(path("emergency", "contacts"), FamilieJson.emergencyContactsBody(contacts), unit)
 }

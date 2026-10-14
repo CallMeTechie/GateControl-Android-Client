@@ -1,5 +1,7 @@
 package com.gatecontrol.android.familie
 
+import com.gatecontrol.android.familie.rides.OverviewRides
+
 /**
  * Domain models of the Familie plugin's app API (gatecontrol-familie,
  * `/api/v1/client/plugins/gatecontrol-familie/api/…`, contract B3). They
@@ -39,8 +41,14 @@ data class FamilieModules(
     val locate: Boolean = false,
     val arrivalSos: Boolean = false,
     val places: Boolean = false,
+    /** 1.1: Abholen & Fahrten. */
+    val rides: Boolean = false,
+    /** 1.1: Notfall-Karte. */
+    val emergency: Boolean = false,
+    /** 1.1: wall tablet (portal only, no app UI). */
+    val wall: Boolean = false,
 ) {
-    val any: Boolean get() = shopping || tasks || stars || dates || locate || arrivalSos || places
+    val any: Boolean get() = shopping || tasks || stars || dates || locate || arrivalSos || places || rides || emergency
 }
 
 data class FamilieMe(
@@ -117,6 +125,8 @@ data class FamilieOverview(
     val going: List<OverviewGoing> = emptyList(),
     /** null: module arrival_sos off. */
     val arrivals: List<OverviewArrival>? = null,
+    /** null: module rides off (or a server before 1.1). */
+    val rides: OverviewRides? = null,
 )
 
 // ─── Tasks ────────────────────────────────────────────────────────────

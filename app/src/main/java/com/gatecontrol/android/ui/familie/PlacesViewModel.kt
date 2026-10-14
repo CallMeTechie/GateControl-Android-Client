@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.familie.FamilieApi
-import com.gatecontrol.android.familie.FamilieGeocoder
 import com.gatecontrol.android.familie.FamiliePlace
 import com.gatecontrol.android.familie.FamilieProfile
 import com.gatecontrol.android.familie.FamilieRepository
@@ -18,8 +17,6 @@ import com.gatecontrol.android.familie.push.FamiliePushEvent
 import com.gatecontrol.android.familie.shopping.ShoppingList
 import com.gatecontrol.android.familie.shopping.ShoppingLogic
 import com.gatecontrol.android.familie.shopping.ShoppingRepository
-import com.gatecontrol.android.location.DeviceLocator
-import com.gatecontrol.android.location.LocateResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,12 +60,11 @@ class PlacesViewModel @Inject constructor(
     private val _saving = MutableStateFlow(false)
     val saving: StateFlow<Boolean> = _saving.asStateFlow()
 
-    private val _searchHits = MutableStateFlow<List<GeoHit>>(emptyList())
-    val searchHits: StateFlow<List<GeoHit>> = _searchHits.asStateFlow()
+    private val lookup = PlaceLookup(context, viewModelScope) { _message.value = it }
+    val searchHits: StateFlow<List<GeoHit>> = lookup.hits
 
-    private val _here = MutableStateFlow<LatLon?>(null)
     /** Result of "Aktuelle Position". */
-    val here: StateFlow<LatLon?> = _here.asStateFlow()
+    val here: StateFlow<LatLon?> = lookup.here
 
     val lists: StateFlow<List<ShoppingList>> = shopping.data.map { ShoppingLogic.view(it).lists }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -120,31 +116,13 @@ class PlacesViewModel @Inject constructor(
 
     fun save(id: Int?, draft: PlaceDraft) = act(close = true) { if (id == null) api.createPlace(draft) else api.updatePlace(id, draft) }
 
-    fun search(query: String, locale: Locale) {
-        viewModelScope.launch {
-            _searchHits.value = FamilieGeocoder.search(context, query, locale)
-            if (_searchHits.value.isEmpty()) _message.value = "no_hits"
-        }
-    }
+    fun search(query: String, locale: Locale) = lookup.search(query, locale)
 
-    fun clearHits() {
-        _searchHits.value = emptyList()
-    }
+    fun clearHits() = lookup.clearHits()
 
-    fun locateHere() {
-        viewModelScope.launch {
-            when (val r = DeviceLocator.locate(context)) {
-                is LocateResult.Fix -> _here.value = LatLon(r.location.latitude, r.location.longitude)
-                LocateResult.NoPermission -> _message.value = "no_permission"
-                LocateResult.LocationOff -> _message.value = "location_off"
-                LocateResult.NoFix -> _message.value = "timeout"
-            }
-        }
-    }
+    fun locateHere() = lookup.locateHere()
 
-    fun consumeHere() {
-        _here.value = null
-    }
+    fun consumeHere() = lookup.consumeHere()
 
     fun clearMessage() {
         _message.value = null

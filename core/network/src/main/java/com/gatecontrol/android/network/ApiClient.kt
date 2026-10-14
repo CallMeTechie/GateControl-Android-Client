@@ -123,12 +123,21 @@ interface ApiClient {
         @Path("id") plugin: String,
         @Path(value = "path", encoded = true) path: String,
         @Body body: JsonObject,
+        @QueryMap query: Map<String, String> = emptyMap(),
+    ): Response<JsonObject>
+
+    @PUT("api/v1/client/plugins/{id}/api/{path}")
+    suspend fun pluginPut(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: JsonObject,
     ): Response<JsonObject>
 
     @HTTP(method = "DELETE", path = "api/v1/client/plugins/{id}/api/{path}")
     suspend fun pluginDelete(
         @Path("id") plugin: String,
         @Path(value = "path", encoded = true) path: String,
+        @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
 
     /** Location sharing: may this device send, last stored position (404 on older servers). */
