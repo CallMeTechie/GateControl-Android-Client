@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.0] - 2026-10-14
+
+### Features
+- rides and emergency card (Familie 1.1) (#71)
+
+---
+
 ## [1.28.0] - 2026-10-14
 
 ### Features
