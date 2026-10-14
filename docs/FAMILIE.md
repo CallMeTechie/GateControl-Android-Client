@@ -53,7 +53,7 @@ every other call of the app.
 | `familie/FamilieJson12.kt` | 1.2: parsers and bodies of allowance, wishes, expenses, board, meals, presence (same hand-written Gson-tree style) |
 | `familie/money/` | 1.2: `MoneyModels` (allowance, wishes, expenses), `Money` (cents ↔ text, category bar, star steps) |
 | `familie/board/`, `familie/meals/` | 1.2: pinboard / checklists, meal plan (`MealWeek`: ISO weeks) |
-| `familie/presence/` | 1.2: `PresenceLogic` (sense + report decision), `PresenceReporter` (+ `PresenceReportWorker`), `PresenceStore` (consent, last report) |
+| `familie/presence/` | 1.2: `PresenceLogic` (reading the home check + report decision), `PresenceReporter` (own home check, + `PresenceCheckWorker`, `PresenceReportWorker`), `PresenceStore` (consent, last report) |
 | `ui/familie/` | screens, `FamilieTab.kt` (dest → screen, two-pane), `OsmMap.kt` |
 | `ui/familie/FamiliePageKit.kt` | 1.2: `FamilieLoadViewModel` (load / act / one-shot messages), page frame, floating button, money helpers |
 
@@ -435,23 +435,45 @@ New error codes: `not_enough_stars`, `no_star_rate`, `no_consent`,
   when the presence screen opens. `POST presence` answers 409
   `no_consent` (the switch goes off on the phone too) and 429 `too_soon`
   (retried).
-- Sensing (`PresenceLogic.sense`) reuses the trusted-WLAN home check —
-  `TrustedNetworkMonitor.network` / `.status.home` (`HomeCheck`), no GPS,
-  no new permission: Wi-Fi + `HOME` = home; Wi-Fi + `NOT_HOME`, or mobile
-  data / other networks = away; everything else (checking, failed,
-  unsupported, no network) = unknown, never reported. The check only runs
-  with "Vertrauenswürdige WLANs" + "Heimnetz des Servers erkennen" on
-  (and a policy that lets the app disconnect); otherwise nothing is
-  reported and the switch explains how to turn it on.
+- Sensing (`PresenceReporter.checkNow`, decisions in `PresenceLogic`) is
+  its own home check, independent of "Vertrauenswürdige WLANs" and of the
+  VPN — no GPS, no new permission: `GET /api/v1/client/home-network` with
+  `local=<ipv4>[,…]`, the phone's private (RFC 1918) IPv4 addresses on its
+  Wi-Fi / Ethernet networks (`TrustedNetworkMonitor.localAddresses()`,
+  LinkProperties of the non-VPN networks, at most 4). It goes the normal
+  way: through the tunnel while the VPN is up, directly otherwise. The
+  server answers `same_lan` for its own LAN (tunnel only) and, from core
+  1.167, for the LAN behind one of its gateways (`site: {type: 'gateway',
+  name}`; the phone's public address equals the gateway's endpoint and a
+  `local` address lies in a LAN the gateway routes — also without VPN).
+  `same_lan` true → home; false through the tunnel, or from a server that
+  sends `site` (1.167+) → away; a direct false from an older server (it
+  says false to every direct request), 404, errors → can't tell, the last
+  state stays (no flapping). Mobile data only (no Wi-Fi, no LAN address)
+  → away without asking; no network → can't tell.
+- When it asks: only while I share (consent + module on); on every
+  network or tunnel change (the network callback of
+  `TrustedNetworkMonitor`, 5 s debounce, a newer change cancels a running
+  check), a failed check is retried after 20 s and 60 s, and a new state
+  is checked once more after 45 s (the server may still see the old
+  endpoint right after a change). As the fallback while the process is
+  gone, a periodic WorkManager job (`PresenceCheckWorker`, 15 min,
+  network constraint) checks, and when that brings a state not reported
+  yet it waits out the two minutes inside the job, checks again and
+  queues the report.
+- The switch shows "zuhause" / "unterwegs" / "Netz wird geprüft" and a
+  short note when the server can't tell: older than 1.167 (home only in
+  the server's own LAN and with VPN), without the check (404), or
+  unreachable (the last state stays).
 - Reporting (`PresenceReporter`, started with the app process from
-  `FamilieStartup`, so it runs wherever the monitor runs, also in the
-  background): a state must hold 2 minutes (`debounce`), it is sent only
+  `FamilieStartup`): a state must hold 2 minutes (`debounce`), it is sent only
   with consent and the module on and only when it differs from the last
   report; `POST presence {home, at}` (`at` = when the state began) goes
   through a unique WorkManager job (network constraint, the newest state
-  replaces a waiting one, `too_soon` / 429 retried with backoff). Consent
-  off, module off or leaving the family cancels it; a new consent sends
-  the current state again.
+  replaces a waiting one, `too_soon` / 429 retried with backoff, a state
+  already reported is not sent again). Consent off, module off or leaving
+  the family cancels it and the periodic check; a new consent sends the
+  current state again.
 - Start screen: "zuhause" / "unterwegs" under the avatars of members who
   share, and a "Wer ist zuhause" card. Rules (smart home, notify) are set
   in the portal / admin page; their notify messages (`presence_rule`)
@@ -466,9 +488,12 @@ getting), Haushaltsbuch (parents: this month's shared total, settled).
 
 ### Device checks for 1.2
 
-Presence with the screen off: arrive home (VPN disconnects, home
-confirmed) → "zuhause" on the other phones after ~2 minutes; leave on
-mobile data → "unterwegs"; Wi-Fi flapping shorter than 2 minutes must not
-report. "Annehmen" / "Ablehnen" of `allowance_convert` from the lock
+Presence with the screen off, with "Vertrauenswürdige WLANs" off: arrive
+home → "zuhause" on the other phones after ~2–3 minutes, with the VPN on
+and off; leave on mobile data → "unterwegs"; Wi-Fi flapping shorter than
+2 minutes must not report. With a server behind a gateway (core 1.167+):
+"Heimnetz über Gateway „…“" on the trusted-networks screen, and presence
+"zuhause" at home with VPN off. App killed: the periodic check reports
+within ~15 minutes. "Annehmen" / "Ablehnen" of `allowance_convert` from the lock
 screen. The "Einkauf erfassen?" snackbar after "Ich gehe einkaufen".
 

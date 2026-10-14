@@ -1,13 +1,15 @@
 package com.gatecontrol.android.familie.presence
 
-import com.gatecontrol.android.trustednet.HomeCheck
+import com.gatecontrol.android.network.HomeNetworkStatus
 import com.gatecontrol.android.trustednet.TrustedNetSnapshot
 
 /*
  * Familie 1.2 Anwesenheit (`presence`): each person decides whether the app
  * reports "zuhause" / "unterwegs" to the family's own server. The phone
- * knows it from the existing home-network check of "Vertrauenswürdige
- * WLANs" (the server confirms that the phone is in its LAN) — no GPS.
+ * asks the server itself (`GET api/v1/client/home-network` with its private
+ * LAN addresses): the server's own LAN or, from core 1.167 on, the LAN
+ * behind one of its gateways counts as home — no GPS, and independent of
+ * "Vertrauenswürdige WLANs" and of the VPN.
  */
 
 /** home | away | unknown | not_shared (`GET presence` → members[].state). */
@@ -46,9 +48,27 @@ data class PresencePayload(val members: List<PresenceMember>) {
 /** What the phone can tell right now. */
 enum class PresenceSense { HOME, AWAY, UNKNOWN }
 
+/** How the last home check went, for the explanation on the switch. */
+enum class PresenceCheck {
+    /** Not asked yet (or no network). */
+    NOT_YET,
+    /** A clear answer. */
+    OK,
+    /** Server before 1.167: home only in its own LAN and through the tunnel; a direct "no" means nothing. */
+    OLD_SERVER,
+    /** Server without the home-network check. */
+    UNSUPPORTED,
+    /** Error, timeout, no answer: the last state is kept. */
+    FAILED,
+}
+
+/** One home check, read for presence. */
+data class PresenceObservation(val sense: PresenceSense, val check: PresenceCheck)
+
 /**
- * Decisions of the presence report, pure (unit-tested): what the phone
- * senses and whether a stable state is worth a report.
+ * Decisions of the presence report, pure (unit-tested): what an answer of
+ * the home check means, when no question is needed, and whether a stable
+ * state is worth a report.
  */
 object PresenceLogic {
 
@@ -56,27 +76,38 @@ object PresenceLogic {
     const val DEBOUNCE_MS = 2 * 60_000L
 
     /**
-     * The home-network check runs only with "Vertrauenswürdige WLANs" and
-     * its "Heimnetz des Servers" option on (and a policy that lets the app
-     * disconnect); without it the phone cannot tell home from away.
+     * Before asking: no network → nothing can be told ([PresenceSense.UNKNOWN]);
+     * mobile data only (no Wi-Fi, no LAN address) → away, the home network
+     * can't be reached that way; otherwise null = ask the server.
      */
-    fun detectionAvailable(trustedEnabled: Boolean, homeEnabled: Boolean, canDisconnect: Boolean): Boolean =
-        trustedEnabled && homeEnabled && canDisconnect
+    fun senseWithoutAsking(network: TrustedNetSnapshot.Kind, hasLanAddress: Boolean): PresenceSense? = when {
+        network == TrustedNetSnapshot.Kind.NONE -> PresenceSense.UNKNOWN
+        network == TrustedNetSnapshot.Kind.OTHER && !hasLanAddress -> PresenceSense.AWAY
+        else -> null
+    }
 
     /**
-     * Home: the server confirmed (through the tunnel) that this WLAN is its
-     * LAN. Away: mobile data / no WLAN, or a WLAN the server says is not its
-     * LAN. Anything in between (checking, failed, no network) is unknown and
-     * never reported.
+     * The server's answer: `same_lan` true → home (through the tunnel or,
+     * core 1.167+, directly at a gateway site). False → away when it came
+     * through the tunnel or from a server that knows gateway sites; a
+     * direct "no" from an older server says nothing (it answers every
+     * direct request with "no"). Errors and older servers without the
+     * check → unknown.
      */
-    fun sense(available: Boolean, network: TrustedNetSnapshot.Kind, home: HomeCheck): PresenceSense = when {
-        !available -> PresenceSense.UNKNOWN
-        network == TrustedNetSnapshot.Kind.NONE -> PresenceSense.UNKNOWN
-        network == TrustedNetSnapshot.Kind.OTHER -> PresenceSense.AWAY
-        home == HomeCheck.HOME -> PresenceSense.HOME
-        home == HomeCheck.NOT_HOME -> PresenceSense.AWAY
-        else -> PresenceSense.UNKNOWN
+    fun interpret(status: HomeNetworkStatus): PresenceObservation = when (status) {
+        is HomeNetworkStatus.Home -> PresenceObservation(PresenceSense.HOME, PresenceCheck.OK)
+        is HomeNetworkStatus.NotHome -> when {
+            status.siteAware -> PresenceObservation(PresenceSense.AWAY, PresenceCheck.OK)
+            status.viaTunnel -> PresenceObservation(PresenceSense.AWAY, PresenceCheck.OLD_SERVER)
+            else -> PresenceObservation(PresenceSense.UNKNOWN, PresenceCheck.OLD_SERVER)
+        }
+        HomeNetworkStatus.Unsupported -> PresenceObservation(PresenceSense.UNKNOWN, PresenceCheck.UNSUPPORTED)
+        HomeNetworkStatus.Unknown -> PresenceObservation(PresenceSense.UNKNOWN, PresenceCheck.FAILED)
     }
+
+    /** A clear answer replaces the state; "can't tell" keeps the last one (no flapping). */
+    fun next(current: PresenceSense, observed: PresenceSense): PresenceSense =
+        if (observed == PresenceSense.UNKNOWN) current else observed
 
     /**
      * Report [stable] (a state that held for [DEBOUNCE_MS])? Only with

@@ -12,6 +12,8 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HomeNetworkStatus
+import com.gatecontrol.android.network.HomeSite
+import com.gatecontrol.android.network.localLanAddresses
 import com.gatecontrol.android.network.probeHomeNetwork
 import com.gatecontrol.android.service.ClientPolicyManager
 import com.gatecontrol.android.service.TunnelConnector
@@ -73,6 +75,8 @@ data class TrustedNetStatus(
     /** true / false / null = not known yet or feature off. */
     val trusted: Boolean? = null,
     val trustedBySsid: Boolean = false,
+    /** Where the server recognised the home network ([HomeCheck.HOME] only; core 1.167+). */
+    val site: HomeSite? = null,
 )
 
 /**
@@ -80,7 +84,9 @@ data class TrustedNetStatus(
  * trusted WLAN and connects it again when it leaves (other WLAN, mobile
  * data). A WLAN is trusted when its SSID is on the user's list or the
  * server confirms, for a request through the connected tunnel, that the
- * device is in its LAN (`GET api/v1/client/home-network`).
+ * device is in its home network (`GET api/v1/client/home-network` with
+ * the device's private LAN addresses as `local`: its own LAN, or from
+ * core 1.167 on the LAN behind one of its gateways).
  *
  * Home detection on a new WLAN: VPN down → connect first (untrusted until
  * proven otherwise), VPN up → after a short settle delay ask the server
@@ -178,6 +184,30 @@ class TrustedNetworkMonitor @Inject constructor(
         } catch (e: Exception) {
             Timber.w(e, "TrustedNet: network callback registration failed")
         }
+    }
+
+    /**
+     * The device's private IPv4 addresses on its Wi-Fi / Ethernet networks
+     * (LinkProperties of the non-VPN networks this callback sees; no
+     * permission needed), Wi-Fi first, at most four. Sent as `local` with
+     * every home-network check.
+     */
+    fun localAddresses(): List<String> {
+        val cm = connectivity ?: return emptyList()
+        val lan = networks.entries
+            .filter { (_, caps) ->
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                    (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+            }
+            .sortedByDescending { (_, caps) -> if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) 1 else 0 }
+        val addresses = lan.flatMap { (network, _) ->
+            try {
+                cm.getLinkProperties(network)?.linkAddresses?.map { it.address }.orEmpty()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        return localLanAddresses(addresses)
     }
 
     private fun publish() {
@@ -294,6 +324,7 @@ class TrustedNetworkMonitor @Inject constructor(
                 else -> probe.trusted
             },
             trustedBySsid = ssidTrusted,
+            site = (probe?.status as? HomeNetworkStatus.Home)?.site?.takeIf { home == HomeCheck.HOME },
         )
     }
 
@@ -335,7 +366,7 @@ class TrustedNetworkMonitor @Inject constructor(
             HomeNetworkStatus.Unknown
         } else {
             try {
-                apiClientProvider.getClient(serverUrl).probeHomeNetwork()
+                apiClientProvider.getClient(serverUrl).probeHomeNetwork(localAddresses())
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

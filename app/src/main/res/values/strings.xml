@@ -502,9 +502,11 @@
     <string name="trusted_next_change_hint">Takes effect on the next network change. If you connect or disconnect yourself, that stays until the next change.</string>
     <string name="trusted_section_detection">Detection</string>
     <string name="trusted_home">Detect the server\'s home network</string>
-    <string name="trusted_home_desc">The server checks through the VPN whether you are in its local network, so in a new Wi-Fi network the VPN connects first. No location permission needed.</string>
+    <string name="trusted_home_desc">The server checks through the VPN whether you are in its local network or in the network behind one of its gateways (for this the app sends its local Wi-Fi address to your server), so in a new Wi-Fi network the VPN connects first. No location permission needed.</string>
     <string name="trusted_home_checking">Checking…</string>
     <string name="trusted_home_yes">Currently in the home network</string>
+    <string name="trusted_home_yes_gateway">In the home network via gateway „%1$s“</string>
+    <string name="trusted_home_yes_gateway_unnamed">In the home network via a gateway</string>
     <string name="trusted_home_no">Not in the home network</string>
     <string name="trusted_home_unsupported">The server does not support this yet</string>
     <string name="trusted_home_unknown">Server unreachable – the VPN stays connected</string>

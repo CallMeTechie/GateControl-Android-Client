@@ -21,9 +21,11 @@ enum class TunnelPhase {
 /**
  * One home-network answer. [throughTunnel] = the tunnel was connected when
  * the request was made. Only such an answer may ever trust a network: the
- * server only says `same_lan: true` for requests through the tunnel, and a
+ * server says `same_lan: true` for its own LAN only through the tunnel (a
  * direct request can look like a LAN source behind a reverse proxy or a
- * SNAT router.
+ * SNAT router). Core 1.167 also answers it directly for a gateway site;
+ * disconnecting the VPN still waits for a tunnel answer, which covers
+ * gateway sites too (the server compares the peer's WireGuard endpoint).
  */
 data class HomeProbe(val status: HomeNetworkStatus, val throughTunnel: Boolean) {
     /** In the home network: `same_lan` true, `via` tunnel, and asked through the tunnel. */

@@ -217,6 +217,8 @@ class ApiClientProvider @Inject constructor(
         val logging = HttpLoggingInterceptor().apply {
             level = if (isDebuggable) HttpLoggingInterceptor.Level.HEADERS else HttpLoggingInterceptor.Level.NONE
             SENSITIVE_HEADERS.forEach { redactHeader(it) }
+            // The device's LAN addresses of the home-network check.
+            redactQueryParams("local")
         }
 
         return OkHttpClient.Builder()

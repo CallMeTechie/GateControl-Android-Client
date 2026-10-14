@@ -174,13 +174,16 @@ interface ApiClient {
     suspend fun getSplitTunnelPreset(): SplitTunnelPresetResponse
 
     /**
-     * Is this device in the server's own LAN ("Heimnetz")? The server decides
-     * (`same_lan`), and only for requests through the tunnel. Raw
-     * [Response]: 404 means an older server without the endpoint. Use
-     * [probeHomeNetwork], which classifies and never throws.
+     * Is this device in the server's home network ("Heimnetz")? The server
+     * decides (`same_lan`). [local] = the device's private IPv4 addresses on
+     * Wi-Fi / Ethernet, comma-separated (core 1.167+ uses them for gateway
+     * sites; older servers ignore them). Encoded as given: only digits, dots
+     * and commas, built by [homeNetworkLocalQuery]. Raw [Response]: 404
+     * means an older server without the endpoint. Use [probeHomeNetwork],
+     * which classifies and never throws.
      */
     @GET("api/v1/client/home-network")
-    suspend fun getHomeNetwork(): Response<HomeNetworkResponse>
+    suspend fun getHomeNetwork(@Query("local", encoded = true) local: String? = null): Response<HomeNetworkResponse>
 
     /**
      * Effective client policy. With the cached version as If-None-Match the
