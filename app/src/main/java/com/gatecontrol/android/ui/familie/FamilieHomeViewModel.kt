@@ -28,6 +28,7 @@ class FamilieHomeViewModel @Inject constructor(
     private val repository: FamilieRepository,
     private val api: FamilieApi,
     private val shopping: ShoppingRepository,
+    private val presenceStore: com.gatecontrol.android.familie.presence.PresenceStore,
 ) : ViewModel() {
 
     val profile: StateFlow<FamilieProfile?> = repository.profile
@@ -79,7 +80,11 @@ class FamilieHomeViewModel @Inject constructor(
 
     private suspend fun refreshOverview() {
         when (val r = api.overview()) {
-            is FamilieResult.Ok -> _overview.value = r.value
+            is FamilieResult.Ok -> {
+                _overview.value = r.value
+                // 1.2: my presence consent as the server has it (set in the portal or on another phone).
+                r.value.presenceShare?.let { if (it != presenceStore.share.value) presenceStore.setShare(it) }
+            }
             else -> Unit
         }
     }

@@ -52,7 +52,19 @@ sealed interface FamiliePushEvent {
     /** A child turned 14 with locate mode "auto" (1.1, to the parents). */
     data class LocateAgeHint(val childId: Int?) : FamiliePushEvent
 
-    /** Any other Familie message (e.g. the parent's SOS acknowledgement); routed by its topic. */
+    /**
+     * Taschengeld (1.2): `allowance_paid` (to the child), `allowance_convert`
+     * (a child asks to convert stars; to the parents, with [requestId]),
+     * `allowance_decided` (to the child) and any other `allowance_*` message.
+     */
+    data class Allowance(val type: String, val childId: Int?, val requestId: Int?, val stars: Int?) : FamiliePushEvent {
+        val isConvert: Boolean get() = type == FamiliePush.ALLOWANCE_CONVERT
+    }
+
+    /** A presence rule's notification (1.2, "Tim ist zuhause"). */
+    data class PresenceRule(val ruleId: Int?, val userId: Int?) : FamiliePushEvent
+
+        /** Any other Familie message (e.g. the parent's SOS acknowledgement); routed by its topic. */
     data class Other(val type: String?, val topicKey: String?) : FamiliePushEvent
 }
 
@@ -110,7 +122,12 @@ object FamiliePush {
                 f.str("date")?.takeIf { it.length == 10 },
             )
             "locate_age_hint" -> FamiliePushEvent.LocateAgeHint(f.int("childId"))
+            ALLOWANCE_PAID, ALLOWANCE_CONVERT, ALLOWANCE_DECIDED -> FamiliePushEvent.Allowance(type, f.int("childId"), f.int("requestId")?.takeIf { it > 0 }, f.int("stars"))
+            "presence_rule" -> FamiliePushEvent.PresenceRule(f.int("ruleId"), f.int("userId"))
             else -> {
+                if (type != null && type.startsWith("allowance_")) {
+                    return FamiliePushEvent.Allowance(type, f.int("childId"), f.int("requestId")?.takeIf { it > 0 }, f.int("stars"))
+                }
                 // Locate updates of plugin versions that name them differently still carry the request.
                 if (topicKey == "locate" && f.int("requestId") != null) {
                     FamiliePushEvent.LocateUpdate(type ?: "locate", f.int("requestId"), f.int("childId"))
@@ -135,12 +152,20 @@ object FamiliePush {
         is FamiliePushEvent.PlaceTell -> FamilieDest.Places
         is FamiliePushEvent.Ride -> FamilieDest.Rides(event.rideId)
         is FamiliePushEvent.LocateAgeHint -> event.childId?.let { FamilieDest.Locate(it) } ?: FamilieDest.Home
+        is FamiliePushEvent.Allowance -> FamilieDest.Allowance(event.childId)
+        is FamiliePushEvent.PresenceRule -> FamilieDest.Presence
         is FamiliePushEvent.Other -> when (event.topicKey) {
             "shopping" -> FamilieDest.Shopping()
             "tasks" -> FamilieDest.Tasks
             "dates" -> FamilieDest.Dates
             "places" -> FamilieDest.Places
             "rides" -> FamilieDest.Rides()
+            "allowance" -> FamilieDest.Allowance()
+            "wishes" -> FamilieDest.Wishes()
+            "expenses" -> FamilieDest.Expenses()
+            "board" -> FamilieDest.Board
+            "meals" -> FamilieDest.Meals()
+            "presence" -> FamilieDest.Presence
             // To a child: the parent saw the SOS / asked for the location.
             "sos", "locate" -> FamilieDest.Child
             else -> FamilieDest.Home
@@ -148,9 +173,12 @@ object FamiliePush {
     }
 
     /** Notification buttons of a Familie message (instead of the generic ones). */
-    enum class Action { SEND_LOCATION, DECLINE_LOCATION, TASK_DONE, TASK_SNOOZE, PLACE_ACCEPT, PLACE_DECLINE, SOS_SEEN, RIDE_TAKE, RIDE_DECLINE }
+    enum class Action { SEND_LOCATION, DECLINE_LOCATION, TASK_DONE, TASK_SNOOZE, PLACE_ACCEPT, PLACE_DECLINE, SOS_SEEN, RIDE_TAKE, RIDE_DECLINE, ALLOWANCE_APPROVE, ALLOWANCE_DECLINE }
 
     const val RIDE_ASK = "ride_ask"
+    const val ALLOWANCE_PAID = "allowance_paid"
+    const val ALLOWANCE_CONVERT = "allowance_convert"
+    const val ALLOWANCE_DECIDED = "allowance_decided"
 
     fun actions(event: FamiliePushEvent): List<Action> = when (event) {
         is FamiliePushEvent.LocateRequest ->
@@ -160,6 +188,9 @@ object FamiliePush {
         is FamiliePushEvent.Sos -> listOf(Action.SOS_SEEN)
         // "Wer kann Tim um 16:00 abholen?" — answered from the notification.
         is FamiliePushEvent.Ride -> if (event.isAsk && event.rideId != null) listOf(Action.RIDE_TAKE, Action.RIDE_DECLINE) else emptyList()
+        // "Lena möchte 10 Sterne umwandeln" — parents decide from the notification.
+        is FamiliePushEvent.Allowance ->
+            if (event.isConvert && event.requestId != null) listOf(Action.ALLOWANCE_APPROVE, Action.ALLOWANCE_DECLINE) else emptyList()
         else -> emptyList()
     }
 

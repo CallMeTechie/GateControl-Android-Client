@@ -4,6 +4,17 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.emergency.EmergencyCard
 import com.gatecontrol.android.familie.emergency.EmergencyContact
 import com.gatecontrol.android.familie.emergency.EmergencyMemberDraft
+import com.gatecontrol.android.familie.board.BoardPayload
+import com.gatecontrol.android.familie.board.NoteDraft
+import com.gatecontrol.android.familie.meals.Meal
+import com.gatecontrol.android.familie.meals.MealWeek
+import com.gatecontrol.android.familie.money.AllowancePayload
+import com.gatecontrol.android.familie.money.AllowanceRuleDraft
+import com.gatecontrol.android.familie.money.ExpenseDraft
+import com.gatecontrol.android.familie.money.ExpenseMonth
+import com.gatecontrol.android.familie.money.WishDraft
+import com.gatecontrol.android.familie.money.WishItem
+import com.gatecontrol.android.familie.presence.PresencePayload
 import com.gatecontrol.android.familie.rides.DriverChoice
 import com.gatecontrol.android.familie.rides.Ride
 import com.gatecontrol.android.familie.rides.RideDraft
@@ -348,4 +359,146 @@ class FamilieApi @Inject constructor(
 
     suspend fun putEmergencyContacts(contacts: List<EmergencyContact>): FamilieResult<Unit> =
         put(path("emergency", "contacts"), FamilieJson.emergencyContactsBody(contacts), unit)
+
+    // ─── allowance (1.2) ─────────────────────────────────────────────
+
+    /** Parents: every child's account; a child: its own. */
+    suspend fun allowance(): FamilieResult<AllowancePayload> = get(path("allowance"), parse = FamilieJson12::allowance)
+
+    /** Parents: a booking (`manual` signed, `spend` negative). */
+    suspend fun allowanceBooking(childId: Int, cents: Int, note: String, kind: String): FamilieResult<Unit> =
+        post(path("allowance", childId, "bookings"), FamilieJson12.bookingBody(cents, note, kind), unit)
+
+    /** Parents: removes a manual / spend booking. */
+    suspend fun deleteAllowanceBooking(childId: Int, bookingId: Int): FamilieResult<Unit> = delete(path("allowance", childId, "bookings", bookingId))
+
+    suspend fun allowanceRule(childId: Int, draft: AllowanceRuleDraft): FamilieResult<Unit> =
+        put(path("allowance", childId, "rule"), FamilieJson12.ruleBody(draft), unit)
+
+    /** A child asks to turn [stars] into money (parents approve). */
+    suspend fun allowanceConvert(childId: Int, stars: Int): FamilieResult<Unit> =
+        post(path("allowance", childId, "convert"), JsonObject().apply { addProperty("stars", stars) }, unit)
+
+    /** Parents: approve or decline a convert request. */
+    suspend fun allowanceDecide(requestId: Int, approve: Boolean): FamilieResult<Unit> =
+        post(path("allowance", "requests", requestId, if (approve) "approve" else "decline"), parse = unit)
+
+    // ─── wishes (1.2) ────────────────────────────────────────────────
+
+    /** Everyone's lists; reservations on [myUserId]'s own items never come through. */
+    suspend fun wishes(myUserId: Int?): FamilieResult<List<WishItem>> =
+        get(path("wishes"), parse = { FamilieJson12.wishes(it, myUserId) })
+
+    suspend fun createWish(draft: WishDraft): FamilieResult<Unit> = post(path("wishes"), FamilieJson12.wishBody(draft), unit)
+
+    suspend fun updateWish(id: Int, draft: WishDraft): FamilieResult<Unit> = patch(path("wishes", id), FamilieJson12.wishBody(draft), parse = unit)
+
+    /** The owner got it (after the occasion): hidden from then on. */
+    suspend fun wishGotIt(id: Int, gotIt: Boolean): FamilieResult<Unit> =
+        patch(path("wishes", id), JsonObject().apply { addProperty("gotIt", gotIt) }, parse = unit)
+
+    suspend fun deleteWish(id: Int): FamilieResult<Unit> = delete(path("wishes", id))
+
+    /** "Ich besorge das" ([reserve]) / "freigeben". */
+    suspend fun reserveWish(id: Int, reserve: Boolean): FamilieResult<Unit> =
+        post(path("wishes", id, if (reserve) "reserve" else "unreserve"), parse = unit)
+
+    // ─── expenses (1.2, parents) ─────────────────────────────────────
+
+    /** [month] `YYYY-MM`. */
+    suspend fun expenses(month: String): FamilieResult<ExpenseMonth> =
+        if (!FamilieJson12.isMonth(month)) FamilieResult.Failed(CODE_INVALID, 0)
+        else get(path("expenses"), mapOf("month" to month), parse = { FamilieJson12.expenses(it, month) })
+
+    suspend fun createExpense(draft: ExpenseDraft): FamilieResult<Unit> = post(path("expenses"), FamilieJson12.expenseBody(draft), unit)
+
+    suspend fun updateExpense(id: Int, draft: ExpenseDraft): FamilieResult<Unit> =
+        patch(path("expenses", id), FamilieJson12.expenseBody(draft), parse = unit)
+
+    suspend fun deleteExpense(id: Int): FamilieResult<Unit> = delete(path("expenses", id))
+
+    /** "Erledigt": the month counts as settled (a record only, nothing is paid). */
+    suspend fun settleExpenses(month: String): FamilieResult<Unit> =
+        post(path("expenses", "settle"), JsonObject().apply { addProperty("month", month) }, unit)
+
+    /** Takes "Erledigt" back. */
+    suspend fun unsettleExpenses(month: String): FamilieResult<Unit> =
+        post(path("expenses", "unsettle"), JsonObject().apply { addProperty("month", month) }, unit)
+
+    // ─── board (1.2) ─────────────────────────────────────────────────
+
+    suspend fun board(): FamilieResult<BoardPayload> = get(path("board"), parse = FamilieJson12::board)
+
+    suspend fun createNote(draft: NoteDraft): FamilieResult<Unit> = post(path("board", "notes"), FamilieJson12.noteBody(draft), unit)
+
+    suspend fun updateNote(id: Int, draft: NoteDraft): FamilieResult<Unit> =
+        patch(path("board", "notes", id), FamilieJson12.noteBody(draft), parse = unit)
+
+    suspend fun deleteNote(id: Int): FamilieResult<Unit> = delete(path("board", "notes", id))
+
+    /** A new checklist from [templateId] or with [title]. */
+    suspend fun createChecklist(templateId: Int?, title: String?): FamilieResult<Unit> =
+        post(path("board", "checklists"), FamilieJson12.checklistBody(templateId, title), unit)
+
+    suspend fun deleteChecklist(id: Int): FamilieResult<Unit> = delete(path("board", "checklists", id))
+
+    /** Every item of the list open again (packing for the next trip). */
+    suspend fun resetChecklist(id: Int): FamilieResult<Unit> = post(path("board", "checklists", id, "reset"), parse = unit)
+
+    suspend fun addChecklistItem(checklistId: Int, text: String): FamilieResult<Unit> =
+        post(path("board", "checklists", checklistId, "items"), JsonObject().apply { addProperty("text", text.trim().take(80)) }, unit)
+
+    suspend fun checkChecklistItem(checklistId: Int, itemId: Int, done: Boolean): FamilieResult<Unit> =
+        patch(path("board", "checklists", checklistId, "items", itemId), JsonObject().apply { addProperty("done", done) }, parse = unit)
+
+    suspend fun deleteChecklistItem(checklistId: Int, itemId: Int): FamilieResult<Unit> =
+        delete(path("board", "checklists", checklistId, "items", itemId))
+
+    /** Saves a checklist as a template ("Urlaub", "Schwimmbad"). */
+    suspend fun createTemplate(checklistId: Int, title: String): FamilieResult<Unit> =
+        post(
+            path("board", "templates"),
+            JsonObject().apply {
+                addProperty("checklistId", checklistId)
+                addProperty("title", title.trim().take(60))
+            },
+            unit,
+        )
+
+    suspend fun deleteTemplate(id: Int): FamilieResult<Unit> = delete(path("board", "templates", id))
+
+    // ─── meals (1.2) ─────────────────────────────────────────────────
+
+    /** [week] `YYYY-Www`. */
+    suspend fun meals(week: String): FamilieResult<MealWeek> =
+        if (!MealWeek.isKey(week)) FamilieResult.Failed(CODE_INVALID, 0)
+        else get(path("meals"), mapOf("week" to week), parse = { FamilieJson12.meals(it, week) })
+
+    /** [slot] lunch | dinner. */
+    suspend fun putMeal(date: String, slot: String, meal: Meal): FamilieResult<Unit> =
+        put(mealPath(date, slot), FamilieJson12.mealBody(meal), unit)
+
+    suspend fun deleteMeal(date: String, slot: String): FamilieResult<Unit> = delete(mealPath(date, slot))
+
+    /** "Zutaten auf die Liste": the ingredients become open items of [listId] (no duplicates). */
+    suspend fun mealToShopping(date: String, slot: String, listId: String): FamilieResult<com.gatecontrol.android.familie.money.ShoppingAdded> =
+        post(mealPath(date, slot, "to-shopping"), JsonObject().apply { addProperty("listId", listId) }, FamilieJson12::shoppingAdded)
+
+    private fun mealPath(date: String, slot: String, vararg more: String): String? =
+        if (FamilieJson.date(date) == null || slot !in MealWeek.SLOTS) null else path("meals", date, slot, *more)
+
+    // ─── presence (1.2) ──────────────────────────────────────────────
+
+    data class PresenceFetch(val payload: PresencePayload, val myConsent: Boolean?)
+
+    suspend fun presence(myUserId: Int): FamilieResult<PresenceFetch> =
+        get(path("presence"), parse = { PresenceFetch(FamilieJson12.presence(it), FamilieJson12.myConsent(it, myUserId)) })
+
+    /** Only for oneself. */
+    suspend fun presenceConsent(share: Boolean): FamilieResult<Unit> =
+        put(path("presence", "consent"), JsonObject().apply { addProperty("share", share) }, unit)
+
+    /** Only with consent; the server takes at most one per minute. */
+    suspend fun reportPresence(home: Boolean, at: String): FamilieResult<Unit> =
+        post(path("presence"), FamilieJson12.presenceBody(home, at), unit)
 }

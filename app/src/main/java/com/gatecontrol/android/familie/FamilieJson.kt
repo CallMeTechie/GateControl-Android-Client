@@ -83,7 +83,7 @@ object FamilieJson {
         }
     }
 
-    private fun JsonObject.ints(key: String): List<Int> =
+    internal fun JsonObject.ints(key: String): List<Int> =
         arr(key)?.mapNotNull { e ->
             e.takeIf { it.isJsonPrimitive }?.asJsonPrimitive?.let { p ->
                 when {
@@ -94,20 +94,20 @@ object FamilieJson {
             }
         }.orEmpty()
 
-    private fun JsonArray.objects(): List<JsonObject> = filter { it.isJsonObject }.map { it.asJsonObject }
+    internal fun JsonArray.objects(): List<JsonObject> = filter { it.isJsonObject }.map { it.asJsonObject }
 
     /** Plain text: control characters out, trimmed, capped. */
     fun clean(value: String?, max: Int): String =
         value?.let { CONTROL_RE.replace(it, " ").trim().take(max) }.orEmpty()
 
-    private fun date(value: String?): String? = value?.takeIf { DATE_RE.matches(it) }
+    internal fun date(value: String?): String? = value?.takeIf { DATE_RE.matches(it) }
 
-    private fun time(value: String?): String? = value?.take(5)?.takeIf { TIME_RE.matches(it) }
+    internal fun time(value: String?): String? = value?.take(5)?.takeIf { TIME_RE.matches(it) }
 
-    private fun color(value: String?): String? = value?.takeIf { COLOR_RE.matches(it) }
+    internal fun color(value: String?): String? = value?.takeIf { COLOR_RE.matches(it) }
 
     /** ISO timestamps are only compared and formatted; anything sane-looking passes. */
-    private fun stamp(value: String?): String? = value?.trim()?.take(40)?.takeIf { it.isNotEmpty() && it.all { c -> c.isLetterOrDigit() || c in "-:.+ " } }
+    internal fun stamp(value: String?): String? = value?.trim()?.take(40)?.takeIf { it.isNotEmpty() && it.all { c -> c.isLetterOrDigit() || c in "-:.+ " } }
 
     // ─── Error answers ───────────────────────────────────────────────
 
@@ -148,6 +148,12 @@ object FamilieJson {
             rides = m?.bool("rides") == true,
             emergency = m?.bool("emergency") == true,
             wall = m?.bool("wall") == true,
+            allowance = m?.bool("allowance") == true,
+            wishes = m?.bool("wishes") == true,
+            expenses = m?.bool("expenses") == true,
+            board = m?.bool("board") == true,
+            meals = m?.bool("meals") == true,
+            presence = m?.bool("presence") == true,
         )
         return FamilieProfile(
             me = FamilieMe(
@@ -217,6 +223,13 @@ object FamilieJson {
                     open = (r.int("open") ?: 0).coerceAtLeast(0),
                 )
             },
+            allowance = FamilieJson12.overviewAllowance(o.obj("allowance")),
+            meals = FamilieJson12.overviewMeals(o.obj("meals")),
+            board = FamilieJson12.overviewBoard(o.obj("board")),
+            presence = FamilieJson12.overviewPresence(o.el("presence")),
+            presenceShare = o.obj("presence")?.bool("share"),
+            wishes = FamilieJson12.overviewWishes(o.obj("wishes")),
+            expenses = FamilieJson12.overviewExpenses(o.obj("expenses")),
         )
     }
 

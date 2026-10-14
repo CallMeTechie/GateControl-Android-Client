@@ -124,6 +124,8 @@ class FamilieLogicTest {
             FamilieDest.Locate(5), FamilieDest.Locate(5, 21), FamilieDest.Sos(8, 5, 52.52, 13.405, 12.0), FamilieDest.Sos(9, 5),
             FamilieDest.Child, FamilieDest.Places, FamilieDest.PlaceEdit(), FamilieDest.PlaceEdit(3),
             FamilieDest.Rides(), FamilieDest.Rides("12"), FamilieDest.Rides("3:2026-10-14"), FamilieDest.Emergency(), FamilieDest.Emergency(5),
+            FamilieDest.Allowance(), FamilieDest.Allowance(5), FamilieDest.Wishes(), FamilieDest.Wishes(3), FamilieDest.Expenses(),
+            FamilieDest.Expenses("l1-abc"), FamilieDest.Board, FamilieDest.Meals(), FamilieDest.Meals("2026-W42"), FamilieDest.Presence,
         )
         all.forEach { assertEquals(it, FamilieDest.parse(it.key), it.key) }
     }
@@ -133,6 +135,8 @@ class FamilieLogicTest {
         listOf(
             null, "", "nope", "locate/x", "shopping/a/b", "shopping/bad id", "sos/1", "place", "place/x",
             "rides/x", "rides/3:tomorrow", "rides/1/2", "emergency/x", "emergency/0", "emergency/1/2",
+            "allowance/x", "allowance/0", "wishes/1/2", "expenses/list", "expenses/list/bad id", "expenses/x", "board/1",
+            "meals/2026-W60", "meals/next", "presence/1",
         ).forEach {
             assertNull(FamilieDest.parse(it), it.toString())
         }

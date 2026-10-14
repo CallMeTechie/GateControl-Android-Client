@@ -70,6 +70,10 @@ fun familieErrorRes(code: String?): Int = when (code) {
     "timeout" -> R.string.familie_locate_fail_timeout
     "already_taken" -> R.string.familie_error_already_taken
     "cancelled" -> R.string.familie_error_cancelled
+    "not_enough_stars" -> R.string.familie_error_not_enough_stars
+    "no_star_rate" -> R.string.familie_error_no_star_rate
+    "no_consent" -> R.string.familie_error_no_consent
+    "too_many" -> R.string.familie_error_too_many
     else -> R.string.familie_error_generic
 }
 

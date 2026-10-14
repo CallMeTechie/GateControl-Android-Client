@@ -134,6 +134,18 @@ object GcIcons {
     val Medical = icon("Medical", 2f, "M9 3h6v6h6v6h-6v6H9v-6H3V9h6z")
     val Download = icon("Download", 2.2f, "M12 3v12M7 10l5 5 5-5M5 21h14")
     val Eye = icon("Eye", 2f, "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z", circle(12f, 12f, 3f))
+    /** Taschengeld (1.2). */
+    val Wallet = icon("Wallet", 2f, "M3 7a2 2 0 0 1 2-2h13v4", "M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z", "M16 14h1")
+    /** Wunschlisten (1.2). */
+    val Gift = icon("Gift", 2f, rect(3f, 8f, 18f, 4f, 1f), "M5 12v9h14v-9M12 8v13", "M12 8S10.5 3 8 3a2.5 2.5 0 0 0 0 5M12 8s1.5-5 4-5a2.5 2.5 0 0 1 0 5")
+    /** Haushaltsbuch (1.2). */
+    val Receipt = icon("Receipt", 2f, "M5 3v18l2.5-1.5L10 21l2-1.5 2 1.5 2.5-1.5L19 21V3l-2.5 1.5L14 3l-2 1.5L10 3 7.5 4.5z", "M9 9h6M9 13h6")
+    /** Pinnwand & Packlisten (1.2). */
+    val Board = icon("Board", 2f, rect(4f, 4f, 16f, 17f, 2f), "M9 2h6v4H9z", "M8 11h8M8 15h5")
+    /** Essensplan (1.2). */
+    val Meal = icon("Meal", 2f, "M7 2v8a2 2 0 0 0 4 0V2M9 10v12", "M17 2c-2 2-2 6 0 8v12")
+    val ChevronLeft = icon("ChevronLeft", 2f, "m15 18-6-6 6-6")
+    val Link = icon("Link", 2f, "M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1", "M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1")
 
     /**
      * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).

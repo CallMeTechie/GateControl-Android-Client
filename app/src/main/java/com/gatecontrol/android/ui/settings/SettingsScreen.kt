@@ -184,6 +184,9 @@ fun SettingsScreen(
             )
         }
 
+        // --- Familie: "Anwesenheit teilen" (presence consent, plugin 1.2) ---
+        com.gatecontrol.android.ui.familie.FamiliePresenceSettings()
+
         // --- Sicherheit ----------------------------------------------------
         SettingsGroup(stringResource(R.string.settings_group_security)) {
             // Android has no app-side kill switch: blocking traffic without

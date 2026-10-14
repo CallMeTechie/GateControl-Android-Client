@@ -111,8 +111,19 @@ class ShoppingViewModel @Inject constructor(
             repository.sync()
             val r = repository.going(listId)
             _notice.value = if (r is FamilieResult.Ok) ShoppingNotice.GoingSent else ShoppingNotice.Error(r.errorCode() ?: "failed")
+            // 1.2: parents with the household book get "Einkauf erfassen?".
+            val p = profile.value
+            if (r is FamilieResult.Ok && p != null && p.me.isParent && p.modules.expenses) _captureList.value = listId
             _going.value = false
         }
+    }
+
+    private val _captureList = MutableStateFlow<String?>(null)
+    /** After "Ich gehe einkaufen": the list to offer "Einkauf erfassen?" for (parents, module expenses). */
+    val captureList: StateFlow<String?> = _captureList.asStateFlow()
+
+    fun clearCapture() {
+        _captureList.value = null
     }
 
     fun clearNotice() {
