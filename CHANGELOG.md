@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.0] - 2026-10-14
+
+### Features
+- Familie tab for the family plugin (#70)
+
+---
+
 ## [1.27.0] - 2026-10-13
 
 ### Features
