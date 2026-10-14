@@ -13,6 +13,7 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.QueryMap
 import retrofit2.http.Streaming
 
 interface ApiClient {
@@ -93,6 +94,42 @@ interface ApiClient {
         @Path("id") id: String,
         @Query("lang") lang: String? = null,
     ): Response<QuickActionRunResponse>
+
+    /** Plugins that answer the apps, with their app tab (404 on servers before 1.164). */
+    @GET("api/v1/client/plugins")
+    suspend fun getClientPlugins(@Query("lang") lang: String? = null): Response<ClientPluginsResponse>
+
+    // ─── Plugin APIs for the apps (`/api/v1/client/plugins/{id}/api/…`) ──
+    // Forwarded to the plugin's own request handler with the token owner as
+    // user. Raw JSON both ways: the app feature (e.g. Familie) parses it.
+    // [path] is built by the app from fixed segments and server ids only.
+
+    @GET("api/v1/client/plugins/{id}/api/{path}")
+    suspend fun pluginGet(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+        @QueryMap query: Map<String, String> = emptyMap(),
+    ): Response<JsonObject>
+
+    @POST("api/v1/client/plugins/{id}/api/{path}")
+    suspend fun pluginPost(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: JsonObject,
+    ): Response<JsonObject>
+
+    @PATCH("api/v1/client/plugins/{id}/api/{path}")
+    suspend fun pluginPatch(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: JsonObject,
+    ): Response<JsonObject>
+
+    @HTTP(method = "DELETE", path = "api/v1/client/plugins/{id}/api/{path}")
+    suspend fun pluginDelete(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+    ): Response<JsonObject>
 
     /** Location sharing: may this device send, last stored position (404 on older servers). */
     @GET("api/v1/client/location")

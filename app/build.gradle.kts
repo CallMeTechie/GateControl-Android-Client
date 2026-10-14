@@ -156,6 +156,11 @@ dependencies {
     // Google Play in-app updates (Play distribution, see BuildConfig.DISTRIBUTION)
     implementation(libs.play.app.update)
 
+    // Familie: geofences for place reminders (Play services; without them
+    // places are listed but marked unavailable) and OpenStreetMap maps.
+    implementation(libs.play.services.location)
+    implementation(libs.osmdroid)
+
     // Gson (via the Retrofit converter, as in core): pinned quick actions
     implementation(libs.retrofit.gson)
     debugImplementation(libs.compose.ui.tooling)

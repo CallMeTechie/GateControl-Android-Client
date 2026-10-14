@@ -37,7 +37,7 @@
             <p>Specifically, the app does <strong>not</strong>:</p>
             <ul>
                 <li>Send analytics or telemetry to any third party</li>
-                <li>Track your location, browsing activity, or app usage</li>
+                <li>Track your browsing activity or app usage, or your location for anyone but your own server's family features (see below)</li>
                 <li>Display advertisements</li>
                 <li>Share data with advertising networks or data brokers</li>
                 <li>Store personal data on any server we control</li>
@@ -67,18 +67,31 @@
         </div>
 
         <div class="card">
+            <h2 style="margin-top:0;">Family Features (Familie plugin)</h2>
+            <p>The <span class="highlight">Family</span> tab only appears when your own GateControl server offers the "Familie" plugin and you are a member of the family. Shopping lists, tasks, dates and place reminders are stored on <span class="highlight">your own server</span>; shopping lists are also kept on the device so they work offline.</p>
+            <ul>
+                <li><span class="highlight">Locating children</span> — a child's location is only determined when a parent of the family asks for it, once; there is no continuous tracking. Depending on the family setting the child's phone sends its precise location (coordinates, accuracy, time, battery level) back automatically — for this also in the background while the app is closed — or only after the child confirms. The child is always notified and sees who located it and when. Locating ends automatically when the child turns 18.</li>
+                <li><span class="highlight">"I've arrived" and SOS</span> — sent only when the user taps; an SOS includes the location if available.</li>
+                <li><span class="highlight">Place reminders</span> — the phone checks the chosen places itself with Android geofencing (Google Play services), also in the background. The location is not sent for this; only the fact that a reminder fired (without coordinates), and only when the reminder notifies someone. Reminders for other family members only run after they agree.</li>
+                <li><span class="highlight">Retention</span> — the server deletes coordinates 7 days after the answer; the log of who asked when (without coordinates) is kept 90 days.</li>
+                <li><span class="highlight">Maps</span> — the map in the app loads map tiles from OpenStreetMap (tile.openstreetmap.org), which learns the map area shown and your IP address, not whose location it is. Addresses come from the device's own geocoder if present.</li>
+            </ul>
+            <p>None of this data is sent to us or to other third parties.</p>
+        </div>
+
+        <div class="card">
             <h2 style="margin-top:0;">Data Storage</h2>
             <p>All configuration data (server URL, API token, WireGuard keys) is stored <span class="highlight">locally on your device</span> using Android's EncryptedSharedPreferences (AES-256). No credentials are stored in plain text. RDP credentials (Pro feature) use end-to-end encryption (ECDH + AES-256-GCM) and are never stored unencrypted on the device.</p>
         </div>
 
         <div class="card">
             <h2 style="margin-top:0;">Third-Party Services</h2>
-            <p>The app uses <span class="highlight">Google ML Kit</span> (on-device barcode scanning) for QR code recognition. ML Kit runs entirely on-device and does not transmit any data to Google servers. No other third-party SDKs or services are included.</p>
+            <p>The app uses <span class="highlight">Google ML Kit</span> (on-device barcode scanning) for QR code recognition. ML Kit runs entirely on-device and does not transmit any data to Google servers. For family place reminders the app uses <span class="highlight">Google Play services geofencing</span> on the device, and its maps load tiles from <span class="highlight">OpenStreetMap</span> (see "Family Features").</p>
         </div>
 
         <div class="card">
             <h2 style="margin-top:0;">Children's Privacy</h2>
-            <p>This app is intended for IT administrators and technical users. It is not directed at children under the age of 13 and does not knowingly collect information from children.</p>
+            <p>This app is intended for operators and users of a GateControl server. Children only use it through the family features of their own family's server, set up by their parents or the server operator (see "Family Features"); no information about children is collected by us or third parties.</p>
         </div>
 
         <div class="card">
@@ -86,7 +99,7 @@
             <p>For privacy-related inquiries, please open an issue on our <a href="https://github.com/CallMeTechie/GateControl-Android-Client">GitHub repository</a> or contact the server administrator of your GateControl instance.</p>
         </div>
 
-        <p class="updated">Last updated: April 6, 2026</p>
+        <p class="updated">Last updated: October 14, 2026</p>
     </div>
 </body>
 </html>

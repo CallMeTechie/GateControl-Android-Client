@@ -28,6 +28,11 @@ class FakePresenter : PushPresenter {
     val shown = CopyOnWriteArrayList<Shown>()
     val cancelled = CopyOnWriteArrayList<Int>()
     val channelTopics = CopyOnWriteArrayList<List<PushTopic>>()
+    val fresh = CopyOnWriteArrayList<PushMessage>()
+
+    override suspend fun onNew(message: PushMessage) {
+        fresh += message
+    }
 
     override suspend fun ensureTopicChannels(topics: List<PushTopic>) {
         channelTopics += topics

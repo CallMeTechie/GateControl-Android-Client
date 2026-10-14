@@ -74,6 +74,12 @@ data class PushMessage(
     val receivedAt: Long = 0L,
     /** direct | tunnel — how the stream was connected when it arrived (null = inbox). */
     val via: String? = null,
+    /**
+     * The message's `data` object as JSON text (context keys of plugins,
+     * e.g. `familie`); null when there is none. Untrusted: the app feature
+     * that reads it validates every field.
+     */
+    val dataJson: String? = null,
 ) {
     val priorityLevel: PushPriority get() = PushPriority.fromWire(priority)
     val isUnread: Boolean get() = state == PushState.DELIVERED

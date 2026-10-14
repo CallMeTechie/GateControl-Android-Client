@@ -486,6 +486,29 @@ data class QuickActionsResponse(
     val actions: List<QuickAction>? = null,
 )
 
+/**
+ * A plugin that answers the apps (`GET /api/v1/client/plugins`). [tab] is
+ * null when the plugin has no own app tab (API only) or hides it from this
+ * user.
+ */
+data class ClientPlugin(
+    val id: String? = null,
+    val name: String? = null,
+    val version: String? = null,
+    val tab: ClientPluginTab? = null,
+)
+
+/** Own app tab of a plugin: label in the requested language and an SVG path (24×24 stroke icon). */
+data class ClientPluginTab(
+    val label: String? = null,
+    val icon: String? = null,
+)
+
+data class ClientPluginsResponse(
+    val ok: Boolean = false,
+    val plugins: List<ClientPlugin>? = null,
+)
+
 /** Answer of `POST /client/actions/{plugin}/{id}`; [state] = the switch's new state. */
 data class QuickActionRunResponse(
     val ok: Boolean = false,

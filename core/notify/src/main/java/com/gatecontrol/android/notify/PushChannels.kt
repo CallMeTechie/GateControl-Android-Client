@@ -105,4 +105,11 @@ interface PushPresenter {
     suspend fun show(message: PushMessage, notificationId: Int, channel: ChannelSpec, quiet: Boolean)
 
     fun cancel(notificationId: Int)
+
+    /**
+     * A message this device sees for the first time (not a replay of one it
+     * already has), whether or not it is shown — for app features that act
+     * on a message by themselves (e.g. answering a locate request).
+     */
+    suspend fun onNew(message: PushMessage) {}
 }

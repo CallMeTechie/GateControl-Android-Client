@@ -128,6 +128,20 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `familie receivers and activities are not exported`() {
+        listOf("FamilieActionReceiver", "GeofenceReceiver").forEach { name ->
+            val receiver = components("receiver").first { it.androidAttr("name").endsWith(name) }
+            assertEquals("false", receiver.androidAttr("exported"), name)
+            assertEquals(0, receiver.getElementsByTagName("intent-filter").length, name)
+        }
+        listOf("FamilieOpenActivity", "FamilieLocateActivity").forEach { name ->
+            val activity = components("activity").first { it.androidAttr("name").endsWith(name) }
+            assertEquals("false", activity.androidAttr("exported"), name)
+            assertEquals(0, activity.getElementsByTagName("intent-filter").length, name)
+        }
+    }
+
+    @Test
     fun `file provider only exposes the export directory`() {
         val xml = moduleFile("src/main/res/xml/file_paths.xml").readText()
         assertFalse(xml.contains("path=\".\""), "whole cache dir must not be shared")

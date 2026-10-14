@@ -61,6 +61,8 @@ object PushEventParser {
     private const val MAX_BODY = 1000
     private const val MAX_ACTIONS = 4
     private const val MAX_IDS = 1000
+    /** The server caps `data` at 4 KB; JSON escaping may add a little. */
+    private const val MAX_DATA_JSON = 8192
 
     private val APP_ROUTE_RE = Regex("^(?:vpn|services|gateways|inbox|plg-[a-z0-9]+(?:-[a-z0-9]+)*)$")
     private val TOPIC_RE = Regex(
@@ -222,6 +224,7 @@ object PushEventParser {
             state = state,
             receivedAt = receivedAt,
             via = via,
+            dataJson = dto.data?.toString()?.takeIf { it.length <= MAX_DATA_JSON },
         )
     }
 

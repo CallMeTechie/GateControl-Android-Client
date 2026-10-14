@@ -116,4 +116,23 @@ object GcIcons {
     val Activity = icon("Activity", 2f, "M22 12h-4l-3 9L9 3l-3 9H2")
     /** Skipped check. */
     val Minus = icon("Minus", 2.2f, "M5 12h14")
+
+    // ─── Familie ──────────────────────────────────────────────────────
+    /** House of the Familie tab (fallback when the plugin sends no icon). */
+    val Family = icon("Family", 2f, "M3 11l9-7 9 7", "M5 10v10h14V10", "M10 20v-5h4v5")
+    val Cart = icon("Cart", 2f, circle(9f, 20f, 1f), circle(18f, 20f, 1f), "M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h9.6a1 1 0 0 0 1-.8L21 7H6")
+    val Tasks = icon("Tasks", 2f, "M9 11l3 3 8-8", "M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9")
+    val Calendar = icon("Calendar", 2f, rect(3f, 4f, 18f, 18f, 2f), "M16 2v4M8 2v4M3 10h18")
+    val Pin = icon("Pin", 2f, "M12 22s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12z", circle(12f, 10f, 2.5f))
+    val Crosshair = icon("Crosshair", 2f, circle(12f, 12f, 8f), "M12 2v4M12 18v4M2 12h4M18 12h4")
+    val Siren = icon("Siren", 2f, "M7 18v-6a5 5 0 0 1 10 0v6", "M5 21h14", "M12 3v1M4.2 6.2l.7.7M19.8 6.2l-.7.7")
+    val Flag = icon("Flag", 2f, "M4 22V4", "M4 4h12l-2 4 2 4H4")
+    val Edit = icon("Edit", 2f, "M12 20h9", "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z")
+    val Phone = icon("Phone", 2f, rect(6f, 2f, 12f, 20f, 2f), "M11 18h2")
+
+    /**
+     * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).
+     * Throws on a path that cannot be parsed; callers fall back to their own icon.
+     */
+    fun fromPath(name: String, path: String): ImageVector = icon(name, 2f, path)
 }

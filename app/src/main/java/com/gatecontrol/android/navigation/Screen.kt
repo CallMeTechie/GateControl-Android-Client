@@ -26,6 +26,21 @@ sealed class Screen(val route: String) {
         const val ARG_ID = "id"
         fun create(id: Long): String = "inbox/$id"
     }
+    /**
+     * Tab of the Familie plugin (only when the server lists it with an app
+     * tab). `dest` (FamilieDest key) is shown beside the start screen on
+     * wide windows.
+     */
+    data object Familie : Screen("familie?dest={dest}") {
+        const val ARG_DEST = "dest"
+        const val BASE = "familie"
+        fun create(dest: String? = null): String = if (dest == null) BASE else "$BASE?dest=" + android.net.Uri.encode(dest)
+    }
+    /** A screen of the Familie tab on its own (phones). */
+    data object FamiliePage : Screen("familie/page?dest={dest}") {
+        const val ARG_DEST = "dest"
+        fun create(dest: String): String = "familie/page?dest=" + android.net.Uri.encode(dest)
+    }
     data object SettingsNotifications : Screen("settings/notifications")
     data object SettingsServer : Screen("settings/server")
     data object SplitTunnel : Screen("settings/split")
