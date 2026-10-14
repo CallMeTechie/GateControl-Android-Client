@@ -2,6 +2,7 @@ package com.gatecontrol.android.familie.push
 
 import com.gatecontrol.android.familie.FAMILIE_PLUGIN
 import com.gatecontrol.android.familie.FamilieDest
+import com.gatecontrol.android.familie.FamilieJson
 import com.gatecontrol.android.familie.FamilieJson.dbl
 import com.gatecontrol.android.familie.FamilieJson.int
 import com.gatecontrol.android.familie.FamilieJson.obj
@@ -39,6 +40,17 @@ sealed interface FamiliePushEvent {
     data class PlaceConsent(val placeId: Int) : FamiliePushEvent
 
     data class PlaceTell(val placeId: Int?, val userId: Int?) : FamiliePushEvent
+
+    /**
+     * A rides message (1.1): `ride_ask`, `ride_reminder`, `ride_open`,
+     * `ride_taken`, `ride_released`, `ride_unassigned`.
+     */
+    data class Ride(val type: String, val rideId: String?, val date: String?) : FamiliePushEvent {
+        val isAsk: Boolean get() = type == FamiliePush.RIDE_ASK
+    }
+
+    /** A child turned 14 with locate mode "auto" (1.1, to the parents). */
+    data class LocateAgeHint(val childId: Int?) : FamiliePushEvent
 
     /** Any other Familie message (e.g. the parent's SOS acknowledgement); routed by its topic. */
     data class Other(val type: String?, val topicKey: String?) : FamiliePushEvent
@@ -92,6 +104,12 @@ object FamiliePush {
             }
             "place_consent" -> f.int("placeId")?.let { FamiliePushEvent.PlaceConsent(it) } ?: FamiliePushEvent.Other(type, topicKey)
             "place_tell" -> FamiliePushEvent.PlaceTell(f.int("placeId"), f.int("userId"))
+            RIDE_ASK, "ride_reminder", "ride_open", "ride_taken", "ride_released", "ride_unassigned" -> FamiliePushEvent.Ride(
+                type,
+                f.str("rideId")?.takeIf { FamilieJson.RIDE_ID_RE.matches(it) },
+                f.str("date")?.takeIf { it.length == 10 },
+            )
+            "locate_age_hint" -> FamiliePushEvent.LocateAgeHint(f.int("childId"))
             else -> {
                 // Locate updates of plugin versions that name them differently still carry the request.
                 if (topicKey == "locate" && f.int("requestId") != null) {
@@ -115,11 +133,14 @@ object FamiliePush {
         is FamiliePushEvent.Sos -> FamilieDest.Sos(event.sosId, event.userId, event.lat, event.lon, event.accuracy)
         is FamiliePushEvent.PlaceConsent -> FamilieDest.Places
         is FamiliePushEvent.PlaceTell -> FamilieDest.Places
+        is FamiliePushEvent.Ride -> FamilieDest.Rides(event.rideId)
+        is FamiliePushEvent.LocateAgeHint -> event.childId?.let { FamilieDest.Locate(it) } ?: FamilieDest.Home
         is FamiliePushEvent.Other -> when (event.topicKey) {
             "shopping" -> FamilieDest.Shopping()
             "tasks" -> FamilieDest.Tasks
             "dates" -> FamilieDest.Dates
             "places" -> FamilieDest.Places
+            "rides" -> FamilieDest.Rides()
             // To a child: the parent saw the SOS / asked for the location.
             "sos", "locate" -> FamilieDest.Child
             else -> FamilieDest.Home
@@ -127,7 +148,9 @@ object FamiliePush {
     }
 
     /** Notification buttons of a Familie message (instead of the generic ones). */
-    enum class Action { SEND_LOCATION, DECLINE_LOCATION, TASK_DONE, TASK_SNOOZE, PLACE_ACCEPT, PLACE_DECLINE, SOS_SEEN }
+    enum class Action { SEND_LOCATION, DECLINE_LOCATION, TASK_DONE, TASK_SNOOZE, PLACE_ACCEPT, PLACE_DECLINE, SOS_SEEN, RIDE_TAKE, RIDE_DECLINE }
+
+    const val RIDE_ASK = "ride_ask"
 
     fun actions(event: FamiliePushEvent): List<Action> = when (event) {
         is FamiliePushEvent.LocateRequest ->
@@ -135,6 +158,8 @@ object FamiliePush {
         is FamiliePushEvent.TaskDue -> listOf(Action.TASK_DONE, Action.TASK_SNOOZE)
         is FamiliePushEvent.PlaceConsent -> listOf(Action.PLACE_ACCEPT, Action.PLACE_DECLINE)
         is FamiliePushEvent.Sos -> listOf(Action.SOS_SEEN)
+        // "Wer kann Tim um 16:00 abholen?" — answered from the notification.
+        is FamiliePushEvent.Ride -> if (event.isAsk && event.rideId != null) listOf(Action.RIDE_TAKE, Action.RIDE_DECLINE) else emptyList()
         else -> emptyList()
     }
 

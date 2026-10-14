@@ -78,11 +78,13 @@ class FamiliePushHandler @Inject constructor(
     fun buttons(message: PushMessage, notificationId: Int, slot: (Int) -> Uri): List<Button> {
         val event = FamiliePush.parse(message) ?: return emptyList()
         val occurrence = (event as? FamiliePushEvent.TaskDue)?.occurrence
+        val rideId = (event as? FamiliePushEvent.Ride)?.rideId
         val target = when (event) {
             is FamiliePushEvent.LocateRequest -> event.requestId
             is FamiliePushEvent.TaskDue -> event.taskId
             is FamiliePushEvent.PlaceConsent -> event.placeId
             is FamiliePushEvent.Sos -> event.sosId
+            is FamiliePushEvent.Ride -> if (rideId != null) 0 else return emptyList()
             else -> return emptyList()
         }
         return FamiliePush.actions(event).mapIndexed { i, action ->
@@ -99,7 +101,7 @@ class FamiliePushHandler @Inject constructor(
             } else {
                 PendingIntent.getBroadcast(
                     context, 0,
-                    FamilieActionReceiver.intent(context, action, target, message.id, notificationId, occurrence).setData(uri),
+                    FamilieActionReceiver.intent(context, action, target, message.id, notificationId, occurrence, rideId).setData(uri),
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 )
             }
@@ -128,6 +130,8 @@ class FamiliePushHandler @Inject constructor(
             FamiliePush.Action.PLACE_ACCEPT -> R.string.familie_action_accept
             FamiliePush.Action.PLACE_DECLINE -> R.string.familie_action_decline
             FamiliePush.Action.SOS_SEEN -> R.string.familie_action_seen
+            FamiliePush.Action.RIDE_TAKE -> R.string.familie_ride_take
+            FamiliePush.Action.RIDE_DECLINE -> R.string.familie_ride_decline
         }
     }
 }

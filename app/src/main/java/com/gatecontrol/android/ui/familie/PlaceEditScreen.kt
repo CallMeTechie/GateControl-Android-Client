@@ -9,12 +9,8 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -31,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,17 +35,13 @@ import com.gatecontrol.android.familie.FamiliePlace
 import com.gatecontrol.android.familie.PlaceDraft
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcFilterChip
-import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcOutlineButton
-import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.theme.GateControlTheme
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /** Radius steps of the slider (50 m … 2 km). */
@@ -115,7 +106,6 @@ fun PlaceEditScreen(
     var repeat by rememberSaveable { mutableStateOf(existing?.repeat ?: "always") }
     var active by rememberSaveable { mutableStateOf(existing?.active ?: true) }
     var target by rememberSaveable { mutableStateOf(existing?.targetUserId ?: me) }
-    var query by rememberSaveable { mutableStateOf("") }
     var askDelete by remember { mutableStateOf(false) }
 
     LaunchedEffect(here) {
@@ -177,52 +167,21 @@ fun PlaceEditScreen(
             GcTextField(value = title, onValueChange = { title = it.take(80) }, label = stringResource(R.string.familie_place_title_label), placeholder = stringResource(R.string.familie_place_title_hint), enabled = !readOnly)
 
             // --- Ort -------------------------------------------------------
-            val la = lat
-            val lo = lon
-            OsmMap(
-                point = if (la != null && lo != null) LatLon(la, lo) else null,
-                radiusM = radius.toDouble(),
-                zoom = if (la != null) 16.0 else 5.0,
-                contentDescription = stringResource(R.string.familie_place_map_cd, radius),
-                modifier = Modifier.fillMaxWidth().height(240.dp),
-                onTap = if (readOnly) null else ({ pt ->
-                    lat = pt.lat
-                    lon = pt.lon
-                }),
+            FamiliePlacePicker(
+                lat = lat,
+                lon = lon,
+                radiusM = radius,
+                hits = hits,
+                readOnly = readOnly,
+                onPick = { la, lo, label ->
+                    lat = la
+                    lon = lo
+                    if (label != null && title.isBlank()) title = label.substringBefore(',').take(80)
+                },
+                onHere = viewModel::locateHere,
+                onSearch = { viewModel.search(it, locale) },
+                onClearHits = viewModel::clearHits,
             )
-            if (la == null) {
-                Text(stringResource(R.string.familie_place_pick_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-            } else {
-                Text(String.format(Locale.ROOT, "%.5f, %.5f", la, lo), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-            }
-            if (!readOnly) {
-                GcOutlineButton(text = stringResource(R.string.familie_place_here), onClick = viewModel::locateHere, icon = GcIcons.Crosshair)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GcTextField(
-                        value = query,
-                        onValueChange = { query = it.take(120) },
-                        label = stringResource(R.string.familie_place_search),
-                        placeholder = stringResource(R.string.familie_place_search_hint),
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { viewModel.search(query, locale) }),
-                    )
-                    GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.familie_place_search), onClick = { viewModel.search(query, locale) }, enabled = query.isNotBlank(), modifier = Modifier.padding(top = 26.dp))
-                }
-                if (hits.isNotEmpty()) {
-                    GcCard(contentPadding = PaddingValues(vertical = 2.dp), verticalArrangement = Arrangement.Top) {
-                        hits.forEachIndexed { i, h ->
-                            if (i > 0) GcRowDivider()
-                            GcListRow(title = h.label, onClick = {
-                                lat = h.lat
-                                lon = h.lon
-                                if (title.isBlank()) title = h.label.substringBefore(',').take(80)
-                                viewModel.clearHits()
-                            })
-                        }
-                    }
-                }
-            }
 
             // --- Umkreis ---------------------------------------------------
             val idx = RADII.indexOfFirst { it >= radius }.let { if (it < 0) RADII.lastIndex else it }

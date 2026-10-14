@@ -315,4 +315,142 @@
         <item quantity="one">%1$d thing on the list: %2$s</item>
         <item quantity="other">%1$d things on the list: %2$s</item>
     </plurals>
+    <!-- 1.1: pick-ups & rides -->
+    <string name="familie_rides_title">Pick-ups &amp; rides</string>
+    <string name="familie_rides_open_section">Open</string>
+    <string name="familie_rides_week">This week</string>
+    <string name="familie_rides_none">No rides this week.</string>
+    <string name="familie_rides_home_none">No rides in the next 24 hours.</string>
+    <string name="familie_ride_take">I\'ll do it</string>
+    <string name="familie_ride_decline">Can\'t</string>
+    <string name="familie_ride_release">Undo</string>
+    <string name="familie_ride_take_short">Take it</string>
+    <string name="familie_ride_ask">Ask who can …</string>
+    <string name="familie_ride_ask_again">Ask again</string>
+    <string name="familie_ride_asked">The parents have been asked.</string>
+    <string name="familie_ride_requested">Your parents have been asked who picks you up.</string>
+    <string name="familie_ride_request">Please pick me up</string>
+    <string name="familie_ride_request_hint">Your parents get a notification and can say who picks you up.</string>
+    <string name="familie_ride_request_title_default">Pick up %1$s</string>
+    <string name="familie_ride_meta_requested">requested by %1$s</string>
+    <string name="familie_ride_you_drive">You pick up %1$s</string>
+    <string name="familie_ride_you_drive_plain">you drive</string>
+    <string name="familie_ride_driver_member">%1$s drives</string>
+    <string name="familie_ride_nobody">nobody yet</string>
+    <string name="familie_ride_cancelled">cancelled</string>
+    <string name="familie_ride_declined_by">“can\'t”: %1$s</string>
+    <string name="familie_ride_asked_at">asked %1$s</string>
+    <string name="familie_ride_reminder_at">Reminder %1$s</string>
+    <string name="familie_ride_series_badge">weekly</string>
+    <string name="familie_ride_new">New ride</string>
+    <string name="familie_ride_edit">Edit ride</string>
+    <string name="familie_ride_edit_cd">Edit: %1$s</string>
+    <string name="familie_ride_title_label">What</string>
+    <string name="familie_ride_title_hint">e.g. Pick up Tim from training</string>
+    <string name="familie_ride_for">For whom</string>
+    <string name="familie_ride_date">Date</string>
+    <string name="familie_ride_time">Time</string>
+    <string name="familie_ride_place">Place</string>
+    <string name="familie_ride_place_hint">e.g. North sports hall</string>
+    <string name="familie_ride_place_map">Pick the place on the map</string>
+    <string name="familie_ride_place_map_clear">Remove the map point</string>
+    <string name="familie_ride_map_cd">Map with the place of the ride</string>
+    <string name="familie_ride_driver">Who drives</string>
+    <string name="familie_ride_driver_none">Open</string>
+    <string name="familie_ride_driver_other">Someone else …</string>
+    <string name="familie_ride_driver_label">Driver</string>
+    <string name="familie_ride_driver_label_hint">e.g. the Webers, bus</string>
+    <string name="familie_ride_remind">Reminder for the driver</string>
+    <string name="familie_ride_remind_off">off</string>
+    <string name="familie_ride_remind_min">%1$d min before</string>
+    <string name="familie_ride_repeat">Repeat</string>
+    <string name="familie_ride_once">Once</string>
+    <string name="familie_ride_weekly">Every week</string>
+    <string name="familie_ride_until">Until (optional)</string>
+    <string name="familie_ride_note">Note</string>
+    <string name="familie_ride_ask_now">Ask right away who can drive</string>
+    <string name="familie_ride_ask_now_desc">The parents get a notification with “I\'ll do it” and “Can\'t”.</string>
+    <string name="familie_ride_scope_one">Only this date</string>
+    <string name="familie_ride_scope_series">Whole series</string>
+    <string name="familie_ride_cancel_one">Cancel ride</string>
+    <string name="familie_ride_delete_series">Delete series</string>
+    <string name="familie_ride_delete_text">Really cancel “%1$s”?</string>
+    <string name="familie_ride_series_text">Delete “%1$s” with all its dates?</string>
+    <string name="familie_ride_place_offer_title">Add a place reminder?</string>
+    <string name="familie_ride_place_offer_text">When you arrive at “%1$s”, your phone reminds you: “%2$s”.</string>
+    <string name="familie_ride_place_offer_yes">Add</string>
+    <string name="familie_ride_place_note">Collect %1$s</string>
+    <string name="familie_ride_place_created">Place reminder added.</string>
+    <string name="familie_ride_place_created_perm">Place reminder added. Allow location “all the time” under “Place reminders” so it can fire.</string>
+    <string name="familie_error_already_taken">Someone has taken this already.</string>
+    <string name="familie_error_already_taken_by">Already taken – %1$s drives.</string>
+    <string name="familie_error_cancelled">This ride is cancelled.</string>
+    <string name="familie_ride_reopen">Ride takes place after all</string>
+    <plurals name="familie_rides_open_count">
+        <item quantity="one">%1$d ride open</item>
+        <item quantity="other">%1$d rides open</item>
+    </plurals>
+
+    <!-- 1.1: emergency card -->
+    <string name="familie_emergency_title">Emergency card</string>
+    <string name="familie_emergency_shortcut_long">Family emergency card</string>
+    <string name="familie_emergency_sub">Allergies, medication, important numbers – also offline</string>
+    <string name="familie_emergency_offline">saved offline</string>
+    <string name="familie_emergency_as_of">As of %1$s</string>
+    <string name="familie_emergency_offline_hint">Server not reachable – this is the card stored on this phone.</string>
+    <string name="familie_emergency_no_data">The emergency card is not stored on this phone yet. It is loaded the first time you open it while the server is reachable.</string>
+    <string name="familie_emergency_born">born %1$s</string>
+    <plurals name="familie_emergency_years">
+        <item quantity="one">%1$d year</item>
+        <item quantity="other">%1$d years</item>
+    </plurals>
+    <string name="familie_emergency_weight">%1$s kg</string>
+    <string name="familie_emergency_allergies">Allergies</string>
+    <string name="familie_emergency_allergies_hint">e.g. peanuts (severe)</string>
+    <string name="familie_emergency_blood">Blood type</string>
+    <string name="familie_emergency_medications">Medication</string>
+    <string name="familie_emergency_conditions">Conditions</string>
+    <string name="familie_emergency_notes">Notes</string>
+    <string name="familie_emergency_none">none known</string>
+    <string name="familie_emergency_unknown">unknown</string>
+    <string name="familie_emergency_empty">Nothing entered for %1$s yet.</string>
+    <string name="familie_emergency_updated">changed %1$s</string>
+    <string name="familie_emergency_updated_by">changed %1$s by %2$s</string>
+    <string name="familie_emergency_insurance">Health insurance</string>
+    <string name="familie_emergency_insurance_number">no. %1$s</string>
+    <string name="familie_emergency_insurance_number_label">Insurance number</string>
+    <string name="familie_emergency_reveal_cd">Show the insurance number</string>
+    <string name="familie_emergency_hide_cd">Hide the insurance number</string>
+    <string name="familie_emergency_call_cd">Call %1$s</string>
+    <string name="familie_emergency_no_dialer">This device has no phone app.</string>
+    <string name="familie_emergency_112">Emergency 112</string>
+    <string name="familie_emergency_112_cd">Dial the emergency number 112</string>
+    <string name="familie_emergency_footer">Stored only on your own server and – encrypted – on your phones.</string>
+    <string name="familie_emergency_no_contacts">No numbers yet.</string>
+    <string name="familie_emergency_edit">Edit card</string>
+    <string name="familie_emergency_edit_title">Emergency card: %1$s</string>
+    <string name="familie_emergency_edit_contacts">Edit important numbers</string>
+    <string name="familie_emergency_family_contacts">Important numbers</string>
+    <string name="familie_emergency_family_contacts_hint">Everyone in the family sees these numbers on every card, e.g. the paediatrician or poison control. Please look the numbers up yourself.</string>
+    <string name="familie_emergency_member_contacts">%1$s\'s own numbers</string>
+    <string name="familie_emergency_weight_label">Weight (kg)</string>
+    <string name="familie_emergency_weight_invalid">Please enter a weight between 0.5 and 400 kg.</string>
+    <string name="familie_emergency_contact_label">Label</string>
+    <string name="familie_emergency_contact_phone">Phone</string>
+    <string name="familie_emergency_contact_note">Note</string>
+    <string name="familie_emergency_contact_note_hint">e.g. Mon–Fri 8 am–6 pm</string>
+    <string name="familie_emergency_contact_needs_label">Please enter a label.</string>
+    <string name="familie_emergency_contact_add">Add number</string>
+    <string name="familie_emergency_contact_remove_cd">Remove number: %1$s</string>
+    <string name="familie_emergency_contact_suggest">Suggestions:</string>
+    <string name="familie_emergency_field_refused">The server did not accept this – please check it.</string>
+    <string name="familie_emergency_contact_needs_digit">The number needs at least one digit.</string>
+    <string-array name="familie_emergency_label_suggestions">
+        <item>Paediatrician</item>
+        <item>GP</item>
+        <item>Dentist</item>
+        <item>Poison control</item>
+        <item>School</item>
+        <item>Grandparents</item>
+    </string-array>
 </resources>

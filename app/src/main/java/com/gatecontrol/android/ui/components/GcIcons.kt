@@ -129,6 +129,11 @@ object GcIcons {
     val Flag = icon("Flag", 2f, "M4 22V4", "M4 4h12l-2 4 2 4H4")
     val Edit = icon("Edit", 2f, "M12 20h9", "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z")
     val Phone = icon("Phone", 2f, rect(6f, 2f, 12f, 20f, 2f), "M11 18h2")
+    val Call = icon("Call", 2f, "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2")
+    val Car = icon("Car", 2f, "M5 17H3v-5l2-5h14l2 5v5h-2", "M3 12h18", circle(7.5f, 17f, 2f), circle(16.5f, 17f, 2f), "M9.5 17h5")
+    val Medical = icon("Medical", 2f, "M9 3h6v6h6v6h-6v6H9v-6H3V9h6z")
+    val Download = icon("Download", 2.2f, "M12 3v12M7 10l5 5 5-5M5 21h14")
+    val Eye = icon("Eye", 2f, "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z", circle(12f, 12f, 3f))
 
     /**
      * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).

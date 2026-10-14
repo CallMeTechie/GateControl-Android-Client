@@ -123,13 +123,17 @@ class FamilieLogicTest {
             FamilieDest.Home, FamilieDest.Shopping(), FamilieDest.Shopping("6f1c-uuid"), FamilieDest.Tasks, FamilieDest.Dates,
             FamilieDest.Locate(5), FamilieDest.Locate(5, 21), FamilieDest.Sos(8, 5, 52.52, 13.405, 12.0), FamilieDest.Sos(9, 5),
             FamilieDest.Child, FamilieDest.Places, FamilieDest.PlaceEdit(), FamilieDest.PlaceEdit(3),
+            FamilieDest.Rides(), FamilieDest.Rides("12"), FamilieDest.Rides("3:2026-10-14"), FamilieDest.Emergency(), FamilieDest.Emergency(5),
         )
         all.forEach { assertEquals(it, FamilieDest.parse(it.key), it.key) }
     }
 
     @Test
     fun `broken destinations are rejected`() {
-        listOf(null, "", "nope", "locate/x", "shopping/a/b", "shopping/bad id", "sos/1", "place", "place/x").forEach {
+        listOf(
+            null, "", "nope", "locate/x", "shopping/a/b", "shopping/bad id", "sos/1", "place", "place/x",
+            "rides/x", "rides/3:tomorrow", "rides/1/2", "emergency/x", "emergency/0", "emergency/1/2",
+        ).forEach {
             assertNull(FamilieDest.parse(it), it.toString())
         }
         assertEquals(FamilieDest.Sos(1, 2, null, null, null), FamilieDest.parse("sos/1/2/95/13/-"), "an impossible position is dropped")

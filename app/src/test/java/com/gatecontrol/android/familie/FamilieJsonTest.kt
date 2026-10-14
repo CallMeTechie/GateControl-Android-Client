@@ -252,4 +252,207 @@ class FamilieJsonTest {
         assertNotNull(FamilieJson.clean("a\u0000b", 10))
         assertEquals("a b", FamilieJson.clean("a\nb", 10))
     }
+
+    // ─── 1.1: rides ──────────────────────────────────────────────────
+
+    @Test
+    fun `rides as in the 1_1 contract, broken ones dropped`() {
+        val rides = FamilieJson.rides(
+            json(
+                """
+                { "ok": true, "rides": [
+                  { "id": "3:2026-10-16", "seriesId": 3, "date": "2026-10-16", "time": "17:00", "title": "Tim → Schwimmen",
+                    "place": "Hallenbad", "childIds": [5], "status": "taken", "driver": { "label": "Familie Weber" },
+                    "requestedBy": { "userId": 3, "name": "Anna" }, "declined": [], "askedAt": null, "remindMinutes": 20, "note": "" },
+                  { "id": "12", "seriesId": null, "date": "2026-10-14", "time": "16:00:00", "title": "Tim vom Training abholen",
+                    "place": "Sporthalle Nord", "lat": 52.5, "lon": 13.4, "childIds": [5, "5"], "status": "open", "driver": null,
+                    "requestedBy": { "userId": 3, "name": "Anna" }, "declined": [ { "userId": 4, "name": "Marc" } ],
+                    "askedAt": "2026-10-14T13:40:00Z", "remindMinutes": 500, "note": "Tor 2" },
+                  { "id": "13", "date": "2026-10-15", "time": "08:00", "title": "Lena", "status": "weird",
+                    "driver": { "userId": 3, "name": "Anna" }, "lat": 52.5 },
+                  { "id": "../x", "date": "2026-10-14", "time": "16:00", "title": "bad id" },
+                  { "id": "14", "date": "14.10.2026", "time": "16:00", "title": "bad date" },
+                  { "id": "15", "date": "2026-10-14", "time": "16:00", "title": "  " }
+                ] }
+                """,
+            ),
+        )
+        assertEquals(listOf("12", "13", "3:2026-10-16"), rides.map { it.id }, "sorted by date and time")
+        val open = rides[0]
+        assertTrue(open.isOpen)
+        assertEquals("16:00", open.time)
+        assertEquals(listOf(5), open.childIds)
+        assertEquals(52.5, open.lat)
+        assertEquals(listOf(4), open.declined.map { it.userId })
+        assertEquals(120, open.remindMinutes, "capped at 120")
+        assertNull(open.driver)
+        assertEquals("Tor 2", open.note)
+
+        val member = rides[1]
+        assertEquals(com.gatecontrol.android.familie.rides.Ride.STATUS_OPEN, member.status, "unknown status → open")
+        assertEquals(3, member.driverId)
+        assertNull(member.lat, "a half position is dropped")
+        assertEquals(20, member.remindMinutes, "default reminder")
+
+        val series = rides[2]
+        assertEquals(3, series.seriesId)
+        assertTrue(series.isSeries)
+        assertEquals(com.gatecontrol.android.familie.rides.RideDriver.Label("Familie Weber"), series.driver)
+    }
+
+    @Test
+    fun `ride bodies for create, change and the whole series`() {
+        val d = com.gatecontrol.android.familie.rides.RideDraft(
+            date = "2026-10-14", time = "16:00", title = "  Tim abholen ", place = "Halle", lat = 52.5, lon = 13.4,
+            childIds = listOf(5, 5), driver = com.gatecontrol.android.familie.rides.DriverChoice.Label("Bus"),
+            remindMinutes = 30, note = "", repeat = com.gatecontrol.android.familie.rides.RideRepeat(listOf(3, 1, 9), null), ask = false,
+        )
+        val create = FamilieJson.rideBody(d, create = true)
+        assertEquals("Tim abholen", create.get("title").asString)
+        assertEquals("[5]", create.get("childIds").toString())
+        assertEquals("""{"label":"Bus"}""", create.get("driver").toString())
+        assertEquals("""{"weekdays":[1,3],"endDate":null}""", create.get("repeat").toString())
+        assertFalse(create.get("ask").asBoolean)
+
+        val change = FamilieJson.rideBody(d.copy(lat = null, lon = null, repeat = null), create = false)
+        assertFalse(change.has("driver"), "the driver has its own call")
+        assertFalse(change.has("ask"))
+        assertTrue(change.get("lat").isJsonNull, "a removed map point is cleared")
+        assertEquals("2026-10-14", change.get("date").asString)
+
+        val series = FamilieJson.rideBody(d.copy(repeat = null), create = false, series = true)
+        assertFalse(series.has("date"), "a series change keeps the series' dates")
+
+        assertEquals("""{"userId":3}""", FamilieJson.driverBody(com.gatecontrol.android.familie.rides.DriverChoice.Member(3)).toString())
+    }
+
+    @Test
+    fun `modules and overview of 1_1`() {
+        val p = FamilieJson.profile(
+            json("""{ "me": { "userId": 3, "name": "Anna", "role": "parent" }, "modules": { "rides": true, "emergency": 1, "wall": true }, "members": [] }"""),
+        )!!
+        assertTrue(p.modules.rides)
+        assertTrue(p.modules.emergency)
+        assertTrue(p.modules.wall)
+        assertTrue(p.modules.any)
+        assertFalse(FamilieModules(wall = true).any, "the wall alone has no app screen")
+
+        val o = FamilieJson.overview(
+            json("""{ "rides": { "next": [ { "id": "12", "date": "2026-10-14", "time": "16:00", "title": "Tim abholen", "status": "open" } ], "open": 2 } }"""),
+        )
+        assertEquals(2, o.rides?.open)
+        assertEquals(listOf("12"), o.rides?.next?.map { it.id })
+        assertNull(FamilieJson.overview(json("""{ "rides": null }""")).rides, "module off")
+    }
+
+    // ─── 1.1: emergency card ─────────────────────────────────────────
+
+    @Test
+    fun `emergency card as in the 1_1 contract`() {
+        val card = FamilieJson.emergency(
+            json(
+                """
+                { "ok": true,
+                  "members": [
+                    { "userId": 5, "name": "Tim", "birthdate": "2016-11-09", "age": 9, "bloodType": "O+", "weightKg": 32,
+                      "allergies": "Erdnüsse (schwer)", "medications": "Notfall-Pen", "conditions": "", "notes": "",
+                      "insurance": { "name": "AOK", "number": "A123454821" },
+                      "contacts": [ { "label": "Oma", "phone": "+49 221 123-456", "note": "" }, { "label": "bad", "phone": "call me" } ],
+                      "updatedAt": "2026-10-14T12:00:00Z", "updatedBy": { "userId": 3, "name": "Anna" } },
+                    { "userId": 3, "name": "Anna", "birthdate": null, "age": null, "bloodType": "unknown", "weightKg": null,
+                      "allergies": "", "medications": "", "conditions": "", "notes": "", "insurance": { "name": "", "number": "" },
+                      "contacts": [], "updatedAt": null, "updatedBy": 3 },
+                    { "name": "no id" }
+                  ],
+                  "contacts": [ { "label": "Kinderarzt Dr. Berg", "phone": "0221 123 456", "note": "Mo–Fr 8–18" } ],
+                  "updatedAt": "2026-10-14T12:00:00Z" }
+                """,
+            ),
+        )
+        assertEquals(listOf(5, 3), card.members.map { it.userId })
+        val tim = card.member(5)!!
+        assertEquals("0+", tim.bloodType, "O and 0 are the same")
+        assertEquals(32.0, tim.weightKg)
+        assertEquals("A123454821", tim.insurance?.number)
+        assertEquals(listOf("Oma"), tim.contacts.map { it.label }, "a number with letters is dropped")
+        assertEquals(3, tim.updatedBy)
+        assertEquals("Anna", tim.updatedByName)
+        assertFalse(tim.isEmpty)
+
+        val anna = card.member(3)!!
+        assertNull(anna.bloodType)
+        assertNull(anna.insurance, "an empty insurance is none")
+        assertEquals(3, anna.updatedBy)
+        assertTrue(anna.isEmpty)
+        assertEquals("Kinderarzt Dr. Berg", card.contacts.single().label)
+    }
+
+    @Test
+    fun `emergency bodies are capped and clean`() {
+        val body = FamilieJson.emergencyMemberBody(
+            com.gatecontrol.android.familie.emergency.EmergencyMemberDraft(
+                bloodType = "ab-", weightKg = 0.0, allergies = "x".repeat(400), medications = "", conditions = "", notes = "",
+                insurance = com.gatecontrol.android.familie.emergency.EmergencyInsurance("", ""),
+                contacts = listOf(
+                    com.gatecontrol.android.familie.emergency.EmergencyContact("Kinderarzt", "0221 / 123-45 (Praxis)", ""),
+                    com.gatecontrol.android.familie.emergency.EmergencyContact("leer", "", ""),
+                ),
+            ),
+        )
+        assertEquals("AB-", body.get("bloodType").asString)
+        assertTrue(body.get("weightKg").isJsonNull)
+        assertEquals(300, body.get("allergies").asString.length)
+        assertTrue(body.get("insurance").isJsonNull)
+        assertEquals("""[{"label":"Kinderarzt","phone":"0221 / 123-45 ()","note":""}]""", body.get("contacts").toString())
+        assertEquals(
+            20,
+            FamilieJson.emergencyContactsBody(List(25) { com.gatecontrol.android.familie.emergency.EmergencyContact("L$it", "1$it", "") })
+                .getAsJsonArray("contacts").size(),
+            "at most 20 family numbers",
+        )
+    }
+
+    @Test
+    fun `final 1_1 plugin additions - series rule, start, error details`() {
+        val r = FamilieJson.rideIn(
+            json(
+                """{ "ok": true, "notified": 2, "ride": { "id": "3:2026-10-16", "seriesId": 3, "date": "2026-10-16", "time": "17:00",
+                     "title": "Schwimmen", "status": "open", "startAt": "2026-10-16T15:00:00Z",
+                     "repeat": { "weekdays": [4, 9, 2], "startDate": "2026-10-01", "endDate": null } } }""",
+            ),
+        )!!
+        assertEquals(com.gatecontrol.android.familie.rides.RideRule(listOf(2, 4), "2026-10-01", null), r.rule)
+        assertEquals("2026-10-16T15:00:00Z", r.startAt)
+
+        val taken = json("""{ "ok": false, "code": "already_taken", "driver": { "userId": 4, "name": "Marc" } }""")
+        assertEquals("Marc", FamilieJson.errorDriver(taken))
+        assertEquals("Familie Weber", FamilieJson.errorDriver(json("""{ "driver": { "label": "Familie Weber" } }""")))
+        assertEquals("contacts.0.phone", FamilieJson.errorField(json("""{ "code": "invalid", "field": "contacts.0.phone" }""")))
+        assertNull(FamilieJson.errorField(json("""{ "field": "<script>" }""")))
+
+        // The whole series: rule and driver in the PATCH (null clears it).
+        val d = com.gatecontrol.android.familie.rides.RideDraft(
+            date = "2026-10-16", time = "17:00", title = "Schwimmen", childIds = listOf(5),
+            repeat = com.gatecontrol.android.familie.rides.RideRepeat(listOf(2, 4), "2026-12-18"),
+        )
+        val series = FamilieJson.rideBody(d, create = false, series = true, withDriver = true)
+        assertTrue(series.get("driver").isJsonNull)
+        assertEquals("""{"weekdays":[2,4],"endDate":"2026-12-18"}""", series.get("repeat").toString())
+        val one = FamilieJson.rideBody(d.copy(repeat = null, driver = com.gatecontrol.android.familie.rides.DriverChoice.Member(3)), create = false)
+        assertFalse(one.has("driver"), "one ride: the driver has its own call")
+
+        // Emergency: weight 0.5–400 in 0.1 steps, a phone needs a digit.
+        assertEquals(32.5, com.gatecontrol.android.familie.emergency.EmergencyMember.weight(32.54))
+        assertNull(com.gatecontrol.android.familie.emergency.EmergencyMember.weight(0.4))
+        assertNull(com.gatecontrol.android.familie.emergency.EmergencyMember.weight(401.0))
+        assertFalse(com.gatecontrol.android.familie.emergency.EmergencyContact.PHONE_RE.matches("()"))
+        val body = FamilieJson.emergencyContactsBody(listOf(com.gatecontrol.android.familie.emergency.EmergencyContact("x", "( )", "")))
+        assertEquals("[]", body.get("contacts").toString())
+        val card = FamilieJson.emergency(
+            json("""{ "members": [ { "userId": 5, "name": "Tim", "weightKg": 450, "updatedBy": { "userId": 9, "name": null } } ] }"""),
+        )
+        assertNull(card.members.single().weightKg)
+        assertEquals(9, card.members.single().updatedBy)
+        assertNull(card.members.single().updatedByName)
+    }
 }

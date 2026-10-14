@@ -315,4 +315,142 @@
         <item quantity="one">%1$d Sache auf der Liste: %2$s</item>
         <item quantity="other">%1$d Sachen auf der Liste: %2$s</item>
     </plurals>
+    <!-- 1.1: Abholen & Fahrten -->
+    <string name="familie_rides_title">Abholen &amp; Fahrten</string>
+    <string name="familie_rides_open_section">Offen</string>
+    <string name="familie_rides_week">Diese Woche</string>
+    <string name="familie_rides_none">Diese Woche ist keine Fahrt eingetragen.</string>
+    <string name="familie_rides_home_none">In den nächsten 24 Stunden steht keine Fahrt an.</string>
+    <string name="familie_ride_take">Ich mache es</string>
+    <string name="familie_ride_decline">Kann nicht</string>
+    <string name="familie_ride_release">Rückgängig</string>
+    <string name="familie_ride_take_short">Übernehmen</string>
+    <string name="familie_ride_ask">Wer kann …? fragen</string>
+    <string name="familie_ride_ask_again">Noch einmal fragen</string>
+    <string name="familie_ride_asked">Die Eltern wurden gefragt.</string>
+    <string name="familie_ride_requested">Deine Eltern wurden gefragt, wer dich abholt.</string>
+    <string name="familie_ride_request">Bitte abholen</string>
+    <string name="familie_ride_request_hint">Deine Eltern bekommen eine Mitteilung und können sagen, wer dich abholt.</string>
+    <string name="familie_ride_request_title_default">%1$s abholen</string>
+    <string name="familie_ride_meta_requested">angefragt von %1$s</string>
+    <string name="familie_ride_you_drive">Du holst %1$s ab</string>
+    <string name="familie_ride_you_drive_plain">du fährst</string>
+    <string name="familie_ride_driver_member">%1$s fährt</string>
+    <string name="familie_ride_nobody">noch niemand eingetragen</string>
+    <string name="familie_ride_cancelled">abgesagt</string>
+    <string name="familie_ride_declined_by">„kann nicht“: %1$s</string>
+    <string name="familie_ride_asked_at">gefragt %1$s</string>
+    <string name="familie_ride_reminder_at">Erinnerung %1$s</string>
+    <string name="familie_ride_series_badge">wöchentlich</string>
+    <string name="familie_ride_new">Neue Fahrt</string>
+    <string name="familie_ride_edit">Fahrt bearbeiten</string>
+    <string name="familie_ride_edit_cd">Bearbeiten: %1$s</string>
+    <string name="familie_ride_title_label">Was</string>
+    <string name="familie_ride_title_hint">z. B. Tim vom Training abholen</string>
+    <string name="familie_ride_for">Für wen</string>
+    <string name="familie_ride_date">Datum</string>
+    <string name="familie_ride_time">Uhrzeit</string>
+    <string name="familie_ride_place">Ort</string>
+    <string name="familie_ride_place_hint">z. B. Sporthalle Nord</string>
+    <string name="familie_ride_place_map">Ort auf der Karte wählen</string>
+    <string name="familie_ride_place_map_clear">Kartenpunkt entfernen</string>
+    <string name="familie_ride_map_cd">Karte mit dem Ort der Fahrt</string>
+    <string name="familie_ride_driver">Wer fährt</string>
+    <string name="familie_ride_driver_none">Noch offen</string>
+    <string name="familie_ride_driver_other">Andere …</string>
+    <string name="familie_ride_driver_label">Fahrer</string>
+    <string name="familie_ride_driver_label_hint">z. B. Familie Weber, Bus</string>
+    <string name="familie_ride_remind">Erinnerung für den Fahrer</string>
+    <string name="familie_ride_remind_off">aus</string>
+    <string name="familie_ride_remind_min">%1$d min vorher</string>
+    <string name="familie_ride_repeat">Wiederholen</string>
+    <string name="familie_ride_once">Einmalig</string>
+    <string name="familie_ride_weekly">Jede Woche</string>
+    <string name="familie_ride_until">Bis (optional)</string>
+    <string name="familie_ride_note">Notiz</string>
+    <string name="familie_ride_ask_now">Gleich fragen, wer fahren kann</string>
+    <string name="familie_ride_ask_now_desc">Die Eltern bekommen eine Mitteilung mit „Ich mache es“ und „Kann nicht“.</string>
+    <string name="familie_ride_scope_one">Nur dieser Termin</string>
+    <string name="familie_ride_scope_series">Ganze Serie</string>
+    <string name="familie_ride_cancel_one">Fahrt absagen</string>
+    <string name="familie_ride_delete_series">Serie löschen</string>
+    <string name="familie_ride_delete_text">„%1$s“ wirklich absagen?</string>
+    <string name="familie_ride_series_text">„%1$s“ mit allen Terminen löschen?</string>
+    <string name="familie_ride_place_offer_title">Orts-Erinnerung anlegen?</string>
+    <string name="familie_ride_place_offer_text">Wenn du bei „%1$s“ ankommst, erinnert dich dein Handy: „%2$s“.</string>
+    <string name="familie_ride_place_offer_yes">Anlegen</string>
+    <string name="familie_ride_place_note">%1$s einsammeln</string>
+    <string name="familie_ride_place_created">Orts-Erinnerung angelegt.</string>
+    <string name="familie_ride_place_created_perm">Orts-Erinnerung angelegt. Erlaube unter „Orts-Erinnerungen“ den Standort „immer“, damit sie auslöst.</string>
+    <string name="familie_error_already_taken">Das hat schon jemand übernommen.</string>
+    <string name="familie_error_already_taken_by">Schon übernommen – %1$s fährt.</string>
+    <string name="familie_error_cancelled">Diese Fahrt ist abgesagt.</string>
+    <string name="familie_ride_reopen">Fahrt findet doch statt</string>
+    <plurals name="familie_rides_open_count">
+        <item quantity="one">%1$d Fahrt offen</item>
+        <item quantity="other">%1$d Fahrten offen</item>
+    </plurals>
+
+    <!-- 1.1: Notfall-Karte -->
+    <string name="familie_emergency_title">Notfall-Karte</string>
+    <string name="familie_emergency_shortcut_long">Notfall-Karte der Familie</string>
+    <string name="familie_emergency_sub">Allergien, Medikamente, wichtige Nummern – auch offline</string>
+    <string name="familie_emergency_offline">offline gespeichert</string>
+    <string name="familie_emergency_as_of">Stand: %1$s</string>
+    <string name="familie_emergency_offline_hint">Server nicht erreichbar – das ist die auf diesem Handy gespeicherte Karte.</string>
+    <string name="familie_emergency_no_data">Die Notfall-Karte ist auf diesem Handy noch nicht gespeichert. Sie wird beim ersten Öffnen mit Verbindung zum Server geladen.</string>
+    <string name="familie_emergency_born">geb. %1$s</string>
+    <plurals name="familie_emergency_years">
+        <item quantity="one">%1$d Jahr</item>
+        <item quantity="other">%1$d Jahre</item>
+    </plurals>
+    <string name="familie_emergency_weight">%1$s kg</string>
+    <string name="familie_emergency_allergies">Allergien</string>
+    <string name="familie_emergency_allergies_hint">z. B. Erdnüsse (schwer)</string>
+    <string name="familie_emergency_blood">Blutgruppe</string>
+    <string name="familie_emergency_medications">Medikamente</string>
+    <string name="familie_emergency_conditions">Vorerkrankungen</string>
+    <string name="familie_emergency_notes">Hinweise</string>
+    <string name="familie_emergency_none">keine bekannt</string>
+    <string name="familie_emergency_unknown">unbekannt</string>
+    <string name="familie_emergency_empty">Für %1$s ist noch nichts eingetragen.</string>
+    <string name="familie_emergency_updated">geändert %1$s</string>
+    <string name="familie_emergency_updated_by">geändert %1$s von %2$s</string>
+    <string name="familie_emergency_insurance">Krankenkasse</string>
+    <string name="familie_emergency_insurance_number">Vers.-Nr. %1$s</string>
+    <string name="familie_emergency_insurance_number_label">Versichertennummer</string>
+    <string name="familie_emergency_reveal_cd">Versichertennummer zeigen</string>
+    <string name="familie_emergency_hide_cd">Versichertennummer verbergen</string>
+    <string name="familie_emergency_call_cd">%1$s anrufen</string>
+    <string name="familie_emergency_no_dialer">Auf diesem Gerät gibt es keine Telefon-App.</string>
+    <string name="familie_emergency_112">Notruf 112</string>
+    <string name="familie_emergency_112_cd">Notruf 112 wählen</string>
+    <string name="familie_emergency_footer">Nur auf eurem eigenen Server und – verschlüsselt – auf euren Handys gespeichert.</string>
+    <string name="familie_emergency_no_contacts">Noch keine Nummern eingetragen.</string>
+    <string name="familie_emergency_edit">Karte bearbeiten</string>
+    <string name="familie_emergency_edit_title">Notfall-Karte: %1$s</string>
+    <string name="familie_emergency_edit_contacts">Wichtige Nummern bearbeiten</string>
+    <string name="familie_emergency_family_contacts">Wichtige Nummern</string>
+    <string name="familie_emergency_family_contacts_hint">Diese Nummern sieht jeder in der Familie auf jeder Karte, z. B. Kinderarzt oder Giftnotruf. Bitte die Nummern selbst nachsehen und eintragen.</string>
+    <string name="familie_emergency_member_contacts">Eigene Nummern von %1$s</string>
+    <string name="familie_emergency_weight_label">Gewicht (kg)</string>
+    <string name="familie_emergency_weight_invalid">Bitte ein Gewicht zwischen 0,5 und 400 kg eingeben.</string>
+    <string name="familie_emergency_contact_label">Bezeichnung</string>
+    <string name="familie_emergency_contact_phone">Telefon</string>
+    <string name="familie_emergency_contact_note">Hinweis</string>
+    <string name="familie_emergency_contact_note_hint">z. B. Mo–Fr 8–18 Uhr</string>
+    <string name="familie_emergency_contact_needs_label">Bitte eine Bezeichnung eingeben.</string>
+    <string name="familie_emergency_contact_add">Nummer hinzufügen</string>
+    <string name="familie_emergency_contact_remove_cd">Nummer entfernen: %1$s</string>
+    <string name="familie_emergency_contact_suggest">Vorschläge:</string>
+    <string name="familie_emergency_field_refused">Der Server hat diese Angabe nicht angenommen – bitte prüfen.</string>
+    <string name="familie_emergency_contact_needs_digit">Die Nummer braucht mindestens eine Ziffer.</string>
+    <string-array name="familie_emergency_label_suggestions">
+        <item>Kinderarzt</item>
+        <item>Hausarzt</item>
+        <item>Zahnarzt</item>
+        <item>Giftnotruf</item>
+        <item>Schule</item>
+        <item>Großeltern</item>
+    </string-array>
 </resources>

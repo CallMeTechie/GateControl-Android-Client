@@ -114,4 +114,36 @@ class FamiliePushTest {
         assertTrue(FamiliePushHandler.isFresh(m, created + 60_000))
         assertFalse(FamiliePushHandler.isFresh(m, created + 11 * 60_000))
     }
+
+    // ─── 1.1 ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `ride messages open the rides screen, an ask brings the two buttons`() {
+        val ask = FamiliePush.parse(message("rides", """{"type":"ride_ask","rideId":"3:2026-10-14","date":"2026-10-14"}"""))!!
+        assertEquals(FamiliePushEvent.Ride("ride_ask", "3:2026-10-14", "2026-10-14"), ask)
+        assertEquals(listOf(FamiliePush.Action.RIDE_TAKE, FamiliePush.Action.RIDE_DECLINE), FamiliePush.actions(ask))
+        assertEquals(FamilieDest.Rides("3:2026-10-14"), FamiliePush.destination(ask))
+
+        listOf("ride_reminder", "ride_open", "ride_taken", "ride_released", "ride_unassigned").forEach { t ->
+            val e = FamiliePush.parse(message("rides", """{"type":"$t","rideId":"12","date":"2026-10-14"}"""))!!
+            assertEquals(FamiliePushEvent.Ride(t, "12", "2026-10-14"), e)
+            assertTrue(FamiliePush.actions(e).isEmpty(), t)
+            assertEquals(FamilieDest.Rides("12"), FamiliePush.destination(e), t)
+        }
+
+        // A ride id that is not one: no buttons, the list still opens.
+        val bad = FamiliePush.parse(message("rides", """{"type":"ride_ask","rideId":"12/../x"}"""))!!
+        assertEquals(FamiliePushEvent.Ride("ride_ask", null, null), bad)
+        assertTrue(FamiliePush.actions(bad).isEmpty())
+        assertEquals(FamilieDest.Rides(), FamiliePush.destination(bad))
+        assertEquals(FamilieDest.Rides(), FamiliePush.destination(FamiliePush.parse(message("rides", null))!!))
+    }
+
+    @Test
+    fun `the age hint opens the child's locate screen for the parent`() {
+        val hint = FamiliePush.parse(message("locate", """{"type":"locate_age_hint","childId":5}"""))!!
+        assertEquals(FamiliePushEvent.LocateAgeHint(5), hint)
+        assertEquals(FamilieDest.Locate(5), FamiliePush.destination(hint))
+        assertTrue(FamiliePush.actions(hint).isEmpty())
+    }
 }

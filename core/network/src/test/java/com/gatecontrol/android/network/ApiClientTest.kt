@@ -263,4 +263,26 @@ class ApiClientTest {
         val response = apiClient.sendHeartbeat(HeartbeatRequest(1, true, 0, 0, 0, "phone"))
         assertEquals("cd34", response.policyVersion)
     }
+
+    @Test
+    fun `plugin bridge sends put, and patch and delete with a query`() = runTest {
+        repeat(3) { server.enqueue(MockResponse().setResponseCode(200).setBody("""{"ok":true}""")) }
+        val body = com.google.gson.JsonObject().apply { addProperty("allergies", "Erdnüsse") }
+
+        apiClient.pluginPut("gatecontrol-familie", "emergency/members/5", body)
+        val put = server.takeRequest()
+        assertEquals("PUT", put.method)
+        assertEquals("/api/v1/client/plugins/gatecontrol-familie/api/emergency/members/5", put.path)
+        assertTrue(put.body.readUtf8().contains("Erdnüsse"))
+
+        apiClient.pluginPatch("gatecontrol-familie", "rides/3:2026-10-14", body, mapOf("series" to "1"))
+        val patch = server.takeRequest()
+        assertEquals("PATCH", patch.method)
+        assertEquals("/api/v1/client/plugins/gatecontrol-familie/api/rides/3:2026-10-14?series=1", patch.path)
+
+        apiClient.pluginDelete("gatecontrol-familie", "rides/12")
+        val delete = server.takeRequest()
+        assertEquals("DELETE", delete.method)
+        assertEquals("/api/v1/client/plugins/gatecontrol-familie/api/rides/12", delete.path)
+    }
 }

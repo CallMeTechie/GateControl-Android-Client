@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import androidx.core.net.toUri
 import android.os.Build
 import androidx.core.app.ActivityCompat
@@ -16,11 +15,10 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.familie.FamilieDest
 import com.gatecontrol.android.familie.FamiliePlace
+import com.gatecontrol.android.familie.familieLocalized
 import com.gatecontrol.android.familie.places.PlaceTriggerWorker
 import com.gatecontrol.android.familie.places.StoredFence
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.first
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,11 +33,7 @@ class FamilieLocalNotifier @Inject constructor(
 ) {
     private val nm: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
 
-    private suspend fun localized(): Context {
-        val lang = runCatching { settingsRepository.getLocale().first() }.getOrNull() ?: return context
-        val config = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(lang)) }
-        return context.createConfigurationContext(config)
-    }
+    private suspend fun localized(): Context = familieLocalized(context, settingsRepository)
 
     private fun ensureChannel(ctx: Context) {
         nm.createNotificationChannel(
