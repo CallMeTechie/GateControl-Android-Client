@@ -30,6 +30,9 @@ Details:
   windows (`settings?pane=…`), else the page's own route.
 - A tapped push message opens beside the inbox (`inbox?select=…`) on wide
   windows, else as its own screen.
+- Familie tab (`docs/FAMILIE.md`): the start screen as list, the picked
+  screen (shopping, tasks, locating, …) beside it (`familie?dest=…`); on
+  phones each screen is its own route (`familie/page?dest=…`).
 - Single-column pages (setup, network, remote desktop, quick actions) stay
   centred with a maximum width instead of stretching.
 
