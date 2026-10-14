@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.0] - 2026-10-14
+
+### Features
+- pocket money, wish lists, household book, pinboard, meal plan and presence (Familie 1.2) (#73)
+
+---
+
 ## [1.29.1] - 2026-10-14
 
 ### Fixes
