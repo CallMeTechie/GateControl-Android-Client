@@ -1,5 +1,9 @@
 package com.gatecontrol.android.familie
 
+import com.gatecontrol.android.familie.board.OverviewBoard
+import com.gatecontrol.android.familie.meals.OverviewMeals
+import com.gatecontrol.android.familie.money.OverviewAllowance
+import com.gatecontrol.android.familie.presence.PresenceMember
 import com.gatecontrol.android.familie.rides.OverviewRides
 
 /**
@@ -47,8 +51,22 @@ data class FamilieModules(
     val emergency: Boolean = false,
     /** 1.1: wall tablet (portal only, no app UI). */
     val wall: Boolean = false,
+    /** 1.2: Taschengeld. */
+    val allowance: Boolean = false,
+    /** 1.2: Wunschlisten. */
+    val wishes: Boolean = false,
+    /** 1.2: Haushaltsbuch (parents only). */
+    val expenses: Boolean = false,
+    /** 1.2: Pinnwand & Packlisten. */
+    val board: Boolean = false,
+    /** 1.2: Essensplan. */
+    val meals: Boolean = false,
+    /** 1.2: Anwesenheit & Smart Home. */
+    val presence: Boolean = false,
 ) {
-    val any: Boolean get() = shopping || tasks || stars || dates || locate || arrivalSos || places || rides || emergency
+    val any: Boolean
+        get() = shopping || tasks || stars || dates || locate || arrivalSos || places || rides || emergency ||
+            allowance || wishes || expenses || board || meals || presence
 }
 
 data class FamilieMe(
@@ -127,6 +145,14 @@ data class FamilieOverview(
     val arrivals: List<OverviewArrival>? = null,
     /** null: module rides off (or a server before 1.1). */
     val rides: OverviewRides? = null,
+    /** 1.2, null when off: the child's balance or, for parents, the sum. */
+    val allowance: OverviewAllowance? = null,
+    /** 1.2, null when off: today's meals. */
+    val meals: OverviewMeals? = null,
+    /** 1.2, null when off: pinned notes, open checklists. */
+    val board: OverviewBoard? = null,
+    /** 1.2, null when off: who is home (members that share their presence). */
+    val presence: List<PresenceMember>? = null,
 )
 
 // ─── Tasks ────────────────────────────────────────────────────────────

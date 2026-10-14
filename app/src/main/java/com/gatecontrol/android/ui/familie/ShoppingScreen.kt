@@ -22,6 +22,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -42,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.familie.FamilieDest
 import com.gatecontrol.android.familie.FamilieProfile
 import com.gatecontrol.android.familie.shopping.ShoppingItem
 import com.gatecontrol.android.familie.shopping.ShoppingLogic
@@ -76,8 +81,19 @@ private sealed interface ShoppingDialog {
 fun ShoppingScreen(
     onBack: () -> Unit,
     initialListId: String? = null,
+    onOpen: (FamilieDest) -> Unit = {},
     viewModel: ShoppingViewModel = hiltViewModel(),
 ) {
+    val captureList by viewModel.captureList.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val captureText = stringResource(R.string.familie_expense_capture)
+    val captureAction = stringResource(R.string.familie_expense_capture_action)
+    LaunchedEffect(captureList) {
+        val listId = captureList ?: return@LaunchedEffect
+        viewModel.clearCapture()
+        val result = snackbar.showSnackbar(captureText, actionLabel = captureAction, withDismissAction = true, duration = SnackbarDuration.Long)
+        if (result == SnackbarResult.ActionPerformed) onOpen(FamilieDest.Expenses(listId))
+    }
     val view by viewModel.view.collectAsStateWithLifecycle()
     val sync by viewModel.sync.collectAsStateWithLifecycle()
     val pending by viewModel.pending.collectAsStateWithLifecycle()
@@ -108,6 +124,7 @@ fun ShoppingScreen(
         }
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         GcSubpageBar(
             title = stringResource(R.string.familie_shopping_title),
@@ -231,6 +248,9 @@ fun ShoppingScreen(
                 )
             }
         }
+    }
+    // 1.2: after "Ich gehe einkaufen" parents with the household book may record the shopping.
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
     }
 
     when (val d = dialog) {

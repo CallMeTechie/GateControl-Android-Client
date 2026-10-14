@@ -182,6 +182,34 @@ private fun HomeCards(
 
     if (p.modules.dates) DatesCard(overview, selected == FamilieDest.Dates, onOpen)
 
+    if (p.modules.presence) PresenceCard(p, overview, selected == FamilieDest.Presence, onOpen)
+
+    if (p.modules.meals) MealsCard(p, overview, selected is FamilieDest.Meals, onOpen)
+
+    if (p.modules.board) BoardCard(overview, selected == FamilieDest.Board, onOpen)
+
+    if (p.modules.allowance && (p.me.isChild || p.children.isNotEmpty())) AllowanceCard(p, overview, selected is FamilieDest.Allowance, onOpen)
+
+    if (p.modules.wishes) {
+        NavCard(
+            icon = GcIcons.Gift,
+            title = stringResource(R.string.familie_wishes_title),
+            subtitle = stringResource(R.string.familie_wishes_sub),
+            selected = selected is FamilieDest.Wishes,
+            onClick = { onOpen(FamilieDest.Wishes()) },
+        )
+    }
+
+    if (p.modules.expenses && p.me.isParent) {
+        NavCard(
+            icon = GcIcons.Receipt,
+            title = stringResource(R.string.familie_expenses_title),
+            subtitle = stringResource(R.string.familie_expenses_sub),
+            selected = selected is FamilieDest.Expenses,
+            onClick = { onOpen(FamilieDest.Expenses()) },
+        )
+    }
+
     if (p.modules.places) {
         NavCard(
             icon = GcIcons.Pin,
@@ -212,7 +240,8 @@ private fun Members(p: FamilieProfile, overview: FamilieOverview?) {
             val status = when {
                 going != null && (arrived == null || going > arrived) -> stringResource(R.string.familie_member_shopping)
                 arrived != null -> stringResource(R.string.familie_member_arrived, FamilieFormat.time(arrived))
-                else -> null
+                // 1.2: "zuhause" / "unterwegs" for members who share their presence.
+                else -> if (p.modules.presence) presenceShort(overview?.presence?.firstOrNull { it.userId == m.userId }) else null
             }
             Column(Modifier.width(72.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 FamilieAvatar(m.name, m.color, size = 48.dp, highlighted = m.userId == p.me.userId)
@@ -577,3 +606,105 @@ fun locateStatusLine(status: String, at: String?): String {
 
 /** Member name or a fallback. */
 fun memberName(p: FamilieProfile?, id: Int?): String = p?.nameOf(id) ?: (id?.let { "#$it" } ?: "–")
+
+/** Wer ist zuhause (1.2): the members at home, from the overview. */
+@Composable
+private fun PresenceCard(p: FamilieProfile, overview: FamilieOverview?, selected: Boolean, onOpen: (FamilieDest) -> Unit) {
+    val names = homeNames(p, overview?.presence)
+    NavCard(
+        icon = GcIcons.Home,
+        title = stringResource(R.string.familie_presence_title),
+        subtitle = when {
+            overview?.presence == null -> stringResource(R.string.familie_presence_sub)
+            names.isEmpty() -> stringResource(R.string.familie_presence_nobody_home)
+            else -> stringResource(R.string.familie_presence_at_home, names.joinToString(", "))
+        },
+        selected = selected,
+        onClick = { onOpen(FamilieDest.Presence) },
+    )
+}
+
+/** Essensplan (1.2): "Essen: Pfannkuchen" for today. */
+@Composable
+private fun MealsCard(p: FamilieProfile, overview: FamilieOverview?, selected: Boolean, onOpen: (FamilieDest) -> Unit) {
+    val today = overview?.meals
+    val meals = listOfNotNull(today?.lunch, today?.dinner)
+    NavCard(
+        icon = GcIcons.Meal,
+        title = stringResource(R.string.familie_meals_title),
+        subtitle = when {
+            today == null -> stringResource(R.string.familie_meals_sub)
+            meals.isEmpty() -> stringResource(R.string.familie_meals_today_none)
+            else -> stringResource(R.string.familie_meals_today, meals.joinToString(" · ") { m ->
+                m.title + (m.cook?.let { " (" + memberName(p, it) + ")" } ?: "")
+            })
+        },
+        selected = selected,
+        onClick = { onOpen(FamilieDest.Meals()) },
+    )
+}
+
+/** Pinnwand (1.2): pinned notes, open lists. */
+@Composable
+private fun BoardCard(overview: FamilieOverview?, selected: Boolean, onOpen: (FamilieDest) -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val board = overview?.board
+    FamilieSectionCard(
+        title = stringResource(R.string.familie_board_title),
+        icon = GcIcons.Board,
+        link = stringResource(R.string.familie_open),
+        onLink = { onOpen(FamilieDest.Board) },
+        selected = selected,
+    ) {
+        board?.pinnedTexts.orEmpty().forEach { t ->
+            Text(
+                t,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+        val parts = listOfNotNull(
+            board?.pinned?.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_board_home_pinned, it, it) },
+            board?.openChecklists?.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_board_home_lists, it, it) },
+        )
+        Text(
+            if (parts.isEmpty()) stringResource(R.string.familie_board_sub) else parts.joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = extra.muted,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+    }
+}
+
+/** Taschengeld (1.2): a child's balance, for parents the sum and open convert requests. */
+@Composable
+private fun AllowanceCard(p: FamilieProfile, overview: FamilieOverview?, selected: Boolean, onOpen: (FamilieDest) -> Unit) {
+    val a = overview?.allowance
+    GcCard(
+        borderColor = if (selected) MaterialTheme.colorScheme.primary else GateControlTheme.extraColors.border,
+        contentPadding = PaddingValues(0.dp),
+        verticalArrangement = Arrangement.Top,
+    ) {
+        GcListRow(
+            title = stringResource(if (p.me.isChild) R.string.familie_allowance_mine else R.string.familie_allowance_title),
+            description = when {
+                a == null -> stringResource(R.string.familie_money_bookkeeping)
+                p.me.isChild -> money(a.cents)
+                else -> stringResource(R.string.familie_allowance_sum, money(a.cents))
+            },
+            onClick = { onOpen(FamilieDest.Allowance()) },
+            leading = { Icon(GcIcons.Wallet, contentDescription = null, tint = GateControlTheme.extraColors.accentText, modifier = Modifier.size(22.dp)) },
+            trailing = {
+                if (a != null && a.pending > 0 && p.me.isParent) {
+                    GcChip(pluralStringResource(R.plurals.familie_allowance_home_pending, a.pending, a.pending), tone = GcTone.Warn, small = true)
+                } else {
+                    GcChevron()
+                }
+            },
+            selected = selected,
+        )
+    }
+}
+

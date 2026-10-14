@@ -3,6 +3,7 @@ package com.gatecontrol.android.familie
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.emergency.EmergencyRepository
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
+import com.gatecontrol.android.familie.presence.PresenceReporter
 import com.gatecontrol.android.familie.shopping.ShoppingRepository
 import com.gatecontrol.android.support.CrashReports
 import kotlinx.coroutines.CoroutineScope
@@ -26,10 +27,13 @@ class FamilieStartup @Inject constructor(
     private val registrar: GeofenceRegistrar,
     private val shopping: ShoppingRepository,
     private val emergency: EmergencyRepository,
+    private val presence: PresenceReporter,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
     fun onAppStart() {
+        // Presence (1.2) follows the home-network check for as long as the process lives.
+        runCatching { presence.start() }.onFailure { Timber.w("Familie: presence not started (%s)", it.javaClass.simpleName) }
         if (!setupRepository.isConfigured()) return
         scope.launch {
             runCatching { registrar.reRegisterFromCache() }
@@ -42,6 +46,8 @@ class FamilieStartup @Inject constructor(
                     shopping.syncIfPending()
                     // Keep the offline copy of the emergency card fresh for when it is needed.
                     if (profile?.modules?.emergency == true) emergency.refresh()
+                    // My consent as the server has it (set in the portal or on another phone).
+                    if (profile?.modules?.presence == true) presence.fetch()
                 }
                 // The server answered and the plugin is gone: no reminders, no emergency card any more.
                 listed -> {

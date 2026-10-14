@@ -64,6 +64,39 @@ sealed interface FamilieDest {
         override val key get() = if (userId == null) "emergency" else "emergency/$userId"
     }
 
+    /** 1.2 Taschengeld of [childId] (parents; a child sees its own). */
+    data class Allowance(val childId: Int? = null) : FamilieDest {
+        override val key get() = if (childId == null) "allowance" else "allowance/$childId"
+    }
+
+    /** 1.2 Wunschlisten, opened at [userId]'s list (else the caller's own). */
+    data class Wishes(val userId: Int? = null) : FamilieDest {
+        override val key get() = if (userId == null) "wishes" else "wishes/$userId"
+    }
+
+    /**
+     * 1.2 Haushaltsbuch (parents); [fromListId] opens a new expense for
+     * that shopping list ("Einkauf erfassen?").
+     */
+    data class Expenses(val fromListId: String? = null) : FamilieDest {
+        override val key get() = if (fromListId == null) "expenses" else "expenses/list/$fromListId"
+    }
+
+    /** 1.2 Pinnwand & Packlisten. */
+    data object Board : FamilieDest {
+        override val key = "board"
+    }
+
+    /** 1.2 Essensplan, at ISO week [week] (`2026-W42`, else this week). */
+    data class Meals(val week: String? = null) : FamilieDest {
+        override val key get() = if (week == null) "meals" else "meals/$week"
+    }
+
+    /** 1.2 Anwesenheit: who is home, sharing on / off. */
+    data object Presence : FamilieDest {
+        override val key = "presence"
+    }
+
     companion object {
         private val UUID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
@@ -106,6 +139,28 @@ sealed interface FamilieDest {
                     2 -> int(1)?.takeIf { it > 0 }?.let { Emergency(it) }
                     else -> null
                 }
+                "allowance" -> when (p.size) {
+                    1 -> Allowance()
+                    2 -> int(1)?.takeIf { it > 0 }?.let { Allowance(it) }
+                    else -> null
+                }
+                "wishes" -> when (p.size) {
+                    1 -> Wishes()
+                    2 -> int(1)?.takeIf { it > 0 }?.let { Wishes(it) }
+                    else -> null
+                }
+                "expenses" -> when {
+                    p.size == 1 -> Expenses()
+                    p.size == 3 && p[1] == "list" && UUID_RE.matches(p[2]) -> Expenses(p[2])
+                    else -> null
+                }
+                "board" -> if (p.size == 1) Board else null
+                "meals" -> when (p.size) {
+                    1 -> Meals()
+                    2 -> p[1].takeIf { com.gatecontrol.android.familie.meals.MealWeek.isKey(it) }?.let { Meals(it) }
+                    else -> null
+                }
+                "presence" -> if (p.size == 1) Presence else null
                 else -> null
             }
         }

@@ -1,6 +1,7 @@
 package com.gatecontrol.android.familie
 
 import com.gatecontrol.android.familie.emergency.EmergencyCacheStore
+import com.gatecontrol.android.familie.presence.PresenceStore
 import com.gatecontrol.android.familie.push.FamiliePushEvent
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -34,6 +35,7 @@ class FamilieRepository @Inject constructor(
     private val storage: FamilieStorage,
     private val shortcuts: FamilieShortcuts,
     private val emergencyCache: EmergencyCacheStore,
+    private val presenceStore: PresenceStore,
 ) {
     private data class StoredProfile(val owner: String? = null, val profile: FamilieProfile? = null)
 
@@ -106,10 +108,14 @@ class FamilieRepository @Inject constructor(
     suspend fun profileOrCached(): FamilieProfile? =
         refreshProfile().valueOrNull() ?: _profile.value
 
-    /** No member (any more), or the plugin is gone: no emergency card on this phone. */
+    /**
+     * No member (any more), or the plugin is gone: no emergency card on this
+     * phone, and no presence consent kept (nothing is reported).
+     */
     suspend fun forgetEmergency() {
         emergencyCache.clear()
         shortcuts.update(false)
+        presenceStore.clear()
     }
 
     fun emit(event: FamiliePushEvent) {

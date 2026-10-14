@@ -34,7 +34,7 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> Unit) {
     when (dest) {
         FamilieDest.Home -> FamilieHomeScreen(onOpen = onOpen)
-        is FamilieDest.Shopping -> ShoppingScreen(onBack = onBack, initialListId = dest.listId)
+        is FamilieDest.Shopping -> ShoppingScreen(onBack = onBack, initialListId = dest.listId, onOpen = onOpen)
         FamilieDest.Tasks -> TasksScreen(onBack = onBack)
         FamilieDest.Dates -> DatesScreen(onBack = onBack)
         is FamilieDest.Locate -> LocateParentScreen(childId = dest.childId, requestId = dest.requestId, onBack = onBack)
@@ -44,6 +44,12 @@ fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> 
         is FamilieDest.PlaceEdit -> PlaceEditScreen(placeId = dest.placeId, onDone = onBack)
         is FamilieDest.Rides -> RidesScreen(onBack = onBack, highlight = dest.rideId)
         is FamilieDest.Emergency -> EmergencyScreen(onBack = onBack, initialUserId = dest.userId)
+        is FamilieDest.Allowance -> AllowanceScreen(onBack = onBack, onOpen = onOpen, initialChildId = dest.childId)
+        is FamilieDest.Wishes -> WishesScreen(onBack = onBack, initialUserId = dest.userId)
+        is FamilieDest.Expenses -> ExpensesScreen(onBack = onBack, fromListId = dest.fromListId)
+        FamilieDest.Board -> BoardScreen(onBack = onBack)
+        is FamilieDest.Meals -> MealsScreen(onBack = onBack, initialWeek = dest.week)
+        FamilieDest.Presence -> PresenceScreen(onBack = onBack)
     }
 }
 

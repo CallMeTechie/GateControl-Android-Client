@@ -146,4 +146,39 @@ class FamiliePushTest {
         assertEquals(FamilieDest.Locate(5), FamiliePush.destination(hint))
         assertTrue(FamiliePush.actions(hint).isEmpty())
     }
+
+    @Test
+    fun `allowance and presence messages of 1_2`() {
+        val convert = FamiliePush.parse(message("allowance", """{"type":"allowance_convert","requestId":4,"childId":5,"stars":10}"""))!!
+        assertEquals(FamiliePushEvent.Allowance("allowance_convert", 5, 4, 10), convert)
+        assertEquals(listOf(FamiliePush.Action.ALLOWANCE_APPROVE, FamiliePush.Action.ALLOWANCE_DECLINE), FamiliePush.actions(convert))
+        assertEquals(FamilieDest.Allowance(5), FamiliePush.destination(convert))
+
+        val noRequest = FamiliePush.parse(message("allowance", """{"type":"allowance_convert","childId":5}"""))!!
+        assertTrue(FamiliePush.actions(noRequest).isEmpty(), "no buttons without the request")
+
+        val paid = FamiliePush.parse(message("allowance", """{"type":"allowance_paid","childId":5}"""))!!
+        assertInstanceOf(FamiliePushEvent.Allowance::class.java, paid)
+        assertTrue(FamiliePush.actions(paid).isEmpty())
+        assertEquals(FamilieDest.Allowance(5), FamiliePush.destination(paid))
+
+        val decided = FamiliePush.parse(message("allowance", """{"type":"allowance_convert_approved","requestId":4}"""))!!
+        assertEquals(FamilieDest.Allowance(null), FamiliePush.destination(decided), "any allowance_* opens the allowance")
+
+        val rule = FamiliePush.parse(message("presence", """{"type":"presence_rule","ruleId":2,"userId":5}"""))!!
+        assertEquals(FamiliePushEvent.PresenceRule(2, 5), rule)
+        assertEquals(FamilieDest.Presence, FamiliePush.destination(rule))
+        assertTrue(FamiliePush.actions(rule).isEmpty())
+    }
+
+    @Test
+    fun `other 1_2 topics open their screens`() {
+        fun dest(topic: String) = FamiliePush.destination(FamiliePush.parse(message(topic, """{"type":"something_new"}"""))!!)
+        assertEquals(FamilieDest.Wishes(), dest("wishes"))
+        assertEquals(FamilieDest.Expenses(), dest("expenses"))
+        assertEquals(FamilieDest.Board, dest("board"))
+        assertEquals(FamilieDest.Meals(), dest("meals"))
+        assertEquals(FamilieDest.Presence, dest("presence"))
+        assertEquals(FamilieDest.Allowance(), dest("allowance"))
+    }
 }

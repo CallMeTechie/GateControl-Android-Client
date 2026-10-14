@@ -85,6 +85,7 @@ class FamiliePushHandler @Inject constructor(
             is FamiliePushEvent.PlaceConsent -> event.placeId
             is FamiliePushEvent.Sos -> event.sosId
             is FamiliePushEvent.Ride -> if (rideId != null) 0 else return emptyList()
+            is FamiliePushEvent.Allowance -> event.requestId ?: return emptyList()
             else -> return emptyList()
         }
         return FamiliePush.actions(event).mapIndexed { i, action ->
@@ -132,6 +133,8 @@ class FamiliePushHandler @Inject constructor(
             FamiliePush.Action.SOS_SEEN -> R.string.familie_action_seen
             FamiliePush.Action.RIDE_TAKE -> R.string.familie_ride_take
             FamiliePush.Action.RIDE_DECLINE -> R.string.familie_ride_decline
+            FamiliePush.Action.ALLOWANCE_APPROVE -> R.string.familie_action_accept
+            FamiliePush.Action.ALLOWANCE_DECLINE -> R.string.familie_action_decline
         }
     }
 }

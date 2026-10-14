@@ -25,7 +25,8 @@ import javax.inject.Inject
 /**
  * Buttons of Familie notifications that work without opening the app:
  * send / decline the location, task done / in 1 hour, accept / decline a
- * family place reminder, SOS seen, "Ich mache es" / "Kann nicht" for a ride. NOT exported: only the app's own
+ * family place reminder, SOS seen, "Ich mache es" / "Kann nicht" for a ride,
+ * "Annehmen" / "Ablehnen" for a child's stars-to-money request. NOT exported: only the app's own
  * PendingIntents reach it. On success the notification goes away and the
  * message counts as read.
  */
@@ -79,6 +80,8 @@ class FamilieActionReceiver : BroadcastReceiver() {
         FamiliePush.Action.SOS_SEEN -> api.sosAck(target) is FamilieResult.Ok
         FamiliePush.Action.RIDE_TAKE -> ride != null && api.takeRide(ride) is FamilieResult.Ok
         FamiliePush.Action.RIDE_DECLINE -> ride != null && api.declineRide(ride) is FamilieResult.Ok
+        FamiliePush.Action.ALLOWANCE_APPROVE, FamiliePush.Action.ALLOWANCE_DECLINE ->
+            api.allowanceDecide(target, action == FamiliePush.Action.ALLOWANCE_APPROVE) is FamilieResult.Ok
     }
 
     private fun failureDest(action: FamiliePush.Action): FamilieDest = when (action) {
@@ -87,6 +90,7 @@ class FamilieActionReceiver : BroadcastReceiver() {
         FamiliePush.Action.PLACE_ACCEPT, FamiliePush.Action.PLACE_DECLINE -> FamilieDest.Places
         FamiliePush.Action.SOS_SEEN -> FamilieDest.Home
         FamiliePush.Action.RIDE_TAKE, FamiliePush.Action.RIDE_DECLINE -> FamilieDest.Rides()
+        FamiliePush.Action.ALLOWANCE_APPROVE, FamiliePush.Action.ALLOWANCE_DECLINE -> FamilieDest.Allowance()
     }
 
     private val FamiliePush.Action.isRide: Boolean
