@@ -58,6 +58,20 @@ class PushEventParserTest {
     }
 
     @Test
+    fun `the data object is kept as JSON text for app features`() {
+        val e = PushEventParser.parse(
+            "notification", "7",
+            """{"seq":7,"id":8,"topic":"plugin:gatecontrol-familie:locate","title":"Anna möchte wissen, wo du bist",
+               "data":{"route":"plg-gatecontrol-familie","familie":{"type":"locate_request","requestId":12,"mode":"confirm","from":"Anna"}}}""",
+        )
+        val m = assertInstanceOf(PushEvent.Notification::class.java, e).message
+        assertEquals("plg-gatecontrol-familie", m.route)
+        assertTrue(m.dataJson!!.contains("\"locate_request\""))
+        val noData = assertInstanceOf(PushEvent.Notification::class.java, PushEventParser.parse("notification", "9", """{"seq":9,"id":9,"title":"x"}""")).message
+        assertNull(noData.dataJson)
+    }
+
+    @Test
     fun `seq falls back to the SSE id`() {
         val e = PushEventParser.parse("notification", "77", """{"id":9,"topic":"services","title":"Fotos ist wieder erreichbar"}""")
         val m = assertInstanceOf(PushEvent.Notification::class.java, e).message

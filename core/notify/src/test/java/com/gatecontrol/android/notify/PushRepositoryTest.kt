@@ -71,6 +71,17 @@ class PushRepositoryTest {
     }
 
     @Test
+    fun `the message hook sees a message once, also when its topic is muted, never a replay`() = runBlocking {
+        store.setTopicMuted("devices", true)
+        repo.onNotification(message(id = 46, seq = 200))
+        repo.onNotification(message(id = 46, seq = 200))
+        repo.onNotification(message(id = 47, seq = 201, state = "read"))
+
+        assertEquals(listOf(46L), presenter.fresh.map { it.id })
+        assertTrue(presenter.shown.isEmpty())
+    }
+
+    @Test
     fun `a notification is shown, stored, remembered and acknowledged as delivered`() = runBlocking {
         repo.onNotification(message(id = 45, seq = 123, priority = "critical"))
 

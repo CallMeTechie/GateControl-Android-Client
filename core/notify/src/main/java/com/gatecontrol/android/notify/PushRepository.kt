@@ -64,6 +64,7 @@ class PushRepository @Inject constructor(
     suspend fun onNotification(message: PushMessage) {
         inbox.load()
         val settings = store.current()
+        val seenBefore = inbox.get(message.id)?.seq == message.seq
         inbox.upsert(message)
         val topicOff = message.topic in settings.mutedTopics &&
             message.priorityLevel != PushPriority.CRITICAL && message.topic != PushTopic.ADMIN_NOTICE
@@ -74,6 +75,10 @@ class PushRepository @Inject constructor(
             runCatching {
                 presenter.show(message, PushChannels.notificationId(message), PushChannels.channelFor(message), quiet)
             }.onFailure { Timber.w("Push: notification not shown (%s)", it.javaClass.simpleName) }
+        }
+        if (!seenBefore && message.isUnread) {
+            runCatching { presenter.onNew(message) }
+                .onFailure { Timber.w("Push: message hook failed (%s)", it.javaClass.simpleName) }
         }
         store.addPendingAcks(listOf(PendingAck(message.seq, PushState.DELIVERED)))
         store.saveLastSeq(message.seq)
