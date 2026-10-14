@@ -139,8 +139,9 @@ fun evaluateTunnel(state: TunnelState, nowMillis: Long): CheckResult = when (sta
         "error",
         DiagText(R.string.diag_tunnel_error_hint),
     )
+    // Off is a choice, not a fault: the checks that need the tunnel are skipped too.
     TunnelState.Disconnected -> CheckResult(
-        CheckId.TUNNEL, CheckStatus.WARN,
+        CheckId.TUNNEL, CheckStatus.SKIPPED,
         DiagText(R.string.diag_tunnel_off),
         "disconnected",
         DiagText(R.string.diag_tunnel_off_hint),

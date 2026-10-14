@@ -85,16 +85,28 @@ class DiagnosisRunner @Inject constructor(
         if (!server.isConfigured()) return serverNotConfigured()
         val latencies = mutableListOf<Long>()
         var error: Throwable? = null
+        var retried = false
         repeat(PING_COUNT) {
-            if (error != null) return@repeat
+            if (error != null && retried) return@repeat
+            if (error != null) {
+                // A pooled connection from before a VPN or network change hangs
+                // until it times out: one more try on fresh connections.
+                retried = true
+                server.resetConnections()
+            }
             try {
                 val ms = withTimeoutOrNull(PING_TIMEOUT_MS) { server.ping() }
-                if (ms == null) error = SocketTimeoutException("ping timed out") else latencies += ms
+                if (ms == null) {
+                    if (error == null) error = SocketTimeoutException("ping timed out")
+                } else {
+                    latencies += ms
+                    error = null
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 // One answer is enough for a latency; without any, report the first error.
-                error = e
+                if (error == null) error = e
             }
         }
         run.serverReachable = latencies.isNotEmpty()

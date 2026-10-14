@@ -117,7 +117,7 @@ class DiagnosisEvaluatorsTest {
         val ok = evaluateTunnel(TunnelState.Connected(connectedSince = 1_000_000), 1_000_000 + 12 * 60_000)
         assertEquals(CheckStatus.OK, ok.status)
         assertEquals(DiagText(R.string.diag_tunnel_connected_since, "12m"), ok.detail)
-        assertEquals(CheckStatus.WARN, evaluateTunnel(TunnelState.Disconnected, 0).status)
+        assertEquals(CheckStatus.SKIPPED, evaluateTunnel(TunnelState.Disconnected, 0).status)
         assertEquals(CheckStatus.WARN, evaluateTunnel(TunnelState.Reconnecting(1, 3), 0).status)
         assertEquals(CheckStatus.FAIL, evaluateTunnel(TunnelState.Error("no handshake"), 0).status)
         assertEquals(CheckStatus.SKIPPED, skippedNoTunnel(CheckId.DNS).status)

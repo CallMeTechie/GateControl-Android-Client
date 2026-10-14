@@ -29,6 +29,9 @@ interface ServerProbe {
 
     /** `GET api/v1/client/dns-check`; throws on failure. */
     suspend fun dnsCheck(): DnsCheckResponse
+
+    /** Drops pooled connections, so the next call opens a new one. */
+    fun resetConnections() {}
 }
 
 /** The WireGuard tunnel. */

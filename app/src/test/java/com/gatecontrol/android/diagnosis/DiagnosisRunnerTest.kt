@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 class DiagnosisRunnerTest {
@@ -42,6 +43,8 @@ class DiagnosisRunnerTest {
             return (pings.removeFirstOrNull() ?: pingFallback)()
         }
         override suspend fun dnsCheck() = dnsCheck.invoke()
+        var resets = 0
+        override fun resetConnections() { resets++ }
     }
 
     private inner class FakeTunnel(
@@ -103,14 +106,25 @@ class DiagnosisRunnerTest {
     @Test
     fun `tunnel down - tunnel checks skipped, speed still runs`() = runTest {
         val report = runner(tunnel = FakeTunnel(state = TunnelState.Disconnected)).run()
-        assertEquals(CheckStatus.WARN, report.of(CheckId.TUNNEL).status)
+        // VPN off is a choice, not a problem: skipped, and the summary stays OK.
+        assertEquals(CheckStatus.SKIPPED, report.of(CheckId.TUNNEL).status)
+        assertEquals(DiagText(R.string.diag_tunnel_off), report.of(CheckId.TUNNEL).detail)
         for (id in listOf(CheckId.HANDSHAKE, CheckId.DNS, CheckId.MTU)) {
             assertEquals(CheckStatus.SKIPPED, report.of(id).status)
             assertEquals(DiagText(R.string.diag_skipped_no_tunnel_hint), report.of(id).hint)
         }
         assertEquals(CheckStatus.OK, report.of(CheckId.SPEED).status)
-        assertEquals(DiagnosisSummary.WARN, report.summary)
-        assertEquals(3, report.skippedCount)
+        assertEquals(DiagnosisSummary.OK, report.summary)
+        assertEquals(4, report.skippedCount)
+    }
+
+    @Test
+    fun `server - a stale connection is retried once on fresh connections`() = runTest {
+        val server = FakeServer(pings = ArrayDeque(listOf({ throw SocketTimeoutException("stale") })))
+        val report = runner(server = server).run()
+        assertEquals(CheckStatus.OK, report.of(CheckId.SERVER).status)
+        assertEquals(1, server.resets)
+        assertEquals(CheckStatus.OK, report.of(CheckId.SPEED).status)
     }
 
     @Test
