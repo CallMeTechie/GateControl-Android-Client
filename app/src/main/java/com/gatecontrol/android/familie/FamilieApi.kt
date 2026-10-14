@@ -1,0 +1,253 @@
+package com.gatecontrol.android.familie
+
+import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.familie.shopping.ShoppingOp
+import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
+import com.gatecontrol.android.network.ApiClient
+import com.gatecontrol.android.network.ApiClientProvider
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
+import retrofit2.Response
+import timber.log.Timber
+import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/** Outcome of a call to a plugin's app API. */
+sealed interface FamilieResult<out T> {
+    data class Ok<T>(val value: T) : FamilieResult<T>
+
+    /**
+     * The server answered with an error: [code] from `{ok:false, code}` or
+     * `http_<status>`. [retryAfter] (s) with too_soon / daily_limit;
+     * [requestId] when a locate request was refused because one is open.
+     */
+    data class Failed(val code: String, val http: Int, val retryAfter: Int? = null, val requestId: Int? = null) : FamilieResult<Nothing>
+
+    /** No answer (network, VPN, timeout). */
+    data object Offline : FamilieResult<Nothing>
+
+    data object NotConfigured : FamilieResult<Nothing>
+}
+
+/** What a create call returned, when the answer carries it. */
+data class Created<T>(val value: T?)
+
+fun <T> FamilieResult<T>.valueOrNull(): T? = (this as? FamilieResult.Ok)?.value
+
+fun FamilieResult<*>.errorCode(): String? = when (this) {
+    is FamilieResult.Failed -> code
+    FamilieResult.Offline -> FamilieApi.CODE_OFFLINE
+    FamilieResult.NotConfigured -> FamilieApi.CODE_OFFLINE
+    is FamilieResult.Ok -> null
+}
+
+/**
+ * The Familie plugin's app API (contract B3) through the core server's
+ * client plugin bridge (`/api/v1/client/plugins/gatecontrol-familie/api/…`,
+ * contract A3): one method per endpoint, typed answers from [FamilieJson].
+ * Also the Alltag plugin's `app/events` (B5). Never throws.
+ */
+@Singleton
+class FamilieApi @Inject constructor(
+    private val setupRepository: SetupRepository,
+    private val apiClientProvider: ApiClientProvider,
+) {
+    companion object {
+        const val CODE_OFFLINE = "offline"
+        const val CODE_INVALID = "invalid_answer"
+        private const val TIMEOUT_MS = 20_000L
+        /** No slashes, no leading dot (`..`): one plain path segment. */
+        private val SEGMENT_RE = Regex("^[A-Za-z0-9_:-][A-Za-z0-9_.:-]{0,63}$")
+
+        /** Path from fixed words and ids; an id that is not a plain token is refused. */
+        internal fun path(vararg segments: Any): String? {
+            val parts = segments.map { it.toString() }
+            return if (parts.all { SEGMENT_RE.matches(it) }) parts.joinToString("/") else null
+        }
+    }
+
+    private suspend fun <T> call(
+        plugin: String = FAMILIE_PLUGIN,
+        request: suspend ApiClient.() -> Response<JsonObject>,
+        parse: (JsonObject) -> T?,
+    ): FamilieResult<T> {
+        val url = setupRepository.getServerUrl()
+        if (url.isBlank() || !setupRepository.isConfigured()) return FamilieResult.NotConfigured
+        return try {
+            val response = withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.getClient(url).request() }
+                ?: return FamilieResult.Offline
+            if (response.isSuccessful) {
+                val body = response.body() ?: JsonObject()
+                if (body.has("ok") && body.get("ok").let { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean && !it.asBoolean }) {
+                    return failed(body, response.code())
+                }
+                parse(body)?.let { FamilieResult.Ok(it) } ?: FamilieResult.Failed(CODE_INVALID, response.code())
+            } else {
+                val err = runCatching {
+                    response.errorBody()?.use { b -> b.string().takeIf { it.length < 16_384 } }
+                        ?.let { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }
+                }.getOrNull()
+                Timber.d("Familie: %s answered HTTP %d", plugin, response.code())
+                failed(err, response.code())
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            FamilieResult.Offline
+        } catch (e: Exception) {
+            Timber.d("Familie: call failed (%s)", e.javaClass.simpleName)
+            FamilieResult.Failed(CODE_INVALID, 0)
+        }
+    }
+
+    private fun failed(body: JsonObject?, http: Int): FamilieResult.Failed = FamilieResult.Failed(
+        code = FamilieJson.errorCode(body) ?: if (body != null && http in 200..299) "failed" else "http_$http",
+        http = http,
+        retryAfter = FamilieJson.retryAfter(body),
+        requestId = FamilieJson.refusedRequestId(body),
+    )
+
+    private suspend fun <T> get(path: String?, query: Map<String, String> = emptyMap(), plugin: String = FAMILIE_PLUGIN, parse: (JsonObject) -> T?): FamilieResult<T> {
+        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
+        return call(plugin, { pluginGet(plugin, p, query) }, parse)
+    }
+
+    private suspend fun <T> post(path: String?, body: JsonObject = JsonObject(), parse: (JsonObject) -> T?): FamilieResult<T> {
+        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
+        return call(FAMILIE_PLUGIN, { pluginPost(FAMILIE_PLUGIN, p, body) }, parse)
+    }
+
+    private suspend fun <T> patch(path: String?, body: JsonObject, parse: (JsonObject) -> T?): FamilieResult<T> {
+        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
+        return call(FAMILIE_PLUGIN, { pluginPatch(FAMILIE_PLUGIN, p, body) }, parse)
+    }
+
+    private suspend fun delete(path: String?): FamilieResult<Unit> {
+        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
+        return call(FAMILIE_PLUGIN, { pluginDelete(FAMILIE_PLUGIN, p) }) { }
+    }
+
+    private val unit: (JsonObject) -> Unit = { }
+
+    // ─── me / overview ───────────────────────────────────────────────
+
+    suspend fun me(): FamilieResult<FamilieProfile> = get(path("me"), parse = FamilieJson::profile)
+
+    suspend fun overview(): FamilieResult<FamilieOverview> = get(path("overview"), parse = FamilieJson::overview)
+
+    // ─── shopping ────────────────────────────────────────────────────
+
+    suspend fun shopping(since: String?): FamilieResult<ShoppingSnapshot> =
+        get(path("shopping"), if (since != null) mapOf("since" to since) else emptyMap(), parse = FamilieJson::shopping)
+
+    suspend fun shoppingOps(ops: List<ShoppingOp>): FamilieResult<FamilieJson.OpsResult> =
+        post(path("shopping", "ops"), FamilieJson.opsBody(ops), FamilieJson::opsResult)
+
+    suspend fun shoppingGoing(listId: String): FamilieResult<Unit> = post(path("shopping", "lists", listId, "going"), parse = unit)
+
+    // ─── tasks ───────────────────────────────────────────────────────
+
+    suspend fun tasks(): FamilieResult<TasksPayload> = get(path("tasks"), parse = FamilieJson::tasks)
+
+    suspend fun createTask(draft: TaskDraft): FamilieResult<Unit> = post(path("tasks"), FamilieJson.taskBody(draft), unit)
+
+    suspend fun updateTask(id: Int, draft: TaskDraft): FamilieResult<Unit> = patch(path("tasks", id), FamilieJson.taskBody(draft), unit)
+
+    suspend fun deleteTask(id: Int): FamilieResult<Unit> = delete(path("tasks", id))
+
+    /** [occurrence] (`YYYY-MM-DD`) from a reminder: tick exactly that one. */
+    suspend fun taskDone(id: Int, occurrence: String? = null): FamilieResult<Unit> =
+        post(path("tasks", id, "done"), JsonObject().apply { occurrence?.let { addProperty("occurrence", it) } }, unit)
+
+    suspend fun taskSnooze(id: Int, minutes: Int, occurrence: String? = null): FamilieResult<Unit> =
+        post(
+            path("tasks", id, "snooze"),
+            JsonObject().apply {
+                addProperty("minutes", minutes.coerceIn(15, 240))
+                occurrence?.let { addProperty("occurrence", it) }
+            },
+            unit,
+        )
+
+    // ─── dates ───────────────────────────────────────────────────────
+
+    suspend fun dates(from: String, to: String): FamilieResult<List<FamilieEvent>> =
+        get(path("dates"), mapOf("from" to from, "to" to to), parse = FamilieJson::events)
+
+    suspend fun createDate(draft: EventDraft): FamilieResult<Unit> = post(path("dates"), FamilieJson.eventBody(draft), unit)
+
+    suspend fun updateDate(id: String, draft: EventDraft): FamilieResult<Unit> = patch(path("dates", id), FamilieJson.eventBody(draft), unit)
+
+    suspend fun deleteDate(id: String): FamilieResult<Unit> = delete(path("dates", id))
+
+    /** Alltag appointments and waste dates (B5, ≤ 62 days). */
+    suspend fun alltagEvents(from: String, to: String): FamilieResult<AlltagPayload> =
+        get(path("app", "events"), mapOf("from" to from, "to" to to), plugin = ALLTAG_PLUGIN, parse = FamilieJson::alltag)
+
+    // ─── locate ──────────────────────────────────────────────────────
+
+    /** The created request; its fields are null when the server's answer does not carry it. */
+    suspend fun requestLocation(childId: Int): FamilieResult<Created<LocateRequest>> =
+        post(path("locate", childId), parse = { Created(FamilieJson.requestIn(it)) })
+
+    suspend fun answer(requestId: Int, lat: Double, lon: Double, accuracy: Double, at: String, battery: Int?): FamilieResult<Unit> =
+        post(path("locate", "requests", requestId, "answer"), FamilieJson.answerBody(lat, lon, accuracy, at, battery), unit)
+
+    suspend fun decline(requestId: Int, reason: String? = "busy"): FamilieResult<Unit> =
+        post(path("locate", "requests", requestId, "decline"), JsonObject().apply { reason?.let { addProperty("reason", it) } }, unit)
+
+    suspend fun fail(requestId: Int, code: LocateFailCode): FamilieResult<Unit> =
+        post(path("locate", "requests", requestId, "fail"), JsonObject().apply { addProperty("code", code.wire) }, unit)
+
+    suspend fun locateRequests(childId: Int?, limit: Int = 30): FamilieResult<List<LocateRequest>> =
+        get(
+            path("locate", "requests"),
+            buildMap {
+                if (childId != null) put("childId", childId.toString())
+                put("limit", limit.toString())
+            },
+            parse = FamilieJson::locateRequests,
+        )
+
+    suspend fun locateRequest(id: Int): FamilieResult<LocateRequest> = get(path("locate", "requests", id), parse = FamilieJson::requestIn)
+
+    // ─── arrival & SOS ───────────────────────────────────────────────
+
+    suspend fun arrival(label: String?, lat: Double?, lon: Double?, accuracy: Double?): FamilieResult<Unit> =
+        post(
+            path("arrival"),
+            FamilieJson.positionBody(lat, lon, accuracy, label?.trim()?.take(60)?.takeIf { it.isNotBlank() }?.let { mapOf("label" to it) }.orEmpty()),
+            unit,
+        )
+
+    suspend fun sos(lat: Double?, lon: Double?, accuracy: Double?, at: String?): FamilieResult<Created<Int>> =
+        post(path("sos"), FamilieJson.positionBody(lat, lon, accuracy, at?.let { mapOf("at" to it) }.orEmpty()), parse = { Created(FamilieJson.sosId(it)) })
+
+    suspend fun sosAck(sosId: Int): FamilieResult<Unit> = post(path("sos", sosId, "ack"), parse = unit)
+
+    // ─── places ──────────────────────────────────────────────────────
+
+    suspend fun places(): FamilieResult<List<FamiliePlace>> = get(path("places"), parse = FamilieJson::places)
+
+    suspend fun createPlace(draft: PlaceDraft): FamilieResult<Unit> = post(path("places"), FamilieJson.placeBody(draft), unit)
+
+    suspend fun updatePlace(id: Int, draft: PlaceDraft): FamilieResult<Unit> = patch(path("places", id), FamilieJson.placeBody(draft), unit)
+
+    suspend fun deletePlace(id: Int): FamilieResult<Unit> = delete(path("places", id))
+
+    suspend fun placeConsent(id: Int, accept: Boolean): FamilieResult<Unit> =
+        post(path("places", id, "consent"), JsonObject().apply { addProperty("accept", accept) }, unit)
+
+    suspend fun placeTriggered(id: Int, transition: String, at: String): FamilieResult<Unit> =
+        post(
+            path("places", id, "triggered"),
+            JsonObject().apply {
+                addProperty("transition", transition)
+                addProperty("at", at)
+            },
+            unit,
+        )
+}

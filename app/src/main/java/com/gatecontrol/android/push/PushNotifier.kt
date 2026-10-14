@@ -18,6 +18,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.gatecontrol.android.MainActivity
 import com.gatecontrol.android.R
 import com.gatecontrol.android.data.SettingsRepository
+import com.gatecontrol.android.familie.push.FamiliePushHandler
 import com.gatecontrol.android.notify.ChannelImportance
 import com.gatecontrol.android.notify.ChannelSpec
 import com.gatecontrol.android.notify.PushChannels
@@ -45,6 +46,7 @@ import javax.inject.Singleton
 class PushNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
+    private val familie: dagger.Lazy<FamiliePushHandler>,
 ) : PushPresenter {
 
     companion object {
@@ -128,7 +130,7 @@ class PushNotifier @Inject constructor(
                     else -> NotificationCompat.PRIORITY_DEFAULT
                 },
             )
-            .setContentIntent(openIntent(message, null, slot = 0))
+            .setContentIntent(openIntent(message, null, slot = 0, familieDest = familie.get().destination(message)))
             .setDeleteIntent(receiverIntent(PushActionReceiver.ACTION_DISMISSED, message, null, slot = 1))
         if (priority == PushPriority.CRITICAL) builder.setColor(0xFFFF8080.toInt())
         if (message.body.isNotBlank()) {
@@ -136,16 +138,22 @@ class PushNotifier @Inject constructor(
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(message.body))
         }
 
-        // Server actions, with "Gesehen" after the first one (mockup: Details · Gesehen · 1 h stumm).
-        val seen = PushAction(ACTION_SEEN, ctx.getString(R.string.push_action_seen), PushActionType.ACK)
-        val actions = (message.actions.take(1) + seen + message.actions.drop(1)).take(MAX_ACTIONS)
-        actions.forEachIndexed { i, action ->
-            val pi = when {
-                action.id == ACTION_SEEN -> receiverIntent(PushActionReceiver.ACTION_READ, message, null, slot = 2 + i)
-                action.type in PushActionType.BACKGROUND -> receiverIntent(PushActionReceiver.ACTION_RUN, message, action, slot = 2 + i)
-                else -> openIntent(message, action, slot = 2 + i)
+        // Familie messages bring their own buttons (send location, done, accept, …).
+        val familieButtons = familie.get().buttons(message, notificationId) { slot -> uri(message, slot) }
+        if (familieButtons.isNotEmpty()) {
+            familieButtons.forEach { builder.addAction(0, ctx.getString(it.label), it.intent) }
+        } else {
+            // Server actions, with "Gesehen" after the first one (mockup: Details · Gesehen · 1 h stumm).
+            val seen = PushAction(ACTION_SEEN, ctx.getString(R.string.push_action_seen), PushActionType.ACK)
+            val actions = (message.actions.take(1) + seen + message.actions.drop(1)).take(MAX_ACTIONS)
+            actions.forEachIndexed { i, action ->
+                val pi = when {
+                    action.id == ACTION_SEEN -> receiverIntent(PushActionReceiver.ACTION_READ, message, null, slot = 2 + i)
+                    action.type in PushActionType.BACKGROUND -> receiverIntent(PushActionReceiver.ACTION_RUN, message, action, slot = 2 + i)
+                    else -> openIntent(message, action, slot = 2 + i)
+                }
+                builder.addAction(0, action.label, pi)
             }
-            builder.addAction(0, action.label, pi)
         }
 
         post(notificationId, builder.build())
@@ -155,12 +163,17 @@ class PushNotifier @Inject constructor(
         NotificationManagerCompat.from(context).cancel(notificationId)
     }
 
+    /** Familie messages: locate answers, geofence sync, … (see FamiliePushHandler). */
+    override suspend fun onNew(message: PushMessage) {
+        familie.get().onNew(message)
+    }
+
     /** Distinct data URI per message and slot: PendingIntents must not overwrite each other. */
     private fun uri(message: PushMessage, slot: Int): Uri =
         Uri.parse("gatecontrol-push://message/${message.id}/${message.seq}/$slot")
 
-    private fun openIntent(message: PushMessage, action: PushAction?, slot: Int): PendingIntent {
-        val intent = PushOpenActivity.intent(context, message.id, action).setData(uri(message, slot))
+    private fun openIntent(message: PushMessage, action: PushAction?, slot: Int, familieDest: String? = null): PendingIntent {
+        val intent = PushOpenActivity.intent(context, message.id, action, familieDest).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 

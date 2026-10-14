@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.VpnService
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.familie.FamilieStartup
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.push.PushController
 import com.gatecontrol.android.service.ClientPolicyManager
@@ -32,6 +33,7 @@ class BootReceiver : BroadcastReceiver() {
     @Inject lateinit var tunnelManager: TunnelManager
     @Inject lateinit var clientPolicyManager: ClientPolicyManager
     @Inject lateinit var pushController: PushController
+    @Inject lateinit var familieStartup: FamilieStartup
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
@@ -39,6 +41,8 @@ class BootReceiver : BroadcastReceiver() {
 
         // Notification center, mode "always": its foreground service may start from BOOT_COMPLETED.
         runCatching { pushController.onBoot() }
+        // Familie place reminders: Android drops geofences on reboot.
+        runCatching { familieStartup.onBoot() }
 
         val pendingResult = goAsync()
 

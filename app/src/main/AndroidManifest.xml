@@ -205,6 +205,37 @@
             android:taskAffinity=""
             android:theme="@style/Theme.GateControl.TileAction" />
 
+        <!-- Familie: buttons of Familie notifications (send / decline the
+             location, task done, accept a place reminder, SOS seen). NOT
+             exported: only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".familie.push.FamilieActionReceiver"
+            android:exported="false" />
+
+        <!-- Familie: geofence transitions of place reminders, delivered by
+             Play services through the app's own PendingIntent. NOT exported. -->
+        <receiver
+            android:name=".familie.places.GeofenceReceiver"
+            android:exported="false" />
+
+        <!-- Familie: opens a screen of the Familie tab from the app's own
+             notifications. NOT exported. -->
+        <activity
+            android:name=".familie.push.FamilieOpenActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GateControl.TileAction" />
+
+        <!-- Familie: "Standort senden" from a locate notification when the app
+             may not locate in the background (locates while visible). NOT exported. -->
+        <activity
+            android:name=".familie.push.FamilieLocateActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.GateControl.TileAction" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

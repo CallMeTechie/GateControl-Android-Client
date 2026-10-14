@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.location.LocationRequest
 import android.os.CancellationSignal
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
@@ -23,8 +24,9 @@ sealed interface LocateResult {
 /**
  * One-shot position from the platform [LocationManager] (fused provider
  * when the device has one, else GPS, else network) — no Play services,
- * so the GitHub build works the same. Only ever called in the foreground
- * after the user tapped the satellite button.
+ * so the GitHub build works the same. Called in the foreground after the
+ * user tapped the satellite button, and by the Familie feature when a
+ * parent asks for a child's location (see familie/locate).
  */
 object DeviceLocator {
 
@@ -45,8 +47,16 @@ object DeviceLocator {
     fun isLocationOn(context: Context): Boolean =
         context.getSystemService(LocationManager::class.java)?.isLocationEnabled ?: false
 
+    fun hasBackgroundPermission(context: Context): Boolean =
+        granted(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+
+    /**
+     * One position. [timeoutMs] bounds the wait for a new fix; without one a
+     * cached position up to [staleMs] old is taken. Used on tap (defaults)
+     * and by the Familie locate answer (30 s, 2 min).
+     */
     @Suppress("MissingPermission") // checked by hasPermission() first
-    suspend fun locate(context: Context): LocateResult {
+    suspend fun locate(context: Context, timeoutMs: Long = TIMEOUT_MS, staleMs: Long = STALE_MS): LocateResult {
         if (!hasPermission(context)) return LocateResult.NoPermission
         val lm = context.getSystemService(LocationManager::class.java) ?: return LocateResult.NoFix
         if (!lm.isLocationEnabled) return LocateResult.LocationOff
@@ -60,10 +70,10 @@ object DeviceLocator {
             .minByOrNull { it.accuracy }
             ?.let { return LocateResult.Fix(it) }
 
-        val fresh = withTimeoutOrNull(TIMEOUT_MS) { current(context, lm, providers.first()) }
+        val fresh = withTimeoutOrNull(timeoutMs) { current(context, lm, providers.first()) }
         if (fresh != null) return LocateResult.Fix(fresh)
 
-        return cached.filter { ageMs(it) <= STALE_MS }
+        return cached.filter { ageMs(it) <= staleMs }
             .minByOrNull { if (it.hasAccuracy()) it.accuracy else Float.MAX_VALUE }
             ?.let { LocateResult.Fix(it) }
             ?: LocateResult.NoFix
@@ -75,7 +85,8 @@ object DeviceLocator {
             val signal = CancellationSignal()
             cont.invokeOnCancellation { signal.cancel() }
             try {
-                lm.getCurrentLocation(provider, signal, ContextCompat.getMainExecutor(context)) { loc ->
+                val request = LocationRequest.Builder(0L).setQuality(LocationRequest.QUALITY_HIGH_ACCURACY).build()
+                lm.getCurrentLocation(provider, request, signal, ContextCompat.getMainExecutor(context)) { loc ->
                     if (cont.isActive) cont.resume(loc)
                 }
             } catch (e: Exception) {

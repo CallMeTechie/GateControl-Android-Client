@@ -11,15 +11,26 @@ sealed interface PushNavTarget {
     data object Vpn : PushNavTarget
     data object Services : PushNavTarget
 
+    /**
+     * A screen of the Familie tab ([dest] = FamilieDest key). Without the
+     * tab (plugin gone meanwhile) the message [messageId] opens instead.
+     */
+    data class Familie(val dest: String, val messageId: Long? = null) : PushNavTarget
+
     companion object {
+        /** App route of the Familie plugin (`plg-gatecontrol-familie`). */
+        const val FAMILIE_ROUTE = "plg-gatecontrol-familie"
+
         /**
-         * App route of the contract → screen. `gateways` and plugin routes
-         * (`plg-<id>`) have no screen in the app: the message itself opens.
+         * App route of the contract → screen. `gateways` and other plugin
+         * routes (`plg-<id>`) have no screen in the app: the message itself
+         * opens. The Familie plugin has its own tab.
          */
         fun forRoute(route: String?, messageId: Long?): PushNavTarget = when (route) {
             "vpn" -> Vpn
             "services" -> Services
             "inbox" -> Inbox
+            FAMILIE_ROUTE -> Familie("home", messageId?.takeIf { it > 0 })
             else -> if (messageId != null && messageId > 0) Detail(messageId) else Inbox
         }
     }

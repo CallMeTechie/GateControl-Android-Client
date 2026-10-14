@@ -17,6 +17,7 @@ import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.navigation.AppNavigation
 import com.gatecontrol.android.push.PushController
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -36,6 +37,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var licenseRepository: LicenseRepository
     @Inject lateinit var pushController: PushController
+    @Inject lateinit var pluginDirectory: PluginDirectory
 
     /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
     private var pendingSetupLink by mutableStateOf<String?>(null)
@@ -73,6 +75,8 @@ class MainActivity : ComponentActivity() {
                     setupRepository.isConfigured() || setupRepository.hasWireGuardConfig()
                 val permissions by licenseRepository.permissions
                     .collectAsStateWithLifecycle()
+                // Cached on the device: the Familie tab is there from the first frame.
+                val plugins by pluginDirectory.state.collectAsStateWithLifecycle()
 
                 AppNavigation(
                     navController = navController,
@@ -80,6 +84,7 @@ class MainActivity : ComponentActivity() {
                     hasRdpPermission = permissions.rdp,
                     hasServicesPermission = permissions.services,
                     hasPiholePermission = permissions.pihole,
+                    plugins = plugins,
                     pendingSetupLink = pendingSetupLink,
                     onSetupLinkConsumed = { pendingSetupLink = null },
                 )
@@ -92,6 +97,8 @@ class MainActivity : ComponentActivity() {
         // Battery-optimisation state may have changed in the system settings;
         // a push service refused in the background can start now.
         pushController.onForeground()
+        // Plugin list (Familie tab): refreshed in the foreground, at most every few minutes.
+        pluginDirectory.refreshIfStale()
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -75,6 +75,11 @@ import com.gatecontrol.android.ui.setup.QrScannerScreen
 import com.gatecontrol.android.ui.setup.SetupScreen
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.vpn.VpnScreen
+import com.gatecontrol.android.familie.FamilieDest
+import com.gatecontrol.android.familie.PluginAvailability
+import com.gatecontrol.android.ui.familie.FamilieHomeScreen
+import com.gatecontrol.android.ui.familie.FamiliePage
+import com.gatecontrol.android.ui.familie.FamilieTwoPane
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.push.PushNavTarget
@@ -95,6 +100,7 @@ private val bottomBarRoutes = setOf(
     Screen.Vpn.route,
     Screen.Rdp.route,
     Screen.Network.route,
+    Screen.Familie.route,
     Screen.Settings.route,
 )
 
@@ -114,6 +120,8 @@ fun AppNavigation(
     hasServicesPermission: Boolean,
     hasPiholePermission: Boolean,
     onlineRdpHostCount: Int = 0,
+    /** What the server's plugins offer (Familie tab), cached on the device. */
+    plugins: PluginAvailability = PluginAvailability.NONE,
     /** gatecontrol://enroll link the app was opened with; consumed once shown. */
     pendingSetupLink: String? = null,
     onSetupLinkConsumed: () -> Unit = {},
@@ -135,6 +143,10 @@ fun AppNavigation(
         }
     }
 
+    // The plugin's own tab icon (SVG path), else the house.
+    val familieIcon = remember(plugins.familieIcon) {
+        plugins.familieIcon?.let { path -> runCatching { GcIcons.fromPath("FamilieTab", path) }.getOrNull() } ?: GcIcons.Family
+    }
     val tabs = buildList {
         add(TabItem(Screen.Vpn.route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield))
         if (hasRdpPermission) {
@@ -142,6 +154,10 @@ fun AppNavigation(
         }
         if (hasServicesPermission || hasPiholePermission) {
             add(TabItem(Screen.Network.route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe))
+        }
+        // Plugin tab after the built-in ones, settings stay last (docs/FAMILIE.md).
+        if (plugins.familieTab) {
+            add(TabItem(Screen.Familie.route, Screen.Familie.create(), R.string.nav_familie, familieIcon))
         }
         add(TabItem(Screen.Settings.route, Screen.Settings.create(), R.string.nav_settings, GcIcons.Sliders))
     }
@@ -372,6 +388,48 @@ fun AppNavigation(
                 }
             }
 
+            composable(
+                route = Screen.Familie.route,
+                arguments = listOf(
+                    navArgument(Screen.Familie.ARG_DEST) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val dest = FamilieDest.parse(backStackEntry.arguments?.getString(Screen.Familie.ARG_DEST))
+                if (layout.twoPane) {
+                    FamilieTwoPane(initial = dest)
+                } else {
+                    GcContentWidth {
+                        FamilieHomeScreen(onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) })
+                    }
+                }
+            }
+
+            composable(
+                route = Screen.FamiliePage.route,
+                arguments = listOf(
+                    navArgument(Screen.FamiliePage.ARG_DEST) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val dest = FamilieDest.parse(backStackEntry.arguments?.getString(Screen.FamiliePage.ARG_DEST)) ?: FamilieDest.Home
+                GcContentWidth {
+                    FamiliePage(
+                        dest = dest,
+                        onBack = {
+                            if (!navController.popBackStack()) navigateToTab(Screen.Familie.create())
+                        },
+                        onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) },
+                    )
+                }
+            }
+
             composable(Screen.SettingsServer.route) {
                 GcContentWidth {
                     ServerSettingsScreen(
@@ -417,7 +475,7 @@ fun AppNavigation(
                                     onBack = { selected = null },
                                     onNavigate = { target ->
                                         if (target is PushNavTarget.Detail) selected = target.id
-                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout)
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab)
                                     },
                                     viewModel = detailViewModel,
                                 )
@@ -444,7 +502,7 @@ fun AppNavigation(
                         onBack = {
                             if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
                         },
-                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout) },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab) },
                     )
                 }
             }
@@ -484,7 +542,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, layout)
+            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -505,6 +563,7 @@ private fun openPushTarget(
     target: PushNavTarget,
     navigateToTab: (String) -> Unit,
     layout: GcWindowLayout,
+    familieTab: Boolean,
 ) {
     when (target) {
         PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
@@ -518,6 +577,29 @@ private fun openPushTarget(
         PushNavTarget.Services -> navController.navigate(Screen.Network.create()) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
+        }
+        is PushNavTarget.Familie -> {
+            val dest = FamilieDest.parse(target.dest) ?: FamilieDest.Home
+            when {
+                // No Familie tab (plugin gone meanwhile): the message itself.
+                !familieTab -> openPushTarget(
+                    navController,
+                    target.messageId?.let { PushNavTarget.Detail(it) } ?: PushNavTarget.Inbox,
+                    navigateToTab,
+                    layout,
+                    familieTab = false,
+                )
+                // Wide screens: the screen beside the Familie start screen. No
+                // restoreState: the dest argument must win over a saved state.
+                layout.twoPane -> navController.navigate(Screen.Familie.create(dest.key)) {
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                }
+                else -> {
+                    navigateToTab(Screen.Familie.create())
+                    if (dest != FamilieDest.Home) navController.navigate(Screen.FamiliePage.create(dest.key))
+                }
+            }
         }
     }
 }

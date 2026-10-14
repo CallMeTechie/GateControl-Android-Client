@@ -79,6 +79,13 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start the widget state")
         }
 
+        // Familie plugin: geofences back, plugin list and membership fresh, waiting changes sent.
+        try {
+            EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).familieStartup().onAppStart()
+        } catch (e: Throwable) {
+            Timber.e(e, "Failed to start the Familie background work")
+        }
+
         // Crash reports of earlier runs go to the server as a support bundle.
         try {
             val uploader = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).crashReportUploader()
@@ -115,6 +122,7 @@ class GateControlApp : Application() {
         fun tunnelSupervisor(): TunnelSupervisor
         fun trustedNetworkMonitor(): TrustedNetworkMonitor
         fun crashReportUploader(): CrashReportUploader
+        fun familieStartup(): com.gatecontrol.android.familie.FamilieStartup
     }
 
     private fun installCrashLogger(context: Context) {

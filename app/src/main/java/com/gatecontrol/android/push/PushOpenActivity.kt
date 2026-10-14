@@ -75,8 +75,14 @@ class PushOpenActivity : ComponentActivity() {
             return
         }
 
-        // A tap on the message itself opens its detail; an action goes to its app route.
-        val navTarget = if (actionType == PushActionType.OPEN_APP_ROUTE) PushNavTarget.forRoute(target, id) else PushNavTarget.Detail(id)
+        // A tap on the message itself opens its detail (a Familie message: its
+        // screen in the Familie tab); an action goes to its app route.
+        val familieDest = intent.getStringExtra(EXTRA_FAMILIE_DEST)
+        val navTarget = when {
+            actionType == PushActionType.OPEN_APP_ROUTE -> PushNavTarget.forRoute(target, id)
+            familieDest != null && actionType == null -> PushNavTarget.Familie(familieDest, id)
+            else -> PushNavTarget.Detail(id)
+        }
         PushNavigation.request(navTarget)
         startActivity(
             Intent(this, MainActivity::class.java)
@@ -91,6 +97,7 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_ACTION_TYPE = "com.gatecontrol.android.push.extra.ACTION_TYPE"
         private const val EXTRA_TARGET = "com.gatecontrol.android.push.extra.TARGET"
         private const val EXTRA_INBOX = "com.gatecontrol.android.push.extra.INBOX"
+        private const val EXTRA_FAMILIE_DEST = "com.gatecontrol.android.push.extra.FAMILIE_DEST"
 
         /** Opens "Mitteilungen" (the widget's bell). */
         fun inboxIntent(context: Context): Intent =
@@ -103,9 +110,10 @@ class PushOpenActivity : ComponentActivity() {
         private val ackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
         /** Explicit intent to this non-exported activity. */
-        fun intent(context: Context, id: Long, action: PushAction?): Intent =
+        fun intent(context: Context, id: Long, action: PushAction?, familieDest: String? = null): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_ID, id)
+                .apply { if (familieDest != null) putExtra(EXTRA_FAMILIE_DEST, familieDest) }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
                 .apply {
                     if (action != null) {
