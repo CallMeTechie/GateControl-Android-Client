@@ -3,7 +3,9 @@
 Developer notes for the "Familie" tab: the app side (part C) of the
 `gatecontrol-familie` plugin 1.0.0, plus the 1.1 modules "Abholen &
 Fahrten" (`rides`) and "Notfall-Karte" (`emergency`) — see
-[Familie 1.1](#familie-11-rides-and-emergency-card). The server side is the core client
+[Familie 1.1](#familie-11-rides-and-emergency-card) — and the 1.2 modules
+Taschengeld, Wunschlisten, Haushaltsbuch, Pinnwand, Essensplan and
+Anwesenheit — see [Familie 1.2](#familie-12-money-board-meals-presence). The server side is the core client
 plugin API (`GET /api/v1/client/plugins`, `ALL
 /api/v1/client/plugins/:id/api/*`, GateControl ≥ 1.164.0) and the plugin's
 own app API (contract B3). Everything goes to the user's own GateControl
@@ -48,12 +50,18 @@ every other call of the app.
 | `familie/rides/` | 1.1: `RideModels`, `RideLogic` (who may take / decline / give back, "Offen" vs. week, reminder time, place reminder draft) |
 | `familie/emergency/` | 1.1: `EmergencyModels`, `EmergencyCache` (AES-GCM file, `CacheCipher`), `EmergencyCacheStore` (Keystore key, no-backup dir), `EmergencyRepository` |
 | `familie/FamilieShortcuts.kt` | 1.1: dynamic app shortcut "Notfall-Karte" |
+| `familie/FamilieJson12.kt` | 1.2: parsers and bodies of allowance, wishes, expenses, board, meals, presence (same hand-written Gson-tree style) |
+| `familie/money/` | 1.2: `MoneyModels` (allowance, wishes, expenses), `Money` (cents ↔ text, category bar, star steps) |
+| `familie/board/`, `familie/meals/` | 1.2: pinboard / checklists, meal plan (`MealWeek`: ISO weeks) |
+| `familie/presence/` | 1.2: `PresenceLogic` (sense + report decision), `PresenceReporter` (+ `PresenceReportWorker`), `PresenceStore` (consent, last report) |
 | `ui/familie/` | screens, `FamilieTab.kt` (dest → screen, two-pane), `OsmMap.kt` |
+| `ui/familie/FamiliePageKit.kt` | 1.2: `FamilieLoadViewModel` (load / act / one-shot messages), page frame, floating button, money helpers |
 
 Screens are addressed by `FamilieDest` (`home`, `shopping/<listId>`,
 `tasks`, `dates`, `locate/<child>[/<request>]`, `sos/<id>/<user>/<lat>/<lon>/<acc>`,
 `child`, `places`, `place/<id|new>`, 1.1: `rides[/<rideId>]`,
-`emergency[/<userId>]`): route `familie?dest=` (tab; on wide
+`emergency[/<userId>]`, 1.2: `allowance[/<childId>]`, `wishes[/<userId>]`,
+`expenses[/list/<listId>]`, `board`, `meals[/<YYYY-Www>]`, `presence`): route `familie?dest=` (tab; on wide
 windows the screen beside the start screen, `GcTwoPane`) and
 `familie/page?dest=` (phones).
 
@@ -140,6 +148,10 @@ to `FamiliePushHandler`:
 | `ride_ask` (1.1) | refreshes an open rides screen | Ich mache es (`POST rides/<id>/take`), Kann nicht (`…/decline`) | Abholen & Fahrten (the ride highlighted) |
 | `ride_reminder`, `ride_open`, `ride_taken`, `ride_released`, `ride_unassigned` (1.1) | refreshes an open rides screen and the start screen | – | Abholen & Fahrten |
 | `locate_age_hint` (1.1, parents) | – | – | Kind orten of that child |
+| `allowance_convert` (1.2, parents) | refreshes an open allowance screen | Annehmen (`POST allowance/requests/<id>/approve`), Ablehnen (`…/decline`) | Taschengeld of that child |
+| `allowance_paid` and any other `allowance_*` (1.2) | refreshes an open allowance screen | – | Taschengeld |
+| `presence_rule` (1.2, a rule's notify action) | refreshes the presence screen and the start screen | – | Wer ist zuhause |
+| anything else on `wishes` / `expenses` / `board` / `meals` / `presence` (1.2) | refreshes that screen | – | that screen |
 
 Buttons work without opening the app (`FamilieActionReceiver`, not
 exported); on success the notification goes and the message is read
@@ -208,6 +220,9 @@ maps; it is in maintenance mode but stable and small.
 `app/src/test/.../familie/`: `FamilieJsonTest` (parsers, bodies),
 `ShoppingSyncTest` (view, merge, outbox replay, batching, offline),
 `RideLogicTest` (1.1 ride actions, sections, reminder, place reminder),
+`FamilieJson12Test` (1.2 parsers and bodies, reservations never on own
+wishes, settlement / transfers, seven-day weeks, presence states),
+`MoneyTest`, `MealWeekTest`, `PresenceLogicTest` (1.2),
 `EmergencyCacheTest` (1.1 encrypted round trip, other login / key,
 changed file, no plain text on disk),
 `FamiliePushTest` (parse, routing, buttons, freshness), `FamilieLogicTest`
@@ -312,3 +327,131 @@ reminder after taking a ride firing at the hall; the emergency shortcut
 (launcher long press, also while offline / in flight mode); the card
 after a reboot and after clearing the app's data (copy gone, new key);
 the dialer intent on a tablet without telephony.
+
+## Familie 1.2: money, board, meals, presence
+
+Contract: plugin 1.2.0 (GateControl ≥ 1.166.0). New switches in `GET me`
+→ `modules`: `allowance`, `wishes`, `expenses`, `board`, `meals`,
+`presence`; `GET overview` gains `allowance`, `meals`, `board`, `presence`
+(null when off). Every screen follows the switches and the role; on wide
+windows they open beside the start screen like the others. Money is
+bookkeeping only — the app never pays, charges or transfers anything;
+amounts are integer cents (EUR), formatted in the app language
+(`Money.format`: "23,50 €", "+ 5,00 €", "− 8,50 €").
+
+Parsing: `FamilieJson12`, hand-written over the Gson tree like
+`FamilieJson` (no reflection, so R8 cannot strip anything). The plugin
+1.2 was built in parallel, so the parsers also accept the obvious
+variants of a shape (`accounts` or `account`, requests per account or
+top level, `items` flat or `lists` per member, `settlement` single or
+`transfers`, overview `presence` as `members` or `home: [ids]`). Nothing
+new is persisted with reflective Gson: presence settings live in plain
+SharedPreferences (`familie_presence`), the stored profile only gained
+booleans (`FamilieModules`, inside the kept `familie` package).
+
+### Taschengeld (`allowance`, mockup AppAllowance)
+
+- `GET allowance`, `POST allowance/<childId>/bookings {cents, note, kind}`
+  (parents: "Gutschreiben" = `manual` +, "Ausgabe" = `spend` −), `PUT
+  allowance/<childId>/rule` (amount, weekly weekday / monthly day 1–28,
+  active, and the star rate `{stars, cents}` or null), `POST
+  allowance/<childId>/convert {stars}` (the child), `POST
+  allowance/requests/<id>/approve|decline` (parents).
+- Screen: green balance card (red when negative), "nächstes Taschengeld:
+  Samstag · 5,00 €", stars row "12 Sterne · 10 Sterne = 1 €" with
+  "Umwandeln" (whole steps of the rate, at most what is convertible; one
+  open request at a time), recent bookings; parents: child chips, open
+  requests with Annehmen / Ablehnen, "Buchen", "Regel". Children see a
+  link to their wish list.
+
+### Wunschlisten (`wishes`)
+
+- `GET wishes`, `POST/PATCH/DELETE wishes[/<id>]` (owner; parents for
+  their children — `ownerId` on create), `PATCH {gotIt:true}`
+  ("Bekommen", then hidden), `POST wishes/<id>/reserve|unreserve`.
+- **Never** a reservation on the caller's own items: the server does not
+  send it and `FamilieJson12.wishes(…, myUserId)` drops it anyway.
+  Others' lists show "Ich besorge das", "Besorgst du" + "Freigeben", or
+  "<Name> besorgt das". Links are https only.
+
+### Haushaltsbuch (`expenses`, parents, mockup AppExpenses)
+
+- `GET expenses?month=YYYY-MM`, `POST/PATCH/DELETE expenses[/<id>]`, `POST
+  expenses/settle {month}` ("Erledigt" — a record only).
+- Screen: month switcher (no future months), total "gemeinsam
+  ausgegeben", category bar + legend (`Money.shares`), settlement card
+  "Ausgleich: Marc → Anna 48,20 €" (one line per transfer with 3+
+  parents) with "Erledigt", the expenses (payer avatar, category, "nicht
+  geteilt"), floating "+ Ausgabe".
+- After "Ich gehe einkaufen" a parent gets the snackbar "Einkauf
+  erfassen?" when the module is on; "Erfassen" opens a new expense
+  (category Lebensmittel, the list name as note) — `FamilieDest.Expenses(listId)`.
+
+### Pinnwand & Packlisten (`board`)
+
+- `GET board`; notes `POST/PATCH/DELETE board/notes[/<id>]` (text,
+  colour, pinned, optional end date → `expiresAt` = end of that day in the
+  device's zone, as ISO UTC); checklists `POST board/checklists
+  {templateId | title}`, `DELETE board/checklists/<id>`, items `POST
+  …/items {text}`, `PATCH …/items/<itemId> {done}`, `DELETE …`;
+  templates `POST board/templates {checklistId, title}`, `DELETE
+  board/templates/<id>`.
+- Screen: "Notizen" (two-column grid, pinned first) and "Listen"
+  (expandable checklists, tick shown at once, "Als Vorlage speichern",
+  new list from a template). Delete of a note: its author and parents.
+
+### Essensplan (`meals`)
+
+- `GET meals?week=YYYY-Www` (always seven days, `MealWeek`), `PUT/DELETE
+  meals/<date>/<lunch|dinner>`, `POST …/to-shopping {listId}`.
+- Screen: week switcher ("KW 42"), Monday … Sunday with Mittag / Abend;
+  edit dish, note, who cooks, ingredients (one per line); "Zutaten auf
+  die Liste" (shopping module on; the list is picked when there are
+  several) — the server skips ingredients already open on the list, the
+  app then syncs the shopping lists. Start screen: "Essen: Pfannkuchen".
+
+### Anwesenheit (`presence`)
+
+- Consent: "Anwesenheit teilen" in the app settings (group "Familie",
+  only while the plugin is there and the module is on) and on the "Wer
+  ist zuhause" screen. Switching on asks first (what is sent, to whom,
+  that it runs in the background); `PUT presence/consent {share}` — only
+  when the server took it is it stored on the phone (`PresenceStore`,
+  bound to the login). The server's own flag (`GET presence`) wins on
+  app start and when the screen opens.
+- Sensing (`PresenceLogic.sense`) reuses the trusted-WLAN home check —
+  `TrustedNetworkMonitor.network` / `.status.home` (`HomeCheck`), no GPS,
+  no new permission: Wi-Fi + `HOME` = home; Wi-Fi + `NOT_HOME`, or mobile
+  data / other networks = away; everything else (checking, failed,
+  unsupported, no network) = unknown, never reported. The check only runs
+  with "Vertrauenswürdige WLANs" + "Heimnetz des Servers erkennen" on
+  (and a policy that lets the app disconnect); otherwise nothing is
+  reported and the switch explains how to turn it on.
+- Reporting (`PresenceReporter`, started with the app process from
+  `FamilieStartup`, so it runs wherever the monitor runs, also in the
+  background): a state must hold 2 minutes (`debounce`), it is sent only
+  with consent and the module on and only when it differs from the last
+  report; `POST presence {home, at}` (`at` = when the state began) goes
+  through a unique WorkManager job (network constraint, the newest state
+  replaces a waiting one, `too_soon` / 429 retried with backoff). Consent
+  off, module off or leaving the family cancels it; a new consent sends
+  the current state again.
+- Start screen: "zuhause" / "unterwegs" under the avatars of members who
+  share, and a "Wer ist zuhause" card. Rules (smart home, notify) are set
+  in the portal / admin page; their notify messages (`presence_rule`)
+  open the presence screen.
+
+### Start screen (1.2)
+
+Cards when the modules are on: Wer ist zuhause, Essen heute, Pinnwand
+(pinned notes, open lists), Taschengeld (child: balance; parents: sum and
+open requests), Wunschlisten, Haushaltsbuch (parents).
+
+### Device checks for 1.2
+
+Presence with the screen off: arrive home (VPN disconnects, home
+confirmed) → "zuhause" on the other phones after ~2 minutes; leave on
+mobile data → "unterwegs"; Wi-Fi flapping shorter than 2 minutes must not
+report. "Annehmen" / "Ablehnen" of `allowance_convert` from the lock
+screen. The "Einkauf erfassen?" snackbar after "Ich gehe einkaufen".
+
