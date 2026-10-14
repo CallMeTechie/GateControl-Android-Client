@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.1] - 2026-10-14
+
+### Fixes
+- Familie tab crash in release builds; diagnosis with VPN off (#72)
+
+---
+
 ## [1.29.0] - 2026-10-14
 
 ### Features
