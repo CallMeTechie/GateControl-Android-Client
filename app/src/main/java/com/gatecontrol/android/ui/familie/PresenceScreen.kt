@@ -22,6 +22,7 @@ import com.gatecontrol.android.familie.FamilieProfile
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.errorCode
+import com.gatecontrol.android.familie.presence.PresenceCheck
 import com.gatecontrol.android.familie.presence.PresenceMember
 import com.gatecontrol.android.familie.presence.PresencePayload
 import com.gatecontrol.android.familie.presence.PresenceReporter
@@ -56,7 +57,7 @@ class PresenceViewModel @Inject constructor(
 ) : FamilieLoadViewModel<PresencePayload>(repository) {
 
     val share: StateFlow<Boolean> = reporter.share
-    val available: StateFlow<Boolean> = reporter.available
+    val check: StateFlow<PresenceCheck> = reporter.check
     val sense: StateFlow<PresenceSense> = reporter.sense
 
     private val _saving = MutableStateFlow(false)
@@ -145,21 +146,25 @@ fun PresenceScreen(onBack: () -> Unit, viewModel: PresenceViewModel = hiltViewMo
     }
 }
 
-/** "Anwesenheit teilen" with the explanation, a confirmation before it goes on, and the detection state. */
+/**
+ * "Anwesenheit teilen" with the explanation, a confirmation before it goes
+ * on, the detection state and, when the server can't tell (older than
+ * core 1.167, without the check, unreachable), a short note why.
+ */
 @Composable
 fun PresenceShareCard(viewModel: PresenceViewModel, modifier: Modifier = Modifier) {
     val share by viewModel.share.collectAsStateWithLifecycle()
-    val available by viewModel.available.collectAsStateWithLifecycle()
+    val check by viewModel.check.collectAsStateWithLifecycle()
     val sense by viewModel.sense.collectAsStateWithLifecycle()
     val saving by viewModel.saving.collectAsStateWithLifecycle()
     val shareError by viewModel.shareError.collectAsStateWithLifecycle()
-    PresenceShareCard(share, available, sense, saving, shareError, viewModel::setShare, viewModel::clearShareError, modifier)
+    PresenceShareCard(share, check, sense, saving, shareError, viewModel::setShare, viewModel::clearShareError, modifier)
 }
 
 @Composable
 fun PresenceShareCard(
     share: Boolean,
-    available: Boolean,
+    check: PresenceCheck,
     sense: PresenceSense,
     saving: Boolean,
     shareError: String?,
@@ -183,22 +188,30 @@ fun PresenceShareCard(
             )
             if (share) {
                 GcRowDivider()
+                val undecided = sense == PresenceSense.UNKNOWN && check != PresenceCheck.NOT_YET
                 Text(
                     when {
-                        !available -> stringResource(R.string.familie_presence_detect_off)
                         sense == PresenceSense.HOME -> stringResource(R.string.familie_presence_now_home)
                         sense == PresenceSense.AWAY -> stringResource(R.string.familie_presence_now_away)
+                        undecided -> stringResource(R.string.familie_presence_now_undecided)
                         else -> stringResource(R.string.familie_presence_now_unknown)
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (!available) extra.warn else extra.muted,
+                    color = if (undecided) extra.warn else extra.muted,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
         }
-        if (!available) {
-            GcBanner(tone = GcTone.Warn, icon = GcIcons.Wifi) {
-                Text(stringResource(R.string.familie_presence_needs_home_check), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+        val note = when {
+            !share -> null
+            check == PresenceCheck.OLD_SERVER -> R.string.familie_presence_old_server
+            check == PresenceCheck.UNSUPPORTED -> R.string.familie_presence_unsupported
+            check == PresenceCheck.FAILED -> R.string.familie_presence_check_failed
+            else -> null
+        }
+        if (note != null) {
+            GcBanner(tone = if (check == PresenceCheck.FAILED) GcTone.Info else GcTone.Warn, icon = GcIcons.Wifi) {
+                Text(stringResource(note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
             }
         }
         if (errorText != null) {
@@ -239,7 +252,7 @@ class PresenceSettingsViewModel @Inject constructor(
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), false)
 
     val share: StateFlow<Boolean> = reporter.share
-    val available: StateFlow<Boolean> = reporter.available
+    val check: StateFlow<PresenceCheck> = reporter.check
     val sense: StateFlow<PresenceSense> = reporter.sense
 
     private val _saving = MutableStateFlow(false)
@@ -273,7 +286,7 @@ fun FamiliePresenceSettings(viewModel: PresenceSettingsViewModel = hiltViewModel
     val visible by viewModel.visible.collectAsStateWithLifecycle()
     if (!visible) return
     val share by viewModel.share.collectAsStateWithLifecycle()
-    val available by viewModel.available.collectAsStateWithLifecycle()
+    val check by viewModel.check.collectAsStateWithLifecycle()
     val sense by viewModel.sense.collectAsStateWithLifecycle()
     val saving by viewModel.saving.collectAsStateWithLifecycle()
     val shareError by viewModel.shareError.collectAsStateWithLifecycle()
@@ -282,7 +295,7 @@ fun FamiliePresenceSettings(viewModel: PresenceSettingsViewModel = hiltViewModel
             stringResource(R.string.familie_presence_settings_group),
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
         )
-        PresenceShareCard(share, available, sense, saving, shareError, viewModel::setShare, viewModel::clearShareError)
+        PresenceShareCard(share, check, sense, saving, shareError, viewModel::setShare, viewModel::clearShareError)
     }
 }
 

@@ -4,36 +4,49 @@ import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.gatecontrol.android.data.SettingsRepository
+import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.familie.FamilieResult
-import com.gatecontrol.android.service.ClientPolicyManager
+import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.network.HomeNetworkStatus
+import com.gatecontrol.android.network.probeHomeNetwork
 import com.gatecontrol.android.support.CrashReports
 import com.gatecontrol.android.trustednet.TrustedNetworkMonitor
+import com.gatecontrol.android.tunnel.TunnelManager
+import com.gatecontrol.android.tunnel.TunnelState
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -46,77 +59,178 @@ private data class Sensed(val sense: PresenceSense, val sinceMs: Long)
 
 /**
  * Familie 1.2 presence (contract C): my consent ("Anwesenheit teilen") and
- * the home / away report. The state comes from the home-network check the
- * app already runs for trusted WLANs ([TrustedNetworkMonitor] → its
- * [com.gatecontrol.android.trustednet.HomeCheck]) — no GPS, no extra
- * permission. A state is reported only with consent and the module on,
- * after it held for two minutes, and only when it differs from the last
- * report. It runs wherever that monitor runs (app process, also in the
- * background while the VPN service keeps the process alive); the POST
- * itself is a WorkManager job that waits for a network.
+ * the home / away report. While I share (consent + module on) the phone
+ * asks the server itself whether it is home (`GET home-network` with its
+ * private LAN addresses as `local`, [PresenceLogic.interpret]) — no GPS, no
+ * extra permission, independent of "Vertrauenswürdige WLANs" and of the
+ * VPN (through the tunnel when it is up, directly otherwise; core 1.167+
+ * also recognises the LAN behind a gateway). It asks when the network or
+ * the tunnel changes (the network callback of [TrustedNetworkMonitor],
+ * debounced) and from a periodic WorkManager job ([PresenceCheckWorker])
+ * as the fallback while the process is gone. A clear answer replaces the
+ * state, "can't tell" keeps the last one. A state is reported after it
+ * held for two minutes, and only when it differs from the last report;
+ * the POST itself is a WorkManager job that waits for a network.
  */
 @Singleton
 class PresenceReporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val monitor: TrustedNetworkMonitor,
-    private val settingsRepository: SettingsRepository,
-    private val clientPolicyManager: ClientPolicyManager,
+    private val setupRepository: SetupRepository,
+    private val apiClientProvider: ApiClientProvider,
+    private val tunnelManager: TunnelManager,
     private val repository: FamilieRepository,
     private val api: FamilieApi,
     private val store: PresenceStore,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
+    private val checkLock = Mutex()
     private var started = false
 
-    private val _available = MutableStateFlow(false)
-    /** The home-network check is on (trusted WLANs with "Heimnetz des Servers"). */
-    val available: StateFlow<Boolean> = _available.asStateFlow()
+    private val sensed = MutableStateFlow(Sensed(PresenceSense.UNKNOWN, System.currentTimeMillis()))
 
     private val _sense = MutableStateFlow(PresenceSense.UNKNOWN)
-    /** What the phone senses right now (not debounced). */
+    /** What the phone senses right now (last clear answer; not debounced). */
     val sense: StateFlow<PresenceSense> = _sense.asStateFlow()
+
+    private val _check = MutableStateFlow(PresenceCheck.NOT_YET)
+    /** How the last home check went (older server, failed, …), for the explanation. */
+    val check: StateFlow<PresenceCheck> = _check.asStateFlow()
 
     /** My consent as last confirmed by the server. */
     val share: StateFlow<Boolean> = store.share
+
+    private val moduleOn: Flow<Boolean> = repository.profile.map { it?.modules?.presence == true }.distinctUntilChanged()
+
+    /** Consent given and the module on: only then is anything checked or sent. */
+    private val active: Flow<Boolean> = combine(store.share, moduleOn) { share, on -> share && on }.distinctUntilChanged()
 
     @OptIn(FlowPreview::class)
     @Synchronized
     fun start() {
         if (started) return
         started = true
-        val sensed = MutableStateFlow(Sensed(PresenceSense.UNKNOWN, System.currentTimeMillis()))
         scope.launch {
             repository.cachedProfile()
-            combine(
-                monitor.network.map { it.kind }.distinctUntilChanged(),
-                monitor.status.map { it.home }.distinctUntilChanged(),
-                settingsRepository.getTrustedNetworkSettings().map { it.enabled to it.homeEnabled }.distinctUntilChanged(),
-                clientPolicyManager.policy.map { it.canDisconnect }.distinctUntilChanged(),
-            ) { kind, home, trusted, canDisconnect ->
-                val available = PresenceLogic.detectionAvailable(trusted.first, trusted.second, canDisconnect)
-                _available.value = available
-                PresenceLogic.sense(available, kind, home)
-            }
-                .distinctUntilChanged()
-                .collect { s ->
-                    _sense.value = s
-                    sensed.value = Sensed(s, System.currentTimeMillis())
-                }
-        }
-        scope.launch {
-            combine(
-                sensed.debounce(PresenceLogic.DEBOUNCE_MS),
-                store.share,
-                repository.profile.map { it?.modules?.presence == true }.distinctUntilChanged(),
-            ) { stable, share, moduleOn -> Triple(stable, share, moduleOn) }
-                .collect { (stable, share, moduleOn) ->
-                    if (!share || !moduleOn) {
+            launch {
+                active.collect { on ->
+                    if (on) {
+                        schedulePeriodic()
+                    } else {
+                        cancelPeriodic()
                         cancelReport()
-                    } else if (PresenceLogic.shouldReport(stable.sense, share, moduleOn, store.lastReported())) {
+                        // A later consent starts from what the phone senses then, not from an old state.
+                        reset()
+                    }
+                }
+            }
+            launch {
+                // Ask on every network or tunnel change while active; a newer change cancels a running check.
+                combine(
+                    active,
+                    monitor.network.map { it.key to it.kind }.distinctUntilChanged(),
+                    tunnelManager.state.map { it is TunnelState.Connected }.distinctUntilChanged(),
+                ) { on, network, _ -> if (on) network else null }
+                    .debounce(SETTLE_MS)
+                    .collectLatest { network -> if (network != null) checkWithRetries() }
+            }
+            launch {
+                combine(sensed.debounce(PresenceLogic.DEBOUNCE_MS), store.share, moduleOn) { stable, share, on ->
+                    Triple(stable, share, on)
+                }.collect { (stable, share, on) ->
+                    if (share && on && PresenceLogic.shouldReport(stable.sense, share, on, store.lastReported())) {
                         enqueue(stable.sense == PresenceSense.HOME, stable.sinceMs)
                     }
                 }
+            }
         }
+    }
+
+    /**
+     * One check now: no question on mobile data or without a network,
+     * otherwise `GET home-network?local=…`. Returns what it saw, or null
+     * when nothing could be asked (no server).
+     */
+    suspend fun checkNow(): PresenceObservation? = checkLock.withLock {
+        val network = monitor.network.value
+        val local = monitor.localAddresses()
+        PresenceLogic.senseWithoutAsking(network.kind, local.isNotEmpty())?.let { sense ->
+            val observation = PresenceObservation(sense, if (sense == PresenceSense.UNKNOWN) _check.value else PresenceCheck.OK)
+            record(observation)
+            return@withLock observation
+        }
+        val serverUrl = setupRepository.getServerUrl().takeIf { it.isNotBlank() } ?: return@withLock null
+        val status = try {
+            apiClientProvider.getClient(serverUrl).probeHomeNetwork(local)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            HomeNetworkStatus.Unknown
+        }
+        val observation = PresenceLogic.interpret(status)
+        // No addresses in the log (privacy).
+        Timber.d("Familie: presence check → %s (%s, %d local)", observation.sense, observation.check, local.size)
+        record(observation)
+        observation
+    }
+
+    /**
+     * After a change: check, retry a failed check a few times, and check a
+     * new state once more before it can be reported (a server may still see
+     * the previous endpoint right after a network change).
+     */
+    private suspend fun checkWithRetries() {
+        var failures = 0
+        var confirmed = false
+        while (true) {
+            val before = _sense.value
+            val observation = checkNow() ?: return
+            when {
+                observation.check == PresenceCheck.FAILED && failures < RETRY_MS.size -> delay(RETRY_MS[failures++])
+                observation.sense != PresenceSense.UNKNOWN && observation.sense != before && !confirmed -> {
+                    confirmed = true
+                    delay(CONFIRM_MS)
+                }
+                else -> return
+            }
+        }
+    }
+
+    /**
+     * The periodic job: check, and when that brings a state that was not
+     * reported yet, hold on for the two minutes (the process may only live
+     * for this job), check again and queue the report if it held.
+     */
+    suspend fun periodicCheck() {
+        if (!active.first()) return
+        repository.cachedProfile()
+        checkNow() ?: return
+        var stable = sensed.value
+        if (!due(stable.sense)) return
+        val waited = System.currentTimeMillis() - stable.sinceMs
+        if (waited < PresenceLogic.DEBOUNCE_MS) {
+            delay(PresenceLogic.DEBOUNCE_MS - waited + 1_000L)
+            checkNow() ?: return
+            stable = sensed.value
+            if (System.currentTimeMillis() - stable.sinceMs < PresenceLogic.DEBOUNCE_MS) return
+        }
+        if (due(stable.sense)) enqueue(stable.sense == PresenceSense.HOME, stable.sinceMs)
+    }
+
+    private suspend fun due(sense: PresenceSense): Boolean =
+        PresenceLogic.shouldReport(sense, store.share.value, moduleOn.first(), store.lastReported())
+
+    private fun record(observation: PresenceObservation) {
+        _check.value = observation.check
+        val next = PresenceLogic.next(_sense.value, observation.sense)
+        if (next != sensed.value.sense) sensed.value = Sensed(next, System.currentTimeMillis())
+        _sense.value = next
+    }
+
+    private fun reset() {
+        _sense.value = PresenceSense.UNKNOWN
+        _check.value = PresenceCheck.NOT_YET
+        if (sensed.value.sense != PresenceSense.UNKNOWN) sensed.value = Sensed(PresenceSense.UNKNOWN, System.currentTimeMillis())
     }
 
     /**
@@ -159,8 +273,51 @@ class PresenceReporter @Inject constructor(
         runCatching { WorkManager.getInstance(context).cancelUniqueWork(WORK) }
     }
 
+    private fun schedulePeriodic() {
+        runCatching {
+            val request = PeriodicWorkRequestBuilder<PresenceCheckWorker>(PERIODIC_MINUTES, TimeUnit.MINUTES)
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .build()
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.KEEP, request)
+        }.onFailure { Timber.w("Familie: presence check not scheduled (%s)", it.javaClass.simpleName) }
+    }
+
+    private fun cancelPeriodic() {
+        runCatching { WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK) }
+    }
+
     companion object {
         private const val WORK = "familie_presence_report"
+        private const val PERIODIC_WORK = "familie_presence_check"
+        /** Fallback check while the process is gone (WorkManager's minimum is 15). */
+        private const val PERIODIC_MINUTES = 15L
+        /** Network or tunnel quiet this long before asking (WireGuard roams, DHCP settles). */
+        private const val SETTLE_MS = 5_000L
+        /** Second look at a new state before it can be reported. */
+        private const val CONFIRM_MS = 45_000L
+        /** Retries of a failed check after a change. */
+        private val RETRY_MS = longArrayOf(20_000L, 60_000L)
+    }
+}
+
+/** Periodic fallback: one presence check (and its report) while the app's process may be gone. */
+class PresenceCheckWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface Deps {
+        fun presenceReporter(): PresenceReporter
+    }
+
+    override suspend fun doWork(): Result {
+        try {
+            EntryPointAccessors.fromApplication(applicationContext, Deps::class.java).presenceReporter().periodicCheck()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("Familie: periodic presence check failed (%s)", e.javaClass.simpleName)
+        }
+        return Result.success()
     }
 }
 
@@ -184,6 +341,8 @@ class PresenceReportWorker(appContext: Context, params: WorkerParameters) : Coro
         val profile = deps.familieRepository().cachedProfile()
         // Consent withdrawn or module off meanwhile: nothing leaves the phone.
         if (!store.share.value || profile?.modules?.presence != true) return Result.success()
+        // Already sent (the in-process debounce and the periodic job can both queue it).
+        if (store.lastReported() == home) return Result.success()
         return when (val r = deps.familieApi().reportPresence(home, at)) {
             is FamilieResult.Ok -> {
                 store.reported(home, System.currentTimeMillis())

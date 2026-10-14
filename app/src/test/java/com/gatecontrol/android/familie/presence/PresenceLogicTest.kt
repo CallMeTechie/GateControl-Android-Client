@@ -1,33 +1,71 @@
 package com.gatecontrol.android.familie.presence
 
-import com.gatecontrol.android.trustednet.HomeCheck
+import com.gatecontrol.android.network.HomeNetworkStatus
+import com.gatecontrol.android.network.HomeSite
 import com.gatecontrol.android.trustednet.TrustedNetSnapshot.Kind
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class PresenceLogicTest {
 
+    private fun obs(sense: PresenceSense, check: PresenceCheck) = PresenceObservation(sense, check)
+
     @Test
-    fun `home only when the server confirmed its network`() {
-        assertEquals(PresenceSense.HOME, PresenceLogic.sense(true, Kind.WIFI, HomeCheck.HOME))
-        assertEquals(PresenceSense.AWAY, PresenceLogic.sense(true, Kind.WIFI, HomeCheck.NOT_HOME))
-        assertEquals(PresenceSense.AWAY, PresenceLogic.sense(true, Kind.OTHER, HomeCheck.OFF), "mobile data: away")
-        listOf(HomeCheck.CHECKING, HomeCheck.FAILED, HomeCheck.UNSUPPORTED, HomeCheck.NEXT_CONNECT, HomeCheck.OFF).forEach {
-            assertEquals(PresenceSense.UNKNOWN, PresenceLogic.sense(true, Kind.WIFI, it), it.name)
-        }
-        assertEquals(PresenceSense.UNKNOWN, PresenceLogic.sense(true, Kind.NONE, HomeCheck.HOME), "no network: nothing known")
+    fun `home whenever the server says so - through the tunnel or directly at a gateway`() {
+        assertEquals(obs(PresenceSense.HOME, PresenceCheck.OK), PresenceLogic.interpret(HomeNetworkStatus.Home(viaTunnel = true)))
+        assertEquals(
+            obs(PresenceSense.HOME, PresenceCheck.OK),
+            PresenceLogic.interpret(HomeNetworkStatus.Home(viaTunnel = false, site = HomeSite(HomeSite.Type.GATEWAY, "7", "DS218+"))),
+        )
     }
 
     @Test
-    fun `without the home check nothing is sensed - not even away`() {
-        assertEquals(PresenceSense.UNKNOWN, PresenceLogic.sense(false, Kind.OTHER, HomeCheck.OFF))
-        assertEquals(PresenceSense.UNKNOWN, PresenceLogic.sense(false, Kind.WIFI, HomeCheck.HOME))
-        assertTrue(PresenceLogic.detectionAvailable(trustedEnabled = true, homeEnabled = true, canDisconnect = true))
-        assertFalse(PresenceLogic.detectionAvailable(trustedEnabled = false, homeEnabled = true, canDisconnect = true))
-        assertFalse(PresenceLogic.detectionAvailable(trustedEnabled = true, homeEnabled = false, canDisconnect = true))
-        assertFalse(PresenceLogic.detectionAvailable(trustedEnabled = true, homeEnabled = true, canDisconnect = false))
+    fun `away when the no is reliable`() {
+        assertEquals(
+            obs(PresenceSense.AWAY, PresenceCheck.OK),
+            PresenceLogic.interpret(HomeNetworkStatus.NotHome(viaTunnel = false, siteAware = true)),
+            "core 1.167+, VPN off",
+        )
+        assertEquals(
+            obs(PresenceSense.AWAY, PresenceCheck.OK),
+            PresenceLogic.interpret(HomeNetworkStatus.NotHome(viaTunnel = true, siteAware = true)),
+        )
+        assertEquals(
+            obs(PresenceSense.AWAY, PresenceCheck.OLD_SERVER),
+            PresenceLogic.interpret(HomeNetworkStatus.NotHome(viaTunnel = true, siteAware = false)),
+            "older server through the tunnel: its own rule still holds",
+        )
+    }
+
+    @Test
+    fun `a direct no from an older server, errors and missing support decide nothing`() {
+        assertEquals(
+            obs(PresenceSense.UNKNOWN, PresenceCheck.OLD_SERVER),
+            PresenceLogic.interpret(HomeNetworkStatus.NotHome(viaTunnel = false, siteAware = false)),
+        )
+        assertEquals(obs(PresenceSense.UNKNOWN, PresenceCheck.UNSUPPORTED), PresenceLogic.interpret(HomeNetworkStatus.Unsupported))
+        assertEquals(obs(PresenceSense.UNKNOWN, PresenceCheck.FAILED), PresenceLogic.interpret(HomeNetworkStatus.Unknown))
+    }
+
+    @Test
+    fun `no question needed on mobile data or without a network`() {
+        assertEquals(PresenceSense.AWAY, PresenceLogic.senseWithoutAsking(Kind.OTHER, hasLanAddress = false), "mobile data: away")
+        assertEquals(PresenceSense.UNKNOWN, PresenceLogic.senseWithoutAsking(Kind.NONE, hasLanAddress = false))
+        assertNull(PresenceLogic.senseWithoutAsking(Kind.WIFI, hasLanAddress = true))
+        assertNull(PresenceLogic.senseWithoutAsking(Kind.WIFI, hasLanAddress = false), "Wi-Fi without IPv4: the server-LAN rule may still apply")
+        assertNull(PresenceLogic.senseWithoutAsking(Kind.OTHER, hasLanAddress = true), "Ethernet: ask")
+    }
+
+    @Test
+    fun `can't tell keeps the last state`() {
+        assertEquals(PresenceSense.HOME, PresenceLogic.next(PresenceSense.HOME, PresenceSense.UNKNOWN))
+        assertEquals(PresenceSense.AWAY, PresenceLogic.next(PresenceSense.AWAY, PresenceSense.UNKNOWN))
+        assertEquals(PresenceSense.AWAY, PresenceLogic.next(PresenceSense.HOME, PresenceSense.AWAY))
+        assertEquals(PresenceSense.HOME, PresenceLogic.next(PresenceSense.UNKNOWN, PresenceSense.HOME))
+        assertEquals(PresenceSense.UNKNOWN, PresenceLogic.next(PresenceSense.UNKNOWN, PresenceSense.UNKNOWN))
     }
 
     @Test
