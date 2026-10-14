@@ -22,6 +22,11 @@
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
+# Familie keeps its offline state as reflective Gson JSON (FamilieStorage,
+# PluginDirectory): field names must stay stable across releases and field
+# generic signatures must survive, or List<FamilieMember> reads back as
+# LinkedTreeMap (ClassCastException in 1.29.0).
+-keep class com.gatecontrol.android.familie.** { <fields>; }
 
 # ── WireGuard ─────────────────────────────────────────────
 -keep class com.wireguard.** { *; }

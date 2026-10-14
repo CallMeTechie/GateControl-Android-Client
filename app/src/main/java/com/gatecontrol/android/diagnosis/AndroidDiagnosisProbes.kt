@@ -103,6 +103,8 @@ class ApiServerProbe @Inject constructor(
 
     override suspend fun dnsCheck(): DnsCheckResponse =
         apiClientProvider.getClient(setupRepository.getServerUrl()).dnsCheck()
+
+    override fun resetConnections() = apiClientProvider.invalidate()
 }
 
 class WireGuardTunnelProbe @Inject constructor(

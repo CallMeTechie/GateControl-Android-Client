@@ -692,8 +692,8 @@
     <string name="diag_tunnel_connected_since">Verbunden seit %1$s</string>
     <string name="diag_tunnel_error">Fehler: %1$s</string>
     <string name="diag_tunnel_error_hint">Die VPN-Verbindung ist fehlgeschlagen. Verbinde dich erneut; hilft das nicht, melde das Problem.</string>
-    <string name="diag_tunnel_off">Nicht verbunden</string>
-    <string name="diag_tunnel_off_hint">Verbinde dich auf der Startseite und prüfe erneut.</string>
+    <string name="diag_tunnel_off">VPN ist aus</string>
+    <string name="diag_tunnel_off_hint">Schalte das VPN auf der Startseite ein, um auch Tunnel, Handshake, DNS und Paketgröße zu prüfen.</string>
     <string name="diag_tunnel_busy">Verbindung wird aufgebaut</string>
     <string name="diag_tunnel_busy_hint">Warte einen Moment und prüfe erneut.</string>
     <string name="diag_skipped">Übersprungen</string>

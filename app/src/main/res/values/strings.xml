@@ -692,8 +692,8 @@
     <string name="diag_tunnel_connected_since">Connected for %1$s</string>
     <string name="diag_tunnel_error">Error: %1$s</string>
     <string name="diag_tunnel_error_hint">The VPN connection failed. Connect again; if that does not help, report the problem.</string>
-    <string name="diag_tunnel_off">Not connected</string>
-    <string name="diag_tunnel_off_hint">Connect on the start screen and check again.</string>
+    <string name="diag_tunnel_off">VPN is off</string>
+    <string name="diag_tunnel_off_hint">Switch the VPN on on the start screen to check the tunnel, handshake, DNS and packet size as well.</string>
     <string name="diag_tunnel_busy">Connection is being set up</string>
     <string name="diag_tunnel_busy_hint">Wait a moment and check again.</string>
     <string name="diag_skipped">Skipped</string>
