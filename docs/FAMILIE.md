@@ -149,7 +149,7 @@ to `FamiliePushHandler`:
 | `ride_reminder`, `ride_open`, `ride_taken`, `ride_released`, `ride_unassigned` (1.1) | refreshes an open rides screen and the start screen | – | Abholen & Fahrten |
 | `locate_age_hint` (1.1, parents) | – | – | Kind orten of that child |
 | `allowance_convert` (1.2, parents) | refreshes an open allowance screen | Annehmen (`POST allowance/requests/<id>/approve`), Ablehnen (`…/decline`) | Taschengeld of that child |
-| `allowance_paid` and any other `allowance_*` (1.2) | refreshes an open allowance screen | – | Taschengeld |
+| `allowance_paid`, `allowance_decided` (to the child) and any other `allowance_*` (1.2) | refreshes an open allowance screen | – | Taschengeld |
 | `presence_rule` (1.2, a rule's notify action) | refreshes the presence screen and the start screen | – | Wer ist zuhause |
 | anything else on `wishes` / `expenses` / `board` / `meals` / `presence` (1.2) | refreshes that screen | – | that screen |
 
@@ -340,14 +340,14 @@ amounts are integer cents (EUR), formatted in the app language
 (`Money.format`: "23,50 €", "+ 5,00 €", "− 8,50 €").
 
 Parsing: `FamilieJson12`, hand-written over the Gson tree like
-`FamilieJson` (no reflection, so R8 cannot strip anything). The plugin
-1.2 was built in parallel, so the parsers also accept the obvious
-variants of a shape (`accounts` or `account`, requests per account or
-top level, `items` flat or `lists` per member, `settlement` single or
-`transfers`, overview `presence` as `members` or `home: [ids]`). Nothing
-new is persisted with reflective Gson: presence settings live in plain
+`FamilieJson` (no reflection, so R8 cannot strip anything), matching the
+final plugin 1.2.0 answers (it also tolerates small shape variants, e.g.
+convertible stars as `stars.convertible` or a flat number). Nothing new is
+persisted with reflective Gson: presence settings live in plain
 SharedPreferences (`familie_presence`), the stored profile only gained
 booleans (`FamilieModules`, inside the kept `familie` package).
+New error codes: `not_enough_stars`, `no_star_rate`, `no_consent`,
+`too_many` (and `already_taken` for a reserved wish).
 
 ### Taschengeld (`allowance`, mockup AppAllowance)
 
@@ -356,7 +356,13 @@ booleans (`FamilieModules`, inside the kept `familie` package).
   allowance/<childId>/rule` (amount, weekly weekday / monthly day 1–28,
   active, and the star rate `{stars, cents}` or null), `POST
   allowance/<childId>/convert {stars}` (the child), `POST
-  allowance/requests/<id>/approve|decline` (parents).
+  allowance/requests/<id>/approve|decline` (parents), `DELETE
+  allowance/<childId>/bookings/<id>` (parents, manual / spend bookings).
+  The account carries `rule` (always an object; amount 0 and off = no
+  rule), `starRate | null`, `nextPayout`, `stars {earned, converted,
+  pending, convertible}`, bookings (≤ 50) and requests (pending + the last
+  10 decided). Converting is the child's own call; the amount is a
+  multiple of the rate.
 - Screen: green balance card (red when negative), "nächstes Taschengeld:
   Samstag · 5,00 €", stars row "12 Sterne · 10 Sterne = 1 €" with
   "Umwandeln" (whole steps of the rate, at most what is convertible; one
@@ -366,7 +372,8 @@ booleans (`FamilieModules`, inside the kept `familie` package).
 
 ### Wunschlisten (`wishes`)
 
-- `GET wishes`, `POST/PATCH/DELETE wishes[/<id>]` (owner; parents for
+- `GET wishes` → `lists: [{ownerId, name, color, items}]` (items marked
+  `gotIt` are left out by the server), `POST/PATCH/DELETE wishes[/<id>]` (owner; parents for
   their children — `ownerId` on create), `PATCH {gotIt:true}`
   ("Bekommen", then hidden), `POST wishes/<id>/reserve|unreserve`.
 - **Never** a reservation on the caller's own items: the server does not
@@ -377,7 +384,11 @@ booleans (`FamilieModules`, inside the kept `familie` package).
 ### Haushaltsbuch (`expenses`, parents, mockup AppExpenses)
 
 - `GET expenses?month=YYYY-MM`, `POST/PATCH/DELETE expenses[/<id>]`, `POST
-  expenses/settle {month}` ("Erledigt" — a record only).
+  expenses/settle {month}` ("Erledigt" — a record only), `POST
+  expenses/unsettle {month}` ("Wieder öffnen"; any change to the month
+  reopens it, too). The total shown is the shared spending (`totals.shared`),
+  with the overall total below when it differs; `transfers` is always a
+  list. An expense recorded from a shopping list carries its `listId`.
 - Screen: month switcher (no future months), total "gemeinsam
   ausgegeben", category bar + legend (`Money.shares`), settlement card
   "Ausgleich: Marc → Anna 48,20 €" (one line per transfer with 3+
@@ -394,7 +405,8 @@ booleans (`FamilieModules`, inside the kept `familie` package).
   device's zone, as ISO UTC); checklists `POST board/checklists
   {templateId | title}`, `DELETE board/checklists/<id>`, items `POST
   …/items {text}`, `PATCH …/items/<itemId> {done}`, `DELETE …`;
-  templates `POST board/templates {checklistId, title}`, `DELETE
+  `POST board/checklists/<id>/reset` ("Alle wieder offen"); templates
+  `POST board/templates {checklistId, title}`, `DELETE
   board/templates/<id>`.
 - Screen: "Notizen" (two-column grid, pinned first) and "Listen"
   (expandable checklists, tick shown at once, "Als Vorlage speichern",
@@ -407,8 +419,9 @@ booleans (`FamilieModules`, inside the kept `familie` package).
 - Screen: week switcher ("KW 42"), Monday … Sunday with Mittag / Abend;
   edit dish, note, who cooks, ingredients (one per line); "Zutaten auf
   die Liste" (shopping module on; the list is picked when there are
-  several) — the server skips ingredients already open on the list, the
-  app then syncs the shopping lists. Start screen: "Essen: Pfannkuchen".
+  several) — the server answers `{added, skipped}` (ingredients already
+  open on the list are skipped), shown as a toast; the app then syncs the
+  shopping lists. Start screen: "Essen: Pfannkuchen".
 
 ### Anwesenheit (`presence`)
 
@@ -417,8 +430,11 @@ booleans (`FamilieModules`, inside the kept `familie` package).
   ist zuhause" screen. Switching on asks first (what is sent, to whom,
   that it runs in the background); `PUT presence/consent {share}` — only
   when the server took it is it stored on the phone (`PresenceStore`,
-  bound to the login). The server's own flag (`GET presence`) wins on
-  app start and when the screen opens.
+  bound to the login). The server's own flag (`GET presence` → `me.share`,
+  `overview.presence.share`) wins on app start, on the start screen and
+  when the presence screen opens. `POST presence` answers 409
+  `no_consent` (the switch goes off on the phone too) and 429 `too_soon`
+  (retried).
 - Sensing (`PresenceLogic.sense`) reuses the trusted-WLAN home check —
   `TrustedNetworkMonitor.network` / `.status.home` (`HomeCheck`), no GPS,
   no new permission: Wi-Fi + `HOME` = home; Wi-Fi + `NOT_HOME`, or mobile
@@ -444,8 +460,9 @@ booleans (`FamilieModules`, inside the kept `familie` package).
 ### Start screen (1.2)
 
 Cards when the modules are on: Wer ist zuhause, Essen heute, Pinnwand
-(pinned notes, open lists), Taschengeld (child: balance; parents: sum and
-open requests), Wunschlisten, Haushaltsbuch (parents).
+(pinned notes, open lists), Taschengeld (child: balance and next payout;
+parents: sum and open requests), Wunschlisten (own wishes, what I am
+getting), Haushaltsbuch (parents: this month's shared total, settled).
 
 ### Device checks for 1.2
 

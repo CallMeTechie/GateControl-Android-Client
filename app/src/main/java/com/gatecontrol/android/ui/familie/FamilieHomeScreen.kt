@@ -194,7 +194,12 @@ private fun HomeCards(
         NavCard(
             icon = GcIcons.Gift,
             title = stringResource(R.string.familie_wishes_title),
-            subtitle = stringResource(R.string.familie_wishes_sub),
+            subtitle = overview?.wishes?.takeIf { it.mine > 0 || it.reservedByMe > 0 }?.let { w ->
+                listOfNotNull(
+                    w.mine.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_wishes_home_mine, it, it) },
+                    w.reservedByMe.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_wishes_home_reserved, it, it) },
+                ).joinToString(" · ")
+            } ?: stringResource(R.string.familie_wishes_sub),
             selected = selected is FamilieDest.Wishes,
             onClick = { onOpen(FamilieDest.Wishes()) },
         )
@@ -204,7 +209,10 @@ private fun HomeCards(
         NavCard(
             icon = GcIcons.Receipt,
             title = stringResource(R.string.familie_expenses_title),
-            subtitle = stringResource(R.string.familie_expenses_sub),
+            subtitle = overview?.expenses?.let { x ->
+                stringResource(R.string.familie_expenses_home, money(x.sharedCents)) +
+                    if (x.settled) " · " + stringResource(R.string.familie_expenses_done_chip) else ""
+            } ?: stringResource(R.string.familie_expenses_sub),
             selected = selected is FamilieDest.Expenses,
             onClick = { onOpen(FamilieDest.Expenses()) },
         )
@@ -691,7 +699,7 @@ private fun AllowanceCard(p: FamilieProfile, overview: FamilieOverview?, selecte
             title = stringResource(if (p.me.isChild) R.string.familie_allowance_mine else R.string.familie_allowance_title),
             description = when {
                 a == null -> stringResource(R.string.familie_money_bookkeeping)
-                p.me.isChild -> money(a.cents)
+                p.me.isChild -> money(a.cents) + (a.nextPayout?.takeIf { a.amountCents > 0 }?.let { " · " + stringResource(R.string.familie_allowance_home_next, relativeDay(it), money(a.amountCents)) } ?: "")
                 else -> stringResource(R.string.familie_allowance_sum, money(a.cents))
             },
             onClick = { onOpen(FamilieDest.Allowance()) },

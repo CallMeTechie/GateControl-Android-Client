@@ -315,4 +315,80 @@ class FamilieJson12Test {
         assertEquals(true, FamilieJson12.myConsent(json("""{"consent":{"share":true},"members":[]}"""), 3))
         assertEquals(json("""{"home":true,"at":"2026-10-14T15:20:00Z"}"""), FamilieJson12.presenceBody(true, "2026-10-14T15:20:00Z"))
     }
+
+    // ─── the final plugin 1.2.0 answers ──────────────────────────────
+
+    @Test
+    fun `allowance as the plugin sends it - stars object, default rule, decided requests`() {
+        val p = FamilieJson12.allowance(
+            json(
+                """{"ok":true,"currency":"EUR","accounts":[{"childId":5,"name":"Lena","balanceCents":2350,
+                   "rule":{"amountCents":0,"interval":"weekly","weekday":6,"dayOfMonth":null,"active":false},"starRate":null,
+                   "nextPayout":null,"nextPayoutAt":null,"stars":{"earned":30,"converted":10,"pending":10,"convertible":10},
+                   "bookings":[],"requests":[{"id":3,"childId":5,"stars":10,"cents":100,"status":"pending","createdAt":"2026-10-14T10:00:00Z","decidedAt":null,"decidedBy":null},
+                                            {"id":2,"childId":5,"stars":10,"cents":100,"status":"approved","createdAt":"2026-10-01T10:00:00Z","decidedAt":"2026-10-01T11:00:00Z","decidedBy":3}]}]}""",
+            ),
+        )
+        val a = p.accounts.single()
+        assertEquals(10, a.convertibleStars)
+        assertEquals(false, a.rule!!.active)
+        assertNull(a.nextPayout)
+        assertEquals(listOf(3), a.pending.map { it.id }, "decided requests are not pending")
+    }
+
+    @Test
+    fun `expenses as the plugin sends them`() {
+        val m = FamilieJson12.expenses(
+            json(
+                """{"ok":true,"month":"2026-10","expenses":[{"id":1,"cents":6340,"category":"food","paidBy":4,"date":"2026-10-14","note":"REWE","shared":true,"listId":"l1","createdBy":4,"createdAt":"2026-10-14T10:00:00Z"},
+                                                        {"id":2,"cents":1000,"category":"other","paidBy":3,"date":"2026-10-13","note":"","shared":false,"listId":null}],
+                   "totals":{"all":7340,"shared":6340,"byCategory":{"food":6340,"kids":0,"household":0,"leisure":0,"mobility":0,"other":1000}},
+                   "settlement":{"from":3,"to":4,"cents":3170},"transfers":[{"from":3,"to":4,"cents":3170}],
+                   "balances":[{"userId":3,"paidCents":0,"shareCents":3170,"balanceCents":-3170}],
+                   "settled":true,"settledAt":"2026-10-14T12:00:00Z","settledBy":3,"settledTransfers":[{"from":3,"to":4,"cents":3170}]}""",
+            ),
+            "2026-10",
+        )
+        assertEquals(listOf(Transfer(3, 4, 3170)), m.transfers, "not doubled by settlement + transfers")
+        assertEquals(7340, m.totalCents)
+        assertEquals(6340, m.sharedCents)
+        assertEquals("l1", m.expenses.first().listId)
+        assertNull(m.expenses.last().listId)
+        assertTrue(m.settled)
+        assertEquals(json("""{"cents":100,"category":"food","paidBy":3,"date":"2026-10-14","note":"","shared":true,"listId":"l1"}"""),
+            FamilieJson12.expenseBody(ExpenseDraft(100, "food", 3, "2026-10-14", listId = "l1")))
+    }
+
+    @Test
+    fun `presence and the full overview as the plugin sends them`() {
+        val g = json(
+            """{"ok":true,"members":[{"userId":3,"name":"Anna","role":"parent","color":null,"shared":true,"state":"home","home":true,"since":"2026-10-14T15:20:00Z"},
+                                     {"userId":5,"name":"Lena","role":"child","color":null,"shared":false,"state":"not_shared","home":null,"since":null}],
+               "me":{"share":true},"home":[3]}""",
+        )
+        assertEquals(listOf(PresenceState.HOME, PresenceState.NOT_SHARED), FamilieJson12.presence(g).members.map { it.state })
+        assertEquals(true, FamilieJson12.myConsent(g, 3))
+
+        val o = FamilieJson.overview(
+            json(
+                """{"ok":true,
+                   "allowance":{"balanceCents":2350,"nextPayout":"2026-10-17","amountCents":500,"convertibleStars":12,"pendingRequests":1},
+                   "meals":{"date":"2026-10-14","lunch":null,"dinner":null},
+                   "board":{"pinned":2,"notes":5,"openChecklists":1},
+                   "presence":{"home":[{"userId":3,"since":"2026-10-14T15:20:00Z"}],"share":false},
+                   "wishes":{"mine":3,"reservedByMe":1},
+                   "expenses":{"month":"2026-10","totalCents":64230,"sharedCents":60000,"settlement":null,"settled":false}}""",
+            ),
+        )
+        assertEquals(1, o.allowance!!.pending)
+        assertEquals("2026-10-17", o.allowance!!.nextPayout)
+        assertEquals(500, o.allowance!!.amountCents)
+        assertEquals(2, o.board!!.pinned)
+        assertEquals(1, o.board!!.openChecklists)
+        assertEquals(listOf(3), o.presence!!.map { it.userId })
+        assertEquals(false, o.presenceShare)
+        assertEquals(3, o.wishes!!.mine)
+        assertEquals(60000, o.expenses!!.sharedCents)
+        assertEquals(json("""{"added":2,"skipped":1}""").let { FamilieJson12.shoppingAdded(it) }.skipped, 1)
+    }
 }

@@ -21,7 +21,7 @@ data class Meal(
         const val MAX_TITLE = 60
         const val MAX_NOTE = 200
         const val MAX_INGREDIENT = 60
-        const val MAX_INGREDIENTS = 50
+        const val MAX_INGREDIENTS = 40
     }
 }
 

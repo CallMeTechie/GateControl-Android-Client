@@ -162,7 +162,8 @@ class FamiliePushTest {
         assertTrue(FamiliePush.actions(paid).isEmpty())
         assertEquals(FamilieDest.Allowance(5), FamiliePush.destination(paid))
 
-        val decided = FamiliePush.parse(message("allowance", """{"type":"allowance_convert_approved","requestId":4}"""))!!
+        val decided = FamiliePush.parse(message("allowance", """{"type":"allowance_decided","requestId":4,"status":"approved","cents":100}"""))!!
+        assertTrue(FamiliePush.actions(decided).isEmpty())
         assertEquals(FamilieDest.Allowance(null), FamiliePush.destination(decided), "any allowance_* opens the allowance")
 
         val rule = FamiliePush.parse(message("presence", """{"type":"presence_rule","ruleId":2,"userId":5}"""))!!

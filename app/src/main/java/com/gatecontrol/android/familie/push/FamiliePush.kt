@@ -54,8 +54,8 @@ sealed interface FamiliePushEvent {
 
     /**
      * Taschengeld (1.2): `allowance_paid` (to the child), `allowance_convert`
-     * (a child asks to convert stars; to the parents, with [requestId]) and
-     * any other `allowance_*` message.
+     * (a child asks to convert stars; to the parents, with [requestId]),
+     * `allowance_decided` (to the child) and any other `allowance_*` message.
      */
     data class Allowance(val type: String, val childId: Int?, val requestId: Int?, val stars: Int?) : FamiliePushEvent {
         val isConvert: Boolean get() = type == FamiliePush.ALLOWANCE_CONVERT
@@ -122,7 +122,7 @@ object FamiliePush {
                 f.str("date")?.takeIf { it.length == 10 },
             )
             "locate_age_hint" -> FamiliePushEvent.LocateAgeHint(f.int("childId"))
-            ALLOWANCE_PAID, ALLOWANCE_CONVERT -> FamiliePushEvent.Allowance(type, f.int("childId"), f.int("requestId")?.takeIf { it > 0 }, f.int("stars"))
+            ALLOWANCE_PAID, ALLOWANCE_CONVERT, ALLOWANCE_DECIDED -> FamiliePushEvent.Allowance(type, f.int("childId"), f.int("requestId")?.takeIf { it > 0 }, f.int("stars"))
             "presence_rule" -> FamiliePushEvent.PresenceRule(f.int("ruleId"), f.int("userId"))
             else -> {
                 if (type != null && type.startsWith("allowance_")) {
@@ -178,6 +178,7 @@ object FamiliePush {
     const val RIDE_ASK = "ride_ask"
     const val ALLOWANCE_PAID = "allowance_paid"
     const val ALLOWANCE_CONVERT = "allowance_convert"
+    const val ALLOWANCE_DECIDED = "allowance_decided"
 
     fun actions(event: FamiliePushEvent): List<Action> = when (event) {
         is FamiliePushEvent.LocateRequest ->

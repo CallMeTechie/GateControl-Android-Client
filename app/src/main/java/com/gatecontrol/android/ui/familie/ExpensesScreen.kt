@@ -102,6 +102,8 @@ class ExpensesViewModel @Inject constructor(
     fun delete(id: Int) = act { api.deleteExpense(id) }
 
     fun settle() = act(R.string.familie_expenses_settled_done) { api.settleExpenses(_month.value) }
+
+    fun unsettle() = act { api.unsettleExpenses(_month.value) }
 }
 
 /**
@@ -120,6 +122,7 @@ fun ExpensesScreen(onBack: () -> Unit, fromListId: String? = null, viewModel: Ex
     var editing by remember { mutableStateOf<Expense?>(null) }
     var creating by rememberSaveable { mutableStateOf(false) }
     var prefill by rememberSaveable { mutableStateOf<String?>(null) }
+    var prefillList by rememberSaveable { mutableStateOf<String?>(null) }
     var handledList by rememberSaveable { mutableStateOf(false) }
     FamilieToasts(viewModel)
 
@@ -127,6 +130,7 @@ fun ExpensesScreen(onBack: () -> Unit, fromListId: String? = null, viewModel: Ex
         if (fromListId != null && !handledList) {
             handledList = true
             prefill = viewModel.listName(fromListId)
+            prefillList = fromListId
             creating = true
         }
     }
@@ -173,7 +177,7 @@ fun ExpensesScreen(onBack: () -> Unit, fromListId: String? = null, viewModel: Ex
             else -> {
                 if (error != null) FamilieErrorBanner(error)
                 SummaryCard(m)
-                SettlementCard(p, m, onSettle = viewModel::settle)
+                SettlementCard(p, m, onSettle = viewModel::settle, onUnsettle = viewModel::unsettle)
                 if (m.expenses.isEmpty()) {
                     FamilieEmpty(GcIcons.Receipt, stringResource(R.string.familie_expenses_none))
                 } else {
@@ -199,12 +203,14 @@ fun ExpensesScreen(onBack: () -> Unit, fromListId: String? = null, viewModel: Ex
                 creating = false
                 editing = null
                 prefill = null
+                prefillList = null
             },
             onSave = { draft ->
-                viewModel.save(e?.id, draft)
+                viewModel.save(e?.id, if (e == null) draft.copy(listId = prefillList) else draft.copy(listId = e.listId))
                 creating = false
                 editing = null
                 prefill = null
+                prefillList = null
             },
             onDelete = e?.let { x ->
                 {
@@ -223,8 +229,11 @@ private fun SummaryCard(m: ExpenseMonth) {
     val locale = appLocale()
     GcCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(money(m.totalCents), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 30.sp))
+            Text(money(m.sharedCents), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 30.sp))
             Text(stringResource(R.string.familie_expenses_spent), style = MaterialTheme.typography.bodyMedium, color = extra.muted, modifier = Modifier.padding(bottom = 4.dp))
+        }
+        if (m.totalCents != m.sharedCents) {
+            Text(stringResource(R.string.familie_expenses_total_all, money(m.totalCents)), style = MaterialTheme.typography.bodySmall, color = extra.muted)
         }
         val shares = Money.shares(m.byCategory)
         if (shares.isNotEmpty()) {
@@ -250,7 +259,7 @@ private fun SummaryCard(m: ExpenseMonth) {
 
 /** "Ausgleich: Marc → Anna 48,20 €" with "Erledigt" (mockup), one line per transfer with 3+ parents. */
 @Composable
-private fun SettlementCard(p: FamilieProfile, m: ExpenseMonth, onSettle: () -> Unit) {
+private fun SettlementCard(p: FamilieProfile, m: ExpenseMonth, onSettle: () -> Unit, onUnsettle: () -> Unit) {
     val extra = GateControlTheme.extraColors
     if (m.transfers.isEmpty()) {
         if (m.expenses.any { it.shared }) {
@@ -279,7 +288,10 @@ private fun SettlementCard(p: FamilieProfile, m: ExpenseMonth, onSettle: () -> U
                 )
             }
             if (m.settled) {
-                GcChip(stringResource(R.string.familie_expenses_done_chip), tone = GcTone.Ok, small = true)
+                Column(horizontalAlignment = Alignment.End) {
+                    GcChip(stringResource(R.string.familie_expenses_done_chip), tone = GcTone.Ok, small = true)
+                    androidx.compose.material3.TextButton(onClick = onUnsettle) { Text(stringResource(R.string.familie_expenses_unsettle)) }
+                }
             } else {
                 GcOutlineButton(text = stringResource(R.string.familie_expenses_settle), onClick = onSettle, fillWidth = false, minHeight = 38.dp)
             }
@@ -302,6 +314,7 @@ private fun ExpenseRow(p: FamilieProfile, e: Expense, onClick: () -> Unit) {
                 listOfNotNull(
                     relativeDay(e.date),
                     stringResource(expenseCategoryRes(e.category)),
+                    if (e.listId != null) stringResource(R.string.familie_expense_from_list) else null,
                     if (!e.shared) stringResource(R.string.familie_expense_private) else null,
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,

@@ -153,6 +153,12 @@ data class FamilieOverview(
     val board: OverviewBoard? = null,
     /** 1.2, null when off: who is home (members that share their presence). */
     val presence: List<PresenceMember>? = null,
+    /** 1.2: my own presence consent as the server has it (null when unknown / off). */
+    val presenceShare: Boolean? = null,
+    /** 1.2, null when off. */
+    val wishes: com.gatecontrol.android.familie.money.OverviewWishes? = null,
+    /** 1.2, parents, null when off. */
+    val expenses: com.gatecontrol.android.familie.money.OverviewExpenses? = null,
 )
 
 // ─── Tasks ────────────────────────────────────────────────────────────

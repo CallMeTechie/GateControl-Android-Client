@@ -89,6 +89,8 @@ class BoardViewModel @Inject constructor(
 
     fun deleteChecklist(id: Int) = act { api.deleteChecklist(id) }
 
+    fun resetChecklist(id: Int) = act { api.resetChecklist(id) }
+
     fun addItem(checklistId: Int, text: String) {
         if (text.isBlank()) return
         act { api.addChecklistItem(checklistId, text) }
@@ -302,6 +304,12 @@ private fun ChecklistCard(p: FamilieProfile, list: Checklist, viewModel: BoardVi
             Box {
                 GcIconButton(GcIcons.Sliders, contentDescription = stringResource(R.string.familie_more), onClick = { menu = true }, size = 40.dp, iconSize = 18.dp)
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (list.items.any { it.done }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.familie_board_list_reset)) }, onClick = {
+                            menu = false
+                            viewModel.resetChecklist(list.id)
+                        })
+                    }
                     DropdownMenuItem(text = { Text(stringResource(R.string.familie_board_template_save)) }, onClick = {
                         menu = false
                         onSaveTemplate()

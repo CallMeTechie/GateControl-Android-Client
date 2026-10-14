@@ -101,7 +101,7 @@ data class AllowanceRuleDraft(
 )
 
 /** `overview.allowance`: a child's balance, or for parents the sum of all children. */
-data class OverviewAllowance(val cents: Int, val pending: Int = 0)
+data class OverviewAllowance(val cents: Int, val pending: Int = 0, val nextPayout: String? = null, val amountCents: Int = 0)
 
 // ─── Wunschlisten ─────────────────────────────────────────────────────
 
@@ -158,6 +158,8 @@ data class Expense(
     val note: String,
     val shared: Boolean,
     val createdBy: Int?,
+    /** The shopping list it was recorded from ("Einkauf erfassen?"), if any. */
+    val listId: String? = null,
 ) {
     companion object {
         const val FOOD = "food"
@@ -181,6 +183,8 @@ data class ExpenseMonth(
     /** Newest first. */
     val expenses: List<Expense>,
     val totalCents: Int,
+    /** Of that the shared expenses (what the settlement splits). */
+    val sharedCents: Int,
     val byCategory: Map<String, Int>,
     /** Empty: nothing to even out (or fewer than two parents). */
     val transfers: List<Transfer>,
@@ -195,4 +199,14 @@ data class ExpenseDraft(
     val date: String,
     val note: String = "",
     val shared: Boolean = true,
+    val listId: String? = null,
 )
+
+/** `overview.expenses` (parents): this month's totals and whether it is settled. */
+data class OverviewExpenses(val month: String?, val totalCents: Int, val sharedCents: Int, val settled: Boolean)
+
+/** `overview.wishes`: my open wishes, what I am getting for others. */
+data class OverviewWishes(val mine: Int, val reservedByMe: Int)
+
+/** `POST meals/<date>/<slot>/to-shopping` → how many went on the list, how many were there already. */
+data class ShoppingAdded(val added: Int, val skipped: Int)

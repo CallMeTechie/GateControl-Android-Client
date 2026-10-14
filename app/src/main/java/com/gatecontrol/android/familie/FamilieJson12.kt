@@ -184,7 +184,12 @@ object FamilieJson12 {
     fun overviewAllowance(o: JsonObject?): OverviewAllowance? {
         if (o == null) return null
         val cents = o.intOf("balanceCents", "sumCents", "totalCents", "cents", "balance") ?: 0
-        return OverviewAllowance(cents, o.count("pending", "pendingRequests", "requests") ?: 0)
+        return OverviewAllowance(
+            cents = cents,
+            pending = o.count("pending", "pendingRequests", "requests") ?: 0,
+            nextPayout = date(o.str("nextPayout")),
+            amountCents = o.int("amountCents")?.coerceAtLeast(0) ?: 0,
+        )
     }
 
     // ─── Wunschlisten ────────────────────────────────────────────────
@@ -260,8 +265,11 @@ object FamilieJson12 {
             note = clean(o.str("note"), Expense.MAX_NOTE),
             shared = o.bool("shared") != false,
             createdBy = o.obj("createdBy")?.int("userId") ?: o.int("createdBy"),
+            listId = o.str("listId")?.takeIf { LIST_ID_RE.matches(it) },
         )
     }
+
+    private val LIST_ID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
     private fun transfer(o: JsonObject): Transfer? {
         val from = o.obj("from")?.int("userId") ?: o.int("from") ?: return null
@@ -291,6 +299,7 @@ object FamilieJson12 {
             month = o.str("month")?.takeIf { isMonth(it) } ?: month,
             expenses = list,
             totalCents = totals?.int("all") ?: list.sumOf { it.cents },
+            sharedCents = totals?.int("shared") ?: list.filter { it.shared }.sumOf { it.cents },
             byCategory = byCategory,
             transfers = transfers,
             settled = o.bool("settled") == true || settlement?.bool("settled") == true,
@@ -304,7 +313,26 @@ object FamilieJson12 {
         addProperty("date", d.date)
         addProperty("note", d.note.trim().take(Expense.MAX_NOTE))
         addProperty("shared", d.shared)
+        d.listId?.takeIf { LIST_ID_RE.matches(it) }?.let { addProperty("listId", it) }
     }
+
+    fun overviewExpenses(o: JsonObject?): com.gatecontrol.android.familie.money.OverviewExpenses? {
+        if (o == null) return null
+        val total = o.intOf("totalCents", "all") ?: 0
+        return com.gatecontrol.android.familie.money.OverviewExpenses(
+            month = o.str("month")?.takeIf { isMonth(it) },
+            totalCents = total,
+            sharedCents = o.int("sharedCents") ?: total,
+            settled = o.bool("settled") == true,
+        )
+    }
+
+    fun overviewWishes(o: JsonObject?): com.gatecontrol.android.familie.money.OverviewWishes? =
+        o?.let { com.gatecontrol.android.familie.money.OverviewWishes((it.int("mine") ?: 0).coerceAtLeast(0), (it.int("reservedByMe") ?: 0).coerceAtLeast(0)) }
+
+    /** `POST meals/…/to-shopping` → `{added, skipped}`. */
+    fun shoppingAdded(o: JsonObject): com.gatecontrol.android.familie.money.ShoppingAdded =
+        com.gatecontrol.android.familie.money.ShoppingAdded((o.int("added") ?: 0).coerceAtLeast(0), (o.int("skipped") ?: 0).coerceAtLeast(0))
 
     // ─── Pinnwand & Packlisten ───────────────────────────────────────
 

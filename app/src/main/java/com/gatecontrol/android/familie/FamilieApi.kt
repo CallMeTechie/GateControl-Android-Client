@@ -369,6 +369,9 @@ class FamilieApi @Inject constructor(
     suspend fun allowanceBooking(childId: Int, cents: Int, note: String, kind: String): FamilieResult<Unit> =
         post(path("allowance", childId, "bookings"), FamilieJson12.bookingBody(cents, note, kind), unit)
 
+    /** Parents: removes a manual / spend booking. */
+    suspend fun deleteAllowanceBooking(childId: Int, bookingId: Int): FamilieResult<Unit> = delete(path("allowance", childId, "bookings", bookingId))
+
     suspend fun allowanceRule(childId: Int, draft: AllowanceRuleDraft): FamilieResult<Unit> =
         put(path("allowance", childId, "rule"), FamilieJson12.ruleBody(draft), unit)
 
@@ -418,6 +421,10 @@ class FamilieApi @Inject constructor(
     suspend fun settleExpenses(month: String): FamilieResult<Unit> =
         post(path("expenses", "settle"), JsonObject().apply { addProperty("month", month) }, unit)
 
+    /** Takes "Erledigt" back. */
+    suspend fun unsettleExpenses(month: String): FamilieResult<Unit> =
+        post(path("expenses", "unsettle"), JsonObject().apply { addProperty("month", month) }, unit)
+
     // ─── board (1.2) ─────────────────────────────────────────────────
 
     suspend fun board(): FamilieResult<BoardPayload> = get(path("board"), parse = FamilieJson12::board)
@@ -434,6 +441,9 @@ class FamilieApi @Inject constructor(
         post(path("board", "checklists"), FamilieJson12.checklistBody(templateId, title), unit)
 
     suspend fun deleteChecklist(id: Int): FamilieResult<Unit> = delete(path("board", "checklists", id))
+
+    /** Every item of the list open again (packing for the next trip). */
+    suspend fun resetChecklist(id: Int): FamilieResult<Unit> = post(path("board", "checklists", id, "reset"), parse = unit)
 
     suspend fun addChecklistItem(checklistId: Int, text: String): FamilieResult<Unit> =
         post(path("board", "checklists", checklistId, "items"), JsonObject().apply { addProperty("text", text.trim().take(80)) }, unit)
@@ -471,8 +481,8 @@ class FamilieApi @Inject constructor(
     suspend fun deleteMeal(date: String, slot: String): FamilieResult<Unit> = delete(mealPath(date, slot))
 
     /** "Zutaten auf die Liste": the ingredients become open items of [listId] (no duplicates). */
-    suspend fun mealToShopping(date: String, slot: String, listId: String): FamilieResult<Unit> =
-        post(mealPath(date, slot, "to-shopping"), JsonObject().apply { addProperty("listId", listId) }, unit)
+    suspend fun mealToShopping(date: String, slot: String, listId: String): FamilieResult<com.gatecontrol.android.familie.money.ShoppingAdded> =
+        post(mealPath(date, slot, "to-shopping"), JsonObject().apply { addProperty("listId", listId) }, FamilieJson12::shoppingAdded)
 
     private fun mealPath(date: String, slot: String, vararg more: String): String? =
         if (FamilieJson.date(date) == null || slot !in MealWeek.SLOTS) null else path("meals", date, slot, *more)

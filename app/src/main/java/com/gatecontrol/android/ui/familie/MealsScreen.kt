@@ -96,9 +96,22 @@ class MealsViewModel @Inject constructor(
 
     fun delete(date: String, slot: String) = act { api.deleteMeal(date, slot) }
 
+    private val _added = MutableStateFlow<com.gatecontrol.android.familie.money.ShoppingAdded?>(null)
+    /** Result of the last "Zutaten auf die Liste", shown once. */
+    val added: StateFlow<com.gatecontrol.android.familie.money.ShoppingAdded?> = _added.asStateFlow()
+
     /** The ingredients become open items of [listId]; the list is synced afterwards. */
-    fun toShopping(date: String, slot: String, listId: String) = act(R.string.familie_meal_to_list_done) {
-        api.mealToShopping(date, slot, listId).also { if (it is FamilieResult.Ok) shopping.syncAsync() }
+    fun toShopping(date: String, slot: String, listId: String) = act {
+        api.mealToShopping(date, slot, listId).also {
+            if (it is FamilieResult.Ok) {
+                _added.value = it.value
+                shopping.syncAsync()
+            }
+        }
+    }
+
+    fun clearAdded() {
+        _added.value = null
     }
 }
 
@@ -122,6 +135,18 @@ fun MealsScreen(onBack: () -> Unit, initialWeek: String? = null, viewModel: Meal
     var toList by remember { mutableStateOf<MealEdit?>(null) }
     FamilieToasts(viewModel)
     androidx.compose.runtime.LaunchedEffect(initialWeek) { viewModel.show(initialWeek) }
+    val added by viewModel.added.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val addedText = added?.let { a ->
+        if (a.skipped > 0) pluralStringResource(R.plurals.familie_meal_to_list_added_skipped, a.added, a.added, a.skipped)
+        else pluralStringResource(R.plurals.familie_meal_to_list_added, a.added, a.added)
+    }
+    androidx.compose.runtime.LaunchedEffect(addedText) {
+        if (addedText != null) {
+            android.widget.Toast.makeText(context, addedText, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearAdded()
+        }
+    }
 
     val p = profile
     val weekNo = week.substringAfter("-W").toIntOrNull() ?: 0

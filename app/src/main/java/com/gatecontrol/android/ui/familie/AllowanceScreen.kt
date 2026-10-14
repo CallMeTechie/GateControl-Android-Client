@@ -143,7 +143,7 @@ fun AllowanceScreen(
                                 )
                             }
                         }
-                        BookingsCard(account.bookings, p)
+                        BookingsCard(account.bookings, p, onDelete = if (parent) ({ b -> viewModel.deleteBooking(account.childId, b.id) }) else null)
                         if (!parent && p.modules.wishes) {
                             GcCard(contentPadding = PaddingValues(0.dp), verticalArrangement = Arrangement.Top) {
                                 GcListRow(
@@ -224,7 +224,7 @@ private fun BalanceCard(account: AllowanceAccount) {
 private fun nextPayoutLine(account: AllowanceAccount): String {
     val rule = account.rule
     return when {
-        rule == null -> stringResource(R.string.familie_allowance_no_rule)
+        rule == null || (!rule.active && rule.amountCents == 0) -> stringResource(R.string.familie_allowance_no_rule)
         !rule.active -> stringResource(R.string.familie_allowance_paused)
         else -> {
             val next = account.nextPayout
@@ -318,7 +318,8 @@ private fun RequestsCard(p: FamilieProfile, requests: List<ConvertRequest>, view
 }
 
 @Composable
-private fun BookingsCard(bookings: List<AllowanceBooking>, p: FamilieProfile) {
+private fun BookingsCard(bookings: List<AllowanceBooking>, p: FamilieProfile, onDelete: ((AllowanceBooking) -> Unit)?) {
+    var confirm by remember { mutableStateOf<AllowanceBooking?>(null) }
     val extra = GateControlTheme.extraColors
     GcCard(contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(stringResource(R.string.familie_allowance_bookings), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -338,8 +339,32 @@ private fun BookingsCard(bookings: List<AllowanceBooking>, p: FamilieProfile) {
                     style = MaterialTheme.typography.titleSmall,
                     color = if (b.cents > 0) extra.accentText else if (b.cents < 0) MaterialTheme.colorScheme.onSurface else extra.muted,
                 )
+                // Parents may take back a manual booking or a spending (not payouts or stars).
+                if (onDelete != null && (b.kind == AllowanceBooking.KIND_MANUAL || b.kind == AllowanceBooking.KIND_SPEND)) {
+                    com.gatecontrol.android.ui.components.GcIconButton(
+                        GcIcons.Trash,
+                        contentDescription = stringResource(R.string.familie_allowance_booking_delete),
+                        onClick = { confirm = b },
+                        size = 40.dp,
+                        iconSize = 16.dp,
+                    )
+                }
             }
         }
+    }
+    val c = confirm
+    if (c != null && onDelete != null) {
+        FamilieConfirmDialog(
+            title = stringResource(R.string.familie_allowance_booking_delete),
+            text = stringResource(R.string.familie_allowance_booking_delete_text, c.note.ifBlank { stringResource(bookingKindRes(c.kind)) }, money(c.cents, signed = true)),
+            confirmLabel = stringResource(R.string.familie_delete),
+            destructive = true,
+            onConfirm = {
+                onDelete(c)
+                confirm = null
+            },
+            onDismiss = { confirm = null },
+        )
     }
 }
 

@@ -120,6 +120,18 @@
     <string name="familie_expense_cat_other">Sonstiges</string>
     <string name="familie_expense_capture">Einkauf erfassen?</string>
     <string name="familie_expense_capture_action">Erfassen</string>
+    <string name="familie_error_not_enough_stars">Dafür reichen die Sterne nicht.</string>
+    <string name="familie_error_no_star_rate">Sterne können noch nicht umgewandelt werden – die Eltern legen zuerst einen Kurs fest.</string>
+    <string name="familie_error_no_consent">Anwesenheit teilen ist für dich ausgeschaltet.</string>
+    <string name="familie_error_too_many">Das ist das Maximum – bitte erst etwas entfernen.</string>
+    <string name="familie_allowance_booking_delete">Buchung löschen</string>
+    <string name="familie_allowance_booking_delete_text">„%1$s“ (%2$s) löschen?</string>
+    <string name="familie_allowance_home_next">%1$s +%2$s</string>
+    <string name="familie_board_list_reset">Alle wieder offen</string>
+    <string name="familie_expenses_unsettle">Wieder öffnen</string>
+    <string name="familie_expenses_total_all">Insgesamt %1$s mit nicht geteilten</string>
+    <string name="familie_expenses_home">Diesen Monat: %1$s</string>
+    <string name="familie_expense_from_list">aus der Einkaufsliste</string>
     <string name="familie_week_prev">Vorherige Woche</string>
     <string name="familie_week_next">Nächste Woche</string>
     <string name="familie_meals_title">Essensplan</string>
@@ -139,7 +151,6 @@
     <string name="familie_meal_ingredients_hint">Eine pro Zeile</string>
     <string name="familie_meal_note">Notiz</string>
     <string name="familie_meal_to_list">Zutaten auf die Liste</string>
-    <string name="familie_meal_to_list_done">Zutaten stehen auf der Einkaufsliste</string>
     <string name="familie_presence_title">Wer ist zuhause</string>
     <string name="familie_presence_sub">Zuhause oder unterwegs – am Heim-WLAN erkannt, ohne GPS</string>
     <string name="familie_presence_share">Anwesenheit teilen</string>
@@ -218,6 +229,22 @@
     <plurals name="familie_board_home_lists">
         <item quantity="one">%d offene Liste</item>
         <item quantity="other">%d offene Listen</item>
+    </plurals>
+    <plurals name="familie_meal_to_list_added">
+        <item quantity="one">%d Zutat steht auf der Liste</item>
+        <item quantity="other">%d Zutaten stehen auf der Liste</item>
+    </plurals>
+    <plurals name="familie_meal_to_list_added_skipped">
+        <item quantity="one">%1$d hinzugefügt, %2$d standen schon drauf</item>
+        <item quantity="other">%1$d hinzugefügt, %2$d standen schon drauf</item>
+    </plurals>
+    <plurals name="familie_wishes_home_mine">
+        <item quantity="one">%d eigener Wunsch</item>
+        <item quantity="other">%d eigene Wünsche</item>
+    </plurals>
+    <plurals name="familie_wishes_home_reserved">
+        <item quantity="one">ich besorge %d</item>
+        <item quantity="other">ich besorge %d</item>
     </plurals>
     <plurals name="familie_meal_ingredients_count">
         <item quantity="one">%1$d Zutat</item>

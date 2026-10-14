@@ -227,6 +227,9 @@ object FamilieJson {
             meals = FamilieJson12.overviewMeals(o.obj("meals")),
             board = FamilieJson12.overviewBoard(o.obj("board")),
             presence = FamilieJson12.overviewPresence(o.el("presence")),
+            presenceShare = o.obj("presence")?.bool("share"),
+            wishes = FamilieJson12.overviewWishes(o.obj("wishes")),
+            expenses = FamilieJson12.overviewExpenses(o.obj("expenses")),
         )
     }
 

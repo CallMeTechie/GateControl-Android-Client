@@ -33,6 +33,8 @@ class AllowanceViewModel @Inject constructor(
         else api.allowanceBooking(childId, kotlin.math.abs(cents), note, AllowanceBooking.KIND_MANUAL)
     }
 
+    fun deleteBooking(childId: Int, bookingId: Int) = act { api.deleteAllowanceBooking(childId, bookingId) }
+
     fun saveRule(childId: Int, draft: AllowanceRuleDraft) = act(R.string.familie_saved) { api.allowanceRule(childId, draft) }
 
     /** A child asks to convert [stars]. */
