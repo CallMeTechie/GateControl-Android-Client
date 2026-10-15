@@ -193,7 +193,7 @@ Jeder Bildschirm besteht aus:
 - **State** — Immutable Data Classes via `collectAsState()`
 
 ### Navigation
-Bottom Navigation Bar mit 4 Tabs (VPN, RDP, Services, Einstellungen). RDP- und Services-Tabs sind nur sichtbar, wenn die entsprechende Lizenz vorhanden ist. Der Setup-Bildschirm wird als initialer Screen angezeigt, wenn noch keine Konfiguration vorliegt.
+Bottom Navigation Bar (auf breiten Fenstern eine Navigationsleiste links) mit den Tabs Start, Netzwerk und — mit dem Familie-Plugin — Familie (`navigation/MainTabs.kt`). Netzwerk hat die Segmente Dienste, Pi-hole und Remote (RDP; `ui/network/NetworkScreen.kt`, `NetworkTabs`) und erscheint, sobald das Token eines davon nutzen darf. Die Einstellungen sind seit 1.35 kein Tab mehr, sondern ein normales Ziel mit Zurück, erreichbar über das Zahnrad im Profil (Tippen auf das eigene Profilbild auf dem Start-Tab). Die alte Route `rdp` leitet auf Netzwerk → Remote um. Der Setup-Bildschirm wird als initialer Screen angezeigt, wenn noch keine Konfiguration vorliegt.
 
 ### Theming
 Eigenes `GateControlTheme` mit `CompositionLocal` für erweiterte Farben:

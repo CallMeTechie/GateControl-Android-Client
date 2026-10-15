@@ -90,7 +90,7 @@ bottom bar; back returns to where the person was) reached only by:
 - `PluginAvailability.from()` (`familie/PluginDirectory.kt`, same cache as
   the Familie tab): `door` when `gatecontrol-door` is listed at all. The
   plugin's `ui.app` / `tab` entry is ignored — it never creates a tab
-  (`MainTabs.routes`: start, Fernzugriff, Netzwerk, Familie, Einstellungen).
+  (`MainTabs.routes`: Start, Netzwerk, Familie).
 - Without `door` (plugin gone, older server) a stored door pin has no long
   press and door pushes open the message itself.
 

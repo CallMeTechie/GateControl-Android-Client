@@ -25,15 +25,18 @@ import androidx.compose.ui.text.withStyle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.common.Formatters
 import com.gatecontrol.android.network.TrafficStats
-import com.gatecontrol.android.ui.components.GcCard
+import androidx.compose.foundation.layout.Column
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
 import androidx.compose.ui.unit.dp
 
-/** "Datennutzung" card: period switch, total, download/upload split bar. */
+/**
+ * "Datennutzung" page of the usage card ([UsageCard]): period switch,
+ * total, download/upload split bar. The card's header carries the title.
+ */
 @Composable
-fun TrafficUsage(
+fun TrafficUsageContent(
     traffic: TrafficStats?,
     modifier: Modifier = Modifier,
 ) {
@@ -49,12 +52,7 @@ fun TrafficUsage(
     val total = rx + tx
     val rxShare = if (total > 0) rx.toFloat() / total else 0f
 
-    GcCard(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = stringResource(R.string.traffic_title),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         GcSegmented(
             options = listOf(
                 "24h" to stringResource(R.string.traffic_24h),

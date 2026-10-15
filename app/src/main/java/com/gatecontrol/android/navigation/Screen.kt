@@ -3,14 +3,22 @@ package com.gatecontrol.android.navigation
 sealed class Screen(val route: String) {
     data object Setup : Screen("setup")
     data object Vpn : Screen("vpn")
+    /**
+     * Former "Remote" tab (until 1.35): only a redirect to the Remote
+     * segment of the Netzwerk tab (MainTabs.redirect).
+     */
     data object Rdp : Screen("rdp")
-    /** Services + Pi-hole; `tab` picks the initial segment. */
+    /** Services, Pi-hole and Remote; `tab` picks the initial segment (NetworkTabs). */
     data object Network : Screen("network?tab={tab}") {
         const val ARG_TAB = "tab"
         const val BASE = "network"
         fun create(tab: String? = null): String = if (tab == null) BASE else "$BASE?tab=$tab"
     }
-    /** `pane` picks the page shown next to the list on wide screens (SettingsPane.key). */
+    /**
+     * Settings: no tab since 1.35, a normal destination with back (gear on
+     * the profile). `pane` picks the page shown next to the list on wide
+     * screens (SettingsPane.key).
+     */
     data object Settings : Screen("settings?pane={pane}") {
         const val ARG_PANE = "pane"
         const val BASE = "settings"
@@ -58,7 +66,10 @@ sealed class Screen(val route: String) {
         fun create(dest: String): String = "door/page?dest=" + android.net.Uri.encode(dest)
     }
     data object SettingsNotifications : Screen("settings/notifications")
-    /** Own profile: picture and favourite colour (Settings → Profil, own avatar on the start tab). */
+    /**
+     * Own profile: picture and favourite colour (own avatar on the start
+     * tab and in the Familie tab); its gear opens the settings.
+     */
     data object Profile : Screen("settings/profile")
     /** Tunnel details (Settings → Verbindung → Verbindungsdetails). */
     data object ConnectionDetails : Screen("settings/connection")
@@ -69,6 +80,8 @@ sealed class Screen(val route: String) {
     /** Diagnose & Problem melden (Settings › Hilfe, start screen on connection problems). */
     data object Diagnosis : Screen("settings/diagnosis")
     data object QuickActions : Screen("quick-actions")
+    /** Picker "Inhalte der Info-Karte" (pencil of the start tab's Info card). */
+    data object InfoCardPicker : Screen("info-card")
     data object Logs : Screen("settings/logs")
     data object QrScanner : Screen("setup/qr")
     /** Setup screen opened from Settings to connect an existing install (scan starts right away). */

@@ -38,7 +38,19 @@ import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.gatecontrol.android.data.LicenseRepository
+import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.ui.components.GcListRow
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import timber.log.Timber
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,18 +58,60 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** Result of the DNS leak test (`GET /api/v1/client/dns-check`). */
+sealed interface DnsLeakState {
+    data object Idle : DnsLeakState
+    data object Running : DnsLeakState
+    /** [resolver]: the resolver the tunnel uses, as the server reports it. */
+    data class Ok(val resolver: String?) : DnsLeakState
+    data object Failed : DnsLeakState
+}
+
 /**
  * Tunnel details for Settings → Verbindung → "Verbindungsdetails" (until
  * 1.31 a card on the start tab): tunnel address, connected for (live),
- * last handshake, server.
+ * last handshake, server, and the DNS leak test (until 1.35 a tile on the
+ * start tab; only with the token's DNS right).
  */
 @HiltViewModel
 class ConnectionDetailsViewModel @Inject constructor(
     private val tunnelManager: TunnelManager,
     private val setupRepository: SetupRepository,
+    licenseRepository: LicenseRepository,
+    private val apiClientProvider: ApiClientProvider,
 ) : ViewModel() {
 
     val tunnelState: StateFlow<TunnelState> = tunnelManager.state
+
+    /** The token may run the DNS leak test. */
+    val dnsAllowed: StateFlow<Boolean> = licenseRepository.permissions
+        .map { it.dns }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), licenseRepository.permissions.value.dns)
+
+    private val _dnsLeak = MutableStateFlow<DnsLeakState>(DnsLeakState.Idle)
+    val dnsLeak: StateFlow<DnsLeakState> = _dnsLeak.asStateFlow()
+
+    /** Asks the server which resolver the tunnel uses (same check as the old start tile). */
+    fun runDnsLeakTest() {
+        if (_dnsLeak.value == DnsLeakState.Running) return
+        _dnsLeak.value = DnsLeakState.Running
+        viewModelScope.launch {
+            _dnsLeak.value = try {
+                val serverUrl = setupRepository.getServerUrl()
+                if (serverUrl.isEmpty()) {
+                    DnsLeakState.Failed
+                } else {
+                    val response = apiClientProvider.getClient(serverUrl).dnsCheck()
+                    if (response.ok) DnsLeakState.Ok(response.vpnDns) else DnsLeakState.Failed
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "ConnectionDetails: DNS leak test failed")
+                DnsLeakState.Failed
+            }
+        }
+    }
 
     private val _stats = MutableStateFlow(TunnelStats())
     val stats: StateFlow<TunnelStats> = _stats.asStateFlow()
@@ -171,11 +225,54 @@ fun ConnectionDetailsScreen(
                 }
             }
         }
+        val dnsAllowed by viewModel.dnsAllowed.collectAsStateWithLifecycle()
+        if (dnsAllowed) {
+            val dnsLeak by viewModel.dnsLeak.collectAsStateWithLifecycle()
+            DnsLeakCard(dnsLeak, onRun = viewModel::runDnsLeakTest, modifier = Modifier.padding(horizontal = 16.dp))
+        }
         Text(
             stringResource(R.string.connection_details_hint),
             style = MaterialTheme.typography.bodySmall,
             color = extra.muted,
             modifier = Modifier.padding(horizontal = 20.dp),
+        )
+    }
+}
+
+/** "DNS-Leak-Test": a tap asks the server which resolver the tunnel uses. */
+@Composable
+private fun DnsLeakCard(state: DnsLeakState, onRun: () -> Unit, modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    val running = state == DnsLeakState.Running
+    GcCard(modifier = modifier, contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+        GcListRow(
+            title = stringResource(R.string.dns_leak_test),
+            description = when (state) {
+                DnsLeakState.Running -> stringResource(R.string.dns_testing)
+                is DnsLeakState.Ok -> stringResource(R.string.dns_tile_ok, state.resolver ?: "")
+                DnsLeakState.Failed -> stringResource(R.string.dns_tile_fail)
+                DnsLeakState.Idle -> stringResource(R.string.dns_tile_idle)
+            },
+            onClick = if (running) null else onRun,
+            leading = {
+                Icon(
+                    GcIcons.Globe,
+                    contentDescription = null,
+                    tint = when (state) {
+                        is DnsLeakState.Ok -> extra.accentText
+                        DnsLeakState.Failed -> MaterialTheme.colorScheme.error
+                        else -> extra.blue
+                    },
+                    modifier = Modifier.size(22.dp),
+                )
+            },
+            trailing = {
+                if (running) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp), color = extra.faint)
+                } else {
+                    Icon(GcIcons.Refresh, contentDescription = null, tint = extra.faint, modifier = Modifier.size(20.dp))
+                }
+            },
         )
     }
 }

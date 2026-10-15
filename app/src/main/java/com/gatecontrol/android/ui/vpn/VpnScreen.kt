@@ -1,8 +1,5 @@
 package com.gatecontrol.android.ui.vpn
 
-import com.gatecontrol.android.common.SplitTunnelMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +39,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -56,11 +52,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
-import com.gatecontrol.android.util.openSystemVpnSettings
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.messageRes
-import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcAvatar
@@ -73,9 +67,7 @@ import com.gatecontrol.android.location.LocationServerStatus
 import com.gatecontrol.android.location.LocationShareViewModel
 import com.gatecontrol.android.ui.location.LocationShareBanner
 import com.gatecontrol.android.ui.location.SatelliteButton
-import com.gatecontrol.android.ui.components.GcTile
 import com.gatecontrol.android.ui.components.GcTone
-import com.gatecontrol.android.ui.pihole.PiholeTile
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.profile.MyAvatarViewModel
 import androidx.compose.foundation.combinedClickable
@@ -86,17 +78,17 @@ import kotlinx.coroutines.delay
 private const val EXPIRY_WARN_DAYS = 7
 
 /**
- * Start tab: header with the own avatar, connect orb with state text,
- * the pinned quick actions as icon tiles, quick tiles (kill switch, split
- * tunneling, Pi-hole, DNS leak test), throughput and data usage. The
- * connection details live in Settings → Verbindung → Verbindungsdetails.
+ * Start tab: header with the own avatar (→ profile, from there the
+ * settings), connect orb with state text, the pinned quick actions as icon
+ * tiles, the "Info" card (contents the person chose, sliding) and one card
+ * for throughput and data usage (sliding). Kill switch and split tunneling
+ * live in the settings, the DNS leak test and the connection details in
+ * Settings → Verbindung → Verbindungsdetails, Pi-hole in the Netzwerk tab.
  */
 @Composable
 fun VpnScreen(
     viewModel: VpnViewModel = hiltViewModel(),
     onTokenInvalid: () -> Unit = {},
-    onOpenPihole: () -> Unit = {},
-    onOpenSplitTunnel: () -> Unit = {},
     onOpenLogs: () -> Unit = {},
     /** Unread messages of the notification center (bell badge). */
     unreadCount: Int = 0,
@@ -111,8 +103,10 @@ fun VpnScreen(
     onOpenLocationSettings: () -> Unit = {},
     /** Diagnosis screen, offered when the connection has a problem. */
     onOpenDiagnosis: () -> Unit = {},
-    /** Own profile (tap on the own avatar in the header). */
+    /** Own profile (tap on the own avatar in the header); the settings open from there. */
     onOpenProfile: () -> Unit = {},
+    /** Picker "Inhalte der Info-Karte" (pencil of the Info card). */
+    onOpenInfoCardPicker: () -> Unit = {},
     /** Door screen "Tür & Kamera" (long press on a door quick action); null without the door plugin. */
     onOpenDoor: (() -> Unit)? = null,
     locationViewModel: LocationShareViewModel = hiltViewModel(),
@@ -135,8 +129,6 @@ fun VpnScreen(
     val stats by viewModel.stats.collectAsState()
     val trafficUsage by viewModel.trafficUsage.collectAsState()
     val permissions by viewModel.permissions.collectAsState()
-    val splitMode by viewModel.splitTunnelMode.collectAsState()
-    val theme by viewModel.theme.collectAsState()
     val portalUrl by viewModel.portalUrl.collectAsState()
     val autoOpen by viewModel.autoOpenPortal.collectAsState()
     val expiresAt by viewModel.peerExpiresAt.collectAsState()
@@ -232,13 +224,6 @@ fun VpnScreen(
         if (prepareIntent != null) vpnPermissionLauncher.launch(prepareIntent) else viewModel.connect()
     }
 
-    val systemDark = isSystemInDarkTheme()
-    val effectivelyDark = when (theme) {
-        "dark" -> true
-        "light" -> false
-        else -> systemDark
-    }
-
     val headerSection: @Composable () -> Unit = {
         // --- Header -------------------------------------------------------
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -321,13 +306,14 @@ fun VpnScreen(
                     }
                 }
             }
-            GcIconButton(
-                icon = if (effectivelyDark) GcIcons.Sun else GcIcons.Moon,
-                contentDescription = stringResource(
-                    if (effectivelyDark) R.string.vpn_theme_to_light else R.string.vpn_theme_to_dark,
-                ),
-                onClick = { viewModel.setTheme(if (effectivelyDark) "light" else "dark") },
-            )
+            if (me.initials == null) {
+                // No avatar to tap: the profile (and from there the settings) behind this button.
+                GcIconButton(
+                    icon = GcIcons.User,
+                    contentDescription = stringResource(R.string.profile_open_desc),
+                    onClick = onOpenProfile,
+                )
+            }
         }
     }
     val bannerSection: @Composable ColumnScope.() -> Unit = {
@@ -534,63 +520,18 @@ fun VpnScreen(
         // --- Quick actions of the plugins ----------------------------------
         com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenAll = onOpenQuickActions, onOpenDoor = onOpenDoor)
 
-        // --- Quick tiles --------------------------------------------------
-        val tiles = buildList<@Composable (Modifier) -> Unit> {
-            add { m ->
-                GcTile(
-                    icon = GcIcons.Lock,
-                    iconTint = extra.faint,
-                    title = stringResource(R.string.vpn_kill_switch),
-                    // Real kill switch = Android "Always-on VPN" + "Block
-                    // connections without VPN"; the app cannot enforce it.
-                    subtitle = stringResource(R.string.vpn_kill_switch_system),
-                    active = false,
-                    onClick = { context.openSystemVpnSettings() },
-                    modifier = m,
-                )
-            }
-            add { m ->
-                GcTile(
-                    icon = GcIcons.Split,
-                    iconTint = extra.blue,
-                    title = stringResource(R.string.settings_split_tunnel),
-                    subtitle = stringResource(
-                        when (splitMode) {
-                            SplitTunnelMode.EXCLUDE -> R.string.split_tile_exclude
-                            SplitTunnelMode.INCLUDE -> R.string.split_tile_include
-                            SplitTunnelMode.OFF -> R.string.tile_off
-                        },
-                    ),
-                    onClick = onOpenSplitTunnel,
-                    modifier = m,
-                )
-            }
-            if (permissions.pihole) {
-                add { m -> PiholeTile(onOpen = onOpenPihole, modifier = m) }
-            }
-            if (permissions.dns) {
-                add { m -> DnsLeakTile(viewModel, m) }
-            }
-        }
-        tiles.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { tile -> tile(Modifier.weight(1f)) }
-                if (row.size == 1) Column(Modifier.weight(1f)) {}
-            }
-        }
+        // --- Info card: contents the person chose (plugin start tiles) ---
+        com.gatecontrol.android.ui.infocard.InfoCard(onEdit = onOpenInfoCardPicker)
 
-        // --- Throughput + usage ------------------------------------------
-        BandwidthGraph(
+        // --- Throughput + data usage: one card, the content slides -------------
+        UsageCard(
             rxHistory = rxHistory.toList(),
             txHistory = txHistory.toList(),
             connected = isConnected,
             rxSpeed = stats.rxSpeed,
             txSpeed = stats.txSpeed,
+            traffic = trafficUsage.takeIf { permissions.traffic },
         )
-
-        if (permissions.traffic && trafficUsage != null) {
-            TrafficUsage(traffic = trafficUsage)
-        }
     }
 
     // Phones: one column. Wide windows: connection on the left, everything
@@ -669,48 +610,4 @@ private fun heroTitle(state: TunnelState): String = when (state) {
     TunnelState.Disconnecting -> stringResource(R.string.vpn_disconnecting)
     is TunnelState.Error -> stringResource(R.string.vpn_hero_error)
     TunnelState.Disconnected -> stringResource(R.string.vpn_hero_off)
-}
-
-@Composable
-private fun DnsLeakTile(viewModel: VpnViewModel, modifier: Modifier) {
-    val extra = GateControlTheme.extraColors
-    var busy by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<Pair<Boolean, String?>?>(null) }
-
-    val spin = androidx.compose.animation.core.rememberInfiniteTransition(label = "dns")
-    val angle by spin.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            androidx.compose.animation.core.tween(1_100, easing = androidx.compose.animation.core.LinearEasing),
-        ),
-        label = "dns_spin",
-    )
-
-    val (ok, detail) = result ?: (null to null)
-    GcTile(
-        icon = GcIcons.Globe,
-        iconTint = when (ok) {
-            true -> extra.accentText
-            false -> MaterialTheme.colorScheme.error
-            null -> extra.blue
-        },
-        title = stringResource(R.string.dns_leak_test),
-        subtitle = when {
-            busy -> stringResource(R.string.dns_testing)
-            ok == true -> stringResource(R.string.dns_tile_ok, detail ?: "")
-            ok == false -> stringResource(R.string.dns_tile_fail)
-            else -> stringResource(R.string.dns_tile_idle)
-        },
-        enabled = !busy,
-        onClick = {
-            busy = true
-            viewModel.runDnsLeakTest { success, info ->
-                result = success to info
-                busy = false
-            }
-        },
-        iconModifier = if (busy) Modifier.graphicsLayer { rotationZ = angle } else Modifier,
-        modifier = modifier,
-    )
 }

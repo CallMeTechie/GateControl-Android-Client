@@ -27,19 +27,19 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.common.Formatters
-import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
 
 private const val MIN_Y_VALUE = 1024L // 1 KB/s minimum scale
 
 /**
- * "Durchsatz" card: current download/upload rate and a 60-second graph
- * (download as filled line, upload dashed). Shows a placeholder while the
- * tunnel is down.
+ * "Durchsatz" page of the usage card ([UsageCard]): current download/upload
+ * rate and a 60-second graph (download as filled line, upload dashed).
+ * Shows a placeholder while the tunnel is down. The card's header carries
+ * the title.
  */
 @Composable
-fun BandwidthGraph(
+fun BandwidthContent(
     rxHistory: List<Long>,
     txHistory: List<Long>,
     modifier: Modifier = Modifier,
@@ -51,19 +51,12 @@ fun BandwidthGraph(
     val rxColor = extra.accentText
     val txColor = extra.blue
 
-    GcCard(modifier = modifier) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = stringResource(R.string.vpn_bandwidth),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            Text("60 s", style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.labelMedium.fontSize), color = extra.faint)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
             RateValue("↓ " + stringResource(R.string.vpn_download), if (connected) Formatters.formatSpeed(rxSpeed) else "—", rxColor)
             RateValue("↑ " + stringResource(R.string.vpn_upload), if (connected) Formatters.formatSpeed(txSpeed) else "—", txColor)
+            Box(Modifier.weight(1f))
+            Text("60 s", style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.labelMedium.fontSize), color = extra.faint)
         }
 
         if (!connected) {
@@ -87,7 +80,7 @@ fun BandwidthGraph(
                     color = extra.muted,
                 )
             }
-            return@GcCard
+            return@Column
         }
 
         val graphDesc = stringResource(R.string.vpn_bandwidth_graph_desc)

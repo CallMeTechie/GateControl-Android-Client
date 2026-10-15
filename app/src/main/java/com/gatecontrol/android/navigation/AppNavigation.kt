@@ -60,9 +60,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.network.NETWORK_TAB_PIHOLE
 import com.gatecontrol.android.ui.network.NetworkScreen
-import com.gatecontrol.android.ui.rdp.RdpScreen
+import com.gatecontrol.android.ui.network.NetworkTabs
+import com.gatecontrol.android.ui.infocard.InfoCardPickerScreen
 import com.gatecontrol.android.ui.settings.ConnectionDetailsScreen
 import com.gatecontrol.android.ui.settings.LogsScreen
 import com.gatecontrol.android.ui.profile.ProfileScreen
@@ -145,19 +145,17 @@ fun AppNavigation(
     val familieIcon = remember(plugins.familieIcon) {
         plugins.familieIcon?.let { path -> runCatching { GcIcons.fromPath("FamilieTab", path) }.getOrNull() } ?: GcIcons.Family
     }
-    // Plugin tab (Familie only) after the built-in ones, settings stay last
-    // (docs/FAMILIE.md). The door plugin has no tab (docs/DOOR.md).
+    // Start, Netzwerk (Dienste, Pi-hole, Remote), the plugin tab (Familie
+    // only, docs/FAMILIE.md). The door plugin has no tab (docs/DOOR.md), the
+    // settings open from the profile (gear top right).
     val tabs = MainTabs.routes(
-        rdp = hasRdpPermission,
-        network = hasServicesPermission || hasPiholePermission,
+        network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission),
         plugins = plugins,
     ).map { route ->
         when (route) {
-            Screen.Vpn.route -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
-            Screen.Rdp.route -> TabItem(route, Screen.Rdp.route, R.string.nav_remote, GcIcons.Monitor, onlineRdpHostCount)
-            Screen.Network.route -> TabItem(route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe)
+            Screen.Network.route -> TabItem(route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe, onlineRdpHostCount)
             Screen.Familie.route -> TabItem(route, Screen.Familie.create(), R.string.nav_familie, familieIcon)
-            else -> TabItem(route, Screen.Settings.create(), R.string.nav_settings, GcIcons.Sliders)
+            else -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
         }
     }
 
@@ -165,16 +163,24 @@ fun AppNavigation(
     // bottom bar, list and detail side by side (docs/LARGE_SCREENS.md).
     val layout = rememberGcWindowLayout()
 
-    /** A settings page: beside the settings list on wide screens, else its own route. */
+    /**
+     * A settings page: beside the settings list on wide screens, else its
+     * own route. The settings are a normal destination with back (no tab
+     * since 1.35); the profile is the way in, so it opens on its own.
+     */
     val openSettingsPane: (SettingsPane) -> Unit = { pane ->
-        if (layout.twoPane) {
-            // No restoreState: the pane argument must win over a saved settings state.
-            navController.navigate(Screen.Settings.create(pane.key)) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-            }
-        } else {
-            navController.navigate(pane.route()) { launchSingleTop = true }
+        when {
+            pane == SettingsPane.Profile -> navController.navigate(Screen.Profile.route) { launchSingleTop = true }
+            layout.twoPane -> navController.navigate(Screen.Settings.create(pane.key)) { launchSingleTop = true }
+            else -> navController.navigate(pane.route()) { launchSingleTop = true }
+        }
+    }
+    /** The settings list (gear on the profile). */
+    val openSettings: () -> Unit = { navController.navigate(Screen.Settings.create()) { launchSingleTop = true } }
+    /** Settings → Profil: back to the profile when the settings were opened from it, else the profile on top. */
+    val openProfileFromSettings: () -> Unit = {
+        if (!navController.popBackStack(Screen.Profile.route, inclusive = false)) {
+            navController.navigate(Screen.Profile.route) { launchSingleTop = true }
         }
     }
     /** Door screen "Tür & Kamera" (door plugin listed only): long press on a door quick action. */
@@ -298,26 +304,25 @@ fun AppNavigation(
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         }
                     },
-                    onOpenPihole = {
-                        // No restoreState: the tab argument must win over a saved Netzwerk state.
-                        navController.navigate(Screen.Network.create(NETWORK_TAB_PIHOLE)) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenSplitTunnel = { openSettingsPane(SettingsPane.SplitTunnel) },
                     onOpenLogs = { openSettingsPane(SettingsPane.Logs) },
                     onOpenQuickActions = { navController.navigate(Screen.QuickActions.route) { launchSingleTop = true } },
                     onOpenLocationSettings = { openSettingsPane(SettingsPane.Location) },
                     onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
                     onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                    onOpenInfoCardPicker = { navController.navigate(Screen.InfoCardPicker.route) { launchSingleTop = true } },
                     // Long press on a door quick action: the door screen, a normal destination — no tab.
                     onOpenDoor = openDoor,
                 )
             }
 
+            // Former Remote tab: now the Remote segment of the Netzwerk tab.
             composable(Screen.Rdp.route) {
-                GcContentWidth(maxWidth = 840.dp) { RdpScreen() }
+                LaunchedEffect(Unit) {
+                    navController.navigate(MainTabs.redirect(Screen.Rdp.route) ?: Screen.Network.create()) {
+                        popUpTo(Screen.Rdp.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             }
 
             composable(
@@ -334,6 +339,7 @@ fun AppNavigation(
                     NetworkScreen(
                         hasServices = hasServicesPermission,
                         hasPihole = hasPiholePermission,
+                        hasRemote = hasRdpPermission,
                         initialTab = backStackEntry.arguments?.getString(Screen.Network.ARG_TAB),
                         onGoToStart = { navigateToTab(Screen.Vpn.route) },
                     )
@@ -363,6 +369,7 @@ fun AppNavigation(
                     GcTwoPane(
                         list = {
                             SettingsScreen(
+                                onBack = { navController.popBackStack() },
                                 onNavigateToNotifications = { paneKey = SettingsPane.Notifications.key },
                                 onNavigateToLogs = { paneKey = SettingsPane.Logs.key },
                                 onNavigateToServer = { paneKey = SettingsPane.Server.key },
@@ -388,6 +395,7 @@ fun AppNavigation(
                     )
                 } else {
                     SettingsScreen(
+                        onBack = { navController.popBackStack() },
                         onNavigateToNotifications = { navController.navigate(Screen.SettingsNotifications.route) },
                         onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
                         onNavigateToServer = { navController.navigate(Screen.SettingsServer.route) },
@@ -395,7 +403,7 @@ fun AppNavigation(
                         onNavigateToTrustedNetworks = { navController.navigate(Screen.TrustedNetworks.route) },
                         onNavigateToLocation = { navController.navigate(Screen.LocationSharing.route) },
                         onNavigateToDiagnosis = { navController.navigate(Screen.Diagnosis.route) { launchSingleTop = true } },
-                        onNavigateToProfile = { navController.navigate(Screen.Profile.route) { launchSingleTop = true } },
+                        onNavigateToProfile = openProfileFromSettings,
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                     )
                 }
@@ -572,7 +580,11 @@ fun AppNavigation(
             }
 
             composable(Screen.Profile.route) {
-                GcContentWidth { ProfileScreen(onBack = { navController.popBackStack() }) }
+                GcContentWidth { ProfileScreen(onBack = { navController.popBackStack() }, onOpenSettings = openSettings) }
+            }
+
+            composable(Screen.InfoCardPicker.route) {
+                GcContentWidth { InfoCardPickerScreen(onBack = { navController.popBackStack() }) }
             }
 
             composable(Screen.ConnectionDetails.route) {
@@ -649,7 +661,11 @@ private fun openPushTarget(
             navController.navigate(Screen.NotificationDetail.create(target.id))
         }
         PushNavTarget.Vpn -> navigateToTab(Screen.Vpn.route)
-        PushNavTarget.Services -> navController.navigate(Screen.Network.create()) {
+        PushNavTarget.Services -> navController.navigate(Screen.Network.create(NetworkTabs.SERVICES)) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+        }
+        PushNavTarget.Remote -> navController.navigate(Screen.Network.create(NetworkTabs.REMOTE)) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
         }

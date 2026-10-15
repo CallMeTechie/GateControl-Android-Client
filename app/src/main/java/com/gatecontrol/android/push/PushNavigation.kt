@@ -11,6 +11,9 @@ sealed interface PushNavTarget {
     data object Vpn : PushNavTarget
     data object Services : PushNavTarget
 
+    /** RDP hosts: the Remote segment of the Netzwerk tab (until 1.35 an own tab). */
+    data object Remote : PushNavTarget
+
     /**
      * A screen of the Familie tab ([dest] = FamilieDest key). Without the
      * tab (plugin gone meanwhile) the message [messageId] opens instead.
@@ -32,7 +35,8 @@ sealed interface PushNavTarget {
         const val DOOR_ROUTE = "plg-gatecontrol-door"
 
         /**
-         * App route of the contract → screen. `gateways` and other plugin
+         * App route of the contract → screen (`rdp`/`remote`: the Remote
+         * segment of the Netzwerk tab). `gateways` and other plugin
          * routes (`plg-<id>`) have no screen in the app: the message itself
          * opens. The Familie plugin has its own tab, the door plugin its
          * door screen (no tab).
@@ -40,6 +44,7 @@ sealed interface PushNavTarget {
         fun forRoute(route: String?, messageId: Long?, doorDest: String? = null): PushNavTarget = when (route) {
             "vpn" -> Vpn
             "services" -> Services
+            "rdp", "remote" -> Remote
             "inbox" -> Inbox
             FAMILIE_ROUTE -> Familie("home", messageId?.takeIf { it > 0 })
             DOOR_ROUTE -> Door(doorDest ?: "home", messageId?.takeIf { it > 0 })

@@ -54,6 +54,10 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val LOCATION_LAST_SENT = stringPreferencesKey("location_last_sent")
         /** Own profile (picture URL, favourite colour), JSON owned by the app's ProfileRepository. */
         val PROFILE_CACHE = stringPreferencesKey("profile_cache")
+        /** Start tab: page of the throughput/data usage card shown first ("throughput" | "usage"). */
+        val USAGE_CARD_FAVORITE = stringPreferencesKey("usage_card_favorite")
+        /** Start tab "Info" card: chosen contents per login, JSON owned by the app's InfoCardRepository. */
+        val INFO_CARD = stringPreferencesKey("info_card")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -149,6 +153,21 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     suspend fun setProfileCache(value: String?) {
         dataStore.edit { if (value == null) it.remove(PROFILE_CACHE) else it[PROFILE_CACHE] = value }
+    }
+
+    /** Page of the throughput/data usage card shown first, null = never chosen (the app's default). */
+    fun getUsageCardFavorite(): Flow<String?> = dataStore.data.map { it[USAGE_CARD_FAVORITE] }
+
+    suspend fun setUsageCardFavorite(value: String) {
+        dataStore.edit { it[USAGE_CARD_FAVORITE] = value }
+    }
+
+    /** Contents of the "Info" card on the start tab (JSON, see the app's InfoCardRepository). */
+    fun getInfoCard(): Flow<String?> = dataStore.data.map { it[INFO_CARD] }
+
+    /** Atomic read-modify-write of the "Info" card contents. */
+    suspend fun updateInfoCard(transform: (String?) -> String) {
+        dataStore.edit { it[INFO_CARD] = transform(it[INFO_CARD]) }
     }
 
     /** Adds or removes [domain]; atomic, so two quick taps never lose one. */

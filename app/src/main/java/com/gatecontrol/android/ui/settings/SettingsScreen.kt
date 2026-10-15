@@ -40,7 +40,7 @@ import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPolicyLockedHint
 import com.gatecontrol.android.ui.components.GcPolicyManagedBanner
 import com.gatecontrol.android.ui.components.GcPolicySystemVpnCard
-import com.gatecontrol.android.ui.components.GcScreenTitle
+import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSegmented
@@ -57,7 +57,8 @@ import com.gatecontrol.android.ui.profile.ProfilePresenceViewModel
 import com.gatecontrol.android.ui.profile.ProfileRowAvatar
 
 /**
- * Settings overview: the own profile (picture, favourite colour) first,
+ * Settings (no tab since 1.35: the gear on the profile opens them, back
+ * leads there). Overview: the own profile (picture, favourite colour) first,
  * status card of the server connection, then grouped cards (Verbindung
  * with the connection details, Sicherheit, Benachrichtigungen,
  * Darstellung, Lizenz, Hilfe). Profile, connection details, server setup
@@ -65,6 +66,8 @@ import com.gatecontrol.android.ui.profile.ProfileRowAvatar
  */
 @Composable
 fun SettingsScreen(
+    /** Back to where the settings were opened (the profile, a hint): no tab since 1.35. */
+    onBack: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToLogs: () -> Unit,
     onNavigateToServer: () -> Unit,
@@ -105,11 +108,17 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp),
+            .verticalScroll(rememberScrollState()),
+    ) {
+        GcSubpageBar(
+            title = stringResource(R.string.settings_title),
+            onBack = onBack,
+            backDescription = stringResource(R.string.common_back),
+        )
+    Column(
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        GcScreenTitle(stringResource(R.string.settings_title))
 
         // --- Profil (own picture + ring colour, "Anwesenheit teilen" with the Familie presence module) ---
         if (myAvatar.profileAvailable || presenceVisible) {
@@ -405,6 +414,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
     }
 }
 
