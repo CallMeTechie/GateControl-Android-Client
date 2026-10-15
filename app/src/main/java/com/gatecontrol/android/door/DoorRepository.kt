@@ -21,10 +21,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * State of the door tab shared by its screens: the last `GET me` (also
- * kept on the device, so the tab shows the locks while offline — never
- * pictures or history, those stay on the server) and a signal when a door
- * push arrives (e.g. "automatisch aufgesperrt") so the tab reloads.
+ * State shared by the door screens: the last `GET me` (also kept on the
+ * device, so the locks show while offline — never pictures or history,
+ * those stay on the server) and a signal when a door push arrives (e.g.
+ * "automatisch aufgesperrt") so an open door screen reloads.
  */
 @Singleton
 class DoorRepository @Inject constructor(

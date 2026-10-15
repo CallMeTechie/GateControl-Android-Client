@@ -102,15 +102,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.gatecontrol.android.ui.notifications.notificationsAllowed
 import com.gatecontrol.android.ui.notifications.bellState
 
-private val bottomBarRoutes = setOf(
-    Screen.Vpn.route,
-    Screen.Rdp.route,
-    Screen.Network.route,
-    Screen.Familie.route,
-    Screen.Door.route,
-    Screen.Settings.route,
-)
-
 private data class TabItem(
     val route: String,
     val navigateTo: String,
@@ -138,7 +129,7 @@ fun AppNavigation(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val showBottomBar = currentRoute in bottomBarRoutes
+    val showBottomBar = currentRoute in MainTabs.BAR_ROUTES
 
     val navigateToTab: (String) -> Unit = { route ->
         navController.navigate(route) {
@@ -154,25 +145,20 @@ fun AppNavigation(
     val familieIcon = remember(plugins.familieIcon) {
         plugins.familieIcon?.let { path -> runCatching { GcIcons.fromPath("FamilieTab", path) }.getOrNull() } ?: GcIcons.Family
     }
-    val doorIcon = remember(plugins.doorIcon) {
-        plugins.doorIcon?.let { path -> runCatching { GcIcons.fromPath("DoorTab", path) }.getOrNull() } ?: GcIcons.Door
-    }
-    val tabs = buildList {
-        add(TabItem(Screen.Vpn.route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield))
-        if (hasRdpPermission) {
-            add(TabItem(Screen.Rdp.route, Screen.Rdp.route, R.string.nav_remote, GcIcons.Monitor, onlineRdpHostCount))
+    // Plugin tab (Familie only) after the built-in ones, settings stay last
+    // (docs/FAMILIE.md). The door plugin has no tab (docs/DOOR.md).
+    val tabs = MainTabs.routes(
+        rdp = hasRdpPermission,
+        network = hasServicesPermission || hasPiholePermission,
+        plugins = plugins,
+    ).map { route ->
+        when (route) {
+            Screen.Vpn.route -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
+            Screen.Rdp.route -> TabItem(route, Screen.Rdp.route, R.string.nav_remote, GcIcons.Monitor, onlineRdpHostCount)
+            Screen.Network.route -> TabItem(route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe)
+            Screen.Familie.route -> TabItem(route, Screen.Familie.create(), R.string.nav_familie, familieIcon)
+            else -> TabItem(route, Screen.Settings.create(), R.string.nav_settings, GcIcons.Sliders)
         }
-        if (hasServicesPermission || hasPiholePermission) {
-            add(TabItem(Screen.Network.route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe))
-        }
-        // Plugin tab after the built-in ones, settings stay last (docs/FAMILIE.md).
-        if (plugins.familieTab) {
-            add(TabItem(Screen.Familie.route, Screen.Familie.create(), R.string.nav_familie, familieIcon))
-        }
-        if (plugins.doorTab) {
-            add(TabItem(Screen.Door.route, Screen.Door.create(), R.string.nav_door, doorIcon))
-        }
-        add(TabItem(Screen.Settings.route, Screen.Settings.create(), R.string.nav_settings, GcIcons.Sliders))
     }
 
     // Tablet, unfolded foldable, phone in landscape: rail instead of the
@@ -190,6 +176,12 @@ fun AppNavigation(
         } else {
             navController.navigate(pane.route()) { launchSingleTop = true }
         }
+    }
+    /** Door screen "Tür & Kamera" (door plugin listed only): long press on a door quick action. */
+    val openDoor: (() -> Unit)? = if (plugins.door) {
+        { navController.navigate(Screen.Door.create()) { launchSingleTop = true } }
+    } else {
+        null
     }
     val isTabSelected: (TabItem) -> Boolean = { tab ->
         navBackStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true
@@ -319,6 +311,8 @@ fun AppNavigation(
                     onOpenLocationSettings = { openSettingsPane(SettingsPane.Location) },
                     onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
                     onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                    // Long press on a door quick action: the door screen, a normal destination — no tab.
+                    onOpenDoor = openDoor,
                 )
             }
 
@@ -464,11 +458,12 @@ fun AppNavigation(
                 ),
             ) { backStackEntry ->
                 val dest = DoorDest.parse(backStackEntry.arguments?.getString(Screen.Door.ARG_DEST))
+                val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Vpn.route) }
                 if (layout.twoPane) {
-                    DoorTwoPane(initial = dest)
+                    DoorTwoPane(initial = dest, onBack = back)
                 } else {
                     GcContentWidth {
-                        DoorHomeScreen(onOpen = { navController.navigate(Screen.DoorPage.create(it.key)) })
+                        DoorHomeScreen(onOpen = { navController.navigate(Screen.DoorPage.create(it.key)) }, onBack = back)
                     }
                 }
             }
@@ -488,7 +483,7 @@ fun AppNavigation(
                     DoorPage(
                         dest = dest,
                         onBack = {
-                            if (!navController.popBackStack()) navigateToTab(Screen.Door.create())
+                            if (!navController.popBackStack()) navController.navigate(Screen.Door.create())
                         },
                         onOpen = { navController.navigate(Screen.DoorPage.create(it.key)) },
                     )
@@ -540,7 +535,7 @@ fun AppNavigation(
                                     onBack = { selected = null },
                                     onNavigate = { target ->
                                         if (target is PushNavTarget.Detail) selected = target.id
-                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.doorTab)
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door)
                                     },
                                     viewModel = detailViewModel,
                                 )
@@ -567,7 +562,7 @@ fun AppNavigation(
                         onBack = {
                             if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
                         },
-                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.doorTab) },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door) },
                     )
                 }
             }
@@ -604,7 +599,7 @@ fun AppNavigation(
             }
 
             composable(Screen.QuickActions.route) {
-                GcContentWidth { QuickActionsScreen(onBack = { navController.popBackStack() }) }
+                GcContentWidth { QuickActionsScreen(onBack = { navController.popBackStack() }, onOpenDoor = openDoor) }
             }
 
             composable(Screen.Logs.route) {
@@ -620,7 +615,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.doorTab)
+            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -642,7 +637,8 @@ private fun openPushTarget(
     navigateToTab: (String) -> Unit,
     layout: GcWindowLayout,
     familieTab: Boolean,
-    doorTab: Boolean = false,
+    /** The door plugin is listed: its pushes open the door screens. */
+    door: Boolean = false,
 ) {
     when (target) {
         PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
@@ -667,7 +663,7 @@ private fun openPushTarget(
                     navigateToTab,
                     layout,
                     familieTab = false,
-                    doorTab = doorTab,
+                    door = door,
                 )
                 // Wide screens: the screen beside the Familie start screen. No
                 // restoreState: the dest argument must win over a saved state.
@@ -682,25 +678,27 @@ private fun openPushTarget(
             }
         }
         is PushNavTarget.Door -> {
-            val dest = DoorDest.parse(target.dest) ?: DoorDest.Home
-            when {
-                // No door tab (plugin gone, no right any more): the message itself.
-                !doorTab -> openPushTarget(
+            val steps = DoorNavigation.forPush(target.dest, pluginListed = door, twoPane = layout.twoPane)
+            // Plugin gone (or no right any more): the message itself.
+            if (steps == null) {
+                openPushTarget(
                     navController,
                     target.messageId?.let { PushNavTarget.Detail(it) } ?: PushNavTarget.Inbox,
                     navigateToTab,
                     layout,
                     familieTab,
-                    doorTab = false,
+                    door = false,
                 )
-                // Wide screens: the ring beside the door start screen (no restoreState: dest wins).
-                layout.twoPane -> navController.navigate(Screen.Door.create(dest.key)) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                }
-                else -> {
-                    navigateToTab(Screen.Door.create())
-                    if (dest != DoorDest.Home) navController.navigate(Screen.DoorPage.create(dest.key))
+                return
+            }
+            steps.forEach { step ->
+                when (step) {
+                    // One door screen at a time: an open one (and what lies on it) is replaced, so dest wins.
+                    is DoorStep.Main -> navController.navigate(Screen.Door.create(step.selected?.key)) {
+                        popUpTo(Screen.Door.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    is DoorStep.Page -> navController.navigate(Screen.DoorPage.create(step.dest.key))
                 }
             }
         }

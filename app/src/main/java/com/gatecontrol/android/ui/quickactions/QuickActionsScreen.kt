@@ -3,6 +3,7 @@ package com.gatecontrol.android.ui.quickactions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -49,6 +50,7 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.quickactions.QuickActionActivity
 import com.gatecontrol.android.quickactions.QuickActionIcons
 import com.gatecontrol.android.quickactions.QuickActionItem
+import com.gatecontrol.android.quickactions.QuickActionLongPress
 import com.gatecontrol.android.quickactions.QuickActionRepository
 import com.gatecontrol.android.quickactions.QuickActionsLoad
 import com.gatecontrol.android.ui.components.GcBanner
@@ -65,10 +67,12 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 /**
  * All quick actions of the plugins for this device's user, grouped by
  * plugin: a tap runs one, the pin adds it to the start screen, the app
- * shortcuts, the Quick Settings tiles and the widget.
+ * shortcuts, the Quick Settings tiles and the widget. A long press on a
+ * door action opens the door screen ([onOpenDoor], null: the door plugin
+ * is not listed — QuickActionLongPress).
  */
 @Composable
-fun QuickActionsScreen(onBack: () -> Unit, viewModel: QuickActionsViewModel = hiltViewModel()) {
+fun QuickActionsScreen(onBack: () -> Unit, onOpenDoor: (() -> Unit)? = null, viewModel: QuickActionsViewModel = hiltViewModel()) {
     val actions by viewModel.actions.collectAsStateWithLifecycle()
     val pins by viewModel.pins.collectAsStateWithLifecycle()
     val load by viewModel.load.collectAsStateWithLifecycle()
@@ -145,6 +149,7 @@ fun QuickActionsScreen(onBack: () -> Unit, viewModel: QuickActionsViewModel = hi
                             running = running == action.key,
                             onRun = { if (action.confirm) confirming = action else viewModel.run(action) },
                             onTogglePin = { viewModel.togglePin(action) },
+                            onLongPress = longPress(action, onOpenDoor),
                         )
                     }
                 }
@@ -160,6 +165,7 @@ private fun ActionRow(
     running: Boolean,
     onRun: () -> Unit,
     onTogglePin: () -> Unit,
+    onLongPress: (() -> Unit)?,
 ) {
     val extra = GateControlTheme.extraColors
     val icon = remember(item.icon) { QuickActionIcons.vector(item.icon) }
@@ -167,6 +173,8 @@ private fun ActionRow(
         title = item.title,
         description = item.subtitle,
         onClick = onRun,
+        onLongClick = onLongPress,
+        onLongClickLabel = onLongPress?.let { stringResource(R.string.door_open_screen) },
         leading = {
             GcIconSquare(size = 40.dp, background = if (item.isOn) extra.accentBg else extra.panel2) {
                 Icon(icon, contentDescription = null, tint = if (item.isOn) extra.accentText else MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
@@ -202,7 +210,13 @@ private fun ActionRow(
  * available only "Schnellaktionen auswählen". Hidden without actions.
  */
 @Composable
-fun QuickActionsCard(onOpenAll: () -> Unit, modifier: Modifier = Modifier, viewModel: QuickActionsViewModel = hiltViewModel()) {
+fun QuickActionsCard(
+    onOpenAll: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Long press on a door action: the door screen (null: door plugin not listed). */
+    onOpenDoor: (() -> Unit)? = null,
+    viewModel: QuickActionsViewModel = hiltViewModel(),
+) {
     val pins by viewModel.pins.collectAsStateWithLifecycle()
     val actions by viewModel.actions.collectAsStateWithLifecycle()
     val running by viewModel.running.collectAsStateWithLifecycle()
@@ -232,6 +246,7 @@ fun QuickActionsCard(onOpenAll: () -> Unit, modifier: Modifier = Modifier, viewM
                         item = item,
                         running = running == item.key,
                         onClick = { if (item.confirm) confirming = item else viewModel.run(item) },
+                        onLongPress = longPress(item, onOpenDoor),
                     )
                 }
             }
@@ -279,7 +294,7 @@ private val TileShape = RoundedCornerShape(18.dp)
 
 /** One pinned action: icon tile (filled while a switch is on, progress while it runs) and its title. */
 @Composable
-private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: () -> Unit) {
+private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: () -> Unit, onLongPress: (() -> Unit)?) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val on = item.isOn
@@ -289,7 +304,13 @@ private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: ()
         Modifier
             .width(TILE_LABEL_WIDTH)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(enabled = !running, role = if (item.toggle) Role.Switch else Role.Button, onClick = onClick)
+            .combinedClickable(
+                enabled = !running,
+                role = if (item.toggle) Role.Switch else Role.Button,
+                onLongClickLabel = onLongPress?.let { stringResource(R.string.door_open_screen) },
+                onLongClick = onLongPress,
+                onClick = onClick,
+            )
             .semantics(mergeDescendants = true) { if (stateText != null) stateDescription = stateText },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -334,6 +355,13 @@ private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: ()
         )
     }
 }
+
+/** Long press of [item] (QuickActionLongPress): a door action opens the door screen, others have none. */
+private fun longPress(item: QuickActionItem, onOpenDoor: (() -> Unit)?): (() -> Unit)? =
+    when (QuickActionLongPress.target(item, doorListed = onOpenDoor != null)) {
+        QuickActionLongPress.Target.DOOR -> onOpenDoor
+        null -> null
+    }
 
 @Composable
 private fun ResultToasts(viewModel: QuickActionsViewModel) {

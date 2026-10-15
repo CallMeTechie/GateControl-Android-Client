@@ -1,9 +1,9 @@
 package com.gatecontrol.android.door
 
 /**
- * Decisions of the door tab, kept pure for the tests: which buttons a lock
- * card shows and whether they work, what has to happen before an action
- * runs (confirmation, device authentication) and how a state reads.
+ * Decisions of the door screens, kept pure for the tests: which buttons a
+ * lock card shows and whether they work, what has to happen before an
+ * action runs (confirmation, device authentication) and how a state reads.
  */
 object DoorLogic {
 
@@ -89,6 +89,6 @@ object DoorLogic {
     fun secondsLeft(retryUntilMs: Long, nowMs: Long): Int =
         if (retryUntilMs <= nowMs) 0 else ((retryUntilMs - nowMs + 999) / 1000).toInt()
 
-    /** Interval of `GET me` while the tab is visible. */
+    /** Interval of `GET me` while the door screen is visible. */
     const val POLL_MS = 10_000L
 }

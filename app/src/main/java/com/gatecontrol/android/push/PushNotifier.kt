@@ -277,7 +277,7 @@ class PushNotifier @Inject constructor(
         NotificationManagerCompat.from(context).cancel(notificationId)
     }
 
-    /** Familie messages: locate answers, geofence sync, … (see FamiliePushHandler); door: the tab reloads. */
+    /** Familie messages: locate answers, geofence sync, … (see FamiliePushHandler); door: an open door screen reloads. */
     override suspend fun onNew(message: PushMessage) {
         familie.get().onNew(message)
         if (DoorPush.isDoorMessage(message)) door.get().onPush(message)
@@ -288,7 +288,7 @@ class PushNotifier @Inject constructor(
         Uri.parse("gatecontrol-push://message/${message.id}/${message.seq}/$slot")
 
     private fun openIntent(message: PushMessage, action: PushAction?, slot: Int, familieDest: String? = null): PendingIntent {
-        // Door messages: the ring's detail (or the door tab) for the tap and for "Ansehen".
+        // Door messages: the ring's detail (or the door screen) for the tap and for "Ansehen".
         val doorDest = DoorPush.destination(message)?.key
         val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

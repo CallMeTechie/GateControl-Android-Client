@@ -22,7 +22,11 @@ data class DoorPushInfo(
     }
 }
 
-/** A screen of the door tab. */
+/**
+ * A door screen: [Home] is the door screen "Tür & Kamera" (no tab; opened
+ * by a door push or a long press on a door quick action), [History] and
+ * [Event] lie on top of it (wide windows: beside its list).
+ */
 sealed interface DoorDest {
     val key: String
 
@@ -70,7 +74,7 @@ object DoorPush {
         return DoorPushInfo(type, door.id("eventId"), door.id("cameraId"), door.id("lockId"))
     }
 
-    /** Where a tap on a door message (or its "Ansehen") leads: the ring's detail, else the tab. */
+    /** Where a tap on a door message (or its "Ansehen") leads: the ring's detail, else the door screen. */
     fun destination(message: PushMessage): DoorDest? {
         if (!isDoorMessage(message)) return null
         val info = parse(message)

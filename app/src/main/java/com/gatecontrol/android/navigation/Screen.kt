@@ -42,16 +42,17 @@ sealed class Screen(val route: String) {
         fun create(dest: String): String = "familie/page?dest=" + android.net.Uri.encode(dest)
     }
     /**
-     * Tab of the door plugin "Tür & Kamera" (only when the server lists it
-     * with an app tab). `dest` (DoorDest key) is shown beside the start
-     * screen on wide windows.
+     * Door screen "Tür & Kamera" of the door plugin: a normal destination,
+     * never a tab, opened by a door push or a long press on a door quick
+     * action (docs/DOOR.md). `dest` (DoorDest key) is shown beside its list
+     * on wide windows.
      */
     data object Door : Screen("door?dest={dest}") {
         const val ARG_DEST = "dest"
         const val BASE = "door"
         fun create(dest: String? = null): String = if (dest == null) BASE else "$BASE?dest=" + android.net.Uri.encode(dest)
     }
-    /** A screen of the door tab on its own (phones): history, a ring's detail. */
+    /** A screen on top of the door screen (phones): history, a ring's detail. */
     data object DoorPage : Screen("door/page?dest={dest}") {
         const val ARG_DEST = "dest"
         fun create(dest: String): String = "door/page?dest=" + android.net.Uri.encode(dest)

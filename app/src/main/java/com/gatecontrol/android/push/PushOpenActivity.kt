@@ -76,7 +76,7 @@ class PushOpenActivity : ComponentActivity() {
         }
 
         // A tap on the message itself opens its detail (a Familie message: its
-        // screen in the Familie tab; a door message: the ring or the door tab);
+        // screen in the Familie tab; a door message: the ring or the door screen);
         // an action goes to its app route.
         val familieDest = intent.getStringExtra(EXTRA_FAMILIE_DEST)
         val doorDest = intent.getStringExtra(EXTRA_DOOR_DEST)

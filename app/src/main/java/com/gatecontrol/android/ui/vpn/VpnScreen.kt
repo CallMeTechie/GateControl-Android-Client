@@ -113,6 +113,8 @@ fun VpnScreen(
     onOpenDiagnosis: () -> Unit = {},
     /** Own profile (tap on the own avatar in the header). */
     onOpenProfile: () -> Unit = {},
+    /** Door screen "Tür & Kamera" (long press on a door quick action); null without the door plugin. */
+    onOpenDoor: (() -> Unit)? = null,
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
@@ -530,7 +532,7 @@ fun VpnScreen(
         }
 
         // --- Quick actions of the plugins ----------------------------------
-        com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenAll = onOpenQuickActions)
+        com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenAll = onOpenQuickActions, onOpenDoor = onOpenDoor)
 
         // --- Quick tiles --------------------------------------------------
         val tiles = buildList<@Composable (Modifier) -> Unit> {

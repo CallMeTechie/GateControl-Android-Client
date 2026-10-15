@@ -228,7 +228,7 @@ fun rememberDoorActionStarter(onRun: (DoorLock, String) -> Unit, onNotice: (Door
     }
 }
 
-/** Detail pane of the door tab before something is picked. */
+/** Detail pane of the door screen (wide windows) before something is picked. */
 @Composable
 fun DoorPanePlaceholder() {
     val extra = GateControlTheme.extraColors

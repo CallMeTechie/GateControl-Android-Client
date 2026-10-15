@@ -36,10 +36,12 @@ data class PluginAvailability(
     val familieApi: Boolean = false,
     /** The Alltag plugin is listed: the dates screen also shows its appointments. */
     val alltag: Boolean = false,
-    /** The door plugin ("Tür & Kamera") is listed with an app tab for this user. */
-    val doorTab: Boolean = false,
-    /** SVG path of the door tab icon, as the plugin declares it. */
-    val doorIcon: String? = null,
+    /**
+     * The door plugin ("Tür & Kamera") is listed for this user. It never
+     * gets a tab of its own (its `ui.app` entry is ignored): its pushes and
+     * a long press on its quick actions open the door screen (docs/DOOR.md).
+     */
+    val door: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -48,14 +50,12 @@ data class PluginAvailability(
         fun from(plugins: List<ClientPlugin>): PluginAvailability {
             val familie = plugins.firstOrNull { it.id == FAMILIE_PLUGIN }
             val tab = familie?.tab
-            val doorTab = plugins.firstOrNull { it.id == com.gatecontrol.android.door.DOOR_PLUGIN }?.tab
             return PluginAvailability(
                 familieTab = tab != null,
                 familieIcon = icon(tab?.icon),
                 familieApi = familie != null,
                 alltag = plugins.any { it.id == ALLTAG_PLUGIN },
-                doorTab = doorTab != null,
-                doorIcon = icon(doorTab?.icon),
+                door = plugins.any { it.id == com.gatecontrol.android.door.DOOR_PLUGIN },
             )
         }
 
