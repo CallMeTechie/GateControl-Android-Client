@@ -533,9 +533,6 @@
     <string name="trusted_perm_location_settings">Standort einschalten</string>
     <string name="trusted_locked">Die Verbindung ist vom Administrator als „immer verbunden“ festgelegt – vertrauenswürdige WLANs haben deshalb keine Wirkung.</string>
     <string name="quick_actions_title">Schnellaktionen</string>
-    <string name="quick_actions_all">Alle</string>
-    <string name="quick_actions_choose">Auswählen</string>
-    <string name="quick_actions_empty_pins">Hefte die Aktionen deiner Plugins an, die du oft brauchst.</string>
     <string name="quick_actions_none">Keine Schnellaktionen verfügbar. Plugins wie Smart Home, Klima oder Fahrzeuge bieten sie an.</string>
     <string name="quick_actions_unsupported">Der Server bietet noch keine Schnellaktionen an (GateControl aktualisieren).</string>
     <string name="quick_actions_failed">Schnellaktionen konnten nicht geladen werden.</string>
@@ -743,4 +740,45 @@
     <string name="diag_timeout">Hat zu lange gedauert</string>
     <string name="diag_timeout_hint">Die Prüfung hat zu lange gedauert. Prüfe erneut.</string>
     <string name="diag_error">Prüfung fehlgeschlagen (%1$s)</string>
+
+    <!-- Profil (1.32): Profilbild, Lieblingsfarbe; Verbindungsdetails in den Einstellungen -->
+    <string name="profile_title">Profil</string>
+    <string name="profile_avatar_desc">%1$s – Profil</string>
+    <string name="profile_settings_row_desc">Profilbild und Lieblingsfarbe</string>
+    <string name="profile_photo_pick">Foto wählen</string>
+    <string name="profile_photo_remove">Entfernen</string>
+    <string name="profile_photo_saved">Profilbild gespeichert</string>
+    <string name="profile_photo_removed">Profilbild entfernt</string>
+    <string name="profile_photo_unreadable">Das Foto konnte nicht gelesen werden.</string>
+    <string name="profile_color_title">Lieblingsfarbe</string>
+    <string name="profile_color_help">Farbe deines Rings, wenn du zu Hause bist. Rot bedeutet unterwegs.</string>
+    <string name="profile_color_blue">Blau</string>
+    <string name="profile_color_teal">Petrol</string>
+    <string name="profile_color_green">Grün</string>
+    <string name="profile_color_lime">Hellgrün</string>
+    <string name="profile_color_yellow">Gelb</string>
+    <string name="profile_color_orange">Orange</string>
+    <string name="profile_color_pink">Pink</string>
+    <string name="profile_color_purple">Lila</string>
+    <string name="profile_color_indigo">Indigo</string>
+    <string name="profile_color_slate">Schiefergrau</string>
+    <string name="profile_color_other">Farbe</string>
+    <string name="profile_privacy_hint">Dein Profilbild liegt auf deinem GateControl-Server und ist für die Benutzer dieses Servers sichtbar (Apps, Portal, Wand-Tablet, Verwaltung).</string>
+    <string name="profile_unsupported">Dein GateControl-Server kennt noch keine Profilbilder (GateControl aktualisieren).</string>
+    <string name="profile_no_user">Dieses Gerät gehört keinem Benutzer – ein Profil haben nur Benutzer.</string>
+    <string name="profile_error_offline">Der Server ist nicht erreichbar. Versuche es später noch einmal.</string>
+    <string name="profile_error_too_large">Das Bild ist zu groß.</string>
+    <string name="profile_error_invalid">Der Server hat das Bild nicht angenommen (quadratisch, 64–512 px, höchstens 96 KB, nicht animiert).</string>
+    <string name="profile_error_type">Dieses Bildformat nimmt der Server nicht an.</string>
+    <string name="profile_error_color">Diese Farbe kennt der Server nicht. Wähle eine andere.</string>
+    <string name="profile_error_rate_limited">Zu viele Änderungen – versuche es in einer Stunde noch einmal.</string>
+    <string name="profile_error_failed">Das hat nicht geklappt.</string>
+    <string name="profile_crop_title">Ausschnitt wählen</string>
+    <string name="profile_crop_hint">Mit zwei Fingern zoomen, mit einem verschieben. Der Kreis zeigt dein Profilbild.</string>
+    <string name="profile_crop_use">Übernehmen</string>
+    <string name="connection_details_title">Verbindungsdetails</string>
+    <string name="connection_details_row_on">Verbunden seit %1$s · %2$s</string>
+    <string name="connection_details_off">VPN ist aus</string>
+    <string name="connection_details_hint">Tunnel-Adresse, Dauer, letzter Handshake und Server deiner VPN-Verbindung.</string>
+    <string name="quick_actions_choose_long">Schnellaktionen auswählen</string>
 </resources>

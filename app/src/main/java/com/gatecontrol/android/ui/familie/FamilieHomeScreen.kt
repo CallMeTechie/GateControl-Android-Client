@@ -252,7 +252,11 @@ private fun Members(p: FamilieProfile, overview: FamilieOverview?) {
                 else -> if (p.modules.presence) presenceShort(overview?.presence?.firstOrNull { it.userId == m.userId }) else null
             }
             Column(Modifier.width(72.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FamilieAvatar(m.name, m.color, size = 48.dp, highlighted = m.userId == p.me.userId)
+                FamilieAvatar(
+                    m.name, m.color, size = 48.dp, highlighted = m.userId == p.me.userId, face = m.face,
+                    // Ring from the overview's presence when it has it (fresher), else the member object's.
+                    presence = overview?.presence?.firstOrNull { it.userId == m.userId }?.state,
+                )
                 Text(
                     if (m.age != null && m.isChild) "${m.name} · ${m.age}" else m.name,
                     style = MaterialTheme.typography.labelMedium,
@@ -430,7 +434,7 @@ private fun LocateCard(p: FamilieProfile, overview: FamilieOverview?, selected: 
                     last != null -> locateStatusLine(last.status, last.at)
                     else -> stringResource(R.string.familie_locate_never)
                 },
-                leading = { FamilieAvatar(child.name, child.color) },
+                leading = { FamilieAvatar(child.name, child.color, face = child.face) },
                 onClick = { onOpen(FamilieDest.Locate(child.userId)) },
                 trailing = {
                     if (!disabled) GcChip(stringResource(R.string.familie_locate_action), tone = GcTone.Ok, small = true)

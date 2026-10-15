@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var licenseRepository: LicenseRepository
     @Inject lateinit var pushController: PushController
     @Inject lateinit var pluginDirectory: PluginDirectory
+    @Inject lateinit var profileRepository: com.gatecontrol.android.profile.ProfileRepository
 
     /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
     private var pendingSetupLink by mutableStateOf<String?>(null)
@@ -99,6 +100,8 @@ class MainActivity : ComponentActivity() {
         pushController.onForeground()
         // Plugin list (Familie tab): refreshed in the foreground, at most every few minutes.
         pluginDirectory.refreshIfStale()
+        // Own profile (avatar, favourite colour): cached, refreshed in the foreground.
+        profileRepository.refreshIfStale()
     }
 
     override fun onNewIntent(intent: Intent) {

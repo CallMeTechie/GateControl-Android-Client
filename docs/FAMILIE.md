@@ -497,3 +497,58 @@ and off; leave on mobile data → "unterwegs"; Wi-Fi flapping shorter than
 within ~15 minutes. "Annehmen" / "Ablehnen" of `allowance_convert` from the lock
 screen. The "Einkauf erfassen?" snackbar after "Ich gehe einkaufen".
 
+
+## Familie 1.3: avatars and presence ring (app 1.32)
+
+Needs GateControl core 1.168+ (profile pictures and favourite colours of
+the GateControl accounts) and Familie 1.3. Every member object the app
+gets (`GET me` → `me`, `members[]`; `GET presence` → `members[]`;
+`GET overview` → `presence.members[]`) carries the face fields:
+
+| Field | Meaning |
+|---|---|
+| `avatarUrl` | `/avatars/<id>.<ext>` (capability URL, no login, immutable) or null |
+| `color` | palette key of the favourite colour (until 1.2: a hex colour set on the admin page) |
+| `colorHex` | `#RRGGBB` of the favourite colour |
+| `initials` | initials as GateControl makes them |
+| `presence` | `home` / `away` / `unknown`, null = not shared or module off |
+
+- Parsing (`FamilieJson.face`, `memberColor`): the member colour is
+  `colorHex`, else a `color` that is a hex value (older plugin), else the
+  palette colour of the key. `MemberFace` is null when the plugin sends
+  none of the fields (1.0–1.2): those members keep the old initials in
+  the member colour. Avatar paths must match `/avatars/<16–128 url-safe
+  characters>.(png|jpg|jpeg|webp)`; anything else is dropped. Emergency
+  card and ride drivers only carry `{userId, name}`: their faces come from
+  the members list (`FamilieProfile.faceOf`).
+- Rendering: `FamilieAvatar(…, face, presence)` hands members with a face
+  to the shared `GcAvatar` (ui/components): the picture, or the initials
+  in white on the favourite colour, inside a ring — at home the favourite
+  colour, away red `#E5484D`, unknown / not shared / module off a thin
+  neutral border. The screen reader reads "Anna – zu Hause" /
+  "Anna – unterwegs". Used on the start screen (member row; the ring
+  takes the overview's presence when it has it), the presence screen
+  (ring from `GET presence`), locate, rides, tasks (stars), household
+  book, emergency card and the child's own screen.
+- Pictures are loaded by `AvatarLoader` (no image library): from the
+  server address the app uses for `/api/v1/client/…`, over the same
+  OkHttp client, only from that server (an absolute URL on another host
+  is ignored), cached in memory and in `cacheDir/avatars` keyed by the
+  URL (a new picture gets a new URL, so nothing goes stale; at most 64
+  files).
+- Own picture and favourite colour are changed in the app (Settings →
+  Profil, or a tap on the own avatar at the top of the start tab), see
+  `profile/` and `ui/profile/`: `GET/PUT/DELETE /api/v1/client/me/…`.
+  The start tab shows the own avatar with the own presence ring while
+  "Anwesenheit teilen" is on and the module is on (what the phone senses,
+  else the last report).
+
+### Device checks for 1.3
+
+Change the picture in the app → the new picture on the other phones
+after their next refresh, in the portal and on the wall; remove it →
+initials on the favourite colour. Change the colour → the ring at home
+changes. Leave home with presence sharing on → red ring on the other
+phones. With a Familie 1.2 plugin on a 1.168 server: initials as before,
+no rings. With a server before 1.168: no "Profil" entry, the start tab
+header shows the initials of the Familie name or "GateControl" + host.

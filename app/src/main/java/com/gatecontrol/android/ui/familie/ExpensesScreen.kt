@@ -307,7 +307,7 @@ private fun ExpenseRow(p: FamilieProfile, e: Expense, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        FamilieAvatar(memberName(p, e.paidBy), p.member(e.paidBy)?.color ?: p.me.color.takeIf { e.paidBy == p.me.userId }, size = 36.dp)
+        FamilieAvatar(memberName(p, e.paidBy), p.member(e.paidBy)?.color ?: p.me.color.takeIf { e.paidBy == p.me.userId }, size = 36.dp, face = p.faceOf(e.paidBy))
         Column(Modifier.weight(1f)) {
             Text(e.note.ifBlank { stringResource(expenseCategoryRes(e.category)) }, style = MaterialTheme.typography.titleSmall)
             Text(

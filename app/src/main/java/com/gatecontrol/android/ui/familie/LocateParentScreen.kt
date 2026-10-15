@@ -110,7 +110,7 @@ fun LocateParentScreen(
                         LocateMode.OFF -> stringResource(R.string.familie_locate_disabled)
                         null -> null
                     },
-                    leading = { FamilieAvatar(name, child?.color, size = 44.dp) },
+                    leading = { FamilieAvatar(name, child?.color, size = 44.dp, face = child?.face) },
                 )
             }
 

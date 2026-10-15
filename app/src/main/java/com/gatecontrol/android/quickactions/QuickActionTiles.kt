@@ -73,7 +73,11 @@ abstract class QuickActionTileService(private val slot: Int) : TileService() {
 
     private fun render(item: QuickActionItem?) {
         val tile = qsTile ?: return
-        tile.icon = Icon.createWithResource(this, R.drawable.ic_quick_action)
+        // The action's own icon (drawn as a white mask, tinted by the system), else the bolt.
+        val px = (24 * resources.displayMetrics.density).toInt()
+        tile.icon = item?.icon?.let { QuickActionIcons.bitmap(it, px, android.graphics.Color.WHITE) }
+            ?.let { Icon.createWithBitmap(it) }
+            ?: Icon.createWithResource(this, R.drawable.ic_quick_action)
         if (item == null) {
             tile.label = getString(R.string.quick_action_tile_label, slot + 1)
             tile.subtitle = getString(R.string.quick_action_tile_unset)

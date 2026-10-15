@@ -38,6 +38,12 @@ data class QuickActionItem(
     /** "on" | "off" for a switch, else null. */
     val state: String? = null,
     val confirm: Boolean = false,
+    /**
+     * SVG path `d` of the action's icon (24×24 stroke, like a plugin tab
+     * icon), null = none (the bolt). Added in 1.32: pins stored before have
+     * no such field and Gson leaves it null.
+     */
+    val icon: String? = null,
 ) {
     val key: String get() = "$plugin/$id"
     val isOn: Boolean get() = toggle && state == "on"
@@ -213,6 +219,7 @@ class QuickActionRepository @Inject constructor(
                 toggle = toggle,
                 state = if (toggle) a.state?.takeIf { it == "on" || it == "off" } else null,
                 confirm = a.confirm == true,
+                icon = QuickActionIcons.sanitize(a.icon),
             )
         }.distinctBy { it.key }
 

@@ -46,8 +46,9 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 
 /**
- * Home-screen widget with the pinned quick actions as buttons (2 on the
- * small size, up to 4 per row on the wide one, more rows when taller). A
+ * Home-screen widget with the pinned quick actions as buttons with their
+ * icon (2 on the small size, up to 4 per row on the wide one, more rows
+ * when taller). A
  * tap runs the action through the non-exported [QuickActionActivity], which
  * asks first where the action wants it.
  */
@@ -78,6 +79,7 @@ class QuickActionsWidget : GlanceAppWidget() {
         val onBg = ColorProvider(day = Color(0xFFD5F5E6), night = Color(0xFF173B2C))
         val accent = ColorProvider(day = Color(0xFF13A86A), night = Color(0xFF3DDC97))
         val BUTTON_WIDTH = 96.dp
+        val ICON_SIZE = 18.dp
         val ROW_HEIGHT = 52.dp
     }
 
@@ -125,7 +127,12 @@ class QuickActionsWidget : GlanceAppWidget() {
 
     @Composable
     private fun ActionButton(context: Context, item: QuickActionItem, modifier: GlanceModifier) {
-        Column(
+        // The action's own icon (SVG path from the server) drawn into a bitmap
+        // in white and tinted here; the bolt when it has none.
+        val iconPx = (ICON_SIZE.value * context.resources.displayMetrics.density).toInt()
+        val glyph = QuickActionIcons.bitmap(item.icon, iconPx, android.graphics.Color.WHITE)
+        val iconTint = ColorFilter.tint(if (item.isOn) accent else onSurface)
+        Row(
             modifier = modifier
                 .height(ROW_HEIGHT)
                 .background(if (item.isOn) onBg else buttonBg)
@@ -134,19 +141,28 @@ class QuickActionsWidget : GlanceAppWidget() {
                 .clickable(actionStartActivity(QuickActionActivity.intent(context, item))),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                item.title,
-                style = TextStyle(color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold),
-                maxLines = 1,
+            Image(
+                if (glyph != null) ImageProvider(glyph) else ImageProvider(R.drawable.ic_quick_action),
+                contentDescription = null,
+                colorFilter = iconTint,
+                modifier = GlanceModifier.size(ICON_SIZE),
             )
-            Text(
-                when {
-                    item.toggle -> context.getString(if (item.isOn) R.string.quick_action_on else R.string.quick_action_off)
-                    else -> item.subtitle ?: item.pluginName
-                },
-                style = TextStyle(color = if (item.isOn) accent else muted, fontSize = 11.sp),
-                maxLines = 1,
-            )
+            Spacer(GlanceModifier.width(6.dp))
+            Column(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    item.title,
+                    style = TextStyle(color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                )
+                Text(
+                    when {
+                        item.toggle -> context.getString(if (item.isOn) R.string.quick_action_on else R.string.quick_action_off)
+                        else -> item.subtitle ?: item.pluginName
+                    },
+                    style = TextStyle(color = if (item.isOn) accent else muted, fontSize = 11.sp),
+                    maxLines = 1,
+                )
+            }
         }
     }
 }

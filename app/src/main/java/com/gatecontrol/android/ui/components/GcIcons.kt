@@ -147,6 +147,11 @@ object GcIcons {
     val ChevronLeft = icon("ChevronLeft", 2f, "m15 18-6-6 6-6")
     val Link = icon("Link", 2f, "M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1", "M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1")
 
+    /** Profile (own avatar, settings). */
+    val User = icon("User", 2f, circle(12f, 8f, 4f), "M4 21a8 8 0 0 1 16 0")
+    /** Photo picker ("Foto wählen"). */
+    val Photo = icon("Photo", 2f, rect(3f, 3f, 18f, 18f, 2f), circle(8.5f, 8.5f, 1.5f), "m21 15-5-5L5 21")
+
     /**
      * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).
      * Throws on a path that cannot be parsed; callers fall back to their own icon.

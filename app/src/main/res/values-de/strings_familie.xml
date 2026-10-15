@@ -453,4 +453,8 @@
         <item>Schule</item>
         <item>Großeltern</item>
     </string-array>
+
+    <!-- Avatar-Ring (1.3) -->
+    <string name="familie_avatar_home">%1$s – zu Hause</string>
+    <string name="familie_avatar_away">%1$s – unterwegs</string>
 </resources>

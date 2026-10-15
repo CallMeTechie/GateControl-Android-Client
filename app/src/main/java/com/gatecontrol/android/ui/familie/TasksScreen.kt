@@ -174,7 +174,7 @@ private fun StarsCard(p: FamilieProfile, stars: StarsBoard, ids: List<Int>) {
             val week = stars.week[id] ?: 0
             val goal = stars.goal[id] ?: 0
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FamilieAvatar(memberName(p, id), p.member(id)?.color, size = 32.dp)
+                FamilieAvatar(memberName(p, id), p.member(id)?.color, size = 32.dp, face = p.faceOf(id))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         stringResource(R.string.familie_stars_line, memberName(p, id), week, goal),

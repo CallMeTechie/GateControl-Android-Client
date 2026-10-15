@@ -16,6 +16,10 @@ import com.gatecontrol.android.familie.shopping.ShoppingItem
 import com.gatecontrol.android.familie.shopping.ShoppingList
 import com.gatecontrol.android.familie.shopping.ShoppingOp
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
+import com.gatecontrol.android.familie.presence.PresenceState
+import com.gatecontrol.android.profile.AvatarInitials
+import com.gatecontrol.android.profile.AvatarPalette
+import com.gatecontrol.android.profile.ProfileJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonNull
@@ -106,6 +110,28 @@ object FamilieJson {
 
     internal fun color(value: String?): String? = value?.takeIf { COLOR_RE.matches(it) }
 
+    /**
+     * A member's colour as `#RRGGBB`: `colorHex` (1.3, the favourite
+     * colour), else `color` as hex (1.0–1.2, set on the admin page), else
+     * `color` as a palette key (1.3 without colorHex).
+     */
+    internal fun memberColor(o: JsonObject): String? =
+        AvatarPalette.validHex(o.str("colorHex")) ?: color(o.str("color"))
+            ?: AvatarPalette.hexOf(AvatarPalette.validKey(o.str("color")))
+
+    /** Face fields of a member object (Familie 1.3); null when the plugin sends none (older plugin). */
+    internal fun face(o: JsonObject, name: String?): MemberFace? {
+        if (FACE_KEYS.none { o.has(it) }) return null
+        return MemberFace(
+            avatarUrl = ProfileJson.avatarUrl(o.str("avatarUrl")),
+            colorHex = memberColor(o),
+            initials = AvatarInitials.pick(o.str("initials"), name),
+            presence = PresenceState.fromWire(o.str("presence"))?.takeIf { it != PresenceState.NOT_SHARED }?.wire,
+        )
+    }
+
+    private val FACE_KEYS = listOf("avatarUrl", "colorHex", "initials", "presence")
+
     /** ISO timestamps are only compared and formatted; anything sane-looking passes. */
     internal fun stamp(value: String?): String? = value?.trim()?.take(40)?.takeIf { it.isNotEmpty() && it.all { c -> c.isLetterOrDigit() || c in "-:.+ " } }
 
@@ -162,7 +188,8 @@ object FamilieJson {
                 role = role,
                 age = me.int("age")?.takeIf { it in 0..150 },
                 locateMode = if (role == FamilieRole.CHILD) LocateMode.fromWire(me.str("locateMode")) else null,
-                color = color(me.str("color")),
+                color = memberColor(me),
+                face = face(me, me.str("name")),
             ),
             modules = modules,
             members = o.arr("members")?.objects()?.mapNotNull(::member).orEmpty().distinctBy { it.userId },
@@ -178,9 +205,10 @@ object FamilieJson {
             name = clean(o.str("name"), 60).ifBlank { "#$id" },
             role = role,
             age = o.int("age")?.takeIf { it in 0..150 },
-            color = color(o.str("color")),
+            color = memberColor(o),
             locateMode = LocateMode.fromWire(o.str("locateMode")),
             locatable = o.bool("locatable"),
+            face = face(o, o.str("name")),
         )
     }
 

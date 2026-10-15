@@ -1,9 +1,25 @@
 package com.gatecontrol.android.ui.quickactions
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import com.gatecontrol.android.ui.components.GcIconSquare
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.quickactions.QuickActionActivity
+import com.gatecontrol.android.quickactions.QuickActionIcons
 import com.gatecontrol.android.quickactions.QuickActionItem
 import com.gatecontrol.android.quickactions.QuickActionRepository
 import com.gatecontrol.android.quickactions.QuickActionsLoad
@@ -40,7 +57,6 @@ import com.gatecontrol.android.ui.components.GcChip
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
-import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTone
@@ -146,10 +162,16 @@ private fun ActionRow(
     onTogglePin: () -> Unit,
 ) {
     val extra = GateControlTheme.extraColors
+    val icon = remember(item.icon) { QuickActionIcons.vector(item.icon) }
     GcListRow(
         title = item.title,
         description = item.subtitle,
         onClick = onRun,
+        leading = {
+            GcIconSquare(size = 40.dp, background = if (item.isOn) extra.accentBg else extra.panel2) {
+                Icon(icon, contentDescription = null, tint = if (item.isOn) extra.accentText else MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
+            }
+        },
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 when {
@@ -174,8 +196,10 @@ private fun ActionRow(
 }
 
 /**
- * Start-screen card with the pinned quick actions; with none pinned but
- * actions available it invites to choose some. Hidden otherwise.
+ * Start-screen row of the pinned quick actions (no card, no heading): one
+ * icon tile per action with its title below, a switch filled while on;
+ * a "+" on the right opens the list. With none pinned but actions
+ * available only "Schnellaktionen auswählen". Hidden without actions.
  */
 @Composable
 fun QuickActionsCard(onOpenAll: () -> Unit, modifier: Modifier = Modifier, viewModel: QuickActionsViewModel = hiltViewModel()) {
@@ -190,43 +214,124 @@ fun QuickActionsCard(onOpenAll: () -> Unit, modifier: Modifier = Modifier, viewM
     confirming?.let { item ->
         ConfirmDialog(item, onConfirm = { confirming = null; viewModel.run(item) }, onDismiss = { confirming = null })
     }
-    if (pins.isEmpty() && actions.isEmpty()) return
 
-    // Fresh state from the server where known, the stored pin otherwise.
-    val byKey = actions.associateBy { it.key }
-    val shown = pins.map { byKey[it.key] ?: it }
-
-    GcCard(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.quick_actions_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onOpenAll) {
-                Text(stringResource(if (shown.isEmpty()) R.string.quick_actions_choose else R.string.quick_actions_all))
-            }
+    when (val row = QuickActionsRow.of(pins, actions)) {
+        QuickActionsRow.Hidden -> Unit
+        QuickActionsRow.Choose -> TextButton(onClick = onOpenAll, modifier = modifier) {
+            Icon(GcIcons.Plus, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.quick_actions_choose_long), color = extra.accentText, style = MaterialTheme.typography.labelLarge)
         }
-        if (shown.isEmpty()) {
-            Text(stringResource(R.string.quick_actions_empty_pins), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-        } else {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                shown.forEach { item ->
-                    GcOutlineButton(
-                        text = if (item.toggle) {
-                            item.title + " · " + stringResource(if (item.isOn) R.string.quick_action_on else R.string.quick_action_off)
-                        } else {
-                            item.title
-                        },
+        is QuickActionsRow.Tiles -> Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Row(
+                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                row.items.forEach { item ->
+                    QuickActionTile(
+                        item = item,
+                        running = running == item.key,
                         onClick = { if (item.confirm) confirming = item else viewModel.run(item) },
-                        icon = if (running == item.key) null else GcIcons.Bolt,
-                        fillWidth = false,
-                        minHeight = 40.dp,
                     )
                 }
             }
+            Spacer(Modifier.width(10.dp))
+            // "+" without a label: choose more.
+            val chooseDescription = stringResource(R.string.quick_actions_choose_long)
+            Box(
+                Modifier
+                    .size(TILE_SIZE)
+                    .clip(TileShape)
+                    .border(1.dp, extra.border2, TileShape)
+                    .clickable(role = Role.Button, onClick = onOpenAll)
+                    .semantics { contentDescription = chooseDescription },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(GcIcons.Plus, contentDescription = null, tint = extra.muted, modifier = Modifier.size(24.dp))
+            }
         }
+    }
+}
+
+/** What the start screen shows of the quick actions (pure, unit-tested). */
+sealed interface QuickActionsRow {
+    /** No pins and the server has no actions (or none known yet). */
+    data object Hidden : QuickActionsRow
+
+    /** Actions available, none pinned: only "Schnellaktionen auswählen". */
+    data object Choose : QuickActionsRow
+
+    /** The pinned actions, with the server's current title, icon and state where known. */
+    data class Tiles(val items: List<QuickActionItem>) : QuickActionsRow
+
+    companion object {
+        fun of(pins: List<QuickActionItem>, actions: List<QuickActionItem>): QuickActionsRow {
+            if (pins.isEmpty()) return if (actions.isEmpty()) Hidden else Choose
+            val byKey = actions.associateBy { it.key }
+            return Tiles(pins.map { byKey[it.key] ?: it })
+        }
+    }
+}
+
+private val TILE_SIZE = 56.dp
+private val TILE_LABEL_WIDTH = 68.dp
+private val TileShape = RoundedCornerShape(18.dp)
+
+/** One pinned action: icon tile (filled while a switch is on, progress while it runs) and its title. */
+@Composable
+private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val scheme = MaterialTheme.colorScheme
+    val on = item.isOn
+    val stateText = if (item.toggle) stringResource(if (on) R.string.quick_action_on else R.string.quick_action_off) else null
+    val icon = remember(item.icon) { QuickActionIcons.vector(item.icon) }
+    Column(
+        Modifier
+            .width(TILE_LABEL_WIDTH)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = !running, role = if (item.toggle) Role.Switch else Role.Button, onClick = onClick)
+            .semantics(mergeDescendants = true) { if (stateText != null) stateDescription = stateText },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            Modifier
+                .size(TILE_SIZE)
+                .clip(TileShape)
+                .then(
+                    if (on) Modifier.background(scheme.primary)
+                    else Modifier.background(scheme.surface).border(1.dp, extra.border2, TileShape),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (running) {
+                CircularProgressIndicator(
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(22.dp),
+                    color = if (on) scheme.onPrimary else extra.accentText,
+                )
+            } else {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = when {
+                        on -> scheme.onPrimary
+                        item.toggle -> extra.muted
+                        else -> scheme.onSurface
+                    },
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        }
+        Text(
+            item.title,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (on) extra.accentText else scheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

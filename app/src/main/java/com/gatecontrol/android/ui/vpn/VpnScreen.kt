@@ -57,14 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
 import com.gatecontrol.android.util.openSystemVpnSettings
-import com.gatecontrol.android.common.Formatters
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.messageRes
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.components.GcLabeledValue
+import com.gatecontrol.android.ui.components.GcAvatar
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSecondaryButton
@@ -78,14 +77,19 @@ import com.gatecontrol.android.ui.components.GcTile
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.pihole.PiholeTile
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.profile.MyAvatarViewModel
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.delay
 
 private const val EXPIRY_WARN_DAYS = 7
 
 /**
- * Start tab: header, connect orb with state text, connection details,
- * quick tiles (kill switch, split tunneling, Pi-hole, DNS leak test),
- * throughput and data usage.
+ * Start tab: header with the own avatar, connect orb with state text,
+ * the pinned quick actions as icon tiles, quick tiles (kill switch, split
+ * tunneling, Pi-hole, DNS leak test), throughput and data usage. The
+ * connection details live in Settings → Verbindung → Verbindungsdetails.
  */
 @Composable
 fun VpnScreen(
@@ -107,8 +111,12 @@ fun VpnScreen(
     onOpenLocationSettings: () -> Unit = {},
     /** Diagnosis screen, offered when the connection has a problem. */
     onOpenDiagnosis: () -> Unit = {},
+    /** Own profile (tap on the own avatar in the header). */
+    onOpenProfile: () -> Unit = {},
     locationViewModel: LocationShareViewModel = hiltViewModel(),
+    avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
+    val myAvatar by avatarViewModel.ui.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val extra = GateControlTheme.extraColors
 
@@ -210,17 +218,6 @@ fun VpnScreen(
         viewModel.autoOpenPortalIfNeeded(context, tunnelState)
     }
 
-    // Tick every second to update connection duration
-    var tick by remember { mutableStateOf(0L) }
-    LaunchedEffect(tunnelState) {
-        if (tunnelState is TunnelState.Connected) {
-            while (true) {
-                delay(1_000)
-                tick = System.currentTimeMillis()
-            }
-        }
-    }
-
     val isConnected = tunnelState is TunnelState.Connected
     val isBusy = tunnelState is TunnelState.Connecting
         || tunnelState is TunnelState.Disconnecting
@@ -243,10 +240,38 @@ fun VpnScreen(
     val headerSection: @Composable () -> Unit = {
         // --- Header -------------------------------------------------------
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(GcIcons.ShieldCheck, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
-            Column(Modifier.weight(1f)) {
-                Text("GateControl", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
-                Text(host, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
+            val me = myAvatar
+            if (me.initials != null) {
+                // Own avatar instead of app name + host; ring = own presence (Familie, when shared).
+                val description = stringResource(R.string.profile_avatar_desc, me.name ?: stringResource(R.string.profile_title))
+                GcAvatar(
+                    url = me.avatarUrl,
+                    initials = me.initials,
+                    colorHex = me.colorHex,
+                    ring = me.ring,
+                    size = 40.dp,
+                    contentDescription = description,
+                    modifier = if (me.profileAvailable) {
+                        Modifier
+                            .clip(CircleShape)
+                            .combinedClickable(
+                                role = Role.Button,
+                                onClick = onOpenProfile,
+                                onLongClick = {
+                                    android.widget.Toast.makeText(context, description, android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                            )
+                    } else {
+                        Modifier
+                    },
+                )
+                Spacer(Modifier.weight(1f))
+            } else {
+                Icon(GcIcons.ShieldCheck, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("GateControl", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+                    Text(host, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
+                }
             }
             if (showSatellite) {
                 SatelliteButton(
@@ -501,43 +526,6 @@ fun VpnScreen(
             }
         }
     }
-    val detailSection: @Composable ColumnScope.() -> Unit = {
-        // --- Connection details ------------------------------------------
-        if (isConnected) {
-            val connectedSince = (tunnelState as? TunnelState.Connected)?.connectedSince ?: 0L
-            @Suppress("UNUSED_EXPRESSION")
-            tick // recompose every second
-            val uptime = if (connectedSince > 0) {
-                Formatters.formatDuration((System.currentTimeMillis() - connectedSince) / 1000)
-            } else {
-                "—"
-            }
-            val hsAge = stats.handshakeAgeSeconds
-            GcCard(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    GcLabeledValue(stringResource(R.string.vpn_tunnel_ip), viewModel.tunnelAddress ?: "—", Modifier.weight(1f))
-                    GcLabeledValue(stringResource(R.string.vpn_connected_since), uptime, Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    GcLabeledValue(
-                        stringResource(R.string.vpn_last_handshake),
-                        if (hsAge == Long.MAX_VALUE) "—" else stringResource(R.string.vpn_handshake_ago, hsAge),
-                        Modifier.weight(1f),
-                    )
-                    GcLabeledValue(stringResource(R.string.vpn_server), viewModel.serverHost ?: "—", Modifier.weight(1f))
-                }
-                // Stale handshake: offer the diagnosis.
-                if (hsAge != Long.MAX_VALUE && hsAge > com.gatecontrol.android.diagnosis.HANDSHAKE_OK_SEC) {
-                    GcSecondaryButton(
-                        text = stringResource(R.string.diag_home_check),
-                        onClick = onOpenDiagnosis,
-                        icon = GcIcons.Activity,
-                        fillWidth = false,
-                    )
-                }
-            }
-        }
-    }
     val panelSection: @Composable ColumnScope.() -> Unit = {
         // --- Google Play update (Play build) --------------------------------
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
@@ -615,7 +603,7 @@ fun VpnScreen(
             hinge = layout.horizontalHinge,
             // Only the switch above the fold: the header moves below it.
             top = { heroSection() },
-            bottom = { headerSection(); bannerSection(); detailSection(); panelSection() },
+            bottom = { headerSection(); bannerSection(); panelSection() },
         )
         layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
             Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }
@@ -623,7 +611,7 @@ fun VpnScreen(
                 listWidth = 420.dp,
                 divider = false,
                 list = {
-                    HomeColumn { heroSection(); detailSection() }
+                    HomeColumn { heroSection() }
                 },
                 detail = {
                     HomeColumn { bannerSection(); panelSection() }
@@ -634,7 +622,6 @@ fun VpnScreen(
             headerSection()
             bannerSection()
             heroSection()
-            detailSection()
             panelSection()
         }
     }

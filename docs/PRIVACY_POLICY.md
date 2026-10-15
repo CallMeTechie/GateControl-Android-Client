@@ -25,6 +25,7 @@ Alle folgenden Daten gehen nur an **deinen eigenen GateControl-Server** — vera
 | Diagnose (nur wenn du sie startest) | Prüft die Verbindung zu deinem Server, inklusive kurzem Geschwindigkeitstest (Testdaten zu und von deinem Server) und Ping an das VPN-Gateway. Die Ergebnisse bleiben auf dem Gerät, bis du „Problem melden“ wählst. |
 | Absturzberichte | Nach einem Absturz sendet die App beim nächsten Start den Fehlerbericht als geschwärztes Support-Paket an deinen Server. |
 | Schnellaktionen | Ausgelöste Aktionen (z. B. „Licht an“) gehen an deinen Server und dessen Plugins. |
+| Profilbild und Lieblingsfarbe (nur wenn du sie setzt) | Dein Profilbild (aus der Fotoauswahl, auf 256 × 256 px verkleinert) und deine Lieblingsfarbe werden auf deinem Server gespeichert und sind für die Benutzer dieses Servers sichtbar (Apps, Portal, Wand-Tablet, Verwaltung). „Entfernen“ löscht das Bild auf dem Server. Die App behält Profilbilder von deinem Server nur im Zwischenspeicher. |
 
 ### Standort
 
@@ -98,6 +99,7 @@ Everything below goes only to **your own GateControl server** — its operator (
 | Diagnostics (only when you start them) | Checks the connection to your server, including a short speed test (test data to and from your server) and a ping to the VPN gateway. The results stay on the device until you choose "Report a problem". |
 | Crash reports | After a crash the app sends the report as a redacted support bundle to your server at the next start. |
 | Quick actions | Actions you run (e.g. "lights on") go to your server and its plugins. |
+| Profile picture and favourite colour (only when you set them) | Your profile picture (from the photo picker, downscaled to 256 × 256 px) and your favourite colour are stored on your server and visible to the users of that server (apps, portal, wall tablet, admin). "Remove" deletes the picture on the server. The app keeps profile pictures from your server only in its cache. |
 
 ### Location
 

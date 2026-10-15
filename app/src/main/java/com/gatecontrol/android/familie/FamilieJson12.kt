@@ -477,7 +477,7 @@ object FamilieJson12 {
         val id = o.int("userId") ?: return null
         val shares = o.bool("share") ?: o.bool("shares") ?: o.bool("consent") ?: o.bool("shared")
         val home = o.bool("home")
-        val state = PresenceState.fromWire(o.str("state"))
+        val state = PresenceState.fromWire(o.str("state") ?: o.str("presence"))
             ?: when {
                 shares == false -> PresenceState.NOT_SHARED
                 home == true -> PresenceState.HOME

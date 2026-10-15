@@ -74,8 +74,22 @@ Ein Live-Graph zeigt die aktuelle Upload- und Download-Geschwindigkeit der letzt
 - **Blau:** Download-Geschwindigkeit
 - **Grün:** Upload-Geschwindigkeit
 
+### Startbildschirm (1.32)
+- **Kopfzeile:** das eigene Profilbild (bzw. die Initialen auf der
+  Lieblingsfarbe) statt „GateControl“ + Server; der Ring zeigt die eigene
+  Anwesenheit (Familie, wenn geteilt). Tippen öffnet das Profil.
+- **Schnellaktionen:** angeheftete Aktionen als Symbol-Kacheln (das
+  SVG-Symbol, das der Server je Aktion schickt; ohne Symbol der Blitz) mit
+  dem Titel darunter, Schalter gefüllt, solange sie an sind; rechts ein
+  „+“ zum Auswählen. Ohne angeheftete Aktion nur „Schnellaktionen
+  auswählen“. Dieselben Symbole in der Liste, im Widget, in den
+  App-Verknüpfungen und den Schnelleinstellungs-Kacheln.
+- Die Verbindungsdetails (Tunnel-IP, verbunden seit, letzter Handshake,
+  Server) stehen unter Einstellungen → Verbindung → Verbindungsdetails.
+
 ### Statistiken
-Während der VPN-Verbindung werden folgende Metriken angezeigt:
+Während der VPN-Verbindung werden folgende Metriken angezeigt
+(Einstellungen → Verbindung → Verbindungsdetails):
 
 | Metrik | Beschreibung |
 |---|---|
@@ -188,6 +202,22 @@ RDP-Zugangsdaten werden **niemals im Klartext** übertragen oder gespeichert:
 ---
 
 ## Einstellungen
+
+### Profil (1.32, GateControl 1.168+)
+- Erster Eintrag der Einstellungen (auch: Tippen auf das eigene Profilbild
+  auf dem Startbildschirm)
+- Profilbild aus der Android-Fotoauswahl (keine Speicher-Berechtigung),
+  quadratischer Ausschnitt mit Zoomen und Verschieben, verkleinert auf
+  256 × 256 px und als WebP (JPEG als Rückfall) ≤ 96 KB hochgeladen;
+  „Entfernen“
+- Lieblingsfarbe aus der Palette des Servers (ohne Rot — Rot heißt
+  „unterwegs“): die Farbe des Rings, wenn man zu Hause ist
+- Ältere Server: der Eintrag fehlt
+
+### Verbindungsdetails
+- Einstellungen → Verbindung → Verbindungsdetails: Tunnel-IP, verbunden
+  seit (live), letzter Handshake, Server; bei veraltetem Handshake
+  „Verbindung prüfen“ (Diagnose); ohne VPN „VPN ist aus“ und der Server
 
 ### Server-Konfiguration
 - Server-URL und API-Token bearbeiten

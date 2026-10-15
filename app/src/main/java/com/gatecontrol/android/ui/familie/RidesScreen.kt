@@ -284,7 +284,7 @@ private fun AttentionCard(
         },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FamilieAvatar(firstChild?.name ?: ride.title, firstChild?.color, size = 44.dp)
+            FamilieAvatar(firstChild?.name ?: ride.title, firstChild?.color, size = 44.dp, face = firstChild?.face)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(ride.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = MaterialTheme.colorScheme.onSurface)
                 val meta = listOfNotNull(
