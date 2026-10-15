@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.32.0] - 2026-10-15
+
+### Features
+- own avatar with presence ring, icon quick actions, connection details in settings (#75)
+
+---
+
 ## [1.31.0] - 2026-10-14
 
 ### Features
