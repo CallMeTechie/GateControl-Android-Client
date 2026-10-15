@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.0] - 2026-10-15
+
+### Features
+- own profile with photo wizard and presence sharing, avatar row in Familie (#76)
+
+---
+
 ## [1.32.0] - 2026-10-15
 
 ### Features
