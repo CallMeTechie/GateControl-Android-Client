@@ -29,12 +29,12 @@ class DoorPushTest {
     }
 
     @Test
-    fun `other door messages open the tab`() {
+    fun `other door messages open the door screen`() {
         val auto = msg("plugin:gatecontrol-door:auto", """{"door":{"type":"auto_unlocked","lockId":1}}""")
         assertEquals("auto_unlocked", DoorPush.parse(auto)!!.type)
         assertFalse(DoorPush.parse(auto)!!.isRing)
         assertEquals(DoorDest.Home, DoorPush.destination(auto))
-        // A ring without event id, or no data at all: the tab.
+        // A ring without event id, or no data at all: the door screen.
         assertEquals(DoorDest.Home, DoorPush.destination(msg("plugin:gatecontrol-door:doorbell", """{"door":{"type":"ding"}}""")))
         assertEquals(DoorDest.Home, DoorPush.destination(msg("plugin:gatecontrol-door:door", null)))
     }
@@ -48,17 +48,15 @@ class DoorPushTest {
     }
 
     @Test
-    fun `the door tab comes from the plugin list`() {
+    fun `the plugin list only says the door plugin is there, its app tab entry is ignored`() {
         val icon = "M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18M15 12h.01"
         val withTab = PluginAvailability.from(listOf(ClientPlugin("gatecontrol-door", "Tür & Kamera", "1.0.0", ClientPluginTab("Tür", icon))))
-        assertTrue(withTab.doorTab)
-        assertEquals(icon, withTab.doorIcon)
+        assertTrue(withTab.door)
         assertFalse(withTab.familieTab)
-        val noTab = PluginAvailability.from(listOf(ClientPlugin("gatecontrol-door", "Tür & Kamera", "1.0.0", null)))
-        assertFalse(noTab.doorTab)
-        val evil = PluginAvailability.from(listOf(ClientPlugin("gatecontrol-door", tab = ClientPluginTab("Tür", "<svg onload=x>"))))
-        assertTrue(evil.doorTab)
-        assertNull(evil.doorIcon)
+        // Listed without a tab entry: available all the same.
+        assertTrue(PluginAvailability.from(listOf(ClientPlugin("gatecontrol-door", "Tür & Kamera", "1.0.0", null))).door)
+        assertFalse(PluginAvailability.from(listOf(ClientPlugin("gatecontrol-skoda", "Skoda", "1", null))).door)
+        assertFalse(PluginAvailability.NONE.door)
     }
 
     @Test

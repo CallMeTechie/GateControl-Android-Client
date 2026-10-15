@@ -51,7 +51,7 @@ Nichts davon geht an CallMeTechie oder andere Dritte; Daten auf deinem Server ve
 
 ### Tür & Kamera (Plugin „Tür & Kamera“ deines Servers)
 
-Den Tab **Tür** gibt es nur, wenn dein GateControl-Server das Plugin „Tür & Kamera“ anbietet und dir der Betreiber ein Recht auf mindestens ein Schloss gegeben hat.
+Die Tür-Funktionen (Schnellaktionen, Mitteilungen und der Bildschirm „Tür & Kamera“) gibt es nur, wenn dein GateControl-Server das Plugin „Tür & Kamera“ anbietet und dir der Betreiber ein Recht auf mindestens ein Schloss gegeben hat.
 
 - **Tür auf- und zusperren:** Ein Tipp schickt den Befehl an **deinen eigenen Server**, der das Schloss (Nuki) steuert. Vor dem Aufsperren und Öffnen fragt die App die Displaysperre des Handys ab (Fingerabdruck, Gesicht oder PIN/Muster/Passwort über Android); das Ergebnis bleibt auf dem Gerät, nur der Befehl geht an den Server.
 - **Verlauf und Klingelbilder:** Wer wann auf- oder zugesperrt hat (und über welchen Weg), Klingeln, Bewegungen und Hinweise speichert **dein eigener Server** (Verlauf höchstens 90 Tage, Bilder je nach Einstellung 1–30 Tage). Die App lädt sie nur zum Anzeigen; Bilder und Verlauf werden **nicht auf dem Gerät gespeichert** (nur im Arbeitsspeicher, solange du sie ansiehst). Offline zeigt die App nur den zuletzt bekannten Zustand der Schlösser (ohne Bilder).
@@ -138,7 +138,7 @@ None of this goes to CallMeTechie or other third parties; data on your server is
 
 ### Door & Camera (your server's "Tür & Kamera" plugin)
 
-The **Door** tab only exists when your GateControl server offers the "Door & Camera" plugin and its operator gave you a right on at least one lock.
+The door features (quick actions, notifications and the "Door & camera" screen) only exist when your GateControl server offers the "Door & Camera" plugin and its operator gave you a right on at least one lock.
 
 - **Locking and unlocking:** a tap sends the command to **your own server**, which controls the lock (Nuki). Before unlocking or opening, the app asks for the phone's screen lock (fingerprint, face or PIN/pattern/password through Android); the result stays on the device, only the command goes to the server.
 - **History and doorbell pictures:** who locked or unlocked when (and how), rings, motion and notices are stored on **your own server** (history for at most 90 days, pictures 1–30 days as set there). The app only loads them to show them; pictures and history are **not stored on the device** (only in memory while you look at them). Offline the app only shows the last known state of the locks (no pictures).

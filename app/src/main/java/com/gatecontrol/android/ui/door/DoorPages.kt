@@ -10,27 +10,28 @@ import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.door.DoorDest
 import com.gatecontrol.android.ui.adaptive.GcTwoPane
 
-/** One screen of the door tab for [dest] (phones: its own route). */
+/** One door screen for [dest] (phones: its own route on top of the door screen). */
 @Composable
 fun DoorPage(dest: DoorDest, onBack: () -> Unit, onOpen: (DoorDest) -> Unit) {
     when (dest) {
-        DoorDest.Home -> DoorHomeScreen(onOpen = onOpen)
+        DoorDest.Home -> DoorHomeScreen(onOpen = onOpen, onBack = onBack)
         DoorDest.History -> DoorHistoryScreen(onBack = onBack, onOpen = onOpen)
         is DoorDest.Event -> DoorEventScreen(eventId = dest.eventId, onBack = onBack)
     }
 }
 
 /**
- * The door tab on wide windows: locks and cameras as the list, the history
- * or a ring's detail beside it ([initial] from a push message).
+ * The door screen "Tür & Kamera" on wide windows: locks and cameras as the
+ * list, the history or a ring's detail beside it ([initial] from a push
+ * message). [onBack] leaves it (back to the start tab).
  */
 @Composable
-fun DoorTwoPane(initial: DoorDest?) {
+fun DoorTwoPane(initial: DoorDest?, onBack: () -> Unit) {
     var destKey by rememberSaveable(initial?.key) { mutableStateOf(initial?.takeIf { it != DoorDest.Home }?.key) }
     val selected = DoorDest.parse(destKey)
     GcTwoPane(
         listWidth = 420.dp,
-        list = { DoorHomeScreen(onOpen = { destKey = it.key }, selected = selected) },
+        list = { DoorHomeScreen(onOpen = { destKey = it.key }, onBack = onBack, selected = selected) },
         detail = {
             key(destKey) {
                 when (selected) {

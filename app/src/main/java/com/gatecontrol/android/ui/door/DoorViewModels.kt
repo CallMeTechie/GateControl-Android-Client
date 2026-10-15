@@ -46,7 +46,7 @@ fun DoorResult<*>.notice(): DoorNotice = when (this) {
     else -> DoorNotice.Error(errorCode() ?: "failed")
 }
 
-/** A camera's latest picture as the tab shows it (memory only, never stored). */
+/** A camera's latest picture as the door screen shows it (memory only, never stored). */
 data class SnapshotUi(
     val bitmap: Bitmap? = null,
     val at: String? = null,
@@ -57,12 +57,12 @@ data class SnapshotUi(
     val retryUntilMs: Long = 0L,
 )
 
-/** Decodes a picture off the main thread for the tab (scaled to about [maxSide] px). */
+/** Decodes a picture off the main thread for the door screens (scaled to about [maxSide] px). */
 internal suspend fun DoorImage.decode(maxSide: Int = 1280): Bitmap? =
     withContext(Dispatchers.Default) { NotifyMediaLoader.decode(bytes, maxSide) }
 
 /**
- * Start screen of the door tab: locks with their state (polled every 10 s
+ * Door screen "Tür & Kamera": locks with their state (polled every 10 s
  * while visible), actions, camera pictures and per-camera push switches.
  */
 @HiltViewModel
@@ -130,7 +130,7 @@ class DoorHomeViewModel @Inject constructor(
         }
     }
 
-    /** `GET me` every 10 s while the tab is in front ([stopPolling] when it leaves). */
+    /** `GET me` every 10 s while the door screen is in front ([stopPolling] when it leaves). */
     fun startPolling() {
         if (pollJob?.isActive == true) return
         pollJob = viewModelScope.launch {

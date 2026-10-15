@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -352,6 +353,9 @@ fun GcListRow(
     descriptionMono: Boolean = false,
     /** Shown in the detail pane next to the list (wide screens). */
     selected: Boolean = false,
+    /** Long press (with [onClick]), e.g. a door quick action opens the door screen. */
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
 ) {
     Row(
         modifier = modifier
@@ -362,6 +366,12 @@ fun GcListRow(
                 when {
                     onClick == null -> Modifier
                     selected -> Modifier.selectable(selected = true, role = Role.Button, onClick = onClick)
+                    onLongClick != null -> Modifier.combinedClickable(
+                        role = Role.Button,
+                        onLongClickLabel = onLongClickLabel,
+                        onLongClick = onLongClick,
+                        onClick = onClick,
+                    )
                     else -> Modifier.clickable(role = Role.Button, onClick = onClick)
                 },
             )

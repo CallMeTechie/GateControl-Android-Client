@@ -58,6 +58,7 @@ import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
+import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.familie.FamilieLoading
@@ -69,15 +70,18 @@ import java.time.DayOfWeek
 import java.time.format.TextStyle
 
 /**
- * Start screen of the door tab ("Tür"): the locks of this person with
- * state, door sensor, battery and their buttons, the camera pictures with
- * "Neues Bild" and the push switches, and the way to the history.
- * [selected] marks the screen shown beside it on wide windows.
+ * Door screen "Tür & Kamera" (opened from the start tab's door card or a
+ * door push; no tab): the locks of this person with state, door sensor,
+ * battery and their buttons, the camera pictures with "Neues Bild" and the
+ * push switches, the Ring status and the way to the history. [onBack]
+ * returns to the start tab; [selected] marks the screen shown beside it on
+ * wide windows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DoorHomeScreen(
     onOpen: (DoorDest) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     selected: DoorDest? = null,
     viewModel: DoorHomeViewModel = hiltViewModel(),
@@ -91,7 +95,7 @@ fun DoorHomeScreen(
     val snapshots by viewModel.snapshots.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
 
-    // `GET me` every 10 s while the tab is in front.
+    // `GET me` every 10 s while the door screen is in front.
     LifecycleResumeEffect(viewModel) {
         viewModel.startPolling()
         onPauseOrDispose { viewModel.stopPolling() }
@@ -101,25 +105,29 @@ fun DoorHomeScreen(
 
     Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         PullToRefreshBox(isRefreshing = refreshing && overview != null, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Header(overview)
-                val o = overview
-                when {
-                    o == null && !loaded -> FamilieLoading()
-                    o == null -> ErrorBanner(error, onRetry = viewModel::refresh)
-                    else -> Content(
-                        o, fromCache, busy, snapshots, selected,
-                        onAction = start,
-                        onSnapshot = viewModel::loadSnapshot,
-                        onPref = viewModel::setPref,
-                        onOpen = onOpen,
-                    )
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                GcSubpageBar(
+                    title = stringResource(R.string.door_screen_title),
+                    onBack = onBack,
+                    backDescription = stringResource(R.string.common_back),
+                )
+                Column(
+                    Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    RingStatus(overview)
+                    val o = overview
+                    when {
+                        o == null && !loaded -> FamilieLoading()
+                        o == null -> ErrorBanner(error, onRetry = viewModel::refresh)
+                        else -> Content(
+                            o, fromCache, busy, snapshots, selected,
+                            onAction = start,
+                            onSnapshot = viewModel::loadSnapshot,
+                            onPref = viewModel::setPref,
+                            onOpen = onOpen,
+                        )
+                    }
                 }
             }
         }
@@ -127,29 +135,24 @@ fun DoorHomeScreen(
     }
 }
 
+/** "Ring: inoffizielle Verbindung" / "gestört" / "nicht verbunden" under the title (with Ring or cameras). */
 @Composable
-private fun Header(overview: DoorOverview?) {
+private fun RingStatus(overview: DoorOverview?) {
     val extra = GateControlTheme.extraColors
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(GcIcons.Door, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.door_title), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
-            val ring = overview?.ring
-            if (ring != null && (ring.connected || ring.broken || overview.cameras.isNotEmpty())) {
-                Text(
-                    stringResource(
-                        when {
-                            ring.broken -> R.string.door_ring_broken
-                            ring.connected -> R.string.door_ring_unofficial
-                            else -> R.string.door_ring_off
-                        },
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (ring.broken) MaterialTheme.colorScheme.error else extra.muted,
-                )
-            }
-        }
-    }
+    val ring = overview?.ring ?: return
+    if (!(ring.connected || ring.broken || overview.cameras.isNotEmpty())) return
+    Text(
+        stringResource(
+            when {
+                ring.broken -> R.string.door_ring_broken
+                ring.connected -> R.string.door_ring_unofficial
+                else -> R.string.door_ring_off
+            },
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (ring.broken) MaterialTheme.colorScheme.error else extra.muted,
+        modifier = Modifier.padding(start = 4.dp),
+    )
 }
 
 @Composable

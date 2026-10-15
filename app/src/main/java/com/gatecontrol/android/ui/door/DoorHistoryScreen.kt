@@ -44,7 +44,7 @@ import com.gatecontrol.android.ui.familie.relativeStamp
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
- * "Verlauf" of the door tab: newest first, paged, filter alle / Aktionen /
+ * "Verlauf" of the door screens: newest first, paged, filter alle / Aktionen /
  * Klingeln. Rings and motion open their detail with the picture.
  * Pictures of the history are never stored on the device.
  */

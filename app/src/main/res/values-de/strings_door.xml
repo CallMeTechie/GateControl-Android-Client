@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Tür & Kamera (plugin gatecontrol-door) and push pictures / quick actions, see docs/DOOR.md -->
 <resources>
-    <string name="nav_door">Tür</string>
-    <string name="door_title">Tür</string>
+    <string name="door_screen_title">Tür &amp; Kamera</string>
+    <string name="door_open_screen">Tür &amp; Kamera öffnen</string>
     <string name="door_ring_unofficial">Ring: inoffizielle Verbindung</string>
     <string name="door_ring_broken">Ring: gestört</string>
     <string name="door_ring_off">Ring: nicht verbunden</string>

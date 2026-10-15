@@ -204,16 +204,21 @@ RDP-Zugangsdaten werden **niemals im Klartext** übertragen oder gespeichert:
 
 ## Tür & Kamera (1.34, Plugin `gatecontrol-door`, GateControl 1.169+)
 
-Eigener Tab **Tür**, wenn der Server das Plugin „Tür & Kamera“ anbietet und
-der Person ein Recht auf mindestens ein Schloss gegeben ist (Details:
-[DOOR.md](DOOR.md)).
+Wenn der Server das Plugin „Tür & Kamera“ anbietet und der Person ein Recht
+auf mindestens ein Schloss gegeben ist (Details: [DOOR.md](DOOR.md)). Ab
+1.34.1 **ohne eigenen Tab** (die Leiste unten bleibt übersichtlich): Bedient
+wird die Tür über die Schnellaktionen (Kacheln auf dem Start-Tab, Widget,
+App-Verknüpfungen) und die Mitteilungen. Den Bildschirm **„Tür & Kamera“**
+öffnet ein Tippen auf eine Tür-Mitteilung oder **langes Drücken auf eine
+Tür-Schnellaktion** (auf dem Start-Tab oder in der Liste „Schnellaktionen“);
+zurück geht es dorthin, wo man war.
 
 - **Schlösser** (Nuki Smart Lock / Opener): Zustand mit Symbol
   (zugesperrt, aufgesperrt, geöffnet, blockiert, nicht erreichbar …),
   Türsensor, Akku; Knöpfe je nach Recht (Zusperren, Aufsperren, Öffnen,
   beim Opener „Summer“). Außerhalb des Zeitfensters oder auf einem
   Nur-Ansehen-Gerät sind sie mit Grund ausgegraut. Der Zustand wird alle
-  10 s aktualisiert, solange der Tab offen ist.
+  10 s aktualisiert, solange „Tür & Kamera“ offen ist.
 - **Sicherheit:** Rückfrage für jede Aktion, die das Plugin bestätigen
   lässt, und vor dem Aufsperren und Öffnen immer die Displaysperre des
   Handys (Fingerabdruck/Gesicht oder PIN/Muster). Ohne Displaysperre geht
@@ -225,8 +230,9 @@ der Person ein Recht auf mindestens ein Schloss gegeben ist (Details:
   das Bild und — mit dem Recht „öffnen“ — „Tür öffnen“.
 - **Klingel-Push** mit Bild auf einem eigenen Kanal mit hoher Wichtigkeit;
   „Tür öffnen“ direkt in der Mitteilung (verlangt das Entsperren des
-  Geräts), „Ansehen“ öffnet das Klingel-Bild in der App.
-- Offline zeigt der Tab den zuletzt bekannten Stand der Schlösser; Bilder
+  Geräts), „Ansehen“ öffnet das Klingel-Bild in der App; andere
+  Tür-Mitteilungen öffnen „Tür & Kamera“.
+- Offline zeigt „Tür & Kamera“ den zuletzt bekannten Stand der Schlösser; Bilder
   und Verlauf bleiben nur auf dem eigenen Server.
 
 ---

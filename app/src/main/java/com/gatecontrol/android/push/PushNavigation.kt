@@ -18,8 +18,9 @@ sealed interface PushNavTarget {
     data class Familie(val dest: String, val messageId: Long? = null) : PushNavTarget
 
     /**
-     * A screen of the door tab ([dest] = DoorDest key: a ring's detail or
-     * the tab). Without the tab (plugin gone) the message [messageId] opens.
+     * A door screen ([dest] = DoorDest key: a ring's detail, else the door
+     * screen "Tür & Kamera" — no tab). Without the plugin (gone meanwhile)
+     * the message [messageId] opens.
      */
     data class Door(val dest: String, val messageId: Long? = null) : PushNavTarget
 
@@ -33,7 +34,8 @@ sealed interface PushNavTarget {
         /**
          * App route of the contract → screen. `gateways` and other plugin
          * routes (`plg-<id>`) have no screen in the app: the message itself
-         * opens. The Familie and door plugins have their own tabs.
+         * opens. The Familie plugin has its own tab, the door plugin its
+         * door screen (no tab).
          */
         fun forRoute(route: String?, messageId: Long?, doorDest: String? = null): PushNavTarget = when (route) {
             "vpn" -> Vpn

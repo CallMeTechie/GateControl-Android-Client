@@ -30,7 +30,7 @@ import javax.inject.Inject
  * non-exported [com.gatecontrol.android.service.TileActionActivity], and
  * setup links only open a confirmation dialog.
  *
- * A FragmentActivity (a ComponentActivity) so the door tab can ask for the
+ * A FragmentActivity (a ComponentActivity) so the door screens can ask for the
  * device unlock with androidx.biometric's BiometricPrompt.
  */
 @AndroidEntryPoint

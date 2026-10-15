@@ -1,7 +1,8 @@
-# Tür & Kamera (door plugin tab) and push pictures / quick actions
+# Tür & Kamera (door plugin screen) and push pictures / quick actions
 
-Developer notes for app 1.34: the native "Tür" / "Door" tab of the
-`gatecontrol-door` plugin 1.0.0 (part C of the door contract) and the two
+Developer notes for app 1.34: the native door screen "Tür & Kamera" /
+"Door & camera" of the `gatecontrol-door` plugin 1.0.0 (part C of the door
+contract) and the two
 generic notification features of GateControl 1.169 it relies on — pictures
 in pushes (`imageUrl`) and notification buttons that run a plugin's quick
 action (`quick_action`). Everything goes to the user's own GateControl
@@ -69,14 +70,29 @@ every other call of the app.
   `auth: device` asks first; `auth: device` then needs the device unlock
   (`GcDeviceAuth`, see below). The result is a toast.
 
-## When the door tab shows
+## No tab: how the door screen is reached
+
+The door plugin has **no tab and no card** (since 1.34.1; 1.34.0 had a
+"Tür" tab — the bottom bar got too full). Everyday use goes through the
+plugin's quick actions (start-tab tiles, widget, app shortcuts, Quick
+Settings — unchanged) and the door pushes. The door screen "Tür & Kamera"
+is a normal navigation destination (`Screen.Door`, `door?dest=…`, no
+bottom bar; back returns to where the person was) reached only by:
+
+- **a door push**: a tap on the message or its "Ansehen" (see
+  "Push routing" below);
+- **a long press on a door quick action** — a pinned tile on the start tab
+  or a row of the quick-action picker ("Schnellaktionen"). Generic rule
+  (`QuickActionLongPress.target`, pure): an action of plugin
+  `gatecontrol-door` opens the door screen; other plugins' actions have no
+  long press. Accessibility label of the long press: "Tür & Kamera öffnen".
 
 - `PluginAvailability.from()` (`familie/PluginDirectory.kt`, same cache as
-  the Familie tab): `doorTab` when `gatecontrol-door` is listed with a
-  non-null `tab` (the plugin lists it for people with a right on at least
-  one lock). Icon: the plugin's `tab.icon` SVG path (validated, falls back
-  to `GcIcons.Door`), label from the app's strings ("Tür" / "Door").
-- Slot: after Familie, before Einstellungen.
+  the Familie tab): `door` when `gatecontrol-door` is listed at all. The
+  plugin's `ui.app` / `tab` entry is ignored — it never creates a tab
+  (`MainTabs.routes`: start, Fernzugriff, Netzwerk, Familie, Einstellungen).
+- Without `door` (plugin gone, older server) a stored door pin has no long
+  press and door pushes open the message itself.
 
 ## Code
 
@@ -87,15 +103,20 @@ every other call of the app.
 | `door/DoorApi.kt` | One method per endpoint of `/api/v1/client/plugins/gatecontrol-door/api/…` with `?lang=` |
 | `door/DoorRepository.kt` | Last `me` (shown and stored as raw JSON in `files/door/me.json` per login, never pictures or history); door push signal |
 | `door/DoorLogic.kt` | Pure decisions: buttons, `steps()` (confirm → device auth → run), state kinds, history filters |
-| `door/DoorPush.kt` | `data.door` of door pushes, `DoorDest` (home / history / event:<id>) |
-| `ui/door/…` | `DoorHomeScreen` (locks, cameras, history link), `DoorHistoryScreen`, `DoorEventScreen`, `DoorTwoPane`, `rememberDoorActionStarter` |
+| `door/DoorPush.kt` | `data.door` of door pushes, `DoorDest` (home = door screen / history / event:<id>) |
+| `ui/door/…` | `DoorHomeScreen` (door screen: locks, cameras, Ring status, history link), `DoorHistoryScreen`, `DoorEventScreen`, `DoorPages.kt` (`DoorPage`, `DoorTwoPane`), `rememberDoorActionStarter` |
+| `navigation/DoorNavigation.kt` | Pure: which door screens a push opens (`DoorStep.Main` / `DoorStep.Page`) |
+| `navigation/MainTabs.kt` | Pure: the tab list (no door tab) |
+| `quickactions/QuickActionLongPress.kt` | Pure: long press on a door quick action → door screen |
 | `ui/components/GcDeviceAuth.kt` | androidx.biometric `BiometricPrompt`, `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` |
 | `push/NotifyMediaLoader.kt`, `push/NotificationQuickActions.kt` | Push pictures and quick action buttons (above) |
 
-## Tab content
+## Door screen content
 
-- **Locks** (`GET me`, polled every 10 s while the tab is resumed, plus on
-  every door push): name, state text and icon (smart lock: locked …
+- Title bar "Tür & Kamera" with back, the Ring status line below it.
+- **Locks** (`GET me`, polled every 10 s only while the door screen is
+  resumed, plus on every door push meanwhile; nothing polls while it is
+  closed): name, state text and icon (smart lock: locked …
   uncalibrated; opener: online, rto_active, open, …; `reachable: false` =
   "Nicht erreichbar"), door sensor chip (only with a sensor), battery
   (critical / percent / charging), "Nur ansehen" for the `view` right.
@@ -124,14 +145,19 @@ every other call of the app.
   lock, time, and for the `open` right "Tür öffnen" / "Summer" (confirm +
   device unlock).
 - Wide windows: locks/cameras as the list, history or event beside it.
+- Snapshots stay in memory only as long as the screen.
 
 ## Push routing
 
 - Door messages: topic `plugin:gatecontrol-door:*` or route
   `plg-gatecontrol-door`. `DoorPush.destination()`: `ding`/`motion` with an
-  `eventId` → `event:<id>`, everything else → the tab. A tap on the message
-  and its `open_app_route` "Ansehen" both go there
-  (`PushNavTarget.Door`); without the tab the message detail opens.
+  `eventId` → `event:<id>`, everything else → the door screen. A tap on the
+  message and its `open_app_route` "Ansehen" both go there
+  (`PushNavTarget.Door`, `DoorNavigation.forPush`): phones open the door
+  screen and the ring's detail on top of it (back → door screen → where
+  the person was); wide windows open the door screen with the detail
+  beside its list. An already open door screen is replaced. Without the
+  plugin listed the message detail opens.
 - Channels: `plugin:gatecontrol-door:doorbell` gets a **high importance**
   channel (`PushChannels.HIGH_TOPICS`), so a ring pops up; the other door
   topics use the default importance. Android keeps the importance of a
