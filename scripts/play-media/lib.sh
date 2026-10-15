@@ -28,7 +28,26 @@ tap() {
 tap_opt() { $UI tap "$1" --optional --timeout "${2:-4}"; }
 wait_text() { $UI wait "$@"; }
 key() { adb shell input keyevent "$1"; sleep 0.8; }
-nav() { $UI tap "$1" --optional --timeout 6; sleep 1; }
+# A tab of the bar (Home, Network, Familie). Sub pages (settings, profile)
+# hide the bar: back until it shows. "Settings" is no tab since 1.35.
+nav() {
+  if [ "$1" = "Settings" ]; then open_settings; return 0; fi
+  local i
+  for i in 1 2 3 4; do
+    $UI tap "$1" --timeout 3 >/dev/null 2>&1 && { sleep 1; return 0; }
+    # Bar visible: the tab just is not there (never back out of the app).
+    $UI wait "Home" --timeout 1 >/dev/null 2>&1 && break
+    adb shell input keyevent KEYCODE_BACK; sleep 0.8
+  done
+  sleep 1
+}
+# Settings: own avatar (or the profile button) on Home → gear top right.
+open_settings() {
+  nav "Home"
+  $UI tap "– profile" --contains --timeout 4 >/dev/null 2>&1 || $UI tap "Profile and settings" --optional --timeout 4
+  sleep 1
+  $UI tap "Settings" --optional --timeout 6; sleep 1
+}
 # VPN state from the system: waits until it is up / down (max S seconds).
 vpn_wait() { # up|down S
   local i

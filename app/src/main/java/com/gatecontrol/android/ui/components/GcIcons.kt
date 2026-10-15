@@ -145,6 +145,14 @@ object GcIcons {
     /** Essensplan (1.2). */
     val Meal = icon("Meal", 2f, "M7 2v8a2 2 0 0 0 4 0V2M9 10v12", "M17 2c-2 2-2 6 0 8v12")
     val ChevronLeft = icon("ChevronLeft", 2f, "m15 18-6-6 6-6")
+    val ChevronUp = icon("ChevronUp", 2f, "m18 15-6-6-6 6")
+    val ChevronDown = icon("ChevronDown", 2f, "m6 9 6 6 6-6")
+    /** Settings (gear), top right of the profile screen. */
+    val Settings = icon(
+        "Settings", 2f,
+        "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
+        circle(12f, 12f, 3f),
+    )
     val Link = icon("Link", 2f, "M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1", "M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1")
 
     /** Profile (own avatar, settings). */

@@ -8,7 +8,7 @@ in `AppNavigation` and handed down via `LocalGcWindowLayout`.
 |---|---|---|---|
 | < 600 dp wide (phone portrait) | bottom bar | one column | list, page on its own screen |
 | 600–719 dp (small tablet portrait) | rail on the left | one column | as on phones, pages centred (max 720 dp) |
-| ≥ 720 dp (tablet, unfolded foldable, phone landscape) | rail | two columns: connection left, details and tiles right | list left, page right |
+| ≥ 720 dp (tablet, unfolded foldable, phone landscape) | rail | two columns: connection left, quick actions and cards right | list left, page right |
 
 Foldables (postures from `currentWindowAdaptiveInfo()`, material3-adaptive):
 
@@ -25,15 +25,21 @@ Details:
 
 - In the detail pane (`LocalInDetailPane`), sub pages drop their back arrow;
   the list stays visible beside them.
-- Links into a settings page (split tunnelling tile, logs, location,
-  notifications) open the settings tab with that page selected on wide
-  windows (`settings?pane=…`), else the page's own route.
+- The rail (and the bottom bar) holds Start, Netzwerk (Dienste, Pi-hole,
+  Remote as segments) and Familie; since 1.35 there is no settings tab and
+  no remote tab. The settings are a normal destination with back, opened
+  from the profile's gear; they hide the rail like any other sub page.
+- Links into a settings page (logs, location, notifications, diagnosis)
+  open the settings (list with that page beside it) on wide windows
+  (`settings?pane=…`), else the page's own route. The profile always opens
+  on its own (it is the way into the settings).
 - A tapped push message opens beside the inbox (`inbox?select=…`) on wide
   windows, else as its own screen.
 - Familie tab (`docs/FAMILIE.md`): the start screen as list, the picked
   screen (shopping, tasks, locating, …) beside it (`familie?dest=…`); on
   phones each screen is its own route (`familie/page?dest=…`).
-- Single-column pages (setup, network, remote desktop, quick actions) stay
+- Single-column pages (setup, network with its remote segment, profile,
+  quick actions, the Info card picker) stay
   centred with a maximum width instead of stretching.
 
 Screenshots of all of this on tablet, foldable and phone emulators:

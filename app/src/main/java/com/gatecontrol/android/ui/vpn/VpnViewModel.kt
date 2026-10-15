@@ -1,6 +1,5 @@
 package com.gatecontrol.android.ui.vpn
 
-import com.gatecontrol.android.common.SplitTunnelMode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.data.LicenseRepository
@@ -74,13 +73,6 @@ class VpnViewModel @Inject constructor(
 
     private val _services = MutableStateFlow<List<VpnService>>(emptyList())
     val services: StateFlow<List<VpnService>> = _services.asStateFlow()
-
-    /** Shown on the split-tunnel tile. */
-    val splitTunnelMode: StateFlow<SplitTunnelMode> = settingsRepository.getSplitTunnelMode()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SplitTunnelMode.OFF)
-
-    val theme: StateFlow<String> = settingsRepository.getTheme()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "system")
 
     /** Peer expiry (epoch millis) from /client/peer-info, null when unlimited or unknown. */
     private val _peerExpiresAt = MutableStateFlow<Long?>(null)
@@ -356,10 +348,6 @@ class VpnViewModel @Inject constructor(
         }
     }
 
-    fun setTheme(theme: String) {
-        viewModelScope.launch { settingsRepository.setTheme(theme) }
-    }
-
     /** Host part of the configured server URL (for the header). */
     val serverUrlHost: String?
         get() = setupRepository.getServerUrl().takeIf { it.isNotBlank() }?.let {
@@ -388,25 +376,6 @@ class VpnViewModel @Inject constructor(
                 null
             }
         }
-
-    /** Asks the server which resolver the tunnel uses; reports (ok, vpnDns or error detail). */
-    fun runDnsLeakTest(onResult: (ok: Boolean, detail: String?) -> Unit) {
-        viewModelScope.launch {
-            try {
-                val serverUrl = setupRepository.getServerUrl()
-                if (serverUrl.isEmpty()) {
-                    onResult(false, null)
-                    return@launch
-                }
-                val client = apiClientProvider.getClient(serverUrl)
-                val response = client.dnsCheck()
-                onResult(response.ok, response.vpnDns)
-            } catch (e: Exception) {
-                Timber.w(e, "VpnViewModel: DNS leak test failed")
-                onResult(false, e.localizedMessage)
-            }
-        }
-    }
 
     /**
      * Invalidate cached API clients so the next request uses a fresh connection.

@@ -35,12 +35,16 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
-import com.gatecontrol.android.ui.components.GcScreenTitle
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
+/**
+ * "Remote" segment of the Netzwerk tab (until 1.35 an own tab): search,
+ * status filter and the RDP hosts; a tap opens the connect sheet. The
+ * Netzwerk tab carries the title.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RdpScreen(viewModel: RdpViewModel = hiltViewModel()) {
+fun RdpContent(modifier: Modifier = Modifier, viewModel: RdpViewModel = hiltViewModel()) {
     val routes by viewModel.routes.collectAsState()
     val filteredRoutes by viewModel.filteredRoutes.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -56,24 +60,19 @@ fun RdpScreen(viewModel: RdpViewModel = hiltViewModel()) {
         viewModel.loadRoutes()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                GcScreenTitle(
-                    title = stringResource(R.string.rdp_title),
-                    subtitle = if (routes.isNotEmpty()) {
-                        stringResource(
-                            R.string.rdp_summary,
-                            routes.size,
-                            routes.count { it.status?.online == true },
-                        )
-                    } else {
-                        null
-                    },
-                )
+                if (routes.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.rdp_summary, routes.size, routes.count { it.status?.online == true }),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = extra.muted,
+                    )
+                }
 
                 // --- Search field ---
                 OutlinedTextField(

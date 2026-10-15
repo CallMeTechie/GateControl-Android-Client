@@ -4,7 +4,6 @@
 
     <!-- Navigation -->
     <string name="nav_services">Dienste</string>
-    <string name="nav_settings">Einstellungen</string>
 
     <!-- VPN Screen -->
     <string name="vpn_connected">Verbunden</string>
@@ -46,7 +45,6 @@
     <string name="dns_testing">Teste&#8230;</string>
 
     <!-- RDP -->
-    <string name="rdp_title">Remote Desktops</string>
     <string name="rdp_search">Suchen&#8230;</string>
     <string name="rdp_filter_all">Alle</string>
     <string name="rdp_filter_online">Online</string>
@@ -229,7 +227,6 @@
     <string name="nav_start">Start</string>
     <string name="nav_remote">Remote</string>
     <string name="nav_network">Netzwerk</string>
-    <string name="tile_off">Aus</string>
     <string name="vpn_hero_on">Geschützt</string>
     <string name="vpn_hero_off">Nicht verbunden</string>
     <string name="vpn_hero_error">Fehlgeschlagen</string>
@@ -249,8 +246,6 @@
     <string name="vpn_theme_to_light">Helles Design verwenden</string>
     <string name="vpn_expiry_today">Zugang läuft heute ab.</string>
     <string name="vpn_expiry_hint">Bitte deinen Admin um Verlängerung.</string>
-    <string name="split_tile_exclude">Ausnahmen aktiv</string>
-    <string name="split_tile_include">Nur Auswahl über VPN</string>
     <string name="dns_tile_idle">Tippen zum Testen</string>
     <string name="dns_tile_ok">Kein Leak · %1$s</string>
     <string name="dns_tile_fail">Test fehlgeschlagen</string>
@@ -792,4 +787,22 @@
     <string name="connection_details_off">VPN ist aus</string>
     <string name="connection_details_hint">Tunnel-Adresse, Dauer, letzter Handshake und Server deiner VPN-Verbindung.</string>
     <string name="quick_actions_choose_long">Schnellaktionen auswählen</string>
+
+    <!-- Start-Tab: wischbare Karten (1.35) -->
+    <string name="pager_favorite_set">Als Standard festgelegt</string>
+    <string name="pager_favorite_action">Als Standard festlegen</string>
+    <string name="pager_favorite_desc">Standard</string>
+    <string name="pager_page_desc">Seite %1$d von %2$d</string>
+    <string name="info_card_title">Info</string>
+    <string name="info_card_choose">Inhalte auswählen</string>
+    <string name="info_card_edit">Inhalte der Info-Karte bearbeiten</string>
+    <string name="info_card_picker_title">Inhalte der Info-Karte</string>
+    <string name="info_card_picker_hint">Wähle, was die Info-Karte auf dem Start-Tab zeigt und in welcher Reihenfolge. Lange auf eine Seite der Karte drücken zeigt sie zuerst.</string>
+    <string name="info_card_picker_chosen">Angezeigt</string>
+    <string name="info_card_unsupported">Dieser Server bietet noch keine Start-Kacheln an.</string>
+    <string name="info_card_failed">Die Inhalte konnten nicht geladen werden. Versuche es später erneut.</string>
+    <string name="info_card_none">Die Plugins des Servers bieten keine Inhalte für die Info-Karte an.</string>
+    <string name="info_card_move_up">%1$s nach oben schieben</string>
+    <string name="info_card_move_down">%1$s nach unten schieben</string>
+    <string name="profile_open_desc">Profil und Einstellungen</string>
 </resources>

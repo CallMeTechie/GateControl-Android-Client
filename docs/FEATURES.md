@@ -74,19 +74,64 @@ Ein Live-Graph zeigt die aktuelle Upload- und Download-Geschwindigkeit der letzt
 - **Blau:** Download-Geschwindigkeit
 - **Grün:** Upload-Geschwindigkeit
 
-### Startbildschirm (1.32)
+### Navigation (1.35)
+Die Leiste unten (auf breiten Bildschirmen die Navigationsleiste links)
+hat nur noch **Start**, **Netzwerk** und — wenn der Server das
+Familie-Plugin mit Tab anbietet — **Familie**.
+
+- **Netzwerk** hat die Segmente **Dienste**, **Pi-hole** und **Remote**
+  (die RDP-Hosts, bis 1.34 ein eigener Tab). Es erscheinen nur die
+  Segmente, die das Token nutzen darf; mit nur einem entfällt der
+  Umschalter. Pushes mit der App-Route `rdp`/`remote` öffnen Netzwerk →
+  Remote, `services` öffnet Netzwerk → Dienste; die alte Route `rdp` leitet
+  auf Netzwerk → Remote um.
+- **Einstellungen** sind kein Tab mehr, sondern eine normale Seite mit
+  Zurück-Pfeil: im **Profil** (Tippen auf das eigene Profilbild auf dem
+  Start-Tab oder im Familie-Tab) oben rechts das **Zahnrad**, rechts davon
+  der **Hell/Dunkel-Schalter** (Sonne/Mond, bis 1.34 in der Kopfzeile des
+  Start-Tabs). Alle bisherigen Wege zu einzelnen Einstellungsseiten
+  (Glocke → Benachrichtigungen, Standortfreigabe, Diagnose, Protokoll)
+  öffnen weiterhin direkt die jeweilige Seite; auf breiten Bildschirmen die
+  Einstellungen mit der Seite daneben.
+
+### Startbildschirm (1.32, umgebaut in 1.35)
 - **Kopfzeile:** das eigene Profilbild (bzw. die Initialen auf der
   Lieblingsfarbe) statt „GateControl“ + Server; der Ring zeigt die eigene
   Anwesenheit (Familie, wenn geteilt; derselbe Ring wie im Familie-Tab).
-  Tippen öffnet das Profil.
+  Tippen öffnet das Profil (und von dort die Einstellungen). Ohne Profilbild
+  führt ein Personen-Symbol dorthin. Der Hell/Dunkel-Schalter ist ins
+  Profil gewandert.
 - **Schnellaktionen:** angeheftete Aktionen als Symbol-Kacheln (das
   SVG-Symbol, das der Server je Aktion schickt; ohne Symbol der Blitz) mit
   dem Titel darunter, Schalter gefüllt, solange sie an sind; rechts ein
   „+“ zum Auswählen. Ohne angeheftete Aktion nur „Schnellaktionen
   auswählen“. Dieselben Symbole in der Liste, im Widget, in den
   App-Verknüpfungen und den Schnelleinstellungs-Kacheln.
-- Die Verbindungsdetails (Tunnel-IP, verbunden seit, letzter Handshake,
-  Server) stehen unter Einstellungen → Verbindung → Verbindungsdetails.
+- **Info-Karte** (unter den Schnellaktionen): zeigt die Inhalte, die man
+  auswählt, als wischbare Seiten (Punkte darunter). Inhalte sind derzeit die
+  **Start-Kacheln der Plugins** (`GET /api/v1/client/tiles?lang=de|en`,
+  in der Sprache der App): je Seite Symbol, Titel, großer Wert mit Einheit,
+  Plugin-Name klein und die Farbe des Zustands (gut grün, Warnung gelb,
+  kritisch rot, an = Akzent). Der Stift oben rechts öffnet „Inhalte der
+  Info-Karte“: alle Kacheln nach Plugin gruppiert mit Häkchen, oben die
+  angezeigten in ihrer Reihenfolge (Pfeile verschieben sie). Die Auswahl
+  wird je Anmeldung (Server + Token) gespeichert; Kacheln, die der Server
+  nicht mehr liefert, werden still übersprungen (und erscheinen wieder,
+  wenn sie zurückkommen). Ohne Auswahl nur „Inhalte auswählen“; ältere
+  Server (404) oder keine Kacheln: keine Karte. Aktualisiert, wenn der
+  Start-Tab sichtbar wird, und alle 60 s, solange er sichtbar ist (nur im
+  Speicher zwischengespeichert). Das Auswahlmodell ist allgemein
+  („InfoSource“), damit später eingebaute Inhalte dazukommen können.
+- **Durchsatz & Datennutzung** in einer Karte: der Inhalt wischt
+  seitlich, Rahmen und Titelzeile bleiben stehen; Punkte zeigen die Seite.
+- **Lange drücken** auf eine Seite einer wischbaren Karte legt sie als
+  Standard fest („Als Standard festgelegt“, Stern neben dem Titel): diese
+  Seite erscheint zuerst. Ohne Wahl startet die Durchsatz-Karte mit der
+  Datennutzung.
+- Kill-Switch und Split-Tunneling stehen (nur noch) in den Einstellungen,
+  Pi-hole im Netzwerk-Tab. Die Verbindungsdetails (Tunnel-IP, verbunden
+  seit, letzter Handshake, Server) und der **DNS-Leak-Test** stehen unter
+  Einstellungen → Verbindung → Verbindungsdetails.
 
 ### Statistiken
 Während der VPN-Verbindung werden folgende Metriken angezeigt
@@ -153,7 +198,8 @@ Der GateControl-Server stellt eine Liste erreichbarer Dienste bereit, die über 
 
 ## DNS-Leak-Test (Pro)
 
-Ein integrierter Test prüft, ob DNS-Anfragen korrekt über den VPN-Tunnel geleitet werden oder ob ein DNS-Leak vorliegt.
+Einstellungen → Verbindung → Verbindungsdetails (bis 1.34 eine Kachel auf
+dem Start-Tab). Ein integrierter Test prüft, ob DNS-Anfragen korrekt über den VPN-Tunnel geleitet werden oder ob ein DNS-Leak vorliegt.
 
 **Ergebnisse:**
 - **Kein DNS-Leak erkannt** — Alle DNS-Anfragen laufen über den Tunnel
@@ -164,7 +210,8 @@ Ein integrierter Test prüft, ob DNS-Anfragen korrekt über den VPN-Tunnel gelei
 
 ## RDP-Sitzungsverwaltung (Pro)
 
-Vollständige Remote-Desktop-Verwaltung direkt in der App.
+Vollständige Remote-Desktop-Verwaltung direkt in der App: Netzwerk →
+Remote (bis 1.34 ein eigener Tab „Remote“).
 
 ### Host-Übersicht
 Alle vom GateControl-Server konfigurierten RDP-Hosts werden aufgelistet und können nach Status gefiltert werden:
@@ -239,9 +286,15 @@ zurück geht es dorthin, wo man war.
 
 ## Einstellungen
 
+Seit 1.35 kein Tab mehr: das Zahnrad oben rechts im Profil öffnet sie (mit
+Zurück-Pfeil).
+
 ### Profil (1.32, GateControl 1.168+; neu gestaltet in 1.33)
-- Erster Eintrag der Einstellungen (auch: Tippen auf das eigene Profilbild
-  auf dem Startbildschirm oder im Familie-Tab)
+- Tippen auf das eigene Profilbild auf dem Startbildschirm oder im
+  Familie-Tab (auch erster Eintrag der Einstellungen; von dort führt er
+  zurück ins Profil)
+- Oben rechts das Zahnrad zu den Einstellungen und der Hell/Dunkel-Schalter
+  (Sonne/Mond)
 - Oben das große Profilbild mit Ring. Tippen öffnet direkt die
   Android-Fotoauswahl (keine Speicher-Berechtigung); das kleine „X“ am
   Bild entfernt es (nach kurzer Rückfrage), das Paletten-Symbol ändert
@@ -265,6 +318,8 @@ zurück geht es dorthin, wo man war.
 - Einstellungen → Verbindung → Verbindungsdetails: Tunnel-IP, verbunden
   seit (live), letzter Handshake, Server; bei veraltetem Handshake
   „Verbindung prüfen“ (Diagnose); ohne VPN „VPN ist aus“ und der Server
+- Darunter (mit dem DNS-Recht des Tokens) der DNS-Leak-Test: Tippen fragt
+  den Server, welchen Resolver der Tunnel nutzt (bis 1.34 auf dem Start-Tab)
 
 ### Server-Konfiguration
 - Server-URL und API-Token bearbeiten

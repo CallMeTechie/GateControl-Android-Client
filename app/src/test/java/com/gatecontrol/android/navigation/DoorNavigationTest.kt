@@ -20,18 +20,15 @@ class DoorNavigationTest {
     fun `no door tab in the tab list or the bar routes, Familie keeps its tab`() {
         val plugins = PluginAvailability.from(listOf(door, familie))
         assertTrue(plugins.door)
-        val tabs = MainTabs.routes(rdp = true, network = true, plugins = plugins)
-        assertEquals(
-            listOf(Screen.Vpn.route, Screen.Rdp.route, Screen.Network.route, Screen.Familie.route, Screen.Settings.route),
-            tabs,
-        )
+        val tabs = MainTabs.routes(network = true, plugins = plugins)
+        assertEquals(listOf(Screen.Vpn.route, Screen.Network.route, Screen.Familie.route), tabs)
         assertFalse(Screen.Door.route in tabs)
         assertFalse(Screen.Door.route in MainTabs.BAR_ROUTES)
         assertFalse(Screen.DoorPage.route in MainTabs.BAR_ROUTES)
-        // Only the door plugin: start and settings, nothing more.
+        // Only the door plugin: start, nothing more.
         assertEquals(
-            listOf(Screen.Vpn.route, Screen.Settings.route),
-            MainTabs.routes(rdp = false, network = false, plugins = PluginAvailability.from(listOf(door))),
+            listOf(Screen.Vpn.route),
+            MainTabs.routes(network = false, plugins = PluginAvailability.from(listOf(door))),
         )
     }
 

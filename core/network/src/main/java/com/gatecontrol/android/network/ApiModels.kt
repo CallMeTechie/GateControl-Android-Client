@@ -496,6 +496,29 @@ data class QuickActionsResponse(
 )
 
 /**
+ * One start tile of a plugin (`GET /api/v1/client/tiles`). [key] is stable
+ * (`<pluginId>/<section>/<title>`); [value] may be a JSON string or number
+ * (kept as the raw element), [state] one of on|off|good|warn|crit or null,
+ * [icon] an SVG path `d` for a 24×24 viewBox.
+ */
+data class ClientTile(
+    @SerializedName("key") val key: String? = null,
+    @SerializedName("plugin") val plugin: String? = null,
+    @SerializedName("pluginName") val pluginName: String? = null,
+    @SerializedName("section") val section: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("value") val value: com.google.gson.JsonElement? = null,
+    @SerializedName("unit") val unit: String? = null,
+    @SerializedName("state") val state: String? = null,
+    @SerializedName("icon") val icon: String? = null,
+)
+
+data class ClientTilesResponse(
+    val ok: Boolean = false,
+    val tiles: List<ClientTile>? = null,
+)
+
+/**
  * A plugin that answers the apps (`GET /api/v1/client/plugins`). [tab] is
  * null when the plugin has no own app tab (API only) or hides it from this
  * user.

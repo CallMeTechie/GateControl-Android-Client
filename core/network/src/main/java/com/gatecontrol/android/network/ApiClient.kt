@@ -103,6 +103,13 @@ interface ApiClient {
     ): Response<QuickActionRunResponse>
 
     /** Plugins that answer the apps, with their app tab (404 on servers before 1.164). */
+    /**
+     * Start tiles of the plugins (values for the "Info" card on the start
+     * tab); 404 on older servers.
+     */
+    @GET("api/v1/client/tiles")
+    suspend fun getClientTiles(@Query("lang") lang: String? = null): Response<ClientTilesResponse>
+
     @GET("api/v1/client/plugins")
     suspend fun getClientPlugins(@Query("lang") lang: String? = null): Response<ClientPluginsResponse>
 

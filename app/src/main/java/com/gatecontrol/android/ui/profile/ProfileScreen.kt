@@ -82,8 +82,9 @@ import com.gatecontrol.android.ui.familie.FamilieConfirmDialog
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
- * Settings → Profil (also a tap on the own avatar on the start tab and in
- * the Familie tab): the large avatar with its ring at the top — a tap
+ * Own profile (a tap on the own avatar on the start tab and in the
+ * Familie tab, also Settings → Profil). Top right the gear to the
+ * settings and the light/dark switch (until 1.35 in the start tab's header): the large avatar with its ring at the top — a tap
  * opens the system photo picker, the "X" badge removes the picture (after
  * a short question), the palette badge changes only the ring colour. A
  * picked photo opens the full-screen wizard ([AvatarWizard]: crop → ring
@@ -95,6 +96,8 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
+    /** Gear top right: the settings (null inside the settings, e.g. their detail pane). */
+    onOpenSettings: (() -> Unit)? = null,
     viewModel: ProfileViewModel = hiltViewModel(),
     presenceViewModel: ProfilePresenceViewModel = hiltViewModel(),
 ) {
@@ -153,7 +156,22 @@ fun ProfileScreen(
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        GcSubpageBar(title = stringResource(R.string.profile_title), onBack = onBack, backDescription = stringResource(R.string.common_back))
+        GcSubpageBar(
+            title = stringResource(R.string.profile_title),
+            onBack = onBack,
+            backDescription = stringResource(R.string.common_back),
+            actions = {
+                // The way to the settings (no tab since 1.35), then the light/dark switch.
+                if (onOpenSettings != null) {
+                    GcIconButton(
+                        icon = GcIcons.Settings,
+                        contentDescription = stringResource(R.string.settings_title),
+                        onClick = onOpenSettings,
+                    )
+                }
+                ThemeToggleButton()
+            },
+        )
         when {
             state.support == ProfileSupport.UNSUPPORTED || state.support == ProfileSupport.NO_USER -> {
                 GcBanner(tone = GcTone.Info, modifier = Modifier.padding(horizontal = 16.dp)) {
