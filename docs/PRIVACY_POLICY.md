@@ -1,6 +1,6 @@
 # GateControl — Datenschutzerklärung / Privacy Policy
 
-*Stand / Last updated: 14. Oktober 2026 / October 14, 2026*
+*Stand / Last updated: 15. Oktober 2026 / October 15, 2026*
 
 [Deutsch](#deutsch) · [English](#english)
 
@@ -49,6 +49,18 @@ Den Tab **Familie** gibt es nur, wenn dein GateControl-Server das Plugin „Fami
 
 Nichts davon geht an CallMeTechie oder andere Dritte; Daten auf deinem Server verwaltet dessen Betreiber.
 
+### Tür & Kamera (Plugin „Tür & Kamera“ deines Servers)
+
+Den Tab **Tür** gibt es nur, wenn dein GateControl-Server das Plugin „Tür & Kamera“ anbietet und dir der Betreiber ein Recht auf mindestens ein Schloss gegeben hat.
+
+- **Tür auf- und zusperren:** Ein Tipp schickt den Befehl an **deinen eigenen Server**, der das Schloss (Nuki) steuert. Vor dem Aufsperren und Öffnen fragt die App die Displaysperre des Handys ab (Fingerabdruck, Gesicht oder PIN/Muster/Passwort über Android); das Ergebnis bleibt auf dem Gerät, nur der Befehl geht an den Server.
+- **Verlauf und Klingelbilder:** Wer wann auf- oder zugesperrt hat (und über welchen Weg), Klingeln, Bewegungen und Hinweise speichert **dein eigener Server** (Verlauf höchstens 90 Tage, Bilder je nach Einstellung 1–30 Tage). Die App lädt sie nur zum Anzeigen; Bilder und Verlauf werden **nicht auf dem Gerät gespeichert** (nur im Arbeitsspeicher, solange du sie ansiehst). Offline zeigt die App nur den zuletzt bekannten Zustand der Schlösser (ohne Bilder).
+- **Bilder in Mitteilungen:** Mitteilungen deines Servers können ein Bild enthalten (z. B. wer an der Haustür klingelt). Die App lädt es nur von deinem eigenen Server und zeigt es in der Mitteilung und in „Mitteilungen“; es bleibt nur im Arbeitsspeicher. Je nach Android-Einstellung ist die Mitteilung samt Bild auch auf dem Sperrbildschirm sichtbar. Der Server löscht das Bild, wenn die Mitteilung abläuft (bei der Klingel nach einer Stunde).
+- **„Tür öffnen“ aus der Mitteilung:** Der Knopf verlangt das Entsperren des Geräts, bevor der Befehl an deinen Server geht.
+- **Ring:** Die Verbindung zu Ring (Klingeln, Kamerabilder) stellt dein Server her, nicht die App — über eine inoffizielle Schnittstelle, ohne Gewähr.
+
+Nichts davon geht an CallMeTechie oder andere Dritte.
+
 ### Kamera
 
 Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder werden weder gespeichert noch übertragen. Die Erkennung (Google ML Kit) läuft vollständig auf dem Gerät.
@@ -65,6 +77,7 @@ Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder 
 | Akku-Optimierung ausnehmen | optional: Benachrichtigungen auch im Ruhezustand |
 | Standort (auch im Hintergrund) | optional: WLAN-Namen für vertrauenswürdige WLANs; Standort auf Tipp an den eigenen Server; Familie: Standort auf Anfrage der Eltern, „Bin angekommen“/SOS, Orts-Erinnerungen (siehe oben) |
 | Kamera | Einrichtungs-QR-Code |
+| Biometrie / Displaysperre | Tür & Kamera: Bestätigung vor dem Aufsperren und Öffnen einer Tür (über Android, nichts wird gespeichert oder gesendet) |
 
 ### Speicherung und Löschung
 
@@ -123,6 +136,18 @@ The **Family** tab only exists when your GateControl server offers the "Familie"
 
 None of this goes to CallMeTechie or other third parties; data on your server is managed by its operator.
 
+### Door & Camera (your server's "Tür & Kamera" plugin)
+
+The **Door** tab only exists when your GateControl server offers the "Door & Camera" plugin and its operator gave you a right on at least one lock.
+
+- **Locking and unlocking:** a tap sends the command to **your own server**, which controls the lock (Nuki). Before unlocking or opening, the app asks for the phone's screen lock (fingerprint, face or PIN/pattern/password through Android); the result stays on the device, only the command goes to the server.
+- **History and doorbell pictures:** who locked or unlocked when (and how), rings, motion and notices are stored on **your own server** (history for at most 90 days, pictures 1–30 days as set there). The app only loads them to show them; pictures and history are **not stored on the device** (only in memory while you look at them). Offline the app only shows the last known state of the locks (no pictures).
+- **Pictures in notifications:** messages from your server may carry a picture (e.g. who is ringing at the front door). The app loads it only from your own server and shows it in the notification and in "Notifications"; it is kept in memory only. Depending on your Android settings the notification, picture included, may also be visible on the lock screen. The server deletes the picture when the message expires (for the doorbell after one hour).
+- **"Open door" from a notification:** the button requires unlocking the device before the command goes to your server.
+- **Ring:** the connection to Ring (rings, camera pictures) is made by your server, not by the app — through an unofficial interface, without warranty.
+
+None of this goes to CallMeTechie or other third parties.
+
 ### Camera
 
 Only to scan the setup QR code when you open the scanner. No images are stored or transmitted. Recognition (Google ML Kit) runs entirely on the device.
@@ -139,6 +164,7 @@ Only to scan the setup QR code when you open the scanner. No images are stored o
 | Ignore battery optimisation | optional: notifications while the device sleeps |
 | Location (incl. background) | optional: Wi-Fi names for trusted Wi-Fi; location on tap to your own server; Family: location on a parent's request, "I've arrived"/SOS, place reminders (see above) |
 | Camera | Setup QR code |
+| Biometrics / screen lock | Door & Camera: confirmation before a door is unlocked or opened (through Android; nothing is stored or sent) |
 
 ### Retention and deletion
 

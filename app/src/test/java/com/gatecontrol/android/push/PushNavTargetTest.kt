@@ -27,6 +27,9 @@ class PushNavTargetTest {
         assertEquals(PushNavTarget.Inbox, PushNavTarget.forRoute(null, null))
         // The Familie plugin has its own tab.
         assertEquals(PushNavTarget.Familie("home", 5), PushNavTarget.forRoute("plg-gatecontrol-familie", 5))
+        // So does the door plugin: "Ansehen" of a ring opens its detail.
+        assertEquals(PushNavTarget.Door("home", 5), PushNavTarget.forRoute("plg-gatecontrol-door", 5))
+        assertEquals(PushNavTarget.Door("event:120", 5), PushNavTarget.forRoute("plg-gatecontrol-door", 5, "event:120"))
     }
 
     @Test

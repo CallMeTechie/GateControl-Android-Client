@@ -25,6 +25,11 @@ data class PushNotificationDto(
     val data: JsonObject? = null,
     /** Inbox only: delivered | read | dismissed. */
     val state: String? = null,
+    /**
+     * Picture of the message (core 1.169+): a relative path on the own
+     * server (`/notify-media/<id>.<ext>`), null without one or once expired.
+     */
+    @SerializedName("imageUrl") val imageUrl: String? = null,
 )
 
 data class PushTopicDto(

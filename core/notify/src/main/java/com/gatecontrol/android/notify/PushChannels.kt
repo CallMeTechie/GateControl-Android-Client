@@ -24,7 +24,8 @@ data class ChannelSpec(
  *
  * * `critical` — critical messages of any topic (high importance, sound).
  * * one channel per topic: `security` (high), `devices`, `services`,
- *   `system`, `admin_notice` and every plugin topic from `hello` (default) —
+ *   `system`, `admin_notice` and every plugin topic from `hello` (default;
+ *   the doorbell of the door plugin high, so a ring pops up as a banner) —
  *   so sound and vibration can be set per topic in Android.
  * * `info` — info messages: default importance but without sound and
  *   vibration, so they still show on the lock screen (a low channel counts
@@ -42,6 +43,15 @@ object PushChannels {
     const val SILENT = "push_silent"
     const val CONNECTION = "push_connection"
     private const val TOPIC_PREFIX = "push_topic_"
+
+    /** Doorbell of the door plugin (`gatecontrol-door`): someone is at the door right now. */
+    const val DOORBELL_TOPIC = "plugin:gatecontrol-door:doorbell"
+
+    /**
+     * Topics whose channel is created with high importance (heads-up). The
+     * importance of an existing channel is the user's: only new channels get it.
+     */
+    val HIGH_TOPICS = setOf(PushTopic.SECURITY, DOORBELL_TOPIC)
 
     const val KEY_CRITICAL = "critical"
     const val KEY_INFO = "info"
@@ -63,7 +73,7 @@ object PushChannels {
 
     fun topicChannel(topic: String, label: String?): ChannelSpec = ChannelSpec(
         id = topicChannelId(topic),
-        importance = if (topic == PushTopic.SECURITY) ChannelImportance.HIGH else ChannelImportance.DEFAULT,
+        importance = if (topic in HIGH_TOPICS) ChannelImportance.HIGH else ChannelImportance.DEFAULT,
         key = topic.takeIf { it in PushTopic.CORE },
         label = label,
     )

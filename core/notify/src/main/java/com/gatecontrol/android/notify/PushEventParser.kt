@@ -68,8 +68,16 @@ object PushEventParser {
     private val TOPIC_RE = Regex(
         "^(?:security|devices|services|system|admin_notice|plugin:[a-z0-9]+(?:-[a-z0-9]+)*:[a-z][a-z0-9_-]{0,31})$",
     )
-    /** Same shape the server accepts for the `action` of an ack. */
+    /** Id of a fixed-list action (server: ≤ 40). */
     val ACTION_ID_RE = Regex("^[A-Za-z0-9_.:-]{1,40}$")
+    /** Same shape the server accepts for the `action` of an ack: ≤ 64, so a quick action id fits. */
+    val ACK_ACTION_RE = Regex("^[A-Za-z0-9_.:-]{1,64}$")
+    /** Quick action id (core quickActions.js ACTION_ID_RE). */
+    val QUICK_ACTION_ID_RE = Regex("^[A-Za-z0-9:._-]{1,64}$")
+    /** Plugin id of a quick_action (same shape as in the topic). */
+    private val PLUGIN_ID_RE = Regex("^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    /** Picture of a message: a path under `/notify-media/` on the own server, nothing else. */
+    val IMAGE_PATH_RE = Regex("^/notify-media/[A-Za-z0-9_-]{8,128}\\.(?:jpg|jpeg|png|webp)$")
     private val PORTAL_PATH_RE = Regex("^/[A-Za-z0-9._~!$&'()*+,;=:@%/?#-]{0,300}$")
     private val CONTROL_RE = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]")
     private val POLICY_VERSION_RE = Regex("^[A-Za-z0-9._:-]{1,64}$")
@@ -225,8 +233,12 @@ object PushEventParser {
             receivedAt = receivedAt,
             via = via,
             dataJson = dto.data?.toString()?.takeIf { it.length <= MAX_DATA_JSON },
+            imageUrl = imagePath(dto.imageUrl),
         )
     }
+
+    /** `imageUrl`: only a `/notify-media/…` path (resolved against the own server by the app). */
+    fun imagePath(value: String?): String? = value?.trim()?.takeIf { IMAGE_PATH_RE.matches(it) }
 
     private fun route(data: JsonObject?): String? {
         val r = data?.get("route")?.takeIf { it.isJsonPrimitive }?.asString ?: return null
@@ -241,6 +253,11 @@ object PushEventParser {
             val o = el.asJsonObject
             fun str(key: String): String? = o.get(key)?.takeIf { it.isJsonPrimitive }?.asString
             val type = str("type")?.takeIf { it in PushActionType.ALL } ?: continue
+            if (type == PushActionType.QUICK_ACTION) {
+                quickAction(o)?.let { out += it }
+                if (out.size == MAX_ACTIONS) break
+                continue
+            }
             val id = str("id")?.takeIf { ACTION_ID_RE.matches(it) } ?: type
             val label = clean(str("label"), 40)
             val target = str("target")
@@ -254,6 +271,25 @@ object PushEventParser {
             if (out.size == MAX_ACTIONS) break
         }
         return out.distinctBy { it.id }
+    }
+
+    /**
+     * `{ id, label, type:'quick_action', plugin, confirm, auth? }`: one of the
+     * sending plugin's quick actions (core checks that the plugin is the
+     * sender). Without a valid id, plugin or label it is dropped.
+     */
+    private fun quickAction(o: JsonObject): PushAction? {
+        val id = o.str("id")?.takeIf { QUICK_ACTION_ID_RE.matches(it) } ?: return null
+        val plugin = o.str("plugin")?.takeIf { it.length <= 64 && PLUGIN_ID_RE.matches(it) } ?: return null
+        val label = clean(o.str("label"), 40).ifBlank { return null }
+        return PushAction(
+            id = id,
+            label = label,
+            type = PushActionType.QUICK_ACTION,
+            plugin = plugin,
+            confirm = o.bool("confirm") == true,
+            auth = if (o.str("auth") == PushAction.AUTH_DEVICE) PushAction.AUTH_DEVICE else null,
+        )
     }
 
     /** Plain text only: control characters removed, length capped. */

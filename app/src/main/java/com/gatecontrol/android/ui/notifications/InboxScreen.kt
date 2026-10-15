@@ -1,6 +1,11 @@
 package com.gatecontrol.android.ui.notifications
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import com.gatecontrol.android.push.NotifyMediaLoader
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.horizontalScroll
@@ -204,6 +209,15 @@ private fun InboxRow(message: PushMessage, serverLabel: String?, selected: Boole
                 }
             }
             Text(meta, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        // Picture of the message (e.g. who rang), while the server still has it.
+        rememberPushPicture(message.imageUrl, NotifyMediaLoader.THUMB_SIDE_PX)?.let { picture ->
+            Image(
+                picture,
+                contentDescription = stringResource(R.string.push_detail_image_desc),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)),
+            )
         }
     }
 }

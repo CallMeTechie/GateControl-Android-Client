@@ -76,11 +76,14 @@ class PushOpenActivity : ComponentActivity() {
         }
 
         // A tap on the message itself opens its detail (a Familie message: its
-        // screen in the Familie tab); an action goes to its app route.
+        // screen in the Familie tab; a door message: the ring or the door tab);
+        // an action goes to its app route.
         val familieDest = intent.getStringExtra(EXTRA_FAMILIE_DEST)
+        val doorDest = intent.getStringExtra(EXTRA_DOOR_DEST)
         val navTarget = when {
-            actionType == PushActionType.OPEN_APP_ROUTE -> PushNavTarget.forRoute(target, id)
+            actionType == PushActionType.OPEN_APP_ROUTE -> PushNavTarget.forRoute(target, id, doorDest)
             familieDest != null && actionType == null -> PushNavTarget.Familie(familieDest, id)
+            doorDest != null && actionType == null -> PushNavTarget.Door(doorDest, id)
             else -> PushNavTarget.Detail(id)
         }
         PushNavigation.request(navTarget)
@@ -98,6 +101,7 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_TARGET = "com.gatecontrol.android.push.extra.TARGET"
         private const val EXTRA_INBOX = "com.gatecontrol.android.push.extra.INBOX"
         private const val EXTRA_FAMILIE_DEST = "com.gatecontrol.android.push.extra.FAMILIE_DEST"
+        private const val EXTRA_DOOR_DEST = "com.gatecontrol.android.push.extra.DOOR_DEST"
 
         /** Opens "Mitteilungen" (the widget's bell). */
         fun inboxIntent(context: Context): Intent =
@@ -110,10 +114,11 @@ class PushOpenActivity : ComponentActivity() {
         private val ackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
         /** Explicit intent to this non-exported activity. */
-        fun intent(context: Context, id: Long, action: PushAction?, familieDest: String? = null): Intent =
+        fun intent(context: Context, id: Long, action: PushAction?, familieDest: String? = null, doorDest: String? = null): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_ID, id)
                 .apply { if (familieDest != null) putExtra(EXTRA_FAMILIE_DEST, familieDest) }
+                .apply { if (doorDest != null) putExtra(EXTRA_DOOR_DEST, doorDest) }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
                 .apply {
                     if (action != null) {

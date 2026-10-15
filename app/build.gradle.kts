@@ -133,6 +133,9 @@ dependencies {
     // AndroidX Core
     implementation(libs.core.ktx)
     implementation(libs.activity.compose)
+    // Door tab: BiometricPrompt with device credential fallback (MainActivity is a FragmentActivity).
+    implementation(libs.biometric)
+    implementation(libs.fragment)
 
     // Compose
     implementation(platform(libs.compose.bom))

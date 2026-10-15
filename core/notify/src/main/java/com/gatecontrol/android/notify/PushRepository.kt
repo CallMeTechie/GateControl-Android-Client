@@ -123,7 +123,7 @@ class PushRepository @Inject constructor(
         val targets = before.filter { it.id in ids }
         inbox.setState(ids, PushState.READ)
         cancelShown(ids, before)
-        val validAction = action?.takeIf { PushEventParser.ACTION_ID_RE.matches(it) }
+        val validAction = action?.takeIf { PushEventParser.ACK_ACTION_RE.matches(it) }
         queueAcks(targets.filter { it.isUnread || validAction != null }.map { PendingAck(it.seq, PushState.READ, validAction) })
     }
 

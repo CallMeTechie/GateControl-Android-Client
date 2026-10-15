@@ -27,7 +27,13 @@ object PushActionType {
     const val DONE = "done"
     const val ACK = "ack"
 
-    val ALL = setOf(OPEN_APP_ROUTE, OPEN_PORTAL, MUTE_1H, DONE, ACK)
+    /**
+     * Runs one of the sending plugin's own quick actions (core 1.169+):
+     * `POST /api/v1/client/actions/<plugin>/<id>` with `source: notification`.
+     */
+    const val QUICK_ACTION = "quick_action"
+
+    val ALL = setOf(OPEN_APP_ROUTE, OPEN_PORTAL, MUTE_1H, DONE, ACK, QUICK_ACTION)
 
     /** Actions that only acknowledge (no UI): run from the notification without opening the app. */
     val BACKGROUND = setOf(MUTE_1H, DONE, ACK)
@@ -35,12 +41,28 @@ object PushActionType {
 
 /** A button of a message (`data.actions[]`). */
 data class PushAction(
+    /** Action id; for [PushActionType.QUICK_ACTION] the quick action id (≤ 64). */
     val id: String,
     val label: String,
     val type: String,
     /** App route (open_app_route) or portal path (open_portal). */
     val target: String? = null,
-)
+    /** quick_action: the plugin whose quick action it is (the sender). */
+    val plugin: String? = null,
+    /** quick_action: ask before running it (in the app). */
+    val confirm: Boolean = false,
+    /** quick_action: `device` = the device must be unlocked / authenticated first. */
+    val auth: String? = null,
+) {
+    val isQuickAction: Boolean get() = type == PushActionType.QUICK_ACTION && plugin != null
+
+    /** quick_action that needs the device unlock (biometrics or PIN) before it runs. */
+    val needsDeviceAuth: Boolean get() = isQuickAction && auth == AUTH_DEVICE
+
+    companion object {
+        const val AUTH_DEVICE = "device"
+    }
+}
 
 /** Delivery state as far as this device knows it. */
 object PushState {
@@ -80,6 +102,12 @@ data class PushMessage(
      * that reads it validates every field.
      */
     val dataJson: String? = null,
+    /**
+     * Picture (core 1.169+): relative path on the own server
+     * (`/notify-media/<id>.<ext>`), validated by the parser; null = none.
+     * Gson leaves it null in inbox entries cached by older versions.
+     */
+    val imageUrl: String? = null,
 ) {
     val priorityLevel: PushPriority get() = PushPriority.fromWire(priority)
     val isUnread: Boolean get() = state == PushState.DELIVERED

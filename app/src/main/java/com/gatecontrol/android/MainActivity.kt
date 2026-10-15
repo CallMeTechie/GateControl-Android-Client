@@ -3,8 +3,8 @@ package com.gatecontrol.android
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,9 +29,12 @@ import javax.inject.Inject
  * acts on no intent extras: Quick Settings tile actions run in the
  * non-exported [com.gatecontrol.android.service.TileActionActivity], and
  * setup links only open a confirmation dialog.
+ *
+ * A FragmentActivity (a ComponentActivity) so the door tab can ask for the
+ * device unlock with androidx.biometric's BiometricPrompt.
  */
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     @Inject lateinit var setupRepository: SetupRepository
     @Inject lateinit var settingsRepository: SettingsRepository

@@ -6,6 +6,7 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.QuickAction
+import com.gatecontrol.android.network.QuickActionRunRequest
 import com.gatecontrol.android.network.QuickActionRunResponse
 import com.gatecontrol.android.network.QuickActionsResponse
 import io.mockk.coEvery
@@ -105,7 +106,7 @@ class QuickActionRepositoryTest {
         val r = repo()
         val item = QuickActionRepository.sanitize(listOf(light)).single()
         r.togglePin(item)
-        coEvery { api.runQuickAction("gatecontrol-smarthome", "light:3", "de") } returns
+        coEvery { api.runQuickAction("gatecontrol-smarthome", "light:3", "de", QuickActionRunRequest("app")) } returns
             Response.success(QuickActionRunResponse(ok = true, message = "Licht an", state = "on"))
 
         val result = r.run(item)
@@ -120,10 +121,34 @@ class QuickActionRepositoryTest {
         val r = repo()
         val item = QuickActionRepository.sanitize(listOf(light)).single()
         r.togglePin(item)
-        coEvery { api.runQuickAction(any(), any(), any()) } returns Response.error(502, """{"ok":false}""".toResponseBody(null))
+        coEvery { api.runQuickAction(any(), any(), any(), any()) } returns Response.error(502, """{"ok":false}""".toResponseBody(null))
 
         assertFalse(r.run(item).ok)
         assertEquals("off", r.currentPins().single().state)
+    }
+
+    @Test
+    fun `a notification button runs with source notification and shows the plugin's reason on failure`() = runTest {
+        val r = repo()
+        coEvery { api.runQuickAction("gatecontrol-door", "1:open", "de", QuickActionRunRequest("notification")) } returns
+            Response.success(QuickActionRunResponse(ok = true, message = "Haustür geöffnet"))
+        val ok = r.runFromNotification("gatecontrol-door", "1:open")
+        assertTrue(ok.ok)
+        assertEquals("Haustür geöffnet", ok.message)
+
+        coEvery { api.runQuickAction("gatecontrol-door", "1:unlock", "de", QuickActionRunRequest("notification")) } returns
+            Response.error(403, """{"ok":false,"message":"Außerhalb des Zeitfensters"}""".toResponseBody(null))
+        val refused = r.runFromNotification("gatecontrol-door", "1:unlock")
+        assertFalse(refused.ok)
+        assertEquals("Außerhalb des Zeitfensters", refused.message)
+    }
+
+    @Test
+    fun `a notification button with a malformed id never reaches the server`() = runTest {
+        val r = repo()
+        assertFalse(r.runFromNotification("gatecontrol-door", "../admin").ok)
+        assertFalse(r.runFromNotification("Bad Plugin", "1:open").ok)
+        io.mockk.coVerify(exactly = 0) { api.runQuickAction(any(), any(), any(), any()) }
     }
 
     @Test
