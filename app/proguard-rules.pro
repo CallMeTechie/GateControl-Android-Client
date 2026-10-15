@@ -27,6 +27,10 @@
 # generic signatures must survive, or List<FamilieMember> reads back as
 # LinkedTreeMap (ClassCastException in 1.29.0).
 -keep class com.gatecontrol.android.familie.** { <fields>; }
+# Door tab (Tür & Kamera): the plugin's answers are parsed from the Gson tree
+# (DoorJson) and only the raw `me` JSON is cached, but the models keep their
+# field names the same way, in case they are ever (de)serialized by reflection.
+-keep class com.gatecontrol.android.door.** { <fields>; }
 
 # ── WireGuard ─────────────────────────────────────────────
 -keep class com.wireguard.** { *; }

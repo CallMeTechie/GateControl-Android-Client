@@ -9,7 +9,10 @@ import com.gatecontrol.android.notify.PushRepository
 import com.gatecontrol.android.notify.model.PushAction
 import com.gatecontrol.android.notify.model.PushActionType
 import com.gatecontrol.android.notify.model.PushMessage
+import com.gatecontrol.android.door.DoorPush
+import com.gatecontrol.android.push.NotificationQuickActions
 import com.gatecontrol.android.push.PortalLinkResolver
+import com.gatecontrol.android.quickactions.QuickActionRepository
 import com.gatecontrol.android.push.PushNavTarget
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -40,6 +43,9 @@ sealed interface DetailEffect {
     data object PortalUnavailable : DetailEffect
     data class Muted(val topic: String) : DetailEffect
     data object Done : DetailEffect
+
+    /** A quick_action ran (or was refused): [text] the plugin's message, else a generic one. */
+    data class QuickResult(val ok: Boolean, val text: String?, val refusal: NotificationQuickActions.Decision? = null) : DetailEffect
 }
 
 @HiltViewModel
@@ -47,6 +53,7 @@ class NotificationDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: PushRepository,
     private val portalLinkResolver: PortalLinkResolver,
+    private val quickActions: QuickActionRepository,
     setupRepository: SetupRepository,
     store: PushPrefsStore,
 ) : ViewModel() {
@@ -111,13 +118,27 @@ class NotificationDetailViewModel @Inject constructor(
                     PushActionType.OPEN_APP_ROUTE -> {
                         repository.markRead(listOf(id), action.id)
                         // Routes without a screen in the app (gateways, plugins) end here, on the message.
-                        val target = PushNavTarget.forRoute(action.target, id)
+                        val doorDest = repository.inbox.get(id)?.let { DoorPush.destination(it)?.key }
+                        val target = PushNavTarget.forRoute(action.target, id, doorDest)
                         if (target != PushNavTarget.Detail(id)) effects.send(DetailEffect.Navigate(target))
                     }
                     PushActionType.OPEN_PORTAL -> {
                         repository.markRead(listOf(id), action.id)
                         val url = portalLinkResolver.resolve(action.target)
                         effects.send(if (url != null) DetailEffect.OpenUrl(url) else DetailEffect.PortalUnavailable)
+                    }
+                    PushActionType.QUICK_ACTION -> {
+                        // The screen asked (confirm) and checked the device credential (auth) before.
+                        val message = repository.inbox.get(id)
+                        val decision = NotificationQuickActions.decide(message, action.plugin, action.id, System.currentTimeMillis(), deviceLocked = false)
+                        val plugin = action.plugin
+                        if (decision != NotificationQuickActions.Decision.RUN || plugin == null) {
+                            effects.send(DetailEffect.QuickResult(false, null, decision))
+                        } else {
+                            val result = quickActions.runFromNotification(plugin, action.id)
+                            if (result.ok) repository.markRead(listOf(id), action.id)
+                            effects.send(DetailEffect.QuickResult(result.ok, result.message))
+                        }
                     }
                     PushActionType.MUTE_1H -> {
                         val topic = repository.inbox.get(id)?.topic

@@ -36,6 +36,10 @@ data class PluginAvailability(
     val familieApi: Boolean = false,
     /** The Alltag plugin is listed: the dates screen also shows its appointments. */
     val alltag: Boolean = false,
+    /** The door plugin ("Tür & Kamera") is listed with an app tab for this user. */
+    val doorTab: Boolean = false,
+    /** SVG path of the door tab icon, as the plugin declares it. */
+    val doorIcon: String? = null,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -44,15 +48,20 @@ data class PluginAvailability(
         fun from(plugins: List<ClientPlugin>): PluginAvailability {
             val familie = plugins.firstOrNull { it.id == FAMILIE_PLUGIN }
             val tab = familie?.tab
+            val doorTab = plugins.firstOrNull { it.id == com.gatecontrol.android.door.DOOR_PLUGIN }?.tab
             return PluginAvailability(
                 familieTab = tab != null,
-                familieIcon = tab?.icon?.takeIf { it.length in 1..2000 && ICON_RE.matches(it) },
+                familieIcon = icon(tab?.icon),
                 familieApi = familie != null,
                 alltag = plugins.any { it.id == ALLTAG_PLUGIN },
+                doorTab = doorTab != null,
+                doorIcon = icon(doorTab?.icon),
             )
         }
 
         private val ICON_RE = Regex("^[MmLlHhVvCcSsQqTtAaZz0-9 ,.+\\-eE]+$")
+
+        private fun icon(path: String?): String? = path?.takeIf { it.length in 1..2000 && ICON_RE.matches(it) }
     }
 }
 

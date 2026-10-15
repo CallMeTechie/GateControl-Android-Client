@@ -158,6 +158,12 @@ object GcIcons {
         circle(13.5f, 6.5f, 0.5f), circle(17.5f, 10.5f, 0.5f), circle(8.5f, 7.5f, 0.5f), circle(6.5f, 12.5f, 0.5f),
     )
 
+    // Tür & Kamera (door plugin).
+    /** A door (the plugin's own tab icon). */
+    val Door = icon("Door", 2f, "M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18M15 12h.01")
+    val LockOpen = icon("LockOpen", 2f, rect(4f, 11f, 16f, 10f, 2f), "M8 11V7a4 4 0 0 1 7.9-1")
+    val Camera = icon("Camera", 2f, "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z", circle(12f, 13f, 4f))
+
     /**
      * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).
      * Throws on a path that cannot be parsed; callers fall back to their own icon.

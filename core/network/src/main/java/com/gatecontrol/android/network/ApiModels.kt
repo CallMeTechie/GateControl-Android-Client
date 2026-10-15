@@ -518,6 +518,16 @@ data class ClientPluginsResponse(
     val plugins: List<ClientPlugin>? = null,
 )
 
+/** Body of `POST /client/actions/{plugin}/{id}`: [source] `app` | `notification`. */
+data class QuickActionRunRequest(
+    @SerializedName("source") val source: String = SOURCE_APP,
+) {
+    companion object {
+        const val SOURCE_APP = "app"
+        const val SOURCE_NOTIFICATION = "notification"
+    }
+}
+
 /** Answer of `POST /client/actions/{plugin}/{id}`; [state] = the switch's new state. */
 data class QuickActionRunResponse(
     val ok: Boolean = false,

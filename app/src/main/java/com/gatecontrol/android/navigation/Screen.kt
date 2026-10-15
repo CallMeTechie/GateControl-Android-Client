@@ -41,6 +41,21 @@ sealed class Screen(val route: String) {
         const val ARG_DEST = "dest"
         fun create(dest: String): String = "familie/page?dest=" + android.net.Uri.encode(dest)
     }
+    /**
+     * Tab of the door plugin "Tür & Kamera" (only when the server lists it
+     * with an app tab). `dest` (DoorDest key) is shown beside the start
+     * screen on wide windows.
+     */
+    data object Door : Screen("door?dest={dest}") {
+        const val ARG_DEST = "dest"
+        const val BASE = "door"
+        fun create(dest: String? = null): String = if (dest == null) BASE else "$BASE?dest=" + android.net.Uri.encode(dest)
+    }
+    /** A screen of the door tab on its own (phones): history, a ring's detail. */
+    data object DoorPage : Screen("door/page?dest={dest}") {
+        const val ARG_DEST = "dest"
+        fun create(dest: String): String = "door/page?dest=" + android.net.Uri.encode(dest)
+    }
     data object SettingsNotifications : Screen("settings/notifications")
     /** Own profile: picture and favourite colour (Settings → Profil, own avatar on the start tab). */
     data object Profile : Screen("settings/profile")

@@ -5,6 +5,8 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.QuickAction
+import com.gatecontrol.android.network.QuickActionRunRequest
+import com.gatecontrol.android.network.QuickActionRunResponse
 import com.gatecontrol.android.support.CrashReports
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -141,28 +143,54 @@ class QuickActionRepository @Inject constructor(
 
     /** Runs [item]; the new switch state goes into the list and the pins. */
     suspend fun run(item: QuickActionItem): QuickActionResult {
+        val (result, state) = call(item.plugin, item.id, QuickActionRunRequest.SOURCE_APP)
+        if (result.ok && item.toggle && state != null) updateState(item.key, state)
+        return result
+    }
+
+    /**
+     * Runs the quick action [id] of [plugin] from a push message's button
+     * (`source: notification`, core 1.169+). Ids are checked like the
+     * server's list; tiles and pins pick up a changed state afterwards.
+     */
+    suspend fun runFromNotification(plugin: String, id: String): QuickActionResult {
+        if (!PLUGIN.matches(plugin) || !ID.matches(id)) return QuickActionResult(false, null)
+        val (result, state) = call(plugin, id, QuickActionRunRequest.SOURCE_NOTIFICATION)
+        if (result.ok) {
+            val key = "$plugin/$id"
+            if (state != null && _actions.value.any { it.key == key && it.toggle }) updateState(key, state)
+            refreshAsync()
+        }
+        return result
+    }
+
+    /** `POST /api/v1/client/actions/{plugin}/{id}` → result and the switch's new state ("on"/"off"). */
+    private suspend fun call(plugin: String, id: String, source: String): Pair<QuickActionResult, String?> {
         val serverUrl = setupRepository.getServerUrl()
-        if (serverUrl.isBlank()) return QuickActionResult(false, null)
+        if (serverUrl.isBlank()) return QuickActionResult(false, null) to null
         return try {
             val response = withTimeoutOrNull(RUN_TIMEOUT_MS) {
-                apiClientProvider.getClient(serverUrl).runQuickAction(item.plugin, item.id, lang())
-            } ?: return QuickActionResult(false, null)
+                apiClientProvider.getClient(serverUrl).runQuickAction(plugin, id, lang(), QuickActionRunRequest(source))
+            } ?: return QuickActionResult(false, null) to null
             val body = response.body()
             if (!response.isSuccessful || body?.ok != true) {
-                Timber.w("Quick action %s failed: HTTP %d", item.key, response.code())
-                response.errorBody()?.close()
-                return QuickActionResult(false, body?.message?.let(::clean))
+                Timber.w("Quick action %s/%s failed: HTTP %d", plugin, id, response.code())
+                // The plugin's reason ("außerhalb des Zeitfensters") when it sent one.
+                val errorMessage = body?.message ?: runCatching {
+                    response.errorBody()?.use { b -> b.string().takeIf { it.length < 16_384 } }
+                        ?.let { gson.fromJson(it, QuickActionRunResponse::class.java) }?.message
+                }.getOrNull()
+                return QuickActionResult(false, errorMessage?.let(::clean)?.take(200)?.takeIf { it.isNotBlank() }) to null
             }
             val state = body.state?.takeIf { it == "on" || it == "off" }
-            if (item.toggle && state != null) updateState(item.key, state)
-            QuickActionResult(true, body.message?.let(::clean))
+            QuickActionResult(true, body.message?.let(::clean)?.take(200)) to state
         } catch (e: CancellationException) {
             throw e
         } catch (e: HttpException) {
-            QuickActionResult(false, null)
+            QuickActionResult(false, null) to null
         } catch (e: Exception) {
-            Timber.d("Quick action %s failed (%s)", item.key, e.javaClass.simpleName)
-            QuickActionResult(false, null)
+            Timber.d("Quick action %s/%s failed (%s)", plugin, id, e.javaClass.simpleName)
+            QuickActionResult(false, null) to null
         }
     }
 

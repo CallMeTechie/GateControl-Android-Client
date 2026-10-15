@@ -89,11 +89,17 @@ interface ApiClient {
     @GET("api/v1/client/actions")
     suspend fun getQuickActions(@Query("lang") lang: String? = null): Response<QuickActionsResponse>
 
+    /**
+     * Runs a quick action. [body] says where the tap came from (`app`, or
+     * `notification` for a push's quick_action button, core 1.169+; older
+     * servers ignore it).
+     */
     @POST("api/v1/client/actions/{plugin}/{id}")
     suspend fun runQuickAction(
         @Path("plugin") plugin: String,
         @Path("id") id: String,
         @Query("lang") lang: String? = null,
+        @Body body: QuickActionRunRequest = QuickActionRunRequest(),
     ): Response<QuickActionRunResponse>
 
     /** Plugins that answer the apps, with their app tab (404 on servers before 1.164). */
@@ -117,6 +123,7 @@ interface ApiClient {
         @Path("id") plugin: String,
         @Path(value = "path", encoded = true) path: String,
         @Body body: JsonObject,
+        @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
 
     @PATCH("api/v1/client/plugins/{id}/api/{path}")
@@ -132,6 +139,7 @@ interface ApiClient {
         @Path("id") plugin: String,
         @Path(value = "path", encoded = true) path: String,
         @Body body: JsonObject,
+        @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
 
     @HTTP(method = "DELETE", path = "api/v1/client/plugins/{id}/api/{path}")
@@ -166,6 +174,15 @@ interface ApiClient {
     @Streaming
     @GET
     suspend fun fetchAvatar(@Url url: String): Response<ResponseBody>
+
+    /**
+     * Fetches the picture of a push message (`/notify-media/<id>.<ext>`, a
+     * capability URL that needs no login, core 1.169+). [url] is absolute,
+     * built by the app from the own server address; never another host.
+     */
+    @Streaming
+    @GET
+    suspend fun fetchNotifyMedia(@Url url: String): Response<ResponseBody>
 
     /** Location sharing: may this device send, last stored position (404 on older servers). */
     @GET("api/v1/client/location")

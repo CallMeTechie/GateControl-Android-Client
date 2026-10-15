@@ -202,6 +202,35 @@ RDP-Zugangsdaten werden **niemals im Klartext** übertragen oder gespeichert:
 
 ---
 
+## Tür & Kamera (1.34, Plugin `gatecontrol-door`, GateControl 1.169+)
+
+Eigener Tab **Tür**, wenn der Server das Plugin „Tür & Kamera“ anbietet und
+der Person ein Recht auf mindestens ein Schloss gegeben ist (Details:
+[DOOR.md](DOOR.md)).
+
+- **Schlösser** (Nuki Smart Lock / Opener): Zustand mit Symbol
+  (zugesperrt, aufgesperrt, geöffnet, blockiert, nicht erreichbar …),
+  Türsensor, Akku; Knöpfe je nach Recht (Zusperren, Aufsperren, Öffnen,
+  beim Opener „Summer“). Außerhalb des Zeitfensters oder auf einem
+  Nur-Ansehen-Gerät sind sie mit Grund ausgegraut. Der Zustand wird alle
+  10 s aktualisiert, solange der Tab offen ist.
+- **Sicherheit:** Rückfrage für jede Aktion, die das Plugin bestätigen
+  lässt, und vor dem Aufsperren und Öffnen immer die Displaysperre des
+  Handys (Fingerabdruck/Gesicht oder PIN/Muster). Ohne Displaysperre geht
+  das nicht. Ergebnis als Snackbar.
+- **Kameras** (Ring, inoffizielle Schnittstelle): letztes Bild, „Neues Bild“
+  (mit Wartezeit, wenn Ring bremst), Schalter „Klingel-Push“ und
+  „Bewegungs-Push“, Statuszeile „Ring: inoffizielle Verbindung“ / „gestört“.
+- **Verlauf** mit Filter Alle / Aktionen / Klingeln; ein Klingeln öffnet
+  das Bild und — mit dem Recht „öffnen“ — „Tür öffnen“.
+- **Klingel-Push** mit Bild auf einem eigenen Kanal mit hoher Wichtigkeit;
+  „Tür öffnen“ direkt in der Mitteilung (verlangt das Entsperren des
+  Geräts), „Ansehen“ öffnet das Klingel-Bild in der App.
+- Offline zeigt der Tab den zuletzt bekannten Stand der Schlösser; Bilder
+  und Verlauf bleiben nur auf dem eigenen Server.
+
+---
+
 ## Einstellungen
 
 ### Profil (1.32, GateControl 1.168+; neu gestaltet in 1.33)
@@ -275,6 +304,18 @@ Die App nutzt drei Benachrichtigungskanäle:
 | **RDP-Sitzungen** | Aktive Sitzungen, Ablaufwarnungen |
 
 Zusätzlich werden Peer-Ablaufwarnungen angezeigt, wenn der WireGuard-Peer in wenigen Tagen abläuft oder bereits abgelaufen ist.
+
+### Bilder und Schnellaktionen in Mitteilungen (1.34, GateControl 1.169+)
+
+- Mitteilungen von Plugins können ein **Bild** tragen (z. B. wer klingelt):
+  Es wird nur vom eigenen Server geladen (`/notify-media/…`, höchstens
+  1 MB, nur im Arbeitsspeicher), in der Mitteilung groß gezeigt und in
+  „Mitteilungen“ als Vorschau; nach Ablauf auf dem Server ist es weg.
+- Plugins können eine ihrer **Schnellaktionen** als Knopf mitschicken
+  („Tür öffnen“, „Wieder zusperren“). Der Knopf läuft im Hintergrund über
+  den eigenen Server; verlangt das Plugin die Geräte-Entsperrung, fragt
+  Android vorher nach Fingerabdruck/PIN. Das Ergebnis erscheint in der
+  Mitteilung; abgelaufene Mitteilungen lösen nichts mehr aus.
 
 ---
 
