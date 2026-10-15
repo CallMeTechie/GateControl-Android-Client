@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.0] - 2026-10-15
+
+### Features
+- door tab, push pictures and notification quick actions (#77)
+
+---
+
 ## [1.33.0] - 2026-10-15
 
 ### Features
