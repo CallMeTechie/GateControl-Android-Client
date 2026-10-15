@@ -533,9 +533,6 @@
     <string name="trusted_perm_location_settings">Turn on location</string>
     <string name="trusted_locked">Your administrator set the connection to “always on” – trusted Wi-Fi networks therefore have no effect.</string>
     <string name="quick_actions_title">Quick actions</string>
-    <string name="quick_actions_all">All</string>
-    <string name="quick_actions_choose">Choose</string>
-    <string name="quick_actions_empty_pins">Pin the actions of your plugins you use most.</string>
     <string name="quick_actions_none">No quick actions available. Plugins such as Smart Home, Air conditioning or Vehicles offer them.</string>
     <string name="quick_actions_unsupported">This server does not offer quick actions yet (update GateControl).</string>
     <string name="quick_actions_failed">Quick actions could not be loaded.</string>
@@ -743,4 +740,45 @@
     <string name="diag_timeout">Took too long</string>
     <string name="diag_timeout_hint">The check took too long. Check again.</string>
     <string name="diag_error">Check failed (%1$s)</string>
+
+    <!-- Profile (1.32): picture, favourite colour; connection details in the settings -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_avatar_desc">%1$s – profile</string>
+    <string name="profile_settings_row_desc">Profile picture and favourite colour</string>
+    <string name="profile_photo_pick">Choose photo</string>
+    <string name="profile_photo_remove">Remove</string>
+    <string name="profile_photo_saved">Profile picture saved</string>
+    <string name="profile_photo_removed">Profile picture removed</string>
+    <string name="profile_photo_unreadable">The photo could not be read.</string>
+    <string name="profile_color_title">Favourite colour</string>
+    <string name="profile_color_help">The colour of your ring while you are at home. Red means away.</string>
+    <string name="profile_color_blue">Blue</string>
+    <string name="profile_color_teal">Teal</string>
+    <string name="profile_color_green">Green</string>
+    <string name="profile_color_lime">Lime</string>
+    <string name="profile_color_yellow">Yellow</string>
+    <string name="profile_color_orange">Orange</string>
+    <string name="profile_color_pink">Pink</string>
+    <string name="profile_color_purple">Purple</string>
+    <string name="profile_color_indigo">Indigo</string>
+    <string name="profile_color_slate">Slate</string>
+    <string name="profile_color_other">Colour</string>
+    <string name="profile_privacy_hint">Your profile picture is stored on your GateControl server and visible to the users of that server (apps, portal, wall tablet, admin).</string>
+    <string name="profile_unsupported">Your GateControl server does not support profile pictures yet (update GateControl).</string>
+    <string name="profile_no_user">This device belongs to no user – only users have a profile.</string>
+    <string name="profile_error_offline">The server cannot be reached. Try again later.</string>
+    <string name="profile_error_too_large">The picture is too large.</string>
+    <string name="profile_error_invalid">The server did not accept the picture (it must be square, 64–512 px, at most 96 KB, not animated).</string>
+    <string name="profile_error_type">The server does not accept this picture format.</string>
+    <string name="profile_error_color">The server does not know this colour. Pick another one.</string>
+    <string name="profile_error_rate_limited">Too many changes – try again in an hour.</string>
+    <string name="profile_error_failed">That did not work.</string>
+    <string name="profile_crop_title">Choose the crop</string>
+    <string name="profile_crop_hint">Pinch to zoom, drag to move. The circle shows your avatar.</string>
+    <string name="profile_crop_use">Use</string>
+    <string name="connection_details_title">Connection details</string>
+    <string name="connection_details_row_on">Connected for %1$s · %2$s</string>
+    <string name="connection_details_off">VPN is off</string>
+    <string name="connection_details_hint">Tunnel address, duration, last handshake and server of your VPN connection.</string>
+    <string name="quick_actions_choose_long">Choose quick actions</string>
 </resources>

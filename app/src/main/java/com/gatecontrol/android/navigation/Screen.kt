@@ -42,6 +42,10 @@ sealed class Screen(val route: String) {
         fun create(dest: String): String = "familie/page?dest=" + android.net.Uri.encode(dest)
     }
     data object SettingsNotifications : Screen("settings/notifications")
+    /** Own profile: picture and favourite colour (Settings → Profil, own avatar on the start tab). */
+    data object Profile : Screen("settings/profile")
+    /** Tunnel details (Settings → Verbindung → Verbindungsdetails). */
+    data object ConnectionDetails : Screen("settings/connection")
     data object SettingsServer : Screen("settings/server")
     data object SplitTunnel : Screen("settings/split")
     data object TrustedNetworks : Screen("settings/trusted-networks")

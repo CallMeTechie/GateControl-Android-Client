@@ -52,6 +52,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val LOCATION_SHARING = booleanPreferencesKey("location_sharing")
         /** Last position sent, JSON (format owned by the app's LocationShareRepository). */
         val LOCATION_LAST_SENT = stringPreferencesKey("location_last_sent")
+        /** Own profile (picture URL, favourite colour), JSON owned by the app's ProfileRepository. */
+        val PROFILE_CACHE = stringPreferencesKey("profile_cache")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -140,6 +142,13 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     suspend fun setLocationLastSent(value: String?) {
         dataStore.edit { if (value == null) it.remove(LOCATION_LAST_SENT) else it[LOCATION_LAST_SENT] = value }
+    }
+
+    /** Last answer of `GET /client/me/profile` (offline / fast start), null = none. */
+    fun getProfileCache(): Flow<String?> = dataStore.data.map { it[PROFILE_CACHE] }
+
+    suspend fun setProfileCache(value: String?) {
+        dataStore.edit { if (value == null) it.remove(PROFILE_CACHE) else it[PROFILE_CACHE] = value }
     }
 
     /** Adds or removes [domain]; atomic, so two quick taps never lose one. */

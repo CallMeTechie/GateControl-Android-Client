@@ -76,11 +76,29 @@ data class FamilieMe(
     val age: Int?,
     /** The caller's own mode when the caller is a child, else null ('off' for an adult child). */
     val locateMode: LocateMode?,
+    /** `#RRGGBB`: the favourite colour (1.3) or the member colour of older plugins. */
     val color: String? = null,
+    /** 1.3 (GateControl 1.168+): picture, initials, presence ring; null from older plugins. */
+    val face: MemberFace? = null,
 ) {
     val isParent: Boolean get() = role == FamilieRole.PARENT
     val isChild: Boolean get() = role == FamilieRole.CHILD
 }
+
+/**
+ * The face of a member (Familie 1.3 from GateControl's users): profile
+ * picture, initials and presence for the ring. Stored as reflective Gson
+ * JSON with the profile: plain nullable fields only.
+ */
+data class MemberFace(
+    /** `/avatars/<id>.<ext>`, null = no picture. */
+    val avatarUrl: String? = null,
+    /** `#RRGGBB` of the favourite colour. */
+    val colorHex: String? = null,
+    val initials: String? = null,
+    /** "home" | "away" | "unknown", null = not shared / module off. */
+    val presence: String? = null,
+)
 
 data class FamilieMember(
     val userId: Int,
@@ -92,6 +110,8 @@ data class FamilieMember(
     /** Children only, and only shown to parents. */
     val locateMode: LocateMode?,
     val locatable: Boolean?,
+    /** 1.3 (GateControl 1.168+): picture, initials, presence ring; null from older plugins. */
+    val face: MemberFace? = null,
 ) {
     val isChild: Boolean get() = role == FamilieRole.CHILD
 }
@@ -106,13 +126,19 @@ data class FamilieProfile(
 ) {
     fun member(userId: Int?): FamilieMember? = members.firstOrNull { it.userId == userId }
 
+    /** Picture / initials / presence of anybody incl. the caller (1.3), null when unknown. */
+    fun faceOf(userId: Int?): MemberFace? = if (userId == me.userId) me.face ?: member(userId)?.face else member(userId)?.face
+
     fun nameOf(userId: Int?): String? =
         if (userId == me.userId) me.name else member(userId)?.name
 
     /** Everybody including the caller (the caller first). */
     val everyone: List<FamilieMember>
         get() = listOf(
-            FamilieMember(me.userId, me.name, me.role, me.age, me.color ?: member(me.userId)?.color, me.locateMode, null),
+            FamilieMember(
+                me.userId, me.name, me.role, me.age, me.color ?: member(me.userId)?.color, me.locateMode, null,
+                face = me.face ?: member(me.userId)?.face,
+            ),
         ) + members.filter { it.userId != me.userId }
 
     val children: List<FamilieMember> get() = members.filter { it.isChild && it.userId != me.userId }

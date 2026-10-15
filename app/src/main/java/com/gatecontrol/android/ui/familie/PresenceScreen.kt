@@ -131,7 +131,7 @@ fun PresenceScreen(onBack: () -> Unit, viewModel: PresenceViewModel = hiltViewMo
                         GcListRow(
                             title = if (m.userId == p.me.userId) m.name + " (" + stringResource(R.string.familie_you) + ")" else m.name,
                             description = presenceLine(state),
-                            leading = { FamilieAvatar(m.name, m.color, size = 36.dp) },
+                            leading = { FamilieAvatar(m.name, m.color, size = 36.dp, face = m.face, presence = state?.state) },
                             trailing = { PresenceChip(state) },
                         )
                     }

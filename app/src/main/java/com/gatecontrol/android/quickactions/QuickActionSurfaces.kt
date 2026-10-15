@@ -38,11 +38,23 @@ object QuickActionSurfaces {
             ShortcutInfoCompat.Builder(context, "qa:${item.key}")
                 .setShortLabel(item.title)
                 .setLongLabel(listOfNotNull(item.title, item.subtitle).joinToString(" · ").take(25))
-                .setIcon(IconCompat.createWithResource(context, R.drawable.ic_quick_action_shortcut))
+                .setIcon(shortcutIcon(context, item))
                 .setIntent(QuickActionActivity.intent(context, item))
                 .setRank(kept.size + index)
                 .build()
         }
         ShortcutManagerCompat.setDynamicShortcuts(context, kept + shortcuts)
     }
+
+    /** The action's icon on the accent circle (like the bolt shortcut icon), else that bolt. */
+    private fun shortcutIcon(context: Context, item: QuickActionItem): IconCompat {
+        val px = (48 * context.resources.displayMetrics.density).toInt()
+        val bitmap = QuickActionIcons.bitmap(item.icon, px, SHORTCUT_GLYPH, background = SHORTCUT_BG, glyphFraction = 0.5f)
+        return if (bitmap != null) IconCompat.createWithBitmap(bitmap)
+        else IconCompat.createWithResource(context, R.drawable.ic_quick_action_shortcut)
+    }
+
+    /** Colours of ic_quick_action_shortcut. */
+    private const val SHORTCUT_BG = 0xFF3DDC97.toInt()
+    private const val SHORTCUT_GLYPH = 0xFF03261A.toInt()
 }

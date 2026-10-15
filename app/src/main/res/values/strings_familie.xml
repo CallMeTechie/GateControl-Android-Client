@@ -453,4 +453,8 @@
         <item>School</item>
         <item>Grandparents</item>
     </string-array>
+
+    <!-- Avatar ring (1.3) -->
+    <string name="familie_avatar_home">%1$s – at home</string>
+    <string name="familie_avatar_away">%1$s – away</string>
 </resources>

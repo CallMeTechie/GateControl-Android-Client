@@ -32,6 +32,11 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 import com.gatecontrol.android.R
 import com.gatecontrol.android.familie.FamilieApi
+import com.gatecontrol.android.familie.MemberFace
+import com.gatecontrol.android.familie.presence.PresenceState
+import com.gatecontrol.android.profile.AvatarInitials
+import com.gatecontrol.android.profile.AvatarRing
+import com.gatecontrol.android.ui.components.GcAvatar
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
@@ -84,7 +89,13 @@ fun familieErrorText(code: String?): String {
     return if (res == R.string.familie_error_generic) stringResource(res, code ?: "?") else stringResource(res)
 }
 
-/** Round avatar with initials in the member's colour (mockup `.av`). */
+/**
+ * Round avatar of a member. With the face of Familie 1.3 ([face]) the
+ * shared [GcAvatar]: picture or initials on the favourite colour inside
+ * the presence ring ([presence] overrides the member object's state, e.g.
+ * from a fresher `GET presence`). Older plugins: initials in the member's
+ * colour as before (mockup `.av`).
+ */
 @Composable
 fun FamilieAvatar(
     name: String,
@@ -92,7 +103,22 @@ fun FamilieAvatar(
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
     highlighted: Boolean = false,
+    face: MemberFace? = null,
+    presence: PresenceState? = null,
 ) {
+    if (face != null) {
+        val state = presence ?: PresenceState.fromWire(face.presence)
+        GcAvatar(
+            url = face.avatarUrl,
+            initials = face.initials ?: initials(name),
+            colorHex = face.colorHex ?: color,
+            ring = AvatarRing.of(state, face.colorHex ?: color),
+            modifier = modifier,
+            size = size,
+            contentDescription = memberAvatarDescription(name, state),
+        )
+        return
+    }
     val (bg, fg) = avatarColors(color)
     val accent = MaterialTheme.colorScheme.primary
     Box(
@@ -112,14 +138,16 @@ fun FamilieAvatar(
     }
 }
 
-fun initials(name: String): String {
-    val parts = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    return when {
-        parts.isEmpty() -> "?"
-        parts.size == 1 -> parts[0].take(2).uppercase()
-        else -> (parts[0].take(1) + parts[1].take(1)).uppercase()
-    }
+/** "Anna – zu Hause" / "Anna – unterwegs" / "Anna". */
+@Composable
+private fun memberAvatarDescription(name: String, state: PresenceState?): String = when (state) {
+    PresenceState.HOME -> stringResource(R.string.familie_avatar_home, name)
+    PresenceState.AWAY -> stringResource(R.string.familie_avatar_away, name)
+    else -> name
 }
+
+/** Initials as GateControl and the plugin make them ([AvatarInitials]). */
+fun initials(name: String): String = AvatarInitials.of(name)
 
 @Composable
 @ReadOnlyComposable

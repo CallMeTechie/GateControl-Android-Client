@@ -52,10 +52,14 @@ import com.gatecontrol.android.notify.PushMode
 import com.gatecontrol.android.ui.notifications.NotificationSettingsViewModel
 import com.gatecontrol.android.location.LocationShareViewModel
 import com.gatecontrol.android.ui.location.locationSharingSummary
+import com.gatecontrol.android.ui.profile.MyAvatarViewModel
+import com.gatecontrol.android.ui.profile.ProfileRowAvatar
 
 /**
- * Settings overview: status card of the server connection, then grouped
- * cards (Verbindung, Sicherheit, Benachrichtigungen, Darstellung, Lizenz, Hilfe). Server setup
+ * Settings overview: the own profile (picture, favourite colour) first,
+ * status card of the server connection, then grouped cards (Verbindung
+ * with the connection details, Sicherheit, Benachrichtigungen,
+ * Darstellung, Lizenz, Hilfe). Profile, connection details, server setup
  * and split tunneling open as their own pages.
  */
 @Composable
@@ -67,13 +71,20 @@ fun SettingsScreen(
     onNavigateToTrustedNetworks: () -> Unit,
     onNavigateToLocation: () -> Unit = {},
     onNavigateToDiagnosis: () -> Unit = {},
+    /** Settings → Profil (only when the server has profiles). */
+    onNavigateToProfile: () -> Unit = {},
+    /** Verbindung → Verbindungsdetails. */
+    onNavigateToConnection: () -> Unit = {},
     /** Page shown next to the list on wide screens; its row is highlighted. */
     selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     pushViewModel: NotificationSettingsViewModel = hiltViewModel(),
     trustedViewModel: TrustedNetworksViewModel = hiltViewModel(),
+    avatarViewModel: MyAvatarViewModel = hiltViewModel(),
+    connectionViewModel: ConnectionDetailsViewModel = hiltViewModel(),
 ) {
+    val myAvatar by avatarViewModel.ui.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pushState by pushViewModel.uiState.collectAsStateWithLifecycle()
     val trustedState by trustedViewModel.uiState.collectAsStateWithLifecycle()
@@ -96,6 +107,20 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         GcScreenTitle(stringResource(R.string.settings_title))
+
+        // --- Profil (own picture + favourite colour; hidden on older servers) ---
+        if (myAvatar.profileAvailable) {
+            GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+                GcListRow(
+                    title = myAvatar.name ?: stringResource(R.string.profile_title),
+                    description = stringResource(R.string.profile_settings_row_desc),
+                    onClick = onNavigateToProfile,
+                    leading = { ProfileRowAvatar(myAvatar) },
+                    trailing = { GcChevron() },
+                    selected = selectedPane == SettingsPane.Profile,
+                )
+            }
+        }
 
         // --- Status card ---------------------------------------------------
         GcCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)) {
@@ -131,6 +156,15 @@ fun SettingsScreen(
 
         // --- Verbindung ----------------------------------------------------
         SettingsGroup(stringResource(R.string.settings_group_connection)) {
+            // Tunnel-IP, verbunden seit, letzter Handshake, Server (until 1.31 on the start tab).
+            GcListRow(
+                title = stringResource(R.string.connection_details_title),
+                description = connectionDetailsSummary(connectionViewModel),
+                onClick = onNavigateToConnection,
+                leading = { Icon(GcIcons.Activity, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                trailing = { GcChevron() },
+                selected = selectedPane == SettingsPane.Connection,
+            )
             if (policy.lockServer) {
                 GcListRow(
                     title = stringResource(R.string.settings_server_row),

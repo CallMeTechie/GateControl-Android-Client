@@ -128,7 +128,7 @@ fun ChildScreen(onBack: () -> Unit, viewModel: ChildViewModel = hiltViewModel())
                 return@Column
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FamilieAvatar(p.me.name, p.member(p.me.userId)?.color, size = 52.dp, highlighted = true)
+                FamilieAvatar(p.me.name, p.me.color ?: p.member(p.me.userId)?.color, size = 52.dp, highlighted = true, face = p.faceOf(p.me.userId))
                 Text(stringResource(R.string.familie_child_hello, p.me.name), style = MaterialTheme.typography.headlineSmall)
             }
 

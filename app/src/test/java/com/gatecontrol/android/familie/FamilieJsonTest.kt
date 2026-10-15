@@ -456,3 +456,55 @@ class FamilieJsonTest {
         assertNull(card.members.single().updatedByName)
     }
 }
+
+class FamilieFaceJsonTest {
+
+    private fun json(s: String): JsonObject = JsonParser.parseString(s).asJsonObject
+
+    @Test
+    fun `1_3 members carry picture, favourite colour, initials and presence`() {
+        val p = FamilieJson.profile(
+            json(
+                """
+                { "ok": true,
+                  "me": { "userId": 3, "name": "Anna", "role": "parent", "avatarUrl": null, "color": "teal",
+                          "colorHex": "#14B8A6", "initials": "AN", "presence": "home" },
+                  "modules": { "presence": true },
+                  "members": [ { "userId": 5, "name": "Tim Weber", "role": "child", "age": 9, "color": "orange",
+                                 "colorHex": "#F97316", "initials": "TW", "presence": "away",
+                                 "avatarUrl": "/avatars/AbCdEfGhIjKlMnOpQrStUv.webp" },
+                               { "userId": 6, "name": "Lea", "role": "child", "color": "pink", "presence": null } ] }
+                """,
+            ),
+        )!!
+        assertEquals("#14B8A6", p.me.color)
+        assertEquals("home", p.me.face?.presence)
+        val tim = p.member(5)!!
+        assertEquals("#F97316", tim.color)
+        assertEquals("/avatars/AbCdEfGhIjKlMnOpQrStUv.webp", tim.face?.avatarUrl)
+        assertEquals("TW", tim.face?.initials)
+        assertEquals("away", tim.face?.presence)
+        val lea = p.member(6)!!
+        assertEquals("#EC4899", lea.color, "a palette key without colorHex")
+        assertNull(lea.face?.presence)
+        assertEquals("LE", lea.face?.initials)
+        assertEquals("AN", p.everyone.first().face?.initials, "the caller keeps their face in everyone")
+        assertEquals(tim.face, p.faceOf(5))
+    }
+
+    @Test
+    fun `older plugins - hex colour from the admin page, no face`() {
+        val p = FamilieJson.profile(
+            json("""{"ok":true,"me":{"userId":3,"name":"Anna","role":"parent"},"modules":{},"members":[{"userId":5,"name":"Tim","role":"child","color":"#5B21B6"}]}"""),
+        )!!
+        assertEquals("#5B21B6", p.member(5)?.color)
+        assertNull(p.member(5)?.face)
+        assertNull(p.me.face)
+    }
+
+    @Test
+    fun `presence members accept the 1_3 presence field`() {
+        val payload = FamilieJson12.presence(json("""{"members":[{"userId":5,"shared":true,"presence":"away"}]}"""))
+        assertEquals(com.gatecontrol.android.familie.presence.PresenceState.AWAY, payload.of(5)?.state)
+    }
+}

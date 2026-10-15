@@ -221,10 +221,11 @@ private fun StaleBanner(state: EmergencyState) {
 @Composable
 private fun MemberCard(m: EmergencyMember, p: FamilieProfile?, onEdit: (() -> Unit)?) {
     val extra = GateControlTheme.extraColors
-    val color = p?.everyone?.firstOrNull { it.userId == m.userId }?.color
+    val member = p?.everyone?.firstOrNull { it.userId == m.userId }
+    val color = member?.color
     GcCard(borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.35f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FamilieAvatar(m.name, color, size = 48.dp)
+            FamilieAvatar(m.name, color, size = 48.dp, face = member?.face)
             Column(Modifier.weight(1f)) {
                 Text(m.name, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = MaterialTheme.colorScheme.onSurface)
                 val born = FamilieFormat.parseDate(m.birthdate)?.let {

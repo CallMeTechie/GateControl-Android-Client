@@ -15,6 +15,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.QueryMap
 import retrofit2.http.Streaming
+import retrofit2.http.Url
 
 interface ApiClient {
 
@@ -139,6 +140,32 @@ interface ApiClient {
         @Path(value = "path", encoded = true) path: String,
         @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
+
+    // ─── Own profile: picture and favourite colour (core 1.168+, 404 before) ──
+    // Raw JSON: the app parses it (ProfileJson). Tokens without a user → 403 NO_USER.
+
+    @GET("api/v1/client/me/profile")
+    suspend fun getMyProfile(): Response<JsonObject>
+
+    /** Raw image body (`image/webp` | `image/jpeg` | `image/png`, ≤ 96 KB, square). */
+    @PUT("api/v1/client/me/avatar")
+    suspend fun putMyAvatar(@Body image: RequestBody): Response<JsonObject>
+
+    @HTTP(method = "DELETE", path = "api/v1/client/me/avatar")
+    suspend fun deleteMyAvatar(): Response<JsonObject>
+
+    /** `{"color": key | null}` as a prepared JSON body (null must reach the server). */
+    @PUT("api/v1/client/me/color")
+    suspend fun putMyColor(@Body body: RequestBody): Response<JsonObject>
+
+    /**
+     * Fetches an avatar image (`/avatars/<id>.<ext>`, a capability URL that
+     * needs no login). [url] is absolute, built by the app from the server
+     * address (AvatarUrls); never a host the server did not name.
+     */
+    @Streaming
+    @GET
+    suspend fun fetchAvatar(@Url url: String): Response<ResponseBody>
 
     /** Location sharing: may this device send, last stored position (404 on older servers). */
     @GET("api/v1/client/location")

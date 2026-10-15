@@ -63,7 +63,9 @@ import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.network.NETWORK_TAB_PIHOLE
 import com.gatecontrol.android.ui.network.NetworkScreen
 import com.gatecontrol.android.ui.rdp.RdpScreen
+import com.gatecontrol.android.ui.settings.ConnectionDetailsScreen
 import com.gatecontrol.android.ui.settings.LogsScreen
+import com.gatecontrol.android.ui.profile.ProfileScreen
 import com.gatecontrol.android.ui.settings.ServerSettingsScreen
 import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.settings.SplitTunnelScreen
@@ -305,6 +307,7 @@ fun AppNavigation(
                     onOpenQuickActions = { navController.navigate(Screen.QuickActions.route) { launchSingleTop = true } },
                     onOpenLocationSettings = { openSettingsPane(SettingsPane.Location) },
                     onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
+                    onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
                 )
             }
 
@@ -362,6 +365,8 @@ fun AppNavigation(
                                 onNavigateToTrustedNetworks = { paneKey = SettingsPane.TrustedNetworks.key },
                                 onNavigateToLocation = { paneKey = SettingsPane.Location.key },
                                 onNavigateToDiagnosis = { paneKey = SettingsPane.Diagnosis.key },
+                                onNavigateToProfile = { paneKey = SettingsPane.Profile.key },
+                                onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
                             )
@@ -371,6 +376,7 @@ fun AppNavigation(
                                 SettingsPaneContent(
                                     pane = pane,
                                     onOpenEnroll = { navController.navigate(Screen.Enroll.create()) },
+                                    onSelectPane = { paneKey = it.key },
                                 )
                             }
                         },
@@ -384,6 +390,8 @@ fun AppNavigation(
                         onNavigateToTrustedNetworks = { navController.navigate(Screen.TrustedNetworks.route) },
                         onNavigateToLocation = { navController.navigate(Screen.LocationSharing.route) },
                         onNavigateToDiagnosis = { navController.navigate(Screen.Diagnosis.route) { launchSingleTop = true } },
+                        onNavigateToProfile = { navController.navigate(Screen.Profile.route) { launchSingleTop = true } },
+                        onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                     )
                 }
             }
@@ -509,6 +517,19 @@ fun AppNavigation(
 
             composable(Screen.SettingsNotifications.route) {
                 GcContentWidth { NotificationSettingsScreen(onBack = { navController.popBackStack() }) }
+            }
+
+            composable(Screen.Profile.route) {
+                GcContentWidth { ProfileScreen(onBack = { navController.popBackStack() }) }
+            }
+
+            composable(Screen.ConnectionDetails.route) {
+                GcContentWidth {
+                    ConnectionDetailsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenDiagnosis = { navController.navigate(Screen.Diagnosis.route) { launchSingleTop = true } },
+                    )
+                }
             }
 
             composable(Screen.SplitTunnel.route) {
@@ -748,6 +769,8 @@ private fun GcContentWidth(maxWidth: Dp = 720.dp, content: @Composable () -> Uni
 
 /** Route of a settings page on phones (own screen). */
 private fun SettingsPane.route(): String = when (this) {
+    SettingsPane.Profile -> Screen.Profile.route
+    SettingsPane.Connection -> Screen.ConnectionDetails.route
     SettingsPane.Server -> Screen.SettingsServer.route
     SettingsPane.SplitTunnel -> Screen.SplitTunnel.route
     SettingsPane.TrustedNetworks -> Screen.TrustedNetworks.route
@@ -759,8 +782,10 @@ private fun SettingsPane.route(): String = when (this) {
 
 /** A settings page in the detail pane beside the settings list. */
 @Composable
-private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit) {
+private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, onSelectPane: (SettingsPane) -> Unit) {
     when (pane) {
+        SettingsPane.Profile -> ProfileScreen(onBack = {})
+        SettingsPane.Connection -> ConnectionDetailsScreen(onBack = {}, onOpenDiagnosis = { onSelectPane(SettingsPane.Diagnosis) })
         SettingsPane.Server -> ServerSettingsScreen(onBack = {}, onNavigateToQrScanner = onOpenEnroll)
         SettingsPane.SplitTunnel -> SplitTunnelScreen(onBack = {})
         SettingsPane.TrustedNetworks -> TrustedNetworksScreen(onBack = {})
