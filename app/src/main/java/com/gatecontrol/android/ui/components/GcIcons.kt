@@ -151,6 +151,12 @@ object GcIcons {
     val User = icon("User", 2f, circle(12f, 8f, 4f), "M4 21a8 8 0 0 1 16 0")
     /** Photo picker ("Foto wählen"). */
     val Photo = icon("Photo", 2f, rect(3f, 3f, 18f, 18f, 2f), circle(8.5f, 8.5f, 1.5f), "m21 15-5-5L5 21")
+    /** Ring colour (profile avatar badge). */
+    val Palette = icon(
+        "Palette", 2f,
+        "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z",
+        circle(13.5f, 6.5f, 0.5f), circle(17.5f, 10.5f, 0.5f), circle(8.5f, 7.5f, 0.5f), circle(6.5f, 12.5f, 0.5f),
+    )
 
     /**
      * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).

@@ -80,6 +80,20 @@ class PresenceLogicTest {
     }
 
     @Test
+    fun `first report right after consent - the first clear answer, no debounce`() {
+        // Sharing just went on, nothing reported yet: one clear check is enough.
+        assertTrue(PresenceLogic.reportFirstNow(PresenceSense.HOME, firstPending = true, consent = true, moduleOn = true, lastReported = null))
+        assertTrue(PresenceLogic.reportFirstNow(PresenceSense.AWAY, firstPending = true, consent = true, moduleOn = true, lastReported = null))
+        // "Can't tell" waits for a clear answer.
+        assertFalse(PresenceLogic.reportFirstNow(PresenceSense.UNKNOWN, firstPending = true, consent = true, moduleOn = true, lastReported = null))
+        // Later changes keep the two minutes.
+        assertFalse(PresenceLogic.reportFirstNow(PresenceSense.AWAY, firstPending = false, consent = true, moduleOn = true, lastReported = null))
+        assertFalse(PresenceLogic.reportFirstNow(PresenceSense.AWAY, firstPending = true, consent = true, moduleOn = true, lastReported = true), "already reported")
+        assertFalse(PresenceLogic.reportFirstNow(PresenceSense.HOME, firstPending = true, consent = false, moduleOn = true, lastReported = null), "no consent")
+        assertFalse(PresenceLogic.reportFirstNow(PresenceSense.HOME, firstPending = true, consent = true, moduleOn = false, lastReported = null), "module off")
+    }
+
+    @Test
     fun `wire states`() {
         assertEquals(PresenceState.HOME, PresenceState.fromWire("home"))
         assertEquals(PresenceState.NOT_SHARED, PresenceState.fromWire("not shared"))

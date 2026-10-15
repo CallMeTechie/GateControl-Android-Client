@@ -152,7 +152,6 @@
     <string name="familie_meal_note">Note</string>
     <string name="familie_meal_to_list">Put the ingredients on the list</string>
     <string name="familie_presence_title">Who is home</string>
-    <string name="familie_presence_sub">Home or away – from the home network, without GPS</string>
     <string name="familie_presence_share">Share presence</string>
     <string name="familie_presence_share_desc">The app tells your family\'s server only „home“ or „away“, recognised by the home network – no GPS. You can switch it off any time.</string>
     <string name="familie_presence_consent_title">Share presence?</string>
@@ -172,9 +171,9 @@
     <string name="familie_presence_unknown">unknown</string>
     <string name="familie_presence_not_shared">not shared</string>
     <string name="familie_presence_rules_hint">Rules such as „when everyone is away: heating 17 °C“ are set in the GateControl portal (Familie → Anwesenheit &amp; Smart Home).</string>
-    <string name="familie_presence_nobody_home">Nobody is home</string>
-    <string name="familie_presence_at_home">Home: %1$s</string>
-    <string name="familie_presence_settings_group">Family</string>
+    <string name="familie_presence_details_link">Presence &amp; rules</string>
+    <string name="familie_presence_own_on">You share your presence – change it in your profile</string>
+    <string name="familie_presence_own_off">You do not share your presence – switch it on in your profile</string>
     <string name="familie_none_short">–</string>
     <string name="familie_wishes_title">Wish lists</string>
     <string name="familie_wishes_me">Me</string>

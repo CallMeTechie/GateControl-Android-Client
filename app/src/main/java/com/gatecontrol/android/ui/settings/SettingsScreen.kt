@@ -53,6 +53,7 @@ import com.gatecontrol.android.ui.notifications.NotificationSettingsViewModel
 import com.gatecontrol.android.location.LocationShareViewModel
 import com.gatecontrol.android.ui.location.locationSharingSummary
 import com.gatecontrol.android.ui.profile.MyAvatarViewModel
+import com.gatecontrol.android.ui.profile.ProfilePresenceViewModel
 import com.gatecontrol.android.ui.profile.ProfileRowAvatar
 
 /**
@@ -82,9 +83,11 @@ fun SettingsScreen(
     pushViewModel: NotificationSettingsViewModel = hiltViewModel(),
     trustedViewModel: TrustedNetworksViewModel = hiltViewModel(),
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
+    presenceViewModel: ProfilePresenceViewModel = hiltViewModel(),
     connectionViewModel: ConnectionDetailsViewModel = hiltViewModel(),
 ) {
     val myAvatar by avatarViewModel.ui.collectAsStateWithLifecycle()
+    val presenceVisible by presenceViewModel.visible.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pushState by pushViewModel.uiState.collectAsStateWithLifecycle()
     val trustedState by trustedViewModel.uiState.collectAsStateWithLifecycle()
@@ -108,12 +111,18 @@ fun SettingsScreen(
     ) {
         GcScreenTitle(stringResource(R.string.settings_title))
 
-        // --- Profil (own picture + favourite colour; hidden on older servers) ---
-        if (myAvatar.profileAvailable) {
+        // --- Profil (own picture + ring colour, "Anwesenheit teilen" with the Familie presence module) ---
+        if (myAvatar.profileAvailable || presenceVisible) {
             GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
                 GcListRow(
                     title = myAvatar.name ?: stringResource(R.string.profile_title),
-                    description = stringResource(R.string.profile_settings_row_desc),
+                    description = stringResource(
+                        when {
+                            !myAvatar.profileAvailable -> R.string.familie_presence_share
+                            presenceVisible -> R.string.profile_settings_row_desc_presence
+                            else -> R.string.profile_settings_row_desc
+                        },
+                    ),
                     onClick = onNavigateToProfile,
                     leading = { ProfileRowAvatar(myAvatar) },
                     trailing = { GcChevron() },
@@ -217,9 +226,6 @@ fun SettingsScreen(
                 selected = selectedPane == SettingsPane.Location,
             )
         }
-
-        // --- Familie: "Anwesenheit teilen" (presence consent, plugin 1.2) ---
-        com.gatecontrol.android.ui.familie.FamiliePresenceSettings()
 
         // --- Sicherheit ----------------------------------------------------
         SettingsGroup(stringResource(R.string.settings_group_security)) {

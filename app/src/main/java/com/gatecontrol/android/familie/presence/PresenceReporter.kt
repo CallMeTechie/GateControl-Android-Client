@@ -51,6 +51,7 @@ import timber.log.Timber
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -70,7 +71,10 @@ private data class Sensed(val sense: PresenceSense, val sinceMs: Long)
  * as the fallback while the process is gone. A clear answer replaces the
  * state, "can't tell" keeps the last one. A state is reported after it
  * held for two minutes, and only when it differs from the last report;
- * the POST itself is a WorkManager job that waits for a network.
+ * the POST itself is a WorkManager job that waits for a network. Right
+ * after sharing goes on (nothing reported yet) the phone checks at once and
+ * reports the first clear answer without the two minutes
+ * ([PresenceLogic.reportFirstNow]).
  */
 @Singleton
 class PresenceReporter @Inject constructor(
@@ -86,6 +90,9 @@ class PresenceReporter @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
     private val checkLock = Mutex()
     private var started = false
+
+    /** Sharing just went on and nothing was reported since: the first clear answer goes out at once. */
+    private val firstPending = AtomicBoolean(false)
 
     private val sensed = MutableStateFlow(Sensed(PresenceSense.UNKNOWN, System.currentTimeMillis()))
 
@@ -116,7 +123,13 @@ class PresenceReporter @Inject constructor(
                 active.collect { on ->
                     if (on) {
                         schedulePeriodic()
+                        // Nothing reported for this consent yet: ask now, not after the settle delay.
+                        if (store.lastReported() == null) {
+                            firstPending.set(true)
+                            launch { checkNow() }
+                        }
                     } else {
+                        firstPending.set(false)
                         cancelPeriodic()
                         cancelReport()
                         // A later consent starts from what the phone senses then, not from an old state.
@@ -225,6 +238,12 @@ class PresenceReporter @Inject constructor(
         val next = PresenceLogic.next(_sense.value, observation.sense)
         if (next != sensed.value.sense) sensed.value = Sensed(next, System.currentTimeMillis())
         _sense.value = next
+        val moduleOn = repository.profile.value?.modules?.presence == true
+        if (PresenceLogic.reportFirstNow(next, firstPending.get(), store.share.value, moduleOn, store.lastReported()) &&
+            firstPending.compareAndSet(true, false)
+        ) {
+            enqueue(next == PresenceSense.HOME, sensed.value.sinceMs)
+        }
     }
 
     private fun reset() {

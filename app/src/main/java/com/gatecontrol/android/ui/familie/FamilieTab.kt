@@ -28,12 +28,13 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
  * One screen of the Familie tab for [dest]. [onBack] leaves it, [onOpen]
- * goes to another one (e.g. places → edit).
+ * goes to another one (e.g. places → edit), [onOpenProfile] to the own
+ * profile (own avatar, "Anwesenheit teilen").
  */
 @Composable
-fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> Unit) {
+fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> Unit, onOpenProfile: () -> Unit = {}) {
     when (dest) {
-        FamilieDest.Home -> FamilieHomeScreen(onOpen = onOpen)
+        FamilieDest.Home -> FamilieHomeScreen(onOpen = onOpen, onOpenProfile = onOpenProfile)
         is FamilieDest.Shopping -> ShoppingScreen(onBack = onBack, initialListId = dest.listId, onOpen = onOpen)
         FamilieDest.Tasks -> TasksScreen(onBack = onBack)
         FamilieDest.Dates -> DatesScreen(onBack = onBack)
@@ -49,7 +50,7 @@ fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> 
         is FamilieDest.Expenses -> ExpensesScreen(onBack = onBack, fromListId = dest.fromListId)
         FamilieDest.Board -> BoardScreen(onBack = onBack)
         is FamilieDest.Meals -> MealsScreen(onBack = onBack, initialWeek = dest.week)
-        FamilieDest.Presence -> PresenceScreen(onBack = onBack)
+        FamilieDest.Presence -> PresenceScreen(onBack = onBack, onOpenProfile = onOpenProfile)
     }
 }
 
@@ -59,13 +60,13 @@ fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> 
  * returns to the places list in the same pane.
  */
 @Composable
-fun FamilieTwoPane(initial: FamilieDest?) {
+fun FamilieTwoPane(initial: FamilieDest?, onOpenProfile: () -> Unit = {}) {
     var destKey by rememberSaveable(initial?.key) { mutableStateOf(initial?.takeIf { it != FamilieDest.Home }?.key) }
     val selected = FamilieDest.parse(destKey)
     GcTwoPane(
         listWidth = 400.dp,
         list = {
-            FamilieHomeScreen(onOpen = { destKey = it.key }, selected = selected)
+            FamilieHomeScreen(onOpen = { destKey = it.key }, selected = selected, onOpenProfile = onOpenProfile)
         },
         detail = {
             key(destKey) {
@@ -78,6 +79,7 @@ fun FamilieTwoPane(initial: FamilieDest?) {
                             destKey = if (selected is FamilieDest.PlaceEdit) FamilieDest.Places.key else null
                         },
                         onOpen = { destKey = it.key },
+                        onOpenProfile = onOpenProfile,
                     )
                 }
             }

@@ -69,7 +69,8 @@ fun rememberAvatarBitmap(url: String?, sizePx: Int): ImageBitmap? {
  * Avatar of a person everywhere in the app: the picture (or the initials
  * in white on the favourite colour) inside a presence ring — at home the
  * favourite colour, away red, unknown / not shared a thin neutral border.
- * [size] is the whole avatar including the ring.
+ * [size] is the whole avatar including the ring. [image] shows a picture
+ * that is not on the server yet (the wizard's preview) instead of [url].
  */
 @Composable
 fun GcAvatar(
@@ -80,6 +81,7 @@ fun GcAvatar(
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
     contentDescription: String? = null,
+    image: ImageBitmap? = null,
 ) {
     val extra = GateControlTheme.extraColors
     val fill = avatarColor(colorHex)
@@ -91,7 +93,7 @@ fun GcAvatar(
         AvatarRing.None -> null
     }
     val px = with(LocalDensity.current) { size.roundToPx() }
-    val bitmap = rememberAvatarBitmap(url, px)
+    val bitmap = image ?: rememberAvatarBitmap(url, px)
     Box(
         modifier = modifier
             .size(size)
