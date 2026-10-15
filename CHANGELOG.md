@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.1] - 2026-10-15
+
+### Fixes
+- door plugin without a tab, door screen via pushes and quick actions (#78)
+
+---
+
 ## [1.34.0] - 2026-10-15
 
 ### Features
