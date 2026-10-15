@@ -152,7 +152,6 @@
     <string name="familie_meal_note">Notiz</string>
     <string name="familie_meal_to_list">Zutaten auf die Liste</string>
     <string name="familie_presence_title">Wer ist zuhause</string>
-    <string name="familie_presence_sub">Zuhause oder unterwegs – am Heimnetz erkannt, ohne GPS</string>
     <string name="familie_presence_share">Anwesenheit teilen</string>
     <string name="familie_presence_share_desc">Die App meldet eurem Server nur „zuhause“ oder „unterwegs“, erkannt am Heimnetz – ohne GPS. Jederzeit abschaltbar.</string>
     <string name="familie_presence_consent_title">Anwesenheit teilen?</string>
@@ -172,9 +171,9 @@
     <string name="familie_presence_unknown">unbekannt</string>
     <string name="familie_presence_not_shared">nicht freigegeben</string>
     <string name="familie_presence_rules_hint">Regeln wie „Wenn alle weg sind: Heizung 17 °C“ legt ihr im GateControl-Portal fest (Familie → Anwesenheit &amp; Smart Home).</string>
-    <string name="familie_presence_nobody_home">Niemand ist zuhause</string>
-    <string name="familie_presence_at_home">Zuhause: %1$s</string>
-    <string name="familie_presence_settings_group">Familie</string>
+    <string name="familie_presence_details_link">Anwesenheit &amp; Regeln</string>
+    <string name="familie_presence_own_on">Du teilst deine Anwesenheit – ändern im Profil</string>
+    <string name="familie_presence_own_off">Du teilst deine Anwesenheit nicht – einschalten im Profil</string>
     <string name="familie_none_short">–</string>
     <string name="familie_wishes_title">Wunschlisten</string>
     <string name="familie_wishes_me">Ich</string>

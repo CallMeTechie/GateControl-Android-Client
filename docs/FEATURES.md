@@ -77,7 +77,8 @@ Ein Live-Graph zeigt die aktuelle Upload- und Download-Geschwindigkeit der letzt
 ### Startbildschirm (1.32)
 - **Kopfzeile:** das eigene Profilbild (bzw. die Initialen auf der
   Lieblingsfarbe) statt „GateControl“ + Server; der Ring zeigt die eigene
-  Anwesenheit (Familie, wenn geteilt). Tippen öffnet das Profil.
+  Anwesenheit (Familie, wenn geteilt; derselbe Ring wie im Familie-Tab).
+  Tippen öffnet das Profil.
 - **Schnellaktionen:** angeheftete Aktionen als Symbol-Kacheln (das
   SVG-Symbol, das der Server je Aktion schickt; ohne Symbol der Blitz) mit
   dem Titel darunter, Schalter gefüllt, solange sie an sind; rechts ein
@@ -203,16 +204,27 @@ RDP-Zugangsdaten werden **niemals im Klartext** übertragen oder gespeichert:
 
 ## Einstellungen
 
-### Profil (1.32, GateControl 1.168+)
+### Profil (1.32, GateControl 1.168+; neu gestaltet in 1.33)
 - Erster Eintrag der Einstellungen (auch: Tippen auf das eigene Profilbild
-  auf dem Startbildschirm)
-- Profilbild aus der Android-Fotoauswahl (keine Speicher-Berechtigung),
-  quadratischer Ausschnitt mit Zoomen und Verschieben, verkleinert auf
-  256 × 256 px und als WebP (JPEG als Rückfall) ≤ 96 KB hochgeladen;
-  „Entfernen“
-- Lieblingsfarbe aus der Palette des Servers (ohne Rot — Rot heißt
-  „unterwegs“): die Farbe des Rings, wenn man zu Hause ist
-- Ältere Server: der Eintrag fehlt
+  auf dem Startbildschirm oder im Familie-Tab)
+- Oben das große Profilbild mit Ring. Tippen öffnet direkt die
+  Android-Fotoauswahl (keine Speicher-Berechtigung); das kleine „X“ am
+  Bild entfernt es (nach kurzer Rückfrage), das Paletten-Symbol ändert
+  nur die Ringfarbe
+- Nach der Fotoauswahl ein Vollbild-Assistent: Schritt 1/2 Ausschnitt
+  (quadratisch, Zoomen und Verschieben) → „Weiter“, Schritt 2/2 Ringfarbe
+  aus der Palette des Servers (ohne Rot — Rot heißt „unterwegs“) mit
+  Vorschau des Ausschnitts im Ring → „Fertig“ lädt das Bild hoch
+  (256 × 256 px, WebP, JPEG als Rückfall, ≤ 96 KB) und setzt die Farbe.
+  Zurück / Abbrechen verwirft alles. Das Paletten-Symbol öffnet direkt
+  Schritt 2 (Vorschau mit dem aktuellen Bild oder den Initialen)
+- Darunter der Name und — mit dem Familie-Plugin und dem Modul
+  Anwesenheit — „Anwesenheit teilen“ (Schalter mit Erklärung und „Dieses
+  Handy ist gerade zuhause/unterwegs“). Nach dem Einschalten wird der
+  erste eindeutige Stand sofort gemeldet, spätere Wechsel erst nach zwei
+  Minuten
+- Ältere Server: der Eintrag fehlt (mit dem Anwesenheits-Modul enthält
+  er nur „Anwesenheit teilen“)
 
 ### Verbindungsdetails
 - Einstellungen → Verbindung → Verbindungsdetails: Tunnel-IP, verbunden

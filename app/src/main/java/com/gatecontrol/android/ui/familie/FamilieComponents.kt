@@ -93,8 +93,9 @@ fun familieErrorText(code: String?): String {
  * Round avatar of a member. With the face of Familie 1.3 ([face]) the
  * shared [GcAvatar]: picture or initials on the favourite colour inside
  * the presence ring ([presence] overrides the member object's state, e.g.
- * from a fresher `GET presence`). Older plugins: initials in the member's
- * colour as before (mockup `.av`).
+ * from a fresher `GET presence`; [ring] overrides the ring itself, e.g. my
+ * own one from what this phone senses). Older plugins: initials in the
+ * member's colour as before (mockup `.av`).
  */
 @Composable
 fun FamilieAvatar(
@@ -105,6 +106,7 @@ fun FamilieAvatar(
     highlighted: Boolean = false,
     face: MemberFace? = null,
     presence: PresenceState? = null,
+    ring: AvatarRing? = null,
 ) {
     if (face != null) {
         val state = presence ?: PresenceState.fromWire(face.presence)
@@ -112,7 +114,7 @@ fun FamilieAvatar(
             url = face.avatarUrl,
             initials = face.initials ?: initials(name),
             colorHex = face.colorHex ?: color,
-            ring = AvatarRing.of(state, face.colorHex ?: color),
+            ring = ring ?: AvatarRing.of(state, face.colorHex ?: color),
             modifier = modifier,
             size = size,
             contentDescription = memberAvatarDescription(name, state),

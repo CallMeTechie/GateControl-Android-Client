@@ -251,19 +251,16 @@ fun VpnScreen(
                     ring = me.ring,
                     size = 40.dp,
                     contentDescription = description,
-                    modifier = if (me.profileAvailable) {
-                        Modifier
-                            .clip(CircleShape)
-                            .combinedClickable(
-                                role = Role.Button,
-                                onClick = onOpenProfile,
-                                onLongClick = {
-                                    android.widget.Toast.makeText(context, description, android.widget.Toast.LENGTH_SHORT).show()
-                                },
-                            )
-                    } else {
-                        Modifier
-                    },
+                    // Always the own profile (picture, colour, "Anwesenheit teilen"), also on older servers.
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .combinedClickable(
+                            role = Role.Button,
+                            onClick = onOpenProfile,
+                            onLongClick = {
+                                android.widget.Toast.makeText(context, description, android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                        ),
                 )
                 Spacer(Modifier.weight(1f))
             } else {

@@ -22,7 +22,7 @@ import javax.inject.Inject
 
 /** The own avatar as the start tab header and the settings show it. */
 data class MyAvatarUi(
-    /** The server has profiles: the avatar opens the profile screen. */
+    /** The server has profiles (picture, colour); the profile screen opens either way. */
     val profileAvailable: Boolean = false,
     val name: String? = null,
     /** Null: nothing known about the person → the old header (app name + host). */

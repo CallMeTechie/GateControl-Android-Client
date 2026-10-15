@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.profile.AvatarEncoder
+import com.gatecontrol.android.profile.AvatarWizard
 import com.gatecontrol.android.profile.CropRect
 import com.gatecontrol.android.profile.ProfileRepository
 import com.gatecontrol.android.profile.ProfileResult
@@ -26,9 +27,13 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /** What the profile screen is busy with. */
-enum class ProfileBusy { LOADING_PHOTO, UPLOAD, REMOVE, COLOR }
+enum class ProfileBusy { LOADING_PHOTO, SAVING, REMOVE }
 
-/** Profile screen: picture (pick, crop, upload, remove) and favourite colour. */
+/**
+ * Profile screen: picture and favourite colour through the wizard
+ * ([AvatarWizard]: photo → crop → ring colour, or the colour alone),
+ * removing the picture.
+ */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -40,9 +45,17 @@ class ProfileViewModel @Inject constructor(
     private val _busy = MutableStateFlow<ProfileBusy?>(null)
     val busy: StateFlow<ProfileBusy?> = _busy.asStateFlow()
 
+    private val _wizard = MutableStateFlow<AvatarWizard?>(null)
+    /** The open wizard, null when closed. */
+    val wizard: StateFlow<AvatarWizard?> = _wizard.asStateFlow()
+
     private val _cropSource = MutableStateFlow<Bitmap?>(null)
-    /** The picked photo while the person crops it. */
+    /** The picked photo while the wizard is open. */
     val cropSource: StateFlow<Bitmap?> = _cropSource.asStateFlow()
+
+    private val _preview = MutableStateFlow<Bitmap?>(null)
+    /** The cropped photo for the colour step's preview. */
+    val preview: StateFlow<Bitmap?> = _preview.asStateFlow()
 
     private val _messages = MutableSharedFlow<Int>(extraBufferCapacity = 4)
     /** Short results for a toast (string resources). */
@@ -63,37 +76,102 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /** A photo from the system photo picker. */
+    private fun currentColor(): String? = state.value.profile?.let { AvatarWizard.currentColorKey(it) }
+
+    /** A photo from the system photo picker: the wizard opens at the crop step. */
     fun onPicked(uri: Uri?) {
         if (uri == null || _busy.value != null) return
         _busy.value = ProfileBusy.LOADING_PHOTO
         viewModelScope.launch {
             val bitmap = withContext(Dispatchers.IO) { AvatarEncoder.decode(context, uri) }
             _busy.value = null
-            if (bitmap == null) _messages.tryEmit(R.string.profile_photo_unreadable) else _cropSource.value = bitmap
+            if (bitmap == null) {
+                _messages.tryEmit(R.string.profile_photo_unreadable)
+            } else {
+                _cropSource.value = bitmap
+                _preview.value = null
+                _wizard.value = AvatarWizard.forPhoto(currentColor())
+            }
         }
     }
 
-    fun cancelCrop() {
+    /** The colour badge: the wizard opens at the colour step. */
+    fun startColorOnly() {
+        if (_busy.value != null || state.value.profile == null) return
         _cropSource.value = null
+        _preview.value = null
+        _wizard.value = AvatarWizard.colorOnly(currentColor())
     }
 
-    /** Crops, downscales, encodes and uploads the picture. */
-    fun confirmCrop(rect: CropRect) {
+    /** "Weiter" after the crop. */
+    fun wizardNext(rect: CropRect) {
+        val w = _wizard.value ?: return
         val source = _cropSource.value ?: return
-        if (_busy.value != null) return
-        _busy.value = ProfileBusy.UPLOAD
+        _wizard.value = w.next(rect)
         viewModelScope.launch {
-            val encoded = withContext(Dispatchers.Default) { runCatching { AvatarEncoder.encode(source, rect) }.getOrNull() }
-            if (encoded == null) {
-                _busy.value = null
-                _messages.tryEmit(R.string.profile_photo_unreadable)
-                return@launch
+            val cropped = withContext(Dispatchers.Default) {
+                runCatching { Bitmap.createBitmap(source, rect.left, rect.top, rect.side, rect.side) }.getOrNull()
             }
-            val result = repository.uploadAvatar(encoded.bytes, encoded.mime)
+            // Still the same photo (not cancelled meanwhile).
+            if (_cropSource.value === source) _preview.value = cropped
+        }
+    }
+
+    fun wizardPick(key: String) {
+        _wizard.value = _wizard.value?.pick(key)
+    }
+
+    /** Back or cancel at any step: nothing is sent. */
+    fun wizardCancel() {
+        if (_busy.value == ProfileBusy.SAVING) return
+        closeWizard()
+    }
+
+    private fun closeWizard() {
+        _wizard.value = null
+        _cropSource.value = null
+        _preview.value = null
+    }
+
+    /**
+     * "Fertig": upload the cropped picture, then set the colour (each only
+     * when there is something to change). A failed upload keeps the wizard
+     * open to try again.
+     */
+    fun wizardFinish() {
+        val plan = _wizard.value?.plan() ?: return
+        if (_busy.value != null) return
+        if (plan.nothing) {
+            closeWizard()
+            return
+        }
+        val source = _cropSource.value
+        _busy.value = ProfileBusy.SAVING
+        viewModelScope.launch {
+            var ok = 0
+            if (plan.crop != null) {
+                val encoded = source?.let { withContext(Dispatchers.Default) { runCatching { AvatarEncoder.encode(it, plan.crop) }.getOrNull() } }
+                if (encoded == null) {
+                    _busy.value = null
+                    _messages.tryEmit(R.string.profile_photo_unreadable)
+                    return@launch
+                }
+                val result = repository.uploadAvatar(encoded.bytes, encoded.mime)
+                if (result != ProfileResult.Ok) {
+                    _busy.value = null
+                    _messages.tryEmit(messageOf(result, 0))
+                    return@launch
+                }
+                ok = R.string.profile_photo_saved
+            }
+            if (plan.colorKey != null) {
+                val result = repository.setColor(plan.colorKey)
+                if (result != ProfileResult.Ok) ok = messageOf(result, 0)
+                else if (ok == 0) ok = R.string.profile_color_saved
+            }
             _busy.value = null
-            if (result == ProfileResult.Ok) _cropSource.value = null
-            _messages.tryEmit(messageOf(result, R.string.profile_photo_saved))
+            closeWizard()
+            if (ok != 0) _messages.tryEmit(ok)
         }
     }
 
@@ -107,18 +185,8 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun setColor(key: String) {
-        if (_busy.value != null || state.value.profile?.color == key) return
-        _busy.value = ProfileBusy.COLOR
-        viewModelScope.launch {
-            val result = repository.setColor(key)
-            _busy.value = null
-            if (result != ProfileResult.Ok) _messages.tryEmit(messageOf(result, 0))
-        }
-    }
-
     override fun onCleared() {
-        _cropSource.value = null
+        closeWizard()
     }
 
     companion object {

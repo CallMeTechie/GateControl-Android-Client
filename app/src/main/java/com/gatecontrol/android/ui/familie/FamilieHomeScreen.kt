@@ -60,15 +60,17 @@ import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.profile.MyAvatarUi
+import com.gatecontrol.android.ui.profile.MyAvatarViewModel
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.time.LocalDate
 
 /**
- * Start screen of the Familie tab (mockup Main): who is in the family and
- * one card per module that is on — today's tasks, shopping lists, locating
- * the children (parents), "Bin angekommen" & SOS (children), next dates,
- * place reminders. [selected] marks the screen shown beside it on wide
- * windows.
+ * Start screen of the Familie tab (mockup Main): who is in the family (me
+ * first; a tap on my avatar opens my profile, [onOpenProfile]) and one card
+ * per module that is on — today's tasks, shopping lists, locating the
+ * children (parents), "Bin angekommen" & SOS (children), next dates, place
+ * reminders. [selected] marks the screen shown beside it on wide windows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,8 +78,11 @@ fun FamilieHomeScreen(
     onOpen: (FamilieDest) -> Unit,
     modifier: Modifier = Modifier,
     selected: FamilieDest? = null,
+    onOpenProfile: () -> Unit = {},
     viewModel: FamilieHomeViewModel = hiltViewModel(),
+    avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
+    val myAvatar by avatarViewModel.ui.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val profileError by viewModel.profileError.collectAsStateWithLifecycle()
     val profileLoaded by viewModel.profileLoaded.collectAsStateWithLifecycle()
@@ -117,7 +122,7 @@ fun FamilieHomeScreen(
                 p == null && !profileLoaded -> FamilieLoading()
                 p == null -> FamilieErrorBanner(profileError, onRetry = viewModel::refresh)
                 !p.modules.any -> FamilieEmpty(GcIcons.Family, stringResource(R.string.familie_all_off))
-                else -> HomeCards(p, overview, shopping, selected, onOpen, viewModel::taskDone)
+                else -> HomeCards(p, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone)
             }
             if (p != null && profileError == "offline") {
                 FamilieErrorBanner("offline")
@@ -150,11 +155,15 @@ private fun HomeCards(
     overview: FamilieOverview?,
     shopping: ShoppingSnapshot,
     selected: FamilieDest?,
+    myAvatar: MyAvatarUi,
     onOpen: (FamilieDest) -> Unit,
+    onOpenProfile: () -> Unit,
     onTaskDone: (Int) -> Unit,
 ) {
     val context = LocalContext.current
-    Members(p, overview)
+    Members(p, overview, myAvatar, onOpenProfile)
+    // The rings show who is home; the details and the rules hint stay one tap away for parents.
+    if (p.modules.presence && p.me.isParent) PresenceLink(selected == FamilieDest.Presence) { onOpen(FamilieDest.Presence) }
 
     if (p.me.isChild && (p.modules.locate || p.modules.arrivalSos)) {
         val needsBackground = p.modules.locate && FamiliePermissions.childNeedsBackground(
@@ -181,8 +190,6 @@ private fun HomeCards(
     if (p.me.isParent && p.modules.locate && p.children.isNotEmpty()) LocateCard(p, overview, selected, onOpen)
 
     if (p.modules.dates) DatesCard(overview, selected == FamilieDest.Dates, onOpen)
-
-    if (p.modules.presence) PresenceCard(p, overview, selected == FamilieDest.Presence, onOpen)
 
     if (p.modules.meals) MealsCard(p, overview, selected is FamilieDest.Meals, onOpen)
 
@@ -230,14 +237,15 @@ private fun HomeCards(
 }
 
 @Composable
-private fun Members(p: FamilieProfile, overview: FamilieOverview?) {
+private fun Members(p: FamilieProfile, overview: FamilieOverview?, myAvatar: MyAvatarUi, onOpenProfile: () -> Unit) {
     val extra = GateControlTheme.extraColors
     val now = System.currentTimeMillis()
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        p.everyone.forEach { m ->
+        FamilieMemberRow.ordered(p).forEach { m ->
+            val isMe = m.userId == p.me.userId
             // Mockup: "im Laden" / "angekommen 13:10" under the avatar (last 3 hours).
             val going = overview?.going.orEmpty().filter { it.userId == m.userId }
                 .mapNotNull { g -> FamilieFormat.parseInstant(g.at)?.takeIf { now - it.toEpochMilli() < RECENT_MS } }
@@ -248,14 +256,31 @@ private fun Members(p: FamilieProfile, overview: FamilieOverview?) {
             val status = when {
                 going != null && (arrived == null || going > arrived) -> stringResource(R.string.familie_member_shopping)
                 arrived != null -> stringResource(R.string.familie_member_arrived, FamilieFormat.time(arrived))
-                // 1.2: "zuhause" / "unterwegs" for members who share their presence.
-                else -> if (p.modules.presence) presenceShort(overview?.presence?.firstOrNull { it.userId == m.userId }) else null
+                // Home / away: the ring alone shows it.
+                else -> null
             }
-            Column(Modifier.width(72.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FamilieAvatar(
-                    m.name, m.color, size = 48.dp, highlighted = m.userId == p.me.userId, face = m.face,
-                    // Ring from the overview's presence when it has it (fresher), else the member object's.
-                    presence = overview?.presence?.firstOrNull { it.userId == m.userId }?.state,
+            val profileDescription = if (isMe) stringResource(R.string.profile_avatar_desc, m.name) else null
+            Column(
+                Modifier
+                    .width(72.dp)
+                    .then(
+                        if (isMe) {
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(role = Role.Button, onClickLabel = profileDescription, onClick = onOpenProfile)
+                        } else {
+                            Modifier
+                        },
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                FamilieMemberAvatar(
+                    m, p, myAvatar,
+                    // Others: the overview's presence when it has it (fresher), else the member object's.
+                    serverState = overview?.presence?.firstOrNull { it.userId == m.userId }?.state,
+                    size = 48.dp,
+                    contentDescription = profileDescription,
                 )
                 Text(
                     if (m.age != null && m.isChild) "${m.name} · ${m.age}" else m.name,
@@ -265,7 +290,7 @@ private fun Members(p: FamilieProfile, overview: FamilieOverview?) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    status ?: if (m.userId == p.me.userId) stringResource(R.string.familie_you)
+                    status ?: if (isMe) stringResource(R.string.familie_you)
                     else stringResource(if (m.isChild) R.string.familie_role_child else R.string.familie_role_parent),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (status != null) extra.accentText else extra.muted,
@@ -274,6 +299,27 @@ private fun Members(p: FamilieProfile, overview: FamilieOverview?) {
                 )
             }
         }
+    }
+}
+
+/** Parents: a small link to the presence details (since when, who does not share, rules hint) — no card. */
+@Composable
+private fun PresenceLink(selected: Boolean, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(GcIcons.Home, contentDescription = null, tint = if (selected) MaterialTheme.colorScheme.primary else extra.accentText, modifier = Modifier.size(16.dp))
+        Text(
+            stringResource(R.string.familie_presence_details_link),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) MaterialTheme.colorScheme.primary else extra.accentText,
+        )
     }
 }
 
@@ -618,23 +664,6 @@ fun locateStatusLine(status: String, at: String?): String {
 
 /** Member name or a fallback. */
 fun memberName(p: FamilieProfile?, id: Int?): String = p?.nameOf(id) ?: (id?.let { "#$it" } ?: "–")
-
-/** Wer ist zuhause (1.2): the members at home, from the overview. */
-@Composable
-private fun PresenceCard(p: FamilieProfile, overview: FamilieOverview?, selected: Boolean, onOpen: (FamilieDest) -> Unit) {
-    val names = homeNames(p, overview?.presence)
-    NavCard(
-        icon = GcIcons.Home,
-        title = stringResource(R.string.familie_presence_title),
-        subtitle = when {
-            overview?.presence == null -> stringResource(R.string.familie_presence_sub)
-            names.isEmpty() -> stringResource(R.string.familie_presence_nobody_home)
-            else -> stringResource(R.string.familie_presence_at_home, names.joinToString(", "))
-        },
-        selected = selected,
-        onClick = { onOpen(FamilieDest.Presence) },
-    )
-}
 
 /** Essensplan (1.2): "Essen: Pfannkuchen" for today. */
 @Composable

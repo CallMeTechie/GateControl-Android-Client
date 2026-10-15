@@ -124,4 +124,13 @@ object PresenceLogic {
         }
         return home != lastReported
     }
+
+    /**
+     * Right after "Anwesenheit teilen" went on (nothing reported since,
+     * [lastReported] null): the first clear answer of one check is reported
+     * at once, without [DEBOUNCE_MS], so the family does not see "unknown"
+     * for minutes. Every later change keeps the debounce.
+     */
+    fun reportFirstNow(observed: PresenceSense, firstPending: Boolean, consent: Boolean, moduleOn: Boolean, lastReported: Boolean?): Boolean =
+        firstPending && lastReported == null && shouldReport(observed, consent, moduleOn, lastReported)
 }

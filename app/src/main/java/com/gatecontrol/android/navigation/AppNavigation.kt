@@ -408,10 +408,13 @@ fun AppNavigation(
             ) { backStackEntry ->
                 val dest = FamilieDest.parse(backStackEntry.arguments?.getString(Screen.Familie.ARG_DEST))
                 if (layout.twoPane) {
-                    FamilieTwoPane(initial = dest)
+                    FamilieTwoPane(initial = dest, onOpenProfile = { openSettingsPane(SettingsPane.Profile) })
                 } else {
                     GcContentWidth {
-                        FamilieHomeScreen(onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) })
+                        FamilieHomeScreen(
+                            onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) },
+                            onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                        )
                     }
                 }
             }
@@ -434,6 +437,7 @@ fun AppNavigation(
                             if (!navController.popBackStack()) navigateToTab(Screen.Familie.create())
                         },
                         onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) },
+                        onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
                     )
                 }
             }

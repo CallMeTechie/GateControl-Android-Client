@@ -425,9 +425,11 @@ New error codes: `not_enough_stars`, `no_star_rate`, `no_consent`,
 
 ### Anwesenheit (`presence`)
 
-- Consent: "Anwesenheit teilen" in the app settings (group "Familie",
-  only while the plugin is there and the module is on) and on the "Wer
-  ist zuhause" screen. Switching on asks first (what is sent, to whom,
+- Consent: "Anwesenheit teilen" in the own profile (section "Familie",
+  only while the plugin is there and the module is on; reached from
+  Settings → Profil or a tap on the own avatar on the start tab or in the
+  Familie tab — since app 1.33, before that in the app settings and on
+  the presence screen). Switching on asks first (what is sent, to whom,
   that it runs in the background); `PUT presence/consent {share}` — only
   when the server took it is it stored on the phone (`PresenceStore`,
   bound to the login). The server's own flag (`GET presence` → `me.share`,
@@ -468,20 +470,28 @@ New error codes: `not_enough_stars`, `no_star_rate`, `no_consent`,
 - Reporting (`PresenceReporter`, started with the app process from
   `FamilieStartup`): a state must hold 2 minutes (`debounce`), it is sent only
   with consent and the module on and only when it differs from the last
-  report; `POST presence {home, at}` (`at` = when the state began) goes
+  report — except the first report after sharing goes on (nothing
+  reported yet): the phone checks at once (no 5 s settle) and reports the
+  first clear answer without the two minutes (`PresenceLogic.reportFirstNow`),
+  so the family does not see "unbekannt" for minutes; every later change
+  keeps the debounce. `POST presence {home, at}` (`at` = when the state began) goes
   through a unique WorkManager job (network constraint, the newest state
   replaces a waiting one, `too_soon` / 429 retried with backoff, a state
   already reported is not sent again). Consent off, module off or leaving
   the family cancels it and the periodic check; a new consent sends the
   current state again.
-- Start screen: "zuhause" / "unterwegs" under the avatars of members who
-  share, and a "Wer ist zuhause" card. Rules (smart home, notify) are set
-  in the portal / admin page; their notify messages (`presence_rule`)
-  open the presence screen.
+- Start screen (app 1.33): no presence card and no "zuhause" /
+  "unterwegs" text under the avatars — the ring colour shows it. Parents
+  get a small link "Anwesenheit & Regeln" under the member row to the
+  presence screen (who is home since when, who does not share, the rules
+  hint, a row to the own switch in the profile); children have no entry
+  (nothing there they can change). Rules (smart home, notify) are set in
+  the portal / admin page; their notify messages (`presence_rule`) open
+  the presence screen.
 
 ### Start screen (1.2)
 
-Cards when the modules are on: Wer ist zuhause, Essen heute, Pinnwand
+Cards when the modules are on: Essen heute, Pinnwand
 (pinned notes, open lists), Taschengeld (child: balance and next payout;
 parents: sum and open requests), Wunschlisten (own wishes, what I am
 getting), Haushaltsbuch (parents: this month's shared total, settled).
@@ -526,10 +536,18 @@ gets (`GET me` → `me`, `members[]`; `GET presence` → `members[]`;
   in white on the favourite colour, inside a ring — at home the favourite
   colour, away red `#E5484D`, unknown / not shared / module off a thin
   neutral border. The screen reader reads "Anna – zu Hause" /
-  "Anna – unterwegs". Used on the start screen (member row; the ring
-  takes the overview's presence when it has it), the presence screen
-  (ring from `GET presence`), locate, rides, tasks (stars), household
-  book, emergency card and the child's own screen.
+  "Anna – unterwegs". Used on the start screen (member row: the own
+  avatar first, then the others; under each the name and, for the last
+  3 hours, "im Laden" / "angekommen 13:10"; the others' ring takes the
+  overview's presence when it has it), the presence screen (ring from
+  `GET presence`), locate, rides, tasks (stars), household book,
+  emergency card and the child's own screen.
+- The own avatar in the Familie tab (member row, presence screen) is
+  drawn like the start tab header (`FamilieMemberAvatar`, ring from
+  `MyAvatarViewModel`: what this phone senses, else the last report), so
+  the two tabs never disagree; the others' rings come from the server
+  (`FamilieMemberRow`, unit-tested). A tap on the own avatar opens the
+  own profile.
 - Pictures are loaded by `AvatarLoader` (no image library): from the
   server address the app uses for `/api/v1/client/…`, over the same
   OkHttp client, only from that server (an absolute URL on another host
@@ -537,8 +555,10 @@ gets (`GET me` → `me`, `members[]`; `GET presence` → `members[]`;
   URL (a new picture gets a new URL, so nothing goes stale; at most 64
   files).
 - Own picture and favourite colour are changed in the app (Settings →
-  Profil, or a tap on the own avatar at the top of the start tab), see
-  `profile/` and `ui/profile/`: `GET/PUT/DELETE /api/v1/client/me/…`.
+  Profil, or a tap on the own avatar on the start tab or in the Familie
+  tab), see `profile/` and `ui/profile/`: `GET/PUT/DELETE
+  /api/v1/client/me/…`. Since app 1.33 the profile also holds
+  "Anwesenheit teilen" (see above).
   The start tab shows the own avatar with the own presence ring while
   "Anwesenheit teilen" is on and the module is on (what the phone senses,
   else the last report).
@@ -550,5 +570,14 @@ after their next refresh, in the portal and on the wall; remove it →
 initials on the favourite colour. Change the colour → the ring at home
 changes. Leave home with presence sharing on → red ring on the other
 phones. With a Familie 1.2 plugin on a 1.168 server: initials as before,
-no rings. With a server before 1.168: no "Profil" entry, the start tab
+no rings. With a server before 1.168: the "Profil" entry only with the
+presence module (then it holds just "Anwesenheit teilen"), the start tab
 header shows the initials of the Familie name or "GateControl" + host.
+
+### Device checks for app 1.33
+
+Switch "Anwesenheit teilen" on in the profile → on another phone the
+ring turns from neutral to the colour / red within a few seconds (not
+after two minutes). Start tab and Familie tab show the same ring for the
+own avatar at all times; a tap on either opens the profile. The Familie
+start screen has no presence card and no "zuhause" / "unterwegs" text.

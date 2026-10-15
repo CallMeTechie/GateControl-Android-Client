@@ -7,11 +7,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,6 +44,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -60,36 +64,50 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.profile.AvatarCrop
 import com.gatecontrol.android.profile.AvatarPalette
 import com.gatecontrol.android.profile.AvatarRing
+import com.gatecontrol.android.profile.AvatarWizard
+import com.gatecontrol.android.profile.AvatarWizardStep
 import com.gatecontrol.android.profile.CropRect
+import com.gatecontrol.android.profile.MyProfile
 import com.gatecontrol.android.profile.ProfileSupport
 import com.gatecontrol.android.ui.components.GcAvatar
 import com.gatecontrol.android.ui.components.GcBanner
-import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
-import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.components.avatarColor
+import com.gatecontrol.android.ui.familie.FamilieConfirmDialog
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
- * Settings → Profil (also the own avatar on the start tab): profile
- * picture (system photo picker, square crop, 256 px) and favourite colour
- * — the ring colour while at home. Red is not offered: it means away.
- * The camera is not offered: the app declares CAMERA for the QR scanner,
- * so a camera intent would need that permission at runtime.
+ * Settings → Profil (also a tap on the own avatar on the start tab and in
+ * the Familie tab): the large avatar with its ring at the top — a tap
+ * opens the system photo picker, the "X" badge removes the picture (after
+ * a short question), the palette badge changes only the ring colour. A
+ * picked photo opens the full-screen wizard ([AvatarWizard]: crop → ring
+ * colour → "Fertig"). Below: the name and, with the Familie presence
+ * module, "Anwesenheit teilen". Red is not offered: it means away. The
+ * camera is not offered: the app declares CAMERA for the QR scanner, so a
+ * camera intent would need that permission at runtime.
  */
 @Composable
-fun ProfileScreen(onBack: () -> Unit, viewModel: ProfileViewModel = hiltViewModel()) {
+fun ProfileScreen(
+    onBack: () -> Unit,
+    viewModel: ProfileViewModel = hiltViewModel(),
+    presenceViewModel: ProfilePresenceViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val wizard by viewModel.wizard.collectAsStateWithLifecycle()
     val cropSource by viewModel.cropSource.collectAsStateWithLifecycle()
+    val preview by viewModel.preview.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val extra = GateControlTheme.extraColors
     val context = LocalContext.current
     val resources = LocalResources.current
+    var confirmRemove by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { res ->
@@ -98,12 +116,32 @@ fun ProfileScreen(onBack: () -> Unit, viewModel: ProfileViewModel = hiltViewMode
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> viewModel.onPicked(uri) }
 
-    cropSource?.let { bitmap ->
-        AvatarCropDialog(
-            bitmap = bitmap,
-            saving = busy == ProfileBusy.UPLOAD,
-            onConfirm = viewModel::confirmCrop,
-            onDismiss = viewModel::cancelCrop,
+    val profile = state.profile
+    val w = wizard
+    if (w != null && profile != null) {
+        AvatarWizardDialog(
+            wizard = w,
+            source = cropSource,
+            preview = preview,
+            profile = profile,
+            saving = busy == ProfileBusy.SAVING,
+            onNext = viewModel::wizardNext,
+            onPick = viewModel::wizardPick,
+            onFinish = viewModel::wizardFinish,
+            onCancel = viewModel::wizardCancel,
+        )
+    }
+    if (confirmRemove) {
+        FamilieConfirmDialog(
+            title = stringResource(R.string.profile_remove_title),
+            text = stringResource(R.string.profile_remove_text),
+            confirmLabel = stringResource(R.string.profile_photo_remove),
+            destructive = true,
+            onConfirm = {
+                confirmRemove = false
+                viewModel.removeAvatar()
+            },
+            onDismiss = { confirmRemove = false },
         )
     }
 
@@ -116,7 +154,6 @@ fun ProfileScreen(onBack: () -> Unit, viewModel: ProfileViewModel = hiltViewMode
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         GcSubpageBar(title = stringResource(R.string.profile_title), onBack = onBack, backDescription = stringResource(R.string.common_back))
-        val profile = state.profile
         when {
             state.support == ProfileSupport.UNSUPPORTED || state.support == ProfileSupport.NO_USER -> {
                 GcBanner(tone = GcTone.Info, modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -140,70 +177,109 @@ fun ProfileScreen(onBack: () -> Unit, viewModel: ProfileViewModel = hiltViewMode
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    GcAvatar(
+                    ProfileAvatarHeader(
                         url = profile.avatarUrl,
                         initials = profile.initials,
                         colorHex = profile.colorHex,
-                        // Preview: the ring as the others see it while I am at home.
-                        ring = AvatarRing.Home(profile.colorHex),
-                        size = 128.dp,
-                        contentDescription = stringResource(R.string.profile_avatar_desc, profile.name.ifBlank { "?" }),
+                        name = profile.name,
+                        busy = busy,
+                        onPick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onRemove = { confirmRemove = true },
+                        onColor = viewModel::startColorOnly,
                     )
                     if (profile.name.isNotBlank()) {
                         Text(profile.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
                     }
-                    Row(
-                        Modifier.widthIn(max = 480.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        GcPrimaryButton(
-                            text = stringResource(R.string.profile_photo_pick),
-                            onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                            enabled = busy == null,
-                            loading = busy == ProfileBusy.LOADING_PHOTO || busy == ProfileBusy.UPLOAD,
-                            icon = GcIcons.Photo,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (profile.avatarUrl != null) {
-                            GcOutlineButton(
-                                text = stringResource(R.string.profile_photo_remove),
-                                onClick = viewModel::removeAvatar,
-                                enabled = busy == null,
-                                loading = busy == ProfileBusy.REMOVE,
-                                icon = GcIcons.Trash,
-                                fillWidth = false,
-                            )
-                        }
-                    }
+                    Text(
+                        stringResource(R.string.profile_avatar_tap_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extra.muted,
+                        textAlign = TextAlign.Center,
+                    )
                 }
-
-                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    GcSectionLabel(stringResource(R.string.profile_color_title), Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
-                    GcCard(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            AvatarPalette.selectable(profile.palette).forEach { c ->
-                                ColorSwatch(
-                                    hex = c.hex,
-                                    label = colorLabel(c.key),
-                                    selected = c.key == profile.color,
-                                    enabled = busy == null,
-                                    onClick = { viewModel.setColor(c.key) },
-                                )
-                            }
-                        }
-                        Text(stringResource(R.string.profile_color_help), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-                    }
-                }
-                Text(
-                    stringResource(R.string.profile_privacy_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = extra.faint,
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
             }
         }
+        ProfilePresenceSection(presenceViewModel, Modifier.padding(horizontal = 16.dp))
+        if (profile != null && state.support == ProfileSupport.SUPPORTED) {
+            Text(
+                stringResource(R.string.profile_privacy_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.faint,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+        }
+    }
+}
+
+/**
+ * The large avatar (ring = the favourite colour, as the others see it at
+ * home): tap → photo picker; "X" badge (with a picture) → remove; palette
+ * badge → ring colour only.
+ */
+@Composable
+private fun ProfileAvatarHeader(
+    url: String?,
+    initials: String,
+    colorHex: String?,
+    name: String,
+    busy: ProfileBusy?,
+    onPick: () -> Unit,
+    onRemove: () -> Unit,
+    onColor: () -> Unit,
+) {
+    val pickLabel = stringResource(R.string.profile_photo_pick)
+    Box(Modifier.size(156.dp)) {
+        GcAvatar(
+            url = url,
+            initials = initials,
+            colorHex = colorHex,
+            ring = AvatarRing.Home(colorHex),
+            size = 136.dp,
+            contentDescription = stringResource(R.string.profile_avatar_desc, name.ifBlank { "?" }),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .clip(CircleShape)
+                .clickable(enabled = busy == null, role = Role.Button, onClickLabel = pickLabel, onClick = onPick),
+        )
+        if (busy == ProfileBusy.LOADING_PHOTO || busy == ProfileBusy.REMOVE) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Center))
+        }
+        if (url != null) {
+            AvatarBadge(
+                icon = GcIcons.Close,
+                contentDescription = stringResource(R.string.profile_photo_remove_desc),
+                enabled = busy == null,
+                onClick = onRemove,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
+        AvatarBadge(
+            icon = GcIcons.Palette,
+            contentDescription = stringResource(R.string.profile_color_change_desc),
+            enabled = busy == null,
+            onClick = onColor,
+            modifier = Modifier.align(Alignment.BottomEnd),
+        )
+    }
+}
+
+/** Small round icon button on the avatar's edge. */
+@Composable
+private fun AvatarBadge(icon: ImageVector, contentDescription: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    Box(
+        modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, extra.border2, CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -212,11 +288,11 @@ private fun ColorSwatch(hex: String, label: String, selected: Boolean, enabled: 
     val color = avatarColor(hex) ?: return
     Box(
         Modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = label }
-            .border(if (selected) 3.dp else 0.dp, if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent, CircleShape)
+            .border(if (selected) 3.dp else 0.dp, if (selected) Color.White else Color.Transparent, CircleShape)
             .padding(if (selected) 5.dp else 2.dp)
             .clip(CircleShape)
             .background(color),
@@ -244,89 +320,176 @@ private fun colorLabel(key: String): String = stringResource(
 )
 
 /**
- * Simple crop: the photo covers a square frame; pinch to zoom, drag to
- * move. The circle shows what the avatar will look like.
+ * The full-screen wizard: step 1 the simple crop (the photo covers a
+ * square frame; pinch to zoom, drag to move, the circle shows the avatar),
+ * step 2 the ring colour with a live preview. Back / cancel discards.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AvatarCropDialog(bitmap: Bitmap, saving: Boolean, onConfirm: (CropRect) -> Unit, onDismiss: () -> Unit) {
-    val image = remember(bitmap) { bitmap.asImageBitmap() }
-    var zoom by remember(bitmap) { mutableFloatStateOf(1f) }
-    var offsetX by remember(bitmap) { mutableFloatStateOf(0f) }
-    var offsetY by remember(bitmap) { mutableFloatStateOf(0f) }
-    var framePx by remember(bitmap) { mutableFloatStateOf(0f) }
+private fun AvatarWizardDialog(
+    wizard: AvatarWizard,
+    source: Bitmap?,
+    preview: Bitmap?,
+    profile: MyProfile,
+    saving: Boolean,
+    onNext: (CropRect) -> Unit,
+    onPick: (String) -> Unit,
+    onFinish: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    // The photo while cropping, null on the colour step.
+    val src = source?.takeIf { wizard.step == AvatarWizardStep.CROP }
+    var zoom by remember(source) { mutableFloatStateOf(1f) }
+    var offsetX by remember(source) { mutableFloatStateOf(0f) }
+    var offsetY by remember(source) { mutableFloatStateOf(0f) }
+    var framePx by remember(source) { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
 
-    Dialog(onDismissRequest = { if (!saving) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = { if (!saving) onCancel() },
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
+    ) {
         Column(
             Modifier.fillMaxSize().background(Color(0xF2000000)).padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         ) {
-            Text(
-                stringResource(R.string.profile_crop_title),
-                style = MaterialTheme.typography.titleLarge,
-                color = Color.White,
-            )
-            Text(
-                stringResource(R.string.profile_crop_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.75f),
-                textAlign = TextAlign.Center,
-            )
-            BoxWithConstraints(Modifier.widthIn(max = 420.dp).fillMaxWidth()) {
-                val side = maxWidth
-                val frame = with(density) { side.toPx() }
-                framePx = frame
-                val base = AvatarCrop.baseScale(bitmap.width, bitmap.height, frame)
-                val imgW = with(density) { (bitmap.width * base).toDp() }
-                val imgH = with(density) { (bitmap.height * base).toDp() }
-                Box(
-                    Modifier
-                        .size(side)
-                        .clipToBounds()
-                        .pointerInput(bitmap, frame) {
-                            detectTransformGestures { _, pan, gestureZoom, _ ->
-                                zoom = AvatarCrop.clampZoom(zoom * gestureZoom)
-                                val (x, y) = AvatarCrop.clampOffset(bitmap.width, bitmap.height, frame, zoom, offsetX + pan.x, offsetY + pan.y)
-                                offsetX = x
-                                offsetY = y
-                            }
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        image,
-                        contentDescription = null,
-                        contentScale = ContentScale.FillBounds,
-                        modifier = Modifier
-                            .requiredSize(imgW, imgH)
-                            .graphicsLayer {
-                                scaleX = zoom
-                                scaleY = zoom
-                                translationX = offsetX
-                                translationY = offsetY
-                            },
+            // Top: cancel, title, step indicator.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GcIconButton(
+                    icon = GcIcons.Close,
+                    contentDescription = stringResource(R.string.common_cancel),
+                    onClick = onCancel,
+                    tint = Color.White,
+                    enabled = !saving,
+                )
+                Text(
+                    stringResource(if (src != null) R.string.profile_crop_title else R.string.profile_color_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f),
+                )
+                if (wizard.stepCount > 1) {
+                    val stepDesc = stringResource(R.string.profile_wizard_step_desc, wizard.stepNumber, wizard.stepCount)
+                    Text(
+                        stringResource(R.string.profile_wizard_step, wizard.stepNumber, wizard.stepCount),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(end = 8.dp).semantics { contentDescription = stepDesc },
                     )
-                    // What stays visible as the round avatar.
-                    Box(Modifier.fillMaxSize().border(2.dp, Color.White.copy(alpha = 0.9f), CircleShape))
-                    Box(Modifier.fillMaxSize().border(1.dp, Color.White.copy(alpha = 0.35f)))
                 }
             }
-            Row(Modifier.widthIn(max = 420.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            ) {
+                if (src != null) {
+                    Text(
+                        stringResource(R.string.profile_crop_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.75f),
+                        textAlign = TextAlign.Center,
+                    )
+                    val image = remember(src) { src.asImageBitmap() }
+                    BoxWithConstraints(Modifier.widthIn(max = 420.dp).fillMaxWidth()) {
+                        val side = maxWidth
+                        val frame = with(density) { side.toPx() }
+                        framePx = frame
+                        val base = AvatarCrop.baseScale(src.width, src.height, frame)
+                        val imgW = with(density) { (src.width * base).toDp() }
+                        val imgH = with(density) { (src.height * base).toDp() }
+                        Box(
+                            Modifier
+                                .size(side)
+                                .clipToBounds()
+                                .pointerInput(src, frame) {
+                                    detectTransformGestures { _, pan, gestureZoom, _ ->
+                                        zoom = AvatarCrop.clampZoom(zoom * gestureZoom)
+                                        val (x, y) = AvatarCrop.clampOffset(src.width, src.height, frame, zoom, offsetX + pan.x, offsetY + pan.y)
+                                        offsetX = x
+                                        offsetY = y
+                                    }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                image,
+                                contentDescription = null,
+                                contentScale = ContentScale.FillBounds,
+                                modifier = Modifier
+                                    .requiredSize(imgW, imgH)
+                                    .graphicsLayer {
+                                        scaleX = zoom
+                                        scaleY = zoom
+                                        translationX = offsetX
+                                        translationY = offsetY
+                                    },
+                            )
+                            // What stays visible as the round avatar.
+                            Box(Modifier.fillMaxSize().border(2.dp, Color.White.copy(alpha = 0.9f), CircleShape))
+                            Box(Modifier.fillMaxSize().border(1.dp, Color.White.copy(alpha = 0.35f)))
+                        }
+                    }
+                } else {
+                    val hex = AvatarPalette.hexOf(wizard.colorKey, profile.palette) ?: profile.colorHex
+                    val previewImage = remember(preview) { preview?.asImageBitmap() }
+                    GcAvatar(
+                        // A new photo: its crop (nothing from the server meanwhile); colour only: the current picture.
+                        url = if (wizard.withPhoto) null else profile.avatarUrl,
+                        image = previewImage,
+                        initials = profile.initials,
+                        colorHex = hex,
+                        ring = AvatarRing.Home(hex),
+                        size = 168.dp,
+                    )
+                    Text(
+                        stringResource(R.string.profile_color_help),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.85f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 420.dp),
+                    )
+                    FlowRow(
+                        Modifier.widthIn(max = 420.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        AvatarPalette.selectable(profile.palette).forEach { c ->
+                            ColorSwatch(
+                                hex = c.hex,
+                                label = colorLabel(c.key),
+                                selected = c.key == wizard.colorKey,
+                                enabled = !saving,
+                                onClick = { onPick(c.key) },
+                            )
+                        }
+                    }
+                }
+            }
+            Row(Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GcOutlineButton(
                     text = stringResource(R.string.common_cancel),
-                    onClick = onDismiss,
+                    onClick = onCancel,
                     enabled = !saving,
                     modifier = Modifier.weight(1f),
                 )
-                GcPrimaryButton(
-                    text = stringResource(R.string.profile_crop_use),
-                    onClick = {
-                        if (framePx > 0f) onConfirm(AvatarCrop.sourceRect(bitmap.width, bitmap.height, framePx, zoom, offsetX, offsetY))
-                    },
-                    loading = saving,
-                    modifier = Modifier.weight(1f),
-                )
+                if (src != null) {
+                    GcPrimaryButton(
+                        text = stringResource(R.string.profile_wizard_next),
+                        onClick = {
+                            if (framePx > 0f) onNext(AvatarCrop.sourceRect(src.width, src.height, framePx, zoom, offsetX, offsetY))
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    GcPrimaryButton(
+                        text = stringResource(R.string.profile_wizard_done),
+                        onClick = onFinish,
+                        enabled = wizard.canFinish,
+                        loading = saving,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
