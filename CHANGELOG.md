@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.35.0] - 2026-10-15
+
+### Features
+- tidy start tab, info card with plugin tiles, Remote in Netzwerk, settings via profile (#79)
+
+---
+
 ## [1.34.1] - 2026-10-15
 
 ### Fixes
