@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.0] - 2026-10-16
+
+### Features
+- start tab without scrolling – connection chip, portal icon, Info card menu (#80)
+
+---
+
 ## [1.35.0] - 2026-10-15
 
 ### Features
