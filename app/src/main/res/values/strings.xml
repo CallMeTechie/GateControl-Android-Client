@@ -529,7 +529,7 @@
     <string name="quick_actions_not_configured">Set up the connection to the server first.</string>
     <string name="quick_actions_pin">Pin</string>
     <string name="quick_actions_unpin">Unpin</string>
-    <string name="quick_actions_hint">Pinned actions appear on the start screen, as app shortcuts (long press on the app icon), as Quick Settings tiles (the first three) and in the “Quick actions” widget. Up to %1$d.</string>
+    <string name="quick_actions_hint">Pinned actions appear on the Home tab as buttons (five per row) or, when the plugin offers it, as a widget with a reading and controls; also as app shortcuts (long press on the app icon), as Quick Settings tiles (the first three) and in the “Quick actions” widget. Up to %1$d.</string>
     <string name="quick_action_done">%1$s: done</string>
     <string name="quick_action_failed">%1$s: failed</string>
     <string name="quick_action_confirm_title">Run “%1$s”?</string>
@@ -781,7 +781,14 @@
     <string name="connection_details_row_on">Connected for %1$s · %2$s</string>
     <string name="connection_details_off">VPN is off</string>
     <string name="connection_details_hint">Tunnel address, duration, last handshake and server of your VPN connection.</string>
-    <string name="quick_actions_choose_long">Choose quick actions</string>
+    <string name="start_edit_title">Edit Home tab</string>
+    <string name="start_edit_actions">Quick actions and widgets</string>
+    <string name="start_edit_actions_desc">Pin, order, show as widget</string>
+    <string name="start_edit_info">Info card contents</string>
+    <string name="start_edit_hint">Long-press an empty spot to set up the Home tab.</string>
+    <string name="quick_actions_as_widget">Widget</string>
+    <string name="widget_decrease">Decrease %1$s</string>
+    <string name="widget_increase">Increase %1$s</string>
 
     <!-- Start tab: sliding cards (1.35) -->
     <string name="pager_favorite_set">Set as default</string>

@@ -488,6 +488,43 @@ data class QuickAction(
     @SerializedName("kind") val kind: String? = null,
     @SerializedName("state") val state: String? = null,
     @SerializedName("confirm") val confirm: Boolean? = null,
+    /** Extra information and controls (core 1.171+), null = the action is a plain button/switch. */
+    @SerializedName("widget") val widget: QuickActionWidget? = null,
+)
+
+/**
+ * The widget side of a quick action: a reading ([value] as a JSON string or
+ * number, [unit]), a [status] line, a [state] on|off|good|warn|crit and up
+ * to four [controls].
+ */
+data class QuickActionWidget(
+    @SerializedName("value") val value: JsonElement? = null,
+    @SerializedName("unit") val unit: String? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("state") val state: String? = null,
+    @SerializedName("controls") val controls: List<QuickActionControl>? = null,
+)
+
+/**
+ * One control of a widget: `stepper` and `slider` carry a number in
+ * [min]..[max] with [step]; `choice` carries an option id in [value] (as a
+ * JSON string) and its [options].
+ */
+data class QuickActionControl(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("kind") val kind: String? = null,
+    @SerializedName("label") val label: String? = null,
+    @SerializedName("value") val value: JsonElement? = null,
+    @SerializedName("min") val min: Double? = null,
+    @SerializedName("max") val max: Double? = null,
+    @SerializedName("step") val step: Double? = null,
+    @SerializedName("unit") val unit: String? = null,
+    @SerializedName("options") val options: List<QuickActionControlOption>? = null,
+)
+
+data class QuickActionControlOption(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("label") val label: String? = null,
 )
 
 data class QuickActionsResponse(
@@ -541,9 +578,15 @@ data class ClientPluginsResponse(
     val plugins: List<ClientPlugin>? = null,
 )
 
-/** Body of `POST /client/actions/{plugin}/{id}`: [source] `app` | `notification`. */
+/**
+ * Body of `POST /client/actions/{plugin}/{id}`: [source] `app` |
+ * `notification`; [control] and [value] (a number, or an option id) when a
+ * widget control was used (core 1.171+), both null for a plain run.
+ */
 data class QuickActionRunRequest(
     @SerializedName("source") val source: String = SOURCE_APP,
+    @SerializedName("control") val control: String? = null,
+    @SerializedName("value") val value: Any? = null,
 ) {
     companion object {
         const val SOURCE_APP = "app"
@@ -551,12 +594,16 @@ data class QuickActionRunRequest(
     }
 }
 
-/** Answer of `POST /client/actions/{plugin}/{id}`; [state] = the switch's new state. */
+/**
+ * Answer of `POST /client/actions/{plugin}/{id}`; [state] = the switch's new
+ * state, [widget] = the widget after the run (core 1.171+, else null).
+ */
 data class QuickActionRunResponse(
     val ok: Boolean = false,
     val message: String? = null,
     val state: String? = null,
     val error: String? = null,
+    val widget: QuickActionWidget? = null,
 )
 
 /**

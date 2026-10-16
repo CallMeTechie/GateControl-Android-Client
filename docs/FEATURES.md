@@ -108,10 +108,24 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   ins Profil gewandert.
 - **Schnellaktionen:** angeheftete Aktionen als Symbol-Kacheln (das
   SVG-Symbol, das der Server je Aktion schickt; ohne Symbol der Blitz) mit
-  dem Titel darunter, Schalter gefüllt, solange sie an sind; rechts ein
-  „+“ zum Auswählen. Ohne angeheftete Aktion nur „Schnellaktionen
-  auswählen“. Dieselben Symbole in der Liste, im Widget, in den
-  App-Verknüpfungen und den Schnelleinstellungs-Kacheln.
+  dem Titel darunter, Schalter gefüllt, solange sie an sind; seit 1.37
+  fünf pro Zeile (weitere Zeilen bei mehr), ohne „+“. Dieselben Symbole in
+  der Liste, im Widget, in den App-Verknüpfungen und den
+  Schnelleinstellungs-Kacheln. Alle 60 s aktualisiert, solange der Tab
+  sichtbar ist.
+- **Widgets** (seit 1.37, Server 1.171+): eine angeheftete Aktion, zu der
+  das Plugin ein `widget` liefert (Klima 1.3, Smart Home 1.4), lässt sich in
+  der Liste „Schnellaktionen“ per Chip **Widget** als Karte zeigen: halbe
+  Breite, zwei pro Zeile unter den Kacheln, mit Symbol, Titel und Schalter,
+  dem großen Wert mit Einheit (z. B. Innentemperatur), einer Statuszeile
+  und den Reglern des Plugins – Stepper (− Wert +, z. B. Zieltemperatur),
+  Schieberegler (Helligkeit) oder Auswahl-Chips (Modus). Eine Änderung geht
+  600 ms nach dem letzten Tipp als Lauf mit `control`/`value` an den Server;
+  die Antwort aktualisiert die Karte. Höchstens 12 Pins insgesamt.
+- **Start-Tab bearbeiten:** langes Drücken auf eine freie Stelle des Tabs
+  öffnet ein Menü mit „Schnellaktionen und Widgets“ (die Liste: anheften,
+  Widget) und „Inhalte der Info-Karte“ (der Picker). Ohne angeheftete
+  Aktion steht nur ein leiser Hinweis darauf.
 - **Info-Karte** (unter den Schnellaktionen): zeigt die Inhalte, die man
   auswählt, als wischbare Seiten (Punkte darunter). Inhalte sind derzeit die
   **Start-Kacheln der Plugins** (`GET /api/v1/client/tiles?lang=de|en`,
@@ -136,6 +150,9 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   fest („Als Standard festgelegt“, Stern neben der Beschriftung): diese
   Seite erscheint zuerst. Ohne Wahl startet die Karte mit der Datennutzung.
   Bei der Info-Karte übernimmt das Langdruck-Menü diese Rolle.
+- **Netzwerk-Tab:** langes Drücken auf Dienste, Pi-hole oder Remote legt
+  fest, womit der Tab öffnet („Als Standard festgelegt“); ein Link mit
+  Ziel (Push, alte Remote-Route) geht weiterhin vor.
 - Kill-Switch und Split-Tunneling stehen (nur noch) in den Einstellungen,
   Pi-hole im Netzwerk-Tab. Die Verbindungsdetails (Tunnel-IP, verbunden
   seit, letzter Handshake, Server) und der **DNS-Leak-Test** stehen unter

@@ -46,9 +46,14 @@ data class QuickActionItem(
      * no such field and Gson leaves it null.
      */
     val icon: String? = null,
+    /** Reading and controls (core 1.171+), null = a plain button/switch. */
+    val widget: QuickActionWidgetItem? = null,
+    /** Pins only: shown as a widget card on the start tab instead of a button (needs [widget]). */
+    val asWidget: Boolean = false,
 ) {
     val key: String get() = "$plugin/$id"
     val isOn: Boolean get() = toggle && state == "on"
+    val showsWidget: Boolean get() = asWidget && widget != null
 }
 
 /** State of the list from the server. */
@@ -135,17 +140,35 @@ class QuickActionRepository @Inject constructor(
         settingsRepository.updateQuickActionPins { raw ->
             val current = decodePins(raw)
             val next = if (current.any { it.key == item.key }) current.filter { it.key != item.key }
-            else (current + item).take(MAX_PINS)
+            else (current + item.copy(asWidget = false)).take(MAX_PINS)
             encodePins(next)
         }
         afterPinsChanged()
     }
 
-    /** Runs [item]; the new switch state goes into the list and the pins. */
+    /** Shows the pinned [item] as a widget card ([asWidget]) or as a button on the start tab. */
+    suspend fun setPinWidget(item: QuickActionItem, asWidget: Boolean) {
+        settingsRepository.updateQuickActionPins { raw ->
+            encodePins(decodePins(raw).map { if (it.key == item.key) it.copy(asWidget = asWidget) else it })
+        }
+    }
+
+    /** Runs [item]; the new switch state and widget go into the list and the pins. */
     suspend fun run(item: QuickActionItem): QuickActionResult {
-        val (result, state) = call(item.plugin, item.id, QuickActionRunRequest.SOURCE_APP)
-        if (result.ok && item.toggle && state != null) updateState(item.key, state)
-        return result
+        val outcome = call(item.plugin, item.id, QuickActionRunRequest.SOURCE_APP)
+        if (outcome.result.ok) update(item.key, outcome.state?.takeIf { item.toggle }, outcome.widget)
+        return outcome.result
+    }
+
+    /**
+     * Sets the widget control [controlId] of [item] to [value] (a number, or
+     * an option id; core 1.171+): a run with `control`/`value`. The answer's
+     * widget and state replace the stored ones.
+     */
+    suspend fun control(item: QuickActionItem, controlId: String, value: Any): QuickActionResult {
+        val outcome = call(item.plugin, item.id, QuickActionRunRequest.SOURCE_APP, controlId, value)
+        if (outcome.result.ok) update(item.key, outcome.state?.takeIf { item.toggle }, outcome.widget)
+        return outcome.result
     }
 
     /**
@@ -155,23 +178,27 @@ class QuickActionRepository @Inject constructor(
      */
     suspend fun runFromNotification(plugin: String, id: String): QuickActionResult {
         if (!PLUGIN.matches(plugin) || !ID.matches(id)) return QuickActionResult(false, null)
-        val (result, state) = call(plugin, id, QuickActionRunRequest.SOURCE_NOTIFICATION)
-        if (result.ok) {
+        val outcome = call(plugin, id, QuickActionRunRequest.SOURCE_NOTIFICATION)
+        if (outcome.result.ok) {
             val key = "$plugin/$id"
-            if (state != null && _actions.value.any { it.key == key && it.toggle }) updateState(key, state)
+            val toggle = _actions.value.any { it.key == key && it.toggle }
+            update(key, outcome.state?.takeIf { toggle }, outcome.widget)
             refreshAsync()
         }
-        return result
+        return outcome.result
     }
 
-    /** `POST /api/v1/client/actions/{plugin}/{id}` → result and the switch's new state ("on"/"off"). */
-    private suspend fun call(plugin: String, id: String, source: String): Pair<QuickActionResult, String?> {
+    /** What a run answered: the result, the switch's new state ("on"/"off") and the widget after it. */
+    private data class Outcome(val result: QuickActionResult, val state: String? = null, val widget: QuickActionWidgetItem? = null)
+
+    /** `POST /api/v1/client/actions/{plugin}/{id}`, with `control`/`value` for a widget control. */
+    private suspend fun call(plugin: String, id: String, source: String, control: String? = null, value: Any? = null): Outcome {
         val serverUrl = setupRepository.getServerUrl()
-        if (serverUrl.isBlank()) return QuickActionResult(false, null) to null
+        if (serverUrl.isBlank()) return Outcome(QuickActionResult(false, null))
         return try {
             val response = withTimeoutOrNull(RUN_TIMEOUT_MS) {
-                apiClientProvider.getClient(serverUrl).runQuickAction(plugin, id, lang(), QuickActionRunRequest(source))
-            } ?: return QuickActionResult(false, null) to null
+                apiClientProvider.getClient(serverUrl).runQuickAction(plugin, id, lang(), QuickActionRunRequest(source, control, value))
+            } ?: return Outcome(QuickActionResult(false, null))
             val body = response.body()
             if (!response.isSuccessful || body?.ok != true) {
                 Timber.w("Quick action %s/%s failed: HTTP %d", plugin, id, response.code())
@@ -180,35 +207,44 @@ class QuickActionRepository @Inject constructor(
                     response.errorBody()?.use { b -> b.string().takeIf { it.length < 16_384 } }
                         ?.let { gson.fromJson(it, QuickActionRunResponse::class.java) }?.message
                 }.getOrNull()
-                return QuickActionResult(false, errorMessage?.let(::clean)?.take(200)?.takeIf { it.isNotBlank() }) to null
+                return Outcome(QuickActionResult(false, errorMessage?.let(::clean)?.take(200)?.takeIf { it.isNotBlank() }))
             }
-            val state = body.state?.takeIf { it == "on" || it == "off" }
-            QuickActionResult(true, body.message?.let(::clean)?.take(200)) to state
+            Outcome(
+                result = QuickActionResult(true, body.message?.let(::clean)?.take(200)),
+                state = body.state?.takeIf { it == "on" || it == "off" },
+                widget = QuickActionWidgetItem.from(body.widget),
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: HttpException) {
-            QuickActionResult(false, null) to null
+            Outcome(QuickActionResult(false, null))
         } catch (e: Exception) {
             Timber.d("Quick action %s/%s failed (%s)", plugin, id, e.javaClass.simpleName)
-            QuickActionResult(false, null) to null
+            Outcome(QuickActionResult(false, null))
         }
     }
 
-    private suspend fun updateState(key: String, state: String) {
-        _actions.value = _actions.value.map { if (it.key == key) it.copy(state = state) else it }
+    /** A run's new [state] and/or [widget] (null = unchanged) into the list and the pins. */
+    private suspend fun update(key: String, state: String?, widget: QuickActionWidgetItem?) {
+        if (state == null && widget == null) return
+        val apply: (QuickActionItem) -> QuickActionItem = { it.copy(state = state ?: it.state, widget = widget ?: it.widget) }
+        _actions.value = _actions.value.map { if (it.key == key) apply(it) else it }
         settingsRepository.updateQuickActionPins { raw ->
-            encodePins(decodePins(raw).map { if (it.key == key) it.copy(state = state) else it })
+            encodePins(decodePins(raw).map { if (it.key == key) apply(it) else it })
         }
         afterPinsChanged()
     }
 
-    /** Pinned entries take the server's current title and state; vanished ones stay (offline, licence). */
+    /**
+     * Pinned entries take the server's current title, state and widget and
+     * keep their own display choice; vanished ones stay (offline, licence).
+     */
     private suspend fun syncPins(items: List<QuickActionItem>) {
         val byKey = items.associateBy { it.key }
         var changed = false
         settingsRepository.updateQuickActionPins { raw ->
             val current = decodePins(raw)
-            val next = current.map { pin -> byKey[pin.key] ?: pin }
+            val next = current.map { pin -> byKey[pin.key]?.copy(asWidget = pin.asWidget) ?: pin }
             changed = next != current
             encodePins(next)
         }
@@ -220,7 +256,8 @@ class QuickActionRepository @Inject constructor(
     }
 
     companion object {
-        const val MAX_PINS = 8
+        /** Buttons and widgets together. */
+        const val MAX_PINS = 12
         private const val TIMEOUT_MS = 8_000L
         private const val RUN_TIMEOUT_MS = 15_000L
         private val ID = Regex("^[A-Za-z0-9:._-]{1,64}$")
@@ -248,6 +285,7 @@ class QuickActionRepository @Inject constructor(
                 state = if (toggle) a.state?.takeIf { it == "on" || it == "off" } else null,
                 confirm = a.confirm == true,
                 icon = QuickActionIcons.sanitize(a.icon),
+                widget = QuickActionWidgetItem.from(a.widget),
             )
         }.distinctBy { it.key }
 
@@ -259,6 +297,7 @@ class QuickActionRepository @Inject constructor(
             // Gson bypasses Kotlin null-safety: drop entries an older format left incomplete.
             else gson.fromJson<List<QuickActionItem>>(raw, pinType).orEmpty()
                 .filter { it != null && it.plugin != null && it.id != null && it.title != null && it.pluginName != null }
+                .map { if (it.widget != null) it.copy(widget = it.widget.normalized()) else it }
         } catch (e: Exception) {
             emptyList()
         }

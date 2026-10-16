@@ -39,6 +39,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -228,6 +230,9 @@ fun <T> GcSegmented(
     selected: T,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    /** Long press on a segment (e.g. make it the default), with its accessibility label. */
+    onLongPress: ((T) -> Unit)? = null,
+    onLongPressLabel: String? = null,
 ) {
     val extra = GateControlTheme.extraColors
     Row(
@@ -246,7 +251,20 @@ fun <T> GcSegmented(
                     .height(40.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (isSel) MaterialTheme.colorScheme.surface else Color.Transparent)
-                    .selectable(selected = isSel, role = Role.Tab, onClick = { onSelect(value) }),
+                    .then(
+                        if (onLongPress != null) {
+                            Modifier
+                                .combinedClickable(
+                                    role = Role.Tab,
+                                    onLongClickLabel = onLongPressLabel,
+                                    onLongClick = { onLongPress(value) },
+                                    onClick = { onSelect(value) },
+                                )
+                                .semantics { this.selected = isSel }
+                        } else {
+                            Modifier.selectable(selected = isSel, role = Role.Tab, onClick = { onSelect(value) })
+                        },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
