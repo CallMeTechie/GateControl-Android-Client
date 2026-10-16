@@ -9,7 +9,6 @@ import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -18,8 +17,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,26 +35,30 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
  * Card whose content slides sideways between pages ([pageKeys]) while the
- * frame and the header stay put; small dots below show the page. A long
- * press on a page makes it the favourite ([onSetFavorite], "Als Standard
- * festgelegt"): the page shown first. [favoriteKey] null = not loaded yet;
- * once known it is shown unless the person already swiped.
+ * frame stays put; small dots below show the page. [title] labels the
+ * current page in a small section label above it; null = no header, the
+ * content starts at the top. A long press on a page makes it the favourite
+ * ([onSetFavorite], "Als Standard festgelegt"): the page shown first —
+ * unless [onLongPress] is given, which then runs instead (with
+ * [onLongPressLabel] for accessibility), also with a single page.
+ * [favoriteKey] null = not loaded yet; once known it is shown unless the
+ * person already swiped.
  */
 @Composable
 fun GcPagerCard(
     pageKeys: List<String>,
     favoriteKey: String?,
     onSetFavorite: (String) -> Unit,
-    title: (String) -> String,
     modifier: Modifier = Modifier,
-    headerActions: @Composable RowScope.() -> Unit = {},
+    title: ((String) -> String)? = null,
+    onLongPress: ((String) -> Unit)? = null,
+    onLongPressLabel: String? = null,
     page: @Composable (String) -> Unit,
 ) {
     val extra = GateControlTheme.extraColors
@@ -80,34 +81,39 @@ fun GcPagerCard(
     val current = pageKeys.getOrNull(pagerState.currentPage.coerceIn(0, (pageKeys.size - 1).coerceAtLeast(0)))
     val confirm = stringResource(R.string.pager_favorite_set)
     val favoriteAction = stringResource(R.string.pager_favorite_action)
-    val setFavorite: (String) -> Unit = { key ->
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        onSetFavorite(key)
-        Toast.makeText(context, confirm, Toast.LENGTH_SHORT).show()
-    }
-    val currentSetFavorite by rememberUpdatedState(setFavorite)
     val multiple = pageKeys.size > 1
+    // The favourite only makes sense with several pages; a custom action always.
+    val longPress: ((String) -> Unit)? = onLongPress ?: if (multiple) {
+        { key ->
+            onSetFavorite(key)
+            Toast.makeText(context, confirm, Toast.LENGTH_SHORT).show()
+        }
+    } else {
+        null
+    }
+    val longPressLabel = onLongPressLabel.takeIf { onLongPress != null } ?: favoriteAction
+    val pressed: (String) -> Unit = { key ->
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        longPress?.invoke(key)
+    }
+    val currentPressed by rememberUpdatedState(pressed)
 
     GcCard(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = current?.let(title).orEmpty(),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (multiple && current != null && current == favoriteKey) {
-                Icon(
-                    GcIcons.StarFilled,
-                    contentDescription = stringResource(R.string.pager_favorite_desc),
-                    tint = extra.warn,
-                    modifier = Modifier.size(14.dp),
+        if (title != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                GcSectionLabel(
+                    text = current?.let(title).orEmpty(),
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (multiple && current != null && current == favoriteKey) {
+                    Icon(
+                        GcIcons.StarFilled,
+                        contentDescription = stringResource(R.string.pager_favorite_desc),
+                        tint = extra.warn,
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
             }
-            Box(Modifier.weight(1f))
-            headerActions()
         }
         HorizontalPager(
             state = pagerState,
@@ -121,10 +127,10 @@ fun GcPagerCard(
                 Modifier
                     .fillMaxWidth()
                     .then(
-                        if (multiple) {
+                        if (longPress != null) {
                             Modifier
-                                .pointerInput(key) { detectTapGestures(onLongPress = { currentSetFavorite(key) }) }
-                                .semantics { onLongClick(label = favoriteAction) { setFavorite(key); true } }
+                                .pointerInput(key) { detectTapGestures(onLongPress = { currentPressed(key) }) }
+                                .semantics { onLongClick(label = longPressLabel) { pressed(key); true } }
                         } else {
                             Modifier
                         },

@@ -17,8 +17,8 @@ Der VPN-Tunnel basiert auf dem WireGuard-Protokoll und nutzt die offizielle Andr
 - **Verbinde erneut (x/y)...** — Automatische Wiederverbindung nach Abbruch
 - **Verbindungsfehler** — Tunnelaufbau fehlgeschlagen
 
-**Verbindungsring:**
-Ein animierter Ring auf dem Hauptbildschirm zeigt den aktuellen Status visuell an. Grün = verbunden, Gelb = verbindend/trennend, Rot = Fehler, Grau = getrennt.
+**Verbindungs-Chip (seit 1.36):**
+Der Status steht als Pille in der Kopfzeile des Start-Tabs neben dem Profilbild: gefüllt grün **„Verbinden“** wenn getrennt, grün getönt **„Geschützt“** wenn verbunden (Tippen trennt), gelb mit Drehkreis während Auf-/Abbau (Tippen bricht ab), rot **„Fehlgeschlagen“** nach einem Fehler (Tippen versucht es erneut; Meldung, Protokoll und Diagnose in einem Banner darunter). Langes Drücken öffnet die Verbindungsdetails. Der große Verbindungskreis mit Statustext und der Button „Portal öffnen“ (bis 1.35) sind entfallen; das Portal öffnet ein Symbol in der Kopfzeile, solange verbunden ist.
 
 ### Auto-Connect
 Bei aktivierter Einstellung verbindet sich die App automatisch mit dem VPN-Tunnel:
@@ -94,13 +94,18 @@ Familie-Plugin mit Tab anbietet — **Familie**.
   öffnen weiterhin direkt die jeweilige Seite; auf breiten Bildschirmen die
   Einstellungen mit der Seite daneben.
 
-### Startbildschirm (1.32, umgebaut in 1.35)
+### Startbildschirm (1.32, umgebaut in 1.35 und 1.36)
+Seit 1.36 passt die Standardansicht (Kopfzeile, Schnellaktionen, Info-Karte,
+Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
 - **Kopfzeile:** das eigene Profilbild (bzw. die Initialen auf der
   Lieblingsfarbe) statt „GateControl“ + Server; der Ring zeigt die eigene
   Anwesenheit (Familie, wenn geteilt; derselbe Ring wie im Familie-Tab).
   Tippen öffnet das Profil (und von dort die Einstellungen). Ohne Profilbild
-  führt ein Personen-Symbol dorthin. Der Hell/Dunkel-Schalter ist ins
-  Profil gewandert.
+  führt ein Personen-Symbol dorthin. Rechts daneben der
+  **Verbindungs-Chip** („Verbinden“ / „Geschützt“, siehe
+  Verbindungsmanagement), dann die Symbole Portal (nur verbunden),
+  Standort (wenn Ortung an) und Mitteilungen. Der Hell/Dunkel-Schalter ist
+  ins Profil gewandert.
 - **Schnellaktionen:** angeheftete Aktionen als Symbol-Kacheln (das
   SVG-Symbol, das der Server je Aktion schickt; ohne Symbol der Blitz) mit
   dem Titel darunter, Schalter gefüllt, solange sie an sind; rechts ein
@@ -112,7 +117,10 @@ Familie-Plugin mit Tab anbietet — **Familie**.
   **Start-Kacheln der Plugins** (`GET /api/v1/client/tiles?lang=de|en`,
   in der Sprache der App): je Seite Symbol, Titel, großer Wert mit Einheit,
   Plugin-Name klein und die Farbe des Zustands (gut grün, Warnung gelb,
-  kritisch rot, an = Akzent). Der Stift oben rechts öffnet „Inhalte der
+  kritisch rot, an = Akzent). Die Karte hat keine Überschrift und keine
+  Knöpfe; **langes Drücken** öffnet ein Menü von unten mit „Diese Seite
+  zuerst zeigen“ und „Inhalte und Reihenfolge wählen“ (seit 1.36; bis 1.35
+  ein Stift). Letzteres öffnet „Inhalte der
   Info-Karte“: alle Kacheln nach Plugin gruppiert mit Häkchen, oben die
   angezeigten in ihrer Reihenfolge (Pfeile verschieben sie). Die Auswahl
   wird je Anmeldung (Server + Token) gespeichert; Kacheln, die der Server
@@ -123,11 +131,11 @@ Familie-Plugin mit Tab anbietet — **Familie**.
   Speicher zwischengespeichert). Das Auswahlmodell ist allgemein
   („InfoSource“), damit später eingebaute Inhalte dazukommen können.
 - **Durchsatz & Datennutzung** in einer Karte: der Inhalt wischt
-  seitlich, Rahmen und Titelzeile bleiben stehen; Punkte zeigen die Seite.
-- **Lange drücken** auf eine Seite einer wischbaren Karte legt sie als
-  Standard fest („Als Standard festgelegt“, Stern neben dem Titel): diese
-  Seite erscheint zuerst. Ohne Wahl startet die Durchsatz-Karte mit der
-  Datennutzung.
+  seitlich, Rahmen und die kleine Beschriftung bleiben stehen; Punkte
+  zeigen die Seite. **Lange drücken** auf eine Seite legt sie als Standard
+  fest („Als Standard festgelegt“, Stern neben der Beschriftung): diese
+  Seite erscheint zuerst. Ohne Wahl startet die Karte mit der Datennutzung.
+  Bei der Info-Karte übernimmt das Langdruck-Menü diese Rolle.
 - Kill-Switch und Split-Tunneling stehen (nur noch) in den Einstellungen,
   Pi-hole im Netzwerk-Tab. Die Verbindungsdetails (Tunnel-IP, verbunden
   seit, letzter Handshake, Server) und der **DNS-Leak-Test** stehen unter

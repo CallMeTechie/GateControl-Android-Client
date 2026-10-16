@@ -20,12 +20,10 @@ import com.gatecontrol.android.ui.adaptive.HingeSplit
 import com.gatecontrol.android.ui.adaptive.LocalGcWindowLayout
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,13 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -59,7 +53,6 @@ import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcAvatar
 import com.gatecontrol.android.ui.components.GcOutlineButton
-import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.notifications.BellState
 import com.gatecontrol.android.location.DeviceLocator
@@ -78,12 +71,15 @@ import kotlinx.coroutines.delay
 private const val EXPIRY_WARN_DAYS = 7
 
 /**
- * Start tab: header with the own avatar (→ profile, from there the
- * settings), connect orb with state text, the pinned quick actions as icon
- * tiles, the "Info" card (contents the person chose, sliding) and one card
- * for throughput and data usage (sliding). Kill switch and split tunneling
- * live in the settings, the DNS leak test and the connection details in
- * Settings → Verbindung → Verbindungsdetails, Pi-hole in the Netzwerk tab.
+ * Start tab, built to fit a phone screen without scrolling: a header with
+ * the own avatar (→ profile, from there the settings), the connection as a
+ * pill next to it ("Verbinden" / "Geschützt"; tap toggles, long press →
+ * connection details) and the portal, satellite and bell icons; then the
+ * pinned quick actions as icon tiles, the Info card (contents the person
+ * chose, sliding; long press → menu) and one card for throughput and data
+ * usage (sliding). Kill switch and split tunneling live in the settings,
+ * the DNS leak test and the connection details in Settings → Verbindung →
+ * Verbindungsdetails, Pi-hole in the Netzwerk tab.
  */
 @Composable
 fun VpnScreen(
@@ -105,8 +101,10 @@ fun VpnScreen(
     onOpenDiagnosis: () -> Unit = {},
     /** Own profile (tap on the own avatar in the header); the settings open from there. */
     onOpenProfile: () -> Unit = {},
-    /** Picker "Inhalte der Info-Karte" (pencil of the Info card). */
+    /** Picker "Inhalte der Info-Karte" (long-press menu of the Info card). */
     onOpenInfoCardPicker: () -> Unit = {},
+    /** Settings → Verbindungsdetails (long press on the connection pill). */
+    onOpenConnectionDetails: () -> Unit = {},
     /** Door screen "Tür & Kamera" (long press on a door quick action); null without the door plugin. */
     onOpenDoor: (() -> Unit)? = null,
     locationViewModel: LocationShareViewModel = hiltViewModel(),
@@ -216,7 +214,6 @@ fun VpnScreen(
     val isBusy = tunnelState is TunnelState.Connecting
         || tunnelState is TunnelState.Disconnecting
         || tunnelState is TunnelState.Reconnecting
-    val isError = tunnelState is TunnelState.Error
     val host = viewModel.serverUrlHost ?: viewModel.serverHost ?: "—"
 
     val startConnect: () -> Unit = {
@@ -224,12 +221,16 @@ fun VpnScreen(
         if (prepareIntent != null) vpnPermissionLauncher.launch(prepareIntent) else viewModel.connect()
     }
 
+    // Client policy "always on": no manual disconnect in the app.
+    val disconnectLocked = isConnected && !clientPolicy.canDisconnect
+    val lockedHint = stringResource(R.string.policy_disconnect_locked)
+
     val headerSection: @Composable () -> Unit = {
-        // --- Header -------------------------------------------------------
+        // --- Header: avatar · connection pill · portal, satellite, bell ----
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             val me = myAvatar
             if (me.initials != null) {
-                // Own avatar instead of app name + host; ring = own presence (Familie, when shared).
+                // Own avatar; ring = own presence (Familie, when shared).
                 val description = stringResource(R.string.profile_avatar_desc, me.name ?: stringResource(R.string.profile_title))
                 GcAvatar(
                     url = me.avatarUrl,
@@ -249,13 +250,34 @@ fun VpnScreen(
                             },
                         ),
                 )
-                Spacer(Modifier.weight(1f))
             } else {
-                Icon(GcIcons.ShieldCheck, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("GateControl", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
-                    Text(host, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
-                }
+                // No avatar to tap (older server): the profile, and from there the settings, behind this button.
+                GcIconButton(
+                    icon = GcIcons.User,
+                    contentDescription = stringResource(R.string.profile_open_desc),
+                    onClick = onOpenProfile,
+                    size = 40.dp,
+                )
+            }
+            ConnectionChip(
+                state = tunnelState,
+                disconnectLocked = disconnectLocked,
+                onClick = {
+                    when {
+                        disconnectLocked -> android.widget.Toast.makeText(context, lockedHint, android.widget.Toast.LENGTH_LONG).show()
+                        isConnected || isBusy -> viewModel.disconnect()
+                        else -> startConnect()
+                    }
+                },
+                onLongClick = onOpenConnectionDetails,
+            )
+            Spacer(Modifier.weight(1f))
+            if (isConnected && !portalUrl.isNullOrBlank()) {
+                GcIconButton(
+                    icon = GcIcons.External,
+                    contentDescription = stringResource(R.string.vpn_portal_open),
+                    onClick = { viewModel.openPortal(context) },
+                )
             }
             if (showSatellite) {
                 SatelliteButton(
@@ -306,17 +328,49 @@ fun VpnScreen(
                     }
                 }
             }
-            if (me.initials == null) {
-                // No avatar to tap: the profile (and from there the settings) behind this button.
-                GcIconButton(
-                    icon = GcIcons.User,
-                    contentDescription = stringResource(R.string.profile_open_desc),
-                    onClick = onOpenProfile,
-                )
-            }
         }
     }
     val bannerSection: @Composable ColumnScope.() -> Unit = {
+        // --- Connection failed: the message and what to do next ------------
+        val st = tunnelState
+        if (st is TunnelState.Error) {
+            GcBanner(tone = GcTone.Error, icon = GcIcons.ShieldX) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)) {
+                                append(stringResource(R.string.vpn_error))
+                                append(". ")
+                            }
+                            append(st.message)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GcSecondaryButton(
+                            text = stringResource(R.string.vpn_retry),
+                            onClick = startConnect,
+                            fillWidth = false,
+                        )
+                        GcOutlineButton(
+                            text = stringResource(R.string.vpn_logs),
+                            onClick = onOpenLogs,
+                            fillWidth = false,
+                            minHeight = 40.dp,
+                        )
+                    }
+                    GcOutlineButton(
+                        text = stringResource(R.string.diag_home_check),
+                        onClick = onOpenDiagnosis,
+                        icon = GcIcons.Activity,
+                        fillWidth = false,
+                        minHeight = 40.dp,
+                    )
+                }
+            }
+        }
+
         // --- Location sharing: progress / result of the last tap ----------
         if (locationEnabled) {
             LocationShareBanner(
@@ -406,123 +460,21 @@ fun VpnScreen(
 
         // --- Client policy: kill switch / always-on need the system settings
         com.gatecontrol.android.ui.components.GcPolicySystemVpnCard(clientPolicy)
-    }
-    val heroSection: @Composable ColumnScope.() -> Unit = {
-        // --- Orb ----------------------------------------------------------
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            // Client policy "always on": no manual disconnect in the app.
-            val disconnectLocked = isConnected && !clientPolicy.canDisconnect
-            val orbHint = when {
-                disconnectLocked -> stringResource(R.string.policy_disconnect_locked)
-                isConnected -> stringResource(R.string.vpn_disconnect)
-                isBusy -> stringResource(R.string.vpn_connecting)
-                else -> stringResource(R.string.vpn_connect)
-            }
-            ConnectionOrb(
-                state = tunnelState,
-                hint = orbHint,
-                contentDescription = orbHint,
-                onClick = {
-                    when {
-                        disconnectLocked -> Unit
-                        isConnected -> viewModel.disconnect()
-                        isBusy -> viewModel.disconnect()
-                        else -> startConnect()
-                    }
-                },
-            )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            ) {
-                Text(
-                    text = heroTitle(tunnelState),
-                    style = MaterialTheme.typography.displayMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = when {
-                        isConnected -> stringResource(R.string.vpn_sub_on, host)
-                        isBusy -> stringResource(R.string.vpn_sub_connecting, host)
-                        isError -> stringResource(R.string.vpn_sub_error)
-                        else -> stringResource(R.string.vpn_sub_off)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = extra.muted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
 
-            val st = tunnelState
-            if (st is TunnelState.Error) {
-                GcBanner(tone = GcTone.Error) {
-                    Text(
-                        buildAnnotatedString {
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)) {
-                                append(stringResource(R.string.vpn_error))
-                                append(". ")
-                            }
-                            append(st.message)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GcPrimaryButton(
-                        text = stringResource(R.string.vpn_retry),
-                        onClick = startConnect,
-                        modifier = Modifier.weight(1f),
-                    )
-                    GcOutlineButton(
-                        text = stringResource(R.string.vpn_logs),
-                        onClick = onOpenLogs,
-                        fillWidth = false,
-                    )
-                }
-                GcSecondaryButton(
-                    text = stringResource(R.string.diag_home_check),
-                    onClick = onOpenDiagnosis,
-                    icon = GcIcons.Activity,
-                    fillWidth = false,
-                )
-            }
-            if (isBusy) {
-                GcOutlineButton(
-                    text = stringResource(R.string.common_cancel),
-                    onClick = { viewModel.disconnect() },
-                    fillWidth = false,
-                )
-            }
-            if (isConnected && !portalUrl.isNullOrBlank()) {
-                GcOutlineButton(
-                    text = stringResource(R.string.vpn_portal_open),
-                    onClick = { viewModel.openPortal(context) },
-                    icon = GcIcons.External,
-                    fillWidth = false,
-                    minHeight = 40.dp,
-                )
-            }
-        }
-    }
-    val panelSection: @Composable ColumnScope.() -> Unit = {
         // --- Google Play update (Play build) --------------------------------
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
             com.gatecontrol.android.ui.update.PlayUpdateBanner()
         }
-
+    }
+    val quickActionsSection: @Composable ColumnScope.() -> Unit = {
         // --- Quick actions of the plugins ----------------------------------
         com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenAll = onOpenQuickActions, onOpenDoor = onOpenDoor)
-
+    }
+    val infoSection: @Composable ColumnScope.() -> Unit = {
         // --- Info card: contents the person chose (plugin start tiles) ---
         com.gatecontrol.android.ui.infocard.InfoCard(onEdit = onOpenInfoCardPicker)
-
+    }
+    val usageSection: @Composable ColumnScope.() -> Unit = {
         // --- Throughput + data usage: one card, the content slides -------------
         UsageCard(
             rxHistory = rxHistory.toList(),
@@ -534,16 +486,16 @@ fun VpnScreen(
         )
     }
 
-    // Phones: one column. Wide windows: connection on the left, everything
-    // else on the right, split at the hinge of a half-opened foldable.
-    // Tabletop posture: connection above the fold, the rest below it.
+    // Phones: one column. Wide windows: quick actions and Info card on the
+    // left, usage on the right, split at the hinge of a half-opened foldable.
+    // Tabletop posture: header and quick actions above the fold, the cards
+    // below it.
     val layout = LocalGcWindowLayout.current
     when {
         layout.horizontalHinge != null -> TabletopHome(
             hinge = layout.horizontalHinge,
-            // Only the switch above the fold: the header moves below it.
-            top = { heroSection() },
-            bottom = { headerSection(); bannerSection(); panelSection() },
+            top = { headerSection(); quickActionsSection() },
+            bottom = { bannerSection(); infoSection(); usageSection() },
         )
         layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
             Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }
@@ -551,18 +503,19 @@ fun VpnScreen(
                 listWidth = 420.dp,
                 divider = false,
                 list = {
-                    HomeColumn { heroSection() }
+                    HomeColumn { bannerSection(); quickActionsSection(); infoSection() }
                 },
                 detail = {
-                    HomeColumn { bannerSection(); panelSection() }
+                    HomeColumn { usageSection() }
                 },
             )
         }
         else -> HomeColumn(Modifier.padding(top = 20.dp)) {
             headerSection()
             bannerSection()
-            heroSection()
-            panelSection()
+            quickActionsSection()
+            infoSection()
+            usageSection()
         }
     }
 
@@ -600,14 +553,4 @@ private fun TabletopHome(
         Spacer(Modifier.height(gap))
         HomeColumn(Modifier.weight(1f).padding(top = 12.dp), content = bottom)
     }
-}
-
-@Composable
-private fun heroTitle(state: TunnelState): String = when (state) {
-    is TunnelState.Connected -> stringResource(R.string.vpn_hero_on)
-    is TunnelState.Connecting -> stringResource(R.string.vpn_connecting)
-    is TunnelState.Reconnecting -> stringResource(R.string.vpn_reconnecting, state.attempt, state.maxAttempts)
-    TunnelState.Disconnecting -> stringResource(R.string.vpn_disconnecting)
-    is TunnelState.Error -> stringResource(R.string.vpn_hero_error)
-    TunnelState.Disconnected -> stringResource(R.string.vpn_hero_off)
 }

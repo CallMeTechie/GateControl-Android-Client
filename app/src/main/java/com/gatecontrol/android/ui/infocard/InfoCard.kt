@@ -1,24 +1,33 @@
 package com.gatecontrol.android.ui.infocard
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,11 +44,13 @@ import com.gatecontrol.android.infocard.InfoTile
 import com.gatecontrol.android.infocard.TileState
 import com.gatecontrol.android.quickactions.QuickActionIcons
 import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcDot
-import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcPagerCard
+import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.delay
 
@@ -47,12 +58,12 @@ import kotlinx.coroutines.delay
 private const val REFRESH_MS = 60_000L
 
 /**
- * "Info" card of the start tab (below the quick actions): the contents the
- * person chose (today: the plugins' start tiles) slide sideways, a long
- * press makes one the slide shown first, the pencil opens the picker
- * ([onEdit]). Without any choice only "Inhalte auswählen"; hidden on older
- * servers and when there are no tiles. Refreshed when the tab becomes
- * visible and every 60 s while it is.
+ * Info card of the start tab (below the quick actions): the contents the
+ * person chose (today: the plugins' start tiles) slide sideways — no
+ * heading, no buttons. A long press on the card opens a small menu from
+ * below: show this page first, or the picker ([onEdit]). Without any choice
+ * only "Inhalte auswählen"; hidden on older servers and when there are no
+ * tiles. Refreshed when the tab becomes visible and every 60 s while it is.
  */
 @Composable
 fun InfoCard(
@@ -71,12 +82,10 @@ fun InfoCard(
             }
         }
     }
-    val title = stringResource(R.string.info_card_title)
 
     when (val v = view) {
         InfoCardView.Hidden -> Unit
-        InfoCardView.Choose -> GcCard(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        InfoCardView.Choose -> GcCard(modifier = modifier, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
             TextButton(onClick = onEdit) {
                 Icon(GcIcons.Plus, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -86,28 +95,116 @@ fun InfoCard(
         is InfoCardView.Slides -> {
             val slides = v.slides
             val selection by viewModel.selection.collectAsStateWithLifecycle()
+            // The favourite once the choice is read, else the first slide.
+            val favorite = selection?.let { s -> s.favorite ?: slides.first().id }
+            // The slide whose long-press menu is open.
+            var menuFor by rememberSaveable { mutableStateOf<String?>(null) }
             GcPagerCard(
                 pageKeys = slides.map { it.id },
-                // The favourite once the choice is read, else the first slide.
-                favoriteKey = selection?.let { s -> s.favorite ?: slides.first().id },
+                favoriteKey = favorite,
                 onSetFavorite = viewModel::setFavorite,
-                title = { title },
                 modifier = modifier,
-                headerActions = {
-                    GcIconButton(
-                        icon = GcIcons.Edit,
-                        contentDescription = stringResource(R.string.info_card_edit),
-                        onClick = onEdit,
-                        size = 36.dp,
-                        iconSize = 18.dp,
-                    )
-                },
+                onLongPress = { menuFor = it },
+                onLongPressLabel = stringResource(R.string.info_card_edit),
             ) { id ->
                 when (val slide = slides.firstOrNull { it.id == id }) {
                     is InfoSlide.Tile -> TileSlide(slide.tile)
                     null -> Unit
                 }
             }
+            val open = menuFor
+            val index = slides.indexOfFirst { it.id == open }
+            if (open != null && index >= 0) {
+                InfoCardMenu(
+                    slide = slides[index],
+                    page = index + 1,
+                    pageCount = slides.size,
+                    isFavorite = open == favorite,
+                    onShowFirst = { viewModel.setFavorite(open); menuFor = null },
+                    onPick = { menuFor = null; onEdit() },
+                    onDismiss = { menuFor = null },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Menu from below after a long press on the Info card: the pressed slide
+ * as its head, "Diese Seite zuerst zeigen" (off when it already is) and
+ * "Inhalte und Reihenfolge wählen" (the picker).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InfoCardMenu(
+    slide: InfoSlide,
+    page: Int,
+    pageCount: Int,
+    isFavorite: Boolean,
+    onShowFirst: () -> Unit,
+    onPick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val extra = GateControlTheme.extraColors
+    val context = LocalContext.current
+    val confirm = stringResource(R.string.pager_favorite_set)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            when (slide) {
+                is InfoSlide.Tile -> {
+                    val tile = slide.tile
+                    val (tint, background) = stateColors(tile.state)
+                    val icon = remember(tile.icon) { QuickActionIcons.vectorOrNull(tile.icon) ?: GcIcons.Activity }
+                    Row(
+                        Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        GcIconSquare(size = 36.dp, background = background) {
+                            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+                        }
+                        Column {
+                            Text(tile.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOfNotNull(tile.pluginName, stringResource(R.string.pager_page_desc, page, pageCount)).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = extra.muted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+            GcListRow(
+                title = stringResource(R.string.info_card_menu_first),
+                description = if (isFavorite) stringResource(R.string.info_card_menu_first_done) else null,
+                onClick = if (isFavorite) null else {
+                    {
+                        onShowFirst()
+                        Toast.makeText(context, confirm, Toast.LENGTH_SHORT).show()
+                    }
+                },
+                leading = {
+                    Icon(
+                        if (isFavorite) GcIcons.StarFilled else GcIcons.Star,
+                        contentDescription = null,
+                        tint = extra.warn,
+                        modifier = Modifier.size(22.dp),
+                    )
+                },
+            )
+            GcRowDivider(Modifier.padding(horizontal = 16.dp))
+            GcListRow(
+                title = stringResource(R.string.info_card_menu_pick),
+                onClick = onPick,
+                leading = { Icon(GcIcons.Sliders, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp)) },
+                trailing = { GcChevron() },
+            )
         }
     }
 }
