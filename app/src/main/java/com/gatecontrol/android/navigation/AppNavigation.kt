@@ -310,6 +310,7 @@ fun AppNavigation(
                     onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
                     onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
                     onOpenInfoCardPicker = { navController.navigate(Screen.InfoCardPicker.route) { launchSingleTop = true } },
+                    onOpenConnectionDetails = { openSettingsPane(SettingsPane.Connection) },
                     // Long press on a door quick action: the door screen, a normal destination — no tab.
                     onOpenDoor = openDoor,
                 )

@@ -17,8 +17,10 @@ Foldables (postures from `currentWindowAdaptiveInfo()`, material3-adaptive):
   the hinge (`GcTwoPane`), nothing is drawn across it. If the half left of the
   hinge would leave the list under 300 dp next to the rail, the bottom bar
   stays instead.
-- **Tabletop** (half open, horizontal hinge): home shows only the connection
-  switch above the fold; header, details and tiles scroll below it.
+- **Tabletop** (half open, horizontal hinge): home shows the header (with
+  the connection chip) and the quick actions above the fold; banners, the
+  Info card and the usage card scroll below it. In book posture the quick
+  actions and the Info card sit left of the hinge, the usage card right.
 - **Closed** (outer display): a normal phone.
 
 Details:
