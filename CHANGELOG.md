@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.37.0] - 2026-10-16
+
+### Features
+- widgets on the start tab, five buttons a row, edit menu by long press, Netzwerk default segment (#81)
+
+---
+
 ## [1.36.0] - 2026-10-16
 
 ### Features
