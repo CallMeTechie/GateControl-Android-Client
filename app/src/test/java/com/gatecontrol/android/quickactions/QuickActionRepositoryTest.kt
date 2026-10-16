@@ -6,6 +6,7 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.QuickAction
+import com.gatecontrol.android.network.QuickActionDevice
 import com.gatecontrol.android.network.QuickActionRunRequest
 import com.gatecontrol.android.network.QuickActionRunResponse
 import com.gatecontrol.android.network.QuickActionsResponse
@@ -27,12 +28,18 @@ import retrofit2.Response
 class QuickActionRepositoryTest {
 
     private val stored = MutableStateFlow<String?>(null)
+    private val storedWidgets = MutableStateFlow<String?>(null)
     private val settings = mockk<SettingsRepository> {
         every { getQuickActionPins() } returns stored
+        every { getStartWidgets() } returns storedWidgets
         every { getLocale() } returns kotlinx.coroutines.flow.flowOf("de")
         coEvery { updateQuickActionPins(any()) } coAnswers {
             val transform = firstArg<(String?) -> String>()
             stored.value = transform(stored.value)
+        }
+        coEvery { updateStartWidgets(any()) } coAnswers {
+            val transform = firstArg<(String?) -> String>()
+            storedWidgets.value = transform(storedWidgets.value)
         }
     }
     private val setup = mockk<SetupRepository> { every { getServerUrl() } returns "https://gc.example.com" }
@@ -197,20 +204,48 @@ class QuickActionRepositoryTest {
     }
 
     @Test
-    fun `pins keep the widget choice across a round trip and a refresh`() = runTest {
+    fun `a 1_37 widget pin becomes a widget pin of its device with every part`() = runTest {
         val r = repo()
         val raw = Gson().fromJson(climateJson, QuickAction::class.java)
         val item = QuickActionRepository.sanitize(listOf(raw)).single()
-        r.togglePin(item)
-        r.setPinWidget(item, true)
-        assertTrue(QuickActionRepository.decodePins(QuickActionRepository.encodePins(r.currentPins())).single().asWidget)
+        stored.value = QuickActionRepository.encodePins(listOf(item.copy(asWidget = true), QuickActionRepository.sanitize(listOf(light)).single()))
+        assertEquals(listOf("gatecontrol-smarthome/light:3"), r.currentPins().map { it.key }, "no button while it waits to move")
 
-        coEvery { api.getQuickActions(any()) } returns Response.success(QuickActionsResponse(ok = true, actions = listOf(raw.copy(title = "Neu"))))
+        // the server now groups it under a device
+        val grouped = raw.copy(device = QuickActionDevice(id = "ac:1", title = "Wohnzimmer"))
+        coEvery { api.getQuickActions(any()) } returns Response.success(QuickActionsResponse(ok = true, actions = listOf(grouped, light)))
         r.refresh()
-        val pin = r.currentPins().single()
-        assertEquals("Neu", pin.title)
-        assertTrue(pin.asWidget, "the server's entry does not carry the display choice")
-        assertTrue(pin.showsWidget)
+
+        assertEquals(listOf("gatecontrol-smarthome/light:3"), r.currentPins().map { it.key })
+        val pin = r.currentWidgets().single()
+        assertEquals("gatecontrol-midea/ac:1", pin.device, "found again by its action")
+        assertNull(pin.parts, "all parts, like 1.37 showed")
+        assertEquals("Wohnzimmer", pin.snapshot!!.title)
+    }
+
+    @Test
+    fun `buttons and widgets of a device are set from the sheet`() = runTest {
+        val r = repo()
+        val lockJson = """{"plugin":"gatecontrol-skoda","id":"lock:1","title":"Verriegelt","kind":"toggle","state":"on","confirm":true,"confirmWhen":"off",
+            "device":{"id":"v:1","title":"Enyaq"},"look":{"on":{"icon":"M1 1h2","tone":"good"},"off":{"icon":"M2 2h2","tone":"crit"}}}"""
+        val climate = Gson().fromJson("""{"plugin":"gatecontrol-skoda","id":"climate:1","title":"Klimatisierung","kind":"toggle","state":"off",
+            "device":{"id":"v:1","title":"Enyaq"},"widget":{"label":"Ladestand","value":78,"unit":"%","power":false,
+            "readings":[{"id":"range","label":"Reichweite","value":312,"unit":"km"},{"id":"lock","label":"Verriegelung","icon":"M1 1h2","state":"good"}]}}""", QuickAction::class.java)
+        val lock = Gson().fromJson(lockJson, QuickAction::class.java)
+        val device = QuickActionDevices.group(QuickActionRepository.sanitize(listOf(climate, lock))).single()
+
+        r.setButtons(device, setOf("lock:1"))
+        assertEquals(listOf("gatecontrol-skoda/lock:1"), r.currentPins().map { it.key })
+        r.setWidget(device, listOf(WidgetPart.VALUE, WidgetPart.reading("lock")), wide = true)
+        val pin = r.currentWidgets().single()
+        assertEquals("gatecontrol-skoda/v:1", pin.device)
+        assertTrue(pin.wide)
+        assertEquals(listOf(WidgetPart.VALUE, WidgetPart.reading("lock")), pin.shownParts(device).map { it.id })
+
+        r.setButtons(device, emptySet())
+        assertTrue(r.currentPins().isEmpty())
+        r.removeWidget(device.key)
+        assertTrue(r.currentWidgets().isEmpty())
     }
 
     @Test

@@ -51,7 +51,7 @@ abstract class QuickActionTileService(private val slot: Int) : TileService() {
             withContext(Dispatchers.Main) {
                 when {
                     item == null -> open(Intent(this@QuickActionTileService, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    item.confirm -> {
+                    item.needsConfirm -> {
                         val run = { open(QuickActionActivity.intent(this@QuickActionTileService, item)) }
                         if (isLocked) unlockAndRun(run) else run()
                     }

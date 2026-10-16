@@ -789,6 +789,35 @@
     <string name="quick_actions_as_widget">Widget</string>
     <string name="widget_decrease">%1$s verringern</string>
     <string name="widget_increase">%1$s erhöhen</string>
+    <string name="quick_actions_list_hint">Tippe auf ein Gerät, um es als Schnellaktion oder als Widget auf den Start-Tab zu legen. Hier wird nichts geschaltet.</string>
+    <plurals name="quick_actions_chip_buttons">
+        <item quantity="one">%d Schnellaktion</item>
+        <item quantity="other">%d Schnellaktionen</item>
+    </plurals>
+    <plurals name="device_actions_count">
+        <item quantity="one">%d Aktion</item>
+        <item quantity="other">%d Aktionen</item>
+    </plurals>
+    <string name="pin_sheet_as_button">Schnellaktion</string>
+    <string name="pin_sheet_buttons_label">Als Buttons auf den Start-Tab</string>
+    <string name="pin_sheet_parts_label">Im Widget zeigen</string>
+    <string name="pin_sheet_size">Größe</string>
+    <string name="pin_sheet_half">Halbe Breite</string>
+    <string name="pin_sheet_wide">Volle Breite</string>
+    <string name="pin_sheet_save">Speichern</string>
+    <string name="pin_sheet_pin_widget">Als Widget anheften</string>
+    <string name="pin_sheet_remove">Lösen</string>
+    <string name="pin_sheet_unpin_buttons">Buttons lösen</string>
+    <plurals name="pin_sheet_save_buttons">
+        <item quantity="one">%d Button anheften</item>
+        <item quantity="other">%d Buttons anheften</item>
+    </plurals>
+    <string name="pin_sheet_asks_first">Fragt vorher nach</string>
+    <string name="pin_sheet_asks_when">Fragt vor „%1$s“ nach</string>
+    <string name="pin_sheet_part_power">Ein/Aus-Schalter</string>
+    <string name="pin_sheet_part_value">Wert</string>
+    <string name="pin_sheet_part_status">Statuszeile</string>
+    <string name="pin_sheet_part_action">Button „%1$s“</string>
 
     <!-- Start-Tab: wischbare Karten (1.35) -->
     <string name="pager_favorite_set">Als Standard festgelegt</string>

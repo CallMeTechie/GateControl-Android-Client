@@ -130,7 +130,7 @@ class QuickActionsWidget : GlanceAppWidget() {
         // The action's own icon (SVG path from the server) drawn into a bitmap
         // in white and tinted here; the bolt when it has none.
         val iconPx = (ICON_SIZE.value * context.resources.displayMetrics.density).toInt()
-        val glyph = QuickActionIcons.bitmap(item.icon, iconPx, android.graphics.Color.WHITE)
+        val glyph = QuickActionIcons.bitmap(item.displayIcon, iconPx, android.graphics.Color.WHITE)
         val iconTint = ColorFilter.tint(if (item.isOn) accent else onSurface)
         Row(
             modifier = modifier

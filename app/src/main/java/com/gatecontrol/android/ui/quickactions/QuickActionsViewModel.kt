@@ -2,24 +2,30 @@ package com.gatecontrol.android.ui.quickactions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.quickactions.QuickActionDeviceGroup
+import com.gatecontrol.android.quickactions.QuickActionDevices
 import com.gatecontrol.android.quickactions.QuickActionItem
 import com.gatecontrol.android.quickactions.QuickActionRepository
 import com.gatecontrol.android.quickactions.QuickActionResult
 import com.gatecontrol.android.quickactions.QuickActionsLoad
+import com.gatecontrol.android.quickactions.StartWidgetPin
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Quick actions screen and the start tab's buttons and widgets. */
+/** The list "Schnellaktionen und Widgets", the pin sheet and the start tab's buttons and widgets. */
 @HiltViewModel
 class QuickActionsViewModel @Inject constructor(
     private val repository: QuickActionRepository,
@@ -27,7 +33,13 @@ class QuickActionsViewModel @Inject constructor(
 
     val actions: StateFlow<List<QuickActionItem>> = repository.actions
     val pins: StateFlow<List<QuickActionItem>> = repository.pins
+    val widgets: StateFlow<List<StartWidgetPin>> = repository.widgets
     val load: StateFlow<QuickActionsLoad> = repository.load
+
+    /** The server's actions as devices (one row each in the list). */
+    val devices: StateFlow<List<QuickActionDeviceGroup>> = repository.actions
+        .map { QuickActionDevices.group(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), QuickActionDevices.group(repository.actions.value))
 
     private val _running = MutableStateFlow<String?>(null)
     /** Key of the action running right now. */
@@ -46,15 +58,20 @@ class QuickActionsViewModel @Inject constructor(
         viewModelScope.launch { repository.refresh() }
     }
 
-    fun togglePin(item: QuickActionItem) {
-        viewModelScope.launch { repository.togglePin(item) }
+    /** The device's buttons on the start tab become exactly [actionIds]. */
+    fun setButtons(device: QuickActionDeviceGroup, actionIds: Set<String>) {
+        viewModelScope.launch { repository.setButtons(device, actionIds) }
     }
 
-    fun setWidget(item: QuickActionItem, asWidget: Boolean) {
-        viewModelScope.launch { repository.setPinWidget(item, asWidget) }
+    fun setWidget(device: QuickActionDeviceGroup, parts: List<String>, wide: Boolean) {
+        viewModelScope.launch { repository.setWidget(device, parts, wide) }
     }
 
-    /** Runs [item] (the caller asked first when [QuickActionItem.confirm]). */
+    fun removeWidget(deviceKey: String) {
+        viewModelScope.launch { repository.removeWidget(deviceKey) }
+    }
+
+    /** Runs [item] (the caller asked first when [QuickActionItem.needsConfirm]). */
     fun run(item: QuickActionItem) {
         if (_running.value != null) return
         _running.value = item.key

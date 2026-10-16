@@ -789,6 +789,35 @@
     <string name="quick_actions_as_widget">Widget</string>
     <string name="widget_decrease">Decrease %1$s</string>
     <string name="widget_increase">Increase %1$s</string>
+    <string name="quick_actions_list_hint">Tap a device to put it on the Home tab as a quick action or as a widget. Nothing is switched here.</string>
+    <plurals name="quick_actions_chip_buttons">
+        <item quantity="one">%d quick action</item>
+        <item quantity="other">%d quick actions</item>
+    </plurals>
+    <plurals name="device_actions_count">
+        <item quantity="one">%d action</item>
+        <item quantity="other">%d actions</item>
+    </plurals>
+    <string name="pin_sheet_as_button">Quick action</string>
+    <string name="pin_sheet_buttons_label">As buttons on the Home tab</string>
+    <string name="pin_sheet_parts_label">Show in the widget</string>
+    <string name="pin_sheet_size">Size</string>
+    <string name="pin_sheet_half">Half width</string>
+    <string name="pin_sheet_wide">Full width</string>
+    <string name="pin_sheet_save">Save</string>
+    <string name="pin_sheet_pin_widget">Pin as widget</string>
+    <string name="pin_sheet_remove">Unpin</string>
+    <string name="pin_sheet_unpin_buttons">Unpin buttons</string>
+    <plurals name="pin_sheet_save_buttons">
+        <item quantity="one">Pin %d button</item>
+        <item quantity="other">Pin %d buttons</item>
+    </plurals>
+    <string name="pin_sheet_asks_first">Asks first</string>
+    <string name="pin_sheet_asks_when">Asks before “%1$s”</string>
+    <string name="pin_sheet_part_power">On/off switch</string>
+    <string name="pin_sheet_part_value">Value</string>
+    <string name="pin_sheet_part_status">Status line</string>
+    <string name="pin_sheet_part_action">Button “%1$s”</string>
 
     <!-- Start tab: sliding cards (1.35) -->
     <string name="pager_favorite_set">Set as default</string>

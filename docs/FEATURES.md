@@ -113,15 +113,26 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   der Liste, im Widget, in den App-Verknüpfungen und den
   Schnelleinstellungs-Kacheln. Alle 60 s aktualisiert, solange der Tab
   sichtbar ist.
-- **Widgets** (seit 1.37, Server 1.171+): eine angeheftete Aktion, zu der
-  das Plugin ein `widget` liefert (Klima 1.3, Smart Home 1.4), lässt sich in
-  der Liste „Schnellaktionen“ per Chip **Widget** als Karte zeigen: halbe
-  Breite, zwei pro Zeile unter den Kacheln, mit Symbol, Titel und Schalter,
-  dem großen Wert mit Einheit (z. B. Innentemperatur), einer Statuszeile
-  und den Reglern des Plugins – Stepper (− Wert +, z. B. Zieltemperatur),
-  Schieberegler (Helligkeit) oder Auswahl-Chips (Modus). Eine Änderung geht
-  600 ms nach dem letzten Tipp als Lauf mit `control`/`value` an den Server;
-  die Antwort aktualisiert die Karte. Höchstens 12 Pins insgesamt.
+- **Widgets** (seit 1.37, neu gebaut in 1.38, Server 1.172+): ein Widget gehört
+  zu einem **Gerät** (Auto, Klimagerät, Licht, Schloss) und zeigt, was man
+  auswählt: den Hauptwert (z. B. Innentemperatur, Ladestand), kleine
+  Zusatzwerte mit Symbol (Reichweite; ein Schloss grün = verriegelt, rot =
+  entriegelt), die Statuszeile, die Regler des Plugins (Stepper, Schieberegler,
+  Auswahl) und die Aktionen des Geräts als Symbol-Buttons; bei Geräten mit
+  eigenem Ein/Aus-Schalter (Klima, Licht) steht dieser oben rechts. Halbe
+  (zwei pro Zeile) oder volle Breite. Regler-Änderungen gehen 600 ms nach dem
+  letzten Tipp an den Server. Höchstens 8 Widgets und 12 Buttons.
+- **Schnellaktionen und Widgets** (Liste): eine Zeile pro Gerät, hier wird
+  nichts geschaltet. Chips zeigen „Widget“ bzw. „N Schnellaktionen“. Tippen
+  öffnet ein Menü von unten: **Schnellaktion** (Häkchen je Aktion – jede wird
+  ein Button) oder **Widget** (Vorschau, Größe, Häkchen je Teil); „Lösen“
+  nimmt das Widget wieder weg. Widgets aus 1.37 werden beim ersten Laden zu
+  Geräte-Widgets mit allen Teilen.
+- **Zustand als Symbol:** Schalter mit eigenem Aussehen je Zustand (z. B.
+  Ver-/Entriegeln beim Auto als **ein** Button: grünes geschlossenes Schloss =
+  verriegelt, rotes offenes = entriegelt) zeigen Symbol und Farbe auch in den
+  Buttons, App-Verknüpfungen und dem Homescreen-Widget; gefragt wird nur vor dem
+  Schritt, den das Plugin nennt (beim Schloss: vor dem Entriegeln).
 - **Start-Tab bearbeiten:** langes Drücken auf eine freie Stelle des Tabs
   öffnet ein Menü mit „Schnellaktionen und Widgets“ (die Liste: anheften,
   Widget) und „Inhalte der Info-Karte“ (der Picker). Ohne angeheftete
@@ -131,7 +142,9 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   **Start-Kacheln der Plugins** (`GET /api/v1/client/tiles?lang=de|en`,
   in der Sprache der App): je Seite Symbol, Titel, großer Wert mit Einheit,
   Plugin-Name klein und die Farbe des Zustands (gut grün, Warnung gelb,
-  kritisch rot, an = Akzent). Die Karte hat keine Überschrift und keine
+  kritisch rot, an = Akzent). Seit 1.38 können Kacheln statt Text Symbol-Werte
+  liefern (Fahrzeug: Batterie 78 %, Reichweite 312 km, Schloss grün/rot); lange
+  Texte werden kleiner statt abgeschnitten. Die Karte hat keine Überschrift und keine
   Knöpfe; **langes Drücken** öffnet ein Menü von unten mit „Diese Seite
   zuerst zeigen“ und „Inhalte und Reihenfolge wählen“ (seit 1.36; bis 1.35
   ein Stift). Letzteres öffnet „Inhalte der

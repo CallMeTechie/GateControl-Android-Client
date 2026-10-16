@@ -1,16 +1,20 @@
 package com.gatecontrol.android.quickactions
 
 import com.gatecontrol.android.network.QuickActionControl
+import com.gatecontrol.android.network.QuickActionReading
 import com.gatecontrol.android.network.QuickActionWidget
 import com.google.gson.JsonElement
 import java.text.NumberFormat
 import java.util.Locale
 
 /**
- * The widget side of a quick action as the app keeps it (core 1.171+): a
- * reading ([value] with [unit]), a [status] line, a [state] (on, off, good,
- * warn, crit or null) and up to four [controls]. Stored with the pins, so
- * the start tab shows the last known reading before the server answers.
+ * The widget side of a quick action as the app keeps it (core 1.171+): the
+ * main reading ([value] with [unit], named [label]), a [status] line, a
+ * [state] (on, off, good, warn, crit or null), small extra [readings] and up
+ * to four [controls]. [power] false: the action carrying the widget is not
+ * the device's power switch (it shows as a button like the others). Stored
+ * with the pins, so the start tab shows the last known values before the
+ * server answers.
  */
 data class QuickActionWidgetItem(
     val value: String? = null,
@@ -18,26 +22,37 @@ data class QuickActionWidgetItem(
     val status: String? = null,
     val state: String? = null,
     val controls: List<QuickActionControlItem> = emptyList(),
+    val label: String? = null,
+    val readings: List<QuickActionReadingItem> = emptyList(),
+    val power: Boolean = true,
 ) {
-    /** Gson bypasses Kotlin defaults: an older stored shape may leave the list null. */
+    /** Gson bypasses Kotlin defaults: an older stored shape may leave the lists null. */
     @Suppress("SENSELESS_COMPARISON", "UNNECESSARY_SAFE_CALL")
-    fun normalized(): QuickActionWidgetItem =
-        if (controls == null) copy(controls = emptyList()) else copy(controls = controls.filter { it != null && it.id != null && it.kind != null })
+    fun normalized(): QuickActionWidgetItem = copy(
+        controls = (controls ?: emptyList()).filter { it != null && it.id != null && it.kind != null },
+        readings = (readings ?: emptyList()).filter { it != null && it.id != null && it.label != null },
+    )
 
     companion object {
         const val MAX_CONTROLS = 4
+        const val MAX_READINGS = 4
         val STATES = setOf("on", "off", "good", "warn", "crit")
 
         /** The server's widget → the app's, null when there is none or it is unusable. */
         fun from(raw: QuickActionWidget?): QuickActionWidgetItem? {
             raw ?: return null
             val controls = raw.controls.orEmpty().mapNotNull(QuickActionControlItem::from).distinctBy { it.id }.take(MAX_CONTROLS)
+            val readings = raw.readings.orEmpty().mapNotNull(QuickActionReadingItem::from).distinctBy { it.id }.take(MAX_READINGS)
             val value = textOf(raw.value, 24)
             val unit = raw.unit?.let(QuickActionRepository::clean)?.take(8)?.takeIf { it.isNotBlank() }
             val status = raw.status?.let(QuickActionRepository::clean)?.take(60)?.takeIf { it.isNotBlank() }
             val state = raw.state?.takeIf { it in STATES }
-            if (value == null && status == null && controls.isEmpty()) return null
-            return QuickActionWidgetItem(value = value, unit = unit, status = status, state = state, controls = controls)
+            val label = raw.label?.let(QuickActionRepository::clean)?.take(24)?.takeIf { it.isNotBlank() }
+            if (value == null && label == null && status == null && controls.isEmpty() && readings.isEmpty()) return null
+            return QuickActionWidgetItem(
+                value = value, unit = unit, status = status, state = state, controls = controls,
+                label = label, readings = readings, power = raw.power != false,
+            )
         }
 
         /** A JSON string or number as display text, null for anything else. */
@@ -120,3 +135,38 @@ data class QuickActionControlItem(
 }
 
 data class QuickActionControlOptionItem(val id: String, val label: String)
+
+/**
+ * A small value of a widget or an Info card tile (core 1.172+): an icon
+ * and/or a value with unit, coloured by [state]; [label] names it (picker,
+ * screen readers). An icon alone is a state symbol, e.g. a green lock.
+ */
+data class QuickActionReadingItem(
+    val id: String,
+    val label: String,
+    val value: String? = null,
+    val unit: String? = null,
+    val icon: String? = null,
+    val state: String? = null,
+) {
+    companion object {
+        private val ID = Regex("^[A-Za-z0-9_-]{1,24}$")
+
+        /** [requireId] false: tile items carry no id; they get their position as one. */
+        fun from(raw: QuickActionReading, requireId: Boolean = true, index: Int = 0): QuickActionReadingItem? {
+            val id = raw.id?.takeIf { ID.matches(it) } ?: if (requireId) return null else "i$index"
+            val label = raw.label?.let(QuickActionRepository::clean)?.take(20)?.takeIf { it.isNotBlank() } ?: return null
+            val value = QuickActionWidgetItem.textOf(raw.value, 16)
+            val icon = QuickActionIcons.sanitize(raw.icon)
+            if (value == null && icon == null) return null
+            return QuickActionReadingItem(
+                id = id,
+                label = label,
+                value = value,
+                unit = raw.unit?.let(QuickActionRepository::clean)?.take(8)?.takeIf { it.isNotBlank() }?.takeIf { value != null },
+                icon = icon,
+                state = raw.state?.takeIf { it in QuickActionWidgetItem.STATES },
+            )
+        }
+    }
+}

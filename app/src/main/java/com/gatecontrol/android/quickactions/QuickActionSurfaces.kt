@@ -49,7 +49,7 @@ object QuickActionSurfaces {
     /** The action's icon on the accent circle (like the bolt shortcut icon), else that bolt. */
     private fun shortcutIcon(context: Context, item: QuickActionItem): IconCompat {
         val px = (48 * context.resources.displayMetrics.density).toInt()
-        val bitmap = QuickActionIcons.bitmap(item.icon, px, SHORTCUT_GLYPH, background = SHORTCUT_BG, glyphFraction = 0.5f)
+        val bitmap = QuickActionIcons.bitmap(item.displayIcon, px, SHORTCUT_GLYPH, background = SHORTCUT_BG, glyphFraction = 0.5f)
         return if (bitmap != null) IconCompat.createWithBitmap(bitmap)
         else IconCompat.createWithResource(context, R.drawable.ic_quick_action_shortcut)
     }

@@ -1,11 +1,14 @@
 package com.gatecontrol.android.ui.quickactions
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -29,17 +33,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.quickactions.QuickActionControlItem
+import com.gatecontrol.android.quickactions.QuickActionDeviceGroup
 import com.gatecontrol.android.quickactions.QuickActionIcons
 import com.gatecontrol.android.quickactions.QuickActionItem
+import com.gatecontrol.android.quickactions.QuickActionReadingItem
 import com.gatecontrol.android.quickactions.QuickActionWidgetItem
+import com.gatecontrol.android.quickactions.WidgetPart
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIconSquare
@@ -49,43 +57,56 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlin.math.roundToInt
 
 /**
- * A pinned quick action as a widget on the start tab (half the width):
- * icon, title and — for a switch — the switch; the reading (value and
- * unit) big, the status line small, then the plugin's controls: a stepper
- * (− value +), a slider or a row of choice chips. A control change goes to
- * [onControl] (the view model sends it debounced); [adjusting] marks the
- * controls whose value is still on its way. A tap on a plain button
- * widget runs it; a long press does what the button's would ([onLongPress]).
+ * A device pinned as a widget: icon, name and — when chosen — its power
+ * switch in the head; then, as the person chose them ([parts]), the main
+ * value, the small readings (an icon alone shows a state, e.g. a green
+ * lock), the status line, the plugin's controls (stepper, slider, choice)
+ * and the device's other actions as icon buttons. A control change goes to
+ * [onControl] for the action carrying the widget (the view model sends it
+ * debounced); an action button calls [onRun] (which asks first where the
+ * action wants that). [running] is the key of the action running now,
+ * [adjusting] the controls whose value is on its way. [interactive] false:
+ * a preview (the pin sheet), nothing reacts.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun QuickActionWidgetCard(
-    item: QuickActionItem,
-    running: Boolean,
+    device: QuickActionDeviceGroup,
+    parts: List<WidgetPart>,
+    running: String?,
     adjusting: Set<String>,
-    onRun: () -> Unit,
+    onRun: (QuickActionItem) -> Unit,
     onLongPress: (() -> Unit)?,
-    onControl: (controlId: String, value: Any) -> Unit,
+    onControl: (carrier: QuickActionItem, controlId: String, value: Any) -> Unit,
     modifier: Modifier = Modifier,
+    interactive: Boolean = true,
 ) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
-    val widget = item.widget ?: return
-    val icon = remember(item.icon) { QuickActionIcons.vector(item.icon) }
-    val (tint, background) = widgetColors(widget.state ?: item.state)
-    val stateText = if (item.toggle) stringResource(if (item.isOn) R.string.quick_action_on else R.string.quick_action_off) else null
+    val widget = device.widget
+    val carrier = device.carrier
+    val icon = remember(device.icon) { QuickActionIcons.vector(device.icon) }
+    val (tint, background) = stateColors(widget?.state ?: device.powerAction?.state)
+    val shown = parts.map { it.id }.toSet()
+    val power = device.powerAction?.takeIf { WidgetPart.action(it.id) in shown }
+    val actionButtons = device.actions.filter { it != power && WidgetPart.action(it.id) in shown }
+    val busy = device.actions.any { it.key == running }
 
     GcCard(
         modifier = modifier
             .clip(MaterialTheme.shapes.medium)
-            .combinedClickable(
-                enabled = !running && (!item.toggle || onLongPress != null),
-                role = Role.Button,
-                onLongClickLabel = onLongPress?.let { stringResource(R.string.door_open_screen) },
-                onLongClick = onLongPress,
-                // A switch widget switches with its switch, a button widget with a tap anywhere.
-                onClick = { if (!item.toggle) onRun() },
-            )
-            .semantics(mergeDescendants = false) { if (stateText != null) stateDescription = stateText },
+            .then(
+                if (interactive && onLongPress != null) {
+                    Modifier.combinedClickable(
+                        role = Role.Button,
+                        onLongClickLabel = stringResource(R.string.door_open_screen),
+                        onLongClick = onLongPress,
+                        onClick = {},
+                    )
+                } else {
+                    Modifier
+                },
+            ),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -94,7 +115,7 @@ fun QuickActionWidgetCard(
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
             }
             Text(
-                item.title,
+                device.title,
                 style = MaterialTheme.typography.titleSmall,
                 color = scheme.onSurface,
                 maxLines = 1,
@@ -102,15 +123,51 @@ fun QuickActionWidgetCard(
                 modifier = Modifier.weight(1f),
             )
             when {
-                running -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp), color = extra.accentText)
-                item.toggle -> GcSwitch(checked = item.isOn, onCheckedChange = { onRun() })
+                busy -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp), color = extra.accentText)
+                power != null -> GcSwitch(checked = power.isOn, onCheckedChange = if (interactive) ({ onRun(power) }) else null)
             }
         }
+        if (widget != null && WidgetPart.VALUE in shown) MainValue(widget)
+        val readings = widget?.readings.orEmpty().filter { WidgetPart.reading(it.id) in shown }
+        if (readings.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                readings.forEach { ReadingChip(it) }
+            }
+        }
+        if (widget?.status != null && WidgetPart.STATUS in shown) {
+            Text(widget.status, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        if (carrier != null && widget != null) {
+            widget.controls.filter { WidgetPart.control(it.id) in shown }.forEach { control ->
+                val busyControl = "${carrier.key}/${control.id}" in adjusting
+                val send: (Any) -> Unit = { if (interactive) onControl(carrier, control.id, it) }
+                when (control.kind) {
+                    QuickActionControlItem.KIND_STEPPER -> StepperControl(control, busyControl, onChange = send)
+                    QuickActionControlItem.KIND_SLIDER -> SliderControl(control, busyControl, onChange = send)
+                    QuickActionControlItem.KIND_CHOICE -> ChoiceControl(control, onChange = send)
+                }
+            }
+        }
+        if (actionButtons.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                actionButtons.forEach { action ->
+                    ActionButton(action, running = action.key == running, onClick = { if (interactive) onRun(action) })
+                }
+            }
+        }
+    }
+}
+
+/** The main value big with its unit, its name small below. */
+@Composable
+private fun MainValue(widget: QuickActionWidgetItem) {
+    val extra = GateControlTheme.extraColors
+    Column {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 widget.value ?: "–",
                 style = MaterialTheme.typography.headlineMedium,
-                color = scheme.onSurface,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
@@ -119,23 +176,74 @@ fun QuickActionWidgetCard(
                 Text(widget.unit, style = MaterialTheme.typography.bodyMedium, color = extra.muted, maxLines = 1, modifier = Modifier.padding(bottom = 3.dp))
             }
         }
-        if (widget.status != null) {
-            Text(widget.status, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        widget.controls.forEach { control ->
-            val busy = "${item.key}/${control.id}" in adjusting
-            when (control.kind) {
-                QuickActionControlItem.KIND_STEPPER -> StepperControl(control, busy, onChange = { onControl(control.id, it) })
-                QuickActionControlItem.KIND_SLIDER -> SliderControl(control, busy, onChange = { onControl(control.id, it) })
-                QuickActionControlItem.KIND_CHOICE -> ChoiceControl(control, onChange = { onControl(control.id, it) })
-            }
+        if (widget.label != null) {
+            Text(widget.label, style = MaterialTheme.typography.labelSmall, color = extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-/** Accent of a widget's state: on/good green, warn amber, crit red, off and none neutral. */
+/** A small reading: its icon (tinted by its state) and value; an icon alone sits in a tinted circle. */
 @Composable
-private fun widgetColors(state: String?): Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> {
+internal fun ReadingChip(reading: QuickActionReadingItem) {
+    val extra = GateControlTheme.extraColors
+    val icon = remember(reading.icon) { reading.icon?.let { QuickActionIcons.vectorOrNull(it) } }
+    val (tint, background) = stateColors(reading.state)
+    val description = listOfNotNull(reading.label, reading.value?.let { v -> reading.unit?.let { "$v $it" } ?: v }).joinToString(": ")
+    if (reading.value == null && icon != null) {
+        Box(
+            Modifier.size(30.dp).clip(CircleShape).background(background).semantics { contentDescription = description },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
+        }
+        return
+    }
+    Row(
+        Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (icon != null) Icon(icon, contentDescription = null, tint = if (reading.state != null) tint else extra.muted, modifier = Modifier.size(16.dp))
+        Text(
+            listOfNotNull(reading.value, reading.unit).joinToString(" "),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
+}
+
+/** One of the device's actions as a small icon button: its look per state, filled while a plain switch is on. */
+@Composable
+private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val scheme = MaterialTheme.colorScheme
+    val toned = toneColors(action.currentLook?.tone)
+    val icon = remember(action.displayIcon) { QuickActionIcons.vector(action.displayIcon) }
+    val shape = RoundedCornerShape(10.dp)
+    val (glyph, fill) = when {
+        toned != null -> toned.first to toned.second
+        action.isOn -> scheme.onPrimary to scheme.primary
+        else -> scheme.onSurface to Color.Transparent
+    }
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, if (toned != null) toned.first.copy(alpha = 0.4f) else if (action.isOn) Color.Transparent else extra.border2, shape)
+            .combinedClickable(enabled = !running, role = if (action.toggle) Role.Switch else Role.Button, onClick = onClick)
+            .semantics { contentDescription = action.title },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (running) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp), color = glyph)
+        else Icon(icon, contentDescription = null, tint = glyph, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** Accent of a state: on/good green, warn amber, crit red, off and none neutral. */
+@Composable
+internal fun stateColors(state: String?): Pair<Color, Color> {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     return when (state) {
