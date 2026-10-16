@@ -1,7 +1,11 @@
 package com.gatecontrol.android.ui.infocard
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,9 +31,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +50,7 @@ import com.gatecontrol.android.infocard.InfoSlide
 import com.gatecontrol.android.infocard.InfoTile
 import com.gatecontrol.android.infocard.TileState
 import com.gatecontrol.android.quickactions.QuickActionIcons
+import com.gatecontrol.android.quickactions.QuickActionReadingItem
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcDot
@@ -238,10 +246,16 @@ private fun TileSlide(tile: InfoTile) {
             }
             if (tile.state != null) GcDot(tint)
         }
+        if (tile.items.isNotEmpty()) {
+            TileItems(tile.items)
+            return@Column
+        }
         Row(verticalAlignment = Alignment.Bottom) {
+            val value = tile.value ?: "—"
             Text(
-                tile.value ?: "—",
-                style = MaterialTheme.typography.displayMedium,
+                value,
+                // A long text gets smaller instead of being cut off.
+                style = if (value.length > 10) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.displayMedium,
                 color = when (tile.state) {
                     TileState.WARN, TileState.CRIT -> tint
                     else -> MaterialTheme.colorScheme.onSurface
@@ -258,6 +272,51 @@ private fun TileSlide(tile: InfoTile) {
                     maxLines = 1,
                     modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * The tile's icon values in a row (core 1.172+): an icon (in its state's
+ * colour) and a value with unit, e.g. battery 78 %, range 312 km; an icon
+ * alone is a state symbol in a tinted circle, e.g. a green closed lock.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TileItems(items: List<QuickActionReadingItem>) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        items.forEach { item ->
+            val icon = remember(item.icon) { item.icon?.let { QuickActionIcons.vectorOrNull(it) } }
+            val (tint, background) = stateColors(TileState.fromWire(item.state))
+            val description = listOfNotNull(item.label, item.value?.let { v -> item.unit?.let { "$v $it" } ?: v }).joinToString(": ")
+            if (item.value == null && icon != null) {
+                Box(
+                    Modifier.size(38.dp).clip(CircleShape).background(background).semantics { contentDescription = description },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+                }
+            } else {
+                Row(
+                    Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (icon != null) {
+                        Icon(icon, contentDescription = null, tint = if (item.state != null) tint else GateControlTheme.extraColors.muted, modifier = Modifier.size(22.dp))
+                    }
+                    Text(
+                        listOfNotNull(item.value, item.unit).joinToString(" "),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

@@ -60,6 +60,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val INFO_CARD = stringPreferencesKey("info_card")
         /** Netzwerk tab: segment shown first ("services" | "pihole" | "remote"), chosen by a long press. */
         val NETWORK_DEFAULT_TAB = stringPreferencesKey("network_default_tab")
+        /** Start tab: devices pinned as widgets, JSON owned by the app's StartWidgetPin. */
+        val START_WIDGETS = stringPreferencesKey("start_widgets")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -162,6 +164,14 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     suspend fun setUsageCardFavorite(value: String) {
         dataStore.edit { it[USAGE_CARD_FAVORITE] = value }
+    }
+
+    /** Devices pinned to the start tab as widgets (JSON, see the app's StartWidgetPin). */
+    fun getStartWidgets(): Flow<String?> = dataStore.data.map { it[START_WIDGETS] }
+
+    /** Atomic read-modify-write of the widget pins. */
+    suspend fun updateStartWidgets(transform: (String?) -> String) {
+        dataStore.edit { it[START_WIDGETS] = transform(it[START_WIDGETS]) }
     }
 
     /** Segment the Netzwerk tab opens with, null = never chosen (the first available). */

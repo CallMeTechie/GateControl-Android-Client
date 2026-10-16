@@ -39,21 +39,15 @@ class QuickActionsRowTest {
     }
 
     @Test
-    fun `a pin shown as widget keeps that choice and the server's widget`() {
-        val widget = QuickActionWidgetItem(value = "21,5", unit = "°C", status = "Kühlen")
-        val pinned = light.copy(asWidget = true, widget = QuickActionWidgetItem(value = "20"))
-        val fresh = light.copy(state = "on", widget = widget)
-        val row = QuickActionsRow.of(listOf(pinned, door), listOf(fresh)) as QuickActionsRow.Tiles
-        assertEquals(listOf(door), row.buttons)
-        assertEquals(1, row.widgets.size)
-        assertEquals(widget, row.widgets[0].widget)
-        assertTrue(row.widgets[0].isOn)
+    fun `only widgets pinned - the section shows, without buttons`() {
+        val row = QuickActionsRow.of(emptyList(), listOf(light), hasWidgets = true) as QuickActionsRow.Tiles
+        assertTrue(row.items.isEmpty())
     }
 
     @Test
-    fun `a pin marked as widget without a widget from the server stays a button`() {
-        val row = QuickActionsRow.of(listOf(light.copy(asWidget = true)), listOf(light)) as QuickActionsRow.Tiles
-        assertEquals(1, row.buttons.size)
-        assertTrue(row.widgets.isEmpty())
+    fun `a pin takes the server's widget too`() {
+        val widget = QuickActionWidgetItem(value = "21,5", unit = "°C")
+        val row = QuickActionsRow.of(listOf(light), listOf(light.copy(widget = widget))) as QuickActionsRow.Tiles
+        assertEquals(widget, row.items.single().widget)
     }
 }

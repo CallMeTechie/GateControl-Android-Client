@@ -48,13 +48,72 @@ data class QuickActionItem(
     val icon: String? = null,
     /** Reading and controls (core 1.171+), null = a plain button/switch. */
     val widget: QuickActionWidgetItem? = null,
-    /** Pins only: shown as a widget card on the start tab instead of a button (needs [widget]). */
+    /**
+     * Pins of 1.37 only: was shown as a widget card. Read once to turn such
+     * a pin into a widget pin ([StartWidgetPin]); never written any more.
+     */
     val asWidget: Boolean = false,
+    /** The device the action belongs to (core 1.172+), null = its own device. */
+    val deviceId: String? = null,
+    val deviceTitle: String? = null,
+    val deviceSubtitle: String? = null,
+    val deviceIcon: String? = null,
+    /** Switches: icon and tone per state (core 1.172+), e.g. a red open lock while off. */
+    val look: QuickActionLookItem? = null,
+    /** Switches: ask first only before switching to this state, "on" | "off" (core 1.172+). */
+    val confirmWhen: String? = null,
 ) {
     val key: String get() = "$plugin/$id"
     val isOn: Boolean get() = toggle && state == "on"
-    val showsWidget: Boolean get() = asWidget && widget != null
+
+    /** The device's key: actions without a device are a device of their own. */
+    val deviceKey: String get() = "$plugin/" + (deviceId ?: "@$id")
+
+    /** The state a run switches a switch to: "off" when on, else "on" (unknown state too). */
+    val target: String? get() = if (toggle) (if (state == "on") "off" else "on") else null
+
+    /** Whether to ask before running: only towards [confirmWhen] when the plugin gives it, else [confirm]. */
+    val needsConfirm: Boolean get() = if (toggle && confirmWhen != null) target == confirmWhen else confirm
+
+    /** The look of the current state, null without one (or with the state unknown). */
+    val currentLook: QuickActionLookStateItem? get() = if (toggle) look?.forState(state) else null
+
+    /** The icon to draw now: the current state's own one, else the action's. */
+    val displayIcon: String? get() = currentLook?.icon ?: icon
 }
+
+/** Icon and tone of a switch per state (core 1.172+). */
+data class QuickActionLookItem(
+    val on: QuickActionLookStateItem? = null,
+    val off: QuickActionLookStateItem? = null,
+) {
+    fun forState(state: String?): QuickActionLookStateItem? = when (state) {
+        "on" -> on
+        "off" -> off
+        else -> null
+    }
+
+    companion object {
+        val TONES = setOf("good", "warn", "crit", "neutral")
+
+        fun from(raw: com.gatecontrol.android.network.QuickActionLook?): QuickActionLookItem? {
+            raw ?: return null
+            val on = state(raw.on)
+            val off = state(raw.off)
+            return if (on == null && off == null) null else QuickActionLookItem(on, off)
+        }
+
+        private fun state(raw: com.gatecontrol.android.network.QuickActionLookState?): QuickActionLookStateItem? {
+            raw ?: return null
+            val icon = QuickActionIcons.sanitize(raw.icon)
+            val tone = raw.tone?.takeIf { it in TONES }
+            return if (icon == null && tone == null) null else QuickActionLookStateItem(icon, tone)
+        }
+    }
+}
+
+/** [tone]: good | warn | crit | neutral, null = the usual look. */
+data class QuickActionLookStateItem(val icon: String? = null, val tone: String? = null)
 
 /** State of the list from the server. */
 sealed interface QuickActionsLoad {
@@ -95,11 +154,19 @@ class QuickActionRepository @Inject constructor(
     val load: StateFlow<QuickActionsLoad> = _load.asStateFlow()
 
     val pins: StateFlow<List<QuickActionItem>> = settingsRepository.getQuickActionPins()
-        .map { decodePins(it) }
+        .map { raw -> decodePins(raw).filter { !it.asWidget } }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Devices pinned to the start tab as widgets, in their order. */
+    val widgets: StateFlow<List<StartWidgetPin>> = settingsRepository.getStartWidgets()
+        .map { StartWidgetPin.decode(it) }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /** Pins read straight from storage (tiles, shortcuts: the flow may not have loaded yet). */
-    suspend fun currentPins(): List<QuickActionItem> = decodePins(settingsRepository.getQuickActionPins().first())
+    suspend fun currentPins(): List<QuickActionItem> =
+        decodePins(settingsRepository.getQuickActionPins().first()).filter { !it.asWidget }
+
+    suspend fun currentWidgets(): List<StartWidgetPin> = StartWidgetPin.decode(settingsRepository.getStartWidgets().first())
 
     suspend fun refresh(): QuickActionsLoad {
         val serverUrl = setupRepository.getServerUrl()
@@ -114,7 +181,9 @@ class QuickActionRepository @Inject constructor(
                 else -> {
                     val items = sanitize(response.body()?.actions.orEmpty())
                     _actions.value = items
+                    migrateWidgetPins()
                     syncPins(items)
+                    syncWidgets(QuickActionDevices.group(items))
                     QuickActionsLoad.Loaded
                 }
             }
@@ -140,16 +209,59 @@ class QuickActionRepository @Inject constructor(
         settingsRepository.updateQuickActionPins { raw ->
             val current = decodePins(raw)
             val next = if (current.any { it.key == item.key }) current.filter { it.key != item.key }
-            else (current + item.copy(asWidget = false)).take(MAX_PINS)
+            else (current + item).take(MAX_PINS)
             encodePins(next)
         }
         afterPinsChanged()
     }
 
-    /** Shows the pinned [item] as a widget card ([asWidget]) or as a button on the start tab. */
-    suspend fun setPinWidget(item: QuickActionItem, asWidget: Boolean) {
+    /**
+     * The buttons of [device] on the start tab become exactly [actionIds]:
+     * the ones that stay keep their place, new ones go to the end (at most
+     * [MAX_PINS] in all).
+     */
+    suspend fun setButtons(device: QuickActionDeviceGroup, actionIds: Set<String>) {
         settingsRepository.updateQuickActionPins { raw ->
-            encodePins(decodePins(raw).map { if (it.key == item.key) it.copy(asWidget = asWidget) else it })
+            encodePins(QuickActionDevices.withButtons(decodePins(raw), device, actionIds, MAX_PINS))
+        }
+        afterPinsChanged()
+    }
+
+    /** Pins [device] as a widget showing [parts] (ids of [QuickActionDeviceGroup.parts]), [wide] = full width. */
+    suspend fun setWidget(device: QuickActionDeviceGroup, parts: List<String>, wide: Boolean) {
+        settingsRepository.updateStartWidgets { raw ->
+            StartWidgetPin.encode(StartWidgetPin.withWidget(StartWidgetPin.decode(raw), device, parts, wide, MAX_WIDGETS))
+        }
+    }
+
+    suspend fun removeWidget(deviceKey: String) {
+        settingsRepository.updateStartWidgets { raw ->
+            StartWidgetPin.encode(StartWidgetPin.decode(raw).filter { it.device != deviceKey })
+        }
+    }
+
+    /** 1.37 kept widgets as flagged action pins: they become widget pins with every part. */
+    private suspend fun migrateWidgetPins() {
+        var moved = emptyList<QuickActionItem>()
+        settingsRepository.updateQuickActionPins { raw ->
+            val current = decodePins(raw)
+            moved = current.filter { it.asWidget }
+            if (moved.isEmpty()) raw.orEmpty() else encodePins(current.filter { !it.asWidget })
+        }
+        if (moved.isEmpty()) return
+        settingsRepository.updateStartWidgets { raw ->
+            val current = StartWidgetPin.decode(raw)
+            val added = moved.map { StartWidgetPin(device = it.deviceKey, anchor = it.key) }
+                .filter { pin -> current.none { it.device == pin.device } }
+            StartWidgetPin.encode((current + added).take(MAX_WIDGETS))
+        }
+    }
+
+    /** Widget pins follow their device (a changed device id is found again by an action) and keep a copy for offline. */
+    private suspend fun syncWidgets(devices: List<QuickActionDeviceGroup>) {
+        settingsRepository.updateStartWidgets { raw ->
+            val current = StartWidgetPin.decode(raw)
+            if (current.isEmpty()) raw.orEmpty() else StartWidgetPin.encode(current.map { it.synced(devices) })
         }
     }
 
@@ -235,16 +347,13 @@ class QuickActionRepository @Inject constructor(
         afterPinsChanged()
     }
 
-    /**
-     * Pinned entries take the server's current title, state and widget and
-     * keep their own display choice; vanished ones stay (offline, licence).
-     */
+    /** Pinned entries take the server's current title, state and widget; vanished ones stay (offline, licence). */
     private suspend fun syncPins(items: List<QuickActionItem>) {
         val byKey = items.associateBy { it.key }
         var changed = false
         settingsRepository.updateQuickActionPins { raw ->
             val current = decodePins(raw)
-            val next = current.map { pin -> byKey[pin.key]?.copy(asWidget = pin.asWidget) ?: pin }
+            val next = current.map { pin -> byKey[pin.key] ?: pin }
             changed = next != current
             encodePins(next)
         }
@@ -256,8 +365,11 @@ class QuickActionRepository @Inject constructor(
     }
 
     companion object {
-        /** Buttons and widgets together. */
+        /** Buttons on the start tab (and the source of shortcuts, tiles and the home-screen widget). */
         const val MAX_PINS = 12
+        /** Devices shown as widgets on the start tab. */
+        const val MAX_WIDGETS = 8
+        private val DEVICE_ID = Regex("^[A-Za-z0-9:._-]{1,64}$")
         private const val TIMEOUT_MS = 8_000L
         private const val RUN_TIMEOUT_MS = 15_000L
         private val ID = Regex("^[A-Za-z0-9:._-]{1,64}$")
@@ -275,6 +387,7 @@ class QuickActionRepository @Inject constructor(
                 "button", null -> false
                 else -> return@mapNotNull null
             }
+            val device = deviceOf(a.device)
             QuickActionItem(
                 plugin = plugin,
                 pluginName = a.pluginName?.let(::clean)?.take(40)?.takeIf { it.isNotBlank() } ?: plugin,
@@ -286,8 +399,28 @@ class QuickActionRepository @Inject constructor(
                 confirm = a.confirm == true,
                 icon = QuickActionIcons.sanitize(a.icon),
                 widget = QuickActionWidgetItem.from(a.widget),
+                deviceId = device?.id,
+                deviceTitle = device?.title,
+                deviceSubtitle = device?.subtitle,
+                deviceIcon = device?.icon,
+                look = if (toggle) QuickActionLookItem.from(a.look) else null,
+                confirmWhen = if (toggle) a.confirmWhen?.takeIf { it == "on" || it == "off" } else null,
             )
         }.distinctBy { it.key }
+
+        private data class Device(val id: String, val title: String, val subtitle: String?, val icon: String?)
+
+        private fun deviceOf(raw: com.gatecontrol.android.network.QuickActionDevice?): Device? {
+            raw ?: return null
+            val id = raw.id?.takeIf { DEVICE_ID.matches(it) } ?: return null
+            val title = raw.title?.let(::clean)?.take(40)?.takeIf { it.isNotBlank() } ?: return null
+            return Device(
+                id = id,
+                title = title,
+                subtitle = raw.subtitle?.let(::clean)?.take(60)?.takeIf { it.isNotBlank() },
+                icon = QuickActionIcons.sanitize(raw.icon),
+            )
+        }
 
         internal fun clean(s: String): String = s.filter { !it.isISOControl() }.trim()
 

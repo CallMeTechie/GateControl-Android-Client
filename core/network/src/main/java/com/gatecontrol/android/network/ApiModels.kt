@@ -490,12 +490,37 @@ data class QuickAction(
     @SerializedName("confirm") val confirm: Boolean? = null,
     /** Extra information and controls (core 1.171+), null = the action is a plain button/switch. */
     @SerializedName("widget") val widget: QuickActionWidget? = null,
+    /** The thing the action belongs to (core 1.172+); actions of one device share its id. */
+    @SerializedName("device") val device: QuickActionDevice? = null,
+    /** Switches only (core 1.172+): icon and tone per state, e.g. a red open lock while off. */
+    @SerializedName("look") val look: QuickActionLook? = null,
+    /** Switches only (core 1.172+): ask first only before switching to this state ("on" | "off"). */
+    @SerializedName("confirmWhen") val confirmWhen: String? = null,
+)
+
+data class QuickActionDevice(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("subtitle") val subtitle: String? = null,
+    @SerializedName("icon") val icon: String? = null,
+)
+
+data class QuickActionLook(
+    @SerializedName("on") val on: QuickActionLookState? = null,
+    @SerializedName("off") val off: QuickActionLookState? = null,
+)
+
+/** [tone]: good | warn | crit | neutral. */
+data class QuickActionLookState(
+    @SerializedName("icon") val icon: String? = null,
+    @SerializedName("tone") val tone: String? = null,
 )
 
 /**
  * The widget side of a quick action: a reading ([value] as a JSON string or
- * number, [unit]), a [status] line, a [state] on|off|good|warn|crit and up
- * to four [controls].
+ * number, [unit], named [label]), a [status] line, a [state]
+ * on|off|good|warn|crit, small extra [readings] and up to four [controls].
+ * [power] false: the action carrying it is not the device's power switch.
  */
 data class QuickActionWidget(
     @SerializedName("value") val value: JsonElement? = null,
@@ -503,6 +528,19 @@ data class QuickActionWidget(
     @SerializedName("status") val status: String? = null,
     @SerializedName("state") val state: String? = null,
     @SerializedName("controls") val controls: List<QuickActionControl>? = null,
+    @SerializedName("label") val label: String? = null,
+    @SerializedName("readings") val readings: List<QuickActionReading>? = null,
+    @SerializedName("power") val power: Boolean? = null,
+)
+
+/** A small value of a widget or tile: icon and/or value with unit, coloured by [state]. */
+data class QuickActionReading(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("label") val label: String? = null,
+    @SerializedName("value") val value: JsonElement? = null,
+    @SerializedName("unit") val unit: String? = null,
+    @SerializedName("icon") val icon: String? = null,
+    @SerializedName("state") val state: String? = null,
 )
 
 /**
@@ -548,6 +586,8 @@ data class ClientTile(
     @SerializedName("unit") val unit: String? = null,
     @SerializedName("state") val state: String? = null,
     @SerializedName("icon") val icon: String? = null,
+    /** Icon values shown instead of [value] (core 1.172+), e.g. battery 78 %, a green lock. */
+    @SerializedName("items") val items: List<QuickActionReading>? = null,
 )
 
 data class ClientTilesResponse(

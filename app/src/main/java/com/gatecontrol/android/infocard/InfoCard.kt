@@ -2,6 +2,7 @@ package com.gatecontrol.android.infocard
 
 import com.gatecontrol.android.network.ClientTile
 import com.gatecontrol.android.quickactions.QuickActionIcons
+import com.gatecontrol.android.quickactions.QuickActionReadingItem
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -29,10 +30,13 @@ data class InfoTile(
     val state: TileState?,
     /** SVG path `d` (24×24), null = none. */
     val icon: String?,
+    /** Icon values shown instead of [value] (core 1.172+), e.g. battery 78 %, a green lock. */
+    val items: List<QuickActionReadingItem> = emptyList(),
 ) {
     companion object {
         private val PLUGIN = Regex("^[a-z0-9][a-z0-9._-]{0,63}$")
         private const val MAX_KEY = 200
+        private const val MAX_ITEMS = 4
 
         /** Drops tiles without a usable key, plugin or title; caps texts; first of a duplicate key wins. */
         fun sanitize(raw: List<ClientTile>): List<InfoTile> = raw.mapNotNull { t ->
@@ -49,6 +53,7 @@ data class InfoTile(
                 unit = t.unit?.let(::clean)?.take(12)?.takeIf { it.isNotBlank() },
                 state = TileState.fromWire(t.state),
                 icon = QuickActionIcons.sanitize(t.icon),
+                items = t.items.orEmpty().mapIndexedNotNull { i, item -> QuickActionReadingItem.from(item, requireId = false, index = i) }.take(MAX_ITEMS),
             )
         }.distinctBy { it.key }
 

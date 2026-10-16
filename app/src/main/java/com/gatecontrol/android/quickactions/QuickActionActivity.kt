@@ -51,7 +51,7 @@ class QuickActionActivity : ComponentActivity() {
                     title = intent.getStringExtra(EXTRA_TITLE) ?: id,
                     confirm = intent.getBooleanExtra(EXTRA_CONFIRM, false),
                 )
-            if (item.confirm) confirm(item) else runAndFinish(item)
+            if (item.needsConfirm) confirm(item) else runAndFinish(item)
         }
     }
 
@@ -90,7 +90,7 @@ class QuickActionActivity : ComponentActivity() {
                 .putExtra(EXTRA_PLUGIN, item.plugin)
                 .putExtra(EXTRA_ID, item.id)
                 .putExtra(EXTRA_TITLE, item.title)
-                .putExtra(EXTRA_CONFIRM, item.confirm)
+                .putExtra(EXTRA_CONFIRM, item.needsConfirm)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_NO_ANIMATION or
