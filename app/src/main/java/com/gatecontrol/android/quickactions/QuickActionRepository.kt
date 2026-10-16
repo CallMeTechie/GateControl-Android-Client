@@ -347,13 +347,12 @@ class QuickActionRepository @Inject constructor(
         afterPinsChanged()
     }
 
-    /** Pinned entries take the server's current title, state and widget; vanished ones stay (offline, licence). */
+    /** Pinned entries take the server's current title, state and widget ([syncedPins]). */
     private suspend fun syncPins(items: List<QuickActionItem>) {
-        val byKey = items.associateBy { it.key }
         var changed = false
         settingsRepository.updateQuickActionPins { raw ->
             val current = decodePins(raw)
-            val next = current.map { pin -> byKey[pin.key] ?: pin }
+            val next = syncedPins(current, items)
             changed = next != current
             encodePins(next)
         }
@@ -420,6 +419,19 @@ class QuickActionRepository @Inject constructor(
                 subtitle = raw.subtitle?.let(::clean)?.take(60)?.takeIf { it.isNotBlank() },
                 icon = QuickActionIcons.sanitize(raw.icon),
             )
+        }
+
+        /**
+         * [pins] after a successful list [items]: an entry takes the listed
+         * action's title, state and widget. One the list lacks stays while
+         * its plugin lists nothing (offline, licence) and goes when the
+         * plugin lists other actions: the plugin dropped it (Fahrzeuge 1.3:
+         * „Entriegeln“ became part of the lock switch).
+         */
+        internal fun syncedPins(pins: List<QuickActionItem>, items: List<QuickActionItem>): List<QuickActionItem> {
+            val byKey = items.associateBy { it.key }
+            val listing = items.map { it.plugin }.toSet()
+            return pins.mapNotNull { pin -> byKey[pin.key] ?: pin.takeIf { it.plugin !in listing } }
         }
 
         internal fun clean(s: String): String = s.filter { !it.isISOControl() }.trim()

@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -288,8 +289,11 @@ fun QuickActionsCard(
             modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
         )
         is QuickActionsRow.Tiles -> BoxWithConstraints(modifier.fillMaxWidth()) {
-            val tile = (maxWidth - TILE_GAP * (TILES_PER_ROW - 1)) / TILES_PER_ROW
-            val half = (maxWidth - WIDGET_GAP) / 2
+            // In whole pixels, rounded down: the row lays the gaps out in whole
+            // pixels, and a width rounded up pushes the last tile into the next row.
+            val density = LocalDensity.current
+            val tile = with(density) { ((constraints.maxWidth - TILE_GAP.roundToPx() * (TILES_PER_ROW - 1)) / TILES_PER_ROW).toDp() }
+            val half = with(density) { ((constraints.maxWidth - WIDGET_GAP.roundToPx()) / 2).toDp() }
             val full = maxWidth
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (row.items.isNotEmpty()) {

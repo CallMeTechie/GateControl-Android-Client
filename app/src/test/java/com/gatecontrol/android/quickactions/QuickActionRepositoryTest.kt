@@ -91,6 +91,15 @@ class QuickActionRepositoryTest {
     }
 
     @Test
+    fun `a pin the plugin no longer lists goes, one of a silent plugin stays`() {
+        val lock = QuickActionItem("skoda", "Fahrzeuge", "lock:1", "Verriegeln")
+        val unlock = QuickActionItem("skoda", "Fahrzeuge", "unlock:1", "Entriegeln")
+        val door = QuickActionItem("door", "Tür & Kamera", "open:1", "Haustür öffnen")
+        val now = lock.copy(title = "Verriegelt", toggle = true, state = "on")
+        assertEquals(listOf(now, door), QuickActionRepository.syncedPins(listOf(lock, unlock, door), listOf(now)))
+    }
+
+    @Test
     fun `older server without quick actions is reported as unsupported`() = runTest {
         coEvery { api.getQuickActions(any()) } returns Response.error(404, "{}".toResponseBody(null))
         assertEquals(QuickActionsLoad.Unsupported, repo().refresh())
