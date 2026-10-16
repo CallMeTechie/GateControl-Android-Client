@@ -88,7 +88,12 @@
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 
 # ── Quick action pins (Gson, stored in DataStore across app updates) ──
+# Pins and widget pins (StartWidgetPin with its device copy) nest further
+# classes — widget, controls, readings, look: every class of the package keeps
+# its field names and the fields' generic signatures, or a List<QuickActionItem>
+# in a widget pin reads back as LinkedTreeMap and the pin is dropped (1.38.0).
 -keep class com.gatecontrol.android.quickactions.QuickActionItem { *; }
+-keep class com.gatecontrol.android.quickactions.** { <fields>; }
 # Last location sent (Gson, settings storage).
 -keep class com.gatecontrol.android.location.SentLocation { *; }
 
