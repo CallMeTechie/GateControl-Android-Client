@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.0] - 2026-10-16
+
+### Features
+- device widgets – one row per device, pin sheet for buttons and widgets, one lock toggle, icon values on the info card (#82)
+
+---
+
 ## [1.37.0] - 2026-10-16
 
 ### Features
