@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.1] - 2026-10-16
+
+### Fixes
+- widgets pinned in the release build, five buttons a row, pins the plugin dropped (#83)
+
+---
+
 ## [1.38.0] - 2026-10-16
 
 ### Features
