@@ -58,6 +58,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val USAGE_CARD_FAVORITE = stringPreferencesKey("usage_card_favorite")
         /** Start tab "Info" card: chosen contents per login, JSON owned by the app's InfoCardRepository. */
         val INFO_CARD = stringPreferencesKey("info_card")
+        /** Netzwerk tab: segment shown first ("services" | "pihole" | "remote"), chosen by a long press. */
+        val NETWORK_DEFAULT_TAB = stringPreferencesKey("network_default_tab")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -160,6 +162,13 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
 
     suspend fun setUsageCardFavorite(value: String) {
         dataStore.edit { it[USAGE_CARD_FAVORITE] = value }
+    }
+
+    /** Segment the Netzwerk tab opens with, null = never chosen (the first available). */
+    fun getNetworkDefaultTab(): Flow<String?> = dataStore.data.map { it[NETWORK_DEFAULT_TAB] }
+
+    suspend fun setNetworkDefaultTab(value: String) {
+        dataStore.edit { it[NETWORK_DEFAULT_TAB] = value }
     }
 
     /** Contents of the "Info" card on the start tab (JSON, see the app's InfoCardRepository). */

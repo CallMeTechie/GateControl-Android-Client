@@ -64,8 +64,14 @@ import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.profile.MyAvatarViewModel
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.delay
 
 private const val EXPIRY_WARN_DAYS = 7
@@ -467,8 +473,23 @@ fun VpnScreen(
         }
     }
     val quickActionsSection: @Composable ColumnScope.() -> Unit = {
-        // --- Quick actions of the plugins ----------------------------------
-        com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenAll = onOpenQuickActions, onOpenDoor = onOpenDoor)
+        // --- Quick actions and widgets of the plugins ----------------------
+        com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenDoor = onOpenDoor)
+    }
+
+    // Long press on a free spot of the tab: the menu to set it up.
+    var editOpen by rememberSaveable { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val openEdit: () -> Unit = {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        editOpen = true
+    }
+    if (editOpen) {
+        StartEditSheet(
+            onActions = { editOpen = false; onOpenQuickActions() },
+            onInfoCard = { editOpen = false; onOpenInfoCardPicker() },
+            onDismiss = { editOpen = false },
+        )
     }
     val infoSection: @Composable ColumnScope.() -> Unit = {
         // --- Info card: contents the person chose (plugin start tiles) ---
@@ -494,6 +515,7 @@ fun VpnScreen(
     when {
         layout.horizontalHinge != null -> TabletopHome(
             hinge = layout.horizontalHinge,
+            onLongPress = openEdit,
             top = { headerSection(); quickActionsSection() },
             bottom = { bannerSection(); infoSection(); usageSection() },
         )
@@ -503,14 +525,14 @@ fun VpnScreen(
                 listWidth = 420.dp,
                 divider = false,
                 list = {
-                    HomeColumn { bannerSection(); quickActionsSection(); infoSection() }
+                    HomeColumn(onLongPress = openEdit) { bannerSection(); quickActionsSection(); infoSection() }
                 },
                 detail = {
-                    HomeColumn { usageSection() }
+                    HomeColumn(onLongPress = openEdit) { usageSection() }
                 },
             )
         }
-        else -> HomeColumn(Modifier.padding(top = 20.dp)) {
+        else -> HomeColumn(Modifier.padding(top = 20.dp), onLongPress = openEdit) {
             headerSection()
             bannerSection()
             quickActionsSection()
@@ -521,12 +543,26 @@ fun VpnScreen(
 
 }
 
-/** A scrolling column of home sections. */
+/** A scrolling column of home sections; a long press on its free space calls [onLongPress]. */
 @Composable
-private fun HomeColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun HomeColumn(
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val label = stringResource(R.string.start_edit_title)
     Column(
         modifier = modifier
             .fillMaxSize()
+            .then(
+                if (onLongPress != null) {
+                    Modifier
+                        .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) }
+                        .semantics { onLongClick(label = label) { onLongPress(); true } }
+                } else {
+                    Modifier
+                },
+            )
             .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -535,12 +571,13 @@ private fun HomeColumn(modifier: Modifier = Modifier, content: @Composable Colum
 }
 
 /**
- * Half-opened foldable lying flat (tabletop): connection and switch on the
- * upper half, details and tiles scroll on the lower half.
+ * Half-opened foldable lying flat (tabletop): header and quick actions on
+ * the upper half, the cards scroll on the lower half.
  */
 @Composable
 private fun TabletopHome(
     hinge: HingeSplit,
+    onLongPress: () -> Unit,
     top: @Composable ColumnScope.() -> Unit,
     bottom: @Composable ColumnScope.() -> Unit,
 ) {
@@ -549,8 +586,8 @@ private fun TabletopHome(
     Column(Modifier.fillMaxSize().onGloballyPositioned { startY = it.positionInWindow().y }) {
         val topHeight = with(density) { (hinge.startPx - startY).coerceAtLeast(0f).toDp() }
         val gap = with(density) { (hinge.endPx - hinge.startPx).coerceAtLeast(0f).toDp() }
-        HomeColumn(Modifier.height(topHeight).padding(top = 12.dp), content = top)
+        HomeColumn(Modifier.height(topHeight).padding(top = 12.dp), onLongPress = onLongPress, content = top)
         Spacer(Modifier.height(gap))
-        HomeColumn(Modifier.weight(1f).padding(top = 12.dp), content = bottom)
+        HomeColumn(Modifier.weight(1f).padding(top = 12.dp), onLongPress = onLongPress, content = bottom)
     }
 }

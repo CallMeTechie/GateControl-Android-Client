@@ -2,18 +2,22 @@ package com.gatecontrol.android.ui.quickactions
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.unit.Dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.gatecontrol.android.ui.components.GcFilterChip
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -146,9 +150,11 @@ fun QuickActionsScreen(onBack: () -> Unit, onOpenDoor: (() -> Unit)? = null, vie
                         ActionRow(
                             item = action,
                             pinned = action.key in pinned,
+                            asWidget = pins.firstOrNull { it.key == action.key }?.asWidget == true,
                             running = running == action.key,
                             onRun = { if (action.confirm) confirming = action else viewModel.run(action) },
                             onTogglePin = { viewModel.togglePin(action) },
+                            onSetWidget = { viewModel.setWidget(action, it) },
                             onLongPress = longPress(action, onOpenDoor),
                         )
                     }
@@ -158,13 +164,16 @@ fun QuickActionsScreen(onBack: () -> Unit, onOpenDoor: (() -> Unit)? = null, vie
     }
 }
 
+/** One action of the list; a pinned one with a widget also gets the "Widget" chip (card instead of button on the start tab). */
 @Composable
 private fun ActionRow(
     item: QuickActionItem,
     pinned: Boolean,
+    asWidget: Boolean,
     running: Boolean,
     onRun: () -> Unit,
     onTogglePin: () -> Unit,
+    onSetWidget: (Boolean) -> Unit,
     onLongPress: (() -> Unit)?,
 ) {
     val extra = GateControlTheme.extraColors
@@ -184,6 +193,11 @@ private fun ActionRow(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 when {
                     running -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp), color = extra.faint)
+                    pinned && item.widget != null -> GcFilterChip(
+                        text = stringResource(R.string.quick_actions_as_widget),
+                        selected = asWidget,
+                        onClick = { onSetWidget(!asWidget) },
+                    )
                     item.toggle -> GcChip(
                         stringResource(if (item.isOn) R.string.quick_action_on else R.string.quick_action_off),
                         tone = if (item.isOn) GcTone.Ok else GcTone.Neutral,
@@ -203,15 +217,20 @@ private fun ActionRow(
     )
 }
 
+/** How often the start tab asks for the actions (widget readings) while it is visible. */
+private const val REFRESH_MS = 60_000L
+
 /**
- * Start-screen row of the pinned quick actions (no card, no heading): one
- * icon tile per action with its title below, a switch filled while on;
- * a "+" on the right opens the list. With none pinned but actions
- * available only "Schnellaktionen auswählen". Hidden without actions.
+ * Start-tab section of the pinned quick actions (no card, no heading): icon
+ * tiles five to a row with the title below (filled while a switch is on),
+ * then the pins shown as widgets two to a row ([QuickActionWidgetCard]).
+ * With none pinned but actions available only a quiet hint that a long
+ * press on the tab sets it up; hidden without actions. Refreshed when the
+ * tab becomes visible and every 60 s while it is.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun QuickActionsCard(
-    onOpenAll: () -> Unit,
     modifier: Modifier = Modifier,
     /** Long press on a door action: the door screen (null: door plugin not listed). */
     onOpenDoor: (() -> Unit)? = null,
@@ -220,49 +239,74 @@ fun QuickActionsCard(
     val pins by viewModel.pins.collectAsStateWithLifecycle()
     val actions by viewModel.actions.collectAsStateWithLifecycle()
     val running by viewModel.running.collectAsStateWithLifecycle()
+    val adjusting by viewModel.adjusting.collectAsStateWithLifecycle()
     val extra = GateControlTheme.extraColors
     var confirming by remember { mutableStateOf<QuickActionItem?>(null) }
 
-    LaunchedEffect(Unit) { viewModel.refresh() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                viewModel.refresh()
+                delay(REFRESH_MS)
+            }
+        }
+    }
     ResultToasts(viewModel)
     confirming?.let { item ->
         ConfirmDialog(item, onConfirm = { confirming = null; viewModel.run(item) }, onDismiss = { confirming = null })
     }
+    val runOrAsk: (QuickActionItem) -> Unit = { item -> if (item.confirm) confirming = item else viewModel.run(item) }
 
     when (val row = QuickActionsRow.of(pins, actions)) {
         QuickActionsRow.Hidden -> Unit
-        QuickActionsRow.Choose -> TextButton(onClick = onOpenAll, modifier = modifier) {
-            Icon(GcIcons.Plus, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.quick_actions_choose_long), color = extra.accentText, style = MaterialTheme.typography.labelLarge)
-        }
-        is QuickActionsRow.Tiles -> Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Row(
-                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                row.items.forEach { item ->
-                    QuickActionTile(
-                        item = item,
-                        running = running == item.key,
-                        onClick = { if (item.confirm) confirming = item else viewModel.run(item) },
-                        onLongPress = longPress(item, onOpenDoor),
-                    )
+        QuickActionsRow.Choose -> Text(
+            stringResource(R.string.start_edit_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = extra.faint,
+            textAlign = TextAlign.Center,
+            modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+        )
+        is QuickActionsRow.Tiles -> BoxWithConstraints(modifier.fillMaxWidth()) {
+            val tile = (maxWidth - TILE_GAP * (TILES_PER_ROW - 1)) / TILES_PER_ROW
+            val card = (maxWidth - WIDGET_GAP) / 2
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (row.buttons.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        maxItemsInEachRow = TILES_PER_ROW,
+                    ) {
+                        row.buttons.forEach { item ->
+                            QuickActionTile(
+                                item = item,
+                                width = tile,
+                                running = running == item.key,
+                                onClick = { runOrAsk(item) },
+                                onLongPress = longPress(item, onOpenDoor),
+                            )
+                        }
+                    }
                 }
-            }
-            Spacer(Modifier.width(10.dp))
-            // "+" without a label: choose more.
-            val chooseDescription = stringResource(R.string.quick_actions_choose_long)
-            Box(
-                Modifier
-                    .size(TILE_SIZE)
-                    .clip(TileShape)
-                    .border(1.dp, extra.border2, TileShape)
-                    .clickable(role = Role.Button, onClick = onOpenAll)
-                    .semantics { contentDescription = chooseDescription },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(GcIcons.Plus, contentDescription = null, tint = extra.muted, modifier = Modifier.size(24.dp))
+                if (row.widgets.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(WIDGET_GAP),
+                        verticalArrangement = Arrangement.spacedBy(WIDGET_GAP),
+                        maxItemsInEachRow = 2,
+                    ) {
+                        row.widgets.forEach { item ->
+                            QuickActionWidgetCard(
+                                item = item,
+                                running = running == item.key,
+                                adjusting = adjusting,
+                                onRun = { runOrAsk(item) },
+                                onLongPress = longPress(item, onOpenDoor),
+                                onControl = { control, value -> viewModel.control(item, control, value) },
+                                modifier = Modifier.width(card),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -273,28 +317,36 @@ sealed interface QuickActionsRow {
     /** No pins and the server has no actions (or none known yet). */
     data object Hidden : QuickActionsRow
 
-    /** Actions available, none pinned: only "Schnellaktionen auswählen". */
+    /** Actions available, none pinned: only the hint how to set the tab up. */
     data object Choose : QuickActionsRow
 
-    /** The pinned actions, with the server's current title, icon and state where known. */
-    data class Tiles(val items: List<QuickActionItem>) : QuickActionsRow
+    /**
+     * The pinned actions, with the server's current title, icon, state and
+     * widget where known and the pin's own display choice: [buttons] as
+     * icon tiles, [widgets] as widget cards.
+     */
+    data class Tiles(val items: List<QuickActionItem>) : QuickActionsRow {
+        val buttons: List<QuickActionItem> get() = items.filter { !it.showsWidget }
+        val widgets: List<QuickActionItem> get() = items.filter { it.showsWidget }
+    }
 
     companion object {
         fun of(pins: List<QuickActionItem>, actions: List<QuickActionItem>): QuickActionsRow {
             if (pins.isEmpty()) return if (actions.isEmpty()) Hidden else Choose
             val byKey = actions.associateBy { it.key }
-            return Tiles(pins.map { byKey[it.key] ?: it })
+            return Tiles(pins.map { pin -> byKey[pin.key]?.copy(asWidget = pin.asWidget) ?: pin })
         }
     }
 }
 
-private val TILE_SIZE = 56.dp
-private val TILE_LABEL_WIDTH = 68.dp
+private const val TILES_PER_ROW = 5
+private val TILE_GAP = 10.dp
+private val WIDGET_GAP = 12.dp
 private val TileShape = RoundedCornerShape(18.dp)
 
-/** One pinned action: icon tile (filled while a switch is on, progress while it runs) and its title. */
+/** One pinned action: icon tile (filled while a switch is on, progress while it runs) and its title; [width] of the column. */
 @Composable
-private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: () -> Unit, onLongPress: (() -> Unit)?) {
+private fun QuickActionTile(item: QuickActionItem, width: Dp, running: Boolean, onClick: () -> Unit, onLongPress: (() -> Unit)?) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val on = item.isOn
@@ -302,7 +354,7 @@ private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: ()
     val icon = remember(item.icon) { QuickActionIcons.vector(item.icon) }
     Column(
         Modifier
-            .width(TILE_LABEL_WIDTH)
+            .width(width)
             .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
                 enabled = !running,
@@ -317,7 +369,7 @@ private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: ()
     ) {
         Box(
             Modifier
-                .size(TILE_SIZE)
+                .size(width)
                 .clip(TileShape)
                 .then(
                     if (on) Modifier.background(scheme.primary)
@@ -340,7 +392,7 @@ private fun QuickActionTile(item: QuickActionItem, running: Boolean, onClick: ()
                         item.toggle -> extra.muted
                         else -> scheme.onSurface
                     },
-                    modifier = Modifier.size(26.dp),
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }

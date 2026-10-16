@@ -244,7 +244,7 @@
     <string name="dns_tile_idle">Tippen zum Testen</string>
     <string name="dns_tile_ok">Kein Leak · %1$s</string>
     <string name="dns_tile_fail">Test fehlgeschlagen</string>
-    <string name="pihole_tile_blocking">Blockiert aktiv</string>
+    <string name="pihole_tile_blocking">Blockierung aktiv</string>
     <string name="pihole_pause_title">Blockieren pausieren</string>
     <string name="pihole_chip_30s">30 s</string>
     <string name="pihole_chip_5m">5 Min</string>
@@ -529,7 +529,7 @@
     <string name="quick_actions_not_configured">Richte zuerst die Verbindung zum Server ein.</string>
     <string name="quick_actions_pin">Anheften</string>
     <string name="quick_actions_unpin">Lösen</string>
-    <string name="quick_actions_hint">Angeheftete Aktionen erscheinen auf dem Startbildschirm, als App-Verknüpfung (lange auf das App-Symbol drücken), als Schnelleinstellungs-Kachel (die ersten drei) und im Widget „Schnellaktionen“. Höchstens %1$d.</string>
+    <string name="quick_actions_hint">Angeheftete Aktionen erscheinen auf dem Start-Tab als Buttons (fünf pro Zeile) oder, wenn das Plugin es anbietet, als Widget mit Wert und Reglern; außerdem als App-Verknüpfung (lange auf das App-Symbol drücken), als Schnelleinstellungs-Kachel (die ersten drei) und im Widget „Schnellaktionen“. Höchstens %1$d.</string>
     <string name="quick_action_done">%1$s: erledigt</string>
     <string name="quick_action_failed">%1$s: fehlgeschlagen</string>
     <string name="quick_action_confirm_title">„%1$s“ ausführen?</string>
@@ -781,7 +781,14 @@
     <string name="connection_details_row_on">Verbunden seit %1$s · %2$s</string>
     <string name="connection_details_off">VPN ist aus</string>
     <string name="connection_details_hint">Tunnel-Adresse, Dauer, letzter Handshake und Server deiner VPN-Verbindung.</string>
-    <string name="quick_actions_choose_long">Schnellaktionen auswählen</string>
+    <string name="start_edit_title">Start-Tab bearbeiten</string>
+    <string name="start_edit_actions">Schnellaktionen und Widgets</string>
+    <string name="start_edit_actions_desc">Anheften, Reihenfolge, als Widget zeigen</string>
+    <string name="start_edit_info">Inhalte der Info-Karte</string>
+    <string name="start_edit_hint">Lange auf eine freie Stelle drücken, um den Start-Tab einzurichten.</string>
+    <string name="quick_actions_as_widget">Widget</string>
+    <string name="widget_decrease">%1$s verringern</string>
+    <string name="widget_increase">%1$s erhöhen</string>
 
     <!-- Start-Tab: wischbare Karten (1.35) -->
     <string name="pager_favorite_set">Als Standard festgelegt</string>

@@ -9,6 +9,8 @@ import com.gatecontrol.android.network.QuickAction
 import com.gatecontrol.android.network.QuickActionRunRequest
 import com.gatecontrol.android.network.QuickActionRunResponse
 import com.gatecontrol.android.network.QuickActionsResponse
+import com.google.gson.Gson
+import com.google.gson.JsonPrimitive
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -154,10 +156,78 @@ class QuickActionRepositoryTest {
     @Test
     fun `pinning twice unpins and the number of pins is capped`() = runTest {
         val r = repo()
-        val items = QuickActionRepository.sanitize((1..10).map { QuickAction(plugin = "p", id = "a$it", title = "A$it") })
+        val items = QuickActionRepository.sanitize((1..14).map { QuickAction(plugin = "p", id = "a$it", title = "A$it") })
         items.forEach { r.togglePin(it) }
         assertEquals(QuickActionRepository.MAX_PINS, r.currentPins().size)
         r.togglePin(items.first())
         assertFalse(r.currentPins().any { it.key == items.first().key })
+    }
+
+    private val climateJson = """
+        {"plugin":"gatecontrol-midea","pluginName":"Klima","id":"ac:1","title":"Wohnzimmer","kind":"toggle","state":"on",
+         "widget":{"value":21.5,"unit":"°C","status":"Kühlen · Ziel 22 °C","state":"on","controls":[
+           {"id":"target","kind":"stepper","label":"Ziel","value":22,"min":16,"max":30,"step":0.5,"unit":"°C"},
+           {"id":"mode","kind":"choice","label":"Modus","value":"cool","options":[{"id":"auto","label":"Auto"},{"id":"cool","label":"Kühlen"}]},
+           {"id":"bad","kind":"slider","value":5,"min":10,"max":1,"step":1},
+           {"id":"odd kind","kind":"knob","value":1,"min":0,"max":1,"step":1},
+           {"id":"one","kind":"choice","value":"x","options":[{"id":"x","label":"X"}]}
+         ]}}
+    """.trimIndent()
+
+    @Test
+    fun `a widget with its controls is kept, broken controls are dropped, values clamped`() {
+        val raw = Gson().fromJson(climateJson, QuickAction::class.java)
+        val item = QuickActionRepository.sanitize(listOf(raw)).single()
+        val w = item.widget!!
+        assertEquals("21.5".replace('.', java.text.DecimalFormatSymbols.getInstance().decimalSeparator), w.value)
+        assertEquals("°C", w.unit)
+        assertEquals("on", w.state)
+        assertEquals(listOf("target", "mode"), w.controls.map { it.id })
+        assertEquals(22.0, w.controls[0].number)
+        assertEquals(0.5, w.controls[0].step)
+        assertEquals("cool", w.controls[1].choice)
+        assertEquals(2, w.controls[1].options.size)
+        assertFalse(item.asWidget)
+
+        val clamped = QuickActionRepository.sanitize(listOf(raw.copy(widget = raw.widget!!.copy(controls = raw.widget!!.controls!!.take(1).map { it.copy(value = JsonPrimitive(99)) })))).single()
+        assertEquals(30.0, clamped.widget!!.controls[0].number)
+        val unknownChoice = QuickActionRepository.sanitize(listOf(raw.copy(widget = raw.widget!!.copy(controls = listOf(raw.widget!!.controls!![1].copy(value = JsonPrimitive("heat"))))))).single()
+        assertEquals("auto", unknownChoice.widget!!.controls[0].choice)
+        assertNull(QuickActionRepository.sanitize(listOf(light)).single().widget)
+    }
+
+    @Test
+    fun `pins keep the widget choice across a round trip and a refresh`() = runTest {
+        val r = repo()
+        val raw = Gson().fromJson(climateJson, QuickAction::class.java)
+        val item = QuickActionRepository.sanitize(listOf(raw)).single()
+        r.togglePin(item)
+        r.setPinWidget(item, true)
+        assertTrue(QuickActionRepository.decodePins(QuickActionRepository.encodePins(r.currentPins())).single().asWidget)
+
+        coEvery { api.getQuickActions(any()) } returns Response.success(QuickActionsResponse(ok = true, actions = listOf(raw.copy(title = "Neu"))))
+        r.refresh()
+        val pin = r.currentPins().single()
+        assertEquals("Neu", pin.title)
+        assertTrue(pin.asWidget, "the server's entry does not carry the display choice")
+        assertTrue(pin.showsWidget)
+    }
+
+    @Test
+    fun `a control run sends control and value and stores the answered widget`() = runTest {
+        val r = repo()
+        val raw = Gson().fromJson(climateJson, QuickAction::class.java)
+        val item = QuickActionRepository.sanitize(listOf(raw)).single()
+        r.togglePin(item)
+        val answered = raw.widget!!.copy(value = JsonPrimitive("23"), status = "Kühlen · Ziel 23 °C")
+        coEvery { api.runQuickAction("gatecontrol-midea", "ac:1", "de", QuickActionRunRequest("app", "target", 23.0)) } returns
+            Response.success(QuickActionRunResponse(ok = true, state = "on", widget = answered))
+
+        assertTrue(r.control(item, "target", 23.0).ok)
+
+        val pin = r.currentPins().single()
+        assertEquals("23", pin.widget!!.value)
+        assertEquals("Kühlen · Ziel 23 °C", pin.widget!!.status)
+        assertEquals("on", pin.state)
     }
 }
