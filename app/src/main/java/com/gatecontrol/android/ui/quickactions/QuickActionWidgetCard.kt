@@ -3,7 +3,6 @@ package com.gatecontrol.android.ui.quickactions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -149,9 +147,18 @@ fun QuickActionWidgetCard(
             }
         }
         if (actionButtons.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                actionButtons.forEach { action ->
-                    ActionButton(action, running = action.key == running, onClick = { if (interactive) onRun(action) })
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                actionButtons.chunked(buttonsPerRow(actionButtons.size)).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { action ->
+                            ActionButton(
+                                action,
+                                running = action.key == running,
+                                onClick = { if (interactive) onRun(action) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -213,9 +220,15 @@ internal fun ReadingChip(reading: QuickActionReadingItem) {
     }
 }
 
-/** One of the device's actions as a small icon button: its look per state, filled while a plain switch is on. */
+/**
+ * The action buttons of a widget share its width: up to 3 in a row, 4 as
+ * two rows of 2; every row spans the whole widget (5 → 3 + 2, 6 → 3 + 3).
+ */
+internal fun buttonsPerRow(count: Int): Int = if (count == 4) 2 else count.coerceIn(1, 3)
+
+/** One of the device's actions as an icon button: its look per state, filled while a plain switch is on. */
 @Composable
-private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () -> Unit) {
+private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val toned = toneColors(action.currentLook?.tone)
@@ -227,8 +240,8 @@ private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () 
         else -> scheme.onSurface to Color.Transparent
     }
     Box(
-        Modifier
-            .size(40.dp)
+        modifier
+            .height(44.dp)
             .clip(shape)
             .background(fill)
             .border(1.dp, if (toned != null) toned.first.copy(alpha = 0.4f) else if (action.isOn) Color.Transparent else extra.border2, shape)
@@ -331,33 +344,38 @@ private fun SliderControl(control: QuickActionControlItem, busy: Boolean, onChan
     }
 }
 
-/** Small chips, one per option, the chosen one filled; scrolls sideways when they do not fit. */
+/**
+ * The options as icon buttons sharing the widget's width, the chosen one
+ * filled; an option without an icon (unknown mode) shows its label instead.
+ */
 @Composable
 private fun ChoiceControl(control: QuickActionControlItem, onChange: (String) -> Unit) {
     val extra = GateControlTheme.extraColors
     var local by remember(control.choice) { mutableStateOf(control.choice) }
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         control.options.forEach { option ->
             val selected = option.id == local
+            val icon = remember(option.glyph) { QuickActionIcons.vectorOrNull(option.glyph) }
+            val tint = if (selected) extra.accentText else extra.muted
             Box(
                 Modifier
-                    .height(28.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(if (selected) extra.accentBg else extra.panel2)
                     .selectable(selected = selected, role = Role.RadioButton, onClick = { local = option.id; onChange(option.id) })
-                    .padding(horizontal = 10.dp),
+                    .semantics { contentDescription = option.label },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    option.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (selected) extra.accentText else extra.muted,
-                    maxLines = 1,
-                )
+                if (icon != null) {
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+                } else {
+                    Text(option.label, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }

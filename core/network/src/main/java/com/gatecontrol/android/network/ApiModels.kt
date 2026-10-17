@@ -563,6 +563,8 @@ data class QuickActionControl(
 data class QuickActionControlOption(
     @SerializedName("id") val id: String? = null,
     @SerializedName("label") val label: String? = null,
+    /** SVG path (24×24) when the server sends one; the app knows common modes itself. */
+    @SerializedName("icon") val icon: String? = null,
 )
 
 data class QuickActionsResponse(
