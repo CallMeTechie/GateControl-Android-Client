@@ -40,7 +40,8 @@ import javax.inject.Inject
  * Geofence transitions from Play services (NOT exported: only the app's
  * own mutable PendingIntent reaches it). Shows the reminder right away
  * from what the phone stored and reports the trigger to the server
- * (`POST places/<id>/triggered`) as a job that waits for a network.
+ * (`POST places/<id>/triggered`) as a job that waits for a network; a rule
+ * place's transition only goes to the server (`POST presence/places/<id>/event`).
  */
 @AndroidEntryPoint
 class GeofenceReceiver : BroadcastReceiver() {
@@ -61,8 +62,10 @@ class GeofenceReceiver : BroadcastReceiver() {
             Geofence.GEOFENCE_TRANSITION_EXIT -> FamiliePlace.TRIGGER_EXIT
             else -> return
         }
-        val placeIds = event.triggeringGeofences.orEmpty().mapNotNull { GeofenceRegistrar.placeIdOf(it.requestId) }
-        if (placeIds.isEmpty()) return
+        val ids = event.triggeringGeofences.orEmpty().map { it.requestId }
+        val placeIds = ids.mapNotNull { GeofenceRegistrar.placeIdOf(it) }
+        val rulePlaceIds = ids.mapNotNull { GeofenceRegistrar.rulePlaceIdOf(it) }
+        if (placeIds.isEmpty() && rulePlaceIds.isEmpty()) return
         val at = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString()
         val pending = goAsync()
         scope.launch {
@@ -79,6 +82,11 @@ class GeofenceReceiver : BroadcastReceiver() {
                         notifier.showPlace(fence, transition, openItems)
                         PlaceTriggerWorker.enqueue(context, placeId, transition, at)
                         if (fence.repeat == "once") registrar.removeLocal(placeId)
+                    }
+                    // Rule places (Familie 1.5): only the transition goes to the server, no notification here.
+                    for (placeId in rulePlaceIds) {
+                        val rule = registrar.storedRule(placeId) ?: continue
+                        if (rule.watches(transition)) RulePlaceEventWorker.enqueue(context, placeId, transition, at)
                     }
                 }
             } catch (e: Exception) {

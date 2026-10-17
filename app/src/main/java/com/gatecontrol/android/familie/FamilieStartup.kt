@@ -3,6 +3,7 @@ package com.gatecontrol.android.familie
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.emergency.EmergencyRepository
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
+import com.gatecontrol.android.familie.places.RulePlaceWatcher
 import com.gatecontrol.android.familie.presence.PresenceReporter
 import com.gatecontrol.android.familie.shopping.ShoppingRepository
 import com.gatecontrol.android.support.CrashReports
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 /**
  * Background duties of the Familie feature when the app process starts and
  * after boot: geofences back in place (Android drops them on reboot), the
- * plugin list and membership refreshed, waiting shopping changes sent.
+ * plugin list and membership refreshed, waiting shopping changes sent, the
+ * rule places to watch fetched.
  */
 @Singleton
 class FamilieStartup @Inject constructor(
@@ -28,12 +30,15 @@ class FamilieStartup @Inject constructor(
     private val shopping: ShoppingRepository,
     private val emergency: EmergencyRepository,
     private val presence: PresenceReporter,
+    private val rulePlaces: RulePlaceWatcher,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
     fun onAppStart() {
         // Presence (1.2) follows the home-network check for as long as the process lives.
         runCatching { presence.start() }.onFailure { Timber.w("Familie: presence not started (%s)", it.javaClass.simpleName) }
+        // Rule places (1.5) follow my place consent: watched while it is on, the list fetched on start.
+        runCatching { rulePlaces.start() }.onFailure { Timber.w("Familie: rule places not started (%s)", it.javaClass.simpleName) }
         if (!setupRepository.isConfigured()) return
         scope.launch {
             runCatching { registrar.reRegisterFromCache() }

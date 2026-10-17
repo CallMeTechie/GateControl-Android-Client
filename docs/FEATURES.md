@@ -356,6 +356,17 @@ Zurück-Pfeil).
   Handy ist gerade zuhause/unterwegs“). Nach dem Einschalten wird der
   erste eindeutige Stand sofort gemeldet, spätere Wechsel erst nach zwei
   Minuten
+- Darunter (seit 1.41, Familie 1.5+) „Orte für Regeln teilen“: Eltern legen
+  im Portal / auf der Admin-Seite Orte an (z. B. Schule oder ein 500-m-Kreis
+  um Zuhause = „kurz vor Zuhause“) und lassen Familienregeln auf „kommt an“ /
+  „verlässt“ reagieren. Nach der Zustimmung (Erklärung, dann genauer
+  Standort und „Immer zulassen“) überwacht das Handy nur die Orte, die eine
+  aktive Regel für diese Person nutzt (Geofencing der Play-Dienste, zusammen
+  mit den Orts-Erinnerungen höchstens 90), und meldet nur „angekommen“ /
+  „verlassen“ mit Ort und Uhrzeit — nie die Position. Die Liste kommt beim
+  App-Start, stündlich und nach jeder Änderung (`watchVersion`) vom Server;
+  fehlt die Berechtigung, bietet ein Hinweis sie an. Ohne Familie 1.5 fehlt
+  der Schalter
 - Ältere Server: der Eintrag fehlt (mit dem Anwesenheits-Modul enthält
   er nur „Anwesenheit teilen“)
 

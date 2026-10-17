@@ -61,7 +61,8 @@ class GeofenceRegistrar @Inject constructor(
     private val repository: FamilieRepository,
     private val storage: FamilieStorage,
 ) {
-    private data class Stored(val owner: String? = null, val fences: List<StoredFence>? = null)
+    /** [rules]: the rule places (Familie 1.5) this phone watches, next to the reminders. */
+    private data class Stored(val owner: String? = null, val fences: List<StoredFence>? = null, val rules: List<RuleFence>? = null)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
@@ -76,13 +77,22 @@ class GeofenceRegistrar @Inject constructor(
         background = DeviceLocator.hasBackgroundPermission(context),
     )
 
+    private fun readStored(): Stored? =
+        storage.read<Stored>(FILE, object : TypeToken<Stored>() {}.type)?.takeIf { it.owner == storage.ownerKey() }
+
     /** Fences registered for this login (empty when none or another login). */
     fun stored(): List<StoredFence> {
-        val s = storage.read<Stored>(FILE, object : TypeToken<Stored>() {}.type) ?: return emptyList()
-        if (s.owner != storage.ownerKey()) return emptyList()
         @Suppress("SENSELESS_COMPARISON")
-        return s.fences.orEmpty().filter { it != null && it.title != null && it.trigger != null && it.action != null && it.note != null }
+        return readStored()?.fences.orEmpty().filter { it != null && it.title != null && it.trigger != null && it.action != null && it.note != null }
     }
+
+    /** Rule places registered for this login. */
+    fun storedRules(): List<RuleFence> {
+        @Suppress("SENSELESS_COMPARISON")
+        return readStored()?.rules.orEmpty().filter { it != null && it.name != null }
+    }
+
+    fun storedRule(placeId: Int): RuleFence? = storedRules().firstOrNull { it.placeId == placeId }
 
     fun storedFence(placeId: Int): StoredFence? = stored().firstOrNull { it.placeId == placeId }
 
@@ -105,47 +115,65 @@ class GeofenceRegistrar @Inject constructor(
     /** After boot / app start: the fences of the last sync again (Android drops them on reboot). */
     suspend fun reRegisterFromCache() {
         val fences = stored()
-        if (fences.isNotEmpty()) register(fences)
+        val rules = storedRules()
+        if (fences.isNotEmpty() || rules.isNotEmpty()) register(fences, rules)
     }
 
     /** Places already handled locally (repeat once): unregister without waiting for the server. */
     suspend fun removeLocal(placeId: Int) = mutex.withLock {
         val left = stored().filter { it.placeId != placeId }
-        storage.write(FILE, Stored(storage.ownerKey(), left))
+        storage.write(FILE, Stored(storage.ownerKey(), left, storedRules()))
         runCatching { LocationServices.getGeofencingClient(context).removeGeofences(listOf(requestId(placeId))) }
         Unit
     }
 
-    /** Removes every fence (plugin gone, not a member, module off). */
-    suspend fun clear() = apply(emptyList())
+    /** Removes every fence, reminders and rule places (plugin gone, not a member, module off). */
+    suspend fun clear() {
+        mutex.withLock { storage.write(FILE, Stored(storage.ownerKey(), emptyList(), emptyList())) }
+        register(emptyList(), emptyList())
+    }
 
     private suspend fun apply(places: List<FamiliePlace>) {
         val fences = places.map(::toFence)
-        mutex.withLock { storage.write(FILE, Stored(storage.ownerKey(), fences)) }
-        register(fences)
+        val rules = mutex.withLock {
+            storedRules().also { storage.write(FILE, Stored(storage.ownerKey(), fences, it)) }
+        }
+        register(fences, rules)
+    }
+
+    /** The rule places to watch (Familie 1.5), next to the reminders; unchanged lists register nothing. */
+    suspend fun applyRules(rules: List<RuleFence>) {
+        val (fences, changed) = mutex.withLock {
+            val before = storedRules()
+            val fences = stored()
+            storage.write(FILE, Stored(storage.ownerKey(), fences, rules))
+            fences to (before != rules)
+        }
+        if (changed) register(fences, rules)
     }
 
     @SuppressLint("MissingPermission") // checked by readiness()
-    private suspend fun register(fences: List<StoredFence>) = mutex.withLock {
+    private suspend fun register(fences: List<StoredFence>, rules: List<RuleFence>) = mutex.withLock {
         if (!playServicesAvailable()) return@withLock
         val client = LocationServices.getGeofencingClient(context)
         await(client.removeGeofences(pendingIntent(context)))
-        if (fences.isEmpty()) return@withLock
+        val geofences = combined(fences, rules)
+        if (geofences.isEmpty()) return@withLock
         if (readiness() != FamiliePermissions.GeofenceReadiness.READY) {
-            Timber.i("Familie: %d place reminders wait for the location permission", fences.size)
+            Timber.i("Familie: %d geofences wait for the location permission", geofences.size)
             return@withLock
         }
         val request = GeofencingRequest.Builder()
-            // No trigger for being inside already: re-registering (boot, app start) must not remind again.
+            // No trigger for being inside already: re-registering (boot, app start) must not remind or report again.
             .setInitialTrigger(0)
-            .addGeofences(fences.map(::geofence))
+            .addGeofences(geofences)
             .build()
         val ok = try {
             await(client.addGeofences(request, pendingIntent(context)))
         } catch (e: SecurityException) {
             false
         }
-        Timber.i("Familie: %d place reminders %s", fences.size, if (ok) "registered" else "not registered")
+        Timber.i("Familie: %d place reminders, %d rule places %s", fences.size, rules.size, if (ok) "registered" else "not registered")
     }
 
     private suspend fun <T> await(task: Task<T>): Boolean = withTimeoutOrNull(TASK_TIMEOUT_MS) {
@@ -160,6 +188,7 @@ class GeofenceRegistrar @Inject constructor(
         /** Android allows 100 geofences per app; the server caps 50 active places per user. */
         const val MAX_FENCES = 90
         private const val REQUEST_PREFIX = "familie-place-"
+        private const val RULE_PREFIX = "familie-rule-"
 
         /** Which places this phone watches (pure): mine as target, active, accepted. */
         fun select(places: List<FamiliePlace>, meId: Int): List<FamiliePlace> = places
@@ -183,6 +212,33 @@ class GeofenceRegistrar @Inject constructor(
         fun requestId(placeId: Int) = "$REQUEST_PREFIX$placeId"
 
         fun placeIdOf(requestId: String): Int? = requestId.removePrefix(REQUEST_PREFIX).takeIf { requestId.startsWith(REQUEST_PREFIX) }?.toIntOrNull()
+
+        fun ruleRequestId(placeId: Int) = "$RULE_PREFIX$placeId"
+
+        fun rulePlaceIdOf(requestId: String): Int? = requestId.removePrefix(RULE_PREFIX).takeIf { requestId.startsWith(RULE_PREFIX) }?.toIntOrNull()
+
+        /** The request ids to register (pure): reminders first, then rule places, at most [MAX_FENCES] together. */
+        fun combinedIds(fences: List<StoredFence>, rules: List<RuleFence>): List<String> =
+            (fences.map { requestId(it.placeId) } + rules.filter { it.enter || it.exit }.map { ruleRequestId(it.placeId) }).take(MAX_FENCES)
+
+        private fun combined(fences: List<StoredFence>, rules: List<RuleFence>): List<Geofence> {
+            val ids = combinedIds(fences, rules).toSet()
+            return fences.filter { requestId(it.placeId) in ids }.map(::geofence) +
+                rules.filter { ruleRequestId(it.placeId) in ids }.map(::ruleGeofence)
+        }
+
+        private fun ruleGeofence(f: RuleFence): Geofence = Geofence.Builder()
+            .setRequestId(ruleRequestId(f.placeId))
+            .setCircularRegion(f.lat, f.lon, f.radius.toFloat())
+            .setExpirationDuration(Geofence.NEVER_EXPIRE)
+            .setTransitionTypes(
+                (if (f.enter) Geofence.GEOFENCE_TRANSITION_ENTER else 0) or (if (f.exit) Geofence.GEOFENCE_TRANSITION_EXIT else 0),
+            )
+            .setNotificationResponsiveness(RULE_RESPONSIVENESS_MS)
+            .build()
+
+        /** Rules switch things ("500 m vor Zuhause" → heating on): sooner than a reminder needs. */
+        private const val RULE_RESPONSIVENESS_MS = 30_000
 
         private fun geofence(f: StoredFence): Geofence = Geofence.Builder()
             .setRequestId(requestId(f.placeId))
