@@ -16,6 +16,7 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.familie.FamilieResult
+import com.gatecontrol.android.familie.places.RulePlaceWatcher
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.HomeNetworkStatus
 import com.gatecontrol.android.network.probeHomeNetwork
@@ -86,6 +87,7 @@ class PresenceReporter @Inject constructor(
     private val repository: FamilieRepository,
     private val api: FamilieApi,
     private val store: PresenceStore,
+    private val rulePlaces: RulePlaceWatcher,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CrashReports.coroutineHandler)
     private val checkLock = Mutex()
@@ -265,12 +267,17 @@ class PresenceReporter @Inject constructor(
         return r
     }
 
-    /** `GET presence`; my consent from the answer replaces the stored one. */
+    /** `GET presence`; my consents from the answer replace the stored ones. */
     suspend fun fetch(): FamilieResult<FamilieApi.PresenceFetch> {
         val me = (repository.profile.value ?: repository.cachedProfile())?.me?.userId
             ?: return FamilieResult.Failed("not_member", 403)
         val r = api.presence(me)
-        if (r is FamilieResult.Ok) r.value.myConsent?.let { if (it != store.share.value) store.setShare(it) }
+        if (r is FamilieResult.Ok) {
+            r.value.myConsent?.let { if (it != store.share.value) store.setShare(it) }
+            // Familie 1.5: the place consent and the rule places to watch.
+            rulePlaces.consentSeen(r.value.myPlaces)
+            rulePlaces.versionSeen(r.value.watchVersion)
+        }
         return r
     }
 
@@ -349,6 +356,7 @@ class PresenceReportWorker(appContext: Context, params: WorkerParameters) : Coro
         fun familieApi(): FamilieApi
         fun familieRepository(): FamilieRepository
         fun presenceStore(): PresenceStore
+        fun rulePlaceWatcher(): RulePlaceWatcher
     }
 
     override suspend fun doWork(): Result {
@@ -365,6 +373,7 @@ class PresenceReportWorker(appContext: Context, params: WorkerParameters) : Coro
         return when (val r = deps.familieApi().reportPresence(home, at)) {
             is FamilieResult.Ok -> {
                 store.reported(home, System.currentTimeMillis())
+                deps.rulePlaceWatcher().versionSeen(r.value)
                 Result.success()
             }
             is FamilieResult.Failed -> when {

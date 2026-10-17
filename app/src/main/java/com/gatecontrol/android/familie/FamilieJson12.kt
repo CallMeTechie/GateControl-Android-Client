@@ -4,6 +4,7 @@ import com.gatecontrol.android.familie.FamilieJson.arr
 import com.gatecontrol.android.familie.FamilieJson.bool
 import com.gatecontrol.android.familie.FamilieJson.clean
 import com.gatecontrol.android.familie.FamilieJson.date
+import com.gatecontrol.android.familie.FamilieJson.dbl
 import com.gatecontrol.android.familie.FamilieJson.int
 import com.gatecontrol.android.familie.FamilieJson.ints
 import com.gatecontrol.android.familie.FamilieJson.obj
@@ -35,6 +36,8 @@ import com.gatecontrol.android.familie.money.StarRate
 import com.gatecontrol.android.familie.money.Transfer
 import com.gatecontrol.android.familie.money.WishDraft
 import com.gatecontrol.android.familie.money.WishItem
+import com.gatecontrol.android.familie.places.RuleFence
+import com.gatecontrol.android.familie.places.RuleWatch
 import com.gatecontrol.android.familie.presence.PresenceMember
 import com.gatecontrol.android.familie.presence.PresencePayload
 import com.gatecontrol.android.familie.presence.PresenceState
@@ -523,6 +526,30 @@ object FamilieJson12 {
         }.orEmpty()
         val away = p.ints("away").map { PresenceMember(it, PresenceState.AWAY, null, true) }
         return (home + away).distinctBy { it.userId }
+    }
+
+    /** My consent to place events for rules (1.5) in a `GET presence` answer, else null (older server). */
+    fun myPlacesConsent(o: JsonObject): Boolean? = o.obj("me")?.bool("places") ?: o.obj("consent")?.bool("places")
+
+    /** The version of my rule-place watch list in a presence answer (1.5), else null. */
+    fun watchVersion(o: JsonObject): String? = o.str("watchVersion")?.let { clean(it, 64) }?.takeIf { it.isNotEmpty() }
+
+    /** `GET presence/watch` (1.5): the rule places this phone watches; unusable entries are dropped. */
+    fun ruleWatch(o: JsonObject): RuleWatch = RuleWatch(
+        places = o.arr("places")?.objects()?.mapNotNull(::ruleFence).orEmpty().distinctBy { it.placeId },
+        version = o.str("version")?.let { clean(it, 64) }?.takeIf { it.isNotEmpty() },
+    )
+
+    private fun ruleFence(o: JsonObject): RuleFence? {
+        val id = o.int("id")?.takeIf { it > 0 } ?: return null
+        val lat = o.dbl("lat")?.takeIf { it in -90.0..90.0 } ?: return null
+        val lon = o.dbl("lon")?.takeIf { it in -180.0..180.0 } ?: return null
+        val radius = o.int("radius")?.coerceIn(RuleFence.MIN_RADIUS, RuleFence.MAX_RADIUS) ?: return null
+        val transitions = o.arr("transitions")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString }.orEmpty()
+        val enter = RuleFence.ENTER in transitions
+        val exit = RuleFence.EXIT in transitions
+        if (!enter && !exit) return null
+        return RuleFence(id, clean(o.str("name"), 40), lat, lon, radius, enter, exit)
     }
 
     fun presenceBody(home: Boolean, at: String): JsonObject = JsonObject().apply {

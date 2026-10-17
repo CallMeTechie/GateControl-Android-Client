@@ -157,6 +157,15 @@
     <string name="familie_presence_consent_title">Share presence?</string>
     <string name="familie_presence_consent_text">When your phone is in the home network (the server\'s own network or the network behind one of its gateways), the app reports „home“, otherwise „away“ – also in the background, at most every two minutes. To check, the app sends your phone\'s local network address (e.g. 192.168.1.23) to your server; no location, no Wi-Fi name. Your family sees it in the app, on the wall tablet and in the portal; parents can let smart-home rules react to it (e.g. heating down when everyone is away). It is stored only on your family\'s GateControl server. You can switch it off at any time.</string>
     <string name="familie_presence_consent_yes">Share</string>
+    <string name="familie_rule_places_share">Share places for rules</string>
+    <string name="familie_rule_places_share_desc">Your phone only reports when you arrive at or leave a place that a family rule uses – never your location.</string>
+    <string name="familie_rule_places_consent_title">Share places for rules?</string>
+    <string name="familie_rule_places_consent_text">Parents can set places in GateControl (e.g. school, work, or a 500 m circle around home) and let rules react when someone arrives or leaves – for example switching on the heating shortly before you get home, or a message when you arrive at school. Your phone watches only the places that a rule uses for you, also in the background, and sends only „arrived at“ or „left“ with the place and the time to your family\'s GateControl server – never your location. Parents see the rule runs in the log. You can switch it off at any time.</string>
+    <string name="familie_rule_places_unavailable">This phone has no Google Play services: it cannot watch places.</string>
+    <string name="familie_rule_places_need_permission">To notice places, GateControl needs your precise location – “Allow all the time”, so rules also work while the app is closed.</string>
+    <string name="familie_rule_places_unsupported">Your family\'s server does not know places for rules yet (Familie 1.5 or newer needed).</string>
+    <string name="familie_perm_rule_places_text">For places in family rules GateControl uses your precise location on this phone to notice when you arrive at or leave a place a rule uses. The phone checks this itself; your location is not sent anywhere.</string>
+    <string name="familie_perm_rule_places_bg_text">Places in rules also work while GateControl is closed or not in use: GateControl collects your location in the background through Android’s geofencing for this. Only “arrived at” or “left” a place is shared with your family\'s server – never the location. On the next screen choose “Allow all the time”.</string>
     <string name="familie_presence_now_home">This phone is home now.</string>
     <string name="familie_presence_now_away">This phone is away now.</string>
     <string name="familie_presence_now_unknown">Checking the network …</string>

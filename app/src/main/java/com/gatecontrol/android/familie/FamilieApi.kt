@@ -14,6 +14,7 @@ import com.gatecontrol.android.familie.money.ExpenseDraft
 import com.gatecontrol.android.familie.money.ExpenseMonth
 import com.gatecontrol.android.familie.money.WishDraft
 import com.gatecontrol.android.familie.money.WishItem
+import com.gatecontrol.android.familie.places.RuleWatch
 import com.gatecontrol.android.familie.presence.PresencePayload
 import com.gatecontrol.android.familie.rides.DriverChoice
 import com.gatecontrol.android.familie.rides.Ride
@@ -489,16 +490,43 @@ class FamilieApi @Inject constructor(
 
     // ─── presence (1.2) ──────────────────────────────────────────────
 
-    data class PresenceFetch(val payload: PresencePayload, val myConsent: Boolean?)
+    /** [myPlaces] / [watchVersion]: Familie 1.5 (place events for rules), null from older servers. */
+    data class PresenceFetch(val payload: PresencePayload, val myConsent: Boolean?, val myPlaces: Boolean? = null, val watchVersion: String? = null)
 
     suspend fun presence(myUserId: Int): FamilieResult<PresenceFetch> =
-        get(path("presence"), parse = { PresenceFetch(FamilieJson12.presence(it), FamilieJson12.myConsent(it, myUserId)) })
+        get(path("presence"), parse = {
+            PresenceFetch(FamilieJson12.presence(it), FamilieJson12.myConsent(it, myUserId), FamilieJson12.myPlacesConsent(it), FamilieJson12.watchVersion(it))
+        })
 
-    /** Only for oneself. */
-    suspend fun presenceConsent(share: Boolean): FamilieResult<Unit> =
-        put(path("presence", "consent"), JsonObject().apply { addProperty("share", share) }, unit)
+    /** Only for oneself; each flag only when given (`places`: Familie 1.5). */
+    suspend fun presenceConsent(share: Boolean? = null, places: Boolean? = null): FamilieResult<Unit> =
+        put(
+            path("presence", "consent"),
+            JsonObject().apply {
+                share?.let { addProperty("share", it) }
+                places?.let { addProperty("places", it) }
+            },
+            unit,
+        )
 
-    /** Only with consent; the server takes at most one per minute. */
-    suspend fun reportPresence(home: Boolean, at: String): FamilieResult<Unit> =
-        post(path("presence"), FamilieJson12.presenceBody(home, at), unit)
+    /** Only with consent; the server takes at most one per minute. The answer's `watchVersion` (1.5), if any. */
+    suspend fun reportPresence(home: Boolean, at: String): FamilieResult<String?> =
+        post(path("presence"), FamilieJson12.presenceBody(home, at)) { FamilieJson12.watchVersion(it) ?: "" }
+            .let { r -> if (r is FamilieResult.Ok) FamilieResult.Ok(r.value?.takeIf { it.isNotEmpty() }) else r }
+
+    // ─── place events for rules (1.5) ─────────────────────────────────
+
+    /** The rule places this phone watches (empty without my consent). */
+    suspend fun presenceWatch(): FamilieResult<RuleWatch> = get(path("presence", "watch"), parse = FamilieJson12::ruleWatch)
+
+    /** I entered / left rule place [id]. */
+    suspend fun rulePlaceEvent(id: Int, transition: String, at: String): FamilieResult<Unit> =
+        post(
+            path("presence", "places", id, "event"),
+            JsonObject().apply {
+                addProperty("transition", transition)
+                addProperty("at", at)
+            },
+            unit,
+        )
 }
