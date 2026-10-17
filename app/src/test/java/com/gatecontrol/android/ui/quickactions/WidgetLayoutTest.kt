@@ -1,6 +1,10 @@
 package com.gatecontrol.android.ui.quickactions
 
+import com.gatecontrol.android.network.QuickActionReading
+import com.gatecontrol.android.network.QuickActionWidget
 import com.gatecontrol.android.quickactions.QuickActionControlOptionItem
+import com.gatecontrol.android.quickactions.QuickActionWidgetItem
+import com.google.gson.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -25,5 +29,19 @@ class WidgetLayoutTest {
         assertEquals("M1 1h2", QuickActionControlOptionItem("cool", "Kühlen", "M1 1h2").glyph)
         for (id in listOf("auto", "cool", "heat", "dry", "fan")) assertNotNull(QuickActionControlOptionItem(id, id).glyph, id)
         assertNull(QuickActionControlOptionItem("turbo", "Turbo").glyph)
+    }
+
+    @Test
+    fun `a widget's badge needs an icon and keeps its value, a widget of only a badge and a reading is kept`() {
+        val battery = QuickActionReading(label = "Ladestand", value = JsonPrimitive(24), unit = "%", icon = "M2 7h16v10H2z", state = "good")
+        val w = QuickActionWidgetItem.from(QuickActionWidget(badge = battery, readings = listOf(QuickActionReading(id = "range", label = "Reichweite", value = JsonPrimitive(105), unit = "km"))))
+        assertNotNull(w)
+        assertEquals("24", w!!.badge?.value)
+        assertEquals("%", w.badge?.unit)
+        assertEquals("good", w.badge?.state)
+        assertNull(w.value)
+        assertNull(QuickActionWidgetItem.from(QuickActionWidget(badge = battery.copy(icon = null), value = JsonPrimitive(1)))?.badge)
+        assertNull(QuickActionWidgetItem.badgeOf(battery.copy(icon = "<svg>")))
+        assertEquals(w, w.normalized())
     }
 }

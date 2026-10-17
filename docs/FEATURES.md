@@ -124,7 +124,9 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   gibt es nur Symbol-Buttons (seit 1.39): die Aktionen teilen sich die volle
   Breite – bis zu drei in einer Reihe, vier als 2 × 2 –, die Auswahl (z. B.
   Klima-Modus Auto/Kühlen/Heizen/Entfeuchten/Lüften) zeigt Symbole, Text nur
-  für einen Modus ohne bekanntes Symbol. Halbe
+  für einen Modus ohne bekanntes Symbol. Ein Plugin kann einen kleinen Wert in
+  den Kopf des Widgets setzen (seit 1.40, Server 1.175+), z. B. beim Auto Akku
+  und Ladestand rechts neben dem Namen; ohne Hauptwert entfällt die große Zahl. Halbe
   (zwei pro Zeile) oder volle Breite. Regler-Änderungen gehen 600 ms nach dem
   letzten Tipp an den Server. Höchstens 8 Widgets und 12 Buttons.
 - **Schnellaktionen und Widgets** (Liste): eine Zeile pro Gerät, hier wird

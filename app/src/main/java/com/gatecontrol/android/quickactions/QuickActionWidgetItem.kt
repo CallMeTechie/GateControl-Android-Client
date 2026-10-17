@@ -25,12 +25,15 @@ data class QuickActionWidgetItem(
     val label: String? = null,
     val readings: List<QuickActionReadingItem> = emptyList(),
     val power: Boolean = true,
+    /** Shown in the widget's head right of the device name (core 1.175+), e.g. battery and charge level. */
+    val badge: QuickActionReadingItem? = null,
 ) {
     /** Gson bypasses Kotlin defaults: an older stored shape may leave the lists null. */
     @Suppress("SENSELESS_COMPARISON", "UNNECESSARY_SAFE_CALL")
     fun normalized(): QuickActionWidgetItem = copy(
         controls = (controls ?: emptyList()).filter { it != null && it.id != null && it.kind != null },
         readings = (readings ?: emptyList()).filter { it != null && it.id != null && it.label != null },
+        badge = badge?.takeIf { it.icon != null && it.label != null },
     )
 
     companion object {
@@ -48,10 +51,26 @@ data class QuickActionWidgetItem(
             val status = raw.status?.let(QuickActionRepository::clean)?.take(60)?.takeIf { it.isNotBlank() }
             val state = raw.state?.takeIf { it in STATES }
             val label = raw.label?.let(QuickActionRepository::clean)?.take(24)?.takeIf { it.isNotBlank() }
-            if (value == null && label == null && status == null && controls.isEmpty() && readings.isEmpty()) return null
+            val badge = badgeOf(raw.badge)
+            if (value == null && label == null && status == null && controls.isEmpty() && readings.isEmpty() && badge == null) return null
             return QuickActionWidgetItem(
                 value = value, unit = unit, status = status, state = state, controls = controls,
-                label = label, readings = readings, power = raw.power != false,
+                label = label, readings = readings, power = raw.power != false, badge = badge,
+            )
+        }
+
+        /** The head's badge: an icon (required) with an optional short value; its label only names it. */
+        internal fun badgeOf(raw: QuickActionReading?): QuickActionReadingItem? {
+            raw ?: return null
+            val icon = QuickActionIcons.sanitize(raw.icon) ?: return null
+            val value = textOf(raw.value, 8)
+            return QuickActionReadingItem(
+                id = "badge",
+                label = raw.label?.let(QuickActionRepository::clean)?.take(20)?.takeIf { it.isNotBlank() } ?: "",
+                value = value,
+                unit = raw.unit?.let(QuickActionRepository::clean)?.take(4)?.takeIf { it.isNotBlank() && value != null },
+                icon = icon,
+                state = raw.state?.takeIf { it in STATES },
             )
         }
 
