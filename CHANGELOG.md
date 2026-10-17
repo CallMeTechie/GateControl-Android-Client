@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.39.0] - 2026-10-17
+
+### Features
+- widget buttons share the widget's width, modes as icons, two-line quick action labels (#84)
+
+---
+
 ## [1.38.1] - 2026-10-16
 
 ### Fixes
