@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.40.0] - 2026-10-17
+
+### Features
+- a badge in the widget's head (battery and charge level next to the car's name) (#85)
+
+---
+
 ## [1.39.0] - 2026-10-17
 
 ### Features
