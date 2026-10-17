@@ -65,6 +65,42 @@ sealed class Screen(val route: String) {
         const val ARG_DEST = "dest"
         fun create(dest: String): String = "door/page?dest=" + android.net.Uri.encode(dest)
     }
+    /**
+     * Tab "Chats" of the messenger plugin (only when the server lists it
+     * with an app tab). `conv` is shown beside the list on wide windows;
+     * `share` = pick a chat for what was shared from another app.
+     */
+    data object Chats : Screen("chats?conv={conv}&share={share}") {
+        const val ARG_CONV = "conv"
+        const val ARG_SHARE = "share"
+        const val BASE = "chats"
+        fun create(conv: Long? = null, share: Boolean = false): String = buildString {
+            append(BASE)
+            val args = listOfNotNull(conv?.let { "conv=$it" }, if (share) "share=true" else null)
+            if (args.isNotEmpty()) append("?").append(args.joinToString("&"))
+        }
+    }
+    /** One conversation on its own (phones). */
+    data object ChatConversation : Screen("chats/c/{id}?share={share}") {
+        const val ARG_ID = "id"
+        const val ARG_SHARE = "share"
+        fun create(id: Long, share: Boolean = false): String = "chats/c/$id" + if (share) "?share=true" else ""
+    }
+    /** "Neuer Chat" (`group` = "Neue Gruppe"). */
+    data object ChatNew : Screen("chats/new?group={group}") {
+        const val ARG_GROUP = "group"
+        fun create(group: Boolean = false): String = if (group) "chats/new?group=true" else "chats/new"
+    }
+    /** Chat / group info. */
+    data object ChatInfo : Screen("chats/info/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long): String = "chats/info/$id"
+    }
+    /** A chat picture full screen. */
+    data object ChatImage : Screen("chats/image/{media}") {
+        const val ARG_MEDIA = "media"
+        fun create(mediaId: String): String = "chats/image/$mediaId"
+    }
     data object SettingsNotifications : Screen("settings/notifications")
     /**
      * Own profile: picture and favourite colour (own avatar on the start

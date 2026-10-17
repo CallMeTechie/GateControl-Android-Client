@@ -35,6 +35,37 @@ class MainTabsTest {
     }
 
     @Test
+    fun `Chats comes right after Start when the server offers the messenger`() {
+        val chats = PluginAvailability(familieTab = true, messengerTab = true)
+        assertEquals(
+            listOf(Screen.Vpn.route, Screen.Chats.route, Screen.Network.route, Screen.Familie.route),
+            MainTabs.routes(network = true, plugins = chats),
+        )
+        assertEquals(listOf(Screen.Vpn.route, Screen.Chats.route), MainTabs.routes(network = false, plugins = PluginAvailability(messengerTab = true)))
+        assertTrue(Screen.Chats.route in MainTabs.BAR_ROUTES)
+        assertFalse(Screen.ChatConversation.route in MainTabs.BAR_ROUTES)
+    }
+
+    @Test
+    fun `the messenger's tab follows the plugin list`() {
+        fun plugin(id: String, tab: Boolean) = com.gatecontrol.android.network.ClientPlugin(id = id, tab = if (tab) com.gatecontrol.android.network.ClientPluginTab("Chats", "M4 5h16v11H9l-5 4z") else null)
+        assertTrue(PluginAvailability.from(listOf(plugin("gatecontrol-messenger", true))).messengerTab)
+        assertFalse(PluginAvailability.from(listOf(plugin("gatecontrol-messenger", false))).messengerTab, "listed without a tab (e.g. kiosk device)")
+        assertFalse(PluginAvailability.from(emptyList()).messengerTab, "older servers")
+    }
+
+    @Test
+    fun `chat routes`() {
+        assertEquals("chats", Screen.Chats.create())
+        assertEquals("chats?conv=12", Screen.Chats.create(conv = 12))
+        assertEquals("chats?conv=12&share=true", Screen.Chats.create(conv = 12, share = true))
+        assertEquals("chats/c/12", Screen.ChatConversation.create(12))
+        assertEquals("chats/c/12?share=true", Screen.ChatConversation.create(12, share = true))
+        assertEquals("chats/new?group=true", Screen.ChatNew.create(group = true))
+        assertEquals("chats/info/12", Screen.ChatInfo.create(12))
+    }
+
+    @Test
     fun `the Netzwerk tab exists for any of its segments, Remote included`() {
         assertTrue(MainTabs.hasNetwork(services = false, pihole = false, rdp = true))
         assertTrue(MainTabs.hasNetwork(services = true, pihole = false, rdp = false))

@@ -108,9 +108,20 @@ data class PushMessage(
      * Gson leaves it null in inbox entries cached by older versions.
      */
     val imageUrl: String? = null,
+    /**
+     * `message` = a chat notification (core 1.177+): never in the inbox,
+     * shown by the chat feature (one MessagingStyle notification per
+     * conversation). Null for every other notification.
+     */
+    val kind: String? = null,
 ) {
     val priorityLevel: PushPriority get() = PushPriority.fromWire(priority)
     val isUnread: Boolean get() = state == PushState.DELIVERED
+    val isChat: Boolean get() = kind == KIND_MESSAGE
+
+    companion object {
+        const val KIND_MESSAGE = "message"
+    }
 }
 
 /** A topic the device may get (`hello.topics`). */

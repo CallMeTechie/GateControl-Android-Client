@@ -97,6 +97,17 @@
 # Last location sent (Gson, settings storage).
 -keep class com.gatecontrol.android.location.SentLocation { *; }
 
+# ── Chats (messenger plugin) ─────────────────────────────
+# The plugin's answers are parsed from the Gson tree (ChatJson) and cached in
+# Room as JSON text (ChatSerializer) - no reflection. Room's generated DAO and
+# entity code is kept by its own rules plus the RoomDatabase rule above; the
+# entities and models keep their field names anyway, so a future reflective
+# (de)serialisation or a Room schema check cannot be broken by renaming.
+-keep class com.gatecontrol.android.chat.db.** { *; }
+-keep class com.gatecontrol.android.chat.** { <fields>; }
+# The outbox job is created by WorkManager from its class name.
+-keep class com.gatecontrol.android.chat.ChatOutboxWorker { <init>(...); }
+
 # ── General ───────────────────────────────────────────────
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

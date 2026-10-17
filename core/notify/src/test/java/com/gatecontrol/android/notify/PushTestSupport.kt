@@ -29,6 +29,16 @@ class FakePresenter : PushPresenter {
     val cancelled = CopyOnWriteArrayList<Int>()
     val channelTopics = CopyOnWriteArrayList<List<PushTopic>>()
     val fresh = CopyOnWriteArrayList<PushMessage>()
+    val chats = CopyOnWriteArrayList<PushMessage>()
+    val chatGone = CopyOnWriteArrayList<Long>()
+
+    override suspend fun showChat(message: PushMessage, quiet: Boolean) {
+        chats += message
+    }
+
+    override fun chatGone(ids: Collection<Long>) {
+        chatGone += ids
+    }
 
     override suspend fun onNew(message: PushMessage) {
         fresh += message

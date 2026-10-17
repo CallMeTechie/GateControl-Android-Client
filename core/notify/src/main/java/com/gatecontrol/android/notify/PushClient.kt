@@ -55,6 +55,7 @@ class PushClient @Inject constructor(
     private val repository: PushRepository,
     private val platform: PushPlatform,
     private val control: ServerControlSink,
+    private val pluginEvents: PluginEventSink = PluginEventSink.NONE,
 ) {
     private data class Kick(val reason: String, val force: Boolean)
 
@@ -204,6 +205,8 @@ class PushClient @Inject constructor(
                             }
                             sideJob?.cancel()
                             sideJob = runScope.launch { repository.afterConnect() }
+                            runCatching { pluginEvents.onStreamOpen() }
+                                .onFailure { Timber.w("Push: plugin catch-up failed (%s)", it.javaClass.simpleName) }
                         }
                         is PushEvent.Notification ->
                             repository.onNotification(event.message.copy(receivedAt = clock(), via = via))
@@ -214,6 +217,8 @@ class PushClient @Inject constructor(
                             runCatching { control.onControl(event.control) }
                                 .onFailure { Timber.w("Push: control not applied (%s)", it.javaClass.simpleName) }
                         }
+                        is PushEvent.Plugin -> runCatching { pluginEvents.onPluginEvent(event.plugin, event.type, event.data) }
+                            .onFailure { Timber.w("Push: plugin event not handled (%s)", it.javaClass.simpleName) }
                         is PushEvent.Ignored -> Timber.d("Push: event %s ignored (%s)", event.type, event.reason)
                     }
                 },

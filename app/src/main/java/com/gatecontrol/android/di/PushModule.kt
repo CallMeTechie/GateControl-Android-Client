@@ -1,5 +1,7 @@
 package com.gatecontrol.android.di
 
+import com.gatecontrol.android.chat.ChatEventSink
+import com.gatecontrol.android.notify.PluginEventSink
 import com.gatecontrol.android.notify.PushPresenter
 import com.gatecontrol.android.notify.ServerControlSink
 import com.gatecontrol.android.push.PushNotifier
@@ -18,4 +20,8 @@ abstract class PushModule {
     /** Control events and `hello.state` of the push stream run the heartbeat's code paths. */
     @Binds
     abstract fun bindServerControl(impl: ServerControlHandler): ServerControlSink
+
+    /** Plugins' realtime events of the push stream: the messenger's go to the chats. */
+    @Binds
+    abstract fun bindPluginEvents(impl: ChatEventSink): PluginEventSink
 }

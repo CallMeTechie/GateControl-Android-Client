@@ -142,9 +142,26 @@ class ManifestSecurityTest {
     }
 
     @Test
-    fun `file provider only exposes the export directory`() {
+    fun `file provider only exposes the export directory and opened chat files`() {
         val xml = moduleFile("src/main/res/xml/file_paths.xml").readText()
         assertFalse(xml.contains("path=\".\""), "whole cache dir must not be shared")
         assertTrue(xml.contains("path=\"export/\""))
+        assertTrue(xml.contains("path=\"chat-open/\""))
+        assertFalse(xml.contains("chat-media"), "the chat media cache stays private")
+        assertFalse(xml.contains("files-path"), "nothing of the private files dir")
+    }
+
+    @Test
+    fun `chat notification receiver is not exported, the share target is off until the server offers chats`() {
+        val receiver = components("receiver").first { it.androidAttr("name").endsWith("ChatActionReceiver") }
+        assertEquals("false", receiver.androidAttr("exported"))
+        assertEquals(0, receiver.getElementsByTagName("intent-filter").length)
+        val share = components("activity").first { it.androidAttr("name").endsWith("ChatShareActivity") }
+        assertEquals("true", share.androidAttr("exported"))
+        assertEquals("false", share.androidAttr("enabled"), "switched on at runtime only with the messenger")
+        val actions = share.getElementsByTagName("action").let { n -> (0 until n.length).map { (n.item(it) as Element).androidAttr("name") } }.toSet()
+        assertEquals(setOf("android.intent.action.SEND", "android.intent.action.SEND_MULTIPLE"), actions)
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        assertTrue("android.permission.RECORD_AUDIO" in permissions)
     }
 }

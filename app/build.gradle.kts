@@ -153,6 +153,11 @@ dependencies {
     // the release build at start (WorkDatabase stripped by R8).
     implementation(libs.work.runtime)
 
+    // Chats (messenger plugin): Room cache of conversations, messages and the outbox.
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
     // Services open in a Custom Tab (in-app browser)
     implementation(libs.browser)
 

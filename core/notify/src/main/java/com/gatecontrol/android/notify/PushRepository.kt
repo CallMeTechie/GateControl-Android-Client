@@ -62,6 +62,10 @@ class PushRepository @Inject constructor(
      * and acknowledged as delivered right away.
      */
     suspend fun onNotification(message: PushMessage) {
+        if (message.isChat) {
+            onChat(message)
+            return
+        }
         inbox.load()
         val settings = store.current()
         val seenBefore = inbox.get(message.id)?.seq == message.seq
@@ -85,8 +89,38 @@ class PushRepository @Inject constructor(
         flushAcks()
     }
 
+    /**
+     * A chat notification (core 1.177+): not in the inbox (the server keeps
+     * it out of its inbox too), shown by the chat feature unless its topic
+     * is switched off here, acknowledged as delivered like any other.
+     */
+    private suspend fun onChat(message: PushMessage) {
+        val settings = store.current()
+        val topicOff = message.topic in settings.mutedTopics
+        if (settings.enabled && !topicOff && message.isUnread) {
+            runCatching { presenter.showChat(message, settings.isLocallyMuted(message.topic, clock())) }
+                .onFailure { Timber.w("Push: chat notification not shown (%s)", it.javaClass.simpleName) }
+        }
+        store.addPendingAcks(listOf(PendingAck(message.seq, PushState.DELIVERED)))
+        store.saveLastSeq(message.seq)
+        flushAcks()
+    }
+
+    /**
+     * Chat notifications [seqs] were read (the conversation opened, "Als
+     * gelesen markieren", an answer from the notification): ack `read` so
+     * the person's other devices take them away too.
+     */
+    suspend fun ackChatRead(seqs: Collection<Long>, action: String? = null) {
+        val valid = seqs.filter { it > 0 }.distinct()
+        if (valid.isEmpty()) return
+        val validAction = action?.takeIf { PushEventParser.ACK_ACTION_RE.matches(it) }
+        queueAcks(valid.map { PendingAck(it, PushState.READ, validAction) })
+    }
+
     /** Read on another device: mark read here and take it out of the shade. */
     suspend fun onRead(ids: List<Long>) {
+        runCatching { presenter.chatGone(ids) }
         val before = inbox.items.value
         inbox.setState(ids, PushState.READ)
         cancelShown(ids, before)
@@ -94,6 +128,7 @@ class PushRepository @Inject constructor(
 
     /** Withdrawn by the server: gone from inbox and shade. */
     suspend fun onRevoke(ids: List<Long>) {
+        runCatching { presenter.chatGone(ids) }
         val before = inbox.items.value
         inbox.remove(ids)
         cancelShown(ids, before)
