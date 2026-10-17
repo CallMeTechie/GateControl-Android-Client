@@ -109,7 +109,8 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
 - **Schnellaktionen:** angeheftete Aktionen als Symbol-Kacheln (das
   SVG-Symbol, das der Server je Aktion schickt; ohne Symbol der Blitz) mit
   dem Titel darunter, Schalter gefüllt, solange sie an sind; seit 1.37
-  fünf pro Zeile (weitere Zeilen bei mehr), ohne „+“. Dieselben Symbole in
+  fünf pro Zeile (weitere Zeilen bei mehr), ohne „+“; die Beschriftung
+  darf zwei Zeilen haben (lange Wörter getrennt, notfalls etwas kleiner). Dieselben Symbole in
   der Liste, im Widget, in den App-Verknüpfungen und den
   Schnelleinstellungs-Kacheln. Alle 60 s aktualisiert, solange der Tab
   sichtbar ist.
@@ -119,7 +120,11 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   Zusatzwerte mit Symbol (Reichweite; ein Schloss grün = verriegelt, rot =
   entriegelt), die Statuszeile, die Regler des Plugins (Stepper, Schieberegler,
   Auswahl) und die Aktionen des Geräts als Symbol-Buttons; bei Geräten mit
-  eigenem Ein/Aus-Schalter (Klima, Licht) steht dieser oben rechts. Halbe
+  eigenem Ein/Aus-Schalter (Klima, Licht) steht dieser oben rechts. Im Widget
+  gibt es nur Symbol-Buttons (seit 1.39): die Aktionen teilen sich die volle
+  Breite – bis zu drei in einer Reihe, vier als 2 × 2 –, die Auswahl (z. B.
+  Klima-Modus Auto/Kühlen/Heizen/Entfeuchten/Lüften) zeigt Symbole, Text nur
+  für einen Modus ohne bekanntes Symbol. Halbe
   (zwei pro Zeile) oder volle Breite. Regler-Änderungen gehen 600 ms nach dem
   letzten Tipp an den Server. Höchstens 8 Widgets und 12 Buttons.
 - **Schnellaktionen und Widgets** (Liste): eine Zeile pro Gerät, hier wird

@@ -118,7 +118,7 @@ data class QuickActionControlItem(
                     val options = raw.options.orEmpty().mapNotNull { o ->
                         val oid = o.id?.takeIf { ID.matches(it) } ?: return@mapNotNull null
                         val text = o.label?.let(QuickActionRepository::clean)?.take(20)?.takeIf { it.isNotBlank() } ?: oid
-                        QuickActionControlOptionItem(oid, text)
+                        QuickActionControlOptionItem(oid, text, QuickActionIcons.sanitize(o.icon))
                     }.distinctBy { it.id }.take(8)
                     if (options.size < 2) return null
                     val chosen = raw.value?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
@@ -134,7 +134,27 @@ data class QuickActionControlItem(
     }
 }
 
-data class QuickActionControlOptionItem(val id: String, val label: String)
+/**
+ * One option of a choice control. [icon] is the server's path, if it sent
+ * one; [glyph] is what a widget draws: that path, else a built-in one for a
+ * common id (air conditioner modes), else null (then the label is shown).
+ */
+data class QuickActionControlOptionItem(val id: String, val label: String, val icon: String? = null) {
+    val glyph: String? get() = icon ?: BUILT_IN[id]
+
+    companion object {
+        /** 24×24 stroke paths for the ids plugins use for modes (Klima: auto, cool, heat, dry, fan). */
+        private val BUILT_IN = mapOf(
+            "auto" to "M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4",
+            "cool" to "M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2",
+            "heat" to "M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+            "dry" to "M12 3c3.5 4.5 6 7.7 6 11a6 6 0 0 1-12 0c0-3.3 2.5-6.5 6-11z",
+            "fan" to "M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8",
+            "off" to "M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0",
+            "on" to "M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0",
+        )
+    }
+}
 
 /**
  * A small value of a widget or an Info card tile (core 1.172+): an icon

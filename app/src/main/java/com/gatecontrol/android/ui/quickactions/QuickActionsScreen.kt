@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -44,10 +46,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -428,13 +433,23 @@ private fun QuickActionTile(item: QuickActionItem, width: Dp, running: Boolean, 
                 Icon(icon, contentDescription = null, tint = glyph, modifier = Modifier.size(28.dp))
             }
         }
-        Text(
+        // Two lines, long words hyphenated, the size stepping down before
+        // anything is cut: „Haustür öffnen“, „Scheibenheizung“ fit a fifth of a row.
+        val labelStyle = MaterialTheme.typography.labelSmall
+        val labelColor = toned?.first ?: if (on) extra.accentText else scheme.onSurface
+        BasicText(
             item.title,
-            style = MaterialTheme.typography.labelSmall,
-            color = toned?.first ?: if (on) extra.accentText else scheme.onSurface,
-            maxLines = 1,
+            style = labelStyle.copy(
+                color = labelColor,
+                textAlign = TextAlign.Center,
+                hyphens = Hyphens.Auto,
+                lineBreak = LineBreak.Paragraph,
+                lineHeight = labelStyle.fontSize * 1.15f,
+            ),
+            maxLines = 2,
+            minLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
+            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = labelStyle.fontSize, stepSize = 0.5.sp),
             modifier = Modifier.fillMaxWidth(),
         )
     }
