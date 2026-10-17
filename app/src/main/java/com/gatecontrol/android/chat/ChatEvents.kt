@@ -1,0 +1,114 @@
+package com.gatecontrol.android.chat
+
+import com.gatecontrol.android.chat.ChatJson.flag
+import com.gatecontrol.android.chat.ChatJson.id
+import com.gatecontrol.android.chat.ChatJson.str
+import com.google.gson.JsonElement
+import java.time.Instant
+
+/**
+ * A realtime event of the messenger (README "Live events"), arriving on the
+ * push stream as `event: plugin`. Ephemeral: after a reconnect the app
+ * catches up over the API.
+ */
+sealed interface ChatEvent {
+    val conversationId: Long
+
+    data class MessageNew(
+        override val conversationId: Long,
+        val messageId: Long,
+        val senderId: Long?,
+        val clientId: String?,
+    ) : ChatEvent
+
+    data class MessageUpdate(override val conversationId: Long, val messageId: Long) : ChatEvent
+
+    /** [reason] deleted (tombstone) | hidden | expired | retention (remove). */
+    data class MessageDelete(override val conversationId: Long, val messageIds: List<Long>, val reason: String) : ChatEvent {
+        val tombstone: Boolean get() = reason == REASON_DELETED
+    }
+
+    data class Reaction(
+        override val conversationId: Long,
+        val messageId: Long,
+        val reactions: List<ChatReaction>,
+    ) : ChatEvent
+
+    /**
+     * Receipts: [lastReadId] null when that person does not share them.
+     * [self] = read on one of the caller's own devices, with [unread] left.
+     */
+    data class Read(
+        override val conversationId: Long,
+        val userId: Long,
+        val lastReadId: Long?,
+        val lastDeliveredId: Long?,
+        val self: Boolean,
+        val unread: Int?,
+    ) : ChatEvent
+
+    /** "schreibt …" until [untilMs] (epoch ms); null = stopped. */
+    data class Typing(override val conversationId: Long, val userId: Long, val untilMs: Long?) : ChatEvent
+
+    data class ConversationUpdate(override val conversationId: Long, val reasons: Set<String>) : ChatEvent
+
+    data class ConversationRemove(override val conversationId: Long) : ChatEvent
+
+    companion object {
+        const val REASON_DELETED = "deleted"
+    }
+}
+
+/** Pure: `{ plugin, type, data }` of the messenger → [ChatEvent]; anything else null. Unit-tested. */
+object ChatEvents {
+
+    private val DELETE_REASONS = setOf("deleted", "hidden", "expired", "retention")
+    private val REASON_RE = Regex("^[a-z_]{1,32}$")
+    /** "schreibt …" never shows longer than this, whatever the server says. */
+    const val TYPING_MAX_MS = 15_000L
+
+    fun parse(plugin: String, type: String, data: JsonElement?, nowMs: Long = System.currentTimeMillis()): ChatEvent? {
+        if (plugin != MESSENGER_PLUGIN) return null
+        val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        val conv = o.id("conversationId") ?: return null
+        return when (type) {
+            "message.new" -> ChatEvent.MessageNew(
+                conversationId = conv,
+                messageId = o.id("messageId") ?: return null,
+                senderId = o.id("senderId"),
+                clientId = o.str("clientId")?.takeIf { ChatJson.isClientId(it) },
+            )
+            "message.update" -> ChatEvent.MessageUpdate(conv, o.id("messageId") ?: return null)
+            "message.delete" -> {
+                val ids = o.get("messageIds")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { ChatJson.idOf(it) }?.distinct()?.take(500)
+                    ?: return null
+                if (ids.isEmpty()) return null
+                val reason = o.str("reason")?.takeIf { it in DELETE_REASONS } ?: ChatEvent.REASON_DELETED
+                ChatEvent.MessageDelete(conv, ids, reason)
+            }
+            "reaction" -> ChatEvent.Reaction(
+                conversationId = conv,
+                messageId = o.id("messageId") ?: return null,
+                reactions = ChatJson.reactions(o.get("reactions")?.takeIf { it.isJsonArray }?.asJsonArray),
+            )
+            "read" -> ChatEvent.Read(
+                conversationId = conv,
+                userId = o.id("userId") ?: return null,
+                lastReadId = o.id("lastReadId"),
+                lastDeliveredId = o.id("lastDeliveredId"),
+                self = o.flag("self") == true,
+                unread = o.get("unread")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt?.coerceAtLeast(0),
+            )
+            "typing" -> {
+                val until = ChatJson.time(o.str("until"))?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+                ChatEvent.Typing(conv, o.id("userId") ?: return null, until?.coerceAtMost(nowMs + TYPING_MAX_MS))
+            }
+            "conversation.update" -> ChatEvent.ConversationUpdate(
+                conversationId = conv,
+                reasons = o.str("reason").orEmpty().split(',').map { it.trim() }.filter { REASON_RE.matches(it) }.toSet(),
+            )
+            "conversation.remove" -> ChatEvent.ConversationRemove(conv)
+            else -> null
+        }
+    }
+}

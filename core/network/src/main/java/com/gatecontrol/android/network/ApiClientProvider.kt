@@ -152,6 +152,7 @@ class ApiClientProvider @Inject constructor(
         synchronized(lock) {
             cache.clear()
             speedTestCache.clear()
+            mediaCache.clear()
         }
     }
 
@@ -169,6 +170,27 @@ class ApiClientProvider @Inject constructor(
                     .readTimeout(20, TimeUnit.SECONDS)
                     .writeTimeout(20, TimeUnit.SECONDS)
                     .callTimeout(40, TimeUnit.SECONDS)
+                    .build()
+                buildRetrofit(normalizedUrl, okHttp)
+            }
+        }
+    }
+
+    private val mediaCache = mutableMapOf<String, ApiClient>()
+
+    /**
+     * Client for plugin files (`PUT/GET /api/v1/client/plugins/:id/media…`,
+     * e.g. chat pictures and voice messages up to 25 MB): the same DNS and
+     * interceptors as [getClient], with read/write timeouts long enough for a
+     * slow mobile upload and no limit on the whole call.
+     */
+    fun mediaClient(baseUrl: String): ApiClient {
+        val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        return synchronized(lock) {
+            mediaCache.getOrPut(normalizedUrl) {
+                val okHttp = buildOkHttpClient(normalizedUrl).newBuilder()
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .writeTimeout(60, TimeUnit.SECONDS)
                     .build()
                 buildRetrofit(normalizedUrl, okHttp)
             }

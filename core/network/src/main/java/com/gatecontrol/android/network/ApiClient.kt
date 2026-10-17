@@ -156,6 +156,27 @@ interface ApiClient {
         @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
 
+    // ─── Plugin media (core 1.177+, plugin.json `media`; 404 before) ──
+    // Raw files, never JSON: the upload's Content-Type must be one of the
+    // plugin's types and the body must know its length (no chunked upload).
+    // Run on ApiClientProvider.mediaClient (long timeouts).
+
+    /** Raw file → `{ ok, mediaId, mime, bytes }`; 411 / 413 / 415 / 507 as the core documents. */
+    @PUT("api/v1/client/plugins/{id}/media")
+    suspend fun pluginMediaUpload(
+        @Path("id") plugin: String,
+        @Body body: RequestBody,
+    ): Response<JsonObject>
+
+    /** A plugin file (404 unless the plugin lets the token's owner see it); [range] `bytes=a-b`. */
+    @Streaming
+    @GET("api/v1/client/plugins/{id}/media/{mediaId}")
+    suspend fun pluginMediaGet(
+        @Path("id") plugin: String,
+        @Path("mediaId") mediaId: String,
+        @Header("Range") range: String? = null,
+    ): Response<ResponseBody>
+
     // ─── Own profile: picture and favourite colour (core 1.168+, 404 before) ──
     // Raw JSON: the app parses it (ProfileJson). Tokens without a user → 403 NO_USER.
 

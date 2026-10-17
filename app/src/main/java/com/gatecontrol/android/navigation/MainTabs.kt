@@ -5,8 +5,8 @@ import com.gatecontrol.android.ui.network.NetworkTabs
 
 /**
  * Entries of the bottom bar / navigation rail (pure, unit-tested): Start,
- * Netzwerk (Dienste, Pi-hole and Remote as its segments) and, of the
- * plugins, Familie only. The door plugin gets no tab (its screen opens from
+ * Chats (messenger plugin), Netzwerk (Dienste, Pi-hole and Remote as its
+ * segments) and Familie. The door plugin gets no tab (its screen opens from
  * pushes and its quick actions, docs/DOOR.md). The settings are no tab
  * since 1.35: they open from the profile (gear top right).
  */
@@ -17,11 +17,13 @@ internal object MainTabs {
         Screen.Vpn.route,
         Screen.Network.route,
         Screen.Familie.route,
+        Screen.Chats.route,
     )
 
-    /** Routes of the tabs in their order: Start, Netzwerk, Familie. */
+    /** Routes of the tabs in their order: Start, Chats, Netzwerk, Familie. */
     fun routes(network: Boolean, plugins: PluginAvailability): List<String> = buildList {
         add(Screen.Vpn.route)
+        if (plugins.messengerTab) add(Screen.Chats.route)
         if (network) add(Screen.Network.route)
         if (plugins.familieTab) add(Screen.Familie.route)
     }

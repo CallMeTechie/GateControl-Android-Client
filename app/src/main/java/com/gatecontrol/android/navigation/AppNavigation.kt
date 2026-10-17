@@ -101,6 +101,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.gatecontrol.android.ui.notifications.notificationsAllowed
 import com.gatecontrol.android.ui.notifications.bellState
+import com.gatecontrol.android.ui.chat.ChatBadgeViewModel
+import com.gatecontrol.android.ui.chat.ChatImageViewer
+import com.gatecontrol.android.ui.chat.ChatInfoScreen
+import com.gatecontrol.android.ui.chat.ChatListScreen
+import com.gatecontrol.android.ui.chat.ChatsTwoPane
+import com.gatecontrol.android.ui.chat.ConversationScreen
+import com.gatecontrol.android.ui.chat.NewChatScreen
+import com.gatecontrol.android.chat.ChatShareHandover
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Chat
 
 private data class TabItem(
     val route: String,
@@ -145,9 +155,16 @@ fun AppNavigation(
     val familieIcon = remember(plugins.familieIcon) {
         plugins.familieIcon?.let { path -> runCatching { GcIcons.fromPath("FamilieTab", path) }.getOrNull() } ?: GcIcons.Family
     }
-    // Start, Netzwerk (Dienste, Pi-hole, Remote), the plugin tab (Familie
-    // only, docs/FAMILIE.md). The door plugin has no tab (docs/DOOR.md), the
-    // settings open from the profile (gear top right).
+    // Unread chats (messenger plugin) as the badge of the tab "Chats".
+    val chatBadge = if (plugins.messengerTab) {
+        val badgeViewModel: ChatBadgeViewModel = hiltViewModel()
+        badgeViewModel.badge.collectAsStateWithLifecycle().value
+    } else {
+        0
+    }
+    // Start, Chats (messenger plugin), Netzwerk (Dienste, Pi-hole, Remote),
+    // the plugin tab Familie (docs/FAMILIE.md). The door plugin has no tab
+    // (docs/DOOR.md), the settings open from the profile (gear top right).
     val tabs = MainTabs.routes(
         network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission),
         plugins = plugins,
@@ -155,6 +172,7 @@ fun AppNavigation(
         when (route) {
             Screen.Network.route -> TabItem(route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe, onlineRdpHostCount)
             Screen.Familie.route -> TabItem(route, Screen.Familie.create(), R.string.nav_familie, familieIcon)
+            Screen.Chats.route -> TabItem(route, Screen.Chats.create(), R.string.nav_chats, Icons.AutoMirrored.Outlined.Chat, chatBadge)
             else -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
         }
     }
@@ -457,6 +475,131 @@ fun AppNavigation(
             }
 
             composable(
+                route = Screen.Chats.route,
+                arguments = listOf(
+                    navArgument(Screen.Chats.ARG_CONV) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument(Screen.Chats.ARG_SHARE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val conv = backStackEntry.arguments?.getString(Screen.Chats.ARG_CONV)?.toLongOrNull()
+                val share = backStackEntry.arguments?.getString(Screen.Chats.ARG_SHARE) == "true"
+                val openInbox: () -> Unit = { navController.navigate(Screen.Inbox.create()) { launchSingleTop = true } }
+                val newChat: () -> Unit = { navController.navigate(Screen.ChatNew.create()) { launchSingleTop = true } }
+                if (layout.twoPane) {
+                    ChatsTwoPane(
+                        initial = conv,
+                        share = share,
+                        onOpenInbox = openInbox,
+                        onNewChat = newChat,
+                        onOpenInfo = { id -> navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
+                        onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
+                    )
+                } else {
+                    GcContentWidth {
+                        ChatListScreen(
+                            onOpen = { id ->
+                                val sharing = share || ChatShareHandover.pending.value != null
+                                navController.navigate(Screen.ChatConversation.create(id, sharing)) { launchSingleTop = true }
+                            },
+                            onOpenInbox = openInbox,
+                            onNewChat = newChat,
+                        )
+                    }
+                }
+            }
+
+            composable(
+                route = Screen.ChatConversation.route,
+                arguments = listOf(
+                    navArgument(Screen.ChatConversation.ARG_ID) { type = NavType.LongType },
+                    navArgument(Screen.ChatConversation.ARG_SHARE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getLong(Screen.ChatConversation.ARG_ID) ?: 0L
+                val share = backStackEntry.arguments?.getString(Screen.ChatConversation.ARG_SHARE) == "true"
+                GcContentWidth(maxWidth = 840.dp) {
+                    ConversationScreen(
+                        conversationId = id,
+                        share = share,
+                        onBack = { if (!navController.popBackStack()) navigateToTab(Screen.Chats.create()) },
+                        onOpenInfo = { navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
+                        onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
+                    )
+                }
+            }
+
+            composable(
+                route = Screen.ChatNew.route,
+                arguments = listOf(
+                    navArgument(Screen.ChatNew.ARG_GROUP) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val group = backStackEntry.arguments?.getString(Screen.ChatNew.ARG_GROUP) == "true"
+                GcContentWidth {
+                    NewChatScreen(
+                        group = group,
+                        onBack = { navController.popBackStack() },
+                        onNewGroup = { navController.navigate(Screen.ChatNew.create(group = true)) },
+                        onOpened = { id ->
+                            // The new conversation replaces "Neuer Chat" (and "Neue Gruppe").
+                            while (navController.currentDestination?.route == Screen.ChatNew.route) {
+                                if (!navController.popBackStack()) break
+                            }
+                            if (layout.twoPane) {
+                                navController.navigate(Screen.Chats.create(conv = id)) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                }
+                            } else {
+                                navController.navigate(Screen.ChatConversation.create(id))
+                            }
+                        },
+                    )
+                }
+            }
+
+            composable(
+                route = Screen.ChatInfo.route,
+                arguments = listOf(navArgument(Screen.ChatInfo.ARG_ID) { type = NavType.LongType }),
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getLong(Screen.ChatInfo.ARG_ID) ?: 0L
+                GcContentWidth {
+                    ChatInfoScreen(
+                        conversationId = id,
+                        onBack = { navController.popBackStack() },
+                        // Back to the list (the left group's chat is gone).
+                        onLeft = {
+                            if (!navController.popBackStack(Screen.Chats.route, inclusive = false)) navigateToTab(Screen.Chats.create())
+                        },
+                    )
+                }
+            }
+
+            composable(
+                route = Screen.ChatImage.route,
+                arguments = listOf(navArgument(Screen.ChatImage.ARG_MEDIA) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val media = backStackEntry.arguments?.getString(Screen.ChatImage.ARG_MEDIA).orEmpty()
+                ChatImageViewer(mediaId = media, onBack = { navController.popBackStack() })
+            }
+
+            composable(
                 route = Screen.Door.route,
                 arguments = listOf(
                     navArgument(Screen.Door.ARG_DEST) {
@@ -544,7 +687,7 @@ fun AppNavigation(
                                     onBack = { selected = null },
                                     onNavigate = { target ->
                                         if (target is PushNavTarget.Detail) selected = target.id
-                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door)
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab)
                                     },
                                     viewModel = detailViewModel,
                                 )
@@ -571,7 +714,7 @@ fun AppNavigation(
                         onBack = {
                             if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
                         },
-                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door) },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab) },
                     )
                 }
             }
@@ -628,7 +771,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door)
+            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -652,8 +795,30 @@ private fun openPushTarget(
     familieTab: Boolean,
     /** The door plugin is listed: its pushes open the door screens. */
     door: Boolean = false,
+    /** The messenger plugin is listed with its tab "Chats". */
+    chats: Boolean = false,
 ) {
     when (target) {
+        is PushNavTarget.Chat -> when {
+            !chats -> navigateToTab(Screen.Vpn.route)
+            target.conversationId == null -> navigateToTab(Screen.Chats.create())
+            layout.twoPane -> navController.navigate(Screen.Chats.create(conv = target.conversationId)) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+            }
+            else -> {
+                navigateToTab(Screen.Chats.create())
+                navController.navigate(Screen.ChatConversation.create(target.conversationId)) { launchSingleTop = true }
+            }
+        }
+        PushNavTarget.ChatShare -> if (chats) {
+            navController.navigate(Screen.Chats.create(share = true)) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+            }
+        } else {
+            ChatShareHandover.clear()
+        }
         PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
         // Wide screens: the message opens beside the inbox list.
         is PushNavTarget.Detail -> if (layout.twoPane) {
@@ -681,6 +846,7 @@ private fun openPushTarget(
                     layout,
                     familieTab = false,
                     door = door,
+                    chats = chats,
                 )
                 // Wide screens: the screen beside the Familie start screen. No
                 // restoreState: the dest argument must win over a saved state.
@@ -705,6 +871,7 @@ private fun openPushTarget(
                     layout,
                     familieTab,
                     door = false,
+                    chats = chats,
                 )
                 return
             }

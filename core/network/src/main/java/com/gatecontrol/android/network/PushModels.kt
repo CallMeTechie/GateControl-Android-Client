@@ -30,6 +30,11 @@ data class PushNotificationDto(
      * server (`/notify-media/<id>.<ext>`), null without one or once expired.
      */
     @SerializedName("imageUrl") val imageUrl: String? = null,
+    /**
+     * `message` for a chat notification (core 1.177+, a plugin topic with
+     * `chat: true`, e.g. the messenger); missing for every other one.
+     */
+    val kind: String? = null,
 )
 
 data class PushTopicDto(

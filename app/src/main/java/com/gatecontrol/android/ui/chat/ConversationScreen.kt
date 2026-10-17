@@ -1,0 +1,904 @@
+package com.gatecontrol.android.ui.chat
+
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.outlined.Reply
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.core.net.toUri
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gatecontrol.android.R
+import com.gatecontrol.android.chat.ChatMessage
+import com.gatecontrol.android.chat.ChatMime
+import com.gatecontrol.android.chat.ChatPending
+import com.gatecontrol.android.chat.PrepareError
+import com.gatecontrol.android.chat.TimelineItem
+import com.gatecontrol.android.chat.VoiceWave
+import com.gatecontrol.android.location.DeviceLocator
+import com.gatecontrol.android.location.LocateResult
+import com.gatecontrol.android.ui.adaptive.LocalInDetailPane
+import com.gatecontrol.android.ui.components.GcIconButton
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.theme.GateControlTheme
+import kotlinx.coroutines.launch
+import java.io.File
+import java.util.Locale
+
+private val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
+
+/**
+ * One conversation (mockup "Einzelchat" / "Gruppe"): bubbles with day
+ * separators, ticks, replies, reactions, pictures, voice messages, files,
+ * locations; the composer with attachments and hold-to-record; long press
+ * for the message actions; search in the top bar.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConversationScreen(
+    conversationId: Long,
+    onBack: () -> Unit,
+    onOpenInfo: () -> Unit,
+    onOpenImage: (mediaId: String) -> Unit,
+    share: Boolean = false,
+    viewModel: ConversationViewModel = hiltViewModel(key = "conversation-$conversationId"),
+) {
+    LaunchedEffect(conversationId, share) { viewModel.bind(conversationId, share) }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val player by viewModel.player.state.collectAsState()
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val extra = GateControlTheme.extraColors
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    val listState = rememberLazyListState()
+    var draft by rememberSaveable(conversationId) { mutableStateOf("") }
+    var actionsFor by remember { mutableStateOf<ChatMessage?>(null) }
+    var pendingFor by remember { mutableStateOf<ChatPending?>(null) }
+    var showAttach by remember { mutableStateOf(false) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var searchText by rememberSaveable { mutableStateOf("") }
+    var highlight by remember { mutableStateOf<Long?>(null) }
+    var confirmDeleteAll by remember { mutableStateOf<ChatMessage?>(null) }
+
+    LifecycleResumeEffect(conversationId) {
+        viewModel.setVisible(true)
+        onPauseOrDispose { viewModel.setVisible(false) }
+    }
+
+    // What was shared from another app: its text goes into the composer.
+    LaunchedEffect(state.shared) {
+        state.shared?.text?.let { if (draft.isBlank()) draft = it }
+    }
+    LaunchedEffect(state.editing) {
+        state.editing?.let { draft = it.text.orEmpty() }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.notice.collect { n ->
+            val text = when (n) {
+                is ConversationNotice.Error -> ChatText.actionError(context, n.code)
+                is ConversationNotice.PrepareFailed -> when (val e = n.error) {
+                    is PrepareError.TooLarge -> resources.getString(R.string.chat_err_file_too_large, ChatText.bytes(e.maxBytes))
+                    PrepareError.TypeNotAllowed -> resources.getString(R.string.chat_err_type)
+                    PrepareError.Unreadable -> resources.getString(R.string.chat_err_unreadable)
+                }
+                is ConversationNotice.Location -> resources.getString(
+                    when (n.result) {
+                        LocateResult.NoPermission -> R.string.chat_loc_no_permission
+                        LocateResult.LocationOff -> R.string.chat_loc_off
+                        else -> R.string.chat_loc_no_fix
+                    },
+                )
+                ConversationNotice.RecordingFailed -> resources.getString(R.string.chat_rec_failed)
+                ConversationNotice.Left -> resources.getString(R.string.chat_left)
+            }
+            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Reverse layout: index 0 is the newest row.
+    val rows = remember(state.items) { state.items.asReversed() }
+    val atBottom by remember { derivedStateOf { listState.firstVisibleItemIndex <= 1 } }
+    val nearTop by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it >= rows.size - 4 } == true } }
+    LaunchedEffect(nearTop, state.hasOlder, rows.size) {
+        if (nearTop && state.hasOlder && state.loaded) viewModel.loadOlder()
+    }
+    LaunchedEffect(atBottom, rows.firstOrNull()?.key) {
+        if (atBottom) viewModel.onNewestVisible()
+    }
+    // A new own message (or new message while at the bottom) scrolls into view.
+    LaunchedEffect(rows.firstOrNull()?.key) {
+        if (atBottom || rows.firstOrNull() is TimelineItem.Pending) listState.animateScrollToItem(0)
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.sendImages(uris, draft.takeIf { it.isNotBlank() })
+            draft = ""
+        }
+    }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) viewModel.sendFiles(uris.take(10))
+    }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.any { it }) viewModel.sendLocation()
+        else Toast.makeText(context, R.string.chat_loc_no_permission, Toast.LENGTH_LONG).show()
+    }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        Toast.makeText(context, if (granted) R.string.chat_rec_hold else R.string.chat_rec_no_permission, Toast.LENGTH_LONG).show()
+    }
+
+    val c = state.conversation
+    val myId = state.myId
+    val currentRows by rememberUpdatedState(rows)
+    val bubbleActions = remember(viewModel) {
+        BubbleActions(
+            onLongPress = { actionsFor = it },
+            onOpenImage = { m -> m.media?.id?.let(onOpenImage) },
+            onOpenFile = { m ->
+                scope.launch {
+                    val f = viewModel.file(m)
+                    if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
+                    else openFile(context, f, m.meta?.fileName ?: "datei", m.media?.mime, share = false)
+                }
+            },
+            onOpenLocation = { m -> m.location?.let { openLocation(context, it.lat, it.lon, it.label) } },
+            onTogglePlay = viewModel::togglePlay,
+            onSeek = { m, f -> viewModel.player.seek("m:${m.id}", f, m.meta?.durationMs ?: 0L) },
+            onReact = viewModel::react,
+            onQuote = { id ->
+                val idx = currentRows.indexOfFirst { it is TimelineItem.Message && it.message.id == id }
+                if (idx >= 0) scope.launch {
+                    listState.animateScrollToItem(idx)
+                    highlight = id
+                }
+            },
+        )
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            // The keyboard: above what the scaffold already leaves for the navigation bar.
+            .windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars)),
+    ) {
+        // ─── top bar ───
+        Row(
+            Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (!LocalInDetailPane.current) {
+                GcIconButton(GcIcons.Back, stringResource(R.string.chat_back), onClick = onBack, tint = MaterialTheme.colorScheme.onBackground)
+            } else {
+                Spacer(Modifier.width(12.dp))
+            }
+            if (searchOpen) {
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { searchText = it.take(100) },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.chat_search_in_chat)) },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { viewModel.search(searchText) }),
+                    shape = RoundedCornerShape(14.dp),
+                )
+                GcIconButton(GcIcons.Search, stringResource(R.string.chat_search), onClick = { viewModel.search(searchText) })
+                GcIconButton(GcIcons.Close, stringResource(R.string.chat_close), onClick = {
+                    searchOpen = false
+                    searchText = ""
+                    viewModel.closeSearch()
+                })
+            } else {
+                Row(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = onOpenInfo).padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (c != null) ConversationAvatar(c, 40.dp)
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            c?.let { ChatText.title(context, it) } ?: "",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val typing = ChatText.typing(context, c, state.typing, myId)
+                        val sub = typing ?: c?.takeIf { it.isGroup }?.let { conv ->
+                            conv.members.filter { it.userId != myId }.joinToString(", ") { ChatText.name(context, it) } +
+                                ", " + resources.getString(R.string.chat_you_lower)
+                        }
+                        if (sub != null) {
+                            Text(
+                                sub,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (typing != null) MaterialTheme.colorScheme.primary else extra.muted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+                if (state.profile?.features?.search != false) {
+                    GcIconButton(GcIcons.Search, stringResource(R.string.chat_search_in_chat), onClick = { searchOpen = true })
+                }
+                GcIconButton(Icons.Outlined.Info, stringResource(R.string.chat_info), onClick = onOpenInfo)
+            }
+        }
+        if (c?.managedBy != null) {
+            Text(
+                stringResource(R.string.chat_managed_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.muted,
+                modifier = Modifier.fillMaxWidth().background(extra.panel2).padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+
+        // ─── messages / search results ───
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            val results = state.searchResults
+            if (results != null) {
+                SearchResults(results, state, onPick = { m ->
+                    val idx = rows.indexOfFirst { it is TimelineItem.Message && it.message.id == m.id }
+                    searchOpen = false
+                    viewModel.closeSearch()
+                    if (idx >= 0) scope.launch {
+                        listState.scrollToItem(idx)
+                        highlight = m.id
+                    } else {
+                        Toast.makeText(context, R.string.chat_search_not_loaded, Toast.LENGTH_SHORT).show()
+                    }
+                })
+            } else {
+                LazyColumn(
+                    state = listState,
+                    reverseLayout = true,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                ) {
+                    items(rows, key = { it.key }, contentType = { it::class }) { item ->
+                        when (item) {
+                            is TimelineItem.Day -> DaySeparator(ChatText.day(context, item.date))
+                            is TimelineItem.Message -> MessageBubble(
+                                m = item.message,
+                                status = item.status,
+                                showSender = item.showSender,
+                                conversation = c,
+                                myId = myId,
+                                player = player,
+                                actions = bubbleActions,
+                                highlighted = highlight == item.message.id,
+                            )
+                            is TimelineItem.Pending -> PendingBubble(
+                                p = item.pending,
+                                conversation = c,
+                                myId = myId,
+                                player = player,
+                                onLongPress = { pendingFor = it },
+                                onTogglePlay = { p -> p.localPath?.let { viewModel.togglePlayLocal(p.clientId, it) } },
+                            )
+                        }
+                    }
+                    if (state.loadingOlder) {
+                        item(key = "older") {
+                            Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                    }
+                    if (rows.isEmpty()) {
+                        item(key = "empty") {
+                            Text(
+                                stringResource(if (state.loaded) R.string.chat_no_messages_yet else R.string.chat_loading),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = extra.muted,
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+                if (!atBottom) {
+                    SmallFloatingActionButton(
+                        onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ) {
+                        Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = stringResource(R.string.chat_to_newest))
+                    }
+                }
+            }
+        }
+
+        // ─── composer ───
+        if (c != null && (c.readonly || !c.can.send)) {
+            Text(
+                stringResource(if (c.readonly) R.string.chat_readonly else R.string.chat_cannot_send),
+                style = MaterialTheme.typography.bodyMedium,
+                color = extra.muted,
+                modifier = Modifier.fillMaxWidth().background(extra.panel2).padding(16.dp),
+            )
+        } else {
+            state.shared?.let { sh ->
+                SharedBar(
+                    count = sh.files.size,
+                    onSend = viewModel::sendShared,
+                    onDrop = viewModel::dropShared,
+                )
+            }
+            state.replyTo?.let { r ->
+                ComposerBar(
+                    icon = Icons.AutoMirrored.Outlined.Reply,
+                    title = stringResource(R.string.chat_reply_to, ChatText.nameOf(context, c, r.senderId, myId)),
+                    text = ChatText.content(context, r, c, myId),
+                    onClose = viewModel::cancelReply,
+                )
+            }
+            state.editing?.let { e ->
+                ComposerBar(
+                    icon = Icons.Outlined.Edit,
+                    title = stringResource(R.string.chat_editing),
+                    text = ChatText.content(context, e, c, myId),
+                    onClose = {
+                        viewModel.cancelEdit()
+                        draft = ""
+                    },
+                )
+            }
+            Composer(
+                draft = draft,
+                onDraft = {
+                    draft = it
+                    if (state.editing == null) viewModel.onTyping(it)
+                },
+                editing = state.editing != null,
+                busy = state.busy,
+                voice = state.profile?.features?.voice != false,
+                recorder = viewModel.recorder,
+                onSend = { if (viewModel.send(draft)) draft = "" },
+                onAttach = { showAttach = true },
+                onRecordStart = {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                        false
+                    } else {
+                        viewModel.startRecording()
+                    }
+                },
+                onRecordFinish = viewModel::finishRecording,
+                onRecordCancel = viewModel::cancelRecording,
+                onRecordTooShort = { Toast.makeText(context, R.string.chat_rec_hold, Toast.LENGTH_SHORT).show() },
+            )
+        }
+    }
+
+    if (showAttach) {
+        val features = state.profile?.features
+        AttachSheet(
+            files = features?.files != false,
+            location = features?.location != false,
+            maxBytes = state.profile?.limits?.maxBytes,
+            onGallery = {
+                showAttach = false
+                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onFile = {
+                showAttach = false
+                filePicker.launch(arrayOf("*/*"))
+            },
+            onLocation = {
+                showAttach = false
+                if (DeviceLocator.hasPermission(context)) viewModel.sendLocation()
+                else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+            },
+            onDismiss = { showAttach = false },
+        )
+    }
+
+    actionsFor?.let { m ->
+        MessageActionsSheet(
+            m = m,
+            reactions = state.profile?.features?.reactions != false && !m.deleted,
+            myReaction = m.reactions.firstOrNull { r -> myId != null && myId in r.userIds }?.emoji,
+            canEdit = viewModel.canEdit(m),
+            canDeleteForAll = viewModel.canDeleteForAll(m),
+            canReply = c?.can?.send != false && c?.readonly != true && !m.deleted,
+            onReact = { e ->
+                actionsFor = null
+                viewModel.react(m, e)
+            },
+            onReply = {
+                actionsFor = null
+                viewModel.startReply(m)
+            },
+            onCopy = {
+                actionsFor = null
+                clipboard.setText(AnnotatedString(m.text ?: ChatText.content(context, m, c, myId)))
+            },
+            onEdit = {
+                actionsFor = null
+                viewModel.startEdit(m)
+            },
+            onShareFile = if (m.media != null) {
+                {
+                    actionsFor = null
+                    scope.launch {
+                        val f = viewModel.file(m)
+                        if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
+                        else openFile(context, f, m.meta?.fileName ?: defaultName(m), m.media.mime, share = true)
+                    }
+                }
+            } else null,
+            onDeleteForMe = {
+                actionsFor = null
+                viewModel.delete(m, forAll = false)
+            },
+            onDeleteForAll = {
+                actionsFor = null
+                confirmDeleteAll = m
+            },
+            onDismiss = { actionsFor = null },
+        )
+    }
+
+    pendingFor?.let { p ->
+        ModalBottomSheet(onDismissRequest = { pendingFor = null }, containerColor = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.padding(bottom = 24.dp)) {
+                if (p.failed) {
+                    Text(
+                        ChatText.sendError(context, p.error),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                SheetRow(Icons.Outlined.Refresh, stringResource(R.string.chat_retry)) {
+                    pendingFor = null
+                    viewModel.retry(p.clientId)
+                }
+                SheetRow(Icons.Outlined.Delete, stringResource(R.string.chat_discard)) {
+                    pendingFor = null
+                    viewModel.discard(p.clientId)
+                }
+            }
+        }
+    }
+
+    confirmDeleteAll?.let { m ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeleteAll = null },
+            title = { Text(stringResource(R.string.chat_delete_all_title)) },
+            text = { Text(stringResource(R.string.chat_delete_all_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteAll = null
+                    viewModel.delete(m, forAll = true)
+                }) { Text(stringResource(R.string.chat_delete_all)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteAll = null }) { Text(stringResource(R.string.chat_cancel)) } },
+        )
+    }
+}
+
+private fun defaultName(m: ChatMessage): String = when (m.kind) {
+    ChatMessage.KIND_IMAGE -> "bild-${m.id}.webp"
+    ChatMessage.KIND_VOICE -> "sprachnachricht-${m.id}.m4a"
+    else -> "datei-${m.id}"
+}
+
+@Composable
+private fun SearchResults(results: List<ChatMessage>, state: ConversationUiState, onPick: (ChatMessage) -> Unit) {
+    val context = LocalContext.current
+    val extra = GateControlTheme.extraColors
+    LazyColumn(Modifier.fillMaxSize()) {
+        if (results.isEmpty()) {
+            item {
+                Text(
+                    stringResource(if (state.searching) R.string.chat_loading else R.string.chat_search_none),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = extra.muted,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+        }
+        items(results, key = { it.id }) { m ->
+            Column(Modifier.fillMaxWidth().clickable { onPick(m) }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Row {
+                    Text(
+                        ChatText.nameOf(context, state.conversation, m.senderId, state.myId),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(ChatText.listTime(context, m.createdAt), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                }
+                Text(ChatText.content(context, m, state.conversation, state.myId), style = MaterialTheme.typography.bodyMedium, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComposerBar(icon: ImageVector, title: String, text: String, onClose: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 16.dp, end = 4.dp, top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.labelLarge, color = extra.accentText, maxLines = 1)
+            Text(text, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        GcIconButton(GcIcons.Close, stringResource(R.string.chat_close), onClick = onClose, size = 40.dp, iconSize = 18.dp)
+    }
+}
+
+@Composable
+private fun SharedBar(count: Int, onSend: () -> Unit, onDrop: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier.fillMaxWidth().background(extra.blueBg).padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Share, contentDescription = null, tint = extra.blue, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            if (count > 0) androidx.compose.ui.res.pluralStringResource(R.plurals.chat_shared_files, count, count) else stringResource(R.string.chat_shared_text),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        if (count > 0) TextButton(onClick = onSend) { Text(stringResource(R.string.chat_send)) }
+        TextButton(onClick = onDrop) { Text(stringResource(R.string.chat_cancel)) }
+    }
+}
+
+/** Text field, attachments, send — or the microphone (hold to record, slide left to cancel). */
+@Composable
+private fun Composer(
+    draft: String,
+    onDraft: (String) -> Unit,
+    editing: Boolean,
+    busy: Boolean,
+    voice: Boolean,
+    recorder: com.gatecontrol.android.chat.VoiceRecorder,
+    onSend: () -> Unit,
+    onAttach: () -> Unit,
+    onRecordStart: () -> Boolean,
+    onRecordFinish: () -> Unit,
+    onRecordCancel: () -> Unit,
+    onRecordTooShort: () -> Unit,
+) {
+    val extra = GateControlTheme.extraColors
+    val scheme = MaterialTheme.colorScheme
+    var recording by remember { mutableStateOf(false) }
+    var dragX by remember { mutableFloatStateOf(0f) }
+    val elapsed by recorder.elapsedMs.collectAsState()
+    val cancelPx = with(LocalDensity.current) { 110.dp.toPx() }
+    Row(
+        Modifier.fillMaxWidth().background(scheme.surface).padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (recording) {
+            Row(
+                Modifier.weight(1f).heightIn(min = 48.dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(scheme.error))
+                Text(VoiceWave.clock(elapsed), style = MaterialTheme.typography.titleMedium, color = scheme.onSurface)
+                Text(
+                    stringResource(R.string.chat_rec_slide_cancel),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (-dragX > cancelPx * 0.6f) scheme.error else extra.muted,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            GcIconButton(Icons.Outlined.AddCircleOutline, stringResource(R.string.chat_attach), onClick = onAttach, enabled = !editing && !busy, tint = extra.muted)
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { onDraft(it.take(com.gatecontrol.android.chat.ChatJson.TEXT_MAX)) },
+                placeholder = { Text(stringResource(R.string.chat_message_hint)) },
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                maxLines = 6,
+                shape = RoundedCornerShape(24.dp),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = scheme.background,
+                    unfocusedContainerColor = scheme.background,
+                    focusedBorderColor = extra.border2,
+                    unfocusedBorderColor = extra.border,
+                ),
+            )
+        }
+        val showSend = draft.isNotBlank() || editing || !voice
+        if (busy && !recording) {
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
+        } else if (showSend) {
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).background(scheme.primary).clickable(role = Role.Button, enabled = draft.isNotBlank() || editing, onClick = onSend),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (editing) GcIcons.Check else Icons.AutoMirrored.Filled.Send,
+                    contentDescription = stringResource(if (editing) R.string.chat_save else R.string.chat_send),
+                    tint = scheme.onPrimary,
+                )
+            }
+        } else {
+            val desc = stringResource(R.string.chat_rec_hold)
+            Box(
+                Modifier
+                    .size(if (recording) 64.dp else 48.dp)
+                    .clip(CircleShape)
+                    .background(if (recording) scheme.error else scheme.primary)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            val startedAt = System.currentTimeMillis()
+                            dragX = 0f
+                            recording = onRecordStart()
+                            if (!recording) return@awaitEachGesture
+                            var cancelled = false
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                dragX = change.position.x - down.position.x
+                                if (-dragX > cancelPx) {
+                                    cancelled = true
+                                    break
+                                }
+                                if (!change.pressed) break
+                            }
+                            recording = false
+                            when {
+                                cancelled -> onRecordCancel()
+                                System.currentTimeMillis() - startedAt < com.gatecontrol.android.chat.VoiceRecorder.MIN_MS -> {
+                                    onRecordCancel()
+                                    onRecordTooShort()
+                                }
+                                else -> onRecordFinish()
+                            }
+                            dragX = 0f
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.Mic, contentDescription = desc, tint = scheme.onPrimary)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AttachSheet(
+    files: Boolean,
+    location: Boolean,
+    maxBytes: Long?,
+    onGallery: () -> Unit,
+    onFile: () -> Unit,
+    onLocation: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val extra = GateControlTheme.extraColors
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                AttachTile(Icons.Outlined.PhotoLibrary, stringResource(R.string.chat_attach_gallery), onGallery)
+                if (files) AttachTile(Icons.Outlined.AttachFile, stringResource(R.string.chat_attach_file), onFile)
+                if (location) AttachTile(Icons.Outlined.Place, stringResource(R.string.chat_attach_location), onLocation)
+            }
+            Text(
+                stringResource(R.string.chat_attach_hint, ChatText.bytes(maxBytes ?: (25L * 1024 * 1024))),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.muted,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AttachTile(icon: ImageVector, label: String, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Column(
+        Modifier.clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick).padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(56.dp).clip(CircleShape).background(extra.accentBg), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
+        }
+        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MessageActionsSheet(
+    m: ChatMessage,
+    reactions: Boolean,
+    myReaction: String?,
+    canEdit: Boolean,
+    canDeleteForAll: Boolean,
+    canReply: Boolean,
+    onReact: (String) -> Unit,
+    onReply: () -> Unit,
+    onCopy: () -> Unit,
+    onEdit: () -> Unit,
+    onShareFile: (() -> Unit)?,
+    onDeleteForMe: () -> Unit,
+    onDeleteForAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val extra = GateControlTheme.extraColors
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            if (reactions && !m.isSystem) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    QUICK_REACTIONS.forEach { e ->
+                        Box(
+                            Modifier.size(48.dp).clip(CircleShape)
+                                .background(if (e == myReaction) extra.accentBg else extra.panel2)
+                                .border(1.dp, extra.border, CircleShape)
+                                .clickable(role = Role.Button) { onReact(e) },
+                            contentAlignment = Alignment.Center,
+                        ) { Text(e, fontSize = 22.sp) }
+                    }
+                }
+            }
+            if (canReply && !m.isSystem) SheetRow(Icons.AutoMirrored.Outlined.Reply, stringResource(R.string.chat_reply), onClick = onReply)
+            if (!m.deleted && (m.text != null || m.isSystem)) SheetRow(Icons.Outlined.ContentCopy, stringResource(R.string.chat_copy), onClick = onCopy)
+            if (canEdit) SheetRow(Icons.Outlined.Edit, stringResource(R.string.chat_edit), onClick = onEdit)
+            onShareFile?.let { SheetRow(Icons.Outlined.Share, stringResource(R.string.chat_share_file), onClick = it) }
+            SheetRow(Icons.Outlined.Delete, stringResource(R.string.chat_delete_me), onClick = onDeleteForMe)
+            if (canDeleteForAll) SheetRow(Icons.Outlined.Delete, stringResource(R.string.chat_delete_all), danger = true, onClick = onDeleteForAll)
+        }
+    }
+}
+
+@Composable
+private fun SheetRow(icon: ImageVector, label: String, danger: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = if (danger) MaterialTheme.colorScheme.error else GateControlTheme.extraColors.muted)
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/** Opens (or shares) a downloaded chat file under its own name through the FileProvider. */
+internal fun openFile(context: Context, file: File, name: String, mime: String?, share: Boolean) {
+    try {
+        val dir = File(context.cacheDir, "chat-open").apply { mkdirs() }
+        dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 24 * 3600_000L }?.forEach { it.delete() }
+        val safe = ChatMime.safeName(name, "bin")
+        val target = File(dir, safe)
+        file.copyTo(target, overwrite = true)
+        val uri: Uri = FileProvider.getUriForFile(context, context.packageName + ".provider", target)
+        val type = mime ?: "application/octet-stream"
+        val intent = if (share) {
+            Intent(Intent.ACTION_SEND).setType(type).putExtra(Intent.EXTRA_STREAM, uri)
+        } else {
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, type)
+        }.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        intent.clipData = ClipData.newRawUri(safe, uri)
+        context.startActivity(Intent.createChooser(intent, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, R.string.chat_err_no_app, Toast.LENGTH_LONG).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
+    }
+}
+
+/** A shared location in the person's maps app (`geo:` link). */
+internal fun openLocation(context: Context, lat: Double, lon: Double, label: String?) {
+    val q = String.format(Locale.ROOT, "%.6f,%.6f", lat, lon) + (label?.let { "(" + Uri.encode(it) + ")" } ?: "")
+    val uri = ("geo:" + String.format(Locale.ROOT, "%.6f,%.6f", lat, lon) + "?q=" + q).toUri()
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: ActivityNotFoundException) {
+        val web = String.format(Locale.ROOT, "https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f#map=17/%.6f/%.6f", lat, lon, lat, lon).toUri()
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, web).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+}

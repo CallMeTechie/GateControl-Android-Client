@@ -27,6 +27,15 @@ sealed interface PushNavTarget {
      */
     data class Door(val dest: String, val messageId: Long? = null) : PushNavTarget
 
+    /**
+     * The tab "Chats" (messenger plugin), in [conversationId] when given.
+     * Without the tab (plugin gone meanwhile) the start screen opens.
+     */
+    data class Chat(val conversationId: Long? = null) : PushNavTarget
+
+    /** Shared from another app ("Teilen → GateControl"): pick a chat for [ChatShareHandover]'s content. */
+    data object ChatShare : PushNavTarget
+
     companion object {
         /** App route of the Familie plugin (`plg-gatecontrol-familie`). */
         const val FAMILIE_ROUTE = "plg-gatecontrol-familie"
@@ -48,6 +57,7 @@ sealed interface PushNavTarget {
             "inbox" -> Inbox
             FAMILIE_ROUTE -> Familie("home", messageId?.takeIf { it > 0 })
             DOOR_ROUTE -> Door(doorDest ?: "home", messageId?.takeIf { it > 0 })
+            com.gatecontrol.android.chat.MESSENGER_ROUTE -> Chat()
             else -> if (messageId != null && messageId > 0) Detail(messageId) else Inbox
         }
     }

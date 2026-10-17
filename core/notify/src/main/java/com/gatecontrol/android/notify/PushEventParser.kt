@@ -42,6 +42,14 @@ sealed interface PushEvent {
     /** `event: control` (no id, not acked): something changed on the server. */
     data class Control(val control: ServerControl) : PushEvent
 
+    /**
+     * `event: plugin` (core 1.177+, no id, not acked): a plugin's realtime
+     * event for this person, e.g. the messenger's `message.new` or
+     * `typing`. [data] is the plugin's JSON (≤ 4 KB) or null; untrusted —
+     * the app feature that knows the plugin validates every field.
+     */
+    data class Plugin(val plugin: String, val type: String, val data: JsonElement?) : PushEvent
+
     /** Unknown or malformed event (future types, `policy`, …): ignored. */
     data class Ignored(val type: String?, val reason: String) : PushEvent
 }
@@ -93,6 +101,7 @@ object PushEventParser {
             "notification" -> notification(gson.fromJson(data, PushNotificationDto::class.java), id)
             "read" -> PushEvent.Read(ids(gson.fromJson(data, PushIdsDto::class.java)))
             "revoke" -> PushEvent.Revoke(ids(gson.fromJson(data, PushIdsDto::class.java)))
+            "plugin" -> plugin(data)
             else -> PushEvent.Ignored(type, "unknown_type")
         }
     } catch (e: Exception) {
@@ -123,6 +132,22 @@ object PushEventParser {
         supportBundleRequestedAt = timestamp(o.str("support_bundle_requested_at")),
         configHash = o.str("config_hash")?.takeIf { CONFIG_HASH_RE.matches(it) },
     )
+
+    /** Type of a plugin event as the core accepts it from `gc.events.emit`. */
+    private val PLUGIN_EVENT_TYPE_RE = Regex("^[a-z][a-z0-9._-]{0,63}$")
+
+    /** `{ plugin, type, data }`; anything else (or too big) is ignored. */
+    private fun plugin(raw: String): PushEvent {
+        if (raw.length > MAX_DATA_JSON) return PushEvent.Ignored("plugin", "too_large")
+        val o = JsonParser.parseString(raw).takeIf { it.isJsonObject }?.asJsonObject
+            ?: return PushEvent.Ignored("plugin", "invalid")
+        val plugin = o.str("plugin")?.takeIf { it.length <= 64 && PLUGIN_ID_RE.matches(it) }
+            ?: return PushEvent.Ignored("plugin", "invalid_plugin")
+        val type = o.str("type")?.takeIf { PLUGIN_EVENT_TYPE_RE.matches(it) }
+            ?: return PushEvent.Ignored("plugin", "invalid_type")
+        val data = o.get("data")?.takeIf { !it.isJsonNull }
+        return PushEvent.Plugin(plugin, type, data)
+    }
 
     private fun control(o: JsonObject): PushEvent {
         val control = when (o.str("type")) {
@@ -234,6 +259,7 @@ object PushEventParser {
             via = via,
             dataJson = dto.data?.toString()?.takeIf { it.length <= MAX_DATA_JSON },
             imageUrl = imagePath(dto.imageUrl),
+            kind = dto.kind?.takeIf { it == PushMessage.KIND_MESSAGE },
         )
     }
 
