@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.0] - 2026-10-17
+
+### Features
+- Orte für Regeln teilen – places as triggers of Familie rules (#86)
+
+---
+
 ## [1.40.0] - 2026-10-17
 
 ### Features
