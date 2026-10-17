@@ -120,12 +120,13 @@ fun QuickActionWidgetCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            widget?.badge?.let { BadgeChip(it) }
             when {
                 busy -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp), color = extra.accentText)
                 power != null -> GcSwitch(checked = power.isOn, onCheckedChange = if (interactive) ({ onRun(power) }) else null)
             }
         }
-        if (widget != null && WidgetPart.VALUE in shown) MainValue(widget)
+        if (widget != null && (widget.value != null || widget.label != null) && WidgetPart.VALUE in shown) MainValue(widget)
         val readings = widget?.readings.orEmpty().filter { WidgetPart.reading(it.id) in shown }
         if (readings.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -185,6 +186,26 @@ private fun MainValue(widget: QuickActionWidgetItem) {
         }
         if (widget.label != null) {
             Text(widget.label, style = MaterialTheme.typography.labelSmall, color = extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** The head's badge (e.g. battery and charge level): icon tinted by its state, then the value. */
+@Composable
+private fun BadgeChip(badge: QuickActionReadingItem) {
+    val extra = GateControlTheme.extraColors
+    val icon = remember(badge.icon) { QuickActionIcons.vectorOrNull(badge.icon) } ?: return
+    val (tint, _) = stateColors(badge.state)
+    val text = listOfNotNull(badge.value, badge.unit).joinToString(" ")
+    val description = listOf(badge.label, text).filter { it.isNotBlank() }.joinToString(": ")
+    Row(
+        Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = if (badge.state != null) tint else extra.muted, modifier = Modifier.size(18.dp))
+        if (text.isNotEmpty()) {
+            Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
         }
     }
 }
