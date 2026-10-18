@@ -111,6 +111,7 @@ fun StoryViewerScreen(
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     val feed = ui.feed
     // Who is shown in order: from the tapped person on through the strip.
@@ -137,7 +138,7 @@ fun StoryViewerScreen(
 
     LaunchedEffect(Unit) {
         viewModel.notice.collect { n ->
-            Toast.makeText(ctx, if (n is StatusNotice.Done) ctx.getString(n.res) else ChatText.actionError(ctx, (n as StatusNotice.Error).code), Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, if (n is StatusNotice.Done) res.getString(n.res) else ChatText.actionError(ctx, (n as StatusNotice.Error).code), Toast.LENGTH_SHORT).show()
         }
     }
     LaunchedEffect(feed == null) { if (feed == null) viewModel.refresh() }

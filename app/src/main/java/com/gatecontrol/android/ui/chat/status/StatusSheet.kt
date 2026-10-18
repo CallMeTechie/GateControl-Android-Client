@@ -114,6 +114,7 @@ fun StatusSheet(
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val people by viewModel.people.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val own = ui.own
@@ -130,7 +131,7 @@ fun StatusSheet(
     LaunchedEffect(Unit) {
         viewModel.notice.collect { n ->
             val msg = when (n) {
-                is StatusNotice.Done -> ctx.getString(n.res)
+                is StatusNotice.Done -> res.getString(n.res)
                 is StatusNotice.Error -> ChatText.actionError(ctx, n.code)
             }
             Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
@@ -188,7 +189,7 @@ fun StatusSheet(
                                     preset = ChatStatus.PRESET_NONE
                                 } else {
                                     preset = p.preset
-                                    if (text.isBlank() && p.preset != ChatStatus.PRESET_AUTO_PLACE) text = ctx.getString(p.label)
+                                    if (text.isBlank() && p.preset != ChatStatus.PRESET_AUTO_PLACE) text = res.getString(p.label)
                                 }
                             }
                             .padding(horizontal = 14.dp),

@@ -187,6 +187,7 @@ object ChatText {
             "http_413", "too_large" -> R.string.chat_err_too_large
             "http_507", "quota_exceeded" -> R.string.chat_err_quota
             "not_found" -> R.string.chat_err_gone
+            "blocked" -> R.string.chat_err_blocked
             else -> R.string.chat_err_generic
         },
     )
@@ -207,6 +208,15 @@ object ChatText {
             "http_413", "too_large" -> R.string.chat_err_too_large
             "http_507", "quota_exceeded" -> R.string.chat_err_quota
             "unreadable" -> R.string.chat_err_unreadable
+            // Messenger 1.4.
+            "unavailable" -> R.string.chat_err_unavailable
+            "skipped" -> R.string.chat_err_skipped
+            "blocked" -> R.string.chat_err_blocked
+            "not_allowed" -> R.string.chat_err_not_allowed
+            "closed" -> R.string.chat_err_closed
+            "no_approver" -> R.string.chat_err_no_approver
+            "rate_limited" -> R.string.chat_err_rate_limited
+            "feature_off" -> R.string.chat_err_feature_off
             else -> R.string.chat_err_generic
         },
     )

@@ -105,6 +105,7 @@ fun StoryComposerScreen(
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val people by viewModel.people.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val extra = GateControlTheme.extraColors
     var kind by rememberSaveable { mutableStateOf(initialKind.takeIf { it in listOf(ChatStory.KIND_TEXT, ChatStory.KIND_IMAGE, ChatStory.KIND_VIDEO) } ?: ChatStory.KIND_TEXT) }
     var text by rememberSaveable { mutableStateOf("") }
@@ -117,7 +118,7 @@ fun StoryComposerScreen(
 
     LaunchedEffect(Unit) {
         viewModel.notice.collect { n ->
-            Toast.makeText(ctx, if (n is StatusNotice.Done) ctx.getString(n.res) else ChatText.actionError(ctx, (n as StatusNotice.Error).code), Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, if (n is StatusNotice.Done) res.getString(n.res) else ChatText.actionError(ctx, (n as StatusNotice.Error).code), Toast.LENGTH_SHORT).show()
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) media = uri.toString() }

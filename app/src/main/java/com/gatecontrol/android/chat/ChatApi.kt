@@ -159,7 +159,12 @@ class ChatApi @Inject constructor(
     /** Change of a conversation; [ChatPatch.left] after leaving (conversation null). */
     suspend fun patchConversation(id: Long, body: JsonObject): ChatResult<ChatPatch> =
         patch("conversations/$id", body) { o ->
-            ChatPatch(ChatJson.conversationOf(o), o.get("left")?.takeIf { it.isJsonPrimitive }?.asBoolean == true)
+            ChatPatch(
+                ChatJson.conversationOf(o),
+                o.get("left")?.takeIf { it.isJsonPrimitive }?.asBoolean == true,
+                // Messenger 1.4: people whose privacy (`groupAdd`) keeps them out.
+                o.get("skipped")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { ChatJson.idOf(it) }.orEmpty(),
+            )
         }
 
     // ─── messages ───────────────────────────────────────────────────
@@ -452,7 +457,7 @@ fun <T> ChatResult<Optional<T>>.unwrap(): ChatResult<T?> = if (this is ChatResul
 data class ChatDeleted(val tombstone: ChatMessage?)
 
 /** Answer of `PATCH conversations/:id`. */
-data class ChatPatch(val conversation: ChatConversation?, val left: Boolean)
+data class ChatPatch(val conversation: ChatConversation?, val left: Boolean, val skipped: List<Long> = emptyList())
 
 /** Bodies of `PATCH conversations/:id` (README "Routes"). */
 object ChatPatches {

@@ -141,10 +141,11 @@ fun ChatSettingsScreen(
     viewModel: ChatSettingsViewModel = hiltViewModel(),
 ) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     LaunchedEffect(Unit) {
         viewModel.notice.collect { n ->
             when (n) {
-                is SettingsNotice.Failed -> Toast.makeText(ctx, ctx.getString(R.string.chat_settings_saved_failed, ChatText.actionError(ctx, n.code)), Toast.LENGTH_LONG).show()
+                is SettingsNotice.Failed -> Toast.makeText(ctx, res.getString(R.string.chat_settings_saved_failed, ChatText.actionError(ctx, n.code)), Toast.LENGTH_LONG).show()
                 is SettingsNotice.Done -> Toast.makeText(ctx, n.res, Toast.LENGTH_SHORT).show()
                 is SettingsNotice.Export -> {
                     if (n.truncated) Toast.makeText(ctx, R.string.chat_export_truncated, Toast.LENGTH_LONG).show()
@@ -310,6 +311,8 @@ private fun PrivacyPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit)
     val p = profile?.prefs14?.privacy ?: ChatPrivacy()
     var dialog by remember { mutableStateOf<String?>(null) }
     val auth = rememberGcDeviceAuth()
+    val lockTitle = stringResource(R.string.chat_lock_title)
+    val lockSubtitle = stringResource(R.string.chat_lock_subtitle)
     if (f?.privacy2 == true) {
         Section(stringResource(R.string.chat_privacy_who)) {
             ValueRow(stringResource(R.string.chat_privacy_last_seen), audienceLabel(p.lastSeen), stringResource(R.string.chat_privacy_last_seen_desc)) { dialog = "lastSeen" }
@@ -345,7 +348,7 @@ private fun PrivacyPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit)
                 Toast.makeText(ctx, R.string.chat_privacy_lock_unavailable, Toast.LENGTH_LONG).show()
             } else {
                 // Confirmed once, so nobody locks themselves out.
-                auth.authenticate(ctx.getString(R.string.chat_lock_title), ctx.getString(R.string.chat_lock_subtitle)) { r ->
+                auth.authenticate(lockTitle, lockSubtitle) { r ->
                     if (r == DeviceAuthResult.SUCCESS) vm.setDevice { it.copy(appLock = true) }
                 }
             }

@@ -428,4 +428,12 @@
         <item quantity="one">%d chat</item>
         <item quantity="other">%d chats</item>
     </plurals>
+    <string name="chat_err_unavailable">Familie does not offer this right now.</string>
+    <string name="chat_err_skipped">Some people were not added – their privacy settings don’t allow it.</string>
+    <string name="chat_err_blocked">Not possible: one of you blocked the other.</string>
+    <string name="chat_err_not_allowed">You are not allowed to do that.</string>
+    <string name="chat_err_closed">That is over already.</string>
+    <string name="chat_err_no_approver">Nobody in this chat may do that.</string>
+    <string name="chat_err_rate_limited">Please wait a bit before trying again.</string>
+    <string name="chat_err_feature_off">The administrator has switched this off.</string>
 </resources>

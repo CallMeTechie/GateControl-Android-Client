@@ -183,7 +183,10 @@ class ChatInfoViewModel @Inject constructor(
         val cid = id.value ?: return
         viewModelScope.launch {
             when (val r = repository.patch(cid, body)) {
-                is ChatResult.Ok -> if (r.value.left) leftCh.trySend(Unit)
+                is ChatResult.Ok -> {
+                    if (r.value.left) leftCh.trySend(Unit)
+                    if (r.value.skipped.isNotEmpty()) errors.trySend("skipped")
+                }
                 is ChatResult.Failed -> errors.trySend(r.code)
                 else -> errors.trySend("offline")
             }

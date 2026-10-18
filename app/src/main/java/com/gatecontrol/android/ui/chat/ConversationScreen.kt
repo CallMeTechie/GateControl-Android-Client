@@ -735,7 +735,7 @@ fun ConversationScreen(
     }
     if (showEvent) {
         EventCreateDialog(
-            places = places,
+            places = places.takeIf { state.profile?.familie?.places != false },
             defaultReminderMin = state.profile?.prefs14?.notify?.eventReminderMin ?: 60,
             arrivalOn = state.profile?.features?.arrival == true,
             busy = richBusy,
@@ -745,7 +745,7 @@ fun ConversationScreen(
     }
     if (arrivalSheet) {
         ArrivalSheet(
-            places = places,
+            places = places.takeIf { state.profile?.familie?.places != false } ?: emptyList(),
             actions = if (state.profile?.features?.actions == true) homeActions.orEmpty() else emptyList(),
             initial = arrivalDest,
             busy = richBusy,

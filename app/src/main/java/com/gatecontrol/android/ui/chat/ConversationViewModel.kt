@@ -575,7 +575,8 @@ class ConversationViewModel @Inject constructor(
 
     fun loadExtras() {
         viewModelScope.launch { if (uiState.value.profile?.features?.actions == true) extras.refreshActions() }
-        viewModelScope.launch { extras.refreshPlaces() }
+        // Familie places only when Familie offers them (`integrations.familie.places`).
+        viewModelScope.launch { if (uiState.value.profile?.familie?.places != false) extras.refreshPlaces() }
     }
 
     private fun after(r: ChatResult<*>, done: Int? = null) {

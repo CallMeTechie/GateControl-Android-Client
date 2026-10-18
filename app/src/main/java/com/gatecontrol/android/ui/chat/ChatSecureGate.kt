@@ -104,8 +104,10 @@ fun ChatSecureGate(content: @Composable () -> Unit) {
         return
     }
     val auth = rememberGcDeviceAuth()
+    val lockTitle = stringResource(R.string.chat_lock_title)
+    val lockSubtitle = stringResource(R.string.chat_lock_subtitle)
     val ask: () -> Unit = {
-        auth.authenticate(context.getString(R.string.chat_lock_title), context.getString(R.string.chat_lock_subtitle)) { r ->
+        auth.authenticate(lockTitle, lockSubtitle) { r ->
             // No screen lock any more: the lock cannot work, so it does not block.
             if (r == DeviceAuthResult.SUCCESS || r == DeviceAuthResult.UNAVAILABLE) ChatLock.unlock()
         }

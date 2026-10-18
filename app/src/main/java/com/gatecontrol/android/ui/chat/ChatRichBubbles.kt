@@ -607,9 +607,10 @@ fun ReplyStoryQuote(r: ChatReplyStory, conversation: ChatConversation?, myId: Lo
     val extra = GateControlTheme.extraColors
     val px = with(LocalDensity.current) { 44.dp.roundToPx() }
     val thumb = rememberChatBitmap(r.thumbMediaId, px)
+    val replyLabel = stringResource(R.string.chat_story_reply)
     Row(
         Modifier.padding(bottom = 6.dp).clip(RoundedCornerShape(10.dp)).background(extra.panel2).heightIn(min = 44.dp)
-            .semantics { contentDescription = ctx.getString(R.string.chat_story_reply) },
+            .semantics { contentDescription = replyLabel },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(3.dp).height(44.dp).background(MaterialTheme.colorScheme.primary))
