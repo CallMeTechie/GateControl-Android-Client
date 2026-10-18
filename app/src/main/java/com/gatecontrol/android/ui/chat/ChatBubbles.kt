@@ -69,7 +69,9 @@ private data class BubbleColors(val bg: Color, val fg: Color, val meta: Color, v
 private fun bubbleColors(mine: Boolean): BubbleColors {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
-    return if (mine) BubbleColors(extra.accentBg, scheme.onSurface, extra.accentText, Color.Transparent)
+    // Messenger 1.4 settings: the own bubble's colour (this device).
+    val own = LocalChatLook.current.ownBubble
+    return if (mine) BubbleColors(own ?: extra.accentBg, scheme.onSurface, extra.accentText, Color.Transparent)
     else BubbleColors(scheme.surface, scheme.onSurface, extra.muted, extra.border)
 }
 
@@ -85,6 +87,8 @@ class BubbleActions(
     val onSeek: (ChatMessage, Float) -> Unit,
     val onReact: (ChatMessage, String) -> Unit,
     val onQuote: (Long) -> Unit,
+    /** Messenger 1.4 cards: polls, events, arrival, actions, plugin cards. */
+    val rich: RichActions = RichActions(),
 )
 
 /** A stored message: bubble (or system line), reactions below. */
@@ -153,6 +157,7 @@ fun MessageBubble(
                     )
                 }
                 m.replyTo?.let { r -> Quote(r.senderId, if (r.deleted || r.missing) null else r.text, r.kind, r.deleted || r.missing, conversation, myId) { actions.onQuote(r.id) } }
+                m.replyStory?.let { r -> if (!m.deleted) ReplyStoryQuote(r, conversation, myId) }
                 when {
                     m.deleted -> Text(
                         ChatText.content(ctx, m, conversation, myId),
@@ -180,12 +185,20 @@ fun MessageBubble(
                         thumbId = m.media?.thumbId,
                     )
                     m.kind == ChatMessage.KIND_LOCATION -> m.location?.let { LocationContent(it.label, it.lat, it.lon) }
+                    // Messenger 1.4 kinds.
+                    m.poll != null -> PollContent(m, m.poll, conversation, myId, actions.rich)
+                    m.event != null -> EventContent(m, m.event, conversation, myId, actions.rich)
+                    m.arrival != null -> ArrivalContent(m, m.arrival, actions.rich)
+                    m.action != null -> ActionContent(m, m.action, conversation, myId, actions.rich)
+                    m.card != null -> PluginCardContent(m, actions.rich)
+                    m.isUnknownKind || m.kind in RICH_KINDS -> UnknownKindContent(m, actions.rich)
                 }
-                val caption = m.text?.takeIf { !m.deleted && it.isNotBlank() }
+                val caption = m.text?.takeIf { !m.deleted && it.isNotBlank() && !m.isUnknownKind && m.kind !in RICH_KINDS }
                 if (caption != null) {
+                    val scale = LocalChatLook.current.fontScale
                     Text(
                         caption,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge.let { if (scale == 1f) it else it.copy(fontSize = it.fontSize * scale, lineHeight = it.lineHeight * scale) },
                         color = colors.fg,
                         modifier = Modifier.padding(
                             start = if (visual) 6.dp else 0.dp,
@@ -454,6 +467,11 @@ internal fun VideoContent(thumbId: String?, localThumb: String?, durationMs: Lon
 }
 
 internal val VIDEO_BG = Color(0xFF1B1F24)
+
+/** Kinds whose content is an object (no caption of their own). */
+private val RICH_KINDS = setOf(
+    ChatMessage.KIND_POLL, ChatMessage.KIND_EVENT, ChatMessage.KIND_ARRIVAL, ChatMessage.KIND_ACTION, ChatMessage.KIND_CARD,
+)
 
 @Composable
 private fun FileContent(name: String, bytes: Long?, mime: String?, thumbId: String? = null, localThumb: String? = null) {

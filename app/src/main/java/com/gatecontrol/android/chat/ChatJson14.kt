@@ -764,8 +764,8 @@ object ChatJson14 {
     private val ROUTE_RE = Regex("^(?:vpn|services|gateways|inbox|plg-[a-z0-9]+(?:-[a-z0-9]+)*)$")
     private val BASE64_RE = Regex("^[A-Za-z0-9+/]+={0,2}$")
     private val IMAGE_MIMES = setOf("image/jpeg", "image/webp", "image/png")
-    /** 300 KB as base64. */
-    private const val IMAGE_B64_MAX = 410_000
+    /** A snapshot up to about 512 KB as base64. */
+    private const val IMAGE_B64_MAX = 720_000
 
     private fun route(value: String?): String? = value?.takeIf { ROUTE_RE.matches(it) }
 

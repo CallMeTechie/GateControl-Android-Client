@@ -51,7 +51,14 @@ object ChatText {
             ChatMessage.KIND_FILE -> prefixed(ctx.getString(R.string.chat_kind_file), m.meta?.fileName ?: m.text)
             ChatMessage.KIND_LOCATION -> prefixed(ctx.getString(R.string.chat_kind_location), m.location?.label)
             ChatMessage.KIND_SYSTEM -> system(ctx, m, c, myId)
-            else -> m.text.orEmpty()
+            // Messenger 1.4 kinds.
+            ChatMessage.KIND_POLL -> prefixed(ctx.getString(R.string.chat_kind_poll), m.poll?.question)
+            ChatMessage.KIND_EVENT -> prefixed(ctx.getString(R.string.chat_kind_event), m.event?.title)
+            ChatMessage.KIND_ARRIVAL -> prefixed(ctx.getString(R.string.chat_kind_arrival), m.arrival?.dest?.label)
+            ChatMessage.KIND_ACTION -> prefixed(ctx.getString(R.string.chat_kind_action), m.action?.label)
+            ChatMessage.KIND_CARD -> m.card?.let { card -> listOfNotNull(card.title, card.text?.lineSequence()?.firstOrNull()).joinToString(": ") }
+                ?: m.text.orEmpty()
+            else -> if (m.isUnknownKind) m.text ?: ctx.getString(R.string.chat_kind_unknown) else m.text.orEmpty()
         }
     }
 
@@ -74,6 +81,28 @@ object ChatText {
             "notice" -> m.text.orEmpty()
             // The plugin that managed the group handed it over (Messenger 1.1.0).
             "released" -> ctx.getString(R.string.chat_sys_released)
+            // Messenger 1.4.
+            "poll_closed" -> if (s.label != null) ctx.getString(R.string.chat_sys_poll_closed, s.title.orEmpty(), s.label)
+            else ctx.getString(R.string.chat_sys_poll_closed_none, s.title.orEmpty())
+            "arrived" -> s.label?.let { ctx.getString(R.string.chat_sys_arrived, nameOf(ctx, c, s.userId, myId), it) }
+                ?: ctx.getString(R.string.chat_sys_arrived_plain, nameOf(ctx, c, s.userId, myId))
+            "action_run" -> {
+                val who = nameOf(ctx, c, s.userId ?: s.by, myId)
+                if (s.otherUserId != null) ctx.getString(R.string.chat_sys_action_run_as, who, s.label.orEmpty(), nameOf(ctx, c, s.otherUserId, myId))
+                else ctx.getString(R.string.chat_sys_action_run, who, s.label.orEmpty())
+            }
+            "action_denied" -> ctx.getString(R.string.chat_sys_action_denied, by, s.label.orEmpty())
+            "event_cancelled" -> ctx.getString(R.string.chat_sys_event_cancelled, by, s.title.orEmpty())
+            "vote" -> ctx.getString(R.string.chat_sys_vote, nameOf(ctx, c, s.userId ?: s.by, myId), s.label.orEmpty())
+            "rsvp" -> {
+                val who = nameOf(ctx, c, s.userId ?: s.by, myId)
+                when (s.answer) {
+                    "yes" -> if ((s.guests ?: 0) > 0) ctx.getString(R.string.chat_sys_rsvp_yes_guests, who, s.guests ?: 0) else ctx.getString(R.string.chat_sys_rsvp_yes, who)
+                    "maybe" -> ctx.getString(R.string.chat_sys_rsvp_maybe, who)
+                    "no" -> ctx.getString(R.string.chat_sys_rsvp_no, who)
+                    else -> m.text ?: ctx.getString(R.string.chat_sys_unknown)
+                }
+            }
             else -> m.text ?: ctx.getString(R.string.chat_sys_unknown)
         }
     }
