@@ -180,6 +180,8 @@ dependencies {
     // Lifecycle
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
+    // Play update: installs a downloaded update when the app goes to the background
+    implementation(libs.lifecycle.process)
 
     // Hilt
     implementation(libs.hilt.android)

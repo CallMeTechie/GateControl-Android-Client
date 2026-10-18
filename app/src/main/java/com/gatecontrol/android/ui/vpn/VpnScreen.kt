@@ -374,7 +374,21 @@ fun VpnScreen(
             onViewOwnStories = { statusSheet = false; onOpenOwnStories() },
         )
     }
+    // After an update that cut the VPN: connect again the way the button does (only without a consent dialog).
+    val reconnectAfterUpdate: () -> Boolean = {
+        if (android.net.VpnService.prepare(context) == null) {
+            viewModel.connect()
+            true
+        } else {
+            false
+        }
+    }
     val bannerSection: @Composable ColumnScope.() -> Unit = {
+        // --- Google Play update (Play build): offer, download, restart, "Das ist neu"
+        if (com.gatecontrol.android.update.PlayUpdater.enabled) {
+            com.gatecontrol.android.ui.update.PlayUpdateStartSection(onReconnectVpn = reconnectAfterUpdate)
+        }
+
         // --- Connection failed: the message and what to do next ------------
         val st = tunnelState
         if (st is TunnelState.Error) {
@@ -504,11 +518,6 @@ fun VpnScreen(
 
         // --- Client policy: kill switch / always-on need the system settings
         com.gatecontrol.android.ui.components.GcPolicySystemVpnCard(clientPolicy)
-
-        // --- Google Play update (Play build) --------------------------------
-        if (com.gatecontrol.android.update.PlayUpdater.enabled) {
-            com.gatecontrol.android.ui.update.PlayUpdateBanner()
-        }
     }
     val quickActionsSection: @Composable ColumnScope.() -> Unit = {
         // --- Quick actions and widgets of the plugins ----------------------
@@ -550,32 +559,38 @@ fun VpnScreen(
     // Tabletop posture: header and quick actions above the fold, the cards
     // below it.
     val layout = LocalGcWindowLayout.current
-    when {
-        layout.horizontalHinge != null -> TabletopHome(
-            hinge = layout.horizontalHinge,
-            onLongPress = openEdit,
-            top = { headerSection(); quickActionsSection() },
-            bottom = { bannerSection(); infoSection(); usageSection() },
-        )
-        layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
-            Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }
-            GcTwoPane(
-                listWidth = 420.dp,
-                divider = false,
-                list = {
-                    HomeColumn(onLongPress = openEdit) { bannerSection(); quickActionsSection(); infoSection() }
-                },
-                detail = {
-                    HomeColumn(onLongPress = openEdit) { usageSection() }
-                },
+    Box(Modifier.fillMaxSize()) {
+        when {
+            layout.horizontalHinge != null -> TabletopHome(
+                hinge = layout.horizontalHinge,
+                onLongPress = openEdit,
+                top = { headerSection(); quickActionsSection() },
+                bottom = { bannerSection(); infoSection(); usageSection() },
             )
+            layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
+                Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }
+                GcTwoPane(
+                    listWidth = 420.dp,
+                    divider = false,
+                    list = {
+                        HomeColumn(onLongPress = openEdit) { bannerSection(); quickActionsSection(); infoSection() }
+                    },
+                    detail = {
+                        HomeColumn(onLongPress = openEdit) { usageSection() }
+                    },
+                )
+            }
+            else -> HomeColumn(Modifier.padding(top = 20.dp), onLongPress = openEdit) {
+                headerSection()
+                bannerSection()
+                quickActionsSection()
+                infoSection()
+                usageSection()
+            }
         }
-        else -> HomeColumn(Modifier.padding(top = 20.dp), onLongPress = openEdit) {
-            headerSection()
-            bannerSection()
-            quickActionsSection()
-            infoSection()
-            usageSection()
+        // "Update installiert – VPN wieder verbunden" after an update (Play build).
+        if (com.gatecontrol.android.update.PlayUpdater.enabled) {
+            com.gatecontrol.android.ui.update.PlayUpdateToastHost(Modifier.align(Alignment.BottomCenter))
         }
     }
 

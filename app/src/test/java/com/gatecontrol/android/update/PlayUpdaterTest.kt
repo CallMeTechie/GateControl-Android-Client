@@ -33,6 +33,8 @@ class PlayUpdaterTest {
         every { installStatus() } returns status
         every { availableVersionCode() } returns code
         every { isUpdateTypeAllowed(AppUpdateType.FLEXIBLE) } returns true
+        every { totalBytesToDownload() } returns 18_000_000
+        every { bytesDownloaded() } returns 0
     }
 
     private fun installState(status: Int, done: Long = 0, total: Long = 0) = mockk<InstallState> {
@@ -65,7 +67,7 @@ class PlayUpdaterTest {
         updater.check()
 
         listener.captured.onStateUpdate(installState(InstallStatus.DOWNLOADING, done = 50, total = 200))
-        assertEquals(PlayUpdateState.Downloading(25), updater.state.value)
+        assertEquals(PlayUpdateState.Downloading(25, 50, 200), updater.state.value)
 
         listener.captured.onStateUpdate(installState(InstallStatus.DOWNLOADED))
         assertEquals(PlayUpdateState.Downloaded, updater.state.value)
@@ -87,5 +89,23 @@ class PlayUpdaterTest {
         updater.check()
         updater.declined()
         assertEquals(PlayUpdateState.Available(12500), updater.state.value)
+    }
+
+    @Test
+    fun `a stopped download remembers how far it got`() = runTest {
+        every { manager.appUpdateInfo } returns Tasks.forResult(info(UpdateAvailability.UPDATE_AVAILABLE, code = 99_00_00))
+        updater.check()
+        assertEquals(PlayUpdateTarget(99_00_00, 18_000_000), updater.target.value)
+
+        listener.captured.onStateUpdate(installState(InstallStatus.DOWNLOADING, done = 122, total = 200))
+        listener.captured.onStateUpdate(installState(InstallStatus.FAILED))
+        assertEquals(PlayUpdateState.DownloadFailed(61), updater.state.value)
+    }
+
+    @Test
+    fun `no update clears the target`() = runTest {
+        every { manager.appUpdateInfo } returns Tasks.forResult(info(UpdateAvailability.UPDATE_NOT_AVAILABLE, code = 0))
+        updater.check()
+        assertEquals(null, updater.target.value)
     }
 }
