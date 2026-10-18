@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.46.0] - 2026-10-18
+
+### Features
+- in-app update pane for the Google Play build (#95)
+
+---
+
 ## [1.45.3] - 2026-10-18
 
 ### Fixes
