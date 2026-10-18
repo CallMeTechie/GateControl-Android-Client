@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.45.2] - 2026-10-18
+
+### Fixes
+- story send button visible, wallpaper tile captions fit (#93)
+
+---
+
 ## [1.45.1] - 2026-10-18
 
 ### Fixes
