@@ -94,7 +94,17 @@ class ChatNotifier @Inject constructor(
             description = ctx.getString(R.string.chat_channel_desc)
         }
         nm.createNotificationChannel(channel)
+        // Messenger 1.4: groups on a channel of their own (sound / vibration per type in the Android settings).
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_GROUPS, ctx.getString(R.string.chat_channel_groups), NotificationManager.IMPORTANCE_HIGH).apply {
+                group = GROUP_CHANNELS
+                description = ctx.getString(R.string.chat_channel_groups_desc)
+            },
+        )
     }
+
+    /** Creates the chat channels (the settings open them for sound and vibration). */
+    suspend fun ensureChannels() = ensureChannel(localized())
 
     /** A chat push: appended to its conversation's notification (or nothing while that chat is open). */
     suspend fun show(message: PushMessage, quiet: Boolean) {
@@ -152,7 +162,7 @@ class ChatNotifier @Inject constructor(
             style.addMessage(l.text, l.timeMs, person)
         }
         val id = notificationId(c.conversationId)
-        val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(ctx, if (c.isGroup) CHANNEL_GROUPS else CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setStyle(style)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
@@ -376,6 +386,8 @@ class ChatNotifier @Inject constructor(
 
     companion object {
         const val CHANNEL_ID = "push_chats"
+        /** Messenger 1.4: group chats (own sound / vibration). */
+        const val CHANNEL_GROUPS = "push_chats_groups"
         private const val GROUP_CHANNELS = "push"
         private const val GROUP_KEY = "chats"
         private const val PREFS = "chat_notifications"

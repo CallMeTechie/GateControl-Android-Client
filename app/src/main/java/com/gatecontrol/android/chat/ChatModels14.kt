@@ -408,3 +408,31 @@ object ChatDeepLink {
         return if (_pending.compareAndSet(t, null)) t else null
     }
 }
+
+/** Bytes of the chats on this device ("Speicher und Daten"). */
+data class ChatStorageUsage(val photos: Long, val videos: Long, val voice: Long, val files: Long, val outbox: Long) {
+    val total: Long get() = photos + videos + voice + files + outbox
+}
+
+/** Pure: the kind of a cached file by its first bytes. Unit-tested. */
+object ChatStorageLogic {
+    const val PHOTO = "photo"
+    const val VIDEO = "video"
+    const val VOICE = "voice"
+    const val FILE = "file"
+
+    fun kindOf(head: ByteArray): String {
+        fun at(i: Int) = head.getOrNull(i)?.toInt()?.and(0xFF) ?: -1
+        fun ascii(from: Int, len: Int) = if (head.size >= from + len) String(head, from, len, Charsets.ISO_8859_1) else ""
+        return when {
+            at(0) == 0xFF && at(1) == 0xD8 -> PHOTO
+            ascii(1, 3) == "PNG" -> PHOTO
+            ascii(0, 4) == "RIFF" && ascii(8, 4) == "WEBP" -> PHOTO
+            ascii(0, 3) == "GIF" -> PHOTO
+            ascii(4, 4) == "ftyp" -> if (ascii(8, 3) == "M4A" || ascii(8, 4) == "M4B ") VOICE else VIDEO
+            ascii(0, 4) == "OggS" -> VOICE
+            at(0) == 0x1A && at(1) == 0x45 && at(2) == 0xDF && at(3) == 0xA3 -> VIDEO
+            else -> FILE
+        }
+    }
+}

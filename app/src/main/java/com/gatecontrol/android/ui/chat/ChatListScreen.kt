@@ -25,7 +25,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Unarchive
+import androidx.compose.foundation.combinedClickable
+import com.gatecontrol.android.chat.events
+import com.gatecontrol.android.chat.msgTools
+import com.gatecontrol.android.chat.status
+import com.gatecontrol.android.chat.stories
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.AlertDialog
@@ -83,6 +90,10 @@ fun ChatListScreen(
     onNewChat: () -> Unit,
     onOpenUpdates: () -> Unit,
     selectedId: Long? = null,
+    /** Messenger 1.4: Chat-Einstellungen as a page, the status strip's viewer and composer. */
+    onOpenSettings: () -> Unit = {},
+    onOpenStory: (Long) -> Unit = {},
+    onOpenStoryComposer: () -> Unit = {},
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -90,7 +101,9 @@ fun ChatListScreen(
     val extra = GateControlTheme.extraColors
     val context = LocalContext.current
     var searching by rememberSaveable { mutableStateOf(false) }
-    var showPrefs by remember { mutableStateOf(false) }
+    var showStatus by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<ChatConversation?>(null) }
+    val f14 = state.profile?.features
     val myId = state.profile?.user?.userId
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -109,7 +122,7 @@ fun ChatListScreen(
                     searching = !searching
                     if (!searching) viewModel.setQuery("")
                 })
-                GcIconButton(GcIcons.Settings, stringResource(R.string.chat_prefs_title), onClick = { showPrefs = true })
+                GcIconButton(GcIcons.Settings, stringResource(R.string.chat_settings_title), onClick = onOpenSettings)
             }
             if (searching) {
                 GcTextField(
@@ -162,6 +175,11 @@ fun ChatListScreen(
                     { viewModel.setFilter(ChatFilter.Unread) },
                 )
                 GcFilterChip(stringResource(R.string.chat_filter_groups), state.filter == ChatFilter.Groups, { viewModel.setFilter(ChatFilter.Groups) })
+                // Messenger 1.4: chats with an upcoming event, and the own lists.
+                if (f14?.events == true) GcFilterChip(stringResource(R.string.chat_filter_events), state.filter == ChatFilter.Events, { viewModel.setFilter(ChatFilter.Events) })
+                state.lists.forEach { l ->
+                    GcFilterChip(l.name, state.listId == l.id, { viewModel.setList(if (state.listId == l.id) null else l.id) })
+                }
             }
             PullToRefreshBox(
                 isRefreshing = state.sync == ChatSync.Syncing && state.loaded,
@@ -172,6 +190,16 @@ fun ChatListScreen(
                     if (!state.sharing && state.query.isBlank()) {
                         item(key = "pinned") {
                             SectionLabel(stringResource(R.string.chat_pinned))
+                            if (f14?.status == true || f14?.stories == true) {
+                                val me = state.feed?.me
+                                com.gatecontrol.android.ui.chat.status.StatusStrip(
+                                    me = state.profile?.user,
+                                    meHasStories = me?.stories?.isNotEmpty() == true,
+                                    items = com.gatecontrol.android.chat.ChatStatusLogic.strip(state.feed),
+                                    onOpenMine = { if (f14.status) showStatus = true else onOpenStoryComposer() },
+                                    onOpen = { onOpenStory(it.user.userId) },
+                                )
+                            }
                             InboxRow(state, onOpenInbox)
                             SectionLabel(stringResource(R.string.chat_section_chats))
                         }
@@ -193,7 +221,34 @@ fun ChatListScreen(
                             myId = myId,
                             selected = c.id == selectedId,
                             onClick = { onOpen(c.id) },
+                            onLongClick = if (f14?.msgTools == true) ({ menuFor = c }) else null,
                         )
+                    }
+                    // Messenger 1.4: archived chats, folded away at the end.
+                    if (state.archived.isNotEmpty() && state.query.isBlank() && !state.sharing) {
+                        item(key = "archived") {
+                            Row(
+                                Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClick = viewModel::toggleArchived).padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Icon(Icons.Outlined.Archive, contentDescription = null, tint = extra.muted)
+                                Text(stringResource(R.string.chat_archived_n, state.archived.size), style = MaterialTheme.typography.titleSmall, color = extra.muted, modifier = Modifier.weight(1f))
+                                Icon(if (state.showArchived) GcIcons.ChevronUp else GcIcons.ChevronDown, contentDescription = null, tint = extra.faint)
+                            }
+                        }
+                        if (state.showArchived) {
+                            items(state.archived, key = { "a" + it.id }) { c ->
+                                ConversationRow(
+                                    c = c,
+                                    typingText = null,
+                                    myId = myId,
+                                    selected = c.id == selectedId,
+                                    onClick = { onOpen(c.id) },
+                                    onLongClick = { menuFor = c },
+                                )
+                            }
+                        }
                     }
                     if (state.conversations.isEmpty()) {
                         item(key = "empty") {
@@ -238,14 +293,24 @@ fun ChatListScreen(
         }
     }
 
-    if (showPrefs) {
-        val device by viewModel.device.collectAsStateWithLifecycle()
-        ChatPrefsDialog(
-            prefs = state.profile?.prefs ?: ChatPrefs(),
-            device = device,
-            onSave = { p -> viewModel.setPrefs(p) { } },
-            onSaveDevice = viewModel::setDevice,
-            onDismiss = { showPrefs = false },
+    if (showStatus) {
+        com.gatecontrol.android.ui.chat.status.StatusSheet(
+            onDismiss = { showStatus = false },
+            onOpenStoryComposer = { showStatus = false; onOpenStoryComposer() },
+            onOpenProfile = null,
+            onViewOwnStories = if (state.feed?.me?.stories?.isNotEmpty() == true) ({ showStatus = false; onOpenStory(0L) }) else null,
+        )
+    }
+    menuFor?.let { c ->
+        ConversationMenu(
+            c = c,
+            lists = state.lists,
+            onArchive = {
+                menuFor = null
+                viewModel.archive(c, !c.archived)
+            },
+            onToggleList = { l -> viewModel.toggleInList(l, c) },
+            onDismiss = { menuFor = null },
         )
     }
 }
@@ -322,15 +387,51 @@ private fun UnreadBadge(n: Int, muted: Boolean = false) {
     }
 }
 
+/** Long press on a chat (Messenger 1.4): archive, put into lists. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long?, selected: Boolean, onClick: () -> Unit) {
+private fun ConversationMenu(
+    c: ChatConversation,
+    lists: List<com.gatecontrol.android.chat.ChatList>,
+    onArchive: () -> Unit,
+    onToggleList: (com.gatecontrol.android.chat.ChatList) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            Text(ChatText.title(ctx, c), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(role = Role.Button, onClick = onArchive).padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Icon(if (c.archived) Icons.Outlined.Unarchive else Icons.Outlined.Archive, contentDescription = null, tint = GateControlTheme.extraColors.muted)
+                Text(stringResource(if (c.archived) R.string.chat_unarchive else R.string.chat_archive), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            }
+            if (lists.isNotEmpty()) {
+                SectionLabel(stringResource(R.string.chat_lists_add_chat))
+                lists.forEach { l ->
+                    GcSwitchRow(l.name, null, c.id in l.conversationIds, { onToggleList(l) })
+                }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long?, selected: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
     val last = c.lastMessage
     Row(
         Modifier.fillMaxWidth().heightIn(min = 74.dp)
             .then(if (selected) Modifier.background(extra.accentBg) else Modifier)
-            .clickable(role = Role.Button, onClick = onClick)
+            .then(
+                if (onLongClick != null) Modifier.combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick, onLongClickLabel = stringResource(R.string.chat_actions))
+                else Modifier.clickable(role = Role.Button, onClick = onClick),
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -393,88 +494,6 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
 internal object ChatTimelineStatus {
     fun of(m: com.gatecontrol.android.chat.ChatMessage, c: ChatConversation): String? =
         com.gatecontrol.android.chat.ChatTimeline.status(m, c.readUpTo, c.deliveredUpTo)
-}
-
-/**
- * Chat preferences (README `PUT prefs`): read receipts, "schreibt …",
- * content in notifications — and, for this device only, conversation
- * shortcuts and bubbles.
- */
-@Composable
-fun ChatPrefsDialog(
-    prefs: ChatPrefs,
-    device: ChatDevicePrefs,
-    onSave: (ChatPrefs) -> Unit,
-    onSaveDevice: (ChatDevicePrefs) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var p by remember(prefs) { mutableStateOf(prefs) }
-    var d by remember(device) { mutableStateOf(device) }
-    val context = LocalContext.current
-    val systemBubbles = remember { ChatSystemBubbles.allowed(context) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.Notifications, contentDescription = null) },
-        title = { Text(stringResource(R.string.chat_prefs_title)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                GcSwitchRow(
-                    label = stringResource(R.string.chat_prefs_receipts),
-                    description = stringResource(R.string.chat_prefs_receipts_desc),
-                    checked = p.readReceipts,
-                    onCheckedChange = { p = p.copy(readReceipts = it) },
-                )
-                GcSwitchRow(
-                    label = stringResource(R.string.chat_prefs_typing),
-                    description = stringResource(R.string.chat_prefs_typing_desc),
-                    checked = p.typing,
-                    onCheckedChange = { p = p.copy(typing = it) },
-                )
-                GcSwitchRow(
-                    label = stringResource(R.string.chat_prefs_preview),
-                    description = stringResource(R.string.chat_prefs_preview_desc),
-                    checked = p.preview,
-                    onCheckedChange = { p = p.copy(preview = it) },
-                )
-                Text(
-                    stringResource(R.string.chat_prefs_device).uppercase(),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = MonoFontFamily),
-                    color = GateControlTheme.extraColors.faint,
-                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
-                )
-                GcSwitchRow(
-                    label = stringResource(R.string.chat_prefs_shortcuts),
-                    description = stringResource(R.string.chat_prefs_shortcuts_desc),
-                    checked = d.shortcuts,
-                    onCheckedChange = { d = d.copy(shortcuts = it) },
-                )
-                GcSwitchRow(
-                    label = stringResource(R.string.chat_prefs_bubbles),
-                    description = stringResource(
-                        when {
-                            !d.shortcuts -> R.string.chat_prefs_bubbles_needs_shortcuts
-                            systemBubbles == false -> R.string.chat_prefs_bubbles_system_off
-                            else -> R.string.chat_prefs_bubbles_desc
-                        },
-                    ),
-                    checked = d.bubbles && d.shortcuts,
-                    enabled = d.shortcuts,
-                    onCheckedChange = { d = d.copy(bubbles = it) },
-                )
-                if (d.shortcuts && d.bubbles && systemBubbles == false) {
-                    TextButton(onClick = { ChatSystemBubbles.openSettings(context) }) { Text(stringResource(R.string.chat_prefs_bubbles_open_settings)) }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                if (p != prefs) onSave(p)
-                if (d != device) onSaveDevice(d)
-                onDismiss()
-            }) { Text(stringResource(R.string.chat_save)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_cancel)) } },
-    )
 }
 
 /** The app's page in the Play Store (Google Play build: updates come from Play only). */

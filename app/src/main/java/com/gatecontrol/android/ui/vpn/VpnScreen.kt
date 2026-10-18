@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
@@ -113,10 +114,17 @@ fun VpnScreen(
     onOpenConnectionDetails: () -> Unit = {},
     /** Door screen "Tür & Kamera" (long press on a door quick action); null without the door plugin. */
     onOpenDoor: (() -> Unit)? = null,
+    /** Messenger 1.4: "Status erstellen" (from the status sheet behind the avatar). */
+    onOpenStoryComposer: () -> Unit = {},
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
     val myAvatar by avatarViewModel.ui.collectAsState()
+    // Messenger 1.4: with the messenger's status the avatar opens "Dein Status" (the profile from there).
+    val startStatusViewModel: com.gatecontrol.android.ui.chat.status.StartStatusViewModel = hiltViewModel()
+    val chatStatus by startStatusViewModel.ui.collectAsState()
+    var statusSheet by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    val onAvatar: () -> Unit = { if (chatStatus.enabled) statusSheet = true else onOpenProfile() }
     val context = androidx.compose.ui.platform.LocalContext.current
     val extra = GateControlTheme.extraColors
 
@@ -231,7 +239,7 @@ fun VpnScreen(
     val disconnectLocked = isConnected && !clientPolicy.canDisconnect
     val lockedHint = stringResource(R.string.policy_disconnect_locked)
 
-    val headerSection: @Composable () -> Unit = {
+    val headerSection: @Composable () -> Unit = { Column {
         // --- Header: avatar · connection pill · portal, satellite, bell ----
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             val me = myAvatar
@@ -250,7 +258,7 @@ fun VpnScreen(
                         .clip(CircleShape)
                         .combinedClickable(
                             role = Role.Button,
-                            onClick = onOpenProfile,
+                            onClick = onAvatar,
                             onLongClick = {
                                 android.widget.Toast.makeText(context, description, android.widget.Toast.LENGTH_SHORT).show()
                             },
@@ -335,6 +343,24 @@ fun VpnScreen(
                 }
             }
         }
+        // Messenger 1.4: the own status under the header ("Status: Im Homeoffice · bis 17:00").
+        val statusLine = com.gatecontrol.android.ui.chat.status.StatusText.line(context, chatStatus.status)
+        if (chatStatus.enabled && statusLine != null) {
+            Text(
+                stringResource(R.string.chat_status_line, statusLine),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.muted,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onAvatar).padding(horizontal = 4.dp, vertical = 2.dp),
+            )
+        }
+    } }
+    if (statusSheet) {
+        com.gatecontrol.android.ui.chat.status.StatusSheet(
+            onDismiss = { statusSheet = false },
+            onOpenStoryComposer = if (chatStatus.stories) ({ statusSheet = false; onOpenStoryComposer() }) else null,
+            onOpenProfile = { statusSheet = false; onOpenProfile() },
+        )
     }
     val bannerSection: @Composable ColumnScope.() -> Unit = {
         // --- Connection failed: the message and what to do next ------------

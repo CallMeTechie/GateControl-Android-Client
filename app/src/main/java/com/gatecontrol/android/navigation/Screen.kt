@@ -101,6 +101,21 @@ sealed class Screen(val route: String) {
         const val ARG_ID = "id"
         fun create(id: Long): String = "chats/media/$id"
     }
+    /** Messenger 1.4: Chat-Einstellungen as a page; `page` a subpage (ChatSettingsPage). */
+    data object ChatSettings : Screen("chats/settings?page={page}") {
+        const val ARG_PAGE = "page"
+        fun create(page: String? = null): String = if (page.isNullOrEmpty()) "chats/settings" else "chats/settings?page=$page"
+    }
+    /** Messenger 1.4: "Status erstellen" (`kind` text | image | video). */
+    data object ChatStoryCompose : Screen("chats/story/new?kind={kind}") {
+        const val ARG_KIND = "kind"
+        fun create(kind: String? = null): String = if (kind == null) "chats/story/new" else "chats/story/new?kind=$kind"
+    }
+    /** Messenger 1.4: a person's stories (`user` 0 = the own). */
+    data object ChatStoryView : Screen("chats/story/view/{user}") {
+        const val ARG_USER = "user"
+        fun create(userId: Long): String = "chats/story/view/$userId"
+    }
     /** A chat picture full screen. */
     data object ChatImage : Screen("chats/image/{media}") {
         const val ARG_MEDIA = "media"

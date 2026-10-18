@@ -102,6 +102,12 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.gatecontrol.android.ui.notifications.notificationsAllowed
 import com.gatecontrol.android.ui.notifications.bellState
 import com.gatecontrol.android.ui.chat.ChatBadgeViewModel
+import com.gatecontrol.android.ui.chat.ChatSecureGate
+import com.gatecontrol.android.ui.chat.settings.ChatSettingsPage
+import com.gatecontrol.android.ui.chat.settings.ChatSettingsScreen
+import com.gatecontrol.android.ui.chat.status.StatusSheet
+import com.gatecontrol.android.ui.chat.status.StoryComposerScreen
+import com.gatecontrol.android.ui.chat.status.StoryViewerScreen
 import com.gatecontrol.android.ui.chat.ChatImageViewer
 import com.gatecontrol.android.ui.chat.ChatInfoScreen
 import com.gatecontrol.android.ui.chat.ChatListScreen
@@ -332,6 +338,7 @@ fun AppNavigation(
                     onOpenConnectionDetails = { openSettingsPane(SettingsPane.Connection) },
                     // Long press on a door quick action: the door screen, a normal destination — no tab.
                     onOpenDoor = openDoor,
+                    onOpenStoryComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
                 )
             }
 
@@ -494,6 +501,10 @@ fun AppNavigation(
                 val share = backStackEntry.arguments?.getString(Screen.Chats.ARG_SHARE) == "true"
                 val openInbox: () -> Unit = { navController.navigate(Screen.Inbox.create()) { launchSingleTop = true } }
                 val newChat: () -> Unit = { navController.navigate(Screen.ChatNew.create()) { launchSingleTop = true } }
+                val chatSettings: () -> Unit = { navController.navigate(Screen.ChatSettings.create()) { launchSingleTop = true } }
+                val openStory: (Long) -> Unit = { u -> navController.navigate(Screen.ChatStoryView.create(u)) { launchSingleTop = true } }
+                val storyComposer: () -> Unit = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } }
+                ChatSecureGate {
                 if (layout.twoPane) {
                     ChatsTwoPane(
                         initial = conv,
@@ -503,6 +514,9 @@ fun AppNavigation(
                         onOpenUpdates = openSettings,
                         onOpenInfo = { id -> navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
                         onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
+                        onOpenSettings = chatSettings,
+                        onOpenStory = openStory,
+                        onOpenStoryComposer = storyComposer,
                     )
                 } else {
                     GcContentWidth {
@@ -514,8 +528,12 @@ fun AppNavigation(
                             onOpenInbox = openInbox,
                             onNewChat = newChat,
                             onOpenUpdates = openSettings,
+                            onOpenSettings = chatSettings,
+                            onOpenStory = openStory,
+                            onOpenStoryComposer = storyComposer,
                         )
                     }
+                }
                 }
             }
 
@@ -532,7 +550,7 @@ fun AppNavigation(
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getLong(Screen.ChatConversation.ARG_ID) ?: 0L
                 val share = backStackEntry.arguments?.getString(Screen.ChatConversation.ARG_SHARE) == "true"
-                GcContentWidth(maxWidth = 840.dp) {
+                ChatSecureGate { GcContentWidth(maxWidth = 840.dp) {
                     ConversationScreen(
                         conversationId = id,
                         share = share,
@@ -541,7 +559,7 @@ fun AppNavigation(
                         onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
                         onOpenUpdates = openSettings,
                     )
-                }
+                } }
             }
 
             composable(
@@ -583,7 +601,7 @@ fun AppNavigation(
                 arguments = listOf(navArgument(Screen.ChatInfo.ARG_ID) { type = NavType.LongType }),
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getLong(Screen.ChatInfo.ARG_ID) ?: 0L
-                GcContentWidth {
+                ChatSecureGate { GcContentWidth {
                     ChatInfoScreen(
                         conversationId = id,
                         onBack = { navController.popBackStack() },
@@ -593,7 +611,7 @@ fun AppNavigation(
                             if (!navController.popBackStack(Screen.Chats.route, inclusive = false)) navigateToTab(Screen.Chats.create())
                         },
                     )
-                }
+                } }
             }
 
             composable(
@@ -601,11 +619,74 @@ fun AppNavigation(
                 arguments = listOf(navArgument(Screen.ChatMedia.ARG_ID) { type = NavType.LongType }),
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getLong(Screen.ChatMedia.ARG_ID) ?: 0L
-                GcContentWidth(maxWidth = 840.dp) {
+                ChatSecureGate { GcContentWidth(maxWidth = 840.dp) {
                     ChatMediaScreen(
                         conversationId = id,
                         onBack = { navController.popBackStack() },
                         onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
+                    )
+                } }
+            }
+
+            composable(
+                route = Screen.ChatSettings.route,
+                arguments = listOf(
+                    navArgument(Screen.ChatSettings.ARG_PAGE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val page = backStackEntry.arguments?.getString(Screen.ChatSettings.ARG_PAGE)?.takeIf { it in ChatSettingsPage.ALL } ?: ChatSettingsPage.MAIN
+                var statusSheet by remember { mutableStateOf(false) }
+                ChatSecureGate { GcContentWidth {
+                    ChatSettingsScreen(
+                        page = page,
+                        onBack = { navController.popBackStack() },
+                        onOpenPage = { p -> navController.navigate(Screen.ChatSettings.create(p)) },
+                        onOpenStatus = { statusSheet = true },
+                        onOpenQuietHours = { openSettingsPane(SettingsPane.Notifications) },
+                    )
+                } }
+                if (statusSheet) {
+                    StatusSheet(
+                        onDismiss = { statusSheet = false },
+                        onOpenStoryComposer = {
+                            statusSheet = false
+                            navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true }
+                        },
+                        onOpenProfile = { statusSheet = false; openSettingsPane(SettingsPane.Profile) },
+                    )
+                }
+            }
+
+            composable(
+                route = Screen.ChatStoryCompose.route,
+                arguments = listOf(
+                    navArgument(Screen.ChatStoryCompose.ARG_KIND) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                StoryComposerScreen(
+                    initialKind = backStackEntry.arguments?.getString(Screen.ChatStoryCompose.ARG_KIND) ?: com.gatecontrol.android.chat.ChatStory.KIND_TEXT,
+                    onClose = { navController.popBackStack() },
+                )
+            }
+
+            composable(
+                route = Screen.ChatStoryView.route,
+                arguments = listOf(navArgument(Screen.ChatStoryView.ARG_USER) { type = NavType.LongType }),
+            ) { backStackEntry ->
+                val user = backStackEntry.arguments?.getLong(Screen.ChatStoryView.ARG_USER) ?: 0L
+                ChatSecureGate {
+                    StoryViewerScreen(
+                        userId = user,
+                        onClose = { navController.popBackStack() },
+                        onOpenComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
                     )
                 }
             }
@@ -615,7 +696,7 @@ fun AppNavigation(
                 arguments = listOf(navArgument(Screen.ChatImage.ARG_MEDIA) { type = NavType.StringType }),
             ) { backStackEntry ->
                 val media = backStackEntry.arguments?.getString(Screen.ChatImage.ARG_MEDIA).orEmpty()
-                ChatImageViewer(mediaId = media, onBack = { navController.popBackStack() })
+                ChatSecureGate { ChatImageViewer(mediaId = media, onBack = { navController.popBackStack() }) }
             }
 
             composable(

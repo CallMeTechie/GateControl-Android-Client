@@ -76,12 +76,14 @@ class ChatBubbleActivity : ComponentActivity() {
                     } else {
                         // No back arrow: the bubble collapses with the system's back.
                         CompositionLocalProvider(LocalInDetailPane provides true) {
-                            ConversationScreen(
-                                conversationId = conversationId,
-                                onBack = { finish() },
-                                onOpenInfo = { openInApp(conversationId) },
-                                onOpenImage = { image = it },
-                            )
+                            com.gatecontrol.android.ui.chat.ChatSecureGate {
+                                ConversationScreen(
+                                    conversationId = conversationId,
+                                    onBack = { finish() },
+                                    onOpenInfo = { openInApp(conversationId) },
+                                    onOpenImage = { image = it },
+                                )
+                            }
                         }
                     }
                 }
