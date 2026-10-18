@@ -99,8 +99,8 @@ fun StatusStrip(
     val stripLabel = stringResource(R.string.chat_status_strip)
     LazyRow(
         Modifier.fillMaxWidth().semantics { contentDescription = stripLabel },
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         item(key = "me") {
             val addLabel = stringResource(R.string.chat_status_add_story)
@@ -151,9 +151,11 @@ fun StatusStrip(
 private fun StripEntry(label: String, muted: Boolean, onClick: () -> Unit, description: String? = null, avatar: @Composable () -> Unit) {
     val extra = GateControlTheme.extraColors
     Column(
-        // At least the avatar's width, wider for a longer label ("Mein Status") up to a limit.
-        Modifier.widthIn(min = 66.dp, max = 96.dp).clip(MaterialTheme.shapes.small).clickable(role = Role.Button, onClick = onClick)
-            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
+        // At least the avatar's width, wider for a longer label ("Mein Status") up to a limit; the
+        // padding sits inside the rounded clip, so its corners never cut into the avatar or the label.
+        Modifier.widthIn(min = 72.dp, max = 112.dp).clip(MaterialTheme.shapes.small).clickable(role = Role.Button, onClick = onClick)
+            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
+            .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
