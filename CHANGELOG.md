@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.43.0] - 2026-10-18
+
+### Features
+- chat group picture, media overview, camera, conversation shortcuts and bubbles (#89)
+
+---
+
 ## [1.42.0] - 2026-10-18
 
 ### Features
