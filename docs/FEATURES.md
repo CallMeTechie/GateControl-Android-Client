@@ -77,7 +77,9 @@ Ein Live-Graph zeigt die aktuelle Upload- und Download-Geschwindigkeit der letzt
 ### Navigation (1.35)
 Die Leiste unten (auf breiten Bildschirmen die Navigationsleiste links)
 hat nur noch **Start**, **Netzwerk** und — wenn der Server das
-Familie-Plugin mit Tab anbietet — **Familie**.
+Familie-Plugin mit Tab anbietet — **Familie**. Seit dem Messenger-Plugin
+(GateControl 1.177+) kommt direkt nach Start der Tab **Chats** dazu
+(siehe „Chats“).
 
 - **Netzwerk** hat die Segmente **Dienste**, **Pi-hole** und **Remote**
   (die RDP-Hosts, bis 1.34 ein eigener Tab). Es erscheinen nur die
@@ -326,6 +328,69 @@ zurück geht es dorthin, wo man war.
   Tür-Mitteilungen öffnen „Tür & Kamera“.
 - Offline zeigt „Tür & Kamera“ den zuletzt bekannten Stand der Schlösser; Bilder
   und Verlauf bleiben nur auf dem eigenen Server.
+
+---
+
+## Chats (Plugin `gatecontrol-messenger`, GateControl 1.177+)
+
+Wenn der Server das Plugin „Messenger“ mit einem App-Tab für diese Person
+anbietet (nicht auf Kiosk-Geräten — das entscheidet der Server), erscheint
+der Tab **„Chats“** direkt nach „Start“, mit der Zahl ungelesener
+Nachrichten (stumme Chats zählen nicht). Ältere Server ohne das Plugin
+sehen keinen Unterschied.
+
+- **Liste:** oben angeheftet **„GateControl“** — das bestehende Postfach
+  (Mitteilungen des Servers, Regeln), kein Chat des Plugins; darunter
+  Einzel- und Gruppenchats nach letzter Aktivität mit Vorschau, Uhrzeit,
+  Ungelesen-Zähler, Häkchen der eigenen letzten Nachricht und
+  „schreibt …“. Filter Alle / Ungelesen / Gruppen, Suche nach Namen,
+  Ziehen zum Aktualisieren. Das Zahnrad öffnet die **Chat-Einstellungen**
+  (Lesebestätigungen, „schreibt …“ zeigen, Inhalt in Benachrichtigungen —
+  gelten für alle Geräte der Person).
+- **Chat:** Blasen mit Tagestrennern, Häkchen (gesendet ✓, zugestellt ✓✓,
+  gelesen ✓✓ farbig), Antworten mit Zitat (Tippen springt zum Original),
+  Reaktionen, Bearbeiten und „Für alle löschen“ nur innerhalb des
+  Zeitfensters des Servers, „Für mich löschen“ immer; ältere Nachrichten
+  laden beim Hochscrollen; Suche im Chat (auf dem Server). Systemzeilen
+  („Anna hat Lena hinzugefügt“) und Hinweise anderer Plugins
+  („GateControl“) in der Mitte. Solange ein Chat offen ist, meldet die App
+  ihn alle 20 s als aktiv (dann kommt dafür keine Push-Mitteilung) und
+  sendet „schreibt …“ höchstens alle 3 s.
+- **Anhänge:** Fotos (Photo Picker; vor dem Hochladen auf 2048 px WebP
+  verkleinert, mit Vorschaubild ≤ 64 KB), Dateien (Dateiauswahl, Größe und
+  Typ wie vom Server erlaubt), **Standort** (einmalig, mit Adresse) und
+  **Sprachnachrichten** (Mikrofon gedrückt halten, nach links wischen
+  bricht ab, Höchstlänge vom Server; AAC/M4A mit Wellenform). Abspielen mit
+  Springen per Tippen in die Wellenform; Bilder im Vollbild mit Zoom;
+  Dateien öffnen oder teilen; Standort öffnet die Karten-App.
+- **Offline:** alles liegt in einer lokalen Datenbank (Room) und ist ohne
+  Verbindung lesbar. Gesendet wird über einen **Ausgang**: die Nachricht
+  steht sofort mit Uhr im Chat und geht mit ihrer `clientId` raus — bei
+  Netzproblemen später erneut (auch per WorkManager, wenn die App zu ist),
+  ohne je doppelt anzukommen. Was der Server ablehnt, bleibt rot markiert
+  mit „Erneut versuchen“ / „Verwerfen“.
+- **Live:** Ereignisse des Plugins kommen über die bestehende
+  Push-Verbindung (`event: plugin`): neue Nachrichten, Änderungen,
+  Lesebestätigungen, „schreibt …“. Nach jedem Verbindungsaufbau holt die App
+  nach, was fehlt. Ist die Push-Verbindung aus, fragt ein offener Chat
+  selbst alle paar Sekunden nach.
+- **Benachrichtigungen:** eigener Kanal **„Chats“**, eine Mitteilung pro
+  Chat im Messaging-Stil (die letzten Nachrichten, Gruppenname, Bild der
+  Person), **Antworten direkt aus der Mitteilung** und **„Als gelesen
+  markieren“**; gelesen auf einem anderen Gerät → verschwindet hier. Für den
+  gerade offenen Chat wird nichts angezeigt. Chat-Mitteilungen landen nicht
+  im Postfach.
+- **Neuer Chat / Neue Gruppe:** alle GateControl-Konten (ohne
+  Kiosk-Geräte); **Chat-/Gruppen-Info** mit Mitgliedern, Umbenennen,
+  Stummschalten (1 Std., 8 Std., 1 Woche, immer), selbstlöschenden
+  Nachrichten, Mitglieder hinzufügen/entfernen, Admin-Rolle und „Gruppe
+  verlassen“ — je nachdem, was der Server erlaubt (vom Familie-Plugin
+  verwaltete Gruppen lassen Mitglieder und Namen in Ruhe).
+- **Teilen → GateControl-Chat:** Text, Bilder und Dateien aus anderen Apps;
+  danach wählt man den Chat. Das Teilen-Ziel ist nur eingeschaltet, solange
+  der Server Chats anbietet; gelesen werden nur Inhalte anderer Apps.
+- Alles bleibt auf dem eigenen Server; Dateien werden mit dem Geräte-Token
+  geladen und im App-Cache gehalten (höchstens 200 MB).
 
 ---
 

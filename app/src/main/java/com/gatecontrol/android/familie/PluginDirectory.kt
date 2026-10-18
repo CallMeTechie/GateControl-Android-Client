@@ -42,6 +42,11 @@ data class PluginAvailability(
      * a long press on its quick actions open the door screen (docs/DOOR.md).
      */
     val door: Boolean = false,
+    /**
+     * The messenger plugin is listed with an app tab for this user (core
+     * 1.177+, not on kiosk devices): the tab "Chats" (docs/FEATURES.md).
+     */
+    val messengerTab: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -56,6 +61,7 @@ data class PluginAvailability(
                 familieApi = familie != null,
                 alltag = plugins.any { it.id == ALLTAG_PLUGIN },
                 door = plugins.any { it.id == com.gatecontrol.android.door.DOOR_PLUGIN },
+                messengerTab = plugins.any { it.id == com.gatecontrol.android.chat.MESSENGER_PLUGIN && it.tab != null },
             )
         }
 

@@ -42,6 +42,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var pushController: PushController
     @Inject lateinit var pluginDirectory: PluginDirectory
     @Inject lateinit var profileRepository: com.gatecontrol.android.profile.ProfileRepository
+    @Inject lateinit var chatRepository: com.gatecontrol.android.chat.ChatRepository
 
     /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
     private var pendingSetupLink by mutableStateOf<String?>(null)
@@ -105,6 +106,8 @@ class MainActivity : FragmentActivity() {
         pluginDirectory.refreshIfStale()
         // Own profile (avatar, favourite colour): cached, refreshed in the foreground.
         profileRepository.refreshIfStale()
+        // Chats (messenger plugin): list and waiting messages, at most every few seconds.
+        chatRepository.refreshIfStale()
     }
 
     override fun onNewIntent(intent: Intent) {

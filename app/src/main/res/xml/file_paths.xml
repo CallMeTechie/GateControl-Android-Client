@@ -3,4 +3,8 @@
     <!-- Only the log export directory is shareable; the raw logs in
          cacheDir/logs and everything else in the cache stay private. -->
     <cache-path name="export" path="export/" />
+    <!-- Chats: a downloaded chat file the person opens or shares, copied
+         here under its own name (cacheDir/chat-open, pruned after a day).
+         The downloaded chat files themselves stay private. -->
+    <cache-path name="chat_open" path="chat-open/" />
 </paths>

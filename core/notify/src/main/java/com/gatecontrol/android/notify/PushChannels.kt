@@ -117,6 +117,19 @@ interface PushPresenter {
     fun cancel(notificationId: Int)
 
     /**
+     * A chat notification (`kind: "message"`, core 1.177+): never in the
+     * inbox; the app shows it in the conversation's notification
+     * (MessagingStyle). [quiet] posts it without sound (local mute).
+     */
+    suspend fun showChat(message: PushMessage, quiet: Boolean) {}
+
+    /**
+     * Chat notifications [ids] were read on another device or withdrawn:
+     * take them out of the conversation's notification.
+     */
+    fun chatGone(ids: Collection<Long>) {}
+
+    /**
      * A message this device sees for the first time (not a replay of one it
      * already has), whether or not it is shown — for app features that act
      * on a message by themselves (e.g. answering a locate request).

@@ -33,10 +33,23 @@ class PushOpenActivity : ComponentActivity() {
 
     @Inject lateinit var repository: PushRepository
     @Inject lateinit var portalLinkResolver: PortalLinkResolver
+    @Inject lateinit var chatNotifier: com.gatecontrol.android.chat.ChatNotifier
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState != null) {
+            finish()
+            return
+        }
+        // A chat notification: the conversation (its pushes count as read there).
+        if (intent.hasExtra(EXTRA_CHAT)) {
+            val conv = intent.getLongExtra(EXTRA_CHAT, 0L).takeIf { it > 0 }
+            conv?.let { chatNotifier.conversationRead(it) }
+            PushNavigation.request(PushNavTarget.Chat(conv))
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
             finish()
             return
         }
@@ -102,6 +115,13 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_INBOX = "com.gatecontrol.android.push.extra.INBOX"
         private const val EXTRA_FAMILIE_DEST = "com.gatecontrol.android.push.extra.FAMILIE_DEST"
         private const val EXTRA_DOOR_DEST = "com.gatecontrol.android.push.extra.DOOR_DEST"
+        private const val EXTRA_CHAT = "com.gatecontrol.android.push.extra.CHAT"
+
+        /** Opens the chats, in [conversationId] when given (a chat notification). */
+        fun chatIntent(context: Context, conversationId: Long?): Intent =
+            Intent(context, PushOpenActivity::class.java)
+                .putExtra(EXTRA_CHAT, conversationId ?: 0L)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
 
         /** Opens "Mitteilungen" (the widget's bell). */
         fun inboxIntent(context: Context): Intent =

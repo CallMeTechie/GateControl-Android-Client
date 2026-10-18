@@ -30,6 +30,8 @@ class PushNavTargetTest {
         // The door plugin's door screen (no tab): "Ansehen" of a ring opens its detail.
         assertEquals(PushNavTarget.Door("home", 5), PushNavTarget.forRoute("plg-gatecontrol-door", 5))
         assertEquals(PushNavTarget.Door("event:120", 5), PushNavTarget.forRoute("plg-gatecontrol-door", 5, "event:120"))
+        // The messenger's route opens the tab "Chats".
+        assertEquals(PushNavTarget.Chat(), PushNavTarget.forRoute("plg-gatecontrol-messenger", 5))
     }
 
     @Test

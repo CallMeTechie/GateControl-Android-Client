@@ -59,6 +59,7 @@ class PushNotifier @Inject constructor(
     private val familie: dagger.Lazy<FamiliePushHandler>,
     private val media: NotifyMediaLoader,
     private val door: dagger.Lazy<DoorRepository>,
+    private val chats: dagger.Lazy<com.gatecontrol.android.chat.ChatNotifier>,
 ) : PushPresenter {
 
     companion object {
@@ -119,7 +120,17 @@ class PushNotifier @Inject constructor(
 
     override suspend fun ensureTopicChannels(topics: List<PushTopic>) {
         val ctx = localized()
-        createChannels(ctx, PushChannels.fixed() + PushChannels.forTopics(topics.filter { it.isPlugin }))
+        // Chat messages have their own channel "Chats" (ChatNotifier), not one per topic.
+        createChannels(ctx, PushChannels.fixed() + PushChannels.forTopics(topics.filter { it.isPlugin && it.id != com.gatecontrol.android.chat.MESSENGER_TOPIC }))
+    }
+
+    /** Chat pushes (core 1.177+): one MessagingStyle notification per conversation. */
+    override suspend fun showChat(message: PushMessage, quiet: Boolean) {
+        chats.get().show(message, quiet)
+    }
+
+    override fun chatGone(ids: Collection<Long>) {
+        chats.get().gone(ids)
     }
 
     override suspend fun show(message: PushMessage, notificationId: Int, channel: ChannelSpec, quiet: Boolean) {

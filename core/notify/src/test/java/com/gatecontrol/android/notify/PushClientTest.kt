@@ -40,6 +40,17 @@ class PushClientTest {
     private val presenter = FakePresenter()
     private val platform = FakePlatform()
     private val control = FakeControlSink()
+    private val pluginEvents = CopyOnWriteArrayList<String>()
+    @Volatile private var streamOpens = 0
+    private val pluginSink = object : PluginEventSink {
+        override fun onPluginEvent(plugin: String, type: String, data: com.google.gson.JsonElement?) {
+            pluginEvents += "$plugin/$type/${data?.asJsonObject?.get("conversationId")}"
+        }
+
+        override fun onStreamOpen() {
+            streamOpens++
+        }
+    }
     private lateinit var client: PushClient
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -75,7 +86,7 @@ class PushClientTest {
         store = testStore(dir)
         runBlocking { store.setEnabled(true) }
         val repo = PushRepository(endpoint, store, InboxCache(File(dir, "inbox.json")), presenter, platform)
-        client = PushClient(endpoint, store, repo, platform, control).apply {
+        client = PushClient(endpoint, store, repo, platform, control, pluginSink).apply {
             stream = PushStreamClient(watchdogTickMs = 50)
             policy = PushRetryPolicy(Random(1))
         }
@@ -113,6 +124,22 @@ class PushClientTest {
         runBlocking { withTimeout(5_000) { while (ackBodies.size < 2) kotlinx.coroutines.delay(20) } }
         assertTrue(ackBodies.any { it.contains("\"seqs\":[5]") && it.contains("delivered") })
         assertTrue(ackBodies.any { it.contains("\"seqs\":[6]") })
+    }
+
+    @Test
+    fun `plugin events reach the plugin sink, which also learns when the stream opened`() {
+        streams += openSse(
+            "event: hello\ndata: {\"keepalive_s\":25,\"via\":\"direct\"}\n\n" +
+                "event: plugin\ndata: {\"plugin\":\"gatecontrol-messenger\",\"type\":\"typing\",\"data\":{\"conversationId\":12,\"userId\":7}}\n\n" +
+                "event: plugin\ndata: {\"plugin\":\"BAD\",\"type\":\"x\"}\n\n",
+        )
+        client.start(scope, "test")
+        awaitStatus { it is PushStatus.Connected }
+        runBlocking { withTimeout(5_000) { while (pluginEvents.isEmpty()) kotlinx.coroutines.delay(20) } }
+        assertEquals(listOf("gatecontrol-messenger/typing/12"), pluginEvents.toList())
+        assertEquals(1, streamOpens)
+        // Not a notification: nothing shown, nothing acked for it.
+        assertTrue(presenter.shown.isEmpty())
     }
 
     @Test
