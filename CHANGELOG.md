@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.44.0] - 2026-10-18
+
+### Features
+- chat videos and file previews (Messenger 1.3.0), Messenger 1.1 API (#90)
+
+---
+
 ## [1.43.0] - 2026-10-18
 
 ### Features
