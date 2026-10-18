@@ -33,10 +33,18 @@ object PushActionType {
      */
     const val QUICK_ACTION = "quick_action"
 
-    val ALL = setOf(OPEN_APP_ROUTE, OPEN_PORTAL, MUTE_1H, DONE, ACK, QUICK_ACTION)
+    /**
+     * A button whose press goes back to the sending plugin (core 1.181+):
+     * acknowledged like [DONE] with `state: read` and `action: <id>`; the core
+     * then calls the plugin's `notifyAction` hook (e.g. "In 1 Std.", "Erledigt"
+     * of a Familie reminder).
+     */
+    const val CALLBACK = "callback"
+
+    val ALL = setOf(OPEN_APP_ROUTE, OPEN_PORTAL, MUTE_1H, DONE, ACK, QUICK_ACTION, CALLBACK)
 
     /** Actions that only acknowledge (no UI): run from the notification without opening the app. */
-    val BACKGROUND = setOf(MUTE_1H, DONE, ACK)
+    val BACKGROUND = setOf(MUTE_1H, DONE, ACK, CALLBACK)
 }
 
 /** A button of a message (`data.actions[]`). */
