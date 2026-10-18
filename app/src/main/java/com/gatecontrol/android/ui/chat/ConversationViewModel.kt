@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.chat.ChatConversation
+import com.gatecontrol.android.chat.ChatGap
+import com.gatecontrol.android.chat.ChatJump
 import com.gatecontrol.android.chat.ChatLocation
 import com.gatecontrol.android.chat.ChatMediaStore
 import com.gatecontrol.android.chat.ChatMessage
@@ -112,6 +114,8 @@ class ConversationViewModel @Inject constructor(
     private val conversation = id.filterNotNull().flatMapLatest { repository.conversation(it) }
     private val messages = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.messages(it) }
     private val outbox = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.outbox(it) }
+    private val gaps = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.gaps(it) }
+    private val fillingGap = MutableStateFlow<ChatGap?>(null)
 
     private data class Ui(val replyTo: ChatMessage?, val editing: ChatMessage?, val shared: SharePayload?, val busy: Boolean)
     private data class Paging(val hasOlder: Boolean, val loadingOlder: Boolean, val loaded: Boolean)
@@ -121,17 +125,17 @@ class ConversationViewModel @Inject constructor(
     private val searchState = combine(search, searching) { r, s -> r to s }
 
     val uiState: StateFlow<ConversationUiState> = combine(
-        combine(id, conversation.stateInNull(), messages, outbox) { i, c, m, o -> Quad(i, c, m, o) },
+        combine(id, conversation.stateInNull(), messages, outbox, gaps) { i, c, m, o, g -> Quad(i, c, m, o, g) },
         combine(repository.profile, repository.typing, now) { p, t, n -> Triple(p, t, n) },
         ui,
         paging,
         combine(searchState, repository.dropped) { s, d -> s to d },
-    ) { (cid, c, msgs, pend), (profile, typing, nowMs), u, pg, (search, dropped) ->
+    ) { (cid, c, msgs, pend, gapList), (profile, typing, nowMs), u, pg, (search, dropped) ->
         val (results, isSearching) = search
         ConversationUiState(
             conversationId = cid,
             conversation = c,
-            items = ChatTimeline.build(msgs, pend, c),
+            items = ChatTimeline.build(msgs, pend, c, gaps = gapList),
             profile = profile,
             typing = if (cid == null) emptyList() else ChatTimeline.typingNow(typing, cid, profile?.user?.userId, nowMs),
             hasOlder = pg.hasOlder,
@@ -147,7 +151,13 @@ class ConversationViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationUiState())
 
-    private data class Quad(val id: Long?, val c: ChatConversation?, val m: List<ChatMessage>, val o: List<com.gatecontrol.android.chat.ChatPending>)
+    private data class Quad(
+        val id: Long?,
+        val c: ChatConversation?,
+        val m: List<ChatMessage>,
+        val o: List<com.gatecontrol.android.chat.ChatPending>,
+        val g: List<ChatGap>,
+    )
 
     private fun Flow<ChatConversation?>.stateInNull(): StateFlow<ChatConversation?> = stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -210,6 +220,35 @@ class ConversationViewModel @Inject constructor(
             }
             loadingOlder.value = false
         }
+    }
+
+    /** Messages of [gap] (scrolled to after a jump far back); one load at a time. */
+    fun fillGap(gap: ChatGap) {
+        val cid = id.value ?: return
+        if (fillingGap.value != null) return
+        fillingGap.value = gap
+        viewModelScope.launch {
+            try {
+                val r = repository.fillGap(cid, gap)
+                if (r !is ChatResult.Ok) notices.trySend(ConversationNotice.Error(codeOf(r)))
+            } finally {
+                fillingGap.value = null
+            }
+        }
+    }
+
+    /** A gap is loading (its row shows progress). */
+    val gapLoading: StateFlow<ChatGap?> = fillingGap
+
+    /**
+     * Brings message [messageId] (search result, quoted message) into the
+     * conversation, loading it with its neighbours when it is not cached.
+     */
+    suspend fun jumpTo(messageId: Long): ChatResult<ChatJump> {
+        val cid = id.value ?: return ChatResult.NotConfigured
+        val r = repository.jumpTo(cid, messageId)
+        if (r is ChatResult.Ok) hasOlder.value = repository.hasOlder(cid)
+        return r
     }
 
     fun onTyping(text: String) {

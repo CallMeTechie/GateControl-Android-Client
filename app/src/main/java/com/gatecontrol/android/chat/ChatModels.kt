@@ -195,7 +195,22 @@ data class ChatMessagePage(
     val readUpTo: Long?,
     val deliveredUpTo: Long?,
     val receipts: List<ChatReceipt>,
-)
+    /** `around=` (Messenger 1.1.0): older / newer messages exist; null when the server did not say. */
+    val hasMoreBefore: Boolean? = null,
+    val hasMoreAfter: Boolean? = null,
+    /** The server's time of the answer (1.1.0): the next `changedSince`. */
+    val serverTime: String? = null,
+) {
+    /** The server answered `around=` (servers before 1.1.0 ignore it and send the newest page). */
+    val isAround: Boolean get() = hasMoreBefore != null || hasMoreAfter != null
+}
+
+/**
+ * Messages of a conversation that may be missing in the cache: ids
+ * strictly between [after] and [before] (both cached). Left by a jump to a
+ * message far back (`around=`), filled with `after=`.
+ */
+data class ChatGap(val after: Long, val before: Long)
 
 /** `GET conversations` (with or without `since`). */
 data class ChatConversationList(

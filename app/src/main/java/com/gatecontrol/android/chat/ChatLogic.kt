@@ -71,6 +71,11 @@ sealed interface TimelineItem {
     data class Pending(val pending: ChatPending) : TimelineItem {
         override val key: String get() = "c:${pending.clientId}"
     }
+
+    /** Messages between here and the next row may be missing (after a jump far back): loads them. */
+    data class Gap(val gap: ChatGap) : TimelineItem {
+        override val key: String get() = "g:${gap.after}:${gap.before}"
+    }
 }
 
 /** Pure helpers of the conversation screen and the sync. Unit-tested. */
@@ -105,6 +110,7 @@ object ChatTimeline {
         pending: List<ChatPending>,
         conversation: ChatConversation?,
         zone: ZoneId = ZoneId.systemDefault(),
+        gaps: List<ChatGap> = emptyList(),
     ): List<TimelineItem> {
         val stored = messages.sortedBy { it.id }
         val storedClientIds = stored.mapNotNullTo(HashSet()) { it.clientId }
@@ -113,7 +119,12 @@ object ChatTimeline {
         var lastDay: LocalDate? = null
         var lastSender: Long? = null
         var lastWasSystem = true
+        var previous: ChatMessage? = null
         for (m in stored) {
+            // Between two stored messages whose range a gap touches: the row that loads it.
+            val prev = previous
+            if (prev != null) gaps.firstOrNull { it.after < m.id && it.before > prev.id }?.let { out += TimelineItem.Gap(it) }
+            previous = m
             val day = epochMs(m.createdAt)?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
             if (day != null && day != lastDay) {
                 out += TimelineItem.Day(day)
@@ -294,6 +305,32 @@ object ChatJsonPatch {
         }
     }
 
+    /**
+     * A `read` event: on the caller's own devices ([ChatEvent.Read.self])
+     * unread and own read mark; from Messenger 1.1.0 on the conversation's
+     * `readUpTo` / `deliveredUpTo` (the ticks) straight from the event, and
+     * the reader's entry of `receipts`.
+     */
+    fun readEvent(o: JsonObject, e: ChatEvent.Read): JsonObject {
+        val out = if (e.self) read(o, e.unread ?: 0, e.lastReadId) else o.deepCopy()
+        val upTo = e.upTo ?: return out
+        out.put("readUpTo", upTo.readUpTo)
+        out.put("deliveredUpTo", upTo.deliveredUpTo)
+        if (!e.self) {
+            val receipts = out.get("receipts")?.takeIf { it.isJsonArray }?.asJsonArray ?: JsonArray().also { out.add("receipts", it) }
+            val entry = receipts.firstOrNull { it.isJsonObject && ChatJson.idOf(it.asJsonObject.get("userId")) == e.userId }?.asJsonObject
+                ?: JsonObject().also {
+                    it.addProperty("userId", e.userId)
+                    receipts.add(it)
+                }
+            entry.put("lastReadId", e.lastReadId)
+            entry.put("lastDeliveredId", e.lastDeliveredId)
+        }
+        return out
+    }
+
+    private fun JsonObject.put(key: String, value: Long?) = if (value == null) add(key, JsonNull.INSTANCE) else addProperty(key, value)
+
     /** Newest message of a conversation shown in the list (sent from this device). */
     fun lastMessage(conversation: JsonObject, message: JsonObject): JsonObject = conversation.deepCopy().apply {
         val current = get("lastMessage")?.takeIf { it.isJsonObject }?.asJsonObject?.let { ChatJson.idOf(it.get("id")) } ?: 0L
@@ -302,6 +339,66 @@ object ChatJsonPatch {
             add("lastMessage", message)
             addProperty("lastMessageId", id)
         }
+    }
+}
+
+/**
+ * Holes in a conversation's cache after a jump to a message far back
+ * (`around=`): which ranges may miss messages, so the conversation shows a
+ * row that loads them (`after=`) instead of silently skipping them. Pure,
+ * unit-tested. Ranges are open: ids strictly between `after` and `before`.
+ */
+object ChatGaps {
+    private const val MAX = 20
+
+    fun parse(raw: String?): List<ChatGap> =
+        raw?.split(';')?.mapNotNull { part ->
+            val (a, b) = part.split('-').takeIf { it.size == 2 } ?: return@mapNotNull null
+            val after = a.toLongOrNull() ?: return@mapNotNull null
+            val before = b.toLongOrNull() ?: return@mapNotNull null
+            ChatGap(after, before).takeIf { after in 1 until before }
+        }?.take(MAX).orEmpty()
+
+    fun format(gaps: List<ChatGap>): String? = gaps.takeIf { it.isNotEmpty() }?.joinToString(";") { "${it.after}-${it.before}" }
+
+    /** Whether [id] lies in one of the [gaps] (a change there belongs to messages not loaded). */
+    fun inGap(gaps: List<ChatGap>, id: Long): Boolean = gaps.any { id > it.after && id < it.before }
+
+    /**
+     * The gaps after a contiguous page [pageMin]…[pageMax] was stored next
+     * to a cache holding [cachedMin]…[cachedMax] (null: empty) with
+     * [gaps]. Unknown before: the gaps and everything outside the cache;
+     * the page makes its range known, [hasMoreBefore] false everything
+     * older, [hasMoreAfter] false everything newer. What stays unknown
+     * between two cached messages is a gap.
+     */
+    fun afterPage(
+        gaps: List<ChatGap>,
+        cachedMin: Long?,
+        cachedMax: Long?,
+        pageMin: Long,
+        pageMax: Long,
+        hasMoreBefore: Boolean,
+        hasMoreAfter: Boolean,
+    ): List<ChatGap> {
+        if (cachedMin == null || cachedMax == null) return emptyList()
+        val unknown = gaps + ChatGap(Long.MIN_VALUE, cachedMin) + ChatGap(cachedMax, Long.MAX_VALUE)
+        val left = unknown.flatMap { g ->
+            if (g.before <= pageMin || g.after >= pageMax) {
+                listOf(g)
+            } else {
+                listOfNotNull(
+                    ChatGap(g.after, pageMin).takeIf { g.after < pageMin },
+                    ChatGap(pageMax, g.before).takeIf { g.before > pageMax },
+                )
+            }
+        }.filter { g ->
+            (hasMoreBefore || g.before > pageMin) && (hasMoreAfter || g.after < pageMax)
+        }
+        val low = minOf(cachedMin, pageMin)
+        val high = maxOf(cachedMax, pageMax)
+        return left.filter { it.after >= low && it.before <= high && it.after != Long.MIN_VALUE && it.before != Long.MAX_VALUE && it.after < it.before }
+            .distinct().sortedBy { it.after }.take(MAX)
     }
 }
 

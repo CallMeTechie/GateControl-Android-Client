@@ -72,6 +72,8 @@ object ChatText {
             "disappearing" -> if ((s.seconds ?: 0) <= 0) ctx.getString(R.string.chat_sys_disappearing_off, by)
             else ctx.getString(R.string.chat_sys_disappearing_on, by, disappearing(ctx, s.seconds ?: 0))
             "notice" -> m.text.orEmpty()
+            // The plugin that managed the group handed it over (Messenger 1.1.0).
+            "released" -> ctx.getString(R.string.chat_sys_released)
             else -> m.text ?: ctx.getString(R.string.chat_sys_unknown)
         }
     }

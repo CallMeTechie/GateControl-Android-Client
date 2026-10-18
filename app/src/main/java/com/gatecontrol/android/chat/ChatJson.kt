@@ -400,6 +400,9 @@ object ChatJson {
             readUpTo = o.id("readUpTo"),
             deliveredUpTo = o.id("deliveredUpTo"),
             receipts = receipts(o),
+            hasMoreBefore = o.flag("hasMoreBefore"),
+            hasMoreAfter = o.flag("hasMoreAfter"),
+            serverTime = time(o.str("serverTime")),
         )
     }
 

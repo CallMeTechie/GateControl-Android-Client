@@ -252,4 +252,8 @@
     <string name="chat_update_hint">Für alle Chat-Funktionen gibt es eine neuere App-Version</string>
     <string name="chat_update_hint_action">Aktualisieren</string>
     <string name="chat_update_hint_dismiss">Hinweis ausblenden</string>
+    <!-- Messenger-1.1-API -->
+    <string name="chat_sys_released">GateControl hat die Gruppe freigegeben – sie ist jetzt eine normale Gruppe</string>
+    <string name="chat_jump_missing">Diese Nachricht ist nicht mehr verfügbar.</string>
+    <string name="chat_gap_load">Weitere Nachrichten laden</string>
 </resources>

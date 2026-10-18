@@ -252,4 +252,8 @@
     <string name="chat_update_hint">A newer app version supports all chat features</string>
     <string name="chat_update_hint_action">Update</string>
     <string name="chat_update_hint_dismiss">Hide notice</string>
+    <!-- Messenger 1.1 API -->
+    <string name="chat_sys_released">GateControl released the group – it is a normal group now</string>
+    <string name="chat_jump_missing">This message is no longer available.</string>
+    <string name="chat_gap_load">Load more messages</string>
 </resources>
