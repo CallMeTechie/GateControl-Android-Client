@@ -132,6 +132,10 @@ class ChatRepository @Inject constructor(
     /** Messenger 1.4: status / story changes of a person ([ChatExtrasRepository] refreshes the feed). */
     val statusEvents: kotlinx.coroutines.flow.SharedFlow<ChatEvent.StatusChanged> = _statusEvents
 
+    private val _accountEvents = kotlinx.coroutines.flow.MutableSharedFlow<ChatEvent.AccountChanged>(extraBufferCapacity = 8)
+    /** Messenger 1.4: lists / reminders changed on another device. */
+    val accountEvents: kotlinx.coroutines.flow.SharedFlow<ChatEvent.AccountChanged> = _accountEvents
+
     /** Live events arrive (push stream open): no polling needed. */
     val live: Boolean get() = pushClient.status.value is PushStatus.Connected
 
@@ -564,6 +568,7 @@ class ChatRepository @Inject constructor(
             }
             is ChatEvent.ConversationRemove -> scope.launch { drop(listOf(conv)) }
             is ChatEvent.StatusChanged -> _statusEvents.tryEmit(event)
+            is ChatEvent.AccountChanged -> _accountEvents.tryEmit(event)
         }
     }
 

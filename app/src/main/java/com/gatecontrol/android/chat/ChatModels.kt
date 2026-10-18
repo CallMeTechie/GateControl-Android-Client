@@ -25,6 +25,8 @@ data class ChatPerson(
     /** Messenger 1.4 (`privacy2`): online now / last active — only when that person shares it. */
     val online: Boolean? = null,
     val lastSeenAt: String? = null,
+    /** Messenger 1.4: the caller blocked this person (the peer of a direct chat). */
+    val blocked: Boolean = false,
 ) {
     val isAdmin: Boolean get() = role == ROLE_ADMIN
 
@@ -60,6 +62,8 @@ data class ChatCan(
     val manageMembers: Boolean,
     val leave: Boolean,
     val setDisappearing: Boolean,
+    /** Messenger 1.4: may pin messages. */
+    val pin: Boolean = true,
 )
 
 data class ChatReceipt(val userId: Long, val lastReadId: Long?, val lastDeliveredId: Long?)
@@ -153,6 +157,8 @@ data class ChatSystem(
     /** Messenger 1.4: `rsvp` answer (yes | maybe | no) and guests. */
     val answer: String? = null,
     val guests: Int? = null,
+    /** Messenger 1.4: `action_run` as another person (a grant), `action_denied` the requester. */
+    val otherUserId: Long? = null,
 )
 
 /** One message. Ids are server ids; [clientId] the sender's idempotency key. */

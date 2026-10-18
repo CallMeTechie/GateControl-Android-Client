@@ -61,6 +61,9 @@ class ChatExtrasRepository @Inject constructor(
         scope.launch {
             repository.statusEvents.collect { refreshFeedSoon() }
         }
+        scope.launch {
+            repository.accountEvents.collect { e -> if (e.type == "lists.update") refreshLists() }
+        }
         // Another login: nothing of the old one stays.
         scope.launch {
             repository.available.drop(1).collect { on ->
@@ -228,14 +231,14 @@ class ChatExtrasRepository @Inject constructor(
 
     suspend fun block(person: ChatPerson): ChatResult<Unit> {
         val r = api.block(person.userId)
-        if (r is ChatResult.Ok) _blocks.update { (it.orEmpty() + person).distinctBy { p -> p.userId } }
-        return r
+        if (r is ChatResult.Ok) _blocks.value = r.value ?: (_blocks.value.orEmpty() + person).distinctBy { p -> p.userId }
+        return if (r is ChatResult.Ok) ChatResult.Ok(Unit) else r.asFailure()
     }
 
     suspend fun unblock(userId: Long): ChatResult<Unit> {
         val r = api.unblock(userId)
-        if (r is ChatResult.Ok) _blocks.update { it?.filter { p -> p.userId != userId } }
-        return r
+        if (r is ChatResult.Ok) _blocks.value = r.value ?: _blocks.value?.filter { p -> p.userId != userId }
+        return if (r is ChatResult.Ok) ChatResult.Ok(Unit) else r.asFailure()
     }
 
     fun isBlocked(userId: Long): Boolean = _blocks.value?.any { it.userId == userId } == true
@@ -282,7 +285,7 @@ class ChatExtrasRepository @Inject constructor(
 
     // ─── message tools ──────────────────────────────────────────────
 
-    suspend fun export(conversationId: Long): ChatResult<String> = api.export(conversationId)
+    suspend fun export(conversationId: Long): ChatResult<ChatExportPart> = api.export(conversationId)
 
     suspend fun remind(messageId: Long, atIso: String): ChatResult<Unit> = api.remind(messageId, atIso)
 
@@ -342,8 +345,8 @@ class ChatExtrasRepository @Inject constructor(
     suspend fun sendArrival(conversationId: Long, dest: ChatEventPlace, onArriveActionId: String?) =
         sendStructured(conversationId, ChatMessage.KIND_ARRIVAL, "arrival", ChatJson14.arrivalSendBody(dest, onArriveActionId))
 
-    suspend fun sendAction(conversationId: Long, mode: String, actionId: String, grantTo: Long? = null, until: String? = null) =
-        sendStructured(conversationId, ChatMessage.KIND_ACTION, "action", ChatJson14.actionSendBody(mode, actionId, grantTo, until))
+    suspend fun sendAction(conversationId: Long, mode: String, action: ChatHomeAction, grantTo: Long? = null, until: String? = null) =
+        sendStructured(conversationId, ChatMessage.KIND_ACTION, "action", ChatJson14.actionSendBody(mode, action.id, grantTo, until, action.plugin))
 
     // ─── actions on messages ────────────────────────────────────────
 
@@ -372,11 +375,16 @@ class ChatExtrasRepository @Inject constructor(
     suspend fun cancelEvent(m: ChatMessage) =
         afterMessage(m.conversationId, api.patchEvent(m.id, JsonObject().apply { addProperty("cancelled", true) }))
 
-    suspend fun arrivalPosition(conversationId: Long, messageId: Long, body: JsonObject) = afterMessage(conversationId, api.arrivalPosition(messageId, body))
+    /** → whether the destination is reached now (then the message is fetched again). */
+    suspend fun arrivalPosition(conversationId: Long, messageId: Long, body: JsonObject): ChatResult<Boolean> {
+        val r = api.arrivalPosition(messageId, body)
+        if (r is ChatResult.Ok && r.value) repository.fetchChanged(conversationId)
+        return r
+    }
 
     suspend fun arrivalStop(conversationId: Long, messageId: Long) = afterMessage(conversationId, api.arrivalStop(messageId))
 
-    suspend fun actionRun(m: ChatMessage, actionId: String? = null) = afterMessage(m.conversationId, api.actionRun(m.id, actionId))
+    suspend fun actionRun(m: ChatMessage, actionId: String? = null, plugin: String? = null) = afterMessage(m.conversationId, api.actionRun(m.id, actionId, plugin))
 
     suspend fun actionApprove(m: ChatMessage) = afterMessage(m.conversationId, api.actionApprove(m.id))
 

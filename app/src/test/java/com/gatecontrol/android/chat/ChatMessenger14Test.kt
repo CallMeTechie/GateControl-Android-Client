@@ -376,6 +376,63 @@ class ChatMessenger14Test {
         assertEquals("Chat-Chat-2026-10-18.txt", ChatToolsLogic.exportName("!!!", LocalDate.of(2026, 10, 18)))
     }
 
+    @Test
+    fun `server shapes of Messenger 1_4`() {
+        // An event that asks for no answers still sends the (empty) answers.
+        val e = msg("event", """"event":{"title":"T","startsAt":"2026-10-26T11:30:00.000Z","rsvpEnabled":false,"rsvp":{"yes":[],"maybe":[],"no":[],"mine":null,"myGuests":0},"creatorId":7}""")
+        assertNull(e.event!!.rsvp)
+        assertEquals(7L, e.event!!.creatorId)
+        roundTrip(e)
+        val withGuests = msg("event", """"event":{"title":"T","startsAt":"2026-10-26T11:30:00.000Z","rsvpEnabled":true,"rsvp":{"yes":[{"userId":7,"guests":2}],"mine":"yes","myGuests":2}}""")
+        assertEquals(2, withGuests.event!!.rsvp!!.myGuests)
+        roundTrip(withGuests)
+        // A card with its picture inline and a link to a screen of the app.
+        val card = msg(
+            "card",
+            """"card":{"kind":"doorbell","title":"Klingel","text":"Paketbote","image":{"mime":"image/jpeg","bytes":4,"data":"/9j/4A=="},
+               "link":{"label":"Live-Bild","route":"plg-gatecontrol-door"},
+               "actions":[{"plugin":"gatecontrol-door","actionId":"open","label":"Tür öffnen","needsConfirm":true,"canRun":false}],"lastRun":{"by":8,"ok":true}}""",
+        ).card!!
+        assertEquals("/9j/4A==", card.imageBase64)
+        assertEquals("image/jpeg", card.imageMime)
+        assertEquals(listOf("open", null), card.buttons.map { it.actionId })
+        assertEquals("plg-gatecontrol-door", card.buttons[1].route)
+        assertFalse(card.buttons[0].canRun)
+        assertTrue(card.buttons[0].needsConfirm)
+        assertEquals(8L, card.lastRunBy)
+        val action = msg("action", """"action":{"mode":"run","actionId":"open","plugin":"gatecontrol-door","label":"Haustür","state":"open","needsConfirm":true,"result":{"ok":false,"message":"offline"},"can":{"run":true,"approve":false,"deny":false}}""").action!!
+        assertTrue(action.canRun)
+        assertEquals(false, action.resultOk)
+        assertEquals("offline", action.result)
+        val send = ChatJson14.actionSendBody(ChatActionCard.MODE_RUN, "123", plugin = "gatecontrol-door")
+        assertTrue(send.get("actionId").asJsonPrimitive.isString, "action ids are strings")
+        assertEquals("gatecontrol-door", send.get("plugin").asString)
+        assertEquals("open", ChatJson14.actionRunBody("open", "gatecontrol-door").get("actionId").asString)
+        // Lists keep string ids, even digits.
+        assertTrue(ChatJson14.listsBody(listOf(ChatList("7", "Arbeit", listOf(1)))).getAsJsonArray("lists")[0].asJsonObject.get("id").asJsonPrimitive.isString)
+        // The export comes in parts.
+        val part = ChatJson14.exportPart(json("""{"format":"txt","fileName":"Chat Anna.txt","text":"18.10.26, 10:00 - Anna: Hi\n","count":1,"truncated":true,"before":40}"""))!!
+        assertTrue(part.truncated)
+        assertEquals(40L, part.before)
+        assertTrue(ChatJson14.arrived(json("""{"messageId":50,"accepted":true,"arrived":true}""")))
+        assertTrue(ChatArrivalLogic.gone(ChatResult.Failed("closed", 409)))
+        assertFalse(ChatArrivalLogic.gone(ChatResult.Offline))
+        // poll_closed names the winners and the question; a grant's run names the granter.
+        val closed = msg("system", """"system":{"event":"poll_closed","by":null,"messageId":40,"question":"Essen?","winner":null,"winners":["Grillen","Pizza"],"votes":2}""").system!!
+        assertEquals("Grillen, Pizza", closed.label)
+        assertEquals("Essen?", closed.title)
+        val run = msg("system", """"system":{"event":"action_run","userId":9,"messageId":41,"label":"Licht","mode":"grant","asUserId":7}""")
+        assertEquals(7L, run.system!!.otherUserId)
+        roundTrip(run)
+        // The departure hint push names its deep link.
+        assertEquals("arrival", ChatNotifyLogic.payload(json("""{"conversationId":12,"messageId":50,"kind":"event_departure","deepLink":"arrival"}"""))!!.open)
+        val peer = ChatJson.conversation(json("""{"id":3,"kind":"direct","peer":{"userId":9,"name":"Tim","blocked":true,"online":false,"lastSeenAt":"2026-10-18T09:00:00.000Z"},"can":{"send":false,"pin":false}}"""))!!
+        assertTrue(peer.peer!!.blocked)
+        assertFalse(peer.can.pin)
+        assertEquals(peer, ChatJson.conversation(ChatSerializer.conversation(peer)))
+        assertEquals(ChatEvent.AccountChanged("lists.update"), ChatEvents.parse(MESSENGER_PLUGIN, "lists.update", json("{}")))
+    }
+
     // ─── device settings ────────────────────────────────────────────
 
     @Test

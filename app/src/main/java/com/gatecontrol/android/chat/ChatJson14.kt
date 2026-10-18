@@ -91,6 +91,7 @@ object ChatJson14 {
             destLabel = ChatJson.line(o.str("destLabel"), 80),
             place = place,
             since = ChatJson.time(o.str("since")) ?: ChatJson.time(o.str("updatedAt")),
+            ownText = ChatJson.line(o.str("ownText"), ChatStatus.TEXT_MAX),
         )
     }
 
@@ -104,11 +105,12 @@ object ChatJson14 {
         s.destLabel?.let { addProperty("destLabel", it) }
         s.place?.let { addProperty("place", it) }
         s.since?.let { addProperty("since", it) }
+        s.ownText?.let { addProperty("ownText", it) }
     }
 
     /** Body of `PUT status`. */
     fun statusBody(s: ChatStatus): JsonObject = JsonObject().apply {
-        addProperty("text", s.text.orEmpty().take(ChatStatus.TEXT_MAX))
+        s.text?.takeIf { it.isNotBlank() }?.let { addProperty("text", it.take(ChatStatus.TEXT_MAX)) }
         addProperty("preset", s.preset)
         put("until", s.until)
         addProperty("visibility", s.visibility)
@@ -131,7 +133,7 @@ object ChatJson14 {
         return ChatStory(
             id = id,
             kind = kind,
-            text = ChatJson.text(o.str("text"), ChatStory.TEXT_MAX),
+            text = ChatJson.text(o.str("text"), ChatStory.SERVER_TEXT_MAX),
             bg = color(o.str("bg")),
             font = o.str("font")?.takeIf { it in ChatStory.FONTS },
             mediaId = ChatJson.mediaId(o.str("mediaId")),
@@ -238,7 +240,7 @@ object ChatJson14 {
             storyId = id,
             ownerId = o.id("ownerId"),
             kind = p?.str("kind")?.takeIf { it in STORY_KINDS },
-            text = ChatJson.text(p?.str("text"), ChatStory.TEXT_MAX),
+            text = ChatJson.text(p?.str("text"), ChatStory.SERVER_TEXT_MAX),
             thumbMediaId = ChatJson.mediaId(p?.str("thumbMediaId")),
         )
     }
@@ -338,7 +340,8 @@ object ChatJson14 {
         add("lists", JsonArray().apply {
             lists.take(ChatList.MAX).forEach { l ->
                 add(JsonObject().apply {
-                    add("id", keyElement(l.id))
+                    // List ids are strings (`[A-Za-z0-9_-]{1,40}`), even when they look like numbers.
+                    addProperty("id", l.id)
                     addProperty("name", l.name.take(ChatList.NAME_MAX))
                     add("conversationIds", idsArray(l.conversationIds.distinct()))
                 })
@@ -423,6 +426,7 @@ object ChatJson14 {
             voterCount = o.int("voterCount")?.coerceAtLeast(0) ?: 0,
             memberCount = o.int("memberCount")?.coerceAtLeast(0),
             myVotes = o.arr("myVotes")?.mapNotNull { keyOf(it) }?.filter { it in ids }?.distinct().orEmpty(),
+            creatorId = o.id("creatorId"),
         )
     }
 
@@ -447,6 +451,7 @@ object ChatJson14 {
         addProperty("voterCount", p.voterCount)
         p.memberCount?.let { addProperty("memberCount", it) }
         add("myVotes", JsonArray().apply { p.myVotes.forEach { add(keyElement(it)) } })
+        p.creatorId?.let { addProperty("creatorId", it) }
     }
 
     /** `poll` of a send body. */
@@ -500,6 +505,7 @@ object ChatJson14 {
             maybe = rsvpList(o.arr("maybe")),
             no = rsvpList(o.arr("no")),
             mine = o.str("mine")?.takeIf { it in RSVP_ANSWERS },
+            myGuests = o.int("myGuests")?.coerceIn(0, 99) ?: 0,
         )
     }
 
@@ -531,12 +537,14 @@ object ChatJson14 {
             place = place(o.obj("place")),
             description = ChatJson.text(o.str("description"), ChatEventInfo.DESCRIPTION_MAX),
             checklist = checklist,
-            rsvp = rsvp(o.obj("rsvp")),
+            // The server always sends the answers; `rsvpEnabled: false` = the event asks for none.
+            rsvp = if (o.flag("rsvpEnabled") == false) null else rsvp(o.obj("rsvp")),
             guests = o.flag("guests") == true,
             reminderMin = o.int("reminderMin")?.coerceAtLeast(0) ?: 0,
             familyCalendar = o.flag("familyCalendar") == true,
             departureHint = o.flag("departureHint") == true,
             cancelled = o.flag("cancelled") == true,
+            creatorId = o.id("creatorId"),
         )
     }
 
@@ -562,8 +570,11 @@ object ChatJson14 {
                 add("maybe", writeRsvpList(r.maybe))
                 add("no", writeRsvpList(r.no))
                 put("mine", r.mine)
+                addProperty("myGuests", r.myGuests)
             }
         } ?: JsonNull.INSTANCE)
+        addProperty("rsvpEnabled", e.rsvp != null)
+        e.creatorId?.let { addProperty("creatorId", it) }
         addProperty("guests", e.guests)
         addProperty("reminderMin", e.reminderMin)
         addProperty("familyCalendar", e.familyCalendar)
@@ -679,6 +690,7 @@ object ChatJson14 {
         val mode = o.str("mode")?.takeIf { it in ACTION_MODES } ?: return null
         val actionId = o.key("actionId") ?: return null
         val grant = o.obj("grant")
+        val resultObj = o.obj("result")
         val result = o.get("result")?.let { r ->
             when {
                 r.isJsonPrimitive && r.asJsonPrimitive.isString -> ChatJson.line(r.asString, 200)
@@ -686,6 +698,7 @@ object ChatJson14 {
                 else -> null
             }
         }
+        val can = o.obj("can")
         return ChatActionCard(
             mode = mode,
             actionId = actionId,
@@ -698,6 +711,11 @@ object ChatJson14 {
             state = o.str("state")?.takeIf { it in ACTION_STATES } ?: ChatActionCard.STATE_OPEN,
             result = result,
             by = o.id("by"),
+            needsConfirm = o.flag("needsConfirm") == true,
+            canRun = can?.flag("run") == true,
+            canApprove = can?.flag("approve") == true,
+            canDeny = can?.flag("deny") == true,
+            resultOk = resultObj?.flag("ok"),
         )
     }
 
@@ -715,14 +733,26 @@ object ChatJson14 {
             })
         }
         addProperty("state", a.state)
-        put("result", a.result)
+        if (a.result != null || a.resultOk != null) {
+            add("result", JsonObject().apply {
+                a.resultOk?.let { addProperty("ok", it) }
+                put("message", a.result)
+            })
+        }
         put("by", a.by)
+        addProperty("needsConfirm", a.needsConfirm)
+        add("can", JsonObject().apply {
+            addProperty("run", a.canRun)
+            addProperty("approve", a.canApprove)
+            addProperty("deny", a.canDeny)
+        })
     }
 
-    /** `action` of a send body: run / request / grant (to [grantTo] until [until]). */
-    fun actionSendBody(mode: String, actionId: String, grantTo: Long? = null, until: String? = null): JsonObject = JsonObject().apply {
+    /** `action` of a send body: run / request / grant (to [grantTo] until [until]); [plugin] of the action. */
+    fun actionSendBody(mode: String, actionId: String, grantTo: Long? = null, until: String? = null, plugin: String? = null): JsonObject = JsonObject().apply {
         addProperty("mode", mode)
-        add("actionId", keyElement(actionId))
+        addProperty("actionId", actionId)
+        plugin?.let { addProperty("plugin", it) }
         if (mode == ChatActionCard.MODE_GRANT && grantTo != null) {
             add("grant", JsonObject().apply {
                 addProperty("toUserId", grantTo)
@@ -730,6 +760,14 @@ object ChatJson14 {
             })
         }
     }
+
+    private val ROUTE_RE = Regex("^(?:vpn|services|gateways|inbox|plg-[a-z0-9]+(?:-[a-z0-9]+)*)$")
+    private val BASE64_RE = Regex("^[A-Za-z0-9+/]+={0,2}$")
+    private val IMAGE_MIMES = setOf("image/jpeg", "image/webp", "image/png")
+    /** 300 KB as base64. */
+    private const val IMAGE_B64_MAX = 410_000
+
+    private fun route(value: String?): String? = value?.takeIf { ROUTE_RE.matches(it) }
 
     fun card(o: JsonObject?, messageMediaId: String? = null): ChatPluginCard? {
         if (o == null) return null
@@ -739,17 +777,34 @@ object ChatJson14 {
                 keyOf(e)?.let { ChatCardButton(it, null, null) }
             } else {
                 val id = b.key("actionId") ?: b.key("id")
-                val route = ChatJson.token(b.str("route"))?.takeIf { it.startsWith("plg-") || it in setOf("vpn", "inbox", "services") }
-                if (id == null && route == null) null
-                else ChatCardButton(id, ChatJson.line(b.str("label"), 40), icon(b.str("icon")), route)
+                val r = route(b.str("route"))
+                if (id == null && r == null) null
+                else ChatCardButton(
+                    actionId = id,
+                    label = ChatJson.line(b.str("label"), 40),
+                    icon = icon(b.str("icon")),
+                    route = r,
+                    plugin = ChatJson.token(b.str("plugin")),
+                    needsConfirm = b.flag("needsConfirm") == true,
+                    canRun = b.flag("canRun") ?: true,
+                )
             }
         }?.take(4).orEmpty()
+        // `link { label, route }`: a button that opens a screen of the app ("Live-Bild").
+        val link = o.obj("link")?.let { l -> route(l.str("route"))?.let { r -> ChatCardButton(null, ChatJson.line(l.str("label"), 24), null, r) } }
+        val image = o.obj("image")
+        val b64 = image?.str("data")?.takeIf { it.length <= IMAGE_B64_MAX && BASE64_RE.matches(it) }
+        val lastRun = o.obj("lastRun")
         return ChatPluginCard(
             kind = ChatJson.token(o.str("kind")) ?: "notice",
             title = ChatJson.line(o.str("title"), 120),
             text = ChatJson.text(o.str("text"), 1000),
             imageMediaId = ChatJson.mediaId(o.str("imageMediaId")) ?: ChatJson.mediaId(o.str("mediaId")) ?: messageMediaId,
-            buttons = buttons,
+            buttons = buttons + listOfNotNull(link),
+            imageBase64 = b64,
+            imageMime = image?.str("mime")?.takeIf { b64 != null && it in IMAGE_MIMES },
+            lastRunBy = lastRun?.id("by"),
+            lastRunOk = lastRun?.flag("ok"),
         )
     }
 
@@ -765,12 +820,40 @@ object ChatJson14 {
                     b.label?.let { addProperty("label", it) }
                     b.icon?.let { addProperty("icon", it) }
                     b.route?.let { addProperty("route", it) }
+                    b.plugin?.let { addProperty("plugin", it) }
+                    addProperty("needsConfirm", b.needsConfirm)
+                    addProperty("canRun", b.canRun)
                 })
             }
         })
+        if (c.imageBase64 != null) add("image", JsonObject().apply { put("mime", c.imageMime); addProperty("data", c.imageBase64) })
+        if (c.lastRunBy != null || c.lastRunOk != null) {
+            add("lastRun", JsonObject().apply {
+                put("by", c.lastRunBy)
+                c.lastRunOk?.let { addProperty("ok", it) }
+            })
+        }
     }
 
-    fun actionRunBody(actionId: String?): JsonObject = JsonObject().apply { actionId?.let { add("actionId", keyElement(it)) } }
+    /** Body of `POST messages/:id/action/run` (a card's button names its action and plugin). */
+    fun actionRunBody(actionId: String?, plugin: String? = null): JsonObject = JsonObject().apply {
+        actionId?.let { addProperty("actionId", it) }
+        plugin?.let { addProperty("plugin", it) }
+    }
+
+    /** `GET conversations/:id/export` → one part (newest first parts; `before` asks for the older one). */
+    fun exportPart(o: JsonObject): ChatExportPart? {
+        val text = o.str("text") ?: return null
+        return ChatExportPart(
+            text = text,
+            fileName = ChatJson.line(o.str("fileName"), 120),
+            truncated = o.flag("truncated") == true,
+            before = o.id("before"),
+        )
+    }
+
+    /** `POST messages/:id/arrival` → whether the destination was reached. */
+    fun arrived(o: JsonObject): Boolean = o.flag("arrived") == true
 }
 
 /** Pure decisions of status and stories. Unit-tested. */

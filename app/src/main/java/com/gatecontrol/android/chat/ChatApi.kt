@@ -281,9 +281,11 @@ class ChatApi @Inject constructor(
 
     suspend fun blocks(): ChatResult<List<ChatPerson>> = get("blocks", parse = ChatJson14::blocks)
 
-    suspend fun block(userId: Long): ChatResult<Unit> = post("blocks", JsonObject().apply { addProperty("userId", userId) }, unit)
+    /** → the blocks after the change (`{ blocks }`), null when the answer has none. */
+    suspend fun block(userId: Long): ChatResult<List<ChatPerson>?> =
+        post("blocks", JsonObject().apply { addProperty("userId", userId) }) { o -> Optional(ChatJson14.blocks(o)) }.unwrap()
 
-    suspend fun unblock(userId: Long): ChatResult<Unit> = del("blocks/$userId", unit)
+    suspend fun unblock(userId: Long): ChatResult<List<ChatPerson>?> = del("blocks/$userId") { o -> Optional(ChatJson14.blocks(o)) }.unwrap()
 
     suspend fun archive(conversationId: Long, archived: Boolean): ChatResult<ChatConversation?> =
         post("conversations/$conversationId/archive", JsonObject().apply { addProperty("archived", archived) }) { o -> Optional(ChatJson.conversationOf(o)) }.unwrap()
@@ -299,31 +301,31 @@ class ChatApi @Inject constructor(
     suspend fun putLists(lists: List<ChatList>): ChatResult<List<ChatList>> =
         put("lists", ChatJson14.listsBody(lists)) { o -> ChatJson14.lists(o) ?: lists }
 
-    /** `GET conversations/:id/export?format=txt` → the text (≤ [maxBytes]). */
-    suspend fun export(conversationId: Long, maxBytes: Long = 32L * 1024 * 1024): ChatResult<String> {
-        val url = setupRepository.getServerUrl()
-        if (url.isBlank() || !setupRepository.isConfigured()) return ChatResult.NotConfigured
-        val q = buildMap {
-            put("format", "txt")
-            lang()?.let { put("lang", it) }
-        }
-        return try {
-            val response = withTimeoutOrNull(UPLOAD_TIMEOUT_MS) {
-                apiClientProvider.mediaClient(url).pluginGetRaw(MESSENGER_PLUGIN, "conversations/$conversationId/export", q)
-            } ?: return ChatResult.Offline
-            response.body().use { body ->
-                if (!response.isSuccessful || body == null) return ChatResult.Failed("http_${response.code()}", response.code())
-                if (body.contentLength() > maxBytes) return ChatResult.Failed("too_large", 413)
-                val bytes = body.byteStream().use { it.readNBytes(maxBytes.toInt()) }
-                ChatResult.Ok(String(bytes, Charsets.UTF_8))
+    /**
+     * `GET conversations/:id/export?format=txt` → the whole text, oldest first. The server answers
+     * the newest part (≤ 800 KB) with `truncated` / `before`; older parts are asked for up to
+     * [maxParts] times and put in front.
+     */
+    suspend fun export(conversationId: Long, maxParts: Int = 8): ChatResult<ChatExportPart> {
+        var before: Long? = null
+        val parts = ArrayList<String>()
+        var name: String? = null
+        var truncated: Boolean
+        var count = 0
+        do {
+            val q = buildMap {
+                put("format", "txt")
+                before?.let { put("before", it.toString()) }
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: IOException) {
-            ChatResult.Offline
-        } catch (e: Exception) {
-            ChatResult.Failed(CODE_INVALID, 0)
-        }
+            val r = get("conversations/$conversationId/export", q, ChatJson14::exportPart)
+            if (r !is ChatResult.Ok) return if (parts.isEmpty()) r else ChatResult.Ok(ChatExportPart(parts.reversed().joinToString(""), name, true, before))
+            parts += r.value.text
+            name = name ?: r.value.fileName
+            truncated = r.value.truncated
+            before = r.value.before
+            count++
+        } while (truncated && before != null && count < maxParts)
+        return ChatResult.Ok(ChatExportPart(parts.reversed().joinToString(""), name, truncated, before))
     }
 
     suspend fun remind(messageId: Long, atIso: String): ChatResult<Unit> =
@@ -386,13 +388,16 @@ class ChatApi @Inject constructor(
     suspend fun patchEvent(messageId: Long, body: JsonObject): ChatResult<ChatMessage?> =
         call(request = { pluginPatch(MESSENGER_PLUGIN, "messages/$messageId/event", body) }) { o -> Optional(messageOrNull(o)) }.unwrap()
 
-    suspend fun arrivalPosition(messageId: Long, body: JsonObject) = messagePost("messages/$messageId/arrival", body)
+    /** → whether the destination is reached now (`{ accepted, arrived }`). */
+    suspend fun arrivalPosition(messageId: Long, body: JsonObject): ChatResult<Boolean> =
+        post("messages/$messageId/arrival", body) { o -> ChatJson14.arrived(o) }
 
     suspend fun arrivalStop(messageId: Long) = messagePost("messages/$messageId/arrival/stop")
 
     suspend fun homeActions(): ChatResult<List<ChatHomeAction>> = get("actions", parse = ChatJson14::homeActions)
 
-    suspend fun actionRun(messageId: Long, actionId: String? = null) = messagePost("messages/$messageId/action/run", ChatJson14.actionRunBody(actionId))
+    suspend fun actionRun(messageId: Long, actionId: String? = null, plugin: String? = null) =
+        messagePost("messages/$messageId/action/run", ChatJson14.actionRunBody(actionId, plugin))
 
     suspend fun actionApprove(messageId: Long) = messagePost("messages/$messageId/action/approve")
 

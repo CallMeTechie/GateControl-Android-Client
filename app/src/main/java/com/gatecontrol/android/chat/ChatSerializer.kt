@@ -27,6 +27,7 @@ object ChatSerializer {
         p.role?.let { addProperty("role", it) }
         p.online?.let { addProperty("online", it) }
         p.lastSeenAt?.let { addProperty("lastSeenAt", it) }
+        if (p.blocked) addProperty("blocked", true)
     }
 
     fun message(m: ChatMessage): JsonObject = JsonObject().apply {
@@ -91,6 +92,7 @@ object ChatSerializer {
                 s.messageId?.let { addProperty("messageId", it) }
                 s.answer?.let { addProperty("answer", it) }
                 s.guests?.let { addProperty("guests", it) }
+                s.otherUserId?.let { addProperty("asUserId", it) }
             }
         } ?: JsonNull.INSTANCE)
         add("reactions", ChatJsonPatch.reactions(JsonObject(), m.reactions).get("reactions"))
@@ -152,6 +154,7 @@ object ChatSerializer {
             addProperty("manageMembers", c.can.manageMembers)
             addProperty("leave", c.can.leave)
             addProperty("setDisappearing", c.can.setDisappearing)
+            addProperty("pin", c.can.pin)
         })
         if (c.archived) addProperty("archived", true)
         if (c.pinned.isNotEmpty()) add("pinned", ids(c.pinned))

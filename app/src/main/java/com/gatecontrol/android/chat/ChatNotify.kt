@@ -118,7 +118,8 @@ object ChatNotifyLogic {
             readPath = readPath,
             readLabel = readLabel,
             readBody = readBody,
-            open = data.str("open")?.takeIf { it in OPEN_TARGETS },
+            // `deepLink` (Messenger 1.4: `arrival` for a departure hint), `open` as an alias.
+            open = (data.str("deepLink") ?: data.str("open"))?.takeIf { it in OPEN_TARGETS },
         )
     }
 

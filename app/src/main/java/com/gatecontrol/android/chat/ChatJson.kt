@@ -135,6 +135,7 @@ object ChatJson {
             role = o.str("role")?.takeIf { it == ChatPerson.ROLE_ADMIN || it == ChatPerson.ROLE_MEMBER },
             online = o.flag("online"),
             lastSeenAt = time(o.str("lastSeenAt")),
+            blocked = o.flag("blocked") == true,
         )
     }
 
@@ -258,6 +259,7 @@ object ChatJson {
                 manageMembers = can?.flag("manageMembers") ?: false,
                 leave = can?.flag("leave") ?: false,
                 setDisappearing = can?.flag("setDisappearing") ?: false,
+                pin = can?.flag("pin") ?: true,
             ),
             archived = o.flag("archived") == true,
             pinned = o.ids("pinned").take(10),
@@ -387,14 +389,19 @@ object ChatJson {
         return ChatSystem(
             event = event,
             by = o.id("by"),
-            title = line(o.str("title"), 120),
+            title = line(o.str("title") ?: o.str("question"), 200),
             userIds = o.ids("userIds"),
             userId = o.id("userId"),
             seconds = o.int("seconds")?.coerceAtLeast(0),
-            label = line(o.str("label") ?: o.str("winner") ?: o.str("option") ?: o.str("place"), 120),
+            label = line(
+                o.str("label") ?: o.str("winner") ?: o.str("option") ?: o.str("place")
+                    ?: o.arr("winners")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString }?.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                120,
+            ),
             messageId = o.id("messageId"),
             answer = o.str("answer")?.takeIf { it == "yes" || it == "maybe" || it == "no" },
             guests = o.int("guests")?.coerceIn(0, 99),
+            otherUserId = o.id("asUserId") ?: o.id("requesterId"),
         )
     }
 

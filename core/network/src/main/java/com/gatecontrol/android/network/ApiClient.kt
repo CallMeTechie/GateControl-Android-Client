@@ -149,15 +149,6 @@ interface ApiClient {
         @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
 
-    /** A plugin route that answers something else than JSON (e.g. a text export); the caller closes the body. */
-    @Streaming
-    @GET("api/v1/client/plugins/{id}/api/{path}")
-    suspend fun pluginGetRaw(
-        @Path("id") plugin: String,
-        @Path(value = "path", encoded = true) path: String,
-        @QueryMap query: Map<String, String> = emptyMap(),
-    ): Response<ResponseBody>
-
     @HTTP(method = "DELETE", path = "api/v1/client/plugins/{id}/api/{path}")
     suspend fun pluginDelete(
         @Path("id") plugin: String,

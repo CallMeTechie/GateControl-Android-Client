@@ -63,6 +63,11 @@ sealed interface ChatEvent {
 
     data class ConversationRemove(override val conversationId: Long) : ChatEvent
 
+    /** Messenger 1.4: the caller's lists or reminders changed on another device. */
+    data class AccountChanged(val type: String) : ChatEvent {
+        override val conversationId: Long get() = 0L
+    }
+
     /**
      * Messenger 1.4: a person's status or stories changed (`status.update`,
      * `story.new`, `story.remove`) — no conversation ([conversationId] 0).
@@ -81,6 +86,7 @@ sealed interface ChatEvent {
 object ChatEvents {
 
     private val STATUS_TYPES = setOf("status.update", "story.new", "story.remove")
+    private val ACCOUNT_TYPES = setOf("lists.update", "reminders.update")
     private val DELETE_REASONS = setOf("deleted", "hidden", "expired", "retention")
     private val REASON_RE = Regex("^[a-z_]{1,32}$")
     /** "schreibt …" never shows longer than this, whatever the server says. */
@@ -90,6 +96,7 @@ object ChatEvents {
         if (plugin != MESSENGER_PLUGIN) return null
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         // Messenger 1.4: status and stories belong to a person, not to a conversation.
+        if (type in ACCOUNT_TYPES) return ChatEvent.AccountChanged(type)
         if (type in STATUS_TYPES) {
             return ChatEvent.StatusChanged(o.id("userId") ?: return null, ChatJson14.pathKey(ChatJson14.keyOf(o.get("storyId"))), type)
         }

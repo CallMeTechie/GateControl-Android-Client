@@ -47,6 +47,8 @@ data class ChatStatus(
     /** `auto_place`: the Familie place ("Zuhause", "Schule"), with since when. */
     val place: String? = null,
     val since: String? = null,
+    /** The own status only: the typed text (`text` may show the place instead). */
+    val ownText: String? = null,
 ) {
     companion object {
         const val PRESET_NONE = "none"
@@ -93,7 +95,10 @@ data class ChatStory(
         const val FONT_SANS = "sans"
         const val FONT_SERIF = "serif"
         const val FONT_MONO = "mono"
+        /** What the composer offers (the server takes up to [SERVER_TEXT_MAX]). */
         const val TEXT_MAX = 140
+        const val SERVER_TEXT_MAX = 700
+        const val DEFAULT_BG = "#0F766E"
         val FONTS = listOf(FONT_SANS, FONT_SERIF, FONT_MONO)
     }
 }
@@ -214,6 +219,8 @@ data class ChatPoll(
     val voterCount: Int,
     val memberCount: Int?,
     val myVotes: List<String>,
+    /** Who created it (may close it and remind the others). */
+    val creatorId: Long? = null,
 ) {
     val totalVotes: Int get() = options.sumOf { it.count }
 
@@ -253,6 +260,7 @@ data class ChatRsvp(
     val no: List<ChatRsvpEntry>,
     /** yes | maybe | no | null. */
     val mine: String?,
+    val myGuests: Int = 0,
 ) {
     /** Yes answers plus their guests. */
     val yesCount: Int get() = yes.sumOf { 1 + it.guests }
@@ -280,8 +288,11 @@ data class ChatEventInfo(
     val familyCalendar: Boolean,
     val departureHint: Boolean,
     val cancelled: Boolean,
+    val creatorId: Long? = null,
 ) {
     companion object {
+        const val GUESTS_MAX = 20
+        const val CHECK_TEXT_MAX = 80
         const val TITLE_MAX = 120
         const val DESCRIPTION_MAX = 1000
         const val CHECKLIST_MAX = 20
@@ -329,6 +340,13 @@ data class ChatActionCard(
     val state: String,
     val result: String?,
     val by: Long?,
+    val needsConfirm: Boolean = false,
+    /** What the server lets the caller do with it right now (`can`). */
+    val canRun: Boolean = false,
+    val canApprove: Boolean = false,
+    val canDeny: Boolean = false,
+    /** Whether the last run worked (null: not run or unknown). */
+    val resultOk: Boolean? = null,
 ) {
     companion object {
         const val MODE_RUN = "run"
@@ -342,7 +360,16 @@ data class ChatActionCard(
 }
 
 /** A button of a plugin card. [route] an app route ("live view") instead of an action. */
-data class ChatCardButton(val actionId: String?, val label: String?, val icon: String?, val route: String? = null)
+data class ChatCardButton(
+    val actionId: String?,
+    val label: String?,
+    val icon: String?,
+    val route: String? = null,
+    val plugin: String? = null,
+    val needsConfirm: Boolean = false,
+    /** The caller may press it (an action they may run, or a link). */
+    val canRun: Boolean = true,
+)
 
 /** `card` of a `kind: card` message (doorbell, notice — sent by plugins). */
 data class ChatPluginCard(
@@ -352,7 +379,16 @@ data class ChatPluginCard(
     val text: String?,
     val imageMediaId: String?,
     val buttons: List<ChatCardButton>,
+    /** The picture inline (`image { mime, data }`, base64, ≤ 300 KB). */
+    val imageBase64: String? = null,
+    val imageMime: String? = null,
+    /** Who pressed a button last, and whether it worked. */
+    val lastRunBy: Long? = null,
+    val lastRunOk: Boolean? = null,
 )
+
+/** One part of a chat export (`GET conversations/:id/export`). */
+data class ChatExportPart(val text: String, val fileName: String?, val truncated: Boolean, val before: Long?)
 
 /** A message to show once its conversation opens (a tapped push: poll, event, reminder, departure hint). */
 data class ChatDeepLinkTarget(val conversationId: Long, val messageId: Long?, val open: String?)

@@ -51,6 +51,9 @@ object ChatArrivalLogic {
     /** Whether sharing goes on after the server's answer: only while the message is still `live`. */
     fun keepGoing(arrival: ChatArrival?): Boolean = arrival == null || arrival.live
 
+    /** The server will take no more positions: no longer live (`closed`), not the sender, gone. */
+    fun gone(r: ChatResult<*>): Boolean = r is ChatResult.Failed && (r.code in setOf("closed", "not_sender", "not_found", "deleted") || r.http == 404)
+
     fun encode(shares: Collection<ChatLiveShare>): Set<String> =
         shares.map { "${it.conversationId}|${it.messageId}|${it.startedAtMs}|${it.destLabel.replace('|', ' ')}" }.toSet()
 
@@ -143,9 +146,10 @@ class ChatArrivalService : Service() {
                         if (loc.hasSpeed()) loc.speed else null,
                     )
                     val r = extras.arrivalPosition(share.conversationId, share.messageId, body)
-                    val arrival = extras.message(share.messageId)?.arrival
-                    val gone = r is ChatResult.Failed && (r.http == 404 || r.http == 409 || r.http == 403)
-                    if (gone || !ChatArrivalLogic.keepGoing(arrival)) stopShare(share.messageId, tellServer = false)
+                    val arrived = r is ChatResult.Ok && r.value
+                    if (arrived || ChatArrivalLogic.gone(r) || !ChatArrivalLogic.keepGoing(extras.message(share.messageId)?.arrival)) {
+                        stopShare(share.messageId, tellServer = false)
+                    }
                 }
             }
         }
