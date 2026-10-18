@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.45.0] - 2026-10-18
+
+### Features
+- Messenger 1.4 – status, stories, chat settings, polls, events, live arrival, home actions (#91)
+
+---
+
 ## [1.44.0] - 2026-10-18
 
 ### Features
