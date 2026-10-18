@@ -10,8 +10,9 @@ Wie GateControl in den Play Store kommt: was die CI erledigt und was nur in der 
 | `play-promote.yml` | nur von Hand / auf Zuruf | Version von einem Track in einen anderen, z. B. → `production` (optional Teilveröffentlichung `rollout` 0–1) |
 | `play-upload.yml` | von Hand | ein bestehendes GitHub-Release nachträglich hochladen |
 | `play-listing.yml` | von Hand | Store-Texte aus `fastlane/metadata/android/` hochladen |
+| `play-data-safety.yml` | von Hand | Datensicherheit-Formular aus `docs/play/data-safety.csv` an Google senden (ersetzt die ganze Erklärung) |
 
-Voraussetzung: Secret `PLAY_SERVICE_ACCOUNT_JSON` (Dienstkonto mit „Releases“ und „Store-Präsenz“). Versionsnummern: `versionCode = Major·10000 + Minor·100 + Patch` — AABs nicht mehr von Hand hochladen, sonst kollidieren sie.
+Voraussetzung: Secret `PLAY_SERVICE_ACCOUNT_JSON` (Dienstkonto mit „Releases“ und „Store-Präsenz“; für `play-data-safety.yml` zusätzlich das Recht, Richtlinien-Erklärungen/App-Inhalte zu verwalten — antwortet Google mit 403, fehlt es). Versionsnummern: `versionCode = Major·10000 + Minor·100 + Patch` — AABs nicht mehr von Hand hochladen, sonst kollidieren sie.
 
 **Tracks:** `internal` = Interner Test · `alpha` = Geschlossener Test · `beta` = Offener Test · `production`.
 Jedes Release zusätzlich in den geschlossenen Test: Repo-Variable `PLAY_TRACK=alpha` setzen (Settings → Secrets and variables → Actions → Variables).
@@ -46,18 +47,40 @@ Kategorie „Tools/Dienstprogramme“ (keine Spiele, kein Social, keine Nutzerin
 18 Jahre und älter (nicht für Kinder; hält die Familien-Richtlinien außen vor).
 
 ### Datensicherheit
-Die App sendet Daten nur an den vom Nutzer betriebenen Server; CallMeTechie erhält nichts. Zur sicheren Seite angeben:
+Die App sendet Daten nur an den vom Nutzer betriebenen Server; CallMeTechie erhält nichts. Zur sicheren Seite angeben.
+
+Die vollständigen Antworten liegen als CSV im Format von Google („Datensicherheit → Aus CSV importieren“, Vorlage aus der Play-Console-Hilfe) in [`docs/play/data-safety.csv`](play/data-safety.csv). Der Workflow **Google Play Data Safety** (`.github/workflows/play-data-safety.yml`, nur von Hand) schickt sie über die Play Developer API (`applications.dataSafety`) an Google — das **ersetzt die ganze Erklärung**, also bei Änderungen immer die komplette Datei pflegen. Alternativ in der Play Console unter App-Inhalte → Datensicherheit → „Aus CSV importieren“ hochladen.
+
+Allgemein:
 
 | Frage | Antwort |
 |---|---|
 | Erhebt oder teilt die App Nutzerdaten? | Ja |
-| Verschlüsselt bei der Übertragung? | Ja |
+| Verschlüsselt bei der Übertragung? | Ja (HTTPS bzw. WireGuard zum eigenen Server) |
 | Können Nutzer die Löschung beantragen? | Ja (Daten auf dem Gerät: App-Daten löschen; Daten auf dem Server: Betreiber) |
-| **App-Info und -Leistung → Absturzprotokolle** | erhoben, nicht geteilt, nicht optional (automatisch), Zweck: App-Funktionalität |
-| **App-Info und -Leistung → Diagnose** | erhoben, nicht geteilt, optional (Support-Paket), Zweck: App-Funktionalität |
-| **Geräte- oder andere IDs** | erhoben, nicht geteilt, nicht optional, Zweck: App-Funktionalität (Gerätename/Modell im Status an den eigenen Server) |
-| **Standort → Genauer Standort** | erhoben (ab 1.26: Standortfreigabe), **nicht geteilt** (geht nur an den eigenen Server des Nutzers), **optional**, Zweck: App-Funktionalität; nur auf Tipp, nicht im Hintergrund. Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
-| Persönliche Daten, Finanzen, Nachrichten, Fotos, Kontakte, Web-Verlauf | nein |
+
+Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur an den eigenen Server des Nutzers, nie an CallMeTechie oder Dritte), **nicht** sitzungsbezogen („ephemeral“: nein), Zweck **nur App-Funktionalität**.
+
+| Datentyp | Pflicht/optional | Wofür |
+|---|---|---|
+| **Persönliche Daten → Name** | optional | Familie: Namen in Notfallkontakten und frei eingetragene Fahrer („Oma“); Chats: Gruppennamen. Konto- und Anzeigenamen legt der Server-Betreiber an. |
+| **Persönliche Daten → Telefonnummer** | optional | Familie: Notfallnummern auf der Notfall-Karte |
+| **Finanzinformationen → Kaufverlauf** | optional | Familie: Ausgaben im Haushaltsbuch (reine Buchhaltung, keine Zahlungen) |
+| **Finanzinformationen → Sonstige Finanzinformationen** | optional | Familie: Taschengeld (Guthaben, Buchungen, Regeln) |
+| **Standort → Ungefährer Standort** | optional | Familie: Anwesenheit „zuhause/unterwegs“ (Heimnetz-Erkennung, kein GPS) und „angekommen/verlassen“ bei Orten für Regeln (ohne Position) |
+| **Standort → Genauer Standort** | optional | Standortfreigabe auf Tipp (ab 1.26), Standort-Nachricht im Chat (einmalig), Familie: Kind orten auf Anfrage der Eltern, SOS. Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
+| **Nachrichten → Sonstige In-App-Nachrichten** | optional | Chats (ab 1.42): Texte, Antworten, Reaktionen |
+| **Fotos und Videos → Fotos** | optional | Chat-Bilder, eigenes Profilbild (ab 1.33) |
+| **Fotos und Videos → Videos** | optional | Chats: Videos, die als Datei gesendet oder aus anderen Apps geteilt werden |
+| **Audiodateien → Sprach- oder Tonaufnahmen** | optional | Chats: Sprachnachrichten (Mikrofon nur, solange die Taste gehalten wird) |
+| **Gesundheit und Fitness → Gesundheitsinformationen** | optional | Familie: Notfall-Karte (Allergien, Medikamente, Vorerkrankungen, Blutgruppe …) |
+| **App-Info und -Leistung → Absturzprotokolle** | Pflicht (automatisch) | Absturzbericht als geschwärztes Support-Paket an den eigenen Server |
+| **App-Info und -Leistung → Diagnose** | optional | Support-Paket, „Problem melden“ |
+| **Dateien und Dokumente** | optional | Chats: gesendete Dateien |
+| **App-Aktivitäten → In-App-Suchverlauf** | optional | Chats: Suche im Chat läuft auf dem Server |
+| **App-Aktivitäten → Sonstige von Nutzern erstellte Inhalte** | optional | Familie: Einkaufslisten, Aufgaben, Termine, Fahrten, Pinnwand, Wunschlisten, Essensplan |
+| **Geräte- oder andere IDs** | Pflicht | Gerätename/Modell im Status an den eigenen Server |
+| E-Mail, Adresse, sonstige persönliche Daten, Kontakte, Kalender, SMS/E-Mails, Web-Verlauf, Musik, Fitness, Seitenaufrufe, installierte Apps | nein |
 
 ### Berechtigungen und Erklärungen
 
