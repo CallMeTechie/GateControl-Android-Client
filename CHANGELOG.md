@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.45.3] - 2026-10-18
+
+### Fixes
+- "Mein Status" no longer cut off in the status strip (#94)
+
+---
+
 ## [1.45.2] - 2026-10-18
 
 ### Fixes
