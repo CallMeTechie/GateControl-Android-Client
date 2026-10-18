@@ -92,6 +92,8 @@ object ChatText {
                 else ctx.getString(R.string.chat_sys_action_run, who, s.label.orEmpty())
             }
             "action_denied" -> ctx.getString(R.string.chat_sys_action_denied, by, s.label.orEmpty())
+            // Messenger 1.5: a shared device was switched off when the grant ended.
+            "grant_off" -> ctx.getString(if (s.ok == false) R.string.chat_sys_grant_off_failed else R.string.chat_sys_grant_off, s.label.orEmpty())
             "event_cancelled" -> ctx.getString(R.string.chat_sys_event_cancelled, by, s.title.orEmpty())
             "vote" -> ctx.getString(R.string.chat_sys_vote, nameOf(ctx, c, s.userId ?: s.by, myId), s.label.orEmpty())
             "rsvp" -> {

@@ -100,6 +100,7 @@ fun ShoppingScreen(
     val selectedId by viewModel.selected.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val going by viewModel.going.collectAsStateWithLifecycle()
+    val assigning by viewModel.assigning.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val extra = GateControlTheme.extraColors
     val context = LocalContext.current
@@ -114,6 +115,11 @@ fun ShoppingScreen(
 
     val noticeText = when (val n = notice) {
         ShoppingNotice.GoingSent -> stringResource(R.string.familie_shopping_going_sent)
+        is ShoppingNotice.AssignSent -> when {
+            n.userId == null -> stringResource(R.string.familie_shop_unassigned)
+            n.delivered == false -> stringResource(R.string.familie_shop_assign_not_delivered, profile?.nameOf(n.userId) ?: "#${n.userId}", n.code ?: "?")
+            else -> stringResource(R.string.familie_shop_assign_sent, profile?.nameOf(n.userId) ?: "#${n.userId}")
+        }
         is ShoppingNotice.Error -> familieErrorText(n.code)
         null -> null
     }
@@ -234,11 +240,14 @@ fun ShoppingScreen(
                         icon = GcIcons.Trash,
                     )
                 }
-                GcPrimaryButton(
-                    text = stringResource(R.string.familie_shopping_going),
-                    onClick = { viewModel.going(list.id) },
-                    loading = going,
-                    icon = GcIcons.Cart,
+                // B3: who goes shopping, where the request goes, "<Name> bitten" / "Ich gehe einkaufen".
+                ShoppingAssignSection(
+                    list = list,
+                    profile = profile,
+                    going = going,
+                    assigning = assigning,
+                    onGoing = { viewModel.going(list.id) },
+                    onAssign = { uid, notify -> viewModel.assign(list.id, uid, notify) },
                 )
                 Text(
                     stringResource(R.string.familie_shopping_going_hint),

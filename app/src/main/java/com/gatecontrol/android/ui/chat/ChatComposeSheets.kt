@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +38,8 @@ import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -103,7 +106,12 @@ import java.util.Locale
 
 // ─── attach sheet (Messenger 1.4 layout) ────────────────────────────
 
-/** What the attach sheet offers (each switched on by the server and the device). */
+/**
+ * What the attach sheet offers. A flag false: the server (or the device)
+ * cannot do it — the tile is left out. A hint: it is there but needs
+ * something first (another person in the chat); the tile says why when
+ * tapped instead of vanishing.
+ */
 data class AttachOptions(
     val camera: Boolean,
     val files: Boolean,
@@ -113,9 +121,21 @@ data class AttachOptions(
     val arrival: Boolean,
     val actions: Boolean,
     val maxBytes: Long?,
+    /** Familie B4: "Aufgabe". */
+    val task: Boolean = false,
+    /** Familie B3: "Einkaufsliste". */
+    val shopping: Boolean = false,
+    /** Why the home actions cannot be used here (e.g. nobody else in the chat); null: they can. */
+    val actionsHint: String? = null,
+    /** "Schnell teilen": the devices of the home (doors lead to the door request). */
+    val quickShare: List<ChatHomeAction> = emptyList(),
 )
 
-/** The attach sheet: media and places, then polls, events and live arrival, then the home's actions. */
+/**
+ * The attach sheet (mockup ChatAttach): media, place, poll, event, live
+ * arrival and task; "Aus deinem Zuhause" with door request, share a device,
+ * run an action and the shopping list; "Schnell teilen" with the devices.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AttachSheet14(
@@ -129,10 +149,16 @@ fun AttachSheet14(
     onArrival: () -> Unit,
     onAction: (mode: String) -> Unit,
     onDismiss: () -> Unit,
+    onTask: () -> Unit = {},
+    onShopping: () -> Unit = {},
+    /** A device of "Schnell teilen" (a door: the request). */
+    onQuickShare: (ChatHomeAction) -> Unit = {},
+    /** A tile that needs something first was tapped: [hint] says what. */
+    onHint: (hint: String) -> Unit = {},
 ) {
     val extra = GateControlTheme.extraColors
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 4, horizontalArrangement = Arrangement.SpaceEvenly) {
                 AttachTile14(Icons.Outlined.PhotoLibrary, stringResource(R.string.chat_attach_gallery), extra.blue, extra.blueBg, onGallery)
                 if (options.camera) AttachTile14(Icons.Outlined.PhotoCamera, stringResource(R.string.chat_attach_camera), extra.pro, extra.proBg, onCamera)
@@ -141,15 +167,27 @@ fun AttachSheet14(
                 if (options.polls) AttachTile14(Icons.Outlined.BarChart, stringResource(R.string.chat_attach_poll), extra.accentText, extra.accentBg, onPoll)
                 if (options.events) AttachTile14(Icons.Outlined.Event, stringResource(R.string.chat_attach_event), extra.blue, extra.blueBg, onEvent)
                 if (options.arrival) AttachTile14(Icons.Outlined.Navigation, stringResource(R.string.chat_attach_arrival), extra.warn, extra.warnBg, onArrival)
+                if (options.task) AttachTile14(Icons.Outlined.TaskAlt, stringResource(R.string.chat_attach_task), extra.pro, extra.proBg, onTask)
             }
-            if (options.actions) {
+            if (options.actions || options.shopping) {
                 GcSectionLabel(stringResource(R.string.chat_attach_home), Modifier.padding(start = 12.dp, top = 8.dp))
+                val hint = options.actionsHint
+                val home: (() -> Unit) -> () -> Unit = { action -> if (hint != null) ({ onHint(hint) }) else action }
                 FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 4, horizontalArrangement = Arrangement.SpaceEvenly) {
-                    AttachTile14(Icons.Outlined.PlayCircleOutline, stringResource(R.string.chat_attach_action_run), extra.accentText, extra.accentBg) { onAction(ChatActionCard.MODE_RUN) }
-                    AttachTile14(Icons.Outlined.DoorFront, stringResource(R.string.chat_attach_action_request), extra.warn, extra.warnBg) { onAction(ChatActionCard.MODE_REQUEST) }
-                    AttachTile14(Icons.Outlined.Share, stringResource(R.string.chat_attach_action_grant), extra.pro, extra.proBg) { onAction(ChatActionCard.MODE_GRANT) }
+                    if (options.actions) {
+                        AttachTile14(Icons.Outlined.DoorFront, stringResource(R.string.chat_attach_action_request), extra.warn, extra.warnBg, home { onAction(ChatActionCard.MODE_REQUEST) }, muted = hint != null)
+                        AttachTile14(Icons.Outlined.Share, stringResource(R.string.chat_attach_action_grant), extra.accentText, extra.accentBg, home { onAction(ChatActionCard.MODE_GRANT) }, muted = hint != null)
+                        AttachTile14(Icons.Outlined.PlayCircleOutline, stringResource(R.string.chat_attach_action_run), extra.blue, extra.blueBg, home { onAction(ChatActionCard.MODE_RUN) }, muted = hint != null)
+                    }
+                    if (options.shopping) AttachTile14(Icons.Outlined.ShoppingCart, stringResource(R.string.chat_attach_shopping), extra.warn, extra.warnBg, onShopping)
                 }
-                Text(stringResource(R.string.chat_attach_home_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.padding(horizontal = 12.dp))
+                if (options.actions && hint == null && options.quickShare.isNotEmpty()) {
+                    GcSectionLabel(stringResource(R.string.chat_attach_quick_share), Modifier.padding(start = 12.dp, top = 8.dp))
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        options.quickShare.forEach { a -> QuickShareChip(a) { onQuickShare(a) } }
+                    }
+                }
+                Text(hint ?: stringResource(R.string.chat_attach_home_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.padding(horizontal = 12.dp))
             }
             Text(
                 stringResource(R.string.chat_attach_hint, ChatText.bytes(options.maxBytes ?: (25L * 1024 * 1024))),
@@ -162,16 +200,35 @@ fun AttachSheet14(
 }
 
 @Composable
-private fun AttachTile14(icon: ImageVector, label: String, tint: Color, bg: Color, onClick: () -> Unit) {
+private fun AttachTile14(icon: ImageVector, label: String, tint: Color, bg: Color, onClick: () -> Unit, muted: Boolean = false) {
+    val extra = GateControlTheme.extraColors
     Column(
         Modifier.width(84.dp).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(bg), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(26.dp))
+        Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(if (muted) extra.panel2 else bg), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (muted) extra.faint else tint, modifier = Modifier.size(26.dp))
         }
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = if (muted) extra.muted else MaterialTheme.colorScheme.onSurface, maxLines = 2)
+    }
+}
+
+/** A device of "Schnell teilen" (mockup `.chip`). */
+@Composable
+private fun QuickShareChip(a: ChatHomeAction, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val icon = remember(a.icon) { QuickActionIcons.vector(a.icon) }
+    Row(
+        Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).border(1.dp, extra.border2, RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClick = onClick).padding(start = 6.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(28.dp).clip(CircleShape).background(if (a.needsConfirm) extra.warnBg else extra.accentBg), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (a.needsConfirm) extra.warn else extra.accentText, modifier = Modifier.size(16.dp))
+        }
+        Text(a.label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
     }
 }
 
@@ -550,6 +607,9 @@ fun ArrivalSheet(
     busy: Boolean,
     onStart: (ChatEventPlace, ChatHomeAction?) -> Unit,
     onDismiss: () -> Unit,
+    /** "Orte für Regeln teilen" is off (Familie with rule places): a hint that leads to the profile. */
+    placesShared: Boolean? = null,
+    onOpenProfile: (() -> Unit)? = null,
 ) {
     val extra = GateControlTheme.extraColors
     val usable = places.orEmpty().filter { it.lat != null && it.lon != null }
@@ -563,22 +623,26 @@ fun ArrivalSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.chat_arrival_create), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+            Column {
+                Text(stringResource(R.string.chat_arrival_create), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.chat_arrival_sub), style = MaterialTheme.typography.bodyMedium, color = extra.muted)
+            }
             GcSectionLabel(stringResource(R.string.chat_arrival_dest))
             if (usable.isEmpty() && places != null) Text(stringResource(R.string.chat_arrival_no_places), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                usable.forEach { p ->
-                    PickChip(p.name, !mapMode && picked?.familiePlaceId == p.id) {
-                        mapMode = false
-                        picked = ChatEventPlace(p.id, p.name, p.lat, p.lon, p.radiusM)
-                        label = p.name
-                    }
-                }
-                PickChip(stringResource(R.string.chat_arrival_dest_map), mapMode) {
+            ArrivalDestinations(
+                places = usable,
+                pickedPlaceId = picked?.familiePlaceId,
+                mapMode = mapMode,
+                onPlace = { p ->
+                    mapMode = false
+                    picked = ChatEventPlace(p.id, p.name, p.lat, p.lon, p.radiusM)
+                    label = p.name
+                },
+                onMap = {
                     mapMode = true
                     if (picked?.familiePlaceId != null) picked = null
-                }
-            }
+                },
+            )
             if (mapMode) {
                 Text(stringResource(R.string.chat_arrival_dest_map_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                 val p = picked
@@ -600,6 +664,10 @@ fun ArrivalSheet(
                 }
             }
             Text(stringResource(R.string.chat_arrival_info), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+            if (placesShared == false) {
+                Text(stringResource(R.string.chat_arrival_places_hint), style = MaterialTheme.typography.bodySmall, color = extra.warn)
+                if (onOpenProfile != null) TextButton(onClick = onOpenProfile) { Text(stringResource(R.string.chat_attach_open_profile)) }
+            }
             val dest = picked?.let { if (mapMode) it.copy(label = label.trim()) else it }
             GcPrimaryButton(
                 text = stringResource(R.string.chat_arrival_start),

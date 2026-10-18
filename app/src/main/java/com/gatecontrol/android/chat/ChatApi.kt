@@ -402,6 +402,14 @@ class ChatApi @Inject constructor(
 
     suspend fun homeActions(): ChatResult<List<ChatHomeAction>> = get("actions", parse = ChatJson14::homeActions)
 
+    /** Messenger C2: what the caller may ask for — the actions of the possible approvers, doors included. */
+    suspend fun requestableActions(approvers: String? = null, conversationId: Long? = null): ChatResult<ChatRequestable> =
+        get(
+            "actions/requestable",
+            listOfNotNull(approvers?.let { "approvers" to it }, conversationId?.let { "conversationId" to it.toString() }).toMap(),
+            parse = ChatHomeJson::requestable,
+        )
+
     private suspend fun runPost(path: String, body: JsonObject = JsonObject()): ChatResult<ChatRunResult> =
         post(path, body, ChatJson14::runResult)
 

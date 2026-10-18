@@ -190,6 +190,7 @@ object ChatJson {
             prefs14 = ChatJson14.prefs14(o.obj("prefs")),
             status = ChatJson14.status(o.obj("status")),
             familie = ChatJson14.familie(o.obj("integrations")),
+            home = ChatHomeJson.home(o),
         )
     }
 
@@ -389,7 +390,7 @@ object ChatJson {
         val event = token(o.str("event")) ?: return null
         return ChatSystem(
             event = event,
-            by = o.id("by"),
+            by = o.id("by") ?: o.id("byUserId"),
             title = line(o.str("title") ?: o.str("question"), 200),
             userIds = o.ids("userIds"),
             userId = o.id("userId"),
@@ -402,7 +403,8 @@ object ChatJson {
             messageId = o.id("messageId"),
             answer = o.str("answer")?.takeIf { it == "yes" || it == "maybe" || it == "no" },
             guests = o.int("guests")?.coerceIn(0, 99),
-            otherUserId = o.id("asUserId") ?: o.id("requesterId"),
+            otherUserId = o.id("asUserId") ?: o.id("requesterId") ?: o.id("toUserId"),
+            ok = o.flag("ok"),
         )
     }
 

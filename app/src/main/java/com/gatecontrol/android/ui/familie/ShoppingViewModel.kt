@@ -26,6 +26,8 @@ import javax.inject.Inject
 /** One-shot feedback of the shopping screen. */
 sealed interface ShoppingNotice {
     data object GoingSent : ShoppingNotice
+    /** B3: the request went out ([userId] null: the assignment was removed). */
+    data class AssignSent(val userId: Int?, val delivered: Boolean? = null, val code: String? = null) : ShoppingNotice
     data class Error(val code: String) : ShoppingNotice
 }
 
@@ -115,6 +117,20 @@ class ShoppingViewModel @Inject constructor(
             val p = profile.value
             if (r is FamilieResult.Ok && p != null && p.me.isParent && p.modules.expenses) _captureList.value = listId
             _going.value = false
+        }
+    }
+
+    private val _assigning = MutableStateFlow(false)
+    val assigning: StateFlow<Boolean> = _assigning.asStateFlow()
+
+    /** B3 "<Name> bitten": [notify] direct | family | push. */
+    fun assign(listId: String, userId: Int?, notify: String) {
+        if (_assigning.value) return
+        _assigning.value = true
+        viewModelScope.launch {
+            val r = repository.assign(listId, userId, notify)
+            _notice.value = if (r is FamilieResult.Ok) ShoppingNotice.AssignSent(userId, r.value.ok, r.value.code) else ShoppingNotice.Error(r.errorCode() ?: "failed")
+            _assigning.value = false
         }
     }
 

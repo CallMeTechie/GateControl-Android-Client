@@ -809,6 +809,12 @@ private fun ListsPage(vm: ChatSettingsViewModel) {
 private fun HomePage(vm: ChatSettingsViewModel) {
     val actions by vm.actions.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
+    val homeProfile by vm.profile.collectAsStateWithLifecycle()
+    val homeConversations by vm.conversations.collectAsStateWithLifecycle()
+    // Mockup ChatHomeSettings: doorbell, door requests and shared devices as the server set them (read only).
+    val doorbell by vm.doorbell.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(Unit) { vm.loadDoorbell() }
+    ChatHomeDefaults(homeProfile?.home ?: com.gatecontrol.android.chat.ChatHomeInfo(), homeConversations, doorbell)
     Section(stringResource(R.string.chat_home_show)) {
         val list = actions
         when {

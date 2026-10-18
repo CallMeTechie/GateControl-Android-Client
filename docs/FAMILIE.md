@@ -589,3 +589,70 @@ ring turns from neutral to the colour / red within a few seconds (not
 after two minutes). Start tab and Familie tab show the same ring for the
 own avatar at all times; a tap on either opens the profile. The Familie
 start screen has no presence card and no "zuhause" / "unterwegs" text.
+
+## Rules and reminders, shopping requests, chat (Familie 1.9 / Messenger 1.5)
+
+Rules (`familie/rules/`, `ui/rules/`): the presence rules grown into
+"Regeln und Erinnerungen" (contract B1). The profile shows the row under
+"Orte für Regeln teilen" while the module `rules` is on and `GET rules`
+answers `can.house || can.personal` (line: active · paused · last run).
+
+- `GET rules` → `{ rules, log, can, open }` (`log[].skipped`: checked, not
+  fired; `open[]`: reminders not done yet with their `actionIds`, parsed
+  for a widget hint). `GET rules/options` → triggers (`available: false`
+  left out), devices with fields and current values, quick `actions`,
+  calendars, places, people, `messenger`, `features`.
+  `POST rules` / `PATCH rules/<id>` (whole rule without `scope` — it cannot
+  change — or `{ active }` for the pause switch) → `{ rule }`,
+  `DELETE rules/<id>`, `POST rules/<id>/test` (saved, unchanged) or
+  `POST rules/test` (draft) → `{ wouldFire, details[{ kind, ok?, text }] }`.
+- Sent rule: `{ title, scope (create only), active, trigger { type,
+  weekdays, time | userId | placeId | graceMinutes }, conditions { time,
+  afterSunset, device[], calendar }, actions[] }`; a quick action as
+  `{ type: 'quick_action', actionId, title?, state? }` (state only for
+  toggles), notify / messenger `to: 'me'` for oneself. A personal rule
+  only reaches its creator (`to: 'me'` before saving). Read: `kind`
+  (reminder | presence | place) decides the filter, `editable` /
+  `pausable` false makes the editor read only; older rules (`name`,
+  `trigger` as a word, `plugin` + `id`) are read too.
+- Errors with own texts: `state_required`, `too_many`, `forbidden`
+  (`field: actions.N.to`), `module_off` (`field: trigger`).
+- Route `reminder/new?actionId=<plugin>/<id>` (long press on a start-tab
+  widget): the same editor, personal, schedule today 18:00, the device's
+  first value `< 50` (percent) or `< current`, a push to `me` with the
+  device's button, "In 1 Std." (`snooze_1h`) and "Erledigt" (`done`).
+- Push buttons of type `callback` (core 1.181) are background buttons: the
+  app acks with `state: read` and `action: <id>`; with a callback the
+  notification shows no extra "Gesehen". `data.facts[{ label, value }]`
+  become the last line of the text.
+- Older plugin (404 on `rules`): the profile row stays hidden, the list
+  says an update brings the feature.
+
+Shopping (B3): the list screen has "Wer kauft ein?" (Ich, the others,
+Offen), where the request goes (Chat mit … / Familienchat / Nur
+Mitteilung, default `direct`) and "<Name> bitten" →
+`POST shopping/lists/<id>/assign { userId, notify }` → `{ list, notified
+{ via, ok, code } }` (a failed delivery is said); the lists carry
+`assignee { userId, by, at, state open | taken | declined }` and `dueAt`.
+
+Chat (attach sheet, `ui/chat/ChatHomeSheets.kt`): "Aufgabe" →
+`POST tasks/quick { title, assigneeId, due, repeat, conversationId }` →
+`{ task, card { ok, code } }` (the plugin posts the card); "Einkaufsliste"
+→ `going` or `assign` (`direct` in a direct chat, else `family`). Door
+requests: `GET actions/requestable?approvers=…&conversationId=…`
+(reloaded when the approvers change; each action with `approverIds` and
+`self`; fallback on older messengers: own actions), sent with `approvers:
+'parents' | 'rights' | [ids]` (+ `approverIds`) and an optional `note`
+(without an echoed `note` it follows as a reply text). The approver chips
+need feature `action_requests`, "Eltern" `homeActions.familyRoles`;
+`canRequest: false` blocks sending. "Gerät teilen" sends `grant.offAtEnd`
+(feature `grant_off`, toggles only). `GET me` → `limits.requestTtlMin`,
+`limits.grantMaxDays`, `homeActions { available, reason,
+approversDefault, childrenMayRequest, familyRoles, canRequest, doorbell {
+lastCardAt } }`; Chat-Einstellungen › Haus-Aktionen shows them read only
+with the last ring of the door plugin's `GET me` (`doorbell { lastRingAt,
+source, chat { at, ok, error, fallback } }`). Request cards show
+`expiresAt`; the system message `grant_off` says whether the device went
+off. Shopping, task and request cards are plugin `notice` cards: title as
+headline, text below, buttons run the Familie quick actions
+(`shop-take:<id>`, `shop-decline:<id>`, `task-done:<id>`).

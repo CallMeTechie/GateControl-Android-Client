@@ -155,7 +155,10 @@ fun ConversationScreen(
     share: Boolean = false,
     /** Settings with the update check (GitHub build); the Play build opens the store. */
     onOpenUpdates: () -> Unit = {},
+    /** The own profile ("Orte für Regeln teilen" for a live arrival); null: only the hint. */
+    onOpenProfile: (() -> Unit)? = null,
     viewModel: ConversationViewModel = hiltViewModel(key = "conversation-$conversationId"),
+    homeViewModel: ChatHomeViewModel = hiltViewModel(key = "chat-home-$conversationId"),
 ) {
     LaunchedEffect(conversationId, share) { viewModel.bind(conversationId, share) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -193,6 +196,17 @@ fun ConversationScreen(
     var pinnedIndex by remember { mutableStateOf(0) }
     var dismissedEvent by rememberSaveable { mutableStateOf<Long?>(null) }
     val features14 = state.profile?.features
+    // Home sheets of the attach menu (door request, share a device, task, shopping list).
+    val familieOffer by homeViewModel.offer.collectAsStateWithLifecycle()
+    val homeBusy by homeViewModel.busy.collectAsStateWithLifecycle()
+    var requestSheet by remember { mutableStateOf<com.gatecontrol.android.chat.ChatHomeAction?>(null) }
+    var requestOpen by remember { mutableStateOf(false) }
+    var shareSheet by remember { mutableStateOf<com.gatecontrol.android.chat.ChatHomeAction?>(null) }
+    var shareOpen by remember { mutableStateOf(false) }
+    var taskSheet by remember { mutableStateOf(false) }
+    var shoppingSheet by remember { mutableStateOf(false) }
+    var attachHint by remember { mutableStateOf<String?>(null) }
+    var arrivalPlacesHint by remember { mutableStateOf(false) }
 
     LifecycleResumeEffect(conversationId) {
         viewModel.setVisible(true)
@@ -275,6 +289,16 @@ fun ConversationScreen(
         lastSoundKey = key
     }
     LaunchedEffect(features14?.actions, features14?.events, features14?.arrival) { viewModel.loadExtras() }
+    LaunchedEffect(Unit) {
+        homeViewModel.notice.collect { n ->
+            val text = when (n) {
+                is ChatHomeNotice.Done -> if (n.arg != null) resources.getString(n.res, n.arg) else resources.getString(n.res)
+                is ChatHomeNotice.ChatError -> ChatText.actionError(context, n.code)
+                is ChatHomeNotice.FamilieError -> com.gatecontrol.android.ui.familie.familieErrorMessage(context, n.code)
+            }
+            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+        }
+    }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
         if (uris.isNotEmpty()) {
@@ -686,6 +710,9 @@ fun ConversationScreen(
     if (showAttach) {
         val features = state.profile?.features
         val members = c?.members.orEmpty()
+        val others = members.filter { it.userId != myId && !it.gone }
+        val actionsOn = features?.actions == true
+        LaunchedEffect(Unit) { homeViewModel.prepare() }
         AttachSheet14(
             options = AttachOptions(
                 camera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) },
@@ -694,8 +721,12 @@ fun ConversationScreen(
                 polls = features?.polls == true,
                 events = features?.events == true,
                 arrival = features?.arrival == true,
-                actions = features?.actions == true && members.size > 1,
+                actions = actionsOn,
                 maxBytes = state.profile?.limits?.maxBytes,
+                task = familieOffer.tasks,
+                shopping = familieOffer.shopping,
+                actionsHint = if (actionsOn && others.isEmpty()) stringResource(R.string.chat_attach_hint_others) else null,
+                quickShare = homeActions?.let { com.gatecontrol.android.chat.ChatRichLogic.visibleActions(it, deviceConfig.hiddenActions) }.orEmpty().take(8),
             ),
             onGallery = {
                 showAttach = false
@@ -719,9 +750,130 @@ fun ConversationScreen(
             },
             onPoll = { showAttach = false; showPoll = true },
             onEvent = { showAttach = false; showEvent = true },
-            onArrival = { showAttach = false; openArrival(null) },
-            onAction = { mode -> showAttach = false; actionMode = mode },
+            onArrival = {
+                showAttach = false
+                if (familieOffer.placesShared == false) arrivalPlacesHint = true else openArrival(null)
+            },
+            onAction = { mode ->
+                showAttach = false
+                when (mode) {
+                    com.gatecontrol.android.chat.ChatActionCard.MODE_REQUEST -> {
+                        homeViewModel.loadRequestable(conversationId)
+                        requestSheet = null
+                        requestOpen = true
+                    }
+                    com.gatecontrol.android.chat.ChatActionCard.MODE_GRANT -> {
+                        shareSheet = null
+                        shareOpen = true
+                    }
+                    else -> actionMode = mode
+                }
+            },
+            onTask = { showAttach = false; taskSheet = true },
+            onShopping = { showAttach = false; shoppingSheet = true },
+            onQuickShare = { a ->
+                showAttach = false
+                if (a.needsConfirm) {
+                    homeViewModel.loadRequestable(conversationId)
+                    requestSheet = a
+                    requestOpen = true
+                } else {
+                    shareSheet = a
+                    shareOpen = true
+                }
+            },
+            onHint = { h -> attachHint = h },
             onDismiss = { showAttach = false },
+        )
+    }
+    attachHint?.let { h ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { attachHint = null },
+            text = { Text(h) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { attachHint = null }) { Text(stringResource(R.string.chat_ok)) } },
+        )
+    }
+    if (arrivalPlacesHint) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { arrivalPlacesHint = false },
+            title = { Text(stringResource(R.string.chat_attach_arrival)) },
+            text = { Text(stringResource(R.string.chat_arrival_places_hint)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    arrivalPlacesHint = false
+                    if (onOpenProfile != null) onOpenProfile() else openArrival(null)
+                }) { Text(stringResource(if (onOpenProfile != null) R.string.chat_attach_open_profile else R.string.chat_arrival_anyway)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { arrivalPlacesHint = false; openArrival(null) }) {
+                    Text(stringResource(R.string.chat_arrival_anyway))
+                }
+            },
+        )
+    }
+    val homeInfo = state.profile?.home ?: com.gatecontrol.android.chat.ChatHomeInfo()
+    val homeOthers = c?.members.orEmpty().filter { it.userId != myId && !it.gone }
+    if (requestOpen) {
+        val requestable by homeViewModel.requestable.collectAsStateWithLifecycle()
+        val fallback by homeViewModel.requestableFallback.collectAsStateWithLifecycle()
+        val tokens = state.profile?.features?.tokens.orEmpty()
+        DoorRequestSheet(
+            requestable = requestable,
+            fallback = fallback,
+            others = homeOthers,
+            chooseApprovers = "action_requests" in tokens,
+            parentsOffered = homeInfo.familyRoles || homeInfo.approversDefault == com.gatecontrol.android.chat.ChatApprovers.PARENTS,
+            defaultApprovers = homeInfo.approversDefault,
+            ttlMin = homeInfo.requestTtlMin,
+            canRequest = homeInfo.canRequest,
+            initial = requestSheet,
+            busy = homeBusy,
+            onApprovers = { c -> homeViewModel.loadRequestable(conversationId, c) },
+            onSend = { a, approvers, note -> homeViewModel.sendRequest(conversationId, a, approvers, note) { requestOpen = false } },
+            onDismiss = { requestOpen = false },
+        )
+    }
+    if (shareOpen) {
+        ShareDeviceSheet(
+            actions = homeActions?.let { com.gatecontrol.android.chat.ChatRichLogic.visibleActions(it, deviceConfig.hiddenActions) },
+            others = homeOthers,
+            maxDays = homeInfo.grantMaxDays,
+            offAtEndDefault = homeInfo.offAtEndDefault,
+            initial = shareSheet,
+            busy = homeBusy,
+            onShare = { a, to, until, off -> homeViewModel.sendGrant(conversationId, a, to, until, off) { shareOpen = false } },
+            onRequestInstead = { a ->
+                shareOpen = false
+                homeViewModel.loadRequestable(conversationId)
+                requestSheet = a
+                requestOpen = true
+            },
+            onDismiss = { shareOpen = false },
+            grantOff = "grant_off" in state.profile?.features?.tokens.orEmpty(),
+        )
+    }
+    if (taskSheet) {
+        TaskSheet(
+            others = homeOthers,
+            me = c?.members?.firstOrNull { it.userId == myId },
+            busy = homeBusy,
+            onSend = { title, assignee, due, repeat -> homeViewModel.sendTask(conversationId, title, assignee, due, repeat) { taskSheet = false } },
+            onDismiss = { taskSheet = false },
+        )
+    }
+    if (shoppingSheet) {
+        val lists by homeViewModel.shoppingLists.collectAsStateWithLifecycle()
+        val direct = c?.isGroup == false
+        ShoppingShareSheet(
+            lists = lists,
+            others = homeOthers,
+            direct = direct,
+            busy = homeBusy,
+            onGoing = { l -> homeViewModel.shoppingGoing(conversationId, l) { shoppingSheet = false } },
+            onAsk = { l, uid ->
+                homeViewModel.shoppingAssign(conversationId, l, uid, if (direct) com.gatecontrol.android.ui.familie.ShoppingNotify.DIRECT else com.gatecontrol.android.ui.familie.ShoppingNotify.FAMILY) { shoppingSheet = false }
+            },
+            onDismiss = { shoppingSheet = false },
         )
     }
 
@@ -751,6 +903,8 @@ fun ConversationScreen(
             busy = richBusy,
             onStart = { dest, onArrive -> viewModel.sendArrival(dest, onArrive) { arrivalSheet = false } },
             onDismiss = { arrivalSheet = false },
+            placesShared = familieOffer.placesShared,
+            onOpenProfile = onOpenProfile?.let { open -> { arrivalSheet = false; open() } },
         )
     }
     actionMode?.let { mode ->
