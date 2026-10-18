@@ -199,4 +199,44 @@
         <item quantity="one">%1$d Chat mit neuen Nachrichten</item>
         <item quantity="other">%1$d Chats mit neuen Nachrichten</item>
     </plurals>
+    <!-- Chats: camera, group picture, media overview, shortcuts and bubbles -->
+    <string name="chat_attach_camera">Kamera</string>
+    <string name="chat_camera_failed">Die Kamera konnte nicht gestartet werden.</string>
+    <string name="chat_camera_no_app">Keine Kamera-App gefunden.</string>
+    <string name="chat_camera_no_permission">Ohne Kamera-Zugriff kann kein Foto aufgenommen werden.</string>
+    <string name="chat_gone">Du bist nicht mehr in diesem Chat.</string>
+    <string name="chat_shortcut_gone">Dieser Chat ist nicht mehr verfügbar.</string>
+    <string name="chat_group_picture">Gruppenbild</string>
+    <string name="chat_group_picture_remove">Bild entfernen</string>
+    <string name="chat_group_picture_crop">Gruppenbild zuschneiden</string>
+    <string name="chat_group_picture_crop_hint">Mit zwei Fingern zoomen, ziehen zum Verschieben. Der Kreis zeigt das Gruppenbild.</string>
+    <string name="chat_media_title">Medien &amp; Dateien</string>
+    <string name="chat_media_row_desc">Bilder, Videos, Dateien und Sprachnachrichten</string>
+    <string name="chat_media_tab_media">Bilder &amp; Videos</string>
+    <string name="chat_media_tab_files">Dateien</string>
+    <string name="chat_media_tab_voice">Sprachnachrichten</string>
+    <string name="chat_media_empty">Noch nichts da.</string>
+    <string name="chat_media_failed">Konnte nicht geladen werden. Verbindung prüfen.</string>
+    <string name="chat_media_open">Öffnen</string>
+    <string name="chat_media_video">Video</string>
+    <string name="chat_prefs_device">Auf diesem Gerät</string>
+    <string name="chat_prefs_shortcuts">Chat-Verknüpfungen</string>
+    <string name="chat_prefs_shortcuts_desc">Letzte Chats am App-Symbol und im Teilen-Menü</string>
+    <string name="chat_prefs_bubbles">Chat-Bubbles</string>
+    <string name="chat_prefs_bubbles_desc">Chat-Mitteilungen können als schwebende Bubbles geöffnet werden</string>
+    <string name="chat_prefs_bubbles_needs_shortcuts">Braucht Chat-Verknüpfungen</string>
+    <string name="chat_prefs_bubbles_system_off">Bubbles sind in den Android-Einstellungen aus</string>
+    <string name="chat_prefs_bubbles_open_settings">Android-Einstellungen öffnen</string>
+    <plurals name="chat_media_count_images">
+        <item quantity="one">%1$d Bild</item>
+        <item quantity="other">%1$d Bilder</item>
+    </plurals>
+    <plurals name="chat_media_count_files">
+        <item quantity="one">%1$d Datei</item>
+        <item quantity="other">%1$d Dateien</item>
+    </plurals>
+    <plurals name="chat_media_count_voice">
+        <item quantity="one">%1$d Sprachnachricht</item>
+        <item quantity="other">%1$d Sprachnachrichten</item>
+    </plurals>
 </resources>

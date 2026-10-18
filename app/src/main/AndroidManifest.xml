@@ -67,6 +67,11 @@
                     android:scheme="gatecontrol"
                     android:host="enroll" />
             </intent-filter>
+            <!-- Chats: share target of the sharing shortcuts (one per recent
+                 conversation, published at runtime by ChatShortcuts). -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Performs Quick Settings tile actions (connect incl. VPN consent,
@@ -278,6 +283,19 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <!-- Chats: content of a chat bubble (BubbleMetadata of the chat
+             notifications). NOT exported: only the app's own bubble
+             PendingIntent starts it. Embedded and resizable as bubbles need. -->
+        <activity
+            android:name=".chat.ChatBubbleActivity"
+            android:exported="false"
+            android:allowEmbedded="true"
+            android:resizeableActivity="true"
+            android:documentLaunchMode="always"
+            android:label="@string/chat_title"
+            android:theme="@style/Theme.GateControl"
+            android:windowSoftInputMode="adjustResize" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

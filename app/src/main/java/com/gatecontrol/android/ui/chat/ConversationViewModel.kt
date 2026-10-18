@@ -61,6 +61,8 @@ data class ConversationUiState(
     val searchResults: List<ChatMessage>? = null,
     val searching: Boolean = false,
     val loaded: Boolean = false,
+    /** The conversation is gone for the caller (left, removed). */
+    val gone: Boolean = false,
 ) {
     val myId: Long? get() = profile?.user?.userId
 }
@@ -122,8 +124,9 @@ class ConversationViewModel @Inject constructor(
         combine(repository.profile, repository.typing, now) { p, t, n -> Triple(p, t, n) },
         ui,
         paging,
-        searchState,
-    ) { (cid, c, msgs, pend), (profile, typing, nowMs), u, pg, (results, isSearching) ->
+        combine(searchState, repository.dropped) { s, d -> s to d },
+    ) { (cid, c, msgs, pend), (profile, typing, nowMs), u, pg, (search, dropped) ->
+        val (results, isSearching) = search
         ConversationUiState(
             conversationId = cid,
             conversation = c,
@@ -139,6 +142,7 @@ class ConversationViewModel @Inject constructor(
             searchResults = results,
             searching = isSearching,
             loaded = pg.loaded || msgs.isNotEmpty(),
+            gone = cid != null && cid in dropped,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationUiState())
 
@@ -178,6 +182,7 @@ class ConversationViewModel @Inject constructor(
     fun setVisible(visible: Boolean) {
         val cid = id.value ?: return
         if (visible) {
+            repository.opened(cid)
             repository.setActive(cid)
             viewModelScope.launch { repository.markRead(cid) }
         } else if (repository.activeConversation.value == cid) {
@@ -275,6 +280,41 @@ class ConversationViewModel @Inject constructor(
             busy.value = false
         }
     }
+
+    /** A photo taken with the camera app ([path] in `cache/camera`): scaled and sent like a picked one. */
+    fun sendCameraPhoto(path: String, caption: String?) {
+        val cid = id.value ?: return
+        val file = media.cameraFile(path) ?: run {
+            notices.trySend(ConversationNotice.PrepareFailed(PrepareError.Unreadable))
+            return
+        }
+        val limits = uiState.value.profile?.limits
+        val reply = replyTo.value?.id
+        replyTo.value = null
+        viewModelScope.launch {
+            busy.value = true
+            try {
+                val clientId = repository.newClientId()
+                val img = media.prepareImage(Uri.fromFile(file), clientId, limits?.imageMaxSide ?: 2048, limits?.thumbMaxBytes ?: 65_536)
+                val max = limits?.maxBytes
+                when {
+                    img == null -> notices.trySend(ConversationNotice.PrepareFailed(PrepareError.Unreadable))
+                    max != null && img.file.length() > max -> {
+                        media.dropOutboxFiles(img.file.path, img.thumb?.path)
+                        notices.trySend(ConversationNotice.PrepareFailed(PrepareError.TooLarge(max)))
+                    }
+                    else -> repository.sendImage(cid, img, caption, reply, clientId)
+                }
+            } finally {
+                // The full-size original is not kept: the scaled copy is in the outbox.
+                file.delete()
+                busy.value = false
+            }
+        }
+    }
+
+    /** A new target file for the camera app and its content URI. */
+    fun newCameraTarget(): Pair<File, Uri>? = runCatching { media.newCameraTarget() }.getOrNull()
 
     /** Any file (SAF); pictures picked as files are sent as files. */
     fun sendFiles(uris: List<Uri>) {
@@ -399,6 +439,9 @@ class ConversationViewModel @Inject constructor(
 
     /** The file of [m], downloaded (for opening, sharing, the picture viewer). */
     suspend fun file(m: ChatMessage): File? = m.media?.id?.let { media.file(it) }
+
+    /** The caller left this conversation on this device (no "no longer available" notice). */
+    fun leftHere(): Boolean = id.value?.let { repository.leftHere(it) } == true
 
     fun canEdit(m: ChatMessage): Boolean {
         val p = uiState.value.profile ?: return false

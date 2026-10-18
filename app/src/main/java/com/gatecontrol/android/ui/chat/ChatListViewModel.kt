@@ -8,6 +8,7 @@ import com.gatecontrol.android.chat.ChatProfile
 import com.gatecontrol.android.chat.ChatRepository
 import com.gatecontrol.android.chat.ChatResult
 import com.gatecontrol.android.chat.ChatShareHandover
+import com.gatecontrol.android.chat.ChatShortcuts
 import com.gatecontrol.android.chat.ChatSync
 import com.gatecontrol.android.chat.ChatTimeline
 import com.gatecontrol.android.notify.PushRepository
@@ -25,6 +26,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class ChatFilter { All, Unread, Groups }
+
+/** Settings of this device only (not the server's chat preferences). */
+data class ChatDevicePrefs(val shortcuts: Boolean = true, val bubbles: Boolean = true)
 
 data class ChatListUiState(
     val conversations: List<ChatConversation> = emptyList(),
@@ -48,6 +52,7 @@ data class ChatListUiState(
 class ChatListViewModel @Inject constructor(
     private val repository: ChatRepository,
     pushRepository: PushRepository,
+    private val shortcuts: ChatShortcuts,
 ) : ViewModel() {
 
     private val filter = MutableStateFlow(ChatFilter.All)
@@ -116,6 +121,14 @@ class ChatListViewModel @Inject constructor(
         }
     }
 
+    /** Conversations dropped in this process (left, removed): the detail pane lets go of them. */
+    val dropped: StateFlow<Set<Long>> = repository.dropped
+
+    /** Ids of the cached conversations; null until the list has been loaded once. */
+    val listedIds: StateFlow<Set<Long>?> = combine(repository.conversations, loaded) { convs, l ->
+        if (l || convs.isNotEmpty()) convs.map { it.id }.toSet() else null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     fun setFilter(f: ChatFilter) {
         filter.value = f
     }
@@ -132,6 +145,17 @@ class ChatListViewModel @Inject constructor(
     }
 
     fun cancelShare() = ChatShareHandover.clear()
+
+    /** This device: conversation shortcuts and bubbles. */
+    val device: StateFlow<ChatDevicePrefs> = combine(shortcuts.enabled, shortcuts.bubbles) { sc, b -> ChatDevicePrefs(sc, b) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDevicePrefs(shortcuts.enabled.value, shortcuts.bubbles.value))
+
+    fun setDevice(prefs: ChatDevicePrefs) {
+        viewModelScope.launch {
+            shortcuts.setBubbles(prefs.bubbles)
+            if (prefs.shortcuts != shortcuts.enabled.value) shortcuts.setEnabled(prefs.shortcuts)
+        }
+    }
 
     /** Chat preferences (read receipts, "schreibt …", content in notifications). */
     fun setPrefs(prefs: ChatPrefs, onResult: (Boolean) -> Unit) {

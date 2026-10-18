@@ -356,8 +356,9 @@ sehen keinen Unterschied.
   („GateControl“) in der Mitte. Solange ein Chat offen ist, meldet die App
   ihn alle 20 s als aktiv (dann kommt dafür keine Push-Mitteilung) und
   sendet „schreibt …“ höchstens alle 3 s.
-- **Anhänge:** Fotos (Photo Picker; vor dem Hochladen auf 2048 px WebP
-  verkleinert, mit Vorschaubild ≤ 64 KB), Dateien (Dateiauswahl, Größe und
+- **Anhänge:** Fotos (Photo Picker oder **direkt mit der Kamera** — die
+  Kamera-Berechtigung wird erst beim ersten Foto erfragt; beides vor dem
+  Hochladen auf 2048 px WebP verkleinert, mit Vorschaubild ≤ 64 KB), Dateien (Dateiauswahl, Größe und
   Typ wie vom Server erlaubt), **Standort** (einmalig, mit Adresse) und
   **Sprachnachrichten** (Mikrofon gedrückt halten, nach links wischen
   bricht ab, Höchstlänge vom Server; AAC/M4A mit Wellenform). Abspielen mit
@@ -380,12 +381,37 @@ sehen keinen Unterschied.
   markieren“**; gelesen auf einem anderen Gerät → verschwindet hier. Für den
   gerade offenen Chat wird nichts angezeigt. Chat-Mitteilungen landen nicht
   im Postfach.
+- **Unterhaltungen, Verknüpfungen & Bubbles** (Android 11+): die letzten
+  vier Chats sind Verknüpfungen mit Bild und Person (lange auf das App-Symbol
+  drücken) und erscheinen direkt im **Teilen-Menü** — Teilen dorthin öffnet
+  gleich diesen Chat. Chat-Mitteilungen gehören zu ihrer Unterhaltung
+  (Bereich „Unterhaltungen“, Priorität in den Android-Einstellungen) und
+  lassen sich als **Bubble** öffnen (schwebender Chat, Bilder darin im
+  Vollbild). Ob Bubbles erscheinen, entscheiden die Android-Einstellungen;
+  in den Chat-Einstellungen gibt es unter „Auf diesem Gerät“ die Schalter
+  „Chat-Verknüpfungen“ und „Chat-Bubbles“ (mit Sprung in die
+  Android-Einstellungen, wenn Bubbles dort aus sind). Verknüpfungen eines
+  verlassenen oder entfernten Chats verschwinden (angeheftete werden
+  deaktiviert), bei Wechsel von Server oder Token alle.
 - **Neuer Chat / Neue Gruppe:** alle GateControl-Konten (ohne
   Kiosk-Geräte); **Chat-/Gruppen-Info** mit Mitgliedern, Umbenennen,
   Stummschalten (1 Std., 8 Std., 1 Woche, immer), selbstlöschenden
   Nachrichten, Mitglieder hinzufügen/entfernen, Admin-Rolle und „Gruppe
   verlassen“ — je nachdem, was der Server erlaubt (vom Familie-Plugin
-  verwaltete Gruppen lassen Mitglieder und Namen in Ruhe).
+  verwaltete Gruppen lassen Mitglieder, Namen und Bild in Ruhe).
+  **Gruppenbild:** Tippen aufs Bild (oder „Gruppenbild“) → Galerie oder
+  Kamera, quadratisch zuschneiden (zoomen, verschieben), hochgeladen über
+  den Medien-Upload des Plugins und als `avatarMediaId` gesetzt; „Bild
+  entfernen“ setzt es zurück. Darf jedes Gruppenmitglied, wie der Server es
+  erlaubt (`can.editInfo`).
+- **Medien & Dateien** (Chat-/Gruppen-Info): Bilder und Videos als Raster,
+  Dateien und Sprachnachrichten als Listen, mit Anzahl je Art; lädt beim
+  Scrollen ältere nach (`GET conversations/:id/media`). Bilder öffnen im
+  Vollbild, Videos und Dateien in einer passenden App, alles lässt sich
+  teilen; Sprachnachrichten spielen direkt in der Liste.
+- **Verlassen / entfernt:** wird man aus einer Gruppe entfernt, die Gruppe
+  gelöscht oder verlässt man sie, schließt sich der Chat — auf breiten
+  Bildschirmen zeigt die rechte Seite wieder „Chat auswählen“.
 - **Teilen → GateControl-Chat:** Text, Bilder und Dateien aus anderen Apps;
   danach wählt man den Chat. Das Teilen-Ziel ist nur eingeschaltet, solange
   der Server Chats anbietet; gelesen werden nur Inhalte anderer Apps.

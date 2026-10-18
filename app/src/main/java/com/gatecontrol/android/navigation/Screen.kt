@@ -96,6 +96,11 @@ sealed class Screen(val route: String) {
         const val ARG_ID = "id"
         fun create(id: Long): String = "chats/info/$id"
     }
+    /** Media overview of a chat: pictures and videos, files, voice messages. */
+    data object ChatMedia : Screen("chats/media/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long): String = "chats/media/$id"
+    }
     /** A chat picture full screen. */
     data object ChatImage : Screen("chats/image/{media}") {
         const val ARG_MEDIA = "media"

@@ -20,6 +20,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
+import androidx.core.content.LocusIdCompat
 import androidx.core.content.edit
 import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
@@ -64,6 +65,7 @@ class ChatNotifier @Inject constructor(
     private val avatars: AvatarLoader,
     private val pushRepository: dagger.Lazy<PushRepository>,
     private val repository: dagger.Lazy<ChatRepository>,
+    private val shortcuts: ChatShortcuts,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -127,7 +129,7 @@ class ChatNotifier @Inject constructor(
         repository.get().onEvent(ChatEvent.MessageNew(conv, payload.messageId ?: 0L, payload.senderId, null))
     }
 
-    private suspend fun post(ctx: Context, c: ChatNotifConversation, silent: Boolean, hint: String? = null) {
+    private suspend fun post(ctx: Context, c: ChatNotifConversation, silent: Boolean, hint: String? = null, keepBubbleOnly: Boolean = false) {
         if (!canPost()) return
         ensureChannel(ctx)
         val me = Person.Builder().setName(ctx.getString(R.string.chat_me)).setKey("me").build()
@@ -163,6 +165,23 @@ class ChatNotifier @Inject constructor(
             .setContentIntent(openIntent(c.conversationId))
             .setDeleteIntent(receiverIntent(ChatActionReceiver.ACTION_DISMISSED, c.conversationId, slot = 1))
         hint?.let { builder.setSubText(it) }
+        // A conversation (Android 11+): its long-lived shortcut, LocusId and — when allowed — a bubble.
+        val cached = runCatching { repository.get().cachedConversation(c.conversationId) }.getOrNull()
+        val shortcut = shortcuts.ensure(c.conversationId, cached, c.title ?: c.lines.lastOrNull { !it.mine }?.senderName, c.isGroup)
+        if (shortcut != null) {
+            builder.setShortcutId(shortcut.id).setLocusId(LocusIdCompat(shortcut.id))
+            if (shortcuts.bubbles.value) {
+                builder.setBubbleMetadata(
+                    NotificationCompat.BubbleMetadata.Builder(bubbleIntent(c.conversationId), shortcut.icon)
+                        .setDesiredHeightResId(R.dimen.chat_bubble_height)
+                        .setAutoExpandBubble(false)
+                        // Read while its bubble stays: only the bubble, no entry in the shade.
+                        .setSuppressNotification(keepBubbleOnly)
+                        .build(),
+                )
+            }
+        }
+        if (keepBubbleOnly) builder.setSilent(true).setNumber(0)
         if (c.replyPath != null) {
             val input = RemoteInput.Builder(ChatActionReceiver.KEY_TEXT).setLabel(ctx.getString(R.string.chat_reply_hint)).build()
             builder.addAction(
@@ -235,8 +254,14 @@ class ChatNotifier @Inject constructor(
             save()
             cur
         }
-        NotificationManagerCompat.from(context).cancel(notificationId(conversationId))
-        postSummary(localized())
+        val ctx = localized()
+        // Shown as a bubble: cancelling would close it — it stays, without an entry in the shade.
+        if (gone != null && isBubble(conversationId)) {
+            post(ctx, gone, silent = true, keepBubbleOnly = true)
+        } else {
+            NotificationManagerCompat.from(context).cancel(notificationId(conversationId))
+        }
+        postSummary(ctx)
         gone?.seqs?.takeIf { it.isNotEmpty() }?.let { pushRepository.get().ackChatRead(it, action) }
     }
 
@@ -245,6 +270,24 @@ class ChatNotifier @Inject constructor(
         if (!state.containsKey(conversationId)) return
         scope.launch { markedRead(conversationId) }
     }
+
+    /** The conversation is gone (left, removed): its notification and bubble go, nothing acked. */
+    fun conversationGone(conversationId: Long) {
+        scope.launch {
+            mutex.withLock {
+                state = state - conversationId
+                save()
+            }
+            NotificationManagerCompat.from(context).cancel(notificationId(conversationId))
+            postSummary(localized())
+        }
+    }
+
+    /** The conversation's notification is shown as a bubble right now. */
+    private fun isBubble(conversationId: Long): Boolean = runCatching {
+        val id = notificationId(conversationId)
+        nm.activeNotifications.any { it.id == id && (it.notification.flags and android.app.Notification.FLAG_BUBBLE) != 0 }
+    }.getOrDefault(false)
 
     /** Swiped away: forget its lines (no ack — it was not read). */
     fun dismissed(conversationId: Long) {
@@ -288,6 +331,12 @@ class ChatNotifier @Inject constructor(
     private fun openIntent(conversationId: Long?): PendingIntent {
         val intent = PushOpenActivity.chatIntent(context, conversationId).setData(uri(conversationId, 0))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    /** The bubble's content: the conversation in [ChatBubbleActivity] (bubbles need a mutable intent). */
+    private fun bubbleIntent(conversationId: Long): PendingIntent {
+        val intent = ChatBubbleActivity.intent(context, conversationId).setData(uri(conversationId, 4))
+        return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
     }
 
     private fun receiverIntent(op: String, conversationId: Long, slot: Int): PendingIntent {

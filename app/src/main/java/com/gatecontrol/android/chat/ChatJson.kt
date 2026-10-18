@@ -384,6 +384,22 @@ object ChatJson {
         return ChatSearchResult(arr.mapNotNull { message(it.objOrNull()) }, o.flag("truncated") == true)
     }
 
+    /**
+     * `GET conversations/:id/media` → `{ items (newest first), counts: { image, voice, file }, hasMore }`.
+     * Only messages that carry a file are kept (deleted ones have none).
+     */
+    fun mediaPage(o: JsonObject): ChatMediaPage? {
+        val arr = o.arr("items") ?: return null
+        val counts = o.obj("counts")
+        return ChatMediaPage(
+            items = arr.mapNotNull { message(it.objOrNull()) }.filter { it.media != null && !it.deleted }.distinctBy { it.id },
+            images = counts?.int("image")?.coerceAtLeast(0),
+            voice = counts?.int("voice")?.coerceAtLeast(0),
+            files = counts?.int("file")?.coerceAtLeast(0),
+            hasMore = o.flag("hasMore") == true,
+        )
+    }
+
     /** `PUT messages/:id/reaction` → the message's reactions. */
     fun reactionsOf(o: JsonObject): List<ChatReaction>? = o.arr("reactions")?.let { reactions(it) }
 

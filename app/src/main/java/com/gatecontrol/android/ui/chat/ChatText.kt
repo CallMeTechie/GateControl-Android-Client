@@ -156,6 +156,10 @@ object ChatText {
             "disappearing_off" -> R.string.chat_err_disappearing_off
             "deleted" -> R.string.chat_err_deleted
             "peer_unavailable" -> R.string.chat_err_peer
+            "media_invalid", "media_in_use", "http_415", "unsupported_type" -> R.string.chat_err_media
+            "http_413", "too_large" -> R.string.chat_err_too_large
+            "http_507", "quota_exceeded" -> R.string.chat_err_quota
+            "unreadable" -> R.string.chat_err_unreadable
             else -> R.string.chat_err_generic
         },
     )

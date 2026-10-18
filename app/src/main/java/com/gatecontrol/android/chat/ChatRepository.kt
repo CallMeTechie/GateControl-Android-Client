@@ -24,6 +24,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
@@ -61,6 +64,7 @@ sealed interface ChatSync {
  * shown as pending, then sent with its `clientId` — retried (WorkManager
  * when offline) without ever arriving twice.
  */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @Singleton
 class ChatRepository @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -70,6 +74,7 @@ class ChatRepository @Inject constructor(
     private val pluginDirectory: PluginDirectory,
     private val pushClient: PushClient,
     private val notifier: dagger.Lazy<ChatNotifier>,
+    private val shortcuts: ChatShortcuts,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val db: ChatDatabase by lazy { ChatDatabase.build(context) }
@@ -100,6 +105,13 @@ class ChatRepository @Inject constructor(
     /** The conversation open and visible right now (no notification for it). */
     val activeConversation: StateFlow<Long?> = _active.asStateFlow()
 
+    private val _dropped = MutableStateFlow<Set<Long>>(emptySet())
+    /**
+     * Conversations dropped in this process (left, removed, gone from the
+     * list): open screens and a selected detail pane let go of them.
+     */
+    val dropped: StateFlow<Set<Long>> = _dropped.asStateFlow()
+
     /** Live events arrive (push stream open): no polling needed. */
     val live: Boolean get() = pushClient.status.value is PushStatus.Connected
 
@@ -121,7 +133,7 @@ class ChatRepository @Inject constructor(
             }
         }
         scope.launch {
-            available.drop(1).distinctUntilChanged().collect { on -> if (on) refreshAll() }
+            available.drop(1).distinctUntilChanged().collect { on -> if (on) refreshAll() else shortcuts.removeAll() }
         }
         // "Teilen → GateControl" only while the server offers the chats.
         scope.launch {
@@ -145,13 +157,41 @@ class ChatRepository @Inject constructor(
             dao.clearAll()
             dao.putKv(KvEntity(KV_OWNER, owner))
             _typing.value = emptyMap()
+            _dropped.value = emptySet()
+            // The old login's conversations are no shortcuts any more.
+            shortcuts.removeAll()
         }
+    }
+
+    /**
+     * Conversations gone for the caller: out of the cache, their shortcuts
+     * and notification gone, open screens told ([dropped]).
+     */
+    private suspend fun drop(ids: Collection<Long>) {
+        if (ids.isEmpty()) return
+        dao.dropConversations(ids.toList())
+        _dropped.update { it + ids }
+        runCatching { shortcuts.remove(ids) }
+        ids.forEach { notifier.get().conversationGone(it) }
     }
 
     // ─── observing ──────────────────────────────────────────────────
 
     val conversations: Flow<List<ChatConversation>> = dao.observeConversations().map { list ->
         list.mapNotNull { e -> parseObj(e.json)?.let { ChatJson.conversation(it) } }
+    }
+
+    init {
+        // Shortcuts of the recent conversations (launcher, share sheet, notifications).
+        scope.launch {
+            combine(available, shortcuts.enabled) { on, sc -> on && sc }.distinctUntilChanged().collectLatest { on ->
+                if (!on) return@collectLatest
+                conversations.map { ChatShortcutLogic.recent(it) }
+                    .distinctUntilChanged()
+                    .debounce(SHORTCUT_DEBOUNCE_MS)
+                    .collect { runCatching { shortcuts.publish(it) } }
+            }
+        }
     }
 
     fun conversation(id: Long): Flow<ChatConversation?> =
@@ -214,10 +254,10 @@ class ChatRepository @Inject constructor(
                     // A full list: what is missing is gone for the caller.
                     val keep = list.conversations.map { it.id }.toSet()
                     val gone = dao.conversations().map { it.id }.filter { it !in keep }
-                    dao.dropConversations(gone)
+                    drop(gone)
                 }
                 storeConversations(list.conversations)
-                dao.dropConversations(list.removed)
+                drop(list.removed)
                 list.serverTime?.let { dao.putKv(KvEntity(KV_LIST_SINCE, it)) }
                 lastListSyncMs = clock()
                 ChatSync.Synced
@@ -234,6 +274,8 @@ class ChatRepository @Inject constructor(
     private suspend fun storeConversations(list: List<ChatConversation>) {
         if (list.isEmpty()) return
         dao.upsertConversations(list.map { ConversationEntity(it.id, ChatSerializer.conversation(it).toString(), it.activityAt) })
+        // Joined again (or added back): no longer gone.
+        if (_dropped.value.isNotEmpty()) _dropped.update { d -> d - list.map { it.id }.toSet() }
     }
 
     private suspend fun storeConversation(c: ChatConversation) = storeConversations(listOf(c))
@@ -254,7 +296,7 @@ class ChatRepository @Inject constructor(
         val r = api.conversation(id)
         when {
             r is ChatResult.Ok -> storeConversation(r.value)
-            r is ChatResult.Failed && r.http == 404 -> dao.dropConversations(listOf(id))
+            r is ChatResult.Failed && r.http == 404 -> drop(listOf(id))
         }
         return r
     }
@@ -299,7 +341,7 @@ class ChatRepository @Inject constructor(
     }
 
     private suspend fun handlePageFailure(id: Long, r: ChatResult<*>): ChatResult<Unit> {
-        if (r is ChatResult.Failed && r.http == 404) dao.dropConversations(listOf(id))
+        if (r is ChatResult.Failed && r.http == 404) drop(listOf(id))
         return if (r is ChatResult.Ok) ChatResult.Ok(Unit) else r.asFailure()
     }
 
@@ -420,7 +462,7 @@ class ChatRepository @Inject constructor(
             }
             is ChatEvent.Typing -> setTyping(conv, event.userId, event.untilMs)
             is ChatEvent.ConversationUpdate -> coalesce("conv:$conv", 300L) { refreshConversation(conv) }
-            is ChatEvent.ConversationRemove -> scope.launch { dao.dropConversations(listOf(conv)) }
+            is ChatEvent.ConversationRemove -> scope.launch { drop(listOf(conv)) }
         }
     }
 
@@ -770,6 +812,13 @@ class ChatRepository @Inject constructor(
 
     suspend fun search(conversationId: Long, q: String): ChatResult<ChatSearchResult> = api.search(conversationId, q)
 
+    /** A page of the media overview (`GET conversations/:id/media`, newest first). */
+    suspend fun media(conversationId: Long, kind: String, before: Long?, limit: Int): ChatResult<ChatMediaPage> {
+        val r = api.media(conversationId, kind, before, limit)
+        if (r is ChatResult.Failed && r.http == 404) drop(listOf(conversationId))
+        return r
+    }
+
     // ─── conversations ──────────────────────────────────────────────
 
     suspend fun people(): ChatResult<List<ChatPerson>> = api.people()
@@ -791,15 +840,40 @@ class ChatRepository @Inject constructor(
         if (r is ChatResult.Ok) {
             val c = r.value.conversation
             if (c != null) storeConversation(c)
-            if (r.value.left) dao.dropConversations(listOf(id))
+            if (r.value.left) drop(listOf(id))
         }
         return r
     }
 
+    /**
+     * New group picture: [file] (a square picture, [mime]) uploaded through
+     * the plugin's media route, then set as `avatarMediaId`.
+     */
+    suspend fun setGroupAvatar(id: Long, file: File, mime: String): ChatResult<ChatPatch> {
+        val up = api.upload(file, mime)
+        if (up !is ChatResult.Ok) return up.asFailure()
+        // Shown right away: no download of what was just uploaded.
+        media.prime(up.value, file)
+        return patch(id, ChatPatches.avatar(up.value))
+    }
+
+    suspend fun removeGroupAvatar(id: Long): ChatResult<ChatPatch> = patch(id, ChatPatches.avatar(null))
+
+    /** The conversation was opened here: its shortcut ranks higher (launcher, share sheet). */
+    fun opened(id: Long) = shortcuts.reportUsed(id)
+
+    private val leftHere = ConcurrentHashMap.newKeySet<Long>()
+
     suspend fun leave(id: Long): ChatResult<ChatPatch> {
         val me = profile.value?.user?.userId ?: return ChatResult.Failed("invalid", 0)
-        return patch(id, ChatPatches.remove(listOf(me)))
+        leftHere += id
+        val r = patch(id, ChatPatches.remove(listOf(me)))
+        if (r !is ChatResult.Ok) leftHere -= id
+        return r
     }
+
+    /** The caller left [id] on this device (not removed by others). */
+    fun leftHere(id: Long): Boolean = id in leftHere
 
     suspend fun putPrefs(readReceipts: Boolean? = null, typing: Boolean? = null, preview: Boolean? = null): ChatResult<ChatPrefs> {
         val r = api.putPrefs(readReceipts, typing, preview)
@@ -822,5 +896,6 @@ class ChatRepository @Inject constructor(
         private const val LIST_TTL_MS = 30_000L
         const val ACTIVE_EVERY_MS = 20_000L
         private const val POLL_MS = 6_000L
+        private const val SHORTCUT_DEBOUNCE_MS = 1_500L
     }
 }

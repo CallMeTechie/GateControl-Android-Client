@@ -8,6 +8,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.LruCache
 import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
 import androidx.core.graphics.scale
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -129,6 +130,38 @@ class ChatMediaStore @Inject constructor(
             total -= f.length()
             f.delete()
         }
+    }
+
+    /** A file just uploaded as [mediaId]: kept as its download (no round trip to show it). */
+    fun prime(mediaId: String, source: File) {
+        val id = ChatJson.mediaId(mediaId) ?: return
+        runCatching {
+            val tmp = File(cacheDir, "$id.part")
+            source.copyTo(tmp, overwrite = true)
+            if (!tmp.renameTo(File(cacheDir, id))) tmp.delete()
+        }
+    }
+
+    // ─── camera ─────────────────────────────────────────────────────
+
+    /**
+     * A new file for a photo taken with the camera app (`cache/camera`,
+     * shared through the FileProvider only for the capture) and its
+     * content URI. Left-overs older than a day are removed.
+     */
+    fun newCameraTarget(): Pair<File, Uri> {
+        val dir = File(context.cacheDir, CAMERA_DIR).apply { mkdirs() }
+        val cutoff = System.currentTimeMillis() - 24 * 3600_000L
+        dir.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.delete() }
+        val file = File(dir, "photo-${System.currentTimeMillis()}.jpg")
+        return file to FileProvider.getUriForFile(context, context.packageName + ".provider", file)
+    }
+
+    /** A camera photo of [newCameraTarget] by its path (nothing outside `cache/camera`). */
+    fun cameraFile(path: String?): File? {
+        val f = path?.let { File(it) } ?: return null
+        val dir = File(context.cacheDir, CAMERA_DIR)
+        return f.takeIf { it.isFile && it.length() > 0 && it.canonicalPath.startsWith(dir.canonicalPath + File.separator) }
     }
 
     /** Memory-cached picture of [mediaId] (no I/O). */
@@ -275,6 +308,7 @@ class ChatMediaStore @Inject constructor(
         const val MAX_CACHE_BYTES = 200L * 1024 * 1024
         const val MAX_DOWNLOAD_BYTES = 64L * 1024 * 1024
         private const val THUMB_SIDE = 320
+        const val CAMERA_DIR = "camera"
 
         private fun bucket(px: Int): Int = when {
             px <= 160 -> 160

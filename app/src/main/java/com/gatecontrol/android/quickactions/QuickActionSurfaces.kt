@@ -8,6 +8,7 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.glance.appwidget.updateAll
 import com.gatecontrol.android.R
+import com.gatecontrol.android.chat.ChatShortcutLogic
 import com.gatecontrol.android.familie.FamilieShortcuts
 import timber.log.Timber
 
@@ -20,6 +21,9 @@ object QuickActionSurfaces {
     /** Launchers show about four; more only clutter the menu. */
     const val MAX_SHORTCUTS = 4
 
+    /** Ids of the quick action shortcuts. */
+    const val PREFIX = "qa:"
+
     suspend fun refresh(context: Context, pins: List<QuickActionItem>) {
         runCatching { publishShortcuts(context, pins) }
             .onFailure { Timber.w("Quick actions: shortcuts not updated (%s)", it.javaClass.simpleName) }
@@ -31,19 +35,31 @@ object QuickActionSurfaces {
     }
 
     private fun publishShortcuts(context: Context, pins: List<QuickActionItem>) {
-        // Other features' shortcuts (Familie: "Notfall-Karte") stay and come first.
-        // Rebuilt (the system hands them back without their icon).
-        val kept = ShortcutManagerCompat.getDynamicShortcuts(context).mapNotNull { FamilieShortcuts.rebuild(context, it) }
-        val shortcuts = pins.take((MAX_SHORTCUTS - kept.size).coerceAtLeast(0)).mapIndexed { index, item ->
-            ShortcutInfoCompat.Builder(context, "qa:${item.key}")
+        // Other features' shortcuts stay: Familie ("Notfall-Karte") comes first,
+        // the chats' conversation shortcuts (ChatShortcuts) after the quick actions.
+        val existing = ShortcutManagerCompat.getDynamicShortcuts(context)
+        val familie = existing.count { it.id.startsWith(FamilieShortcuts.PREFIX) }
+        val shortcuts = pins.take((MAX_SHORTCUTS - familie).coerceAtLeast(0)).mapIndexed { index, item ->
+            ShortcutInfoCompat.Builder(context, PREFIX + item.key)
                 .setShortLabel(item.title)
                 .setLongLabel(listOfNotNull(item.title, item.subtitle).joinToString(" · ").take(25))
                 .setIcon(shortcutIcon(context, item))
                 .setIntent(QuickActionActivity.intent(context, item))
-                .setRank(kept.size + index)
+                .setRank(familie + index)
                 .build()
         }
-        ShortcutManagerCompat.setDynamicShortcuts(context, kept + shortcuts)
+        val keep = shortcuts.map { it.id }.toSet()
+        val stale = existing.map { it.id }.filter { it.startsWith(PREFIX) && it !in keep }
+        if (stale.isNotEmpty()) ShortcutManagerCompat.removeDynamicShortcuts(context, stale)
+        if (shortcuts.isEmpty()) return
+        try {
+            ShortcutManagerCompat.addDynamicShortcuts(context, shortcuts)
+        } catch (e: IllegalArgumentException) {
+            // Over the system's limit: the quick actions win over conversation shortcuts.
+            val chats = existing.map { it.id }.filter { ChatShortcutLogic.conversationOf(it) != null }
+            ShortcutManagerCompat.removeDynamicShortcuts(context, chats)
+            ShortcutManagerCompat.addDynamicShortcuts(context, shortcuts)
+        }
     }
 
     /** The action's icon on the accent circle (like the bolt shortcut icon), else that bolt. */
