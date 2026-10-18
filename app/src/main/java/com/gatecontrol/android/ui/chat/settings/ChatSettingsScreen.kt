@@ -66,8 +66,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -455,10 +459,14 @@ private fun LookPage(vm: ChatSettingsViewModel) {
                 .clickable(role = Role.Button) { photo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             contentAlignment = Alignment.Center,
         ) {
-            if (bmp != null) Image(bmp, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Outlined.Image, contentDescription = null, tint = extra.muted)
-                Text(stringResource(R.string.chat_look_wallpaper_photo), style = MaterialTheme.typography.labelSmall, color = extra.muted)
+            if (bmp != null) {
+                Image(bmp, contentDescription = stringResource(R.string.chat_look_wallpaper_photo), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                Icon(Icons.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp))
+            } else {
+                Column(Modifier.padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Outlined.Image, contentDescription = null, tint = extra.muted)
+                    TileLabel(stringResource(R.string.chat_look_wallpaper_photo))
+                }
             }
         }
     }
@@ -508,9 +516,23 @@ private fun WallpaperTile(label: String?, color: Color, selected: Boolean, onCli
             .clickable(role = Role.RadioButton, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        if (label != null) Text(label, style = MaterialTheme.typography.labelSmall, color = extra.muted)
+        if (label != null) TileLabel(label, Modifier.padding(horizontal = 4.dp))
         if (selected) Icon(Icons.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp))
     }
+}
+
+/** A wallpaper tile's caption: centred, wraps between words and stays inside the 72 dp tile. */
+@Composable
+private fun TileLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Default, letterSpacing = 0.sp, lineHeight = 14.sp),
+        color = GateControlTheme.extraColors.muted,
+        textAlign = TextAlign.Center,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
 }
 
 @Composable

@@ -269,13 +269,21 @@ private fun StoryComposer(initialKind: String, onClose: () -> Unit, viewModel: S
                 }
             }
             Spacer(Modifier.weight(1f))
+            // Always visible on the dark composer: accent while it can send (or sends), a light outline before.
+            val active = canSend || ui.busy
             Box(
-                Modifier.size(56.dp).clip(CircleShape).background(if (canSend) MaterialTheme.colorScheme.primary else extra.panel2)
+                Modifier.size(56.dp).clip(CircleShape)
+                    .background(if (active) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.12f))
+                    .border(1.dp, if (active) Color.Transparent else Color.White.copy(alpha = 0.35f), CircleShape)
                     .clickable(enabled = canSend, role = Role.Button, onClick = send),
                 contentAlignment = Alignment.Center,
             ) {
                 if (ui.busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                else Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.chat_story_send), tint = MaterialTheme.colorScheme.onPrimary)
+                else Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = stringResource(R.string.chat_story_send),
+                    tint = if (active) MaterialTheme.colorScheme.onPrimary else Color.White.copy(alpha = 0.7f),
+                )
             }
         }
         error?.let { e ->
