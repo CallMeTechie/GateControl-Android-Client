@@ -31,7 +31,13 @@ sealed interface PushNavTarget {
      * The tab "Chats" (messenger plugin), in [conversationId] when given.
      * Without the tab (plugin gone meanwhile) the start screen opens.
      */
-    data class Chat(val conversationId: Long? = null) : PushNavTarget
+    data class Chat(
+        val conversationId: Long? = null,
+        /** Messenger 1.4: the message to show (poll, event, reminder, …). */
+        val messageId: Long? = null,
+        /** Messenger 1.4: `arrival` = offer to share the arrival (departure hint). */
+        val open: String? = null,
+    ) : PushNavTarget
 
     /**
      * Shared from another app ("Teilen → GateControl"): pick a chat for

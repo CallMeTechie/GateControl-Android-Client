@@ -128,6 +128,14 @@ class ChatRepository @Inject constructor(
     /** conversation → ranges of its cache that may miss messages (after a jump far back). */
     private val _gaps = MutableStateFlow<Map<Long, List<ChatGap>>>(emptyMap())
 
+    private val _statusEvents = kotlinx.coroutines.flow.MutableSharedFlow<ChatEvent.StatusChanged>(extraBufferCapacity = 32)
+    /** Messenger 1.4: status / story changes of a person ([ChatExtrasRepository] refreshes the feed). */
+    val statusEvents: kotlinx.coroutines.flow.SharedFlow<ChatEvent.StatusChanged> = _statusEvents
+
+    private val _accountEvents = kotlinx.coroutines.flow.MutableSharedFlow<ChatEvent.AccountChanged>(extraBufferCapacity = 8)
+    /** Messenger 1.4: lists / reminders changed on another device. */
+    val accountEvents: kotlinx.coroutines.flow.SharedFlow<ChatEvent.AccountChanged> = _accountEvents
+
     /** Live events arrive (push stream open): no polling needed. */
     val live: Boolean get() = pushClient.status.value is PushStatus.Connected
 
@@ -320,9 +328,9 @@ class ChatRepository @Inject constructor(
         if (_dropped.value.isNotEmpty()) _dropped.update { d -> d - list.map { it.id }.toSet() }
     }
 
-    private suspend fun storeConversation(c: ChatConversation) = storeConversations(listOf(c))
+    internal suspend fun storeConversation(c: ChatConversation) = storeConversations(listOf(c))
 
-    private suspend fun storeMessages(list: List<ChatMessage>) {
+    internal suspend fun storeMessages(list: List<ChatMessage>) {
         if (list.isEmpty()) return
         dao.upsertMessages(list.map { MessageEntity(it.id, it.conversationId, it.clientId, ChatSerializer.message(it).toString()) })
         // Sent from here: the outbox entry is done once the server has it.
@@ -559,6 +567,8 @@ class ChatRepository @Inject constructor(
                 if (event.released) coalesce("list") { syncConversations() }
             }
             is ChatEvent.ConversationRemove -> scope.launch { drop(listOf(conv)) }
+            is ChatEvent.StatusChanged -> _statusEvents.tryEmit(event)
+            is ChatEvent.AccountChanged -> _accountEvents.tryEmit(event)
         }
     }
 
@@ -980,6 +990,29 @@ class ChatRepository @Inject constructor(
 
     /** The caller left [id] on this device (not removed by others). */
     fun leftHere(id: Long): Boolean = id in leftHere
+
+    /** Messenger 1.4: preferences changed elsewhere ([ChatExtrasRepository.putPrefs]). */
+    fun updatePrefs(prefs: ChatPrefs, prefs14: ChatPrefs14) {
+        _profile.update { it?.copy(prefs = prefs, prefs14 = prefs14) }
+        val p = _profile.value ?: return
+        scope.launch { runCatching { dao.putKv(KvEntity(KV_PROFILE, ChatSerializer.profile(p).toString())) } }
+    }
+
+    /** Messenger 1.4: the own status changed here. */
+    fun updateOwnStatus(status: ChatStatus?) {
+        _profile.update { it?.copy(status = status) }
+    }
+
+    /** A message stored after an action on it, with the conversation's preview when it is the newest. */
+    suspend fun storeSent(msg: ChatMessage) {
+        storeMessages(listOf(msg))
+        dao.conversation(msg.conversationId)?.let { ce ->
+            parseObj(ce.json)?.let { o ->
+                val patched = ChatJsonPatch.read(ChatJsonPatch.lastMessage(o, ChatSerializer.message(msg)), 0, msg.id)
+                dao.upsertConversations(listOf(ce.copy(json = patched.toString(), activityAt = msg.createdAt)))
+            }
+        }
+    }
 
     suspend fun putPrefs(readReceipts: Boolean? = null, typing: Boolean? = null, preview: Boolean? = null): ChatResult<ChatPrefs> {
         val r = api.putPrefs(readReceipts, typing, preview)

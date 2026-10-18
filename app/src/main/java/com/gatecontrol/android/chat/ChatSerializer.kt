@@ -25,6 +25,9 @@ object ChatSerializer {
         put("colorHex", p.colorHex)
         addProperty("gone", p.gone)
         p.role?.let { addProperty("role", it) }
+        p.online?.let { addProperty("online", it) }
+        p.lastSeenAt?.let { addProperty("lastSeenAt", it) }
+        if (p.blocked) addProperty("blocked", true)
     }
 
     fun message(m: ChatMessage): JsonObject = JsonObject().apply {
@@ -85,6 +88,11 @@ object ChatSerializer {
                 if (s.userIds.isNotEmpty()) add("userIds", ids(s.userIds))
                 s.userId?.let { addProperty("userId", it) }
                 s.seconds?.let { addProperty("seconds", it) }
+                s.label?.let { addProperty("label", it) }
+                s.messageId?.let { addProperty("messageId", it) }
+                s.answer?.let { addProperty("answer", it) }
+                s.guests?.let { addProperty("guests", it) }
+                s.otherUserId?.let { addProperty("asUserId", it) }
             }
         } ?: JsonNull.INSTANCE)
         add("reactions", ChatJsonPatch.reactions(JsonObject(), m.reactions).get("reactions"))
@@ -96,6 +104,12 @@ object ChatSerializer {
                 v.height?.let { addProperty("height", it) }
             })
         }
+        m.poll?.let { add("poll", ChatJson14.writePoll(it)) }
+        m.event?.let { add("event", ChatJson14.writeEventInfo(it)) }
+        m.arrival?.let { add("arrival", ChatJson14.writeArrival(it)) }
+        m.action?.let { add("action", ChatJson14.writeAction(it)) }
+        m.card?.let { add("card", ChatJson14.writeCard(it)) }
+        m.replyStory?.let { add("replyStory", ChatJson14.writeReplyStory(it)) }
     }
 
     fun conversation(c: ChatConversation): JsonObject = JsonObject().apply {
@@ -140,7 +154,11 @@ object ChatSerializer {
             addProperty("manageMembers", c.can.manageMembers)
             addProperty("leave", c.can.leave)
             addProperty("setDisappearing", c.can.setDisappearing)
+            addProperty("pin", c.can.pin)
         })
+        if (c.archived) addProperty("archived", true)
+        if (c.pinned.isNotEmpty()) add("pinned", ids(c.pinned))
+        c.nextEvent?.let { add("nextEvent", ChatJson14.writeNextEvent(it)) }
     }
 
     fun profile(p: ChatProfile): JsonObject = JsonObject().apply {
@@ -152,6 +170,15 @@ object ChatSerializer {
             addProperty("readReceipts", p.prefs.readReceipts)
             addProperty("typing", p.prefs.typing)
             addProperty("preview", p.prefs.preview)
+            ChatJson14.writePrefs14(this, p.prefs14)
+        })
+        p.status?.let { add("status", ChatJson14.writeStatus(it)) }
+        add("integrations", JsonObject().apply {
+            add("familie", JsonObject().apply {
+                addProperty("lists", p.familie.lists)
+                addProperty("calendar", p.familie.calendar)
+                addProperty("places", p.familie.places)
+            })
         })
         p.licensed?.let { l -> add("license", JsonObject().apply { addProperty("licensed", l) }) }
         add("features", JsonObject().apply {
@@ -185,6 +212,7 @@ object ChatSerializer {
             addProperty("typingEveryS", l.typingEveryS)
             addProperty("activeS", l.activeS)
             add("disappearingS", JsonArray().apply { l.disappearingS.forEach { add(it) } })
+            ChatJson14.writeUsage(this, l.usage)
         })
         put("serverTime", p.serverTime)
     }

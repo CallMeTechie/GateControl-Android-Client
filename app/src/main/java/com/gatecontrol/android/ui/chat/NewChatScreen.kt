@@ -89,14 +89,26 @@ class NewChatViewModel @Inject constructor(private val repository: ChatRepositor
 
     fun openDirect(peerId: Long) = act { repository.openDirect(peerId) }
 
-    fun createGroup(title: String, ids: List<Long>) = act { repository.createGroup(title.trim(), ids) }
+    private var pendingIds: List<Long> = emptyList()
+    private val skippedCh = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.BUFFERED)
+    /** Some picked people were left out (their `groupAdd` privacy). */
+    val skipped = skippedCh.receiveAsFlow()
+
+    fun createGroup(title: String, ids: List<Long>) {
+        pendingIds = ids
+        act { repository.createGroup(title.trim(), ids) }
+    }
 
     private fun act(block: suspend () -> ChatResult<com.gatecontrol.android.chat.ChatConversation>) {
         if (_state.value.busy) return
         viewModelScope.launch {
             _state.value = _state.value.copy(busy = true, error = null)
             when (val r = block()) {
-                is ChatResult.Ok -> opened.trySend(r.value.id)
+                is ChatResult.Ok -> {
+                    // Messenger 1.4: people whose privacy keeps them out of groups are left out.
+                    if (r.value.isGroup && pendingIds.any { id -> r.value.members.none { it.userId == id } }) skippedCh.trySend(Unit)
+                    opened.trySend(r.value.id)
+                }
                 is ChatResult.Failed -> _state.value = _state.value.copy(error = r.code)
                 else -> _state.value = _state.value.copy(error = "offline")
             }
@@ -126,6 +138,9 @@ fun NewChatScreen(
     var picked by rememberSaveable { mutableStateOf(listOf<Long>()) }
 
     LaunchedEffect(Unit) { viewModel.open.collect { onOpened(it) } }
+    val ctxSkipped = androidx.compose.ui.platform.LocalContext.current
+    val skippedText = androidx.compose.ui.res.stringResource(R.string.chat_err_skipped)
+    LaunchedEffect(Unit) { viewModel.skipped.collect { android.widget.Toast.makeText(ctxSkipped, skippedText, android.widget.Toast.LENGTH_LONG).show() } }
 
     val visible = state.people.filter { p -> query.isBlank() || (p.name ?: "").contains(query.trim(), ignoreCase = true) }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

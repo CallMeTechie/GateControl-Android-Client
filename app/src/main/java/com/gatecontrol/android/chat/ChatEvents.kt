@@ -63,6 +63,19 @@ sealed interface ChatEvent {
 
     data class ConversationRemove(override val conversationId: Long) : ChatEvent
 
+    /** Messenger 1.4: the caller's lists or reminders changed on another device. */
+    data class AccountChanged(val type: String) : ChatEvent {
+        override val conversationId: Long get() = 0L
+    }
+
+    /**
+     * Messenger 1.4: a person's status or stories changed (`status.update`,
+     * `story.new`, `story.remove`) — no conversation ([conversationId] 0).
+     */
+    data class StatusChanged(val userId: Long, val storyId: String?, val type: String) : ChatEvent {
+        override val conversationId: Long get() = 0L
+    }
+
     companion object {
         const val REASON_DELETED = "deleted"
         const val REASON_RELEASED = "released"
@@ -72,6 +85,8 @@ sealed interface ChatEvent {
 /** Pure: `{ plugin, type, data }` of the messenger → [ChatEvent]; anything else null. Unit-tested. */
 object ChatEvents {
 
+    private val STATUS_TYPES = setOf("status.update", "story.new", "story.remove")
+    private val ACCOUNT_TYPES = setOf("lists.update", "reminders.update")
     private val DELETE_REASONS = setOf("deleted", "hidden", "expired", "retention")
     private val REASON_RE = Regex("^[a-z_]{1,32}$")
     /** "schreibt …" never shows longer than this, whatever the server says. */
@@ -80,6 +95,11 @@ object ChatEvents {
     fun parse(plugin: String, type: String, data: JsonElement?, nowMs: Long = System.currentTimeMillis()): ChatEvent? {
         if (plugin != MESSENGER_PLUGIN) return null
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        // Messenger 1.4: status and stories belong to a person, not to a conversation.
+        if (type in ACCOUNT_TYPES) return ChatEvent.AccountChanged(type)
+        if (type in STATUS_TYPES) {
+            return ChatEvent.StatusChanged(o.id("userId") ?: return null, ChatJson14.pathKey(ChatJson14.keyOf(o.get("storyId"))), type)
+        }
         val conv = o.id("conversationId") ?: return null
         return when (type) {
             "message.new" -> ChatEvent.MessageNew(
@@ -89,6 +109,8 @@ object ChatEvents {
                 clientId = o.str("clientId")?.takeIf { ChatJson.isClientId(it) },
             )
             "message.update" -> ChatEvent.MessageUpdate(conv, o.id("messageId") ?: return null)
+            // Messenger 1.4: a poll's votes, an event's answers, a live arrival moved — the message changed.
+            "poll.update", "event.update", "arrival.update", "action.update" -> ChatEvent.MessageUpdate(conv, o.id("messageId") ?: return null)
             "message.delete" -> {
                 val ids = o.get("messageIds")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { ChatJson.idOf(it) }?.distinct()?.take(500)
                     ?: return null

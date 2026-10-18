@@ -148,6 +148,35 @@ class ChatMediaStore @Inject constructor(
         }
     }
 
+    /**
+     * Messenger 1.4 "Speicher und Daten": bytes of the downloaded files per
+     * kind (photos, videos, voice, other files — told apart by their first
+     * bytes) and of the outbox.
+     */
+    suspend fun usage(): ChatStorageUsage = withContext(Dispatchers.IO) {
+        var photos = 0L
+        var videos = 0L
+        var voice = 0L
+        var files = 0L
+        cacheDir.listFiles()?.filter { it.isFile }?.forEach { f ->
+            val head = runCatching { f.inputStream().use { s -> ByteArray(16).also { b -> s.read(b) } } }.getOrNull() ?: ByteArray(0)
+            when (ChatStorageLogic.kindOf(head)) {
+                ChatStorageLogic.PHOTO -> photos += f.length()
+                ChatStorageLogic.VIDEO -> videos += f.length()
+                ChatStorageLogic.VOICE -> voice += f.length()
+                else -> files += f.length()
+            }
+        }
+        val outbox = outboxDir.listFiles()?.sumOf { it.length() } ?: 0L
+        ChatStorageUsage(photos, videos, voice, files, outbox)
+    }
+
+    /** Removes every downloaded file (they load again when shown). */
+    suspend fun clearCache() = withContext(Dispatchers.IO) {
+        cacheDir.listFiles()?.forEach { it.delete() }
+        memory.evictAll()
+    }
+
     /** A file just uploaded as [mediaId]: kept as its download (no round trip to show it). */
     fun prime(mediaId: String, source: File) {
         val id = ChatJson.mediaId(mediaId) ?: return

@@ -136,7 +136,10 @@ class ChatJsonTest {
             ),
         )!!
         assertTrue(page.hasMore)
-        assertEquals(listOf(10L, 11L, 12L, 13L, 15L), page.messages.map { it.id })
+        // An unknown kind (a newer messenger) is kept and shown as "needs a newer app"; a bad location is dropped.
+        assertEquals(listOf(10L, 11L, 12L, 13L, 14L, 15L), page.messages.map { it.id })
+        assertTrue(page.messages[4].isUnknownKind)
+        assertNull(page.messages[5].location)
         val t = page.messages[0]
         assertEquals("Hallo\nWelt", t.text)
         assertEquals("abcdefgh12", t.clientId)

@@ -10,6 +10,11 @@ import com.gatecontrol.android.chat.ChatJump
 import com.gatecontrol.android.chat.ChatLocation
 import com.gatecontrol.android.chat.ChatMediaStore
 import com.gatecontrol.android.chat.ChatMessage
+import com.gatecontrol.android.chat.actions
+import com.gatecontrol.android.chat.arrival
+import com.gatecontrol.android.chat.events
+import com.gatecontrol.android.chat.msgTools
+import com.gatecontrol.android.chat.polls
 import com.gatecontrol.android.chat.ChatMime
 import com.gatecontrol.android.chat.ChatPreview
 import com.gatecontrol.android.chat.ChatProfile
@@ -77,6 +82,10 @@ sealed interface ConversationNotice {
     data class Location(val result: LocateResult) : ConversationNotice
     data object RecordingFailed : ConversationNotice
     data object Left : ConversationNotice
+    /** Messenger 1.4: a short confirmation (string resource). */
+    data class Done(val res: Int, val arg: String? = null) : ConversationNotice
+    /** A live arrival was sent: start sharing the position. */
+    data class ArrivalStarted(val messageId: Long, val label: String) : ConversationNotice
 }
 
 /**
@@ -91,7 +100,18 @@ class ConversationViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: ChatRepository,
     private val media: ChatMediaStore,
+    private val extras: com.gatecontrol.android.chat.ChatExtrasRepository,
+    private val device: com.gatecontrol.android.chat.ChatDeviceSettings,
 ) : ViewModel() {
+
+    /** Messenger 1.4: home actions, Familie places and this device's chat settings. */
+    val homeActions: StateFlow<List<com.gatecontrol.android.chat.ChatHomeAction>?> = extras.actions
+    val places: StateFlow<List<com.gatecontrol.android.chat.ChatPlace>?> = extras.places
+    val deviceConfig: StateFlow<com.gatecontrol.android.chat.ChatDeviceConfig> = device.config
+    val wallpaperFile: File get() = device.wallpaperFile
+    private val _richBusy = MutableStateFlow(false)
+    /** A poll, event, arrival or action is being sent (its editor waits). */
+    val richBusy: StateFlow<Boolean> = _richBusy
 
     private val id = MutableStateFlow<Long?>(null)
     private val hasOlder = MutableStateFlow(true)
@@ -307,7 +327,13 @@ class ConversationViewModel @Inject constructor(
 
     private fun sendPictures(uris: List<Uri>, caption: String?) {
         val cid = id.value ?: return
-        val limits = uiState.value.profile?.limits
+        // Messenger 1.4 settings: "Original" sends pictures unchanged as files.
+        val side = com.gatecontrol.android.chat.ChatQuality.maxSide(device.config.value.sendQuality, uiState.value.profile?.limits?.imageMaxSide ?: 2048)
+        if (side == null && uiState.value.profile?.features?.files != false) {
+            sendFiles(uris, caption)
+            return
+        }
+        val limits = uiState.value.profile?.limits?.let { l -> side?.let { l.copy(imageMaxSide = it) } ?: l }
         val reply = replyTo.value?.id
         replyTo.value = null
         viewModelScope.launch {
@@ -544,6 +570,109 @@ class ConversationViewModel @Inject constructor(
     fun closeSearch() {
         search.value = null
     }
+
+    // ─── Messenger 1.4 ──────────────────────────────────────────────
+
+    fun loadExtras() {
+        viewModelScope.launch { if (uiState.value.profile?.features?.actions == true) extras.refreshActions() }
+        // Familie places only when Familie offers them (`integrations.familie.places`).
+        viewModelScope.launch { if (uiState.value.profile?.familie?.places != false) extras.refreshPlaces() }
+    }
+
+    private fun after(r: ChatResult<*>, done: Int? = null) {
+        if (r is ChatResult.Ok) done?.let { notices.trySend(ConversationNotice.Done(it)) }
+        else notices.trySend(ConversationNotice.Error(codeOf(r)))
+    }
+
+    private fun richSend(block: suspend () -> ChatResult<ChatMessage>, onOk: (ChatMessage) -> Unit = {}) {
+        if (_richBusy.value) return
+        _richBusy.value = true
+        viewModelScope.launch {
+            try {
+                val r = block()
+                if (r is ChatResult.Ok) onOk(r.value) else notices.trySend(ConversationNotice.Error(codeOf(r)))
+            } finally {
+                _richBusy.value = false
+            }
+        }
+    }
+
+    fun sendPoll(question: String, options: List<String>, multi: Boolean, anonymous: Boolean, allowAdd: Boolean, closesAtMs: Long?, onDone: () -> Unit) {
+        val cid = id.value ?: return
+        richSend({ extras.sendPoll(cid, question, options, multi, anonymous, allowAdd, closesAtMs?.let { java.time.Instant.ofEpochMilli(it).toString() }) }) { onDone() }
+    }
+
+    fun sendEvent(d: EventDraft, onDone: () -> Unit) {
+        val cid = id.value ?: return
+        val body = com.gatecontrol.android.chat.ChatJson14.eventSendBody(
+            d.title, java.time.Instant.ofEpochMilli(d.startsAtMs).toString(), d.endsAtMs?.let { java.time.Instant.ofEpochMilli(it).toString() },
+            d.allDay, d.place, d.description, d.checklist, d.rsvp, d.guests, d.reminderMin, d.familyCalendar, d.departureHint,
+        )
+        richSend({ extras.sendEvent(cid, body) }) { onDone() }
+    }
+
+    fun sendArrival(dest: com.gatecontrol.android.chat.ChatEventPlace, onArrive: com.gatecontrol.android.chat.ChatHomeAction?, onDone: () -> Unit) {
+        val cid = id.value ?: return
+        richSend({ extras.sendArrival(cid, dest, onArrive?.id, onArrive?.plugin) }) { m ->
+            onDone()
+            notices.trySend(ConversationNotice.ArrivalStarted(m.id, dest.label))
+        }
+    }
+
+    fun sendAction(mode: String, action: com.gatecontrol.android.chat.ChatHomeAction, grantTo: Long?, untilMs: Long?, onDone: () -> Unit) {
+        val cid = id.value ?: return
+        richSend({ extras.sendAction(cid, mode, action, grantTo, untilMs?.let { java.time.Instant.ofEpochMilli(it).toString() }) }) { onDone() }
+    }
+
+    fun vote(m: ChatMessage, optionIds: List<String>) = viewModelScope.launch { after(extras.vote(m, optionIds)) }
+    fun addOption(m: ChatMessage, text: String) = viewModelScope.launch { after(extras.addOption(m, text)) }
+    fun closePoll(m: ChatMessage) = viewModelScope.launch { after(extras.closePoll(m)) }
+    fun nudge(m: ChatMessage) = viewModelScope.launch { after(extras.nudge(m), com.gatecontrol.android.R.string.chat_poll_nudged) }
+    fun rsvp(m: ChatMessage, answer: String?, guests: Int?) = viewModelScope.launch { after(extras.rsvp(m, answer, guests)) }
+    fun checklist(m: ChatMessage, itemId: String, done: Boolean) = viewModelScope.launch { after(extras.checklist(m, itemId, done)) }
+    fun cancelEvent(m: ChatMessage) = viewModelScope.launch { after(extras.cancelEvent(m)) }
+    fun stopArrival(m: ChatMessage) = viewModelScope.launch { after(extras.arrivalStop(m.conversationId, m.id)) }
+    /** A run that answered `result.ok: false` shows the target's message. */
+    private fun afterRun(r: ChatResult<com.gatecontrol.android.chat.ChatRunResult>) {
+        if (r is ChatResult.Ok) {
+            if (r.value.ok == false) notices.trySend(ConversationNotice.Done(com.gatecontrol.android.R.string.chat_action_failed, r.value.text ?: "–"))
+        } else {
+            notices.trySend(ConversationNotice.Error(codeOf(r)))
+        }
+    }
+
+    fun actionRun(m: ChatMessage) = viewModelScope.launch { afterRun(extras.actionRun(m)) }
+    fun actionApprove(m: ChatMessage) = viewModelScope.launch { afterRun(extras.actionApprove(m)) }
+    fun actionDeny(m: ChatMessage) = viewModelScope.launch { afterRun(extras.actionDeny(m)) }
+    fun cardButton(m: ChatMessage, b: com.gatecontrol.android.chat.ChatCardButton) = viewModelScope.launch { afterRun(extras.actionRun(m, b.actionId, b.plugin)) }
+
+    /** A plugin card's picture. */
+    suspend fun cardImage(m: ChatMessage): String? = extras.cardImage(m.id)
+
+    fun pin(m: ChatMessage, pin: Boolean) = viewModelScope.launch { after(extras.pin(m.conversationId, m.id, pin)) }
+
+    fun remind(m: ChatMessage, atMs: Long) = viewModelScope.launch {
+        after(extras.remind(m.id, java.time.Instant.ofEpochMilli(atMs).toString()), com.gatecontrol.android.R.string.chat_remind_done)
+    }
+
+    suspend fun suggest(m: ChatMessage): com.gatecontrol.android.chat.ChatSuggestion? = (extras.suggest(m.id) as? ChatResult.Ok)?.value
+
+    fun toList(m: ChatMessage, items: List<String>) = viewModelScope.launch { after(extras.toList(m.id, items), com.gatecontrol.android.R.string.chat_suggest_list_done) }
+
+    fun toCalendar(m: ChatMessage, date: com.gatecontrol.android.chat.ChatSuggestedDate) =
+        viewModelScope.launch { after(extras.toCalendar(m.id, date, m.text?.lineSequence()?.firstOrNull()?.take(60) ?: ""), com.gatecontrol.android.R.string.chat_suggest_calendar_done) }
+
+    /** Whether the device is on WLAN now (automatic downloads). */
+    fun unmetered(): Boolean = device.unmetered()
+
+    /** Loads a file ahead (automatic download "Alle Medien"). */
+    fun prefetch(mediaId: String) {
+        if (media.cached(mediaId) != null) return
+        viewModelScope.launch { media.file(mediaId) }
+    }
+
+    /** Sounds in the open chat (this device's setting). */
+    fun soundsOn(): Boolean = device.config.value.sounds
 
     private fun codeOf(r: ChatResult<*>): String? = when (r) {
         is ChatResult.Failed -> r.code

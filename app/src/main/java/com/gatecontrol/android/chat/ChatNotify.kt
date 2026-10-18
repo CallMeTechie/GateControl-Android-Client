@@ -30,6 +30,11 @@ data class ChatPushPayload(
     val readLabel: String?,
     /** The `mark_read` body (`{ upTo }`), as JSON text. */
     val readBody: String?,
+    /**
+     * Messenger 1.4: what the tap opens beyond the chat (`data.open`):
+     * `arrival` (a departure hint: share the arrival), else the message.
+     */
+    val open: String? = null,
 )
 
 /** One message line of a conversation's notification. */
@@ -57,6 +62,9 @@ data class ChatNotifConversation(
     val readLabel: String?,
     val readBody: String?,
     val lines: List<ChatNotifLine>,
+    /** The newest pushed message (a tap jumps to it) and what to open with it. */
+    val messageId: Long? = null,
+    val open: String? = null,
 ) {
     /** Seqs of the pushes shown (what `read` acks name). */
     val seqs: List<Long> get() = lines.filter { !it.mine && it.seq > 0 }.map { it.seq }
@@ -110,8 +118,15 @@ object ChatNotifyLogic {
             readPath = readPath,
             readLabel = readLabel,
             readBody = readBody,
+            // `deepLink` (Messenger 1.4: `arrival` for a departure hint), `open` as an alias.
+            open = (data.str("deepLink") ?: data.str("open"))?.takeIf { it in OPEN_TARGETS },
         )
     }
+
+    /** `data.open` values of Messenger 1.4 pushes the app acts on. */
+    val OPEN_TARGETS = setOf(OPEN_ARRIVAL, OPEN_MESSAGE)
+    const val OPEN_ARRIVAL = "arrival"
+    const val OPEN_MESSAGE = "message"
 
     /** The conversation id in `conversations/<id>/…`. */
     fun pathConversation(path: String): Long? = path.split('/').getOrNull(1)?.toLongOrNull()
@@ -130,6 +145,8 @@ object ChatNotifyLogic {
             readLabel = payload.readLabel ?: current?.readLabel,
             readBody = payload.readBody ?: current?.readBody,
             lines = lines,
+            messageId = payload.messageId ?: current?.messageId,
+            open = payload.open,
         )
     }
 
@@ -156,6 +173,8 @@ object ChatNotifyLogic {
                 c.readPath?.let { addProperty("readPath", it) }
                 c.readLabel?.let { addProperty("readLabel", it) }
                 c.readBody?.let { addProperty("readBody", it) }
+                c.messageId?.let { addProperty("messageId", it) }
+                c.open?.let { addProperty("open", it) }
                 add("lines", JsonArray().apply {
                     c.lines.forEach { l ->
                         add(JsonObject().apply {
@@ -205,6 +224,8 @@ object ChatNotifyLogic {
                 readLabel = o.str("readLabel"),
                 readBody = o.str("readBody"),
                 lines = lines.takeLast(MAX_LINES),
+                messageId = o.id("messageId"),
+                open = o.str("open")?.takeIf { it in OPEN_TARGETS },
             )
         }
         return out

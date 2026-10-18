@@ -22,6 +22,11 @@ data class ChatPerson(
     val colorHex: String?,
     val gone: Boolean = false,
     val role: String? = null,
+    /** Messenger 1.4 (`privacy2`): online now / last active — only when that person shares it. */
+    val online: Boolean? = null,
+    val lastSeenAt: String? = null,
+    /** Messenger 1.4: the caller blocked this person (the peer of a direct chat). */
+    val blocked: Boolean = false,
 ) {
     val isAdmin: Boolean get() = role == ROLE_ADMIN
 
@@ -57,6 +62,8 @@ data class ChatCan(
     val manageMembers: Boolean,
     val leave: Boolean,
     val setDisappearing: Boolean,
+    /** Messenger 1.4: may pin messages. */
+    val pin: Boolean = true,
 )
 
 data class ChatReceipt(val userId: Long, val lastReadId: Long?, val lastDeliveredId: Long?)
@@ -86,6 +93,12 @@ data class ChatConversation(
     val deliveredUpTo: Long?,
     val receipts: List<ChatReceipt>,
     val can: ChatCan,
+    /** Messenger 1.4 (`msg_tools`): archived by the caller. */
+    val archived: Boolean = false,
+    /** Messenger 1.4 (`msg_tools`): pinned message ids (≤ 3, oldest first). */
+    val pinned: List<Long> = emptyList(),
+    /** Messenger 1.4 (`events`): the soonest upcoming event. */
+    val nextEvent: ChatNextEvent? = null,
 ) {
     val isGroup: Boolean get() = kind == KIND_GROUP
 
@@ -137,6 +150,15 @@ data class ChatSystem(
     val userIds: List<Long> = emptyList(),
     val userId: Long? = null,
     val seconds: Int? = null,
+    /** Messenger 1.4: a label the event names (place, action, option). */
+    val label: String? = null,
+    /** Messenger 1.4: the message the event belongs to (a poll, an arrival). */
+    val messageId: Long? = null,
+    /** Messenger 1.4: `rsvp` answer (yes | maybe | no) and guests. */
+    val answer: String? = null,
+    val guests: Int? = null,
+    /** Messenger 1.4: `action_run` as another person (a grant), `action_denied` the requester. */
+    val otherUserId: Long? = null,
 )
 
 /** One message. Ids are server ids; [clientId] the sender's idempotency key. */
@@ -165,8 +187,18 @@ data class ChatMessage(
     val status: String?,
     /** Video files only (servers with `video_meta`). */
     val video: ChatVideo? = null,
+    // Messenger 1.4 kinds and fields.
+    val poll: ChatPoll? = null,
+    val event: ChatEventInfo? = null,
+    val arrival: ChatArrival? = null,
+    val action: ChatActionCard? = null,
+    val card: ChatPluginCard? = null,
+    val replyStory: ChatReplyStory? = null,
 ) {
     val isSystem: Boolean get() = kind == KIND_SYSTEM
+
+    /** A kind this app does not know (a newer messenger): shown as "needs a newer app". */
+    val isUnknownKind: Boolean get() = kind !in KNOWN_KINDS
 
     /** A file message carrying a video (`kind` stays `file`). */
     val isVideo: Boolean get() = kind == KIND_FILE && media?.mime?.startsWith("video/") == true
@@ -181,6 +213,16 @@ data class ChatMessage(
         const val KIND_FILE = "file"
         const val KIND_LOCATION = "location"
         const val KIND_SYSTEM = "system"
+        const val KIND_POLL = "poll"
+        const val KIND_EVENT = "event"
+        const val KIND_ARRIVAL = "arrival"
+        const val KIND_ACTION = "action"
+        const val KIND_CARD = "card"
+
+        val KNOWN_KINDS: Set<String> = setOf(
+            KIND_TEXT, KIND_IMAGE, KIND_VOICE, KIND_FILE, KIND_LOCATION, KIND_SYSTEM,
+            KIND_POLL, KIND_EVENT, KIND_ARRIVAL, KIND_ACTION, KIND_CARD,
+        )
 
         const val STATUS_SENT = "sent"
         const val STATUS_DELIVERED = "delivered"
@@ -264,6 +306,8 @@ data class ChatLimits(
     val typingEveryS: Int = 3,
     val activeS: Int = 30,
     val disappearingS: List<Int> = listOf(0, 86_400, 604_800, 2_592_000),
+    /** Messenger 1.4: the caller's storage on the server, when sent. */
+    val usage: ChatUsage? = null,
 )
 
 /** `GET me`: who the caller is and what the server allows. */
@@ -275,6 +319,12 @@ data class ChatProfile(
     val features: ChatFeatures,
     val limits: ChatLimits,
     val serverTime: String?,
+    /** Messenger 1.4: privacy, notify and chat preferences. */
+    val prefs14: ChatPrefs14 = ChatPrefs14(),
+    /** Messenger 1.4 (`status`): the caller's own status, when `me` carries it. */
+    val status: ChatStatus? = null,
+    /** Messenger 1.4: what the Familie plugin offers (lists, calendar, places). */
+    val familie: ChatFamilie = ChatFamilie(),
 )
 
 /** `GET conversations/:id/search`. */

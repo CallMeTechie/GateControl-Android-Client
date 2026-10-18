@@ -58,6 +58,9 @@ fun ChatsTwoPane(
     onOpenUpdates: () -> Unit,
     onOpenInfo: (Long) -> Unit,
     onOpenImage: (String) -> Unit,
+    onOpenSettings: () -> Unit = {},
+    onOpenStory: (Long) -> Unit = {},
+    onOpenStoryComposer: () -> Unit = {},
 ) {
     var selected by rememberSaveable(initial) { mutableStateOf(initial) }
     // The conversation picked for what was shared from another app (a sharing shortcut: that chat).
@@ -89,6 +92,9 @@ fun ChatsTwoPane(
                 onNewChat = onNewChat,
                 onOpenUpdates = onOpenUpdates,
                 selectedId = selected,
+                onOpenSettings = onOpenSettings,
+                onOpenStory = onOpenStory,
+                onOpenStoryComposer = onOpenStoryComposer,
             )
         },
         detail = {
@@ -103,6 +109,7 @@ fun ChatsTwoPane(
                         onOpenInfo = { onOpenInfo(id) },
                         onOpenImage = onOpenImage,
                         share = shareFor == id,
+                        onOpenUpdates = onOpenUpdates,
                     )
                 }
             }

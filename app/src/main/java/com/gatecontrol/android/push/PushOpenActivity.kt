@@ -45,7 +45,10 @@ class PushOpenActivity : ComponentActivity() {
         if (intent.hasExtra(EXTRA_CHAT)) {
             val conv = intent.getLongExtra(EXTRA_CHAT, 0L).takeIf { it > 0 }
             conv?.let { chatNotifier.conversationRead(it) }
-            PushNavigation.request(PushNavTarget.Chat(conv))
+            // Messenger 1.4: the pushed message (poll, event, reminder, …) and what to open with it.
+            val message = intent.getLongExtra(EXTRA_CHAT_MESSAGE, 0L).takeIf { it > 0 && conv != null }
+            val open = intent.getStringExtra(EXTRA_CHAT_OPEN)?.takeIf { it in com.gatecontrol.android.chat.ChatNotifyLogic.OPEN_TARGETS }
+            PushNavigation.request(PushNavTarget.Chat(conv, message, open))
             startActivity(
                 Intent(this, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
@@ -116,11 +119,15 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_FAMILIE_DEST = "com.gatecontrol.android.push.extra.FAMILIE_DEST"
         private const val EXTRA_DOOR_DEST = "com.gatecontrol.android.push.extra.DOOR_DEST"
         private const val EXTRA_CHAT = "com.gatecontrol.android.push.extra.CHAT"
+        private const val EXTRA_CHAT_MESSAGE = "com.gatecontrol.android.push.extra.CHAT_MESSAGE"
+        private const val EXTRA_CHAT_OPEN = "com.gatecontrol.android.push.extra.CHAT_OPEN"
 
         /** Opens the chats, in [conversationId] when given (a chat notification). */
-        fun chatIntent(context: Context, conversationId: Long?): Intent =
+        fun chatIntent(context: Context, conversationId: Long?, messageId: Long? = null, open: String? = null): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_CHAT, conversationId ?: 0L)
+                .putExtra(EXTRA_CHAT_MESSAGE, messageId ?: 0L)
+                .apply { open?.let { putExtra(EXTRA_CHAT_OPEN, it) } }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
 
         /** Opens "Mitteilungen" (the widget's bell). */
