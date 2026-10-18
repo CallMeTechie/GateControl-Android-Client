@@ -372,10 +372,11 @@ class ChatApi @Inject constructor(
 
     suspend fun nudge(messageId: Long) = messagePost("messages/$messageId/nudge")
 
-    suspend fun rsvp(messageId: Long, answer: String, guests: Int?) = messagePost(
+    /** [answer] null withdraws the answer. */
+    suspend fun rsvp(messageId: Long, answer: String?, guests: Int?) = messagePost(
         "messages/$messageId/rsvp",
         JsonObject().apply {
-            addProperty("answer", answer)
+            if (answer == null) addNull("answer") else addProperty("answer", answer)
             guests?.let { addProperty("guests", it.coerceIn(0, 99)) }
         },
     )

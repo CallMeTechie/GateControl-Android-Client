@@ -187,4 +187,20 @@
         <item quantity="one">%d Std. vorher</item>
         <item quantity="other">%d Std. vorher</item>
     </plurals>
+    <string name="chat_remind_done">Ich erinnere dich.</string>
+    <string name="chat_suggest_list_done">Auf die Einkaufsliste gesetzt</string>
+    <string name="chat_suggest_calendar_done">In den Kalender eingetragen</string>
+    <string name="chat_pin">Anheften</string>
+    <string name="chat_unpin">Lösen</string>
+    <string name="chat_pinned_title">Angeheftet</string>
+    <string name="chat_pinned_count">%1$d von %2$d</string>
+    <string name="chat_suggest_list">Auf Einkaufsliste</string>
+    <string name="chat_suggest_calendar">Termin anlegen</string>
+    <string name="chat_suggest_hint">Grün markiert: erkennt Einkaufsdinge und Termine im Text und legt sie direkt in der Familie an – die Erkennung läuft auf deinem Server, nicht in der Cloud.</string>
+    <string name="chat_remind_me">Erinnere mich</string>
+    <string name="chat_jump_message">Nachricht zeigen</string>
+    <plurals name="chat_suggest_items">
+        <item quantity="one">%d PUNKT</item>
+        <item quantity="other">%d PUNKTE</item>
+    </plurals>
 </resources>

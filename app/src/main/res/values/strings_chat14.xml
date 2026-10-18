@@ -187,4 +187,20 @@
         <item quantity="one">%d hour before</item>
         <item quantity="other">%d hours before</item>
     </plurals>
+    <string name="chat_remind_done">I’ll remind you.</string>
+    <string name="chat_suggest_list_done">Added to the shopping list</string>
+    <string name="chat_suggest_calendar_done">Added to the calendar</string>
+    <string name="chat_pin">Pin</string>
+    <string name="chat_unpin">Unpin</string>
+    <string name="chat_pinned_title">Pinned</string>
+    <string name="chat_pinned_count">%1$d of %2$d</string>
+    <string name="chat_suggest_list">Add to shopping list</string>
+    <string name="chat_suggest_calendar">Create appointment</string>
+    <string name="chat_suggest_hint">Green: shopping items and dates found in the text go straight into Familie – recognised on your server, not in the cloud.</string>
+    <string name="chat_remind_me">Remind me</string>
+    <string name="chat_jump_message">Show message</string>
+    <plurals name="chat_suggest_items">
+        <item quantity="one">%d ITEM</item>
+        <item quantity="other">%d ITEMS</item>
+    </plurals>
 </resources>

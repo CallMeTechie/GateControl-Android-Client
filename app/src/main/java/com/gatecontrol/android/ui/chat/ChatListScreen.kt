@@ -478,7 +478,7 @@ fun ChatPrefsDialog(
 }
 
 /** The app's page in the Play Store (Google Play build: updates come from Play only). */
-private fun openPlayStore(context: android.content.Context) {
+internal fun openPlayStore(context: android.content.Context) {
     val id = context.packageName
     val market = android.content.Intent(android.content.Intent.ACTION_VIEW, "market://details?id=$id".toUri())
         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)

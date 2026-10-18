@@ -539,6 +539,7 @@ fun AppNavigation(
                         onBack = { if (!navController.popBackStack()) navigateToTab(Screen.Chats.create()) },
                         onOpenInfo = { navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
                         onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
+                        onOpenUpdates = openSettings,
                     )
                 }
             }

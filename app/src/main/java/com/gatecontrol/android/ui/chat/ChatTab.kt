@@ -103,6 +103,7 @@ fun ChatsTwoPane(
                         onOpenInfo = { onOpenInfo(id) },
                         onOpenImage = onOpenImage,
                         share = shareFor == id,
+                        onOpenUpdates = onOpenUpdates,
                     )
                 }
             }

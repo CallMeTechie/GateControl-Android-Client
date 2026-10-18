@@ -342,8 +342,8 @@ class ChatExtrasRepository @Inject constructor(
 
     suspend fun sendEvent(conversationId: Long, event: JsonObject) = sendStructured(conversationId, ChatMessage.KIND_EVENT, "event", event)
 
-    suspend fun sendArrival(conversationId: Long, dest: ChatEventPlace, onArriveActionId: String?) =
-        sendStructured(conversationId, ChatMessage.KIND_ARRIVAL, "arrival", ChatJson14.arrivalSendBody(dest, onArriveActionId))
+    suspend fun sendArrival(conversationId: Long, dest: ChatEventPlace, onArriveActionId: String?, onArrivePlugin: String? = null) =
+        sendStructured(conversationId, ChatMessage.KIND_ARRIVAL, "arrival", ChatJson14.arrivalSendBody(dest, onArriveActionId, onArrivePlugin))
 
     suspend fun sendAction(conversationId: Long, mode: String, action: ChatHomeAction, grantTo: Long? = null, until: String? = null) =
         sendStructured(conversationId, ChatMessage.KIND_ACTION, "action", ChatJson14.actionSendBody(mode, action.id, grantTo, until, action.plugin))
@@ -368,7 +368,7 @@ class ChatExtrasRepository @Inject constructor(
 
     suspend fun nudge(m: ChatMessage) = afterMessage(m.conversationId, api.nudge(m.id))
 
-    suspend fun rsvp(m: ChatMessage, answer: String, guests: Int?) = afterMessage(m.conversationId, api.rsvp(m.id, answer, guests))
+    suspend fun rsvp(m: ChatMessage, answer: String?, guests: Int?) = afterMessage(m.conversationId, api.rsvp(m.id, answer, guests))
 
     suspend fun checklist(m: ChatMessage, itemId: String, done: Boolean) = afterMessage(m.conversationId, api.checklist(m.id, itemId, done))
 

@@ -667,9 +667,14 @@ object ChatJson14 {
     }
 
     /** `arrival` of a send body. */
-    fun arrivalSendBody(dest: ChatEventPlace, onArriveActionId: String?): JsonObject = JsonObject().apply {
-        add("dest", writePlace(dest.copy(radiusM = dest.radiusM ?: ChatArrival.DEFAULT_RADIUS_M)))
-        onArriveActionId?.let { add("onArrive", JsonObject().apply { add("actionId", keyElement(it)) }) }
+    fun arrivalSendBody(dest: ChatEventPlace, onArriveActionId: String?, onArrivePlugin: String? = null): JsonObject = JsonObject().apply {
+        add("dest", writePlace(dest.copy(radiusM = (dest.radiusM ?: ChatArrival.DEFAULT_RADIUS_M).coerceIn(30, 5000))))
+        onArriveActionId?.let { id ->
+            add("onArrive", JsonObject().apply {
+                addProperty("actionId", id)
+                onArrivePlugin?.let { addProperty("plugin", it) }
+            })
+        }
     }
 
     /** Body of `POST messages/:id/arrival`. */

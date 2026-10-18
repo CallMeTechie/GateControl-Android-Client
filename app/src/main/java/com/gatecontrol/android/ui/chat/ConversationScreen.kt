@@ -44,16 +44,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.outlined.AddCircleOutline
-import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.ui.draw.paint
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.CircularProgressIndicator
@@ -84,6 +86,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -106,6 +112,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.chat.ChatJump
 import com.gatecontrol.android.chat.ChatMessage
+import com.gatecontrol.android.chat.actions
+import com.gatecontrol.android.chat.arrival
+import com.gatecontrol.android.chat.events
+import com.gatecontrol.android.chat.msgTools
+import com.gatecontrol.android.chat.polls
 import com.gatecontrol.android.chat.ChatMime
 import com.gatecontrol.android.chat.ChatResult
 import com.gatecontrol.android.chat.ChatPending
@@ -142,6 +153,8 @@ fun ConversationScreen(
     onOpenInfo: () -> Unit,
     onOpenImage: (mediaId: String) -> Unit,
     share: Boolean = false,
+    /** Settings with the update check (GitHub build); the Play build opens the store. */
+    onOpenUpdates: () -> Unit = {},
     viewModel: ConversationViewModel = hiltViewModel(key = "conversation-$conversationId"),
 ) {
     LaunchedEffect(conversationId, share) { viewModel.bind(conversationId, share) }
@@ -161,6 +174,25 @@ fun ConversationScreen(
     var searchText by rememberSaveable { mutableStateOf("") }
     var highlight by remember { mutableStateOf<Long?>(null) }
     var confirmDeleteAll by remember { mutableStateOf<ChatMessage?>(null) }
+    // Messenger 1.4.
+    val homeActions by viewModel.homeActions.collectAsStateWithLifecycle()
+    val places by viewModel.places.collectAsStateWithLifecycle()
+    val deviceConfig by viewModel.deviceConfig.collectAsStateWithLifecycle()
+    val richBusy by viewModel.richBusy.collectAsStateWithLifecycle()
+    var showPoll by remember { mutableStateOf(false) }
+    var showEvent by remember { mutableStateOf(false) }
+    var arrivalSheet by remember { mutableStateOf(false) }
+    var arrivalDest by remember { mutableStateOf<com.gatecontrol.android.chat.ChatEventPlace?>(null) }
+    var actionMode by remember { mutableStateOf<String?>(null) }
+    var votersFor by remember { mutableStateOf<ChatMessage?>(null) }
+    var addOptionFor by remember { mutableStateOf<ChatMessage?>(null) }
+    var confirmClosePoll by remember { mutableStateOf<ChatMessage?>(null) }
+    var confirmCancelEvent by remember { mutableStateOf<ChatMessage?>(null) }
+    var confirmRun by remember { mutableStateOf<Pair<ChatMessage, com.gatecontrol.android.chat.ChatCardButton?>?>(null) }
+    var remindFor by remember { mutableStateOf<ChatMessage?>(null) }
+    var pinnedIndex by remember { mutableStateOf(0) }
+    var dismissedEvent by rememberSaveable { mutableStateOf<Long?>(null) }
+    val features14 = state.profile?.features
 
     LifecycleResumeEffect(conversationId) {
         viewModel.setVisible(true)
@@ -207,8 +239,14 @@ fun ConversationScreen(
                 )
                 ConversationNotice.RecordingFailed -> resources.getString(R.string.chat_rec_failed)
                 ConversationNotice.Left -> resources.getString(R.string.chat_left)
+                is ConversationNotice.Done -> resources.getString(n.res)
+                is ConversationNotice.ArrivalStarted -> {
+                    // The position goes out from a foreground service while the arrival is live.
+                    if (DeviceLocator.hasPermission(context)) com.gatecontrol.android.chat.ChatArrivalService.start(context, conversationId, n.messageId, n.label)
+                    null
+                }
             }
-            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+            if (text != null) Toast.makeText(context, text, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -223,9 +261,20 @@ fun ConversationScreen(
         if (atBottom) viewModel.onNewestVisible()
     }
     // A new own message (or new message while at the bottom) scrolls into view.
+    val audio = remember { context.getSystemService(android.media.AudioManager::class.java) }
+    var lastSoundKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(rows.firstOrNull()?.key) {
         if (atBottom || rows.firstOrNull() is TimelineItem.Pending) listState.animateScrollToItem(0)
+        // Messenger 1.4 settings: a short sound for messages sent and received in the open chat.
+        val first = rows.firstOrNull()
+        val key = first?.key
+        if (lastSoundKey != null && key != lastSoundKey && viewModel.soundsOn() && state.loaded) {
+            val incoming = first is TimelineItem.Message && !first.message.mine && !first.message.isSystem
+            if (incoming || first is TimelineItem.Pending) runCatching { audio?.playSoundEffect(android.media.AudioManager.FX_KEY_CLICK, 0.6f) }
+        }
+        lastSoundKey = key
     }
+    LaunchedEffect(features14?.actions, features14?.events, features14?.arrival) { viewModel.loadExtras() }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
         if (uris.isNotEmpty()) {
@@ -270,6 +319,16 @@ fun ConversationScreen(
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) launchCamera() else Toast.makeText(context, R.string.chat_camera_no_permission, Toast.LENGTH_LONG).show()
     }
+    // Live arrival: the location permission first (the same system dialog as for a one-off location).
+    val arrivalPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.any { it }) arrivalSheet = true
+        else Toast.makeText(context, R.string.chat_arrival_permission, Toast.LENGTH_LONG).show()
+    }
+    val openArrival: (com.gatecontrol.android.chat.ChatEventPlace?) -> Unit = { dest ->
+        arrivalDest = dest
+        if (DeviceLocator.hasPermission(context)) arrivalSheet = true
+        else arrivalPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Toast.makeText(context, if (granted) R.string.chat_rec_hold else R.string.chat_rec_no_permission, Toast.LENGTH_LONG).show()
     }
@@ -303,7 +362,7 @@ fun ConversationScreen(
             }
         }
     }
-    val bubbleActions = remember(viewModel) {
+    val bubbleActions = remember(viewModel, state.profile?.features?.arrival) {
         BubbleActions(
             onLongPress = { actionsFor = it },
             onOpenImage = { m -> m.media?.id?.let(onOpenImage) },
@@ -319,7 +378,49 @@ fun ConversationScreen(
             onSeek = { m, f -> viewModel.player.seek("m:${m.id}", f, m.meta?.durationMs ?: 0L) },
             onReact = viewModel::react,
             onQuote = jumpTo,
+            rich = RichActions(
+                onVote = { m, ids -> viewModel.vote(m, ids) },
+                onAddOption = { addOptionFor = it },
+                onShowVoters = { votersFor = it },
+                onClosePoll = { confirmClosePoll = it },
+                onNudge = { viewModel.nudge(it) },
+                onRsvp = { m, a, g -> viewModel.rsvp(m, a, g) },
+                onChecklist = { m, item, done -> viewModel.checklist(m, item, done) },
+                onOpenPlace = { lat, lon, label -> openLocation(context, lat, lon, label) },
+                onCancelEvent = { confirmCancelEvent = it },
+                onShareArrival = { m -> openArrival(m.event?.place) },
+                onStopArrival = { m ->
+                    com.gatecontrol.android.chat.ChatArrivalService.stop(context, m.id)
+                    viewModel.stopArrival(m)
+                },
+                onActionRun = { m -> if (m.action?.needsConfirm == true) confirmRun = m to null else viewModel.actionRun(m) },
+                onActionApprove = { m -> viewModel.actionApprove(m) },
+                onActionDeny = { m -> viewModel.actionDeny(m) },
+                onCardButton = { m, b ->
+                    val route = b.route
+                    when {
+                        // "Live-Bild": the plugin's own screen (the app's route navigation, e.g. the door screen).
+                        route != null -> com.gatecontrol.android.push.PushNavigation.request(com.gatecontrol.android.push.PushNavTarget.forRoute(route, null))
+                        b.needsConfirm -> confirmRun = m to b
+                        else -> viewModel.cardButton(m, b)
+                    }
+                },
+                onUpdateApp = { if (com.gatecontrol.android.update.PlayUpdater.enabled) openPlayStore(context) else onOpenUpdates() },
+                features = RichFeatures(arrival = state.profile?.features?.arrival == true),
+            ),
         )
+    }
+    // Messenger 1.4: what a tapped push names (poll, event, reminder …) and the departure hint.
+    LaunchedEffect(conversationId) {
+        com.gatecontrol.android.chat.ChatDeepLink.pending.collect { t ->
+            if (t?.conversationId != conversationId) return@collect
+            val target = com.gatecontrol.android.chat.ChatDeepLink.take(conversationId) ?: return@collect
+            target.messageId?.let { jumpTo(it) }
+            if (target.open == com.gatecontrol.android.chat.ChatNotifyLogic.OPEN_ARRIVAL && state.profile?.features?.arrival != false) {
+                val ev = target.messageId?.let { id -> state.items.firstNotNullOfOrNull { (it as? TimelineItem.Message)?.message?.takeIf { m -> m.id == id } } }?.event
+                openArrival(ev?.place)
+            }
+        }
     }
 
     Column(
@@ -400,8 +501,41 @@ fun ConversationScreen(
             )
         }
 
+        // ─── Messenger 1.4: pinned messages and the next event ───
+        if (c != null && state.profile?.features?.msgTools == true) {
+            val pinned = com.gatecontrol.android.chat.ChatRichLogic.pinnedMessages(c.pinned, state.items.mapNotNull { (it as? TimelineItem.Message)?.message })
+            if (pinned.isNotEmpty()) {
+                val idx = pinnedIndex.coerceIn(0, pinned.size - 1)
+                val shown = pinned[idx]
+                PinnedBanner(
+                    text = ChatText.content(context, shown, c, myId),
+                    position = if (pinned.size > 1) stringResource(R.string.chat_pinned_count, idx + 1, pinned.size) else null,
+                    onClick = {
+                        jumpTo(shown.id)
+                        pinnedIndex = (idx + 1) % pinned.size
+                    },
+                )
+            }
+        }
+        if (c != null && state.profile?.features?.events == true && com.gatecontrol.android.chat.ChatRichLogic.showNextEvent(c.nextEvent, dismissedEvent, System.currentTimeMillis())) {
+            val next = c.nextEvent!!
+            NextEventBanner(
+                text = stringResource(R.string.chat_event_next, next.title, shortDayTime(context, next.startsAt), next.yesCount),
+                onOpen = { jumpTo(next.messageId) },
+                onDismiss = { dismissedEvent = next.messageId },
+            )
+        }
+
         // ─── messages / search results ───
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        val look = remember(deviceConfig.fontSize, deviceConfig.bubbleColor, extra.isDark) {
+            ChatLookState(
+                fontScale = com.gatecontrol.android.chat.ChatLook.fontScale(deviceConfig.fontSize),
+                ownBubble = deviceConfig.bubbleColor.takeIf { it != com.gatecontrol.android.chat.ChatLook.BUBBLE_DEFAULT }
+                    ?.let { com.gatecontrol.android.chat.ChatLook.BUBBLE_COLORS[it] }?.let { (dark, light) -> androidx.compose.ui.graphics.Color(if (extra.isDark) dark else light) },
+            )
+        }
+        androidx.compose.runtime.CompositionLocalProvider(LocalChatLook provides look) {
+        Box(Modifier.weight(1f).fillMaxWidth().then(chatWallpaper(deviceConfig.wallpaper, viewModel.wallpaperFile, extra.isDark))) {
             val results = state.searchResults
             if (results != null) {
                 SearchResults(results, state, onPick = { m ->
@@ -473,6 +607,7 @@ fun ConversationScreen(
                 }
             }
         }
+        }
 
         // ─── composer ───
         if (c != null && (c.readonly || !c.can.send)) {
@@ -517,6 +652,7 @@ fun ConversationScreen(
                 },
                 editing = state.editing != null,
                 busy = state.busy,
+                enterSends = deviceConfig.enterSends,
                 voice = state.profile?.features?.voice != false,
                 recorder = viewModel.recorder,
                 onSend = { if (viewModel.send(draft)) draft = "" },
@@ -538,11 +674,18 @@ fun ConversationScreen(
 
     if (showAttach) {
         val features = state.profile?.features
-        AttachSheet(
-            files = features?.files != false,
-            location = features?.location != false,
-            camera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) },
-            maxBytes = state.profile?.limits?.maxBytes,
+        val members = c?.members.orEmpty()
+        AttachSheet14(
+            options = AttachOptions(
+                camera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) },
+                files = features?.files != false,
+                location = features?.location != false,
+                polls = features?.polls == true,
+                events = features?.events == true,
+                arrival = features?.arrival == true,
+                actions = features?.actions == true && members.size > 1,
+                maxBytes = state.profile?.limits?.maxBytes,
+            ),
             onGallery = {
                 showAttach = false
                 // Videos are files on the server: offered only where files are.
@@ -563,13 +706,115 @@ fun ConversationScreen(
                 if (DeviceLocator.hasPermission(context)) viewModel.sendLocation()
                 else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
             },
+            onPoll = { showAttach = false; showPoll = true },
+            onEvent = { showAttach = false; showEvent = true },
+            onArrival = { showAttach = false; openArrival(null) },
+            onAction = { mode -> showAttach = false; actionMode = mode },
             onDismiss = { showAttach = false },
         )
     }
 
+    // ─── Messenger 1.4 editors and sheets ───
+    if (showPoll) {
+        PollCreateDialog(
+            busy = richBusy,
+            onSend = { q, opts, multi, anon, add, closes -> viewModel.sendPoll(q, opts, multi, anon, add, closes) { showPoll = false } },
+            onDismiss = { showPoll = false },
+        )
+    }
+    if (showEvent) {
+        EventCreateDialog(
+            places = places,
+            defaultReminderMin = state.profile?.prefs14?.notify?.eventReminderMin ?: 60,
+            arrivalOn = state.profile?.features?.arrival == true,
+            busy = richBusy,
+            onSend = { d -> viewModel.sendEvent(d) { showEvent = false } },
+            onDismiss = { showEvent = false },
+        )
+    }
+    if (arrivalSheet) {
+        ArrivalSheet(
+            places = places,
+            actions = if (state.profile?.features?.actions == true) homeActions.orEmpty() else emptyList(),
+            initial = arrivalDest,
+            busy = richBusy,
+            onStart = { dest, onArrive -> viewModel.sendArrival(dest, onArrive) { arrivalSheet = false } },
+            onDismiss = { arrivalSheet = false },
+        )
+    }
+    actionMode?.let { mode ->
+        val visible = homeActions?.let { com.gatecontrol.android.chat.ChatRichLogic.visibleActions(it, deviceConfig.hiddenActions) }
+        ActionPickerSheet(
+            mode = mode,
+            actions = visible,
+            members = c?.members.orEmpty().filter { it.userId != myId && !it.gone },
+            busy = richBusy,
+            onPick = { a, to, until -> viewModel.sendAction(mode, a, to, until) { actionMode = null } },
+            onDismiss = { actionMode = null },
+        )
+    }
+    votersFor?.let { m -> m.poll?.let { VotersSheet(it, c, myId) { votersFor = null } } ?: run { votersFor = null } }
+    addOptionFor?.let { m ->
+        TextLineDialog(
+            title = stringResource(R.string.chat_poll_add_option),
+            hint = stringResource(R.string.chat_poll_add_hint),
+            max = com.gatecontrol.android.chat.ChatPoll.OPTION_MAX,
+            onDone = { t -> addOptionFor = null; viewModel.addOption(m, t) },
+            onDismiss = { addOptionFor = null },
+        )
+    }
+    confirmClosePoll?.let { m ->
+        ConfirmDialog(stringResource(R.string.chat_poll_close_title), stringResource(R.string.chat_poll_close_text), stringResource(R.string.chat_poll_close), {
+            confirmClosePoll = null
+            viewModel.closePoll(m)
+        }) { confirmClosePoll = null }
+    }
+    confirmCancelEvent?.let { m ->
+        ConfirmDialog(stringResource(R.string.chat_event_cancel), stringResource(R.string.chat_event_cancel_text), stringResource(R.string.chat_event_cancel), {
+            confirmCancelEvent = null
+            viewModel.cancelEvent(m)
+        }) { confirmCancelEvent = null }
+    }
+    confirmRun?.let { (m, button) ->
+        val label = button?.label ?: m.action?.label ?: ""
+        ConfirmDialog(stringResource(R.string.chat_action_confirm_title, label), null, stringResource(R.string.chat_action_run), {
+            confirmRun = null
+            if (button != null) viewModel.cardButton(m, button) else viewModel.actionRun(m)
+        }) { confirmRun = null }
+    }
+    remindFor?.let { m ->
+        RemindSheet(onPick = { at -> remindFor = null; viewModel.remind(m, at) }, onDismiss = { remindFor = null })
+    }
+
     actionsFor?.let { m ->
+        val tools = state.profile?.features?.msgTools == true && !m.deleted && !m.isSystem
+        // "Auf Einkaufsliste" / "Termin anlegen": what the server finds in the text (loaded with the menu).
+        val suggestion by androidx.compose.runtime.produceState<com.gatecontrol.android.chat.ChatSuggestion?>(null, m.id, tools) {
+            value = if (tools && !m.text.isNullOrBlank()) viewModel.suggest(m) else null
+        }
+        val pinnedNow = c?.pinned?.contains(m.id) == true
         MessageActionsSheet(
             m = m,
+            tools = tools,
+            canPin = tools && c?.can?.pin != false && c?.readonly != true,
+            pinned = pinnedNow,
+            suggestion = suggestion,
+            onPin = {
+                actionsFor = null
+                viewModel.pin(m, !pinnedNow)
+            },
+            onRemind = {
+                actionsFor = null
+                remindFor = m
+            },
+            onToList = { items ->
+                actionsFor = null
+                viewModel.toList(m, items)
+            },
+            onToCalendar = { d ->
+                actionsFor = null
+                viewModel.toCalendar(m, d)
+            },
             reactions = state.profile?.features?.reactions != false && !m.deleted,
             myReaction = m.reactions.firstOrNull { r -> myId != null && myId in r.userIds }?.emoji,
             canEdit = viewModel.canEdit(m),
@@ -757,6 +1002,7 @@ private fun Composer(
     onDraft: (String) -> Unit,
     editing: Boolean,
     busy: Boolean,
+    enterSends: Boolean,
     voice: Boolean,
     recorder: com.gatecontrol.android.chat.VoiceRecorder,
     onSend: () -> Unit,
@@ -798,10 +1044,28 @@ private fun Composer(
                 value = draft,
                 onValueChange = { onDraft(it.take(com.gatecontrol.android.chat.ChatJson.TEXT_MAX)) },
                 placeholder = { Text(stringResource(R.string.chat_message_hint)) },
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp).then(
+                    // Messenger 1.4 settings: Enter sends (a hardware keyboard's Enter; Shift+Enter a new line).
+                    if (enterSends) {
+                        Modifier.onPreviewKeyEvent { e ->
+                            if (e.key == androidx.compose.ui.input.key.Key.Enter && !e.isShiftPressed) {
+                                if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && draft.isNotBlank()) onSend()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
                 maxLines = 6,
                 shape = RoundedCornerShape(24.dp),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = if (enterSends) androidx.compose.ui.text.input.ImeAction.Send else androidx.compose.ui.text.input.ImeAction.Default,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { if (draft.isNotBlank()) onSend() }),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = scheme.background,
                     unfocusedContainerColor = scheme.background,
@@ -871,55 +1135,16 @@ private fun Composer(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AttachSheet(
-    files: Boolean,
-    location: Boolean,
-    camera: Boolean,
-    maxBytes: Long?,
-    onGallery: () -> Unit,
-    onCamera: () -> Unit,
-    onFile: () -> Unit,
-    onLocation: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val extra = GateControlTheme.extraColors
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.padding(bottom = 24.dp)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                if (camera) AttachTile(Icons.Outlined.PhotoCamera, stringResource(R.string.chat_attach_camera), onCamera)
-                AttachTile(Icons.Outlined.PhotoLibrary, stringResource(R.string.chat_attach_gallery), onGallery)
-                if (files) AttachTile(Icons.Outlined.AttachFile, stringResource(R.string.chat_attach_file), onFile)
-                if (location) AttachTile(Icons.Outlined.Place, stringResource(R.string.chat_attach_location), onLocation)
-            }
-            Text(
-                stringResource(R.string.chat_attach_hint, ChatText.bytes(maxBytes ?: (25L * 1024 * 1024))),
-                style = MaterialTheme.typography.bodySmall,
-                color = extra.muted,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun AttachTile(icon: ImageVector, label: String, onClick: () -> Unit) {
-    val extra = GateControlTheme.extraColors
-    Column(
-        Modifier.clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick).padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box(Modifier.size(56.dp).clip(CircleShape).background(extra.accentBg), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
-        }
-        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun MessageActionsSheet(
     m: ChatMessage,
+    tools: Boolean,
+    canPin: Boolean,
+    pinned: Boolean,
+    suggestion: com.gatecontrol.android.chat.ChatSuggestion?,
+    onPin: () -> Unit,
+    onRemind: () -> Unit,
+    onToList: (List<String>) -> Unit,
+    onToCalendar: (com.gatecontrol.android.chat.ChatSuggestedDate) -> Unit,
     reactions: Boolean,
     myReaction: String?,
     canEdit: Boolean,
@@ -952,24 +1177,123 @@ private fun MessageActionsSheet(
             }
             if (canReply && !m.isSystem) SheetRow(Icons.AutoMirrored.Outlined.Reply, stringResource(R.string.chat_reply), onClick = onReply)
             if (!m.deleted && (m.text != null || m.isSystem)) SheetRow(Icons.Outlined.ContentCopy, stringResource(R.string.chat_copy), onClick = onCopy)
+            if (canPin) SheetRow(Icons.Outlined.PushPin, stringResource(if (pinned) R.string.chat_unpin else R.string.chat_pin), onClick = onPin)
+            // Messenger 1.4: what the server found in the text, straight into Familie.
+            suggestion?.items?.takeIf { it.isNotEmpty() }?.let { items ->
+                SheetRow(
+                    Icons.Outlined.ShoppingCart, stringResource(R.string.chat_suggest_list), highlight = true,
+                    trailing = pluralStringResource(R.plurals.chat_suggest_items, items.size, items.size),
+                ) { onToList(items) }
+            }
+            suggestion?.dates?.firstOrNull()?.let { d ->
+                SheetRow(Icons.Outlined.Event, stringResource(R.string.chat_suggest_calendar), highlight = true, trailing = d.label?.uppercase()) { onToCalendar(d) }
+            }
+            if (tools) SheetRow(Icons.Outlined.Alarm, stringResource(R.string.chat_remind_me), onClick = onRemind)
             if (canEdit) SheetRow(Icons.Outlined.Edit, stringResource(R.string.chat_edit), onClick = onEdit)
             onShareFile?.let { SheetRow(Icons.Outlined.Share, stringResource(R.string.chat_share_file), onClick = it) }
             SheetRow(Icons.Outlined.Delete, stringResource(R.string.chat_delete_me), onClick = onDeleteForMe)
             if (canDeleteForAll) SheetRow(Icons.Outlined.Delete, stringResource(R.string.chat_delete_all), danger = true, onClick = onDeleteForAll)
+            if (suggestion != null && !suggestion.isEmpty) {
+                Text(
+                    stringResource(R.string.chat_suggest_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extra.muted,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun SheetRow(icon: ImageVector, label: String, danger: Boolean = false, onClick: () -> Unit) {
+private fun SheetRow(icon: ImageVector, label: String, danger: Boolean = false, highlight: Boolean = false, trailing: String? = null, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val color = when {
+        danger -> MaterialTheme.colorScheme.error
+        highlight -> extra.accentText
+        else -> MaterialTheme.colorScheme.onSurface
+    }
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = if (danger) MaterialTheme.colorScheme.error else GateControlTheme.extraColors.muted)
-        Text(label, style = MaterialTheme.typography.bodyLarge, color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+        Icon(icon, contentDescription = null, tint = if (danger || highlight) color else extra.muted)
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = color, modifier = Modifier.weight(1f))
+        trailing?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = com.gatecontrol.android.ui.theme.MonoFontFamily, fontWeight = FontWeight.Bold),
+                color = extra.accentText,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(extra.accentBg).padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
     }
+}
+
+@Composable
+internal fun ConfirmDialog(title: String, text: String?, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = text?.let { { Text(it) } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_cancel)) } },
+    )
+}
+
+/** Pinned messages (Messenger 1.4): tapping shows the message and steps to the next pin. */
+@Composable
+private fun PinnedBanner(text: String, position: String?, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier.fillMaxWidth().background(extra.panel2).clickable(role = Role.Button, onClickLabel = stringResource(R.string.chat_jump_message), onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.width(3.dp).heightIn(min = 32.dp).background(MaterialTheme.colorScheme.primary))
+        Icon(Icons.Outlined.PushPin, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.chat_pinned_title) + (position?.let { " · $it" } ?: ""),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = extra.accentText,
+            )
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** The next event of the chat (Messenger 1.4 `nextEvent`), pinned above the messages. */
+@Composable
+private fun NextEventBanner(text: String, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier.fillMaxWidth().background(extra.blueBg).padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(Icons.Outlined.Event, contentDescription = null, tint = extra.blue, modifier = Modifier.size(18.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        TextButton(onClick = onOpen) { Text(stringResource(R.string.chat_event_view)) }
+        GcIconButton(GcIcons.Close, stringResource(R.string.chat_close), onClick = onDismiss, size = 40.dp, iconSize = 18.dp)
+    }
+}
+
+/** Background of the messages: none, a colour or the own photo (this device's setting). */
+@Composable
+private fun chatWallpaper(key: String, file: File, dark: Boolean): Modifier {
+    if (key == com.gatecontrol.android.chat.ChatLook.WALLPAPER_NONE) return Modifier
+    if (key == com.gatecontrol.android.chat.ChatLook.WALLPAPER_PHOTO) {
+        val px = with(LocalDensity.current) { 1080.dp.roundToPx() }
+        val bmp = rememberLocalBitmap(file.path.takeIf { file.isFile }, px) ?: return Modifier
+        val painter = remember(bmp) { androidx.compose.ui.graphics.painter.BitmapPainter(bmp) }
+        val scrim = if (dark) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f)
+        return Modifier.paint(painter, contentScale = androidx.compose.ui.layout.ContentScale.Crop).background(scrim)
+    }
+    val (d, l) = com.gatecontrol.android.chat.ChatLook.WALLPAPERS[key] ?: return Modifier
+    return Modifier.background(androidx.compose.ui.graphics.Color(if (dark) d else l))
 }
 
 /** Opens (or shares) a downloaded chat file under its own name through the FileProvider. */
