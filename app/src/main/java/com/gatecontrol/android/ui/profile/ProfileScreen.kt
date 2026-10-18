@@ -61,6 +61,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.rules.ProfileRulesRow
 import com.gatecontrol.android.profile.AvatarCrop
 import com.gatecontrol.android.profile.AvatarPalette
 import com.gatecontrol.android.profile.AvatarRing
@@ -98,6 +99,8 @@ fun ProfileScreen(
     onBack: () -> Unit,
     /** Gear top right: the settings (null inside the settings, e.g. their detail pane). */
     onOpenSettings: (() -> Unit)? = null,
+    /** Familie "Regeln und Erinnerungen" (B1); null: the row is not offered. */
+    onOpenRules: (() -> Unit)? = null,
     viewModel: ProfileViewModel = hiltViewModel(),
     presenceViewModel: ProfilePresenceViewModel = hiltViewModel(),
 ) {
@@ -220,6 +223,10 @@ fun ProfileScreen(
             }
         }
         ProfilePresenceSection(presenceViewModel, Modifier.padding(horizontal = 16.dp))
+        if (onOpenRules != null) {
+            val presenceShown by presenceViewModel.visible.collectAsStateWithLifecycle()
+            ProfileRulesRow(onOpen = onOpenRules, showLabel = !presenceShown, modifier = Modifier.padding(horizontal = 16.dp))
+        }
         if (profile != null && state.support == ProfileSupport.SUPPORTED) {
             Text(
                 stringResource(R.string.profile_privacy_hint),

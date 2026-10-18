@@ -8,6 +8,13 @@ data class ShoppingList(
     val sort: Int = 0,
     val updatedAt: String? = null,
     val deleted: Boolean = false,
+    /** B3: who was asked to do the shopping (null: nobody), by whom, until when. */
+    val assigneeId: Int? = null,
+    val assigneeName: String? = null,
+    val assignedBy: Int? = null,
+    val dueAt: String? = null,
+    /** open | taken | declined (Familie 1.9 `assignee.state`). */
+    val assigneeState: String? = null,
 )
 
 /** An entry of a list (`GET shopping` → `items[]`). */

@@ -19,10 +19,16 @@ import com.gatecontrol.android.familie.presence.PresencePayload
 import com.gatecontrol.android.familie.rides.DriverChoice
 import com.gatecontrol.android.familie.rides.Ride
 import com.gatecontrol.android.familie.rides.RideDraft
+import com.gatecontrol.android.familie.rules.Rule
+import com.gatecontrol.android.familie.rules.RuleJson
+import com.gatecontrol.android.familie.rules.RuleOptions
+import com.gatecontrol.android.familie.rules.RuleTestResult
+import com.gatecontrol.android.familie.rules.RulesPayload
 import com.gatecontrol.android.familie.shopping.ShoppingOp
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.familie.FamilieJson.obj
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
@@ -182,6 +188,29 @@ class FamilieApi @Inject constructor(
 
     suspend fun shoppingGoing(listId: String): FamilieResult<Unit> = post(path("shopping", "lists", listId, "going"), parse = unit)
 
+    /**
+     * B3: asks [userId] (null: nobody) to do the shopping of [listId]; [notify]
+     * `direct` (chat with that person) | `family` (family chat) | `push`.
+     */
+    suspend fun shoppingAssign(listId: String, userId: Int?, dueAt: String?, notify: String): FamilieResult<DeliveryResult> =
+        post(
+            path("shopping", "lists", listId, "assign"),
+            JsonObject().apply {
+                if (userId == null) add("userId", com.google.gson.JsonNull.INSTANCE) else addProperty("userId", userId)
+                dueAt?.let { addProperty("dueAt", it) }
+                addProperty("notify", notify)
+            },
+        ) { o -> delivery(o.obj("notified")) }
+
+    /**
+     * How a card / message of the plugin went out (`notified` of an
+     * assignment, `card` of a quick task): [ok] null when nothing was sent.
+     */
+    data class DeliveryResult(val ok: Boolean?, val code: String?)
+
+    private fun delivery(o: JsonObject?): DeliveryResult =
+        DeliveryResult(o?.let { FamilieJson.run { it.bool("ok") } }, o?.let { FamilieJson.errorCode(it) })
+
     // ─── tasks ───────────────────────────────────────────────────────
 
     suspend fun tasks(): FamilieResult<TasksPayload> = get(path("tasks"), parse = FamilieJson::tasks)
@@ -191,6 +220,23 @@ class FamilieApi @Inject constructor(
     suspend fun updateTask(id: Int, draft: TaskDraft): FamilieResult<Unit> = patch(path("tasks", id), FamilieJson.taskBody(draft), parse = unit)
 
     suspend fun deleteTask(id: Int): FamilieResult<Unit> = delete(path("tasks", id))
+
+    /**
+     * B4: a task from the chat (`POST tasks/quick`); with [conversationId] the
+     * plugin posts its card ("Erledigt") into that conversation.
+     * [repeat] `none` | `weekly:<1..7>`.
+     */
+    suspend fun quickTask(title: String, assigneeId: Int?, due: String?, repeat: String?, conversationId: Long?): FamilieResult<DeliveryResult> =
+        post(
+            path("tasks", "quick"),
+            JsonObject().apply {
+                addProperty("title", title)
+                if (assigneeId == null) add("assigneeId", com.google.gson.JsonNull.INSTANCE) else addProperty("assigneeId", assigneeId)
+                if (due == null) add("due", com.google.gson.JsonNull.INSTANCE) else addProperty("due", due)
+                repeat?.let { addProperty("repeat", it) }
+                conversationId?.let { addProperty("conversationId", it) }
+            },
+        ) { o -> delivery(o.obj("card")) }
 
     /** [occurrence] (`YYYY-MM-DD`) from a reminder: tick exactly that one. */
     suspend fun taskDone(id: Int, occurrence: String? = null): FamilieResult<Unit> =
@@ -529,4 +575,35 @@ class FamilieApi @Inject constructor(
             },
             unit,
         )
+
+    // ─── rules and reminders (B1) ────────────────────────────────────
+
+    suspend fun rules(): FamilieResult<RulesPayload> = get(path("rules"), parse = RuleJson::payload)
+
+    suspend fun ruleOptions(): FamilieResult<RuleOptions> = get(path("rules", "options"), parse = RuleJson::options)
+
+    suspend fun createRule(rule: Rule): FamilieResult<Rule?> =
+        post(path("rules"), RuleJson.body(rule)) { o -> java.util.Optional.ofNullable(o.obj("rule")?.let(RuleJson::rule)) }
+            .let { r -> if (r is FamilieResult.Ok) FamilieResult.Ok(r.value.orElse(null)) else r.asFailure() }
+
+    /** The scope stays as created (Familie 1.9 refuses to change it). */
+    suspend fun updateRule(id: Int, rule: Rule): FamilieResult<Unit> = patch(path("rules", id), RuleJson.body(rule, withScope = false), parse = unit)
+
+    /** A dry run of a rule not saved yet (`POST rules/test`). */
+    suspend fun testRuleDraft(rule: Rule): FamilieResult<RuleTestResult> = post(path("rules", "test"), RuleJson.body(rule), RuleJson::testResult)
+
+    /** Pauses / resumes a rule. */
+    suspend fun setRuleActive(id: Int, active: Boolean): FamilieResult<Unit> = patch(path("rules", id), RuleJson.activeBody(active), parse = unit)
+
+    suspend fun deleteRule(id: Int): FamilieResult<Unit> = delete(path("rules", id))
+
+    /** A dry run: would the rule fire now, and why (not)? */
+    suspend fun testRule(id: Int): FamilieResult<RuleTestResult> = post(path("rules", id, "test"), parse = RuleJson::testResult)
+
+    private fun <T> FamilieResult<*>.asFailure(): FamilieResult<T> = when (this) {
+        is FamilieResult.Failed -> this
+        FamilieResult.Offline -> FamilieResult.Offline
+        FamilieResult.NotConfigured -> FamilieResult.NotConfigured
+        is FamilieResult.Ok -> FamilieResult.Failed(CODE_INVALID, 0)
+    }
 }

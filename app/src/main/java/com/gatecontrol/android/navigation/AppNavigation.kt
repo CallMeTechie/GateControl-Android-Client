@@ -66,6 +66,8 @@ import com.gatecontrol.android.ui.infocard.InfoCardPickerScreen
 import com.gatecontrol.android.ui.settings.ConnectionDetailsScreen
 import com.gatecontrol.android.ui.settings.LogsScreen
 import com.gatecontrol.android.ui.profile.ProfileScreen
+import com.gatecontrol.android.ui.rules.RulesRoutes
+import com.gatecontrol.android.ui.rules.rulesGraph
 import com.gatecontrol.android.ui.settings.ServerSettingsScreen
 import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.settings.SplitTunnelScreen
@@ -416,6 +418,7 @@ fun AppNavigation(
                                 SettingsPaneContent(
                                     pane = pane,
                                     onOpenEnroll = { navController.navigate(Screen.Enroll.create()) },
+                                    onOpenRules = { navController.navigate(RulesRoutes.LIST) { launchSingleTop = true } },
                                     onSelectPane = { paneKey = it.key },
                                 )
                             }
@@ -829,8 +832,17 @@ fun AppNavigation(
             }
 
             composable(Screen.Profile.route) {
-                GcContentWidth { ProfileScreen(onBack = { navController.popBackStack() }, onOpenSettings = openSettings) }
+                GcContentWidth {
+                    ProfileScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenSettings = openSettings,
+                        onOpenRules = { navController.navigate(RulesRoutes.LIST) { launchSingleTop = true } },
+                    )
+                }
             }
+
+            // Familie "Regeln und Erinnerungen" incl. reminder/new?actionId=… (long press on a widget).
+            rulesGraph(navController)
 
             composable(Screen.InfoCardPicker.route) {
                 GcContentWidth { InfoCardPickerScreen(onBack = { navController.popBackStack() }) }
@@ -1163,9 +1175,9 @@ private fun SettingsPane.route(): String = when (this) {
 
 /** A settings page in the detail pane beside the settings list. */
 @Composable
-private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, onSelectPane: (SettingsPane) -> Unit) {
+private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, onSelectPane: (SettingsPane) -> Unit, onOpenRules: () -> Unit = {}) {
     when (pane) {
-        SettingsPane.Profile -> ProfileScreen(onBack = {})
+        SettingsPane.Profile -> ProfileScreen(onBack = {}, onOpenRules = onOpenRules)
         SettingsPane.Connection -> ConnectionDetailsScreen(onBack = {}, onOpenDiagnosis = { onSelectPane(SettingsPane.Diagnosis) })
         SettingsPane.Server -> ServerSettingsScreen(onBack = {}, onNavigateToQrScanner = onOpenEnroll)
         SettingsPane.SplitTunnel -> SplitTunnelScreen(onBack = {})

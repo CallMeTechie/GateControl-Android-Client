@@ -63,6 +63,8 @@ data class FamilieModules(
     val meals: Boolean = false,
     /** 1.2: Anwesenheit & Smart Home. */
     val presence: Boolean = false,
+    /** 1.9 (B1): Regeln und Erinnerungen, no longer bound to [presence]. */
+    val rules: Boolean = false,
 ) {
     val any: Boolean
         get() = shopping || tasks || stars || dates || locate || arrivalSos || places || rides || emergency ||
