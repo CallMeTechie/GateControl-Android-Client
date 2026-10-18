@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.42.0] - 2026-10-18
+
+### Features
+- Chats – GateControl Messenger (#87)
+
+---
+
 ## [1.41.0] - 2026-10-17
 
 ### Features
