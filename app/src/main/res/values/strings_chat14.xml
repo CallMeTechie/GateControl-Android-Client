@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Messenger 1.4: status, stories, settings, polls, events, live arrival, home actions. -->
+<resources>
+    <string name="chat_arrival_channel">Live arrival</string>
+    <string name="chat_arrival_channel_desc">While you share your arrival in a chat</string>
+    <string name="chat_arrival_notif_title">Sharing your arrival</string>
+    <string name="chat_arrival_notif_text">On the way to %1$s · ends on arrival</string>
+    <string name="chat_arrival_stop">Stop</string>
+</resources>

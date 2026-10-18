@@ -233,6 +233,171 @@ class ChatApi @Inject constructor(
         return get("conversations/$conversationId/media", q, ChatJson::mediaPage)
     }
 
+    // ─── Messenger 1.4: status and stories ──────────────────────────
+
+    private suspend fun <T> del(path: String, parse: (JsonObject) -> T?): ChatResult<T> =
+        call(request = { pluginDelete(MESSENGER_PLUGIN, path) }, parse = parse)
+
+    /** `PUT status` → `{ status }` (null: cleared). */
+    suspend fun putStatus(status: ChatStatus): ChatResult<ChatStatus?> =
+        put("status", ChatJson14.statusBody(status)) { o -> ChatJson14.status(o.get("status")?.takeIf { it.isJsonObject }?.asJsonObject) ?: ChatStatus(null, ChatStatus.PRESET_NONE, null, ChatStatus.VIS_ALL) }
+
+    suspend fun deleteStatus(): ChatResult<Unit> = del("status", unit)
+
+    suspend fun feed(): ChatResult<ChatStatusFeed> = get("status/feed", parse = ChatJson14::feed)
+
+    /** `POST status/stories` → `{ story }`. */
+    suspend fun postStory(body: JsonObject): ChatResult<ChatStory?> =
+        post("status/stories", body) { o -> Optional(ChatJson14.story(o.get("story")?.takeIf { it.isJsonObject }?.asJsonObject)) }.unwrap()
+
+    suspend fun deleteStory(id: String): ChatResult<Unit> {
+        val key = ChatJson14.pathKey(id) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        return del("status/stories/$key", unit)
+    }
+
+    suspend fun storySeen(id: String): ChatResult<Unit> {
+        val key = ChatJson14.pathKey(id) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        return post("status/stories/$key/seen", JsonObject(), unit)
+    }
+
+    suspend fun storyViewers(id: String): ChatResult<List<ChatStoryViewer>> {
+        val key = ChatJson14.pathKey(id) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        return get("status/stories/$key/viewers", parse = ChatJson14::viewers)
+    }
+
+    suspend fun storyReact(id: String, emoji: String): ChatResult<Unit> {
+        val key = ChatJson14.pathKey(id) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        return post("status/stories/$key/react", JsonObject().apply { addProperty("emoji", emoji) }, unit)
+    }
+
+    // ─── Messenger 1.4: preferences and tools ───────────────────────
+
+    /** `PUT prefs` with any keys (1.0's and 1.4's `privacy`, `notify`, `chats`) → the profile's prefs. */
+    suspend fun putPrefsBody(body: JsonObject): ChatResult<Pair<ChatPrefs, ChatPrefs14>> =
+        put("prefs", body) { o ->
+            val p = o.get("prefs")?.takeIf { it.isJsonObject }?.asJsonObject
+            ChatJson.prefs(p) to ChatJson14.prefs14(p)
+        }
+
+    suspend fun blocks(): ChatResult<List<ChatPerson>> = get("blocks", parse = ChatJson14::blocks)
+
+    suspend fun block(userId: Long): ChatResult<Unit> = post("blocks", JsonObject().apply { addProperty("userId", userId) }, unit)
+
+    suspend fun unblock(userId: Long): ChatResult<Unit> = del("blocks/$userId", unit)
+
+    suspend fun archive(conversationId: Long, archived: Boolean): ChatResult<ChatConversation?> =
+        post("conversations/$conversationId/archive", JsonObject().apply { addProperty("archived", archived) }) { o -> Optional(ChatJson.conversationOf(o)) }.unwrap()
+
+    suspend fun pin(conversationId: Long, messageId: Long): ChatResult<ChatConversation?> =
+        post("conversations/$conversationId/pins", JsonObject().apply { addProperty("messageId", messageId) }) { o -> Optional(ChatJson.conversationOf(o)) }.unwrap()
+
+    suspend fun unpin(conversationId: Long, messageId: Long): ChatResult<ChatConversation?> =
+        del("conversations/$conversationId/pins/$messageId") { o -> Optional(ChatJson.conversationOf(o)) }.unwrap()
+
+    suspend fun lists(): ChatResult<List<ChatList>> = get("lists", parse = ChatJson14::lists)
+
+    suspend fun putLists(lists: List<ChatList>): ChatResult<List<ChatList>> =
+        put("lists", ChatJson14.listsBody(lists)) { o -> ChatJson14.lists(o) ?: lists }
+
+    /** `GET conversations/:id/export?format=txt` → the text (≤ [maxBytes]). */
+    suspend fun export(conversationId: Long, maxBytes: Long = 32L * 1024 * 1024): ChatResult<String> {
+        val url = setupRepository.getServerUrl()
+        if (url.isBlank() || !setupRepository.isConfigured()) return ChatResult.NotConfigured
+        val q = buildMap {
+            put("format", "txt")
+            lang()?.let { put("lang", it) }
+        }
+        return try {
+            val response = withTimeoutOrNull(UPLOAD_TIMEOUT_MS) {
+                apiClientProvider.mediaClient(url).pluginGetRaw(MESSENGER_PLUGIN, "conversations/$conversationId/export", q)
+            } ?: return ChatResult.Offline
+            response.body().use { body ->
+                if (!response.isSuccessful || body == null) return ChatResult.Failed("http_${response.code()}", response.code())
+                if (body.contentLength() > maxBytes) return ChatResult.Failed("too_large", 413)
+                val bytes = body.byteStream().use { it.readNBytes(maxBytes.toInt()) }
+                ChatResult.Ok(String(bytes, Charsets.UTF_8))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            ChatResult.Offline
+        } catch (e: Exception) {
+            ChatResult.Failed(CODE_INVALID, 0)
+        }
+    }
+
+    suspend fun remind(messageId: Long, atIso: String): ChatResult<Unit> =
+        post("messages/$messageId/remind", JsonObject().apply { addProperty("at", atIso) }, unit)
+
+    suspend fun reminders(): ChatResult<List<ChatReminder>> = get("reminders", parse = ChatJson14::reminders)
+
+    suspend fun deleteReminder(id: String): ChatResult<Unit> {
+        val key = ChatJson14.pathKey(id) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        return del("reminders/$key", unit)
+    }
+
+    suspend fun suggest(messageId: Long): ChatResult<ChatSuggestion> = get("messages/$messageId/suggest", parse = ChatJson14::suggestion)
+
+    suspend fun toList(messageId: Long, items: List<String>): ChatResult<Unit> =
+        post("messages/$messageId/to-list", JsonObject().apply { add("items", JsonArray().apply { items.forEach { add(it) } }) }, unit)
+
+    suspend fun toCalendar(messageId: Long, title: String, startsAt: String, endsAt: String?): ChatResult<Unit> =
+        post(
+            "messages/$messageId/to-calendar",
+            JsonObject().apply {
+                addProperty("title", title)
+                addProperty("startsAt", startsAt)
+                endsAt?.let { addProperty("endsAt", it) }
+            },
+            unit,
+        )
+
+    suspend fun places(): ChatResult<List<ChatPlace>> = get("familie/places", parse = ChatJson14::places)
+
+    // ─── Messenger 1.4: polls, events, arrival, actions ─────────────
+
+    /** Answers `{ message }` (the changed message) or just `{ ok }` (null: fetch the change). */
+    private val messageOrNull: (JsonObject) -> ChatMessage? = { o -> ChatJson.messageOf(o) }
+
+    private suspend fun messagePost(path: String, body: JsonObject = JsonObject()): ChatResult<ChatMessage?> =
+        call(request = { pluginPost(MESSENGER_PLUGIN, path, body, lang()?.let { mapOf("lang" to it) } ?: emptyMap()) }) { o -> Optional(messageOrNull(o)) }.unwrap()
+
+    suspend fun vote(messageId: Long, optionIds: List<String>) = messagePost("messages/$messageId/vote", ChatJson14.voteBody(optionIds))
+
+    suspend fun addOption(messageId: Long, text: String) = messagePost("messages/$messageId/options", JsonObject().apply { addProperty("text", text.take(ChatPoll.OPTION_MAX)) })
+
+    suspend fun closePoll(messageId: Long) = messagePost("messages/$messageId/close")
+
+    suspend fun nudge(messageId: Long) = messagePost("messages/$messageId/nudge")
+
+    suspend fun rsvp(messageId: Long, answer: String, guests: Int?) = messagePost(
+        "messages/$messageId/rsvp",
+        JsonObject().apply {
+            addProperty("answer", answer)
+            guests?.let { addProperty("guests", it.coerceIn(0, 99)) }
+        },
+    )
+
+    suspend fun checklist(messageId: Long, itemId: String, done: Boolean): ChatResult<ChatMessage?> {
+        val key = ChatJson14.pathKey(itemId) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        return messagePost("messages/$messageId/checklist/$key", JsonObject().apply { addProperty("done", done) })
+    }
+
+    suspend fun patchEvent(messageId: Long, body: JsonObject): ChatResult<ChatMessage?> =
+        call(request = { pluginPatch(MESSENGER_PLUGIN, "messages/$messageId/event", body) }) { o -> Optional(messageOrNull(o)) }.unwrap()
+
+    suspend fun arrivalPosition(messageId: Long, body: JsonObject) = messagePost("messages/$messageId/arrival", body)
+
+    suspend fun arrivalStop(messageId: Long) = messagePost("messages/$messageId/arrival/stop")
+
+    suspend fun homeActions(): ChatResult<List<ChatHomeAction>> = get("actions", parse = ChatJson14::homeActions)
+
+    suspend fun actionRun(messageId: Long, actionId: String? = null) = messagePost("messages/$messageId/action/run", ChatJson14.actionRunBody(actionId))
+
+    suspend fun actionApprove(messageId: Long) = messagePost("messages/$messageId/action/approve")
+
+    suspend fun actionDeny(messageId: Long) = messagePost("messages/$messageId/action/deny")
+
     // ─── media ──────────────────────────────────────────────────────
 
     /** Raw upload of [file] as [mime] → the media id to send with a message. */
@@ -265,6 +430,11 @@ class ChatApi @Inject constructor(
     }
 
 }
+
+/** A value that may be null inside a [ChatResult.Ok] (a parse of null would mean "invalid answer"). */
+data class Optional<T>(val value: T?)
+
+fun <T> ChatResult<Optional<T>>.unwrap(): ChatResult<T?> = if (this is ChatResult.Ok) ChatResult.Ok(value.value) else asFailure()
 
 /** Answer of `DELETE messages/:id`. */
 data class ChatDeleted(val tombstone: ChatMessage?)

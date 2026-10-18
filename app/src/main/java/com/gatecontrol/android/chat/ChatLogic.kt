@@ -279,7 +279,7 @@ object ChatJsonPatch {
     fun tombstone(o: JsonObject, deletedAt: String?): JsonObject = o.deepCopy().apply {
         addProperty("deleted", true)
         deletedAt?.let { addProperty("deletedAt", it) }
-        for (k in listOf("text", "replyTo", "media", "meta", "location", "video")) add(k, JsonNull.INSTANCE)
+        for (k in listOf("text", "replyTo", "media", "meta", "location", "video", "poll", "event", "arrival", "action", "card", "replyStory")) add(k, JsonNull.INSTANCE)
         add("reactions", JsonArray())
     }
 

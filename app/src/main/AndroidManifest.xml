@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Chats: live arrival (Messenger 1.4) shares the position while the
+         person drives, started by them from the open chat. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -198,6 +201,14 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a persistent connection to the user's own GateControl server to receive notifications without Google services (no FCM)." />
         </service>
+
+        <!-- Chats: live arrival (Messenger 1.4) — position at most every 20 s
+             while an own arrival is live, with an ongoing notification. Started
+             only by the app itself, while visible. -->
+        <service
+            android:name=".chat.ChatArrivalService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
 
         <!-- Notification buttons and swipe-away of push messages. NOT exported:
              only the app's own PendingIntents reach it. -->

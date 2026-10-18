@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Messenger 1.4: Status, Stories, Einstellungen, Abstimmungen, Ereignisse, Live-Ankunft, Haus-Aktionen. -->
+<resources>
+    <string name="chat_arrival_channel">Live-Ankunft</string>
+    <string name="chat_arrival_channel_desc">Solange du deine Ankunft in einem Chat teilst</string>
+    <string name="chat_arrival_notif_title">Ankunft wird geteilt</string>
+    <string name="chat_arrival_notif_text">Unterwegs nach %1$s · endet bei Ankunft</string>
+    <string name="chat_arrival_stop">Stopp</string>
+</resources>

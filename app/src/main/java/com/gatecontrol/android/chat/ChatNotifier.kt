@@ -162,7 +162,7 @@ class ChatNotifier @Inject constructor(
             .setSilent(silent)
             .setGroup(GROUP_KEY)
             .setNumber(c.seqs.size)
-            .setContentIntent(openIntent(c.conversationId))
+            .setContentIntent(openIntent(c.conversationId, c.messageId, c.open))
             .setDeleteIntent(receiverIntent(ChatActionReceiver.ACTION_DISMISSED, c.conversationId, slot = 1))
         hint?.let { builder.setSubText(it) }
         // A conversation (Android 11+): its long-lived shortcut, LocusId and — when allowed — a bubble.
@@ -328,8 +328,8 @@ class ChatNotifier @Inject constructor(
 
     private fun uri(conversationId: Long?, slot: Int): Uri = "gatecontrol-chat://conversation/${conversationId ?: 0}/$slot".toUri()
 
-    private fun openIntent(conversationId: Long?): PendingIntent {
-        val intent = PushOpenActivity.chatIntent(context, conversationId).setData(uri(conversationId, 0))
+    private fun openIntent(conversationId: Long?, messageId: Long? = null, open: String? = null): PendingIntent {
+        val intent = PushOpenActivity.chatIntent(context, conversationId, messageId, open).setData(uri(conversationId, 0))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 

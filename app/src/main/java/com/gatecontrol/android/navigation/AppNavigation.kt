@@ -819,6 +819,13 @@ private fun openPushTarget(
     when (target) {
         is PushNavTarget.Chat -> when {
             !chats -> navigateToTab(Screen.Vpn.route)
+            // Messenger 1.4: the conversation picks up the message (and what to open) when it shows.
+            else -> {
+                if (target.conversationId != null && (target.messageId != null || target.open != null)) {
+                    com.gatecontrol.android.chat.ChatDeepLink.request(target.conversationId, target.messageId, target.open)
+                }
+                when {
+            target.conversationId == null -> navigateToTab(Screen.Chats.create())
             target.conversationId == null -> navigateToTab(Screen.Chats.create())
             layout.twoPane -> navController.navigate(Screen.Chats.create(conv = target.conversationId)) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -827,6 +834,8 @@ private fun openPushTarget(
             else -> {
                 navigateToTab(Screen.Chats.create())
                 navController.navigate(Screen.ChatConversation.create(target.conversationId)) { launchSingleTop = true }
+            }
+                }
             }
         }
         is PushNavTarget.ChatShare -> when {

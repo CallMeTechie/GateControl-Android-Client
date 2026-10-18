@@ -16,19 +16,15 @@ import com.google.gson.JsonPrimitive
 object ChatJson {
 
     private val CONTROL_RE = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]")
-    private val LINE_CONTROL_RE = Regex("[\\u0000-\\u001F\\u007F]")
+    internal val LINE_CONTROL_RE = Regex("[\\u0000-\\u001F\\u007F]")
     private val TIME_RE = Regex("^[0-9TZ:+.-]{10,40}$")
     private val MEDIA_ID_RE = Regex("^[0-9a-f]{32}$")
     private val CLIENT_ID_RE = Regex("^[A-Za-z0-9_-]{8,64}$")
-    private val TOKEN_RE = Regex("^[a-z][a-z0-9_.-]{0,63}$")
-    private val COLOR_RE = Regex("^#[0-9A-Fa-f]{6}$")
+    internal val TOKEN_RE = Regex("^[a-z][a-z0-9_.-]{0,63}$")
+    internal val COLOR_RE = Regex("^#[0-9A-Fa-f]{6}$")
     private val MIME_RE = Regex("^[a-z0-9.+-]{1,40}/[A-Za-z0-9.+-]{1,120}$")
     /** `/avatars/…` or `/plugin-media/…` of the own server, nothing else. */
     private val AVATAR_PATH_RE = Regex("^/(?:avatars|plugin-media)/[A-Za-z0-9._~%-]{1,200}$")
-    private val KINDS = setOf(
-        ChatMessage.KIND_TEXT, ChatMessage.KIND_IMAGE, ChatMessage.KIND_VOICE,
-        ChatMessage.KIND_FILE, ChatMessage.KIND_LOCATION, ChatMessage.KIND_SYSTEM,
-    )
     private val STATUSES = setOf(ChatMessage.STATUS_SENT, ChatMessage.STATUS_DELIVERED, ChatMessage.STATUS_READ)
     const val TEXT_MAX = 4000
     private const val MAX_MEMBERS = 300
@@ -41,7 +37,7 @@ object ChatJson {
 
     fun JsonObject.obj(key: String): JsonObject? = get(key)?.takeIf { it.isJsonObject }?.asJsonObject
 
-    private fun JsonObject.prim(key: String): JsonPrimitive? = get(key)?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive
+    internal fun JsonObject.prim(key: String): JsonPrimitive? = get(key)?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive
 
     fun JsonObject.str(key: String): String? = prim(key)?.takeIf { it.isString }?.asString
 
@@ -60,19 +56,19 @@ object ChatJson {
         return n?.takeIf { it > 0 }
     }
 
-    private fun JsonObject.int(key: String): Int? {
+    internal fun JsonObject.int(key: String): Int? {
         val p = prim(key)?.takeIf { it.isNumber } ?: return null
         val d = runCatching { p.asDouble }.getOrNull() ?: return null
         return if (d.isFinite() && d >= Int.MIN_VALUE && d <= Int.MAX_VALUE) d.toInt() else null
     }
 
-    private fun JsonObject.long(key: String): Long? {
+    internal fun JsonObject.long(key: String): Long? {
         val p = prim(key)?.takeIf { it.isNumber } ?: return null
         val d = runCatching { p.asDouble }.getOrNull() ?: return null
         return if (d.isFinite() && d >= 0 && d <= 9.0E15) d.toLong() else null
     }
 
-    private fun JsonObject.double(key: String): Double? {
+    internal fun JsonObject.double(key: String): Double? {
         val p = prim(key)?.takeIf { it.isNumber } ?: return null
         return runCatching { p.asDouble }.getOrNull()?.takeIf { it.isFinite() }
     }
@@ -87,11 +83,11 @@ object ChatJson {
         }
     }
 
-    private fun JsonObject.arr(key: String): JsonArray? = get(key)?.takeIf { it.isJsonArray }?.asJsonArray
+    internal fun JsonObject.arr(key: String): JsonArray? = get(key)?.takeIf { it.isJsonArray }?.asJsonArray
 
-    private fun JsonElement.objOrNull(): JsonObject? = takeIf { it.isJsonObject }?.asJsonObject
+    internal fun JsonElement.objOrNull(): JsonObject? = takeIf { it.isJsonObject }?.asJsonObject
 
-    private fun JsonObject.ids(key: String): List<Long> =
+    internal fun JsonObject.ids(key: String): List<Long> =
         arr(key)?.mapNotNull { idOf(it) }?.distinct()?.take(MAX_IDS).orEmpty()
 
     /** Plain single-line text, capped; blank → null. */
@@ -112,7 +108,7 @@ object ChatJson {
 
     fun avatarPath(value: String?): String? = value?.trim()?.takeIf { AVATAR_PATH_RE.matches(it) && !it.contains("..") }
 
-    private fun token(value: String?): String? = value?.takeIf { TOKEN_RE.matches(it) }
+    internal fun token(value: String?): String? = value?.takeIf { TOKEN_RE.matches(it) }
 
     fun isClientId(value: String?): Boolean = value != null && CLIENT_ID_RE.matches(value)
 
@@ -137,6 +133,8 @@ object ChatJson {
             colorHex = o.str("colorHex")?.takeIf { COLOR_RE.matches(it) },
             gone = o.flag("gone") == true,
             role = o.str("role")?.takeIf { it == ChatPerson.ROLE_ADMIN || it == ChatPerson.ROLE_MEMBER },
+            online = o.flag("online"),
+            lastSeenAt = time(o.str("lastSeenAt")),
         )
     }
 
@@ -176,6 +174,7 @@ object ChatJson {
             typingS = l.int("typingS")?.coerceIn(1, 60) ?: d.typingS,
             typingEveryS = l.int("typingEveryS")?.coerceIn(1, 60) ?: d.typingEveryS,
             activeS = l.int("activeS")?.coerceIn(5, 600) ?: d.activeS,
+            usage = ChatJson14.usage(l),
             disappearingS = l.arr("disappearingS")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt?.takeIf { it >= 0 } }
                 ?.distinct()?.take(10)?.takeIf { it.isNotEmpty() } ?: d.disappearingS,
         )
@@ -187,6 +186,8 @@ object ChatJson {
             features = features,
             limits = limits,
             serverTime = time(o.str("serverTime")),
+            prefs14 = ChatJson14.prefs14(o.obj("prefs")),
+            status = ChatJson14.status(o.obj("status")),
         )
     }
 
@@ -258,6 +259,9 @@ object ChatJson {
                 leave = can?.flag("leave") ?: false,
                 setDisappearing = can?.flag("setDisappearing") ?: false,
             ),
+            archived = o.flag("archived") == true,
+            pinned = o.ids("pinned").take(10),
+            nextEvent = ChatJson14.nextEvent(o.obj("nextEvent")),
         )
     }
 
@@ -286,7 +290,8 @@ object ChatJson {
         if (o == null) return null
         val id = o.id("id") ?: return null
         val conv = o.id("conversationId") ?: return null
-        val kind = o.str("kind")?.takeIf { it in KINDS } ?: return null
+        // Kinds of newer messengers are kept (shown as "needs a newer app"); only the shape is checked.
+        val kind = token(o.str("kind")) ?: return null
         val createdAt = time(o.str("createdAt")) ?: return null
         val deleted = o.flag("deleted") == true
         val mine = o.flag("mine") == true
@@ -313,10 +318,16 @@ object ChatJson {
             reactions = if (deleted) emptyList() else reactions(o.arr("reactions")),
             status = if (mine) o.str("status")?.takeIf { it in STATUSES } else null,
             video = if (deleted) null else video(o.obj("video")),
+            poll = if (deleted || kind != ChatMessage.KIND_POLL) null else ChatJson14.poll(o.obj("poll")),
+            event = if (deleted || kind != ChatMessage.KIND_EVENT) null else ChatJson14.eventInfo(o.obj("event")),
+            arrival = if (deleted || kind != ChatMessage.KIND_ARRIVAL) null else ChatJson14.arrival(o.obj("arrival")),
+            action = if (deleted || kind != ChatMessage.KIND_ACTION) null else ChatJson14.action(o.obj("action")),
+            card = if (deleted || kind != ChatMessage.KIND_CARD) null else ChatJson14.card(o.obj("card"), media(o.obj("media"))?.id),
+            replyStory = if (deleted) null else ChatJson14.replyStory(o.obj("replyStory")),
         )
     }
 
-    private fun video(o: JsonObject?): ChatVideo? {
+    internal fun video(o: JsonObject?): ChatVideo? {
         if (o == null) return null
         val v = ChatVideo(
             durationMs = o.long("durationMs")?.coerceAtMost(24 * 3_600_000L),
@@ -332,7 +343,7 @@ object ChatJson {
         return ChatReplyRef(
             id = id,
             senderId = o.id("senderId"),
-            kind = o.str("kind")?.takeIf { it in KINDS },
+            kind = token(o.str("kind")),
             text = text(o.str("text"), 200),
             deleted = o.flag("deleted") == true,
             missing = o.flag("missing") == true,
@@ -380,6 +391,10 @@ object ChatJson {
             userIds = o.ids("userIds"),
             userId = o.id("userId"),
             seconds = o.int("seconds")?.coerceAtLeast(0),
+            label = line(o.str("label") ?: o.str("winner") ?: o.str("option") ?: o.str("place"), 120),
+            messageId = o.id("messageId"),
+            answer = o.str("answer")?.takeIf { it == "yes" || it == "maybe" || it == "no" },
+            guests = o.int("guests")?.coerceIn(0, 99),
         )
     }
 

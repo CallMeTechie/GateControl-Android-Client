@@ -201,8 +201,8 @@ class ChatVideoTest {
         val known = ChatJson.profile(json("""{$me,"features":{"direct":true,"bridges":false,"e2e":false,"video_meta":true,"file_thumbs":true}}"""))!!.features
         assertEquals(emptySet<String>(), ChatFeatureHint.unknown(known))
         assertFalse(ChatFeatureHint.show(known, null))
-        val newer = ChatJson.profile(json("""{$me,"features":{"video_meta":true,"polls":true,"stories":true,"stickers":false}}"""))!!.features
-        assertEquals(setOf("polls", "stories"), ChatFeatureHint.unknown(newer), "only keys switched on count")
+        val newer = ChatJson.profile(json("""{$me,"features":{"video_meta":true,"polls":true,"calls":true,"stickers":false}}"""))!!.features
+        assertEquals(setOf("calls"), ChatFeatureHint.unknown(newer), "only keys switched on count, Messenger 1.4 keys are known")
         assertTrue(ChatFeatureHint.show(newer, null))
         assertFalse(ChatFeatureHint.unknown(ChatFeatures(tokens = setOf("e2e", "bridges"))).isNotEmpty(), "known keys switched on are no reason")
         assertFalse(ChatFeatureHint.show(null, null))
@@ -210,12 +210,12 @@ class ChatVideoTest {
 
     @Test
     fun `a dismissal holds until another unknown feature turns up`() {
-        val polls = ChatFeatures(tokens = setOf("stories", "polls"))
-        val sig = ChatFeatureHint.signature(ChatFeatureHint.unknown(polls))
-        assertEquals("polls,stories", sig, "independent of the order")
-        assertFalse(ChatFeatureHint.show(polls, sig))
-        assertTrue(ChatFeatureHint.show(ChatFeatures(tokens = setOf("stories", "polls", "calls")), sig))
-        assertTrue(ChatFeatureHint.show(ChatFeatures(tokens = setOf("calls")), sig))
+        val newer = ChatFeatures(tokens = setOf("stickers", "calls", "polls"))
+        val sig = ChatFeatureHint.signature(ChatFeatureHint.unknown(newer))
+        assertEquals("calls,stickers", sig, "independent of the order")
+        assertFalse(ChatFeatureHint.show(newer, sig))
+        assertTrue(ChatFeatureHint.show(ChatFeatures(tokens = setOf("stickers", "calls", "games")), sig))
+        assertTrue(ChatFeatureHint.show(ChatFeatures(tokens = setOf("games")), sig))
         assertNull(ChatFeatureHint.signature(emptySet()))
     }
 }

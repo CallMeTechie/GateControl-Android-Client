@@ -16,12 +16,12 @@ import javax.inject.Singleton
  * Pure, unit-tested.
  */
 object ChatFeatureHint {
-    /** Every key of the `features` object this app knows (Messenger ≤ 1.3.0). */
+    /** Every key of the `features` object this app knows (Messenger ≤ 1.4.0). */
     val KNOWN: Set<String> = setOf(
         "direct", "groups", "voice", "files", "location", "reactions", "edit", "search", "disappearing",
         "bridges", "e2e",
         ChatFeatures.VIDEO_META, ChatFeatures.FILE_THUMBS,
-    )
+    ) + ChatFeatures14.ALL
 
     /** The keys the server switches on that this app does not know. */
     fun unknown(features: ChatFeatures?): Set<String> = features?.tokens.orEmpty() - KNOWN
