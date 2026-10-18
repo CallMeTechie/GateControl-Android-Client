@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.45.1] - 2026-10-18
+
+### Fixes
+- status composer readable, own stories visible, story duration (#92)
+
+---
+
 ## [1.45.0] - 2026-10-18
 
 ### Features
