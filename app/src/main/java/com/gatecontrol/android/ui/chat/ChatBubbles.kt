@@ -165,7 +165,8 @@ fun MessageBubble(
                         color = colors.meta,
                     )
                     m.undecryptable -> Text(stringResource(R.string.chat_undecryptable), style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic), color = colors.meta)
-                    m.kind == ChatMessage.KIND_IMAGE -> ImageContent(m.media?.thumbId ?: m.media?.id, null, m.meta?.w, m.meta?.h)
+                    // Without a preview the full picture loads only when automatic downloads allow it (or on tap).
+                    m.kind == ChatMessage.KIND_IMAGE -> ImageContent(m.media?.thumbId ?: m.media?.id?.takeIf { LocalChatLook.current.autoPhotos }, null, m.meta?.w, m.meta?.h)
                     m.kind == ChatMessage.KIND_VOICE -> VoiceContent(
                         durationMs = m.meta?.durationMs ?: 0L,
                         waveform = m.meta?.waveform.orEmpty(),

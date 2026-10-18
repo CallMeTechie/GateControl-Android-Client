@@ -474,7 +474,7 @@ fun ConversationScreen(
                         val sub = typing ?: c?.takeIf { it.isGroup }?.let { conv ->
                             conv.members.filter { it.userId != myId }.joinToString(", ") { ChatText.name(context, it) } +
                                 ", " + resources.getString(R.string.chat_you_lower)
-                        }
+                        } ?: c?.takeIf { !it.isGroup }?.let { ChatText.presence(context, it.peer) }
                         if (sub != null) {
                             Text(
                                 sub,
@@ -527,8 +527,11 @@ fun ConversationScreen(
         }
 
         // ─── messages / search results ───
-        val look = remember(deviceConfig.fontSize, deviceConfig.bubbleColor, extra.isDark) {
+        val unmetered = remember(deviceConfig.autoWifi, deviceConfig.autoMobile) { viewModel.unmetered() }
+        val look = remember(deviceConfig, extra.isDark, unmetered) {
             ChatLookState(
+                autoPhotos = com.gatecontrol.android.chat.ChatAutoDownload.photos(deviceConfig, unmetered),
+                autoAll = com.gatecontrol.android.chat.ChatAutoDownload.everything(deviceConfig, unmetered),
                 fontScale = com.gatecontrol.android.chat.ChatLook.fontScale(deviceConfig.fontSize),
                 ownBubble = deviceConfig.bubbleColor.takeIf { it != com.gatecontrol.android.chat.ChatLook.BUBBLE_DEFAULT }
                     ?.let { com.gatecontrol.android.chat.ChatLook.BUBBLE_COLORS[it] }?.let { (dark, light) -> androidx.compose.ui.graphics.Color(if (extra.isDark) dark else light) },
@@ -553,7 +556,13 @@ fun ConversationScreen(
                     items(rows, key = { it.key }, contentType = { it::class }) { item ->
                         when (item) {
                             is TimelineItem.Day -> DaySeparator(ChatText.day(context, item.date))
-                            is TimelineItem.Message -> MessageBubble(
+                            is TimelineItem.Message -> {
+                                // Automatic download "Alle Medien": pictures, videos and voice load ahead.
+                                val mid = item.message.media?.id
+                                if (look.autoAll && mid != null && (item.message.kind != ChatMessage.KIND_FILE || item.message.isVideo)) {
+                                    LaunchedEffect(mid) { viewModel.prefetch(mid) }
+                                }
+                                MessageBubble(
                                 m = item.message,
                                 status = item.status,
                                 showSender = item.showSender,
@@ -563,6 +572,7 @@ fun ConversationScreen(
                                 actions = bubbleActions,
                                 highlighted = highlight == item.message.id,
                             )
+                            }
                             is TimelineItem.Gap -> GapRow(
                                 loading = gapLoading == item.gap,
                                 onLoad = { viewModel.fillGap(item.gap) },

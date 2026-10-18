@@ -81,7 +81,13 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Looks of this device for the conversation (font size, own bubble colour). */
-data class ChatLookState(val fontScale: Float = 1f, val ownBubble: Color? = null)
+data class ChatLookState(
+    val fontScale: Float = 1f,
+    val ownBubble: Color? = null,
+    /** Automatic downloads on this network: full pictures, everything (videos, voice, files ahead). */
+    val autoPhotos: Boolean = true,
+    val autoAll: Boolean = false,
+)
 
 val LocalChatLook = compositionLocalOf { ChatLookState() }
 

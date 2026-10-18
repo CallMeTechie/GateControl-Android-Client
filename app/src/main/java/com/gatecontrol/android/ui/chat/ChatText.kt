@@ -107,6 +107,18 @@ object ChatText {
         }
     }
 
+    /** Messenger 1.4: "online" / "zuletzt online …" of a person who shares it; null otherwise. */
+    fun presence(ctx: Context, p: ChatPerson?): String? = when {
+        p == null || p.gone -> null
+        p.online == true -> ctx.getString(R.string.chat_online)
+        p.lastSeenAt != null -> {
+            val day = listTime(ctx, p.lastSeenAt)
+            val time = clock(ctx, p.lastSeenAt)
+            ctx.getString(R.string.chat_last_seen, if (day == time) time else "$day $time")
+        }
+        else -> null
+    }
+
     /** "1 Tag", "1 Woche", "30 Tage", "Aus". */
     fun disappearing(ctx: Context, seconds: Int): String = when {
         seconds <= 0 -> ctx.getString(R.string.chat_disappearing_off)

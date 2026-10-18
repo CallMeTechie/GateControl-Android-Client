@@ -649,6 +649,15 @@ class ConversationViewModel @Inject constructor(
     fun toCalendar(m: ChatMessage, date: com.gatecontrol.android.chat.ChatSuggestedDate) =
         viewModelScope.launch { after(extras.toCalendar(m.id, date, m.text?.lineSequence()?.firstOrNull()?.take(60) ?: ""), com.gatecontrol.android.R.string.chat_suggest_calendar_done) }
 
+    /** Whether the device is on WLAN now (automatic downloads). */
+    fun unmetered(): Boolean = device.unmetered()
+
+    /** Loads a file ahead (automatic download "Alle Medien"). */
+    fun prefetch(mediaId: String) {
+        if (media.cached(mediaId) != null) return
+        viewModelScope.launch { media.file(mediaId) }
+    }
+
     /** Sounds in the open chat (this device's setting). */
     fun soundsOn(): Boolean = device.config.value.sounds
 

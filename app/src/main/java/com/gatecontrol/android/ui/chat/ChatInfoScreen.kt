@@ -14,7 +14,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.PermMedia
+import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
@@ -107,8 +111,48 @@ class ChatInfoViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: ChatRepository,
     private val media: ChatMediaStore,
+    private val extras: com.gatecontrol.android.chat.ChatExtrasRepository,
 ) : ViewModel() {
     private val id = MutableStateFlow<Long?>(null)
+
+    // ─── Messenger 1.4: archive, block, export ───
+    private val exportCh = Channel<Pair<java.io.File, Boolean>>(Channel.BUFFERED)
+    /** An exported chat to share (file, truncated). */
+    val exported = exportCh.receiveAsFlow()
+    private val _exporting = MutableStateFlow(false)
+    val exporting: StateFlow<Boolean> = _exporting
+
+    fun archive(archived: Boolean) {
+        val cid = id.value ?: return
+        viewModelScope.launch { extras.archive(cid, archived).let { if (it !is ChatResult.Ok) errors.trySend(codeOf(it)) } }
+    }
+
+    fun block(p: ChatPerson, block: Boolean) {
+        val cid = id.value ?: return
+        viewModelScope.launch {
+            val r = if (block) extras.block(p) else extras.unblock(p.userId)
+            if (r !is ChatResult.Ok) errors.trySend(codeOf(r)) else repository.refreshConversation(cid)
+        }
+    }
+
+    fun export(title: String) {
+        val cid = id.value ?: return
+        if (_exporting.value) return
+        _exporting.value = true
+        viewModelScope.launch {
+            try {
+                when (val r = extras.export(cid)) {
+                    is ChatResult.Ok -> extras.exportFile(java.io.File(context.cacheDir, "chat-export"), com.gatecontrol.android.chat.ChatToolsLogic.exportName(title, java.time.LocalDate.now()), r.value.text)
+                        ?.let { exportCh.trySend(it to r.value.truncated) }
+                    else -> errors.trySend(codeOf(r))
+                }
+            } finally {
+                _exporting.value = false
+            }
+        }
+    }
+
+    private fun codeOf(r: ChatResult<*>): String? = (r as? ChatResult.Failed)?.code ?: "offline"
     val conversation: StateFlow<ChatConversation?> = id.filterNotNull().flatMapLatest { repository.conversation(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val profile: StateFlow<ChatProfile?> = repository.profile
@@ -288,6 +332,14 @@ fun ChatInfoScreen(
         }
     }
     LaunchedEffect(Unit) { viewModel.error.collect { error = ChatText.actionError(ctx, it) } }
+    var confirmBlock by remember { mutableStateOf<ChatPerson?>(null) }
+    val exporting by viewModel.exporting.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        viewModel.exported.collect { (file, truncated) ->
+            if (truncated) Toast.makeText(ctx, R.string.chat_export_truncated, Toast.LENGTH_LONG).show()
+            shareTextFile(ctx, file)
+        }
+    }
     LaunchedEffect(Unit) {
         viewModel.left.collect {
             Toast.makeText(ctx, R.string.chat_left, Toast.LENGTH_SHORT).show()
@@ -438,7 +490,36 @@ fun ChatInfoScreen(
                 GcSectionLabel(stringResource(R.string.chat_person), Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChatPersonAvatar(conv.peer, 40.dp)
-                    Text(ChatText.name(ctx, conv.peer), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Column {
+                        Text(ChatText.name(ctx, conv.peer), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                        ChatText.presence(ctx, conv.peer)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = extra.muted) }
+                    }
+                }
+                if (conv.peer.blocked) Text(stringResource(R.string.chat_blocked_hint, ChatText.name(ctx, conv.peer)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+            }
+
+            // Messenger 1.4: archive, export, block.
+            if (profile?.features?.let { it.tokens.contains(com.gatecontrol.android.chat.ChatFeatures14.MSG_TOOLS) } == true) {
+                GcRowDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                GcListRow(
+                    title = stringResource(if (conv.archived) R.string.chat_unarchive else R.string.chat_archive),
+                    onClick = { viewModel.archive(!conv.archived) },
+                    leading = { Icon(if (conv.archived) Icons.Outlined.Unarchive else Icons.Outlined.Archive, contentDescription = null, tint = extra.muted) },
+                )
+                GcListRow(
+                    title = stringResource(R.string.chat_export),
+                    onClick = { viewModel.export(ChatText.title(ctx, conv)) },
+                    leading = { Icon(Icons.Outlined.IosShare, contentDescription = null, tint = extra.muted) },
+                    trailing = if (exporting) ({ androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }) else null,
+                )
+                val peer = conv.peer
+                if (!conv.isGroup && peer != null && !peer.gone) {
+                    GcListRow(
+                        title = stringResource(if (peer.blocked) R.string.chat_unblock else R.string.chat_block),
+                        titleColor = if (peer.blocked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+                        onClick = { if (peer.blocked) viewModel.block(peer, false) else confirmBlock = peer },
+                        leading = { Icon(Icons.Outlined.Block, contentDescription = null, tint = if (peer.blocked) extra.muted else MaterialTheme.colorScheme.error) },
+                    )
                 }
             }
 
@@ -453,6 +534,16 @@ fun ChatInfoScreen(
             }
             Text(stringResource(R.string.chat_footer), style = MaterialTheme.typography.bodySmall, color = extra.faint, modifier = Modifier.padding(24.dp))
         }
+    }
+
+    confirmBlock?.let { p ->
+        AlertDialog(
+            onDismissRequest = { confirmBlock = null },
+            title = { Text(stringResource(R.string.chat_block_title, ChatText.name(ctx, p))) },
+            text = { Text(stringResource(R.string.chat_block_text, ChatText.name(ctx, p))) },
+            confirmButton = { TextButton(onClick = { confirmBlock = null; viewModel.block(p, true) }) { Text(stringResource(R.string.chat_block), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmBlock = null }) { Text(stringResource(R.string.chat_cancel)) } },
+        )
     }
 
     if (renaming && conv != null) {
@@ -621,4 +712,15 @@ private fun ChoiceDialog(title: String, options: List<String>, onPick: (Int) -> 
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_cancel)) } },
     )
+}
+
+/** Shares a text file (a chat export) through the FileProvider. */
+internal fun shareTextFile(context: Context, file: java.io.File) {
+    runCatching {
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".provider", file)
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            .putExtra(android.content.Intent.EXTRA_SUBJECT, file.name).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        send.clipData = android.content.ClipData.newRawUri(file.name, uri)
+        context.startActivity(android.content.Intent.createChooser(send, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 }
