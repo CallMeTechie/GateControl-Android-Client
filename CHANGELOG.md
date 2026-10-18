@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.47.0] - 2026-10-18
+
+### Features
+- arrange tabs, equal widgets, rules and reminders, complete home actions in the chat (#96)
+
+---
+
 ## [1.46.0] - 2026-10-18
 
 ### Features
