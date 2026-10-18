@@ -342,6 +342,7 @@ fun AppNavigation(
                     onOpenDoor = openDoor,
                     onOpenStoryComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
                     onOpenOwnStories = { navController.navigate(Screen.ChatStoryView.create(0L)) { launchSingleTop = true } },
+                    onNewReminder = { navController.navigate(Screen.ReminderNew.create(it)) { launchSingleTop = true } },
                 )
             }
 
@@ -873,7 +874,11 @@ fun AppNavigation(
             }
 
             composable(Screen.QuickActions.route) {
-                GcContentWidth { QuickActionsScreen(onBack = { navController.popBackStack() }, onOpenDoor = openDoor) }
+                GcContentWidth { QuickActionsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDoor = openDoor,
+                    onNewReminder = { navController.navigate(Screen.ReminderNew.create(it)) { launchSingleTop = true } },
+                ) }
             }
 
             composable(Screen.Logs.route) {
