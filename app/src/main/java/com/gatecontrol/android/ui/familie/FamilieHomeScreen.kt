@@ -25,7 +25,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +58,7 @@ import com.gatecontrol.android.familie.LocateRequest
 import com.gatecontrol.android.familie.locate.FamiliePermissions
 import com.gatecontrol.android.familie.shopping.ShoppingLogic
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
+import com.gatecontrol.android.layout.FamilieLayout
 import com.gatecontrol.android.location.DeviceLocator
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
@@ -62,6 +72,8 @@ import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.profile.MyAvatarUi
 import com.gatecontrol.android.ui.profile.MyAvatarViewModel
+import com.gatecontrol.android.ui.start.StartIcons
+import com.gatecontrol.android.ui.start.longPressAnywhere
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.time.LocalDate
 
@@ -90,8 +102,22 @@ fun FamilieHomeScreen(
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val shopping by viewModel.shoppingView.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
+    val access by viewModel.layoutAccess.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val errorText = message?.let { familieErrorText(it) }
+    var arranging by rememberSaveable { mutableStateOf(false) }
+    val lockedHint = stringResource(R.string.arrange_locked)
+    val haptic = LocalHapticFeedback.current
+    // Long press on a card or the menu: "Familie anordnen" (a hint instead when only the admin may).
+    val openArrange: () -> Unit = {
+        if (access.locked) {
+            Toast.makeText(context, lockedHint, Toast.LENGTH_SHORT).show()
+        } else {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            arranging = true
+        }
+    }
 
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
@@ -102,6 +128,23 @@ fun FamilieHomeScreen(
             Toast.makeText(context, errorText, Toast.LENGTH_LONG).show()
             viewModel.clearMessage()
         }
+    }
+
+    val arrangeFor = profile
+    if (arranging && arrangeFor != null) {
+        val available = FamilieCards.available(arrangeFor)
+        FamilieArrangeScreen(
+            profile = arrangeFor,
+            order = FamilieLayout.merge(layout.familie, available),
+            hidden = layout.familieHidden.toSet(),
+            scope = access,
+            onDone = { order, hidden ->
+                viewModel.saveArrangement(order, hidden, available)
+                arranging = false
+            },
+            modifier = modifier,
+        )
+        return
     }
 
     PullToRefreshBox(
@@ -116,13 +159,16 @@ fun FamilieHomeScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Header(profile)
             val p = profile
+            Header(profile, onArrange = if (p != null && p.modules.any) openArrange else null)
             when {
                 p == null && !profileLoaded -> FamilieLoading()
                 p == null -> FamilieErrorBanner(profileError, onRetry = viewModel::refresh)
                 !p.modules.any -> FamilieEmpty(GcIcons.Family, stringResource(R.string.familie_all_off))
-                else -> HomeCards(p, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone)
+                else -> {
+                    val order = FamilieLayout.visible(FamilieLayout.merge(layout.familie, FamilieCards.available(p)), layout.familieHidden)
+                    HomeCards(p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange)
+                }
             }
             if (p != null && profileError == "offline") {
                 FamilieErrorBanner("offline")
@@ -132,9 +178,10 @@ fun FamilieHomeScreen(
 }
 
 @Composable
-private fun Header(profile: FamilieProfile?) {
+private fun Header(profile: FamilieProfile?, onArrange: (() -> Unit)?) {
     val extra = GateControlTheme.extraColors
     val locale = appLocale()
+    var menu by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(GcIcons.Family, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(26.dp))
         Column(Modifier.weight(1f)) {
@@ -146,12 +193,29 @@ private fun Header(profile: FamilieProfile?) {
                 color = extra.muted,
             )
         }
+        if (onArrange != null) {
+            Box {
+                GcIconButton(icon = StartIcons.More, contentDescription = stringResource(R.string.familie_menu), onClick = { menu = true })
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.familie_arrange)) },
+                        leadingIcon = { Icon(StartIcons.Arrange, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                        onClick = { menu = false; onArrange() },
+                    )
+                }
+            }
+        }
     }
 }
 
+/**
+ * The cards in the person's [order] (FamilieLayout ids, hidden ones left
+ * out). A long press on any card opens "Familie anordnen" ([onArrange]).
+ */
 @Composable
 private fun HomeCards(
     p: FamilieProfile,
+    order: List<String>,
     overview: FamilieOverview?,
     shopping: ShoppingSnapshot,
     selected: FamilieDest?,
@@ -159,80 +223,76 @@ private fun HomeCards(
     onOpen: (FamilieDest) -> Unit,
     onOpenProfile: () -> Unit,
     onTaskDone: (Int) -> Unit,
+    onArrange: () -> Unit,
 ) {
     val context = LocalContext.current
-    Members(p, overview, myAvatar, onOpenProfile)
-    // The rings show who is home; the details and the rules hint stay one tap away for parents.
-    if (p.modules.presence && p.me.isParent) PresenceLink(selected == FamilieDest.Presence) { onOpen(FamilieDest.Presence) }
-
-    if (p.me.isChild && (p.modules.locate || p.modules.arrivalSos)) {
-        val needsBackground = p.modules.locate && FamiliePermissions.childNeedsBackground(
-            p.me.locateMode,
-            DeviceLocator.hasPermission(context),
-            DeviceLocator.hasBackgroundPermission(context),
-        )
-        if (needsBackground) {
-            GcBanner(tone = GcTone.Warn, icon = GcIcons.Pin, modifier = Modifier.clickable { onOpen(FamilieDest.Child) }) {
-                Text(stringResource(R.string.familie_child_bg_needed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+    val arrangeLabel = stringResource(R.string.familie_arrange)
+    order.forEach { id ->
+        key(id) {
+            Column(
+                Modifier.fillMaxWidth().longPressAnywhere(arrangeLabel, onArrange),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                when (id) {
+                    FamilieLayout.MEMBERS -> {
+                        Members(p, overview, myAvatar, onOpenProfile)
+                        // The rings show who is home; the details and the rules hint stay one tap away for parents.
+                        if (p.modules.presence && p.me.isParent) PresenceLink(selected == FamilieDest.Presence) { onOpen(FamilieDest.Presence) }
+                    }
+                    FamilieLayout.CHILD -> {
+                        val needsBackground = p.modules.locate && FamiliePermissions.childNeedsBackground(
+                            p.me.locateMode,
+                            DeviceLocator.hasPermission(context),
+                            DeviceLocator.hasBackgroundPermission(context),
+                        )
+                        if (needsBackground) {
+                            GcBanner(tone = GcTone.Warn, icon = GcIcons.Pin, modifier = Modifier.clickable { onOpen(FamilieDest.Child) }) {
+                                Text(stringResource(R.string.familie_child_bg_needed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                        ChildCard(p, selected == FamilieDest.Child, onOpen)
+                    }
+                    FamilieLayout.EMERGENCY -> EmergencyEntry(selected is FamilieDest.Emergency, onOpen)
+                    FamilieLayout.TASKS -> TodayCard(p, overview, selected == FamilieDest.Tasks, onOpen, onTaskDone)
+                    FamilieLayout.RIDES -> RidesCard(p, overview, selected is FamilieDest.Rides, onOpen)
+                    FamilieLayout.SHOPPING -> ShoppingCard(shopping, selected, onOpen)
+                    FamilieLayout.LOCATE -> LocateCard(p, overview, selected, onOpen)
+                    FamilieLayout.DATES -> DatesCard(overview, selected == FamilieDest.Dates, onOpen)
+                    FamilieLayout.MEALS -> MealsCard(p, overview, selected is FamilieDest.Meals, onOpen)
+                    FamilieLayout.BOARD -> BoardCard(overview, selected == FamilieDest.Board, onOpen)
+                    FamilieLayout.ALLOWANCE -> AllowanceCard(p, overview, selected is FamilieDest.Allowance, onOpen)
+                    FamilieLayout.WISHES -> NavCard(
+                        icon = GcIcons.Gift,
+                        title = stringResource(R.string.familie_wishes_title),
+                        subtitle = overview?.wishes?.takeIf { it.mine > 0 || it.reservedByMe > 0 }?.let { w ->
+                            listOfNotNull(
+                                w.mine.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_wishes_home_mine, it, it) },
+                                w.reservedByMe.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_wishes_home_reserved, it, it) },
+                            ).joinToString(" · ")
+                        } ?: stringResource(R.string.familie_wishes_sub),
+                        selected = selected is FamilieDest.Wishes,
+                        onClick = { onOpen(FamilieDest.Wishes()) },
+                    )
+                    FamilieLayout.EXPENSES -> NavCard(
+                        icon = GcIcons.Receipt,
+                        title = stringResource(R.string.familie_expenses_title),
+                        subtitle = overview?.expenses?.let { x ->
+                            stringResource(R.string.familie_expenses_home, money(x.sharedCents)) +
+                                if (x.settled) " · " + stringResource(R.string.familie_expenses_done_chip) else ""
+                        } ?: stringResource(R.string.familie_expenses_sub),
+                        selected = selected is FamilieDest.Expenses,
+                        onClick = { onOpen(FamilieDest.Expenses()) },
+                    )
+                    FamilieLayout.PLACES -> NavCard(
+                        icon = GcIcons.Pin,
+                        title = stringResource(R.string.familie_places_title),
+                        subtitle = stringResource(R.string.familie_places_sub),
+                        selected = selected == FamilieDest.Places,
+                        onClick = { onOpen(FamilieDest.Places) },
+                    )
+                }
             }
         }
-        ChildCard(p, selected == FamilieDest.Child, onOpen)
-    }
-
-    if (p.modules.emergency) EmergencyEntry(selected is FamilieDest.Emergency, onOpen)
-
-    if (p.modules.tasks) TodayCard(p, overview, selected == FamilieDest.Tasks, onOpen, onTaskDone)
-
-    if (p.modules.rides) RidesCard(p, overview, selected is FamilieDest.Rides, onOpen)
-
-    if (p.modules.shopping) ShoppingCard(shopping, selected, onOpen)
-
-    if (p.me.isParent && p.modules.locate && p.children.isNotEmpty()) LocateCard(p, overview, selected, onOpen)
-
-    if (p.modules.dates) DatesCard(overview, selected == FamilieDest.Dates, onOpen)
-
-    if (p.modules.meals) MealsCard(p, overview, selected is FamilieDest.Meals, onOpen)
-
-    if (p.modules.board) BoardCard(overview, selected == FamilieDest.Board, onOpen)
-
-    if (p.modules.allowance && (p.me.isChild || p.children.isNotEmpty())) AllowanceCard(p, overview, selected is FamilieDest.Allowance, onOpen)
-
-    if (p.modules.wishes) {
-        NavCard(
-            icon = GcIcons.Gift,
-            title = stringResource(R.string.familie_wishes_title),
-            subtitle = overview?.wishes?.takeIf { it.mine > 0 || it.reservedByMe > 0 }?.let { w ->
-                listOfNotNull(
-                    w.mine.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_wishes_home_mine, it, it) },
-                    w.reservedByMe.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.familie_wishes_home_reserved, it, it) },
-                ).joinToString(" · ")
-            } ?: stringResource(R.string.familie_wishes_sub),
-            selected = selected is FamilieDest.Wishes,
-            onClick = { onOpen(FamilieDest.Wishes()) },
-        )
-    }
-
-    if (p.modules.expenses && p.me.isParent) {
-        NavCard(
-            icon = GcIcons.Receipt,
-            title = stringResource(R.string.familie_expenses_title),
-            subtitle = overview?.expenses?.let { x ->
-                stringResource(R.string.familie_expenses_home, money(x.sharedCents)) +
-                    if (x.settled) " · " + stringResource(R.string.familie_expenses_done_chip) else ""
-            } ?: stringResource(R.string.familie_expenses_sub),
-            selected = selected is FamilieDest.Expenses,
-            onClick = { onOpen(FamilieDest.Expenses()) },
-        )
-    }
-
-    if (p.modules.places) {
-        NavCard(
-            icon = GcIcons.Pin,
-            title = stringResource(R.string.familie_places_title),
-            subtitle = stringResource(R.string.familie_places_sub),
-            selected = selected == FamilieDest.Places,
-            onClick = { onOpen(FamilieDest.Places) },
-        )
     }
 }
 

@@ -180,6 +180,7 @@ object FamilieJson {
             board = m?.bool("board") == true,
             meals = m?.bool("meals") == true,
             presence = m?.bool("presence") == true,
+            rules = m?.bool("rules") == true,
         )
         return FamilieProfile(
             me = FamilieMe(
@@ -278,6 +279,11 @@ object FamilieJson {
             sort = o.int("sort") ?: 0,
             updatedAt = stamp(o.str("updatedAt")),
             deleted = o.bool("deleted") == true,
+            assigneeId = o.obj("assignee")?.let { a -> a.int("userId") ?: a.int("id") } ?: o.int("assignee") ?: o.int("assigneeId"),
+            assigneeName = o.obj("assignee")?.str("name")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
+            assignedBy = o.obj("assignee")?.int("by") ?: o.int("assignedBy"),
+            assigneeState = o.obj("assignee")?.str("state")?.takeIf { it == "open" || it == "taken" || it == "declined" },
+            dueAt = stamp(o.str("dueAt")),
         )
     }
 

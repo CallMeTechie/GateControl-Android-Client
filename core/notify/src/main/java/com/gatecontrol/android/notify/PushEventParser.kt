@@ -80,6 +80,8 @@ object PushEventParser {
     val ACTION_ID_RE = Regex("^[A-Za-z0-9_.:-]{1,40}$")
     /** Same shape the server accepts for the `action` of an ack: ≤ 64, so a quick action id fits. */
     val ACK_ACTION_RE = Regex("^[A-Za-z0-9_.:-]{1,64}$")
+    /** Id of a callback button (core: `[a-z0-9_-]{1,32}`). */
+    val CALLBACK_ID_RE = Regex("^[a-z0-9_-]{1,32}$")
     /** Quick action id (core quickActions.js ACTION_ID_RE). */
     val QUICK_ACTION_ID_RE = Regex("^[A-Za-z0-9:._-]{1,64}$")
     /** Plugin id of a quick_action (same shape as in the topic). */
@@ -247,7 +249,7 @@ object PushEventParser {
             topic = topic,
             priority = PushPriority.fromWire(dto.priority).wire,
             title = title,
-            body = clean(dto.body, MAX_BODY, keepNewlines = true),
+            body = withFacts(clean(dto.body, MAX_BODY, keepNewlines = true), dto.data),
             createdAt = dto.createdAt?.take(40),
             expiresAt = dto.expiresAt?.take(40),
             collapseKey = dto.collapseKey?.take(120)?.takeIf { it.isNotBlank() },
@@ -271,6 +273,23 @@ object PushEventParser {
         return r.takeIf { APP_ROUTE_RE.matches(it) }
     }
 
+    /**
+     * `data.facts: [{ label, value }]` (e.g. a Familie reminder: "Ladestand
+     * 32 %", "Termin Mo 07:30") as a last line of the text, at most four.
+     */
+    internal fun withFacts(body: String, data: JsonObject?): String {
+        val arr = data?.get("facts")?.takeIf { it.isJsonArray }?.asJsonArray ?: return body
+        val facts = arr.mapNotNull { e ->
+            val o = e.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val label = clean(o.get("label")?.takeIf { it.isJsonPrimitive }?.asString, 30)
+            val value = clean(o.get("value")?.takeIf { it.isJsonPrimitive }?.asString, 40)
+            if (value.isEmpty()) null else if (label.isEmpty()) value else "$label: $value"
+        }.take(4)
+        if (facts.isEmpty()) return body
+        val line = facts.joinToString(" · ")
+        return (if (body.isEmpty()) line else "$body\n$line").take(MAX_BODY)
+    }
+
     private fun actions(data: JsonObject?): List<PushAction> {
         val arr = data?.get("actions")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
         val out = mutableListOf<PushAction>()
@@ -284,6 +303,8 @@ object PushEventParser {
                 if (out.size == MAX_ACTIONS) break
                 continue
             }
+            // A callback names what the plugin gets back: without a valid id it is dropped.
+            if (type == PushActionType.CALLBACK && str("id")?.let { CALLBACK_ID_RE.matches(it) } != true) continue
             val id = str("id")?.takeIf { ACTION_ID_RE.matches(it) } ?: type
             val label = clean(str("label"), 40)
             val target = str("target")

@@ -18,6 +18,7 @@ import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcRowDivider
+import com.gatecontrol.android.ui.start.StartIcons
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
@@ -27,7 +28,14 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StartEditSheet(onActions: () -> Unit, onInfoCard: () -> Unit, onDismiss: () -> Unit) {
+fun StartEditSheet(
+    onActions: () -> Unit,
+    onInfoCard: () -> Unit,
+    onDismiss: () -> Unit,
+    /** "Start-Tab anordnen"; [arrangeLocked]: off, with the hint that the admin sets the order. */
+    onArrange: (() -> Unit)? = null,
+    arrangeLocked: Boolean = false,
+) {
     val extra = GateControlTheme.extraColors
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -55,6 +63,17 @@ fun StartEditSheet(onActions: () -> Unit, onInfoCard: () -> Unit, onDismiss: () 
                 leading = { Icon(GcIcons.Sliders, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp)) },
                 trailing = { GcChevron() },
             )
+            if (onArrange != null) {
+                GcRowDivider(Modifier.padding(horizontal = 16.dp))
+                GcListRow(
+                    title = stringResource(R.string.start_arrange),
+                    description = if (arrangeLocked) stringResource(R.string.arrange_locked) else stringResource(R.string.start_arrange_hint),
+                    onClick = if (arrangeLocked) null else onArrange,
+                    titleColor = if (arrangeLocked) extra.faint else MaterialTheme.colorScheme.onSurface,
+                    leading = { Icon(StartIcons.Arrange, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp)) },
+                    trailing = { if (!arrangeLocked) GcChevron() },
+                )
+            }
         }
     }
 }

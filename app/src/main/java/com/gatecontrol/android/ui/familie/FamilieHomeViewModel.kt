@@ -12,6 +12,10 @@ import com.gatecontrol.android.familie.push.FamiliePushEvent
 import com.gatecontrol.android.familie.shopping.ShoppingLogic
 import com.gatecontrol.android.familie.shopping.ShoppingRepository
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
+import com.gatecontrol.android.layout.FamilieLayout
+import com.gatecontrol.android.layout.LayoutAccess
+import com.gatecontrol.android.layout.TabLayout
+import com.gatecontrol.android.layout.TabLayoutRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,7 +33,14 @@ class FamilieHomeViewModel @Inject constructor(
     private val api: FamilieApi,
     private val shopping: ShoppingRepository,
     private val presenceStore: com.gatecontrol.android.familie.presence.PresenceStore,
+    private val tabLayout: TabLayoutRepository,
 ) : ViewModel() {
+
+    /** The tab's card order and hidden cards (from the account where the server keeps it). */
+    val layout: StateFlow<TabLayout> = tabLayout.layout
+
+    /** Where the order lives and whether this person may change it. */
+    val layoutAccess: StateFlow<LayoutAccess> = tabLayout.access
 
     val profile: StateFlow<FamilieProfile?> = repository.profile
     val profileError: StateFlow<String?> = repository.profileError
@@ -66,6 +77,7 @@ class FamilieHomeViewModel @Inject constructor(
     }
 
     fun refresh() {
+        viewModelScope.launch { tabLayout.refresh() }
         viewModelScope.launch {
             _loading.value = true
             val p = repository.refreshProfile()
@@ -93,6 +105,21 @@ class FamilieHomeViewModel @Inject constructor(
         viewModelScope.launch {
             val r = api.taskDone(taskId)
             if (r is FamilieResult.Ok) refreshOverview() else _message.value = r.errorCode()
+        }
+    }
+
+    /**
+     * Arranged on "Familie anordnen": [order] of the cards and the ones
+     * [hidden] among [available]; cards hidden before that this device does
+     * not show stay hidden.
+     */
+    fun saveArrangement(order: List<String>, hidden: Set<String>, available: List<String>) {
+        viewModelScope.launch {
+            val previous = tabLayout.current()
+            tabLayout.saveFamilie(
+                order = TabLayout.keepForeign(order, previous.familie),
+                hidden = FamilieLayout.hiddenToStore(hidden, previous.familieHidden, available),
+            )
         }
     }
 

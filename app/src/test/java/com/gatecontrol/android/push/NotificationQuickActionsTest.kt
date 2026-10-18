@@ -80,4 +80,14 @@ class NotificationQuickActionsTest {
         assertEquals(Decision.LOCKED, NotificationQuickActions.decide(m, "gatecontrol-door", "1:open", 0, deviceLocked = true))
         assertEquals(Decision.RUN, NotificationQuickActions.decide(m, "gatecontrol-door", "1:lock", 0, deviceLocked = true))
     }
+
+    @Test
+    fun `callback buttons replace seen - a reminder shows its three buttons`() {
+        val charge = PushAction("charge", "Laden starten", PushActionType.QUICK_ACTION, plugin = "gatecontrol-skoda")
+        val snooze = PushAction("snooze_1h", "In 1 Std.", PushActionType.CALLBACK)
+        val done = PushAction("done", "Erledigt", PushActionType.CALLBACK)
+        val plan = NotificationQuickActions.plan(listOf(charge, snooze, done), seen)
+        assertEquals(listOf("charge", "snooze_1h", "done"), plan.map { it.action.id })
+        assertEquals(listOf(ButtonKind.QUICK_ACTION, ButtonKind.BACKGROUND, ButtonKind.BACKGROUND), plan.map { it.kind })
+    }
 }

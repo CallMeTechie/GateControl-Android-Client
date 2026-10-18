@@ -183,6 +183,17 @@ class ShoppingRepository @Inject constructor(
     /** "Ich gehe einkaufen": tells the others (at most every 15 min per list). */
     suspend fun going(listId: String): FamilieResult<Unit> = api.shoppingGoing(listId)
 
+    /**
+     * B3 "<Name> bitten": the list must be on the server first; afterwards the
+     * lists are fetched again so the assignee shows.
+     */
+    suspend fun assign(listId: String, userId: Int?, notify: String, dueAt: String? = null): FamilieResult<FamilieApi.DeliveryResult> {
+        sync()
+        val r = api.shoppingAssign(listId, userId, dueAt, notify)
+        if (r is FamilieResult.Ok) sync()
+        return r
+    }
+
     companion object {
         private const val FILE = "shopping.json"
         private const val DEBOUNCE_MS = 1_500L

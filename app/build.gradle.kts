@@ -169,6 +169,9 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.osmdroid)
 
+    // Start/Familie tab: reorder by dragging (lazy list and grid)
+    implementation(libs.reorderable)
+
     // Gson (via the Retrofit converter, as in core): pinned quick actions
     implementation(libs.retrofit.gson)
     debugImplementation(libs.compose.ui.tooling)

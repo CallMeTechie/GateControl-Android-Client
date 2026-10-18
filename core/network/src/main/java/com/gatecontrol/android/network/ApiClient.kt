@@ -304,6 +304,14 @@ interface ApiClient {
         @Query("client") client: String = "gatecontrol"
     ): UpdateCheckResponse
 
+    // ─── Order of the start and Familie tabs per account (core 1.181+, 404 before) ──
+
+    @GET("api/v1/client/layout")
+    suspend fun getClientLayout(): Response<ClientLayoutResponse>
+
+    @PUT("api/v1/client/layout")
+    suspend fun putClientLayout(@Body request: ClientLayoutRequest): Response<ClientLayoutPutResponse>
+
     // ─── Notification center (push) ─────────────────────────────────
     // The stream itself (GET api/v1/client/push) runs on its own client,
     // see ApiClientProvider.streamingClient and core/notify.

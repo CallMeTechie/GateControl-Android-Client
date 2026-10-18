@@ -274,4 +274,28 @@ class QuickActionRepositoryTest {
         assertEquals("Kühlen · Ziel 23 °C", pin.widget!!.status)
         assertEquals("on", pin.state)
     }
+
+    @Test
+    fun `arranging orders buttons and widgets and sets widths, leaving unknown pins after them`() = runTest {
+        val r = repo()
+        val items = QuickActionRepository.sanitize(
+            listOf(
+                light,
+                QuickAction(plugin = "p", id = "a", title = "A"),
+                QuickAction(plugin = "p", id = "b", title = "B"),
+            ),
+        )
+        items.forEach { r.togglePin(it) }
+        storedWidgets.value = StartWidgetPin.encode(listOf(StartWidgetPin("p/d1"), StartWidgetPin("p/d2", wide = true), StartWidgetPin("p/d3")))
+
+        r.arrange(tiles = listOf("p/b", "gatecontrol-smarthome/light:3"), widgets = listOf("p/d2", "p/d1"), widths = mapOf("p/d2" to false, "p/d1" to true))
+
+        assertEquals(listOf("p/b", "gatecontrol-smarthome/light:3", "p/a"), r.currentPins().map { it.key })
+        val widgets = r.currentWidgets()
+        assertEquals(listOf("p/d2", "p/d1", "p/d3"), widgets.map { it.device })
+        assertEquals(listOf(false, true, false), widgets.map { it.wide })
+
+        r.removePin("p/a")
+        assertEquals(listOf("p/b", "gatecontrol-smarthome/light:3"), r.currentPins().map { it.key })
+    }
 }

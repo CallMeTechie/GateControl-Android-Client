@@ -62,6 +62,8 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val NETWORK_DEFAULT_TAB = stringPreferencesKey("network_default_tab")
         /** Start tab: devices pinned as widgets, JSON owned by the app's StartWidgetPin. */
         val START_WIDGETS = stringPreferencesKey("start_widgets")
+        /** Order of the start and Familie tabs (and the server's scope for it), JSON owned by the app's TabLayoutRepository. */
+        val TAB_LAYOUT = stringPreferencesKey("tab_layout")
     }
 
     fun getTheme(): Flow<String> = dataStore.data.map { it[THEME] ?: "system" }
@@ -172,6 +174,13 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
     /** Atomic read-modify-write of the widget pins. */
     suspend fun updateStartWidgets(transform: (String?) -> String) {
         dataStore.edit { it[START_WIDGETS] = transform(it[START_WIDGETS]) }
+    }
+
+    fun getTabLayout(): Flow<String?> = dataStore.data.map { it[TAB_LAYOUT] }
+
+    /** Atomic read-modify-write of the tab order. */
+    suspend fun updateTabLayout(transform: (String?) -> String) {
+        dataStore.edit { it[TAB_LAYOUT] = transform(it[TAB_LAYOUT]) }
     }
 
     /** Segment the Netzwerk tab opens with, null = never chosen (the first available). */

@@ -10,7 +10,7 @@ enum class ButtonKind {
     /** "Gesehen": marks read. */
     SEEN,
 
-    /** mute_1h / done / ack: runs in the background. */
+    /** mute_1h / done / ack / callback: runs in the background. */
     BACKGROUND,
 
     /** open_app_route / open_portal: opens the app or the portal. */
@@ -40,7 +40,8 @@ object NotificationQuickActions {
      * screen, the notification never asks (the unlock is the confirmation).
      */
     fun plan(actions: List<PushAction>, seen: PushAction): List<NotificationButton> =
-        (actions.take(1) + seen + actions.drop(1)).take(MAX_BUTTONS).map { action ->
+        // Callback buttons ("In 1 Std.", "Erledigt") mark the message read themselves: no "Gesehen" beside them.
+        (if (actions.any { it.type == PushActionType.CALLBACK }) actions else actions.take(1) + seen + actions.drop(1)).take(MAX_BUTTONS).map { action ->
             when {
                 action === seen -> NotificationButton(action, ButtonKind.SEEN, authRequired = false)
                 action.type == PushActionType.QUICK_ACTION ->

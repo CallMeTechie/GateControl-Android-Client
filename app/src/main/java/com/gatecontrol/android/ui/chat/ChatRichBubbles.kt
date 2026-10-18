@@ -489,10 +489,19 @@ fun ActionContent(m: ChatMessage, a: ChatActionCard, conversation: ChatConversat
             Column(Modifier.weight(1f)) {
                 Text(a.label, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = scheme.onSurface)
                 when (a.mode) {
-                    ChatActionCard.MODE_REQUEST -> Text(stringResource(R.string.chat_action_request_text), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    ChatActionCard.MODE_REQUEST -> {
+                        a.note?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface) }
+                        Text(
+                            stringResource(R.string.chat_action_request_text) +
+                                (a.expiresAt?.takeIf { a.state == ChatActionCard.STATE_OPEN }?.let { " · " + stringResource(R.string.chat_action_expires, ChatText.clock(ctx, it)) } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = extra.muted,
+                        )
+                    }
                     ChatActionCard.MODE_GRANT -> if (a.grantTo != null) {
                         Text(
-                            stringResource(R.string.chat_action_grant_text, ChatText.nameOf(ctx, conversation, a.grantTo, myId), shortDayTime(ctx, a.grantUntil)),
+                            stringResource(R.string.chat_action_grant_text, ChatText.nameOf(ctx, conversation, a.grantTo, myId), shortDayTime(ctx, a.grantUntil)) +
+                                if (a.offAtEnd) " · " + stringResource(R.string.chat_action_grant_off_end) else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = extra.muted,
                         )
@@ -547,9 +556,10 @@ fun PluginCardContent(m: ChatMessage, actions: RichActions) {
     val scheme = MaterialTheme.colorScheme
     val doorbell = card.kind == "doorbell"
     Column(Modifier.width(276.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // A doorbell names the door in the header; a notice (shopping, task, request of a plugin) shows its title as the headline.
         Header(
             if (doorbell) Icons.Outlined.DoorFront else Icons.Outlined.Info,
-            listOfNotNull(stringResource(if (doorbell) R.string.chat_card_doorbell else R.string.chat_card_notice), card.title?.uppercase(locale(ctx)), ChatText.clock(ctx, m.createdAt)).joinToString(" · "),
+            listOfNotNull(stringResource(if (doorbell) R.string.chat_card_doorbell else R.string.chat_card_notice), card.title?.takeIf { doorbell }?.uppercase(locale(ctx)), ChatText.clock(ctx, m.createdAt)).joinToString(" · "),
             if (doorbell) extra.warn else extra.blue,
         )
         val inline by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, card.imageBase64, card.hasImage, m.id) {
@@ -570,7 +580,12 @@ fun PluginCardContent(m: ChatMessage, actions: RichActions) {
                 modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)),
             )
         }
-        (card.text ?: m.text)?.let { Text(it, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = scheme.onSurface) }
+        if (doorbell || card.title == null) {
+            (card.text ?: m.text)?.let { Text(it, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = scheme.onSurface) }
+        } else {
+            Text(card.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = scheme.onSurface)
+            (card.text ?: m.text)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = extra.muted) }
+        }
         if (card.buttons.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 card.buttons.forEachIndexed { i, b ->

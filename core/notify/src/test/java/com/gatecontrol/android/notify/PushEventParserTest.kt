@@ -254,4 +254,30 @@ class PushEventParserTest {
         val old = com.google.gson.JsonParser.parseString("""{"ok":true,"enabled":true}""").asJsonObject
         assertEquals(QuietInfo.UNKNOWN, PushEventParser.quietInfo(old))
     }
+
+    @Test
+    fun `callback buttons need a plain id and are background actions`() {
+        val e = PushEventParser.parse(
+            "notification", "6",
+            """{"seq":6,"id":3,"topic":"plugin:gatecontrol-familie:reminder","title":"Auto laden","data":{"actions":[
+                {"id":"snooze_1h","label":"In 1 Std.","type":"callback"},
+                {"id":"Bad Id!","label":"Kaputt","type":"callback"},
+                {"label":"Ohne Id","type":"callback"},
+                {"id":"done","label":"Erledigt","type":"callback"}]}}""",
+        )
+        val m = assertInstanceOf(PushEvent.Notification::class.java, e).message
+        assertEquals(listOf("snooze_1h", "done"), m.actions.map { it.id })
+        assertTrue(m.actions.all { it.type == PushActionType.CALLBACK && it.type in PushActionType.BACKGROUND })
+    }
+
+    @Test
+    fun `facts of a reminder become the last line of the text`() {
+        val e = PushEventParser.parse(
+            "notification", "7",
+            """{"seq":7,"id":4,"topic":"plugin:gatecontrol-familie:reminders","title":"Auto laden","body":"Der Elroq hat nur 32 %.",
+                "data":{"facts":[{"label":"Ladestand","value":"32 %"},{"label":"Termin","value":"Mo 07:30"},{"label":"leer","value":""},"x"]}}""",
+        )
+        val m = assertInstanceOf(PushEvent.Notification::class.java, e).message
+        assertEquals("Der Elroq hat nur 32 %.\nLadestand: 32 % · Termin: Mo 07:30", m.body)
+    }
 }

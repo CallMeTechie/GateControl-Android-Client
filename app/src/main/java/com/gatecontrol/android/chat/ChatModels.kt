@@ -159,6 +159,8 @@ data class ChatSystem(
     val guests: Int? = null,
     /** Messenger 1.4: `action_run` as another person (a grant), `action_denied` the requester. */
     val otherUserId: Long? = null,
+    /** Messenger 1.5 `grant_off`: whether switching off at the end worked. */
+    val ok: Boolean? = null,
 )
 
 /** One message. Ids are server ids; [clientId] the sender's idempotency key. */
@@ -325,6 +327,8 @@ data class ChatProfile(
     val status: ChatStatus? = null,
     /** Messenger 1.4: what the Familie plugin offers (lists, calendar, places). */
     val familie: ChatFamilie = ChatFamilie(),
+    /** Messenger C4: limits and defaults of door requests and shared devices, the doorbell. */
+    val home: ChatHomeInfo = ChatHomeInfo(),
 )
 
 /** `GET conversations/:id/search`. */

@@ -2,6 +2,9 @@ package com.gatecontrol.android.ui.quickactions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.layout.LayoutAccess
+import com.gatecontrol.android.layout.StartArrangement
+import com.gatecontrol.android.layout.StartEntry
 import com.gatecontrol.android.quickactions.QuickActionDeviceGroup
 import com.gatecontrol.android.quickactions.QuickActionDevices
 import com.gatecontrol.android.quickactions.QuickActionItem
@@ -25,11 +28,33 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * A pin sheet to show: the device [deviceKey], opened from a start-tab
+ * widget ([widget]) or button ([action]: its key), [fromStart] by a long
+ * press on the start tab (only that side, with the reminder and arranging rows).
+ */
+data class PinSheetRequest(val deviceKey: String, val widget: Boolean, val action: String? = null, val fromStart: Boolean = true)
+
 /** The list "Schnellaktionen und Widgets", the pin sheet and the start tab's buttons and widgets. */
 @HiltViewModel
 class QuickActionsViewModel @Inject constructor(
     private val repository: QuickActionRepository,
+    private val arrangement: StartArrangement,
 ) : ViewModel() {
+
+    /** The start tab's blocks in their order (tiles, widgets, Info and usage card). */
+    val entries: StateFlow<List<StartEntry>> = arrangement.entries
+
+    /** Where the order lives and whether this person may change it. */
+    val layoutAccess: StateFlow<LayoutAccess> = arrangement.access
+
+    private val _sheet = MutableStateFlow<PinSheetRequest?>(null)
+    /** The pin sheet open on the start tab (long press on a widget or button). */
+    val sheet: StateFlow<PinSheetRequest?> = _sheet.asStateFlow()
+
+    private val _confirming = MutableStateFlow<QuickActionItem?>(null)
+    /** An action waiting for "Ausführen?" before it runs. */
+    val confirming: StateFlow<QuickActionItem?> = _confirming.asStateFlow()
 
     val actions: StateFlow<List<QuickActionItem>> = repository.actions
     val pins: StateFlow<List<QuickActionItem>> = repository.pins
@@ -58,17 +83,65 @@ class QuickActionsViewModel @Inject constructor(
         viewModelScope.launch { repository.refresh() }
     }
 
+    /** The account's order of the start tab (throttled; on opening the tab). */
+    fun refreshLayout() = arrangement.refresh()
+
+    fun openSheet(request: PinSheetRequest) {
+        _sheet.value = request
+    }
+
+    fun closeSheet() {
+        _sheet.value = null
+    }
+
+    /** Runs [item], asking first where it wants that ([confirming]). */
+    fun ask(item: QuickActionItem) {
+        if (item.needsConfirm) _confirming.value = item else run(item)
+    }
+
+    fun confirm() {
+        val item = _confirming.value ?: return
+        _confirming.value = null
+        run(item)
+    }
+
+    fun cancelConfirm() {
+        _confirming.value = null
+    }
+
     /** The device's buttons on the start tab become exactly [actionIds]. */
     fun setButtons(device: QuickActionDeviceGroup, actionIds: Set<String>) {
-        viewModelScope.launch { repository.setButtons(device, actionIds) }
+        viewModelScope.launch {
+            repository.setButtons(device, actionIds)
+            arrangement.syncFromPins()
+        }
     }
 
     fun setWidget(device: QuickActionDeviceGroup, parts: List<String>, wide: Boolean) {
-        viewModelScope.launch { repository.setWidget(device, parts, wide) }
+        viewModelScope.launch {
+            repository.setWidget(device, parts, wide)
+            arrangement.syncFromPins()
+        }
     }
 
     fun removeWidget(deviceKey: String) {
-        viewModelScope.launch { repository.removeWidget(deviceKey) }
+        viewModelScope.launch {
+            repository.removeWidget(deviceKey)
+            arrangement.syncFromPins()
+        }
+    }
+
+    /** Arranged on "Start-Tab anordnen": the new order and widths. */
+    fun saveArrangement(entries: List<StartEntry>) {
+        viewModelScope.launch { arrangement.save(entries) }
+    }
+
+    /** "−" on a tile while arranging: the button leaves the start tab. */
+    fun unpinTile(key: String) {
+        viewModelScope.launch {
+            repository.removePin(key)
+            arrangement.syncFromPins()
+        }
     }
 
     /** Runs [item] (the caller asked first when [QuickActionItem.needsConfirm]). */

@@ -723,6 +723,9 @@ object ChatJson14 {
             canApprove = can?.flag("approve") == true,
             canDeny = can?.flag("deny") == true,
             resultOk = resultObj?.flag("ok"),
+            note = ChatJson.line(o.str("note"), 200),
+            offAtEnd = grant?.flag("offAtEnd") == true || o.flag("offAtEnd") == true,
+            expiresAt = ChatJson.time(o.str("expiresAt")),
         )
     }
 
@@ -737,8 +740,11 @@ object ChatJson14 {
             add("grant", JsonObject().apply {
                 put("toUserId", a.grantTo)
                 put("until", a.grantUntil)
+                if (a.offAtEnd) addProperty("offAtEnd", true)
             })
         }
+        put("note", a.note)
+        put("expiresAt", a.expiresAt)
         addProperty("state", a.state)
         if (a.result != null || a.resultOk != null) {
             add("result", JsonObject().apply {

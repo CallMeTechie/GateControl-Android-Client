@@ -62,6 +62,8 @@ class ChatSettingsViewModel @Inject constructor(
     private val media: ChatMediaStore,
     private val notifier: ChatNotifier,
     private val setupRepository: SetupRepository,
+    private val doorApi: com.gatecontrol.android.door.DoorApi,
+    private val plugins: com.gatecontrol.android.familie.PluginDirectory,
 ) : ViewModel() {
 
     val profile: StateFlow<ChatProfile?> = repository.profile
@@ -73,6 +75,18 @@ class ChatSettingsViewModel @Inject constructor(
     val actions: StateFlow<List<ChatHomeAction>?> = extras.actions
     val conversations: StateFlow<List<ChatConversation>> = repository.conversations
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _doorbell = MutableStateFlow<com.gatecontrol.android.chat.ChatDoorbellStatus?>(null)
+    /** The last ring and its chat card, from the door plugin (Tür & Kamera 1.4). */
+    val doorbell: StateFlow<com.gatecontrol.android.chat.ChatDoorbellStatus?> = _doorbell
+
+    fun loadDoorbell() {
+        if (!plugins.state.value.door) return
+        viewModelScope.launch {
+            val r = doorApi.meRaw()
+            if (r is com.gatecontrol.android.door.DoorResult.Ok) _doorbell.value = com.gatecontrol.android.chat.ChatHomeJson.doorbell(r.value.second)
+        }
+    }
 
     private val _storage = MutableStateFlow<ChatStorageUsage?>(null)
     val storage: StateFlow<ChatStorageUsage?> = _storage

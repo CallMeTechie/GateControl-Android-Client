@@ -48,6 +48,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
+import com.gatecontrol.android.layout.StartEntry
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.messageRes
@@ -119,6 +120,12 @@ fun VpnScreen(
     onOpenStoryComposer: () -> Unit = {},
     /** Messenger 1.4: the own active stories (from the status sheet). */
     onOpenOwnStories: () -> Unit = {},
+    /**
+     * "Erinnerung für dieses Gerät" in a widget's or button's settings: the
+     * reminder editor for the action `<plugin>/<id>` (Screen.ReminderNew);
+     * null: the row is not offered.
+     */
+    onNewReminder: ((actionId: String) -> Unit)? = null,
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
@@ -519,9 +526,18 @@ fun VpnScreen(
         // --- Client policy: kill switch / always-on need the system settings
         com.gatecontrol.android.ui.components.GcPolicySystemVpnCard(clientPolicy)
     }
-    val quickActionsSection: @Composable ColumnScope.() -> Unit = {
-        // --- Quick actions and widgets of the plugins ----------------------
-        com.gatecontrol.android.ui.quickactions.QuickActionsCard(onOpenDoor = onOpenDoor)
+    // --- Quick actions, widgets, Info and usage card in the arranged order ---
+    val quickActionsViewModel: com.gatecontrol.android.ui.quickactions.QuickActionsViewModel = hiltViewModel()
+    val startEntries by quickActionsViewModel.entries.collectAsState()
+    val layoutAccess by quickActionsViewModel.layoutAccess.collectAsState()
+    var arranging by rememberSaveable { mutableStateOf(false) }
+    com.gatecontrol.android.ui.quickactions.QuickActionsEffects(
+        onArrange = { arranging = true },
+        onNewReminder = onNewReminder,
+        viewModel = quickActionsViewModel,
+    )
+    val tilesSection: @Composable ColumnScope.() -> Unit = {
+        com.gatecontrol.android.ui.quickactions.StartTiles(onOpenDoor = onOpenDoor, viewModel = quickActionsViewModel)
     }
 
     // Long press on a free spot of the tab: the menu to set it up.
@@ -536,13 +552,15 @@ fun VpnScreen(
             onActions = { editOpen = false; onOpenQuickActions() },
             onInfoCard = { editOpen = false; onOpenInfoCardPicker() },
             onDismiss = { editOpen = false },
+            onArrange = { editOpen = false; arranging = true },
+            arrangeLocked = layoutAccess.locked,
         )
     }
-    val infoSection: @Composable ColumnScope.() -> Unit = {
+    val infoCard: @Composable () -> Unit = {
         // --- Info card: contents the person chose (plugin start tiles) ---
         com.gatecontrol.android.ui.infocard.InfoCard(onEdit = onOpenInfoCardPicker)
     }
-    val usageSection: @Composable ColumnScope.() -> Unit = {
+    val usageCard: @Composable () -> Unit = {
         // --- Throughput + data usage: one card, the content slides -------------
         UsageCard(
             rxHistory = rxHistory.toList(),
@@ -552,6 +570,26 @@ fun VpnScreen(
             txSpeed = stats.txSpeed,
             traffic = trafficUsage.takeIf { permissions.traffic },
         )
+    }
+    // [withUsage] false: the usage card stands in the other pane.
+    val cardsSection: @Composable ColumnScope.(withUsage: Boolean) -> Unit = { withUsage ->
+        com.gatecontrol.android.ui.quickactions.StartCards(
+            cards = startEntries.filter { it !is StartEntry.Tile && (withUsage || it != StartEntry.Usage) },
+            info = infoCard,
+            usage = usageCard,
+            onOpenDoor = onOpenDoor,
+            viewModel = quickActionsViewModel,
+        )
+    }
+
+    // "Start-Tab anordnen" replaces the tab until "Fertig".
+    if (arranging && !layoutAccess.locked) {
+        com.gatecontrol.android.ui.start.StartArrangeScreen(
+            onDone = { arranging = false },
+            onAddTile = onOpenQuickActions,
+            viewModel = quickActionsViewModel,
+        )
+        return
     }
 
     // Phones: one column. Wide windows: quick actions and Info card on the
@@ -564,8 +602,8 @@ fun VpnScreen(
             layout.horizontalHinge != null -> TabletopHome(
                 hinge = layout.horizontalHinge,
                 onLongPress = openEdit,
-                top = { headerSection(); quickActionsSection() },
-                bottom = { bannerSection(); infoSection(); usageSection() },
+                top = { headerSection(); tilesSection() },
+                bottom = { bannerSection(); cardsSection(true) },
             )
             layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
                 Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }
@@ -573,19 +611,18 @@ fun VpnScreen(
                     listWidth = 420.dp,
                     divider = false,
                     list = {
-                        HomeColumn(onLongPress = openEdit) { bannerSection(); quickActionsSection(); infoSection() }
+                        HomeColumn(onLongPress = openEdit) { bannerSection(); tilesSection(); cardsSection(false) }
                     },
                     detail = {
-                        HomeColumn(onLongPress = openEdit) { usageSection() }
+                        HomeColumn(onLongPress = openEdit) { usageCard() }
                     },
                 )
             }
             else -> HomeColumn(Modifier.padding(top = 20.dp), onLongPress = openEdit) {
                 headerSection()
                 bannerSection()
-                quickActionsSection()
-                infoSection()
-                usageSection()
+                tilesSection()
+                cardsSection(true)
             }
         }
         // "Update installiert – VPN wieder verbunden" after an update (Play build).

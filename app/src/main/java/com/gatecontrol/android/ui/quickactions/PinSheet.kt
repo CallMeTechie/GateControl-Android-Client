@@ -1,6 +1,7 @@
 package com.gatecontrol.android.ui.quickactions
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,11 +45,13 @@ import com.gatecontrol.android.quickactions.QuickActionIcons
 import com.gatecontrol.android.quickactions.QuickActionItem
 import com.gatecontrol.android.quickactions.StartWidgetPin
 import com.gatecontrol.android.quickactions.WidgetPart
+import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSegmented
+import com.gatecontrol.android.ui.start.StartIcons
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 private const val TAB_BUTTONS = "buttons"
@@ -59,6 +63,13 @@ private const val TAB_WIDGET = "widget"
  * action; each ticked one becomes a button) or as **Widget** (a preview,
  * half or full width and a tick per part the card shows). Opens on the
  * widget side when the device already is one. "Lösen" takes the widget off.
+ *
+ * [fromStart]: opened by a long press on the start tab (mockup
+ * StartWidgetSettings) — only the side of what was pressed ([startOnWidget]:
+ * the widget, else the buttons), "Vom Start lösen" and "Fertig". Both kinds
+ * offer "Erinnerung für dieses Gerät" when [onReminder] is given (the
+ * reminder editor with the device chosen) and "Start-Tab anordnen" when
+ * [onArrange] is given (off with a hint while [arrangeLocked]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,10 +81,17 @@ fun PinSheet(
     onSaveWidget: (parts: List<String>, wide: Boolean) -> Unit,
     onRemoveWidget: () -> Unit,
     onDismiss: () -> Unit,
+    fromStart: Boolean = false,
+    startOnWidget: Boolean? = null,
+    onReminder: (() -> Unit)? = null,
+    onArrange: (() -> Unit)? = null,
+    arrangeLocked: Boolean = false,
 ) {
     val extra = GateControlTheme.extraColors
     val allParts = remember(device) { device.parts() }
-    var tab by rememberSaveable(device.key) { mutableStateOf(if (widgetPin != null) TAB_WIDGET else TAB_BUTTONS) }
+    var tab by rememberSaveable(device.key) {
+        mutableStateOf(if (startOnWidget ?: (widgetPin != null)) TAB_WIDGET else TAB_BUTTONS)
+    }
     var chosenActions by rememberSaveable(device.key) {
         mutableStateOf(
             pinnedActionIds.ifEmpty { if (device.actions.size == 1) setOf(device.actions.first().id) else emptySet() }.toList(),
@@ -84,6 +102,7 @@ fun PinSheet(
     }
     var wide by rememberSaveable(device.key) { mutableStateOf(widgetPin?.wide ?: false) }
     val icon = remember(device.icon) { QuickActionIcons.vector(device.icon) }
+    val saveParts = { onSaveWidget(allParts.map { it.id }.filter { it in chosenParts }, wide) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -102,7 +121,11 @@ fun PinSheet(
                 Column(Modifier.weight(1f)) {
                     Text(device.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        listOfNotNull(device.pluginName, device.subtitle).joinToString(" · "),
+                        if (fromStart) {
+                            stringResource(if (tab == TAB_WIDGET) R.string.pin_sheet_widget_on_start else R.string.pin_sheet_button_on_start)
+                        } else {
+                            listOfNotNull(device.pluginName, device.subtitle).joinToString(" · ")
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = extra.muted,
                         maxLines = 1,
@@ -111,14 +134,16 @@ fun PinSheet(
                 }
             }
 
-            GcSegmented(
-                options = listOf(
-                    TAB_BUTTONS to stringResource(R.string.pin_sheet_as_button),
-                    TAB_WIDGET to stringResource(R.string.quick_actions_as_widget),
-                ),
-                selected = tab,
-                onSelect = { tab = it },
-            )
+            if (!fromStart) {
+                GcSegmented(
+                    options = listOf(
+                        TAB_BUTTONS to stringResource(R.string.pin_sheet_as_button),
+                        TAB_WIDGET to stringResource(R.string.quick_actions_as_widget),
+                    ),
+                    selected = tab,
+                    onSelect = { tab = it },
+                )
+            }
 
             if (tab == TAB_BUTTONS) {
                 GcSectionLabel(stringResource(R.string.pin_sheet_buttons_label))
@@ -131,13 +156,57 @@ fun PinSheet(
                         )
                     }
                 }
+                StartRows(onReminder, onArrange, arrangeLocked)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GcOutlineButton(text = stringResource(R.string.common_cancel), onClick = onDismiss, fillWidth = false)
+                    if (fromStart) {
+                        GcOutlineButton(text = stringResource(R.string.pin_sheet_unpin_start), onClick = { onSaveButtons(emptySet()) }, modifier = Modifier.weight(1f))
+                        GcPrimaryButton(
+                            text = stringResource(R.string.common_done),
+                            onClick = { onSaveButtons(chosenActions.toSet()) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        GcOutlineButton(text = stringResource(R.string.common_cancel), onClick = onDismiss, fillWidth = false)
+                        GcPrimaryButton(
+                            text = if (chosenActions.isEmpty() && pinnedActionIds.isNotEmpty()) stringResource(R.string.pin_sheet_unpin_buttons)
+                            else pluralStringResource(R.plurals.pin_sheet_save_buttons, chosenActions.size, chosenActions.size),
+                            onClick = { onSaveButtons(chosenActions.toSet()) },
+                            enabled = chosenActions.isNotEmpty() || pinnedActionIds.isNotEmpty(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            } else if (fromStart) {
+                // Mockup StartWidgetSettings: width, the parts in two columns, the rows, "Vom Start lösen" / "Fertig".
+                GcSegmented(
+                    options = listOf(false to stringResource(R.string.pin_sheet_half), true to stringResource(R.string.pin_sheet_wide)),
+                    selected = wide,
+                    onSelect = { wide = it },
+                )
+                GcSectionLabel(stringResource(R.string.pin_sheet_show))
+                Column {
+                    allParts.chunked(2).forEach { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            pair.forEach { part ->
+                                PartCheckRow(
+                                    label = partLabel(part),
+                                    hint = null,
+                                    checked = part.id in chosenParts,
+                                    onChange = { on -> chosenParts = if (on) chosenParts + part.id else chosenParts - part.id },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            if (pair.size == 1) Box(Modifier.weight(1f))
+                        }
+                    }
+                }
+                StartRows(onReminder, onArrange, arrangeLocked)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GcOutlineButton(text = stringResource(R.string.pin_sheet_unpin_start), onClick = onRemoveWidget, modifier = Modifier.weight(1f))
                     GcPrimaryButton(
-                        text = if (chosenActions.isEmpty() && pinnedActionIds.isNotEmpty()) stringResource(R.string.pin_sheet_unpin_buttons)
-                        else pluralStringResource(R.plurals.pin_sheet_save_buttons, chosenActions.size, chosenActions.size),
-                        onClick = { onSaveButtons(chosenActions.toSet()) },
-                        enabled = chosenActions.isNotEmpty() || pinnedActionIds.isNotEmpty(),
+                        text = stringResource(R.string.common_done),
+                        onClick = saveParts,
+                        enabled = chosenParts.isNotEmpty(),
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -171,6 +240,7 @@ fun PinSheet(
                         )
                     }
                 }
+                StartRows(onReminder, onArrange, arrangeLocked)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (widgetPin != null) {
                         GcOutlineButton(text = stringResource(R.string.pin_sheet_remove), onClick = onRemoveWidget, fillWidth = false)
@@ -179,13 +249,63 @@ fun PinSheet(
                     }
                     GcPrimaryButton(
                         text = stringResource(if (widgetPin != null) R.string.pin_sheet_save else R.string.pin_sheet_pin_widget),
-                        onClick = { onSaveWidget(allParts.map { it.id }.filter { it in chosenParts }, wide) },
+                        onClick = saveParts,
                         enabled = chosenParts.isNotEmpty(),
                         modifier = Modifier.weight(1f),
                     )
                 }
             }
         }
+    }
+}
+
+/** "Erinnerung für dieses Gerät" and "Start-Tab anordnen", each only with its callback. */
+@Composable
+private fun StartRows(onReminder: (() -> Unit)?, onArrange: (() -> Unit)?, arrangeLocked: Boolean) {
+    if (onReminder == null && onArrange == null) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (onReminder != null) {
+            SheetLinkRow(
+                icon = StartIcons.Reminder,
+                title = stringResource(R.string.pin_sheet_reminder),
+                hint = stringResource(R.string.pin_sheet_reminder_hint),
+                onClick = onReminder,
+            )
+        }
+        if (onArrange != null) {
+            SheetLinkRow(
+                icon = StartIcons.Arrange,
+                title = stringResource(R.string.start_arrange),
+                hint = if (arrangeLocked) stringResource(R.string.arrange_locked) else null,
+                onClick = onArrange,
+                enabled = !arrangeLocked,
+            )
+        }
+    }
+}
+
+/** A tinted row leading elsewhere: icon, title (hint below), chevron. */
+@Composable
+private fun SheetLinkRow(icon: ImageVector, title: String, hint: String?, onClick: () -> Unit, enabled: Boolean = true) {
+    val extra = GateControlTheme.extraColors
+    val content = if (enabled) MaterialTheme.colorScheme.onSurface else extra.faint
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(extra.panel2)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = if (enabled) extra.accentText else extra.faint, modifier = Modifier.size(22.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = content)
+            if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = extra.muted)
+        }
+        if (enabled) GcChevron()
     }
 }
 
@@ -220,10 +340,10 @@ private fun ActionCheckRow(action: QuickActionItem, checked: Boolean, onChange: 
 }
 
 @Composable
-private fun PartCheckRow(label: String, hint: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun PartCheckRow(label: String, hint: String?, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = 44.dp)
             .toggleable(value = checked, role = Role.Checkbox, onValueChange = onChange),

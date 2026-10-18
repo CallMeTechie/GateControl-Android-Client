@@ -90,7 +90,8 @@ object QuickActionDevices {
  * [anchor] the key of one of its actions (to find it again when the plugin
  * changes the device id), [parts] the shown parts (null = all, the pins
  * 1.37 had), [wide] full instead of half width, [snapshot] the device as
- * last seen (shown while the server cannot be asked).
+ * last seen (shown while the server cannot be asked), [known] the parts the
+ * device had when [parts] was chosen (null: chosen before 1.47).
  */
 data class StartWidgetPin(
     val device: String,
@@ -98,6 +99,7 @@ data class StartWidgetPin(
     val parts: List<String>? = null,
     val wide: Boolean = false,
     val snapshot: QuickActionDeviceGroup? = null,
+    val known: List<String>? = null,
 ) {
     /** The device now: by key, else by the anchor action, else the copy. */
     fun resolve(devices: List<QuickActionDeviceGroup>): QuickActionDeviceGroup? =
@@ -113,11 +115,19 @@ data class StartWidgetPin(
         return copy(device = now.key, anchor = anchor?.takeIf { a -> now.actions.any { it.key == a } } ?: now.actions.firstOrNull()?.key, snapshot = now)
     }
 
-    /** The parts of [group] this pin shows, in the device's order. */
+    /**
+     * The parts of [group] this pin shows, in the device's order: the
+     * chosen ones and those the device got since (a plugin update adding
+     * the outdoor temperature shows it until the person hides it). For a
+     * choice from before [known] existed, readings not chosen count as new.
+     */
     fun shownParts(group: QuickActionDeviceGroup): List<WidgetPart> {
         val all = group.parts()
         val chosen = parts ?: return all
-        return all.filter { it.id in chosen }
+        val known = known
+        return all.filter { part ->
+            part.id in chosen || if (known != null) part.id !in known else part.kind == WidgetPart.Kind.READING
+        }
     }
 
     companion object {
@@ -126,7 +136,7 @@ data class StartWidgetPin(
 
         /** [pins] with [device] shown as a widget of [parts] (replacing its pin, else added at the end); at most [max]. */
         fun withWidget(pins: List<StartWidgetPin>, device: QuickActionDeviceGroup, parts: List<String>, wide: Boolean, max: Int): List<StartWidgetPin> {
-            val pin = StartWidgetPin(device.key, device.actions.firstOrNull()?.key, parts, wide, device)
+            val pin = StartWidgetPin(device.key, device.actions.firstOrNull()?.key, parts, wide, device, device.parts().map { it.id })
             return if (pins.any { it.device == device.key }) pins.map { if (it.device == device.key) pin else it }
             else (pins + pin).take(max)
         }
@@ -137,7 +147,9 @@ data class StartWidgetPin(
             // Gson bypasses Kotlin null-safety: drop broken entries, mend the copy's lists.
             else gson.fromJson<List<StartWidgetPin>>(raw, type).orEmpty()
                 .filter { it != null && it.device != null }
-                .map { pin -> pin.copy(parts = pin.parts?.filter { it != null }, snapshot = pin.snapshot?.let(::mend)) }
+                .map { pin ->
+                    pin.copy(parts = pin.parts?.filter { it != null }, snapshot = pin.snapshot?.let(::mend), known = pin.known?.filter { it != null })
+                }
         } catch (e: Exception) {
             emptyList()
         }

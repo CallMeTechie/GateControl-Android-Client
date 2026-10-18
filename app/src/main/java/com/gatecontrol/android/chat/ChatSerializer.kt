@@ -93,6 +93,7 @@ object ChatSerializer {
                 s.answer?.let { addProperty("answer", it) }
                 s.guests?.let { addProperty("guests", it) }
                 s.otherUserId?.let { addProperty("asUserId", it) }
+                s.ok?.let { addProperty("ok", it) }
             }
         } ?: JsonNull.INSTANCE)
         add("reactions", ChatJsonPatch.reactions(JsonObject(), m.reactions).get("reactions"))
@@ -214,6 +215,7 @@ object ChatSerializer {
             add("disappearingS", JsonArray().apply { l.disappearingS.forEach { add(it) } })
             ChatJson14.writeUsage(this, l.usage)
         })
+        ChatHomeJson.write(this, p.home)
         put("serverTime", p.serverTime)
     }
 }

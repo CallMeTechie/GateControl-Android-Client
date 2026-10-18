@@ -353,6 +353,12 @@ data class ChatActionCard(
     val canDeny: Boolean = false,
     /** Whether the last run worked (null: not run or unknown). */
     val resultOk: Boolean? = null,
+    /** A request's message ("Hab meinen Schlüssel vergessen"), Messenger C2. */
+    val note: String? = null,
+    /** A grant switches the device off when it ends (Messenger C3). */
+    val offAtEnd: Boolean = false,
+    /** When an open request / grant ends (Messenger 1.5). */
+    val expiresAt: String? = null,
 ) {
     companion object {
         const val MODE_RUN = "run"

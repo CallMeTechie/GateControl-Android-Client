@@ -136,6 +136,16 @@ sealed class Screen(val route: String) {
     /** Diagnose & Problem melden (Settings › Hilfe, start screen on connection problems). */
     data object Diagnosis : Screen("settings/diagnosis")
     data object QuickActions : Screen("quick-actions")
+    /**
+     * New personal reminder for a device ("Erinnerung für dieses Gerät" in
+     * a start-tab widget's settings): the reminder editor with the action
+     * `<plugin>/<id>` chosen. Route only — the editor registers it.
+     */
+    data object ReminderNew : Screen("reminder/new?actionId={actionId}") {
+        const val ARG_ACTION_ID = "actionId"
+        fun create(actionId: String? = null): String =
+            if (actionId == null) "reminder/new" else "reminder/new?actionId=" + android.net.Uri.encode(actionId)
+    }
     /** Picker "Inhalte der Info-Karte" (pencil of the start tab's Info card). */
     data object InfoCardPicker : Screen("info-card")
     data object Logs : Screen("settings/logs")
