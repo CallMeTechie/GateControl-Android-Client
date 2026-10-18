@@ -3,6 +3,7 @@ package com.gatecontrol.android.quickactions
 import android.content.Context
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.layout.StartLayout
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.QuickAction
 import com.gatecontrol.android.network.QuickActionRunRequest
@@ -237,6 +238,35 @@ class QuickActionRepository @Inject constructor(
     suspend fun removeWidget(deviceKey: String) {
         settingsRepository.updateStartWidgets { raw ->
             StartWidgetPin.encode(StartWidgetPin.decode(raw).filter { it.device != deviceKey })
+        }
+    }
+
+    /** Takes the button of [key] off the start tab. */
+    suspend fun removePin(key: String) {
+        settingsRepository.updateQuickActionPins { raw -> encodePins(decodePins(raw).filter { it.key != key }) }
+        afterPinsChanged()
+    }
+
+    /**
+     * The start tab's arrangement into the pins: buttons in the order of
+     * [tiles] (action keys), widgets in the order of [widgets] (device keys)
+     * with the [widths] given (device → full width); pins the lists lack
+     * keep their place after the others. Nothing is written when it is so.
+     */
+    suspend fun arrange(tiles: List<String>, widgets: List<String>, widths: Map<String, Boolean>) {
+        var pinsChanged = false
+        settingsRepository.updateQuickActionPins { raw ->
+            val current = decodePins(raw)
+            val next = StartLayout.ordered(current, tiles) { it.key }
+            pinsChanged = next.map { it.key } != current.map { it.key }
+            if (pinsChanged) encodePins(next) else raw.orEmpty()
+        }
+        if (pinsChanged) afterPinsChanged()
+        settingsRepository.updateStartWidgets { raw ->
+            val current = StartWidgetPin.decode(raw)
+            val next = StartLayout.ordered(current, widgets) { it.device }
+                .map { pin -> widths[pin.device]?.takeIf { it != pin.wide }?.let { pin.copy(wide = it) } ?: pin }
+            if (next == current) raw.orEmpty() else StartWidgetPin.encode(next)
         }
     }
 
