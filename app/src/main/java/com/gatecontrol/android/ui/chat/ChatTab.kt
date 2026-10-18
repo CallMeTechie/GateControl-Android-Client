@@ -12,6 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -22,10 +23,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.chat.ChatRepository
+import com.gatecontrol.android.chat.ChatSelection
 import com.gatecontrol.android.chat.ChatShareHandover
 import com.gatecontrol.android.chat.ChatTimeline
 import com.gatecontrol.android.ui.adaptive.GcTwoPane
@@ -55,8 +59,23 @@ fun ChatsTwoPane(
     onOpenImage: (String) -> Unit,
 ) {
     var selected by rememberSaveable(initial) { mutableStateOf(initial) }
-    // The conversation picked for what was shared from another app.
-    var shareFor by rememberSaveable { mutableStateOf<Long?>(null) }
+    // The conversation picked for what was shared from another app (a sharing shortcut: that chat).
+    var shareFor by rememberSaveable(initial, share) { mutableStateOf(if (share) initial else null) }
+    // A group just left, a chat removed or no longer listed: back to the empty pane.
+    val listViewModel: ChatListViewModel = hiltViewModel()
+    val dropped by listViewModel.dropped.collectAsStateWithLifecycle()
+    val listed by listViewModel.listedIds.collectAsStateWithLifecycle()
+    var seenListed by rememberSaveable(selected) { mutableStateOf(false) }
+    LaunchedEffect(selected, listed) {
+        val sel = selected
+        if (sel != null && listed?.contains(sel) == true) seenListed = true
+    }
+    LaunchedEffect(selected, dropped, listed, seenListed) {
+        if (!ChatSelection.keep(selected, dropped, listed, seenListed)) {
+            if (shareFor == selected) shareFor = null
+            selected = null
+        }
+    }
     GcTwoPane(
         listWidth = 400.dp,
         list = {

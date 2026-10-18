@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -57,6 +58,7 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.chat.ChatConversation
 import com.gatecontrol.android.chat.ChatPrefs
 import com.gatecontrol.android.chat.ChatSync
+import com.gatecontrol.android.chat.ChatSystemBubbles
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -219,9 +221,12 @@ fun ChatListScreen(
     }
 
     if (showPrefs) {
+        val device by viewModel.device.collectAsStateWithLifecycle()
         ChatPrefsDialog(
             prefs = state.profile?.prefs ?: ChatPrefs(),
+            device = device,
             onSave = { p -> viewModel.setPrefs(p) { } },
+            onSaveDevice = viewModel::setDevice,
             onDismiss = { showPrefs = false },
         )
     }
@@ -372,16 +377,29 @@ internal object ChatTimelineStatus {
         com.gatecontrol.android.chat.ChatTimeline.status(m, c.readUpTo, c.deliveredUpTo)
 }
 
-/** Chat preferences (README `PUT prefs`): read receipts, "schreibt …", content in notifications. */
+/**
+ * Chat preferences (README `PUT prefs`): read receipts, "schreibt …",
+ * content in notifications — and, for this device only, conversation
+ * shortcuts and bubbles.
+ */
 @Composable
-fun ChatPrefsDialog(prefs: ChatPrefs, onSave: (ChatPrefs) -> Unit, onDismiss: () -> Unit) {
+fun ChatPrefsDialog(
+    prefs: ChatPrefs,
+    device: ChatDevicePrefs,
+    onSave: (ChatPrefs) -> Unit,
+    onSaveDevice: (ChatDevicePrefs) -> Unit,
+    onDismiss: () -> Unit,
+) {
     var p by remember(prefs) { mutableStateOf(prefs) }
+    var d by remember(device) { mutableStateOf(device) }
+    val context = LocalContext.current
+    val systemBubbles = remember { ChatSystemBubbles.allowed(context) }
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Outlined.Notifications, contentDescription = null) },
         title = { Text(stringResource(R.string.chat_prefs_title)) },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 GcSwitchRow(
                     label = stringResource(R.string.chat_prefs_receipts),
                     description = stringResource(R.string.chat_prefs_receipts_desc),
@@ -400,11 +418,40 @@ fun ChatPrefsDialog(prefs: ChatPrefs, onSave: (ChatPrefs) -> Unit, onDismiss: ()
                     checked = p.preview,
                     onCheckedChange = { p = p.copy(preview = it) },
                 )
+                Text(
+                    stringResource(R.string.chat_prefs_device).uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = MonoFontFamily),
+                    color = GateControlTheme.extraColors.faint,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                )
+                GcSwitchRow(
+                    label = stringResource(R.string.chat_prefs_shortcuts),
+                    description = stringResource(R.string.chat_prefs_shortcuts_desc),
+                    checked = d.shortcuts,
+                    onCheckedChange = { d = d.copy(shortcuts = it) },
+                )
+                GcSwitchRow(
+                    label = stringResource(R.string.chat_prefs_bubbles),
+                    description = stringResource(
+                        when {
+                            !d.shortcuts -> R.string.chat_prefs_bubbles_needs_shortcuts
+                            systemBubbles == false -> R.string.chat_prefs_bubbles_system_off
+                            else -> R.string.chat_prefs_bubbles_desc
+                        },
+                    ),
+                    checked = d.bubbles && d.shortcuts,
+                    enabled = d.shortcuts,
+                    onCheckedChange = { d = d.copy(bubbles = it) },
+                )
+                if (d.shortcuts && d.bubbles && systemBubbles == false) {
+                    TextButton(onClick = { ChatSystemBubbles.openSettings(context) }) { Text(stringResource(R.string.chat_prefs_bubbles_open_settings)) }
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 if (p != prefs) onSave(p)
+                if (d != device) onSaveDevice(d)
                 onDismiss()
             }) { Text(stringResource(R.string.chat_save)) }
         },

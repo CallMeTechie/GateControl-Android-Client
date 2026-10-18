@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Refresh
@@ -95,6 +96,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.LocusIdCompat
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -104,6 +106,7 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.chat.ChatMessage
 import com.gatecontrol.android.chat.ChatMime
 import com.gatecontrol.android.chat.ChatPending
+import com.gatecontrol.android.chat.ChatShortcutLogic
 import com.gatecontrol.android.chat.PrepareError
 import com.gatecontrol.android.chat.TimelineItem
 import com.gatecontrol.android.chat.VoiceWave
@@ -113,6 +116,7 @@ import com.gatecontrol.android.ui.adaptive.LocalInDetailPane
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.util.findComponentActivity
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
@@ -155,7 +159,21 @@ fun ConversationScreen(
 
     LifecycleResumeEffect(conversationId) {
         viewModel.setVisible(true)
-        onPauseOrDispose { viewModel.setVisible(false) }
+        // The system links this screen to the chat's shortcut and notification (LocusId).
+        val activity = runCatching { context.findComponentActivity() }.getOrNull()
+        runCatching { activity?.setLocusContext(LocusIdCompat(ChatShortcutLogic.id(conversationId)).toLocusId(), null) }
+        onPauseOrDispose {
+            viewModel.setVisible(false)
+            runCatching { activity?.setLocusContext(null, null) }
+        }
+    }
+
+    // Left, removed or deleted meanwhile: the conversation closes (wide windows: the empty pane).
+    LaunchedEffect(state.gone) {
+        if (state.gone) {
+            if (!viewModel.leftHere()) Toast.makeText(context, R.string.chat_gone, Toast.LENGTH_LONG).show()
+            onBack()
+        }
     }
 
     // What was shared from another app: its text goes into the composer.
@@ -216,6 +234,36 @@ fun ConversationScreen(
     val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.any { it }) viewModel.sendLocation()
         else Toast.makeText(context, R.string.chat_loc_no_permission, Toast.LENGTH_LONG).show()
+    }
+    // Camera: the system camera app writes into a FileProvider file of the app's cache.
+    var cameraPath by rememberSaveable { mutableStateOf<String?>(null) }
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val path = cameraPath
+        cameraPath = null
+        if (ok && path != null) {
+            viewModel.sendCameraPhoto(path, draft.takeIf { it.isNotBlank() })
+            draft = ""
+        } else {
+            path?.let { File(it).delete() }
+        }
+    }
+    val launchCamera: () -> Unit = {
+        val target = viewModel.newCameraTarget()
+        if (target == null) {
+            Toast.makeText(context, R.string.chat_camera_failed, Toast.LENGTH_LONG).show()
+        } else {
+            cameraPath = target.first.path
+            try {
+                takePicture.launch(target.second)
+            } catch (e: ActivityNotFoundException) {
+                cameraPath = null
+                target.first.delete()
+                Toast.makeText(context, R.string.chat_camera_no_app, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera() else Toast.makeText(context, R.string.chat_camera_no_permission, Toast.LENGTH_LONG).show()
     }
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Toast.makeText(context, if (granted) R.string.chat_rec_hold else R.string.chat_rec_no_permission, Toast.LENGTH_LONG).show()
@@ -470,10 +518,16 @@ fun ConversationScreen(
         AttachSheet(
             files = features?.files != false,
             location = features?.location != false,
+            camera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) },
             maxBytes = state.profile?.limits?.maxBytes,
             onGallery = {
                 showAttach = false
                 photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onCamera = {
+                showAttach = false
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) launchCamera()
+                else cameraPermission.launch(Manifest.permission.CAMERA)
             },
             onFile = {
                 showAttach = false
@@ -573,7 +627,7 @@ fun ConversationScreen(
     }
 }
 
-private fun defaultName(m: ChatMessage): String = when (m.kind) {
+internal fun defaultName(m: ChatMessage): String = when (m.kind) {
     ChatMessage.KIND_IMAGE -> "bild-${m.id}.webp"
     ChatMessage.KIND_VOICE -> "sprachnachricht-${m.id}.m4a"
     else -> "datei-${m.id}"
@@ -772,8 +826,10 @@ private fun Composer(
 private fun AttachSheet(
     files: Boolean,
     location: Boolean,
+    camera: Boolean,
     maxBytes: Long?,
     onGallery: () -> Unit,
+    onCamera: () -> Unit,
     onFile: () -> Unit,
     onLocation: () -> Unit,
     onDismiss: () -> Unit,
@@ -782,6 +838,7 @@ private fun AttachSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
         Column(Modifier.padding(bottom = 24.dp)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                if (camera) AttachTile(Icons.Outlined.PhotoCamera, stringResource(R.string.chat_attach_camera), onCamera)
                 AttachTile(Icons.Outlined.PhotoLibrary, stringResource(R.string.chat_attach_gallery), onGallery)
                 if (files) AttachTile(Icons.Outlined.AttachFile, stringResource(R.string.chat_attach_file), onFile)
                 if (location) AttachTile(Icons.Outlined.Place, stringResource(R.string.chat_attach_location), onLocation)

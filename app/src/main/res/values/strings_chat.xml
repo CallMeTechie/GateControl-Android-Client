@@ -199,4 +199,44 @@
         <item quantity="one">%1$d chat with new messages</item>
         <item quantity="other">%1$d chats with new messages</item>
     </plurals>
+    <!-- Chats: camera, group picture, media overview, shortcuts and bubbles -->
+    <string name="chat_attach_camera">Camera</string>
+    <string name="chat_camera_failed">The camera could not be started.</string>
+    <string name="chat_camera_no_app">No camera app found.</string>
+    <string name="chat_camera_no_permission">Without camera access no photo can be taken.</string>
+    <string name="chat_gone">You are no longer in this chat.</string>
+    <string name="chat_shortcut_gone">This chat is no longer available.</string>
+    <string name="chat_group_picture">Group picture</string>
+    <string name="chat_group_picture_remove">Remove picture</string>
+    <string name="chat_group_picture_crop">Crop group picture</string>
+    <string name="chat_group_picture_crop_hint">Pinch to zoom, drag to move. The circle shows the group picture.</string>
+    <string name="chat_media_title">Media &amp; files</string>
+    <string name="chat_media_row_desc">Pictures, videos, files and voice messages</string>
+    <string name="chat_media_tab_media">Pictures &amp; videos</string>
+    <string name="chat_media_tab_files">Files</string>
+    <string name="chat_media_tab_voice">Voice messages</string>
+    <string name="chat_media_empty">Nothing here yet.</string>
+    <string name="chat_media_failed">Could not be loaded. Check the connection.</string>
+    <string name="chat_media_open">Open</string>
+    <string name="chat_media_video">Video</string>
+    <string name="chat_prefs_device">On this device</string>
+    <string name="chat_prefs_shortcuts">Chat shortcuts</string>
+    <string name="chat_prefs_shortcuts_desc">Recent chats on the app icon and in the share menu</string>
+    <string name="chat_prefs_bubbles">Chat bubbles</string>
+    <string name="chat_prefs_bubbles_desc">Chat notifications can open as floating bubbles</string>
+    <string name="chat_prefs_bubbles_needs_shortcuts">Needs chat shortcuts</string>
+    <string name="chat_prefs_bubbles_system_off">Bubbles are switched off in the Android settings</string>
+    <string name="chat_prefs_bubbles_open_settings">Open Android settings</string>
+    <plurals name="chat_media_count_images">
+        <item quantity="one">%1$d picture</item>
+        <item quantity="other">%1$d pictures</item>
+    </plurals>
+    <plurals name="chat_media_count_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="chat_media_count_voice">
+        <item quantity="one">%1$d voice message</item>
+        <item quantity="other">%1$d voice messages</item>
+    </plurals>
 </resources>

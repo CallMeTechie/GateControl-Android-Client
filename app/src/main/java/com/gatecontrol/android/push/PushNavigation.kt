@@ -33,8 +33,12 @@ sealed interface PushNavTarget {
      */
     data class Chat(val conversationId: Long? = null) : PushNavTarget
 
-    /** Shared from another app ("Teilen → GateControl"): pick a chat for [ChatShareHandover]'s content. */
-    data object ChatShare : PushNavTarget
+    /**
+     * Shared from another app ("Teilen → GateControl"): pick a chat for
+     * [ChatShareHandover]'s content — or straight into [conversationId]
+     * (a sharing shortcut of that chat).
+     */
+    data class ChatShare(val conversationId: Long? = null) : PushNavTarget
 
     companion object {
         /** App route of the Familie plugin (`plg-gatecontrol-familie`). */

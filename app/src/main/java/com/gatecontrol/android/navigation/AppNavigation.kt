@@ -105,6 +105,7 @@ import com.gatecontrol.android.ui.chat.ChatBadgeViewModel
 import com.gatecontrol.android.ui.chat.ChatImageViewer
 import com.gatecontrol.android.ui.chat.ChatInfoScreen
 import com.gatecontrol.android.ui.chat.ChatListScreen
+import com.gatecontrol.android.ui.chat.ChatMediaScreen
 import com.gatecontrol.android.ui.chat.ChatsTwoPane
 import com.gatecontrol.android.ui.chat.ConversationScreen
 import com.gatecontrol.android.ui.chat.NewChatScreen
@@ -583,10 +584,25 @@ fun AppNavigation(
                     ChatInfoScreen(
                         conversationId = id,
                         onBack = { navController.popBackStack() },
+                        onOpenMedia = { navController.navigate(Screen.ChatMedia.create(id)) { launchSingleTop = true } },
                         // Back to the list (the left group's chat is gone).
                         onLeft = {
                             if (!navController.popBackStack(Screen.Chats.route, inclusive = false)) navigateToTab(Screen.Chats.create())
                         },
+                    )
+                }
+            }
+
+            composable(
+                route = Screen.ChatMedia.route,
+                arguments = listOf(navArgument(Screen.ChatMedia.ARG_ID) { type = NavType.LongType }),
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getLong(Screen.ChatMedia.ARG_ID) ?: 0L
+                GcContentWidth(maxWidth = 840.dp) {
+                    ChatMediaScreen(
+                        conversationId = id,
+                        onBack = { navController.popBackStack() },
+                        onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
                     )
                 }
             }
@@ -811,13 +827,16 @@ private fun openPushTarget(
                 navController.navigate(Screen.ChatConversation.create(target.conversationId)) { launchSingleTop = true }
             }
         }
-        PushNavTarget.ChatShare -> if (chats) {
-            navController.navigate(Screen.Chats.create(share = true)) {
+        is PushNavTarget.ChatShare -> when {
+            !chats -> ChatShareHandover.clear()
+            target.conversationId == null || layout.twoPane -> navController.navigate(Screen.Chats.create(conv = target.conversationId, share = true)) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
             }
-        } else {
-            ChatShareHandover.clear()
+            else -> {
+                navigateToTab(Screen.Chats.create())
+                navController.navigate(Screen.ChatConversation.create(target.conversationId, share = true)) { launchSingleTop = true }
+            }
         }
         PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
         // Wide screens: the message opens beside the inbox list.

@@ -235,3 +235,12 @@ data class ChatProfile(
 
 /** `GET conversations/:id/search`. */
 data class ChatSearchResult(val results: List<ChatMessage>, val truncated: Boolean)
+
+/** `GET conversations/:id/media`: one page (newest first) and the counts per kind (null: not sent). */
+data class ChatMediaPage(
+    val items: List<ChatMessage>,
+    val images: Int?,
+    val voice: Int?,
+    val files: Int?,
+    val hasMore: Boolean,
+)

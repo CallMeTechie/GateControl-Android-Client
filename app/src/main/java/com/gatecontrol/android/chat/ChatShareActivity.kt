@@ -11,6 +11,7 @@ import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.content.IntentCompat
+import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.gatecontrol.android.MainActivity
 import com.gatecontrol.android.R
@@ -60,7 +61,8 @@ object ChatShareHandover {
  * the system's share sheet starts it — but switched on only while the
  * server offers the chats ([setEnabled]). Copies what was shared into the
  * app's cache right here (the read permission belongs to this activity),
- * refusing the app's own files, then lets the person pick a chat.
+ * refusing the app's own files, then lets the person pick a chat — or,
+ * through a sharing shortcut ([ChatShortcuts]), opens that chat directly.
  */
 @AndroidEntryPoint
 class ChatShareActivity : ComponentActivity() {
@@ -84,6 +86,8 @@ class ChatShareActivity : ComponentActivity() {
             finish()
             return
         }
+        // A sharing shortcut (share sheet → a recent chat): straight into that conversation.
+        val target = ChatShortcutLogic.conversationOf(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID))
         val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.take(ChatJson.TEXT_MAX)
         val uris: List<Uri> = if (action == Intent.ACTION_SEND_MULTIPLE) {
             IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
@@ -97,7 +101,7 @@ class ChatShareActivity : ComponentActivity() {
                 Toast.makeText(this@ChatShareActivity, R.string.chat_share_nothing, Toast.LENGTH_LONG).show()
             } else {
                 ChatShareHandover.offer(payload)
-                PushNavigation.request(PushNavTarget.ChatShare)
+                PushNavigation.request(PushNavTarget.ChatShare(target))
                 startActivity(
                     Intent(this@ChatShareActivity, MainActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),

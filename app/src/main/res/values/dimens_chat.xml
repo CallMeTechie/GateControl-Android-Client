@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chats: desired height of an expanded chat bubble (the system may cap it). -->
+    <dimen name="chat_bubble_height">600dp</dimen>
+</resources>

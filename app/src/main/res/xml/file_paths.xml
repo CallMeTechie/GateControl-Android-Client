@@ -7,4 +7,8 @@
          here under its own name (cacheDir/chat-open, pruned after a day).
          The downloaded chat files themselves stay private. -->
     <cache-path name="chat_open" path="chat-open/" />
+    <!-- Chats: a photo taken with the camera app for a chat or a group
+         picture (cacheDir/camera, pruned after a day). The camera app gets
+         write access to the one file for the capture only. -->
+    <cache-path name="camera" path="camera/" />
 </paths>

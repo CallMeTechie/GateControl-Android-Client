@@ -299,3 +299,52 @@ object ChatJsonPatch {
         }
     }
 }
+
+/** Which conversation the detail pane of wide windows keeps. Pure, unit-tested. */
+object ChatSelection {
+    /**
+     * Whether [selected] stays selected: not when it was dropped (left,
+     * removed, `conversation.remove`), nor when it was listed before
+     * ([seenListed]) and the loaded list ([listed], null while loading) no
+     * longer has it. A conversation not listed yet (opened from a push
+     * before the list caught up) stays.
+     */
+    fun keep(selected: Long?, dropped: Set<Long>, listed: Set<Long>?, seenListed: Boolean): Boolean {
+        if (selected == null) return true
+        if (selected in dropped) return false
+        return listed == null || selected in listed || !seenListed
+    }
+}
+
+/** Pages of the media overview (`GET conversations/:id/media`). Pure, unit-tested. */
+object ChatMediaLogic {
+    const val KIND_ALL = "all"
+
+    /** The tabs of the overview, each with the server's `kind` it pages through. */
+    enum class Tab(val kind: String) {
+        /** Pictures and videos (videos are files on the server: `all`, filtered). */
+        Media(KIND_ALL),
+        Files(ChatMessage.KIND_FILE),
+        Voice(ChatMessage.KIND_VOICE),
+    }
+
+    fun isVideo(m: ChatMessage): Boolean = m.kind == ChatMessage.KIND_FILE && m.media?.mime?.startsWith("video/") == true
+
+    /** Whether [m] belongs into [tab]. */
+    fun belongs(tab: Tab, m: ChatMessage): Boolean {
+        if (m.media == null || m.deleted) return false
+        return when (tab) {
+            Tab.Media -> m.kind == ChatMessage.KIND_IMAGE || isVideo(m)
+            Tab.Files -> m.kind == ChatMessage.KIND_FILE && !isVideo(m)
+            Tab.Voice -> m.kind == ChatMessage.KIND_VOICE
+        }
+    }
+
+    /** [current] plus a newly loaded page: newest first, each message once, only what fits [tab]. */
+    fun merge(tab: Tab, current: List<ChatMessage>, page: List<ChatMessage>): List<ChatMessage> =
+        (current + page.filter { belongs(tab, it) }).distinctBy { it.id }.sortedByDescending { it.id }
+
+    /** `before=` for the next page: the oldest id the server sent so far. */
+    fun cursor(previous: Long?, page: List<ChatMessage>): Long? =
+        (listOfNotNull(previous) + page.map { it.id }).minOrNull()
+}

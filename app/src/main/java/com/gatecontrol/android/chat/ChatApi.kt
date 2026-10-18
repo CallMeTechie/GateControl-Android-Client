@@ -220,6 +220,16 @@ class ChatApi @Inject constructor(
     suspend fun search(conversationId: Long, q: String): ChatResult<ChatSearchResult> =
         get("conversations/$conversationId/search", mapOf("q" to q.take(100)), ChatJson::search)
 
+    /** `GET conversations/:id/media`: [kind] image | voice | file | all, older than [before]. */
+    suspend fun media(conversationId: Long, kind: String, before: Long? = null, limit: Int = 30): ChatResult<ChatMediaPage> {
+        val q = buildMap {
+            put("kind", kind)
+            put("limit", limit.coerceIn(1, 100).toString())
+            before?.let { put("before", it.toString()) }
+        }
+        return get("conversations/$conversationId/media", q, ChatJson::mediaPage)
+    }
+
     // ─── media ──────────────────────────────────────────────────────
 
     /** Raw upload of [file] as [mime] → the media id to send with a message. */

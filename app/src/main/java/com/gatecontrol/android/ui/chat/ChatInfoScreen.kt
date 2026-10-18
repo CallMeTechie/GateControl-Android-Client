@@ -1,6 +1,31 @@
 package com.gatecontrol.android.ui.chat
 
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.PermMedia
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
+import androidx.core.content.ContextCompat
+import com.gatecontrol.android.chat.ChatMediaStore
+import com.gatecontrol.android.profile.AvatarEncoder
+import com.gatecontrol.android.profile.CropRect
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -66,6 +91,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -77,11 +103,19 @@ import javax.inject.Inject
 /** Chat / group info: members, name, mute, disappearing messages, leave. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
-class ChatInfoViewModel @Inject constructor(private val repository: ChatRepository) : ViewModel() {
+class ChatInfoViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val repository: ChatRepository,
+    private val media: ChatMediaStore,
+) : ViewModel() {
     private val id = MutableStateFlow<Long?>(null)
     val conversation: StateFlow<ChatConversation?> = id.filterNotNull().flatMapLatest { repository.conversation(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val profile: StateFlow<ChatProfile?> = repository.profile
+
+    /** Removed from the group by others (or the group deleted) while this screen is open. */
+    val removed: StateFlow<Boolean> = combine(id, repository.dropped) { i, d -> i != null && i in d && !repository.leftHere(i) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _people = MutableStateFlow<List<ChatPerson>>(emptyList())
     val people: StateFlow<List<ChatPerson>> = _people
@@ -131,6 +165,81 @@ class ChatInfoViewModel @Inject constructor(private val repository: ChatReposito
 
     fun setAdmin(userId: Long, admin: Boolean) = patch(ChatPatches.role(userId, admin))
 
+    // ─── group picture ──────────────────────────────────────────────
+
+    private val _avatarSource = MutableStateFlow<Bitmap?>(null)
+    /** The picked photo while its crop is open. */
+    val avatarSource: StateFlow<Bitmap?> = _avatarSource
+    private val _avatarSaving = MutableStateFlow(false)
+    val avatarSaving: StateFlow<Boolean> = _avatarSaving
+
+    /** A photo from the photo picker: the crop opens. */
+    fun pickAvatar(uri: Uri) {
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.IO) { AvatarEncoder.decode(context, uri) }
+            if (bmp == null) errors.trySend("unreadable") else _avatarSource.value = bmp
+        }
+    }
+
+    /** A photo taken with the camera app ([path] in `cache/camera`): the crop opens, the file goes. */
+    fun cameraAvatar(path: String) {
+        val f = media.cameraFile(path) ?: run {
+            errors.trySend("unreadable")
+            return
+        }
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.IO) { AvatarEncoder.decode(context, Uri.fromFile(f)).also { f.delete() } }
+            if (bmp == null) errors.trySend("unreadable") else _avatarSource.value = bmp
+        }
+    }
+
+    fun newCameraTarget(): Pair<File, Uri>? = runCatching { media.newCameraTarget() }.getOrNull()
+
+    fun cancelAvatar() {
+        if (!_avatarSaving.value) _avatarSource.value = null
+    }
+
+    /** "Speichern" of the crop: square, 256 px, uploaded and set as the group picture. */
+    fun saveAvatar(rect: CropRect) {
+        val cid = id.value ?: return
+        val src = _avatarSource.value ?: return
+        if (_avatarSaving.value) return
+        _avatarSaving.value = true
+        viewModelScope.launch {
+            try {
+                val encoded = withContext(Dispatchers.Default) { runCatching { AvatarEncoder.encode(src, rect) }.getOrNull() }
+                if (encoded == null) {
+                    errors.trySend("unreadable")
+                    return@launch
+                }
+                val ext = if (encoded.mime == "image/webp") "webp" else "jpg"
+                val file = withContext(Dispatchers.IO) {
+                    File(File(context.cacheDir, AVATAR_DIR).apply { mkdirs() }, "group-$cid.$ext").apply { writeBytes(encoded.bytes) }
+                }
+                val r = repository.setGroupAvatar(cid, file, encoded.mime)
+                withContext(Dispatchers.IO) { file.delete() }
+                when (r) {
+                    is ChatResult.Ok -> _avatarSource.value = null
+                    is ChatResult.Failed -> errors.trySend(r.code)
+                    else -> errors.trySend("offline")
+                }
+            } finally {
+                _avatarSaving.value = false
+            }
+        }
+    }
+
+    fun removeAvatar() {
+        val cid = id.value ?: return
+        viewModelScope.launch {
+            when (val r = repository.removeGroupAvatar(cid)) {
+                is ChatResult.Ok -> Unit
+                is ChatResult.Failed -> errors.trySend(r.code)
+                else -> errors.trySend("offline")
+            }
+        }
+    }
+
     fun leave() {
         val cid = id.value ?: return
         viewModelScope.launch {
@@ -143,11 +252,14 @@ class ChatInfoViewModel @Inject constructor(private val repository: ChatReposito
     }
 }
 
+private const val AVATAR_DIR = "chat-avatar"
+
 @Composable
 fun ChatInfoScreen(
     conversationId: Long,
     onBack: () -> Unit,
     onLeft: () -> Unit,
+    onOpenMedia: () -> Unit,
     viewModel: ChatInfoViewModel = hiltViewModel(key = "chat-info-$conversationId"),
 ) {
     LaunchedEffect(conversationId) { viewModel.bind(conversationId) }
@@ -164,9 +276,53 @@ fun ChatInfoScreen(
     var adding by remember { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
     var memberMenu by remember { mutableStateOf<ChatPerson?>(null) }
+    var pictureMenu by remember { mutableStateOf(false) }
+    val avatarSource by viewModel.avatarSource.collectAsStateWithLifecycle()
+    val avatarSaving by viewModel.avatarSaving.collectAsStateWithLifecycle()
 
+    val removed by viewModel.removed.collectAsStateWithLifecycle()
+    LaunchedEffect(removed) {
+        if (removed) {
+            Toast.makeText(ctx, R.string.chat_gone, Toast.LENGTH_LONG).show()
+            onLeft()
+        }
+    }
     LaunchedEffect(Unit) { viewModel.error.collect { error = ChatText.actionError(ctx, it) } }
-    LaunchedEffect(Unit) { viewModel.left.collect { onLeft() } }
+    LaunchedEffect(Unit) {
+        viewModel.left.collect {
+            Toast.makeText(ctx, R.string.chat_left, Toast.LENGTH_SHORT).show()
+            onLeft()
+        }
+    }
+
+    // Group picture: photo picker or camera, then the square crop.
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) viewModel.pickAvatar(uri)
+    }
+    var cameraPath by rememberSaveable { mutableStateOf<String?>(null) }
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val path = cameraPath
+        cameraPath = null
+        if (ok && path != null) viewModel.cameraAvatar(path) else path?.let { File(it).delete() }
+    }
+    val launchCamera: () -> Unit = {
+        val target = viewModel.newCameraTarget()
+        if (target == null) {
+            Toast.makeText(ctx, R.string.chat_camera_failed, Toast.LENGTH_LONG).show()
+        } else {
+            cameraPath = target.first.path
+            try {
+                takePicture.launch(target.second)
+            } catch (e: ActivityNotFoundException) {
+                cameraPath = null
+                target.first.delete()
+                Toast.makeText(ctx, R.string.chat_camera_no_app, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera() else Toast.makeText(ctx, R.string.chat_camera_no_permission, Toast.LENGTH_LONG).show()
+    }
 
     val conv = c
     val myId = profile?.user?.userId
@@ -181,8 +337,23 @@ fun ChatInfoScreen(
             return@Column
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            val canPicture = conv.isGroup && conv.can.editInfo && conv.managedBy == null
             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ConversationAvatar(conv, 88.dp)
+                if (canPicture) {
+                    Box(
+                        Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = stringResource(R.string.chat_group_picture)) { pictureMenu = true },
+                    ) {
+                        ConversationAvatar(conv, 88.dp)
+                        Box(
+                            Modifier.align(Alignment.BottomEnd).size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Outlined.PhotoCamera, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                } else {
+                    ConversationAvatar(conv, 88.dp)
+                }
                 Text(ChatText.title(ctx, conv), style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold), color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
                 val sub = buildList {
                     add(resources.getString(if (conv.isGroup) R.string.chat_kind_group else R.string.chat_kind_direct))
@@ -193,9 +364,19 @@ fun ChatInfoScreen(
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp)) }
 
+            GcListRow(
+                title = stringResource(R.string.chat_media_title),
+                description = stringResource(R.string.chat_media_row_desc),
+                onClick = onOpenMedia,
+                leading = { Icon(Icons.Outlined.PermMedia, contentDescription = null, tint = extra.muted) },
+                trailing = { GcChevron() },
+            )
+
             GcSectionLabel(stringResource(R.string.chat_settings), Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp))
             if (conv.isGroup && conv.can.editInfo && conv.managedBy == null) {
                 GcListRow(title = stringResource(R.string.chat_rename), description = conv.title, onClick = { renaming = true }, trailing = { GcChevron() })
+                GcRowDivider(Modifier.padding(horizontal = 16.dp))
+                GcListRow(title = stringResource(R.string.chat_group_picture), onClick = { pictureMenu = true }, trailing = { GcChevron() })
                 GcRowDivider(Modifier.padding(horizontal = 16.dp))
             }
             GcListRow(
@@ -368,6 +549,40 @@ fun ChatInfoScreen(
             },
             confirmButton = { TextButton(onClick = { memberMenu = null }) { Text(stringResource(R.string.chat_close)) } },
         )
+    }
+
+    if (pictureMenu && conv != null) {
+        val hasCamera = remember { ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) }
+        AlertDialog(
+            onDismissRequest = { pictureMenu = false },
+            title = { Text(stringResource(R.string.chat_group_picture)) },
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        pictureMenu = false
+                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }) { Text(stringResource(R.string.chat_attach_gallery)) }
+                    if (hasCamera) {
+                        TextButton(onClick = {
+                            pictureMenu = false
+                            if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) launchCamera()
+                            else cameraPermission.launch(Manifest.permission.CAMERA)
+                        }) { Text(stringResource(R.string.chat_attach_camera)) }
+                    }
+                    if (conv.avatarMediaId != null) {
+                        TextButton(onClick = {
+                            pictureMenu = false
+                            viewModel.removeAvatar()
+                        }) { Text(stringResource(R.string.chat_group_picture_remove), color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { pictureMenu = false }) { Text(stringResource(R.string.chat_cancel)) } },
+        )
+    }
+
+    avatarSource?.let { src ->
+        ChatAvatarCropDialog(source = src, saving = avatarSaving, onDone = viewModel::saveAvatar, onCancel = viewModel::cancelAvatar)
     }
 
     if (leaving) {

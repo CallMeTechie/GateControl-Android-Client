@@ -147,6 +147,7 @@ class ManifestSecurityTest {
         assertFalse(xml.contains("path=\".\""), "whole cache dir must not be shared")
         assertTrue(xml.contains("path=\"export/\""))
         assertTrue(xml.contains("path=\"chat-open/\""))
+        assertTrue(xml.contains("path=\"camera/\""), "camera captures only in their own directory")
         assertFalse(xml.contains("chat-media"), "the chat media cache stays private")
         assertFalse(xml.contains("files-path"), "nothing of the private files dir")
     }
@@ -163,5 +164,29 @@ class ManifestSecurityTest {
         assertEquals(setOf("android.intent.action.SEND", "android.intent.action.SEND_MULTIPLE"), actions)
         val permissions = components("uses-permission").map { it.androidAttr("name") }
         assertTrue("android.permission.RECORD_AUDIO" in permissions)
+    }
+
+    @Test
+    fun `chat bubble activity is not exported and can be embedded as a bubble`() {
+        val bubble = components("activity").first { it.androidAttr("name").endsWith("ChatBubbleActivity") }
+        assertEquals("false", bubble.androidAttr("exported"))
+        assertEquals(0, bubble.getElementsByTagName("intent-filter").length)
+        assertEquals("true", bubble.androidAttr("allowEmbedded"))
+        assertEquals("true", bubble.androidAttr("resizeableActivity"))
+        assertEquals("always", bubble.androidAttr("documentLaunchMode"))
+    }
+
+    @Test
+    fun `sharing shortcuts target the share activity with the chat category`() {
+        val main = components("activity").first { it.androidAttr("name").endsWith(".MainActivity") }
+        val meta = main.getElementsByTagName("meta-data").let { n -> (0 until n.length).map { n.item(it) as Element } }
+        assertTrue(meta.any { it.androidAttr("name") == "android.app.shortcuts" && it.androidAttr("resource") == "@xml/shortcuts" })
+        val xml = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(moduleFile("src/main/res/xml/shortcuts.xml")).documentElement
+        assertEquals(0, xml.getElementsByTagName("shortcut").length, "no static shortcuts")
+        val target = xml.getElementsByTagName("share-target").item(0) as Element
+        assertEquals("com.gatecontrol.android.chat.ChatShareActivity", target.androidAttr("targetClass"))
+        val category = (target.getElementsByTagName("category").item(0) as Element).androidAttr("name")
+        assertEquals(com.gatecontrol.android.chat.ChatShortcutLogic.SHARE_CATEGORY, category)
     }
 }
