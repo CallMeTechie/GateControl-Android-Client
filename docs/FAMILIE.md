@@ -73,6 +73,14 @@ All screens follow `GET me`: only modules that are on, filtered by role.
   children), shopping lists with open counts (from the device, works
   offline), "Kinder orten" per child (parents), "Mein Handy" with "Bin
   angekommen" / SOS (children), next dates, place reminders. Pull to refresh.
+  The cards follow the person's order (1.47, mockup FamilyArrange): a long
+  press on a card or the menu at the top right opens "Familie anordnen" —
+  drag to sort, the eye hides a card (listed under "Ausgeblendet"). Stored
+  with the account like the start tab's order (`GET/PUT
+  /api/v1/client/layout`, lists `familie`/`familieHidden`; on the device for
+  scope `device` or older servers). Ids: `members`, `child`, `emergency`,
+  `tasks`, `rides`, `shopping`, `locate`, `dates`, `meals`, `board`,
+  `allowance`, `wishes`, `expenses`, `places`.
 - **Einkaufsliste**: lists as chips, add (text + quantity), tick, edit,
   delete, "Erledigte entfernen", new / rename / delete list, "Ich gehe
   einkaufen" (`POST shopping/lists/<id>/going`). A line under the title
