@@ -93,6 +93,10 @@ class MainActivity : FragmentActivity() {
                     pendingSetupLink = pendingSetupLink,
                     onSetupLinkConsumed = { pendingSetupLink = null },
                 )
+                // Google Play build: the update sheet, over whatever screen is open.
+                if (isSetupComplete && com.gatecontrol.android.update.PlayUpdater.enabled) {
+                    com.gatecontrol.android.ui.update.PlayUpdateSheetHost()
+                }
             }
         }
     }

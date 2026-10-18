@@ -32,14 +32,23 @@ sealed interface PlayUpdateState {
     data object UpToDate : PlayUpdateState
     /** A newer version is on Play for this account (also internal testing). */
     data class Available(val versionCode: Int) : PlayUpdateState
-    /** [percent] 0–100, or null while Play has not reported sizes yet. */
-    data class Downloading(val percent: Int?) : PlayUpdateState
+    /**
+     * [percent] 0–100, or null while Play has not reported sizes yet;
+     * [bytesDownloaded] of [totalBytes] (0 while unknown).
+     */
+    data class Downloading(val percent: Int?, val bytesDownloaded: Long = 0, val totalBytes: Long = 0) : PlayUpdateState
     /** Downloaded: a restart installs it. */
     data object Downloaded : PlayUpdateState
     /** The app was not installed from Google Play (sideloaded, debug). */
     data object NotFromPlay : PlayUpdateState
+    /** The check failed. */
     data object Failed : PlayUpdateState
+    /** The download stopped ([InstallStatus.FAILED] / canceled) at [percent]. */
+    data class DownloadFailed(val percent: Int?) : PlayUpdateState
 }
+
+/** The update Play offers: its version code and download size (0 = unknown). */
+data class PlayUpdateTarget(val versionCode: Int, val totalBytes: Long)
 
 /**
  * Google Play in-app updates (flexible flow) for the Play build
@@ -58,14 +67,26 @@ class PlayUpdater internal constructor(private val manager: AppUpdateManager) {
 
     private var info: AppUpdateInfo? = null
 
+    private val _target = MutableStateFlow<PlayUpdateTarget?>(null)
+    /** The update of the last check (also while it downloads or waits for the restart). */
+    val target: StateFlow<PlayUpdateTarget?> = _target.asStateFlow()
+
+    /** Last percentage reported, for "Update bei 61 % angehalten". */
+    private var lastPercent: Int? = null
+
     private val listener = InstallStateUpdatedListener { s ->
         _state.value = when (s.installStatus()) {
-            InstallStatus.PENDING -> PlayUpdateState.Downloading(null)
-            InstallStatus.DOWNLOADING -> PlayUpdateState.Downloading(
-                s.totalBytesToDownload().takeIf { it > 0 }?.let { (s.bytesDownloaded() * 100 / it).toInt().coerceIn(0, 100) },
-            )
+            InstallStatus.PENDING -> PlayUpdateState.Downloading(lastPercent)
+            InstallStatus.DOWNLOADING -> {
+                val total = s.totalBytesToDownload()
+                val done = s.bytesDownloaded()
+                val percent = total.takeIf { it > 0 }?.let { (done * 100 / it).toInt().coerceIn(0, 100) }
+                if (percent != null) lastPercent = percent
+                if (total > 0) _target.value?.let { if (it.totalBytes != total) _target.value = it.copy(totalBytes = total) }
+                PlayUpdateState.Downloading(percent, done.coerceAtLeast(0), total.coerceAtLeast(0))
+            }
             InstallStatus.DOWNLOADED -> PlayUpdateState.Downloaded
-            InstallStatus.FAILED, InstallStatus.CANCELED -> PlayUpdateState.Failed
+            InstallStatus.FAILED, InstallStatus.CANCELED -> PlayUpdateState.DownloadFailed(lastPercent)
             else -> _state.value
         }
     }
@@ -75,18 +96,32 @@ class PlayUpdater internal constructor(private val manager: AppUpdateManager) {
     }
 
     suspend fun check(): PlayUpdateState {
-        if (_state.value is PlayUpdateState.Downloading) return _state.value
-        _state.value = PlayUpdateState.Checking
+        val before = _state.value
+        if (before is PlayUpdateState.Downloading) return before
+        // An update on screen stays there while it is checked again (no flicker).
+        if (before !is PlayUpdateState.Available && before !is PlayUpdateState.Downloaded &&
+            before !is PlayUpdateState.DownloadFailed
+        ) _state.value = PlayUpdateState.Checking
         val next = try {
             val i = manager.appUpdateInfo.await()
             info = i
             when {
                 i.installStatus() == InstallStatus.DOWNLOADED -> PlayUpdateState.Downloaded
-                i.installStatus() == InstallStatus.DOWNLOADING || i.installStatus() == InstallStatus.PENDING ->
-                    PlayUpdateState.Downloading(null)
+                i.installStatus() == InstallStatus.DOWNLOADING || i.installStatus() == InstallStatus.PENDING -> {
+                    val total = i.totalBytesToDownload().coerceAtLeast(0)
+                    val done = i.bytesDownloaded().coerceAtLeast(0)
+                    PlayUpdateState.Downloading(total.takeIf { it > 0 }?.let { (done * 100 / it).toInt().coerceIn(0, 100) }, done, total)
+                }
                 i.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
                     i.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE) -> PlayUpdateState.Available(i.availableVersionCode())
                 else -> PlayUpdateState.UpToDate
+            }.also { result ->
+                val code = i.availableVersionCode()
+                _target.value = if (result != PlayUpdateState.UpToDate && code > 0) {
+                    PlayUpdateTarget(code, i.totalBytesToDownload().coerceAtLeast(0))
+                } else {
+                    null
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -103,6 +138,7 @@ class PlayUpdater internal constructor(private val manager: AppUpdateManager) {
     fun start(launcher: ActivityResultLauncher<IntentSenderRequest>): Boolean {
         val i = info ?: return false
         return try {
+            lastPercent = null
             manager.startUpdateFlowForResult(i, launcher, AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build())
         } catch (e: Exception) {
             Timber.w("Play update could not start (%s)", e.javaClass.simpleName)

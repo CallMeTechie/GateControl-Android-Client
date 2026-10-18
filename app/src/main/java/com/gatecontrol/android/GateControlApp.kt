@@ -86,6 +86,15 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start the Familie background work")
         }
 
+        // Google Play build: in-app update (network watch, install in the background).
+        if (com.gatecontrol.android.update.PlayUpdater.enabled) {
+            try {
+                EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).updateCoordinator().start()
+            } catch (e: Throwable) {
+                Timber.e(e, "Failed to start the Play update coordinator")
+            }
+        }
+
         // Crash reports of earlier runs go to the server as a support bundle.
         try {
             val uploader = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).crashReportUploader()
@@ -123,6 +132,7 @@ class GateControlApp : Application() {
         fun trustedNetworkMonitor(): TrustedNetworkMonitor
         fun crashReportUploader(): CrashReportUploader
         fun familieStartup(): com.gatecontrol.android.familie.FamilieStartup
+        fun updateCoordinator(): com.gatecontrol.android.update.UpdateCoordinator
     }
 
     private fun installCrashLogger(context: Context) {

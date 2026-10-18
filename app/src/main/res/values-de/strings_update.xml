@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- In-App-Update (Google-Play-Build): Karte auf Start -->
+    <string name="upd_card_title">Version %1$s ist da</string>
+    <plurals name="upd_card_news">
+        <item quantity="one">%d Neuerung</item>
+        <item quantity="other">%d Neuerungen</item>
+    </plurals>
+    <string name="upd_via_play">über Google Play</string>
+    <string name="upd_card_view">Ansehen</string>
+    <string name="upd_ready_card_title">Update bereit</string>
+    <string name="upd_ready_card_text">Version %1$s ist geladen</string>
+
+    <!-- Update-Fenster -->
+    <string name="upd_sheet_title">Update verfügbar</string>
+    <string name="upd_version_change">Von Version %1$s auf %2$s</string>
+    <string name="upd_whats_new">WAS IST NEU</string>
+    <string name="upd_all_changes_link">Alle Änderungen ansehen</string>
+    <string name="upd_wifi_only">Nur über WLAN laden</string>
+    <string name="upd_net_wifi">Gerade verbunden: WLAN</string>
+    <string name="upd_net_mobile">Gerade: mobile Daten</string>
+    <string name="upd_net_other">Gerade verbunden: anderes Netz</string>
+    <string name="upd_net_offline">Gerade: offline</string>
+    <string name="upd_info">Lädt im Hintergrund über Google Play. Du kannst die App weiter nutzen, die VPN-Verbindung bleibt bestehen.</string>
+    <string name="upd_update_now">Jetzt aktualisieren</string>
+    <string name="upd_remind_later">Später erinnern</string>
+
+    <!-- Wird geladen -->
+    <string name="upd_dl_title">Version %1$s wird geladen</string>
+    <string name="upd_dl_ring_desc">Update wird geladen</string>
+    <string name="upd_dl_pending">Wartet auf Google Play …</string>
+    <string name="upd_eta_unknown">Restzeit wird ermittelt …</string>
+    <plurals name="upd_eta_seconds">
+        <item quantity="one">noch etwa %d Sekunde</item>
+        <item quantity="other">noch etwa %d Sekunden</item>
+    </plurals>
+    <plurals name="upd_eta_minutes">
+        <item quantity="one">noch etwa %d Minute</item>
+        <item quantity="other">noch etwa %d Minuten</item>
+    </plurals>
+    <string name="upd_eta_short_s">noch etwa %1$d s</string>
+    <string name="upd_eta_short_min">noch etwa %1$d min</string>
+    <string name="upd_via_wifi">über WLAN</string>
+    <string name="upd_via_mobile">über mobile Daten</string>
+    <string name="upd_via_other">über das Netzwerk</string>
+    <string name="upd_step_found">Update bei Google Play gefunden</string>
+    <string name="upd_step_download">Herunterladen</string>
+    <string name="upd_step_downloaded">Heruntergeladen</string>
+    <string name="upd_step_downloaded_size">Heruntergeladen · %1$s</string>
+    <string name="upd_step_restart">Neu starten und installieren</string>
+    <string name="upd_step_done">erledigt</string>
+    <string name="upd_step_active">läuft</string>
+    <string name="upd_step_pending">ausstehend</string>
+    <string name="upd_continue_background">Im Hintergrund weiterladen</string>
+
+    <!-- Leiste im Hintergrund -->
+    <string name="upd_bar_title">Update %1$s wird geladen</string>
+    <string name="upd_bar_keep_working">du kannst weiterarbeiten</string>
+    <plurals name="upd_bar_desc">
+        <item quantity="one">Update wird geladen, %d Prozent – Details öffnen</item>
+        <item quantity="other">Update wird geladen, %d Prozent – Details öffnen</item>
+    </plurals>
+
+    <!-- Bereit -->
+    <string name="upd_ready_title">Bereit zum Installieren</string>
+    <string name="upd_ready_text">Version %1$s ist geladen. Der Neustart dauert nur ein paar Sekunden.</string>
+    <string name="upd_ready_vpn_note">Die VPN-Verbindung wird beim Neustart kurz getrennt.</string>
+    <string name="upd_restart_now">Jetzt neu starten</string>
+    <string name="upd_later">Später</string>
+    <string name="upd_later_sub">installiert sich, wenn die App im Hintergrund ist</string>
+
+    <!-- Nach dem Update -->
+    <string name="upd_done_label">AKTUALISIERT AUF %1$s</string>
+    <string name="upd_done_title">Das ist neu</string>
+    <string name="upd_done_try">Ausprobieren</string>
+    <string name="upd_done_all">Alle Änderungen</string>
+    <string name="upd_done_empty">Die Änderungen dieser Version findest du unter „Alle Änderungen“.</string>
+    <string name="upd_close">Schließen</string>
+    <string name="upd_toast_installed">Update installiert</string>
+    <string name="upd_toast_vpn">Update installiert – VPN wieder verbunden</string>
+
+    <!-- Fehler und Sonderfälle -->
+    <string name="upd_paused_title">Update bei %1$d %% angehalten</string>
+    <string name="upd_paused_title_plain">Update angehalten</string>
+    <string name="upd_paused_offline">Keine Internetverbindung. Es geht automatisch weiter, sobald du wieder online bist.</string>
+    <string name="upd_paused_failed">Der Download wurde unterbrochen. Versuch es erneut, Google Play macht dort weiter.</string>
+    <string name="upd_retry">Erneut versuchen</string>
+    <string name="upd_wait_title">Version %1$s lädt im WLAN</string>
+    <string name="upd_wait_text">Du bist mit mobilen Daten verbunden. Das Update (%1$s) startet von selbst im nächsten WLAN.</string>
+    <string name="upd_wait_text_plain">Du bist mit mobilen Daten verbunden. Das Update startet von selbst im nächsten WLAN.</string>
+    <string name="upd_wait_text_offline">Du bist gerade offline. Das Update startet von selbst im nächsten WLAN.</string>
+    <string name="upd_download_anyway">Trotzdem jetzt laden</string>
+    <string name="upd_notplay_title">Updates kommen hier nicht über Play</string>
+    <string name="upd_notplay_text">Diese App wurde nicht aus Google Play installiert. Installiere sie einmal aus Play, dann aktualisiert sie sich hier selbst.</string>
+    <string name="upd_open_play">In Google Play öffnen</string>
+    <string name="upd_uptodate_title">GateControl ist aktuell</string>
+    <string name="upd_uptodate_text">Version %1$s · zuletzt geprüft %2$s</string>
+    <string name="upd_ago_now">gerade eben</string>
+    <plurals name="upd_ago_minutes">
+        <item quantity="one">vor %d Minute</item>
+        <item quantity="other">vor %d Minuten</item>
+    </plurals>
+    <plurals name="upd_ago_hours">
+        <item quantity="one">vor %d Stunde</item>
+        <item quantity="other">vor %d Stunden</item>
+    </plurals>
+    <plurals name="upd_ago_days">
+        <item quantity="one">vor %d Tag</item>
+        <item quantity="other">vor %d Tagen</item>
+    </plurals>
+</resources>
