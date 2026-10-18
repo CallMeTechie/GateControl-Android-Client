@@ -1,5 +1,14 @@
 package com.gatecontrol.android.ui.quickactions
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import com.gatecontrol.android.ui.start.StartIcons
+import com.gatecontrol.android.ui.start.longPressAnywhere
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -46,7 +55,6 @@ import com.gatecontrol.android.quickactions.QuickActionItem
 import com.gatecontrol.android.quickactions.QuickActionReadingItem
 import com.gatecontrol.android.quickactions.QuickActionWidgetItem
 import com.gatecontrol.android.quickactions.WidgetPart
-import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
@@ -57,14 +65,19 @@ import kotlin.math.roundToInt
 /**
  * A device pinned as a widget: icon, name and — when chosen — its power
  * switch in the head; then, as the person chose them ([parts]), the main
- * value, the small readings (an icon alone shows a state, e.g. a green
- * lock), the status line, the plugin's controls (stepper, slider, choice)
- * and the device's other actions as icon buttons. A control change goes to
- * [onControl] for the action carrying the widget (the view model sends it
- * debounced); an action button calls [onRun] (which asks first where the
- * action wants that). [running] is the key of the action running now,
- * [adjusting] the controls whose value is on its way. [interactive] false:
- * a preview (the pin sheet), nothing reacts.
+ * value (a temperature with the house symbol, the outdoor reading beside it
+ * with sun and cloud), the small readings (an icon alone shows a state,
+ * e.g. a green lock), the status line, the plugin's controls (stepper,
+ * slider, choice) and the device's other actions as icon buttons. A control
+ * change goes to [onControl] for the action carrying the widget (the view
+ * model sends it debounced); an action button calls [onRun] (which asks
+ * first where the action wants that). [running] is the key of the action
+ * running now, [adjusting] the controls whose value is on its way. A long
+ * press anywhere on it calls [onLongPress] (the widget's settings, the
+ * door screen for a door), announced as [longPressLabel]. [fillHeight]:
+ * the card takes the height of its row (beside a taller widget) and grows
+ * its buttons and gaps instead of leaving the space below empty.
+ * [interactive] false: a preview (the pin sheet), nothing reacts.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -78,6 +91,8 @@ fun QuickActionWidgetCard(
     onControl: (carrier: QuickActionItem, controlId: String, value: Any) -> Unit,
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
+    longPressLabel: String? = null,
+    fillHeight: Boolean = false,
 ) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
@@ -89,80 +104,166 @@ fun QuickActionWidgetCard(
     val power = device.powerAction?.takeIf { WidgetPart.action(it.id) in shown }
     val actionButtons = device.actions.filter { it != power && WidgetPart.action(it.id) in shown }
     val busy = device.actions.any { it.key == running }
+    val valueShown = widget != null && (widget.value != null || widget.label != null) && WidgetPart.VALUE in shown
+    val outdoor = widget?.readings?.firstOrNull { it.id == OUTDOOR && it.value != null && WidgetPart.reading(it.id) in shown }
+    val temperature = widget?.value != null && isTemperature(widget.unit)
+    val climate = (valueShown && temperature) || (outdoor != null && (!valueShown || temperature))
 
-    GcCard(
+    Surface(
         modifier = modifier
+            .fillMaxWidth()
+            .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier)
             .clip(MaterialTheme.shapes.medium)
-            .then(
-                if (interactive && onLongPress != null) {
-                    Modifier.combinedClickable(
-                        role = Role.Button,
-                        onLongClickLabel = stringResource(R.string.door_open_screen),
-                        onLongClick = onLongPress,
-                        onClick = {},
-                    )
-                } else {
-                    Modifier
-                },
-            ),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .longPressAnywhere(longPressLabel, onLongPress?.takeIf { interactive }),
+        shape = MaterialTheme.shapes.medium,
+        color = scheme.surface,
+        border = BorderStroke(1.dp, extra.border),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GcIconSquare(size = 32.dp, background = background) {
-                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-            }
-            Text(
-                device.title,
-                style = MaterialTheme.typography.titleSmall,
-                color = scheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            widget?.badge?.let { BadgeChip(it) }
-            when {
-                busy -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp), color = extra.accentText)
-                power != null -> GcSwitch(checked = power.isOn, onCheckedChange = if (interactive) ({ onRun(power) }) else null)
-            }
-        }
-        if (widget != null && (widget.value != null || widget.label != null) && WidgetPart.VALUE in shown) MainValue(widget)
-        val readings = widget?.readings.orEmpty().filter { WidgetPart.reading(it.id) in shown }
-        if (readings.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                readings.forEach { ReadingChip(it) }
-            }
-        }
-        if (widget?.status != null && WidgetPart.STATUS in shown) {
-            Text(widget.status, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        if (carrier != null && widget != null) {
-            widget.controls.filter { WidgetPart.control(it.id) in shown }.forEach { control ->
-                val busyControl = "${carrier.key}/${control.id}" in adjusting
-                val send: (Any) -> Unit = { if (interactive) onControl(carrier, control.id, it) }
-                when (control.kind) {
-                    QuickActionControlItem.KIND_STEPPER -> StepperControl(control, busyControl, onChange = send)
-                    QuickActionControlItem.KIND_SLIDER -> SliderControl(control, busyControl, onChange = send)
-                    QuickActionControlItem.KIND_CHOICE -> ChoiceControl(control, onChange = send)
+        Column(
+            modifier = Modifier.padding(12.dp).then(if (fillHeight) Modifier.fillMaxHeight() else Modifier),
+            verticalArrangement = if (fillHeight) SpaceBetweenAtLeast(8.dp) else Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GcIconSquare(size = 32.dp, background = background) {
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+                }
+                Text(
+                    device.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = scheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                widget?.badge?.let { BadgeChip(it) }
+                when {
+                    busy -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp), color = extra.accentText)
+                    power != null -> GcSwitch(checked = power.isOn, onCheckedChange = if (interactive) ({ onRun(power) }) else null)
                 }
             }
-        }
-        if (actionButtons.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                actionButtons.chunked(buttonsPerRow(actionButtons.size)).forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        row.forEach { action ->
-                            ActionButton(
-                                action,
-                                running = action.key == running,
-                                onClick = { if (interactive) onRun(action) },
-                                modifier = Modifier.weight(1f),
-                            )
+            if (climate) {
+                ClimateLine(widget?.takeIf { valueShown && temperature }, outdoor)
+            } else if (valueShown) {
+                MainValue(widget)
+            }
+            val readings = widget?.readings.orEmpty().filter { WidgetPart.reading(it.id) in shown && !(climate && it == outdoor) }
+            if (readings.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    readings.forEach { ReadingChip(it) }
+                }
+            }
+            if (widget?.status != null && WidgetPart.STATUS in shown) {
+                Text(widget.status, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (carrier != null && widget != null) {
+                widget.controls.filter { WidgetPart.control(it.id) in shown }.forEach { control ->
+                    val busyControl = "${carrier.key}/${control.id}" in adjusting
+                    val send: (Any) -> Unit = { if (interactive) onControl(carrier, control.id, it) }
+                    when (control.kind) {
+                        QuickActionControlItem.KIND_STEPPER -> StepperControl(control, busyControl, onChange = send)
+                        QuickActionControlItem.KIND_SLIDER -> SliderControl(control, busyControl, onChange = send)
+                        QuickActionControlItem.KIND_CHOICE -> ChoiceControl(control, onChange = send)
+                    }
+                }
+            }
+            if (actionButtons.isNotEmpty()) {
+                // Beside a taller widget the buttons take the room (up to a size), not empty space below.
+                Column(
+                    modifier = if (fillHeight) Modifier.weight(1f, fill = false) else Modifier,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    actionButtons.chunked(buttonsPerRow(actionButtons.size)).forEach { row ->
+                        Row(
+                            (if (fillHeight) Modifier.weight(1f, fill = false) else Modifier).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            row.forEach { action ->
+                                ActionButton(
+                                    action,
+                                    running = action.key == running,
+                                    onClick = { if (interactive) onRun(action) },
+                                    modifier = Modifier.weight(1f),
+                                    grow = fillHeight,
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** Reading id of the outdoor temperature (shown beside the main value with sun and cloud). */
+internal const val OUTDOOR = "outdoor"
+
+/** Whether [unit] is a temperature's (°C, °F, °): then the value gets the house symbol instead of its name. */
+internal fun isTemperature(unit: String?): Boolean = unit != null && (unit.startsWith("°") || unit == "℃" || unit == "℉")
+
+/** "21,5" + "°C" → "21,5°": a temperature's unit as the degree sign alone, others after a space. */
+internal fun compactValue(value: String, unit: String?): String = when {
+    unit == null -> value
+    isTemperature(unit) -> "$value°"
+    else -> "$value $unit"
+}
+
+/**
+ * Children spaced at least [spacing] apart; room left over goes between
+ * them (top and bottom child at the edges). Intrinsic measurements count
+ * [spacing], so a row of widgets gets the height the tallest needs.
+ */
+private class SpaceBetweenAtLeast(override val spacing: Dp) : Arrangement.Vertical {
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
+        if (sizes.isEmpty()) return
+        val min = spacing.roundToPx()
+        val gap = if (sizes.size > 1) maxOf(min, (totalSize - sizes.sum()) / (sizes.size - 1)) else 0
+        var y = 0
+        sizes.forEachIndexed { i, size ->
+            outPositions[i] = y
+            y += size + gap
+        }
+    }
+}
+
+/**
+ * The temperature inside (house with thermometer, [main] null: not shown)
+ * and, beside it in the same line, the outdoor reading (sun and cloud).
+ */
+@Composable
+private fun ClimateLine(main: QuickActionWidgetItem?, outdoor: QuickActionReadingItem?) {
+    val extra = GateControlTheme.extraColors
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (main?.value != null) {
+            val text = compactValue(main.value, main.unit)
+            TemperaturePart(
+                icon = StartIcons.HouseThermo,
+                iconTint = extra.accentText,
+                text = text,
+                textColor = MaterialTheme.colorScheme.onSurface,
+                description = stringResource(R.string.start_climate_inside, listOfNotNull(main.value, main.unit).joinToString(" ")),
+            )
+        }
+        if (outdoor?.value != null) {
+            TemperaturePart(
+                icon = StartIcons.CloudSun,
+                iconTint = extra.blue,
+                text = compactValue(outdoor.value, outdoor.unit),
+                textColor = extra.muted,
+                description = stringResource(R.string.start_climate_outside, listOfNotNull(outdoor.value, outdoor.unit).joinToString(" ")),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TemperaturePart(icon: ImageVector, iconTint: Color, text: String, textColor: Color, description: String) {
+    Row(
+        Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
+        Text(text, style = MaterialTheme.typography.titleLarge, color = textColor, maxLines = 1)
     }
 }
 
@@ -249,7 +350,7 @@ internal fun buttonsPerRow(count: Int): Int = if (count == 4) 2 else count.coerc
 
 /** One of the device's actions as an icon button: its look per state, filled while a plain switch is on. */
 @Composable
-private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, grow: Boolean = false) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val toned = toneColors(action.currentLook?.tone)
@@ -262,7 +363,8 @@ private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () 
     }
     Box(
         modifier
-            .height(44.dp)
+            // Growing: as tall as the row allows, from 44 up to 64 dp (size first, then fill).
+            .then(if (grow) Modifier.heightIn(min = 44.dp, max = 64.dp).fillMaxHeight() else Modifier.height(44.dp))
             .clip(shape)
             .background(fill)
             .border(1.dp, if (toned != null) toned.first.copy(alpha = 0.4f) else if (action.isOn) Color.Transparent else extra.border2, shape)
@@ -271,7 +373,7 @@ private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () 
         contentAlignment = Alignment.Center,
     ) {
         if (running) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp), color = glyph)
-        else Icon(icon, contentDescription = null, tint = glyph, modifier = Modifier.size(20.dp))
+        else Icon(icon, contentDescription = null, tint = glyph, modifier = Modifier.size(if (grow) 22.dp else 20.dp))
     }
 }
 

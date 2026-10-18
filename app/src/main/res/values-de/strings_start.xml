@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Start tab: widgets side by side, long press → settings, arranging the start and Familie tabs -->
+<resources>
+    <string name="start_climate_inside">Innen %1$s</string>
+    <string name="start_climate_outside">Außen %1$s</string>
+    <string name="start_widget_settings">Widget-Einstellungen</string>
+    <string name="start_tile_settings">Einstellungen der Schnellaktion</string>
+    <string name="pin_sheet_widget_on_start">Widget auf dem Start-Tab</string>
+    <string name="pin_sheet_button_on_start">Schnellaktion auf dem Start-Tab</string>
+    <string name="pin_sheet_show">Anzeigen</string>
+    <string name="pin_sheet_reminder">Erinnerung für dieses Gerät</string>
+    <string name="pin_sheet_reminder_hint">z. B. zu einer Uhrzeit oder bei einem Wert</string>
+    <string name="pin_sheet_unpin_start">Vom Start lösen</string>
+    <string name="start_arrange">Start-Tab anordnen</string>
+    <string name="start_arrange_hint">Halten und ziehen · Doppeltipp ändert die Breite</string>
+    <string name="arrange_locked">Die Anordnung legt der Administrator fest.</string>
+    <string name="arrange_scope_user">Gilt auf allen deinen Geräten</string>
+    <string name="arrange_scope_global">Gilt für alle</string>
+    <string name="arrange_tiles">Kacheln</string>
+    <string name="arrange_cards">Karten und Widgets</string>
+    <string name="arrange_add_tile">+ Kachel</string>
+    <string name="arrange_info">Info-Karte</string>
+    <string name="arrange_usage">Datenverbrauch</string>
+    <string name="arrange_footer">Widgets und Karten liegen in einer gemeinsamen Reihenfolge – auch die Info-Karte und der Datenverbrauch lassen sich zwischen die Widgets schieben.</string>
+    <string name="arrange_remove">%1$s entfernen</string>
+    <string name="arrange_move_up">Nach oben</string>
+    <string name="arrange_move_down">Nach unten</string>
+    <string name="arrange_toggle_width">Breite ändern</string>
+    <string name="arrange_width_half">halbe Breite</string>
+    <string name="arrange_width_full">volle Breite</string>
+    <string name="familie_arrange">Familie anordnen</string>
+    <string name="familie_arrange_hint">Ziehen zum Sortieren · Auge blendet aus</string>
+    <string name="familie_arrange_hidden">Ausgeblendet</string>
+    <string name="familie_arrange_hide">%1$s ausblenden</string>
+    <string name="familie_arrange_show">%1$s einblenden</string>
+    <string name="familie_arrange_footer">Erreichbar über langes Drücken auf eine Karte im Familie-Tab oder über das Menü oben rechts.</string>
+    <string name="familie_members_title">Mitglieder</string>
+    <string name="familie_menu">Mehr</string>
+</resources>

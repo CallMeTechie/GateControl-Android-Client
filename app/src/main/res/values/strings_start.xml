@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Start tab: widgets side by side, long press → settings, arranging the start and Familie tabs -->
+<resources>
+    <string name="start_climate_inside">Inside %1$s</string>
+    <string name="start_climate_outside">Outside %1$s</string>
+    <string name="start_widget_settings">Widget settings</string>
+    <string name="start_tile_settings">Quick action settings</string>
+    <string name="pin_sheet_widget_on_start">Widget on the Home tab</string>
+    <string name="pin_sheet_button_on_start">Quick action on the Home tab</string>
+    <string name="pin_sheet_show">Show</string>
+    <string name="pin_sheet_reminder">Reminder for this device</string>
+    <string name="pin_sheet_reminder_hint">e.g. at a set time or when a value is reached</string>
+    <string name="pin_sheet_unpin_start">Remove from Home</string>
+    <string name="start_arrange">Arrange Home tab</string>
+    <string name="start_arrange_hint">Hold and drag · double-tap changes the width</string>
+    <string name="arrange_locked">The administrator sets the order.</string>
+    <string name="arrange_scope_user">Same on all your devices</string>
+    <string name="arrange_scope_global">Applies to everyone</string>
+    <string name="arrange_tiles">Tiles</string>
+    <string name="arrange_cards">Cards and widgets</string>
+    <string name="arrange_add_tile">+ Tile</string>
+    <string name="arrange_info">Info card</string>
+    <string name="arrange_usage">Data usage</string>
+    <string name="arrange_footer">Widgets and cards share one order – the Info card and data usage can go between the widgets too.</string>
+    <string name="arrange_remove">Remove %1$s</string>
+    <string name="arrange_move_up">Move up</string>
+    <string name="arrange_move_down">Move down</string>
+    <string name="arrange_toggle_width">Change width</string>
+    <string name="arrange_width_half">half width</string>
+    <string name="arrange_width_full">full width</string>
+    <string name="familie_arrange">Arrange Family</string>
+    <string name="familie_arrange_hint">Drag to sort · the eye hides</string>
+    <string name="familie_arrange_hidden">Hidden</string>
+    <string name="familie_arrange_hide">Hide %1$s</string>
+    <string name="familie_arrange_show">Show %1$s</string>
+    <string name="familie_arrange_footer">Also reachable with a long press on a card in the Family tab or the menu at the top right.</string>
+    <string name="familie_members_title">Members</string>
+    <string name="familie_menu">More</string>
+</resources>

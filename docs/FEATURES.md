@@ -131,6 +131,17 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   und Ladestand rechts neben dem Namen; ohne Hauptwert entfällt die große Zahl. Halbe
   (zwei pro Zeile) oder volle Breite. Regler-Änderungen gehen 600 ms nach dem
   letzten Tipp an den Server. Höchstens 8 Widgets und 12 Buttons.
+  Seit 1.47 sind zwei halbe Widgets nebeneinander **gleich hoch**: im
+  niedrigeren wachsen die Buttons (bis 64 dp) und die Abstände, statt unten
+  Leerraum zu lassen. Ein Hauptwert in °C steht mit dem Symbol „Haus mit
+  Thermometer“ statt seines Namens da, der Zusatzwert `outdoor` mit „Sonne
+  und Wolke“ in derselben Zeile („10,5° · 4,0°“). Teile, die ein Gerät erst
+  nach der Auswahl bekommt (z. B. ein neuer Außenwert), werden angezeigt, bis
+  man sie abwählt. **Langes Drücken** auf ein Widget oder eine Kachel öffnet
+  direkt dessen Einstellungen (halbe/volle Breite, Häkchen je Teil bzw. je
+  Button, „Vom Start lösen“, „Fertig“) mit „Erinnerung für dieses Gerät“ (wenn
+  der Erinnerungs-Editor vorhanden ist) und „Start-Tab anordnen“; bei Türen
+  bleibt es beim Tür-Bildschirm.
 - **Schnellaktionen und Widgets** (Liste): eine Zeile pro Gerät, hier wird
   nichts geschaltet. Chips zeigen „Widget“ bzw. „N Schnellaktionen“. Tippen
   öffnet ein Menü von unten: **Schnellaktion** (Häkchen je Aktion – jede wird
@@ -144,8 +155,17 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   Schritt, den das Plugin nennt (beim Schloss: vor dem Entriegeln).
 - **Start-Tab bearbeiten:** langes Drücken auf eine freie Stelle des Tabs
   öffnet ein Menü mit „Schnellaktionen und Widgets“ (die Liste: anheften,
-  Widget) und „Inhalte der Info-Karte“ (der Picker). Ohne angeheftete
-  Aktion steht nur ein leiser Hinweis darauf.
+  Widget), „Inhalte der Info-Karte“ (der Picker) und „Start-Tab anordnen“.
+  Ohne angeheftete Aktion steht nur ein leiser Hinweis darauf.
+- **Start-Tab anordnen** (seit 1.47): Kacheln (untereinander; „−“ löst eine,
+  „+ Kachel“ führt zur Liste) und darunter Widgets, Info-Karte und
+  Datenverbrauch in **einer** gemeinsamen Reihenfolge – halten und ziehen,
+  Doppeltipp auf ein Widget wechselt halbe/volle Breite; Screenreader
+  bekommen „Nach oben/unten“ und „Breite ändern“. Die Reihenfolge gilt mit
+  dem Konto auf allen Geräten (`GET/PUT /api/v1/client/layout`, Server
+  1.181+; der Admin wählt pro Gerät, pro Benutzer oder global). Bei „pro
+  Gerät“ oder älteren Servern bleibt sie auf dem Gerät; eine globale
+  Reihenfolge, die nur Admins ändern dürfen, ist ausgegraut mit Hinweis.
 - **Info-Karte** (unter den Schnellaktionen): zeigt die Inhalte, die man
   auswählt, als wischbare Seiten (Punkte darunter). Inhalte sind derzeit die
   **Start-Kacheln der Plugins** (`GET /api/v1/client/tiles?lang=de|en`,
