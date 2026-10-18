@@ -397,12 +397,18 @@ class ChatApi @Inject constructor(
 
     suspend fun homeActions(): ChatResult<List<ChatHomeAction>> = get("actions", parse = ChatJson14::homeActions)
 
+    private suspend fun runPost(path: String, body: JsonObject = JsonObject()): ChatResult<ChatRunResult> =
+        post(path, body, ChatJson14::runResult)
+
     suspend fun actionRun(messageId: Long, actionId: String? = null, plugin: String? = null) =
-        messagePost("messages/$messageId/action/run", ChatJson14.actionRunBody(actionId, plugin))
+        runPost("messages/$messageId/action/run", ChatJson14.actionRunBody(actionId, plugin))
 
-    suspend fun actionApprove(messageId: Long) = messagePost("messages/$messageId/action/approve")
+    suspend fun actionApprove(messageId: Long) = runPost("messages/$messageId/action/approve")
 
-    suspend fun actionDeny(messageId: Long) = messagePost("messages/$messageId/action/deny")
+    suspend fun actionDeny(messageId: Long) = runPost("messages/$messageId/action/deny")
+
+    /** The picture of a plugin card (base64). */
+    suspend fun cardImage(messageId: Long): ChatResult<String> = get("messages/$messageId/card/image", parse = ChatJson14::cardImage)
 
     // ─── media ──────────────────────────────────────────────────────
 

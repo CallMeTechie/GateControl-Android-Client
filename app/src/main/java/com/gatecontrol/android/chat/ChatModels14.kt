@@ -385,7 +385,15 @@ data class ChatPluginCard(
     /** Who pressed a button last, and whether it worked. */
     val lastRunBy: Long? = null,
     val lastRunOk: Boolean? = null,
+    /** The card has a picture to fetch (`GET messages/:id/card/image`) — `image { mime, bytes }` without data. */
+    val hasImage: Boolean = false,
 )
+
+/** What the Familie plugin offers right now (`GET me` → `integrations.familie`). */
+data class ChatFamilie(val lists: Boolean = true, val calendar: Boolean = true, val places: Boolean = true)
+
+/** Answer of a run / approve / deny: the changed message and the action's result. */
+data class ChatRunResult(val message: ChatMessage?, val ok: Boolean?, val text: String?)
 
 /** One part of a chat export (`GET conversations/:id/export`). */
 data class ChatExportPart(val text: String, val fileName: String?, val truncated: Boolean, val before: Long?)

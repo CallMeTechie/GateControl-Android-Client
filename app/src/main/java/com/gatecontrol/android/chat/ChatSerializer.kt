@@ -173,6 +173,13 @@ object ChatSerializer {
             ChatJson14.writePrefs14(this, p.prefs14)
         })
         p.status?.let { add("status", ChatJson14.writeStatus(it)) }
+        add("integrations", JsonObject().apply {
+            add("familie", JsonObject().apply {
+                addProperty("lists", p.familie.lists)
+                addProperty("calendar", p.familie.calendar)
+                addProperty("places", p.familie.places)
+            })
+        })
         p.licensed?.let { l -> add("license", JsonObject().apply { addProperty("licensed", l) }) }
         add("features", JsonObject().apply {
             val f = p.features

@@ -452,6 +452,89 @@ sehen keinen Unterschied.
 - Alles bleibt auf dem eigenen Server; Dateien werden mit dem Geräte-Token
   geladen und im App-Cache gehalten (höchstens 200 MB).
 
+### Messenger 1.4 – Status, Einstellungen, Abstimmungen, Ereignisse, Haus-Aktionen
+
+Jede Funktion erscheint nur, wenn der Server sie unter `GET me` →
+`features` einschaltet (`status`, `stories`, `polls`, `events`,
+`arrival`, `actions`, `msg_tools`, `privacy2`); ältere Server sehen keinen
+Unterschied. Unbekannte Nachrichtenarten neuerer Server zeigt der Chat als
+„Diese Nachricht braucht eine neuere App-Version“ mit „Aktualisieren“.
+
+- **Status („Dein Status“):** Tippen aufs eigene Profilbild im Start-Tab
+  öffnet das Status-Blatt (das Profil ist dort verlinkt): Text (≤ 60),
+  Vorlagen Im Homeoffice, Unterwegs (mit Ziel und Ankunftszeit), Nicht
+  stören (keine Chat-Pushes), Automatisch nach Ort (Familie-Orte), „Löschen
+  nach“ (30 Min., 1 Std., bis 17:00, heute, nie) und „Sichtbar für“ (alle,
+  Familie, ausgewählte Personen). Der Status steht unter der Kopfzeile des
+  Start-Tabs.
+- **Stories:** Text auf Farbe mit Schrift, Foto oder Video, 24 Std.,
+  Sichtbarkeit wie beim Status. In der Chat-Liste steht unter
+  „Angeheftet“ ein Streifen: „Mein Status“, dann die Personen — ungesehene
+  mit leuchtendem Ring, gesehene grau. Der Betrachter zeigt
+  Fortschrittsbalken, pausiert beim Halten oder per Taste, springt per
+  Tippen links/rechts, bietet Reaktionen und eine Antwort, die als
+  Direktnachricht mit Vorschau ankommt (`replyStory`); eigene Stories zeigen,
+  wer sie gesehen hat (mit Reaktion), und lassen sich löschen.
+- **Chat-Einstellungen** sind eine eigene Seite: Profil mit Status,
+  Datenschutz (zuletzt online, Profilbild, Status-Standard, Ort im Status,
+  Lesebestätigungen, „schreibt …“, Standard-Dauer selbstlöschender
+  Nachrichten, wer einen zu Gruppen hinzufügen darf, blockierte Personen,
+  App-Sperre, Bildschirmfotos verhindern), Chats (Enter sendet,
+  Archiv bleibt archiviert, Chatverlauf exportieren), Darstellung
+  (Hintergrund in Farbe oder eigenes Foto, Schriftgröße, Farbe eigener
+  Nachrichten mit Vorschau), Benachrichtigungen (Töne im offenen Chat, Ton
+  und Vibration getrennt für Einzel- und Gruppenchats über eigene
+  Android-Kanäle, Vorschau, Reaktionen, nur bei Erwähnung, Status-Übersicht
+  einmal am Tag, Erinnerung an Ereignisse, Ruhezeiten, Verknüpfungen,
+  Bubbles), Speicher und Daten (Belegung auf dem Gerät nach Fotos, Videos,
+  Sprache, Dateien, Server-Kontingent, Medien löschen, automatisch laden
+  über WLAN / Mobilfunk, Qualität beim Senden), Geräte (dieses Gerät),
+  Listen, Haus-Aktionen, Hilfe und Info. Was das Konto betrifft, geht per
+  `PUT prefs` an den Server (gilt auf allen Geräten); Darstellung, Töne,
+  Auto-Download, Qualität, App-Sperre und Bildschirmfotos gelten nur auf
+  diesem Gerät (DataStore).
+- **App-Sperre:** Fingerabdruck oder Displaysperre (BiometricPrompt) beim
+  Öffnen der Chats, erneut nach einer Minute im Hintergrund.
+  **Bildschirmfotos verhindern** setzt `FLAG_SECURE` für alle Chat-Seiten.
+- **Werkzeuge:** Chats archivieren (lange drücken oder Chat-Info; eigener
+  Bereich „Archiviert“ am Ende der Liste), Nachrichten anheften (höchstens
+  drei, Banner oben im Chat, Tippen springt hin), eigene Listen als Filter
+  neben Alle / Ungelesen / Gruppen / Ereignisse, Chatverlauf als Text teilen,
+  „Erinnere mich“ (in 1 Std., heute Abend, morgen früh oder Uhrzeit — der
+  Server schickt die Erinnerung), Personen blockieren. Lange auf eine
+  Nachricht drücken zeigt, was der Server im Text erkennt: „Auf
+  Einkaufsliste“ (mit Anzahl) und „Termin anlegen“ (mit Tag und Uhrzeit) —
+  beides landet in der Familie.
+- **Neues Anhang-Menü:** Galerie, Kamera, Standort, Datei, Abstimmung,
+  Ereignis, Live-Ankunft und „Aus deinem Zuhause“ (Aktion senden,
+  Tür-Anfrage, Gerät teilen).
+- **Abstimmungen:** Frage, 2–12 Antworten, mehrere erlauben, anonym,
+  andere dürfen ergänzen, Ende. Im Chat: abstimmen (nochmal tippen nimmt die
+  Stimme zurück), Balken mit Anzahl und Köpfen, Antwort ergänzen, Stimmen
+  ansehen, Unentschlossene erinnern und beenden (Ersteller bzw. Admin).
+- **Ereignisse:** Titel, Tag, Uhrzeit von–bis oder ganztägig, Ort aus den
+  Familie-Orten oder frei, Beschreibung, Mitbring-Liste, Zusagen (mit
+  Gästen), Familien-Kalender, Erinnerung, Abfahrt-Hinweis. Die Karte zeigt
+  Datum, „in 8 Tagen“, Ort (öffnet die Karte), Liste zum Abhaken und
+  Zusage / Vielleicht / Absage; das nächste Ereignis steht als Banner über
+  dem Chat. Ersteller oder Admin können absagen.
+- **Live-Ankunft:** Ziel aus den Familie-Orten oder auf der Karte, optional
+  eine Haus-Aktion bei Ankunft. Solange sie läuft, schickt ein
+  Vordergrunddienst (Standort, laufende Mitteilung mit „Stopp“) höchstens
+  alle 20 s die Position; bei Ankunft, „Stopp“ oder nach 3 Std. endet er.
+  Die Karte im Chat zeigt Karte, Ankunftszeit, Restzeit, Strecke und
+  Fortschritt. Der Abfahrt-Hinweis eines Ereignisses öffnet die Auswahl
+  direkt mit dem Ort des Ereignisses.
+- **Haus-Aktionen:** Aktion zum Ausführen senden, eine Freigabe anfragen
+  (nur wer darf, kann freigeben oder ablehnen) oder ein Gerät bis zu einer
+  Uhrzeit teilen; Aktionen mit Rückfrage fragen vorher. Welche das Anhang-Menü
+  zeigt, wählt man in den Einstellungen; die Rechte kommen aus
+  GateControl. **Karten von Plugins** (z. B. die Klingel mit Standbild)
+  zeigen Bild, Text, Knöpfe und „Live-Bild“, das den Tür-Bildschirm öffnet.
+- **Mitteilungen:** Texte für Abstimmungen, Ereignisse, Anfragen,
+  Ankünfte und Erinnerungen kommen vom Server; Tippen öffnet den Chat an
+  der richtigen Nachricht, der Abfahrt-Hinweis die Live-Ankunft.
+
 ---
 
 ## Einstellungen

@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,6 +110,8 @@ class RichActions(
     val onActionDeny: (ChatMessage) -> Unit = {},
     val onCardButton: (ChatMessage, ChatCardButton) -> Unit = { _, _ -> },
     val onUpdateApp: () -> Unit = {},
+    /** A plugin card's picture (base64) from the server. */
+    val loadCardImage: suspend (ChatMessage) -> String? = { null },
     val features: RichFeatures = RichFeatures(),
 )
 
@@ -549,9 +552,12 @@ fun PluginCardContent(m: ChatMessage, actions: RichActions) {
             listOfNotNull(stringResource(if (doorbell) R.string.chat_card_doorbell else R.string.chat_card_notice), card.title?.uppercase(locale(ctx)), ChatText.clock(ctx, m.createdAt)).joinToString(" · "),
             if (doorbell) extra.warn else extra.blue,
         )
-        val inline = remember(card.imageBase64) {
-            card.imageBase64?.let { b64 ->
-                runCatching { Base64.decode(b64, Base64.DEFAULT).let { BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()?.asImageBitmap()
+        val inline by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, card.imageBase64, card.hasImage, m.id) {
+            val b64 = card.imageBase64 ?: if (card.hasImage) actions.loadCardImage(m) else null
+            value = b64?.let {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    runCatching { Base64.decode(it, Base64.DEFAULT).let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) } }.getOrNull()?.asImageBitmap()
+                }
             }
         }
         val px = with(LocalDensity.current) { 276.dp.roundToPx() }

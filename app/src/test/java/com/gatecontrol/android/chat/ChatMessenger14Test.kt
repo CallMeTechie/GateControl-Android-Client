@@ -433,6 +433,23 @@ class ChatMessenger14Test {
         assertEquals(ChatEvent.AccountChanged("lists.update"), ChatEvents.parse(MESSENGER_PLUGIN, "lists.update", json("{}")))
     }
 
+    @Test
+    fun `final README shapes - card picture, run results, Familie integrations`() {
+        val card = msg("card", """"card":{"kind":"doorbell","title":"Klingel","text":"Paket","image":{"mime":"image/jpeg","bytes":20480},"link":{"label":"Live-Bild","route":"plg-gatecontrol-door","kind":"live_view"},"actions":[]}""")
+        assertTrue(card.card!!.hasImage, "the picture comes from GET messages/:id/card/image")
+        assertNull(card.card!!.imageBase64)
+        roundTrip(card)
+        assertEquals("/9j/", ChatJson14.cardImage(json("""{"mime":"image/jpeg","bytes":3,"data":"/9j/"}""")))
+        assertNull(ChatJson14.cardImage(json("""{"data":"not base64!"}""")))
+        val run = ChatJson14.runResult(json("""{"ok":true,"message":null,"result":{"ok":false,"message":"Tür offline","state":null,"error":"failed"}}"""))
+        assertEquals(false, run.ok)
+        assertEquals("Tür offline", run.text)
+        val me = ChatJson.profile(json("""{"user":{"id":7},"integrations":{"familie":{"lists":true,"calendar":false,"places":true}}}"""))!!
+        assertFalse(me.familie.calendar)
+        assertEquals(me, ChatJson.profile(ChatSerializer.profile(me)))
+        assertTrue(ChatJson.profile(json("""{"user":{"id":7}}"""))!!.familie.lists, "older servers: assumed")
+    }
+
     // ─── device settings ────────────────────────────────────────────
 
     @Test

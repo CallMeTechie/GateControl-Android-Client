@@ -384,11 +384,29 @@ class ChatExtrasRepository @Inject constructor(
 
     suspend fun arrivalStop(conversationId: Long, messageId: Long) = afterMessage(conversationId, api.arrivalStop(messageId))
 
-    suspend fun actionRun(m: ChatMessage, actionId: String? = null, plugin: String? = null) = afterMessage(m.conversationId, api.actionRun(m.id, actionId, plugin))
+    /** A run's answer: the message stored; a run that did not work answers its text ([ChatRunResult.ok] false). */
+    private suspend fun afterRun(conversationId: Long, r: ChatResult<ChatRunResult>): ChatResult<ChatRunResult> {
+        if (r is ChatResult.Ok) {
+            val m = r.value.message
+            if (m != null) repository.storeMessages(listOf(m)) else repository.fetchChanged(conversationId)
+        }
+        return r
+    }
 
-    suspend fun actionApprove(m: ChatMessage) = afterMessage(m.conversationId, api.actionApprove(m.id))
+    suspend fun actionRun(m: ChatMessage, actionId: String? = null, plugin: String? = null) = afterRun(m.conversationId, api.actionRun(m.id, actionId, plugin))
 
-    suspend fun actionDeny(m: ChatMessage) = afterMessage(m.conversationId, api.actionDeny(m.id))
+    suspend fun actionApprove(m: ChatMessage) = afterRun(m.conversationId, api.actionApprove(m.id))
+
+    suspend fun actionDeny(m: ChatMessage) = afterRun(m.conversationId, api.actionDeny(m.id))
+
+    private val cardImages = android.util.LruCache<Long, String>(8)
+
+    /** A plugin card's picture (base64), cached in memory. */
+    suspend fun cardImage(messageId: Long): String? {
+        cardImages.get(messageId)?.let { return it }
+        val r = api.cardImage(messageId)
+        return (r as? ChatResult.Ok)?.value?.also { cardImages.put(messageId, it) }
+    }
 
     /** The cached message [id] (an arrival being shared). */
     suspend fun message(id: Long): ChatMessage? = repository.cachedMessage(id)

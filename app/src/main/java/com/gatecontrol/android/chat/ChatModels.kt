@@ -323,6 +323,8 @@ data class ChatProfile(
     val prefs14: ChatPrefs14 = ChatPrefs14(),
     /** Messenger 1.4 (`status`): the caller's own status, when `me` carries it. */
     val status: ChatStatus? = null,
+    /** Messenger 1.4: what the Familie plugin offers (lists, calendar, places). */
+    val familie: ChatFamilie = ChatFamilie(),
 )
 
 /** `GET conversations/:id/search`. */

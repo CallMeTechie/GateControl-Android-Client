@@ -239,7 +239,7 @@ fun ConversationScreen(
                 )
                 ConversationNotice.RecordingFailed -> resources.getString(R.string.chat_rec_failed)
                 ConversationNotice.Left -> resources.getString(R.string.chat_left)
-                is ConversationNotice.Done -> resources.getString(n.res)
+                is ConversationNotice.Done -> if (n.arg != null) resources.getString(n.res, n.arg) else resources.getString(n.res)
                 is ConversationNotice.ArrivalStarted -> {
                     // The position goes out from a foreground service while the arrival is live.
                     if (DeviceLocator.hasPermission(context)) com.gatecontrol.android.chat.ChatArrivalService.start(context, conversationId, n.messageId, n.label)
@@ -406,6 +406,7 @@ fun ConversationScreen(
                     }
                 },
                 onUpdateApp = { if (com.gatecontrol.android.update.PlayUpdater.enabled) openPlayStore(context) else onOpenUpdates() },
+                loadCardImage = { m -> viewModel.cardImage(m) },
                 features = RichFeatures(arrival = state.profile?.features?.arrival == true),
             ),
         )
@@ -753,7 +754,9 @@ fun ConversationScreen(
         )
     }
     actionMode?.let { mode ->
+        // Actions with a confirmation (a door) cannot be granted.
         val visible = homeActions?.let { com.gatecontrol.android.chat.ChatRichLogic.visibleActions(it, deviceConfig.hiddenActions) }
+            ?.filter { mode != com.gatecontrol.android.chat.ChatActionCard.MODE_GRANT || !it.needsConfirm }
         ActionPickerSheet(
             mode = mode,
             actions = visible,
@@ -798,6 +801,7 @@ fun ConversationScreen(
 
     actionsFor?.let { m ->
         val tools = state.profile?.features?.msgTools == true && !m.deleted && !m.isSystem
+        val familie = state.profile?.familie
         // "Auf Einkaufsliste" / "Termin anlegen": what the server finds in the text (loaded with the menu).
         val suggestion by androidx.compose.runtime.produceState<com.gatecontrol.android.chat.ChatSuggestion?>(null, m.id, tools) {
             value = if (tools && !m.text.isNullOrBlank()) viewModel.suggest(m) else null
@@ -808,7 +812,7 @@ fun ConversationScreen(
             tools = tools,
             canPin = tools && c?.can?.pin != false && c?.readonly != true,
             pinned = pinnedNow,
-            suggestion = suggestion,
+            suggestion = suggestion?.let { s -> s.copy(items = s.items.takeIf { familie?.lists != false }.orEmpty(), dates = s.dates.takeIf { familie?.calendar != false }.orEmpty()) },
             onPin = {
                 actionsFor = null
                 viewModel.pin(m, !pinnedNow)

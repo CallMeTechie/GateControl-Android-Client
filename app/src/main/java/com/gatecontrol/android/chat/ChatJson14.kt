@@ -810,7 +810,23 @@ object ChatJson14 {
             imageMime = image?.str("mime")?.takeIf { b64 != null && it in IMAGE_MIMES },
             lastRunBy = lastRun?.id("by"),
             lastRunOk = lastRun?.flag("ok"),
+            hasImage = b64 == null && image != null,
         )
+    }
+
+    /** `GET messages/:id/card/image` → the picture as base64 (checked). */
+    fun cardImage(o: JsonObject): String? = o.str("data")?.takeIf { it.length <= IMAGE_B64_MAX && BASE64_RE.matches(it) }
+
+    /** `integrations` of `GET me`; older servers (none sent): everything assumed. */
+    fun familie(o: JsonObject?): ChatFamilie {
+        val f = o?.obj("familie") ?: return ChatFamilie()
+        return ChatFamilie(lists = f.flag("lists") == true, calendar = f.flag("calendar") == true, places = f.flag("places") == true)
+    }
+
+    /** Answer of `POST messages/:id/action/run|approve|deny` → `{ message, result }`. */
+    fun runResult(o: JsonObject): ChatRunResult {
+        val r = o.obj("result")
+        return ChatRunResult(ChatJson.messageOf(o), r?.flag("ok"), ChatJson.line(r?.str("message") ?: r?.str("error"), 200))
     }
 
     fun writeCard(c: ChatPluginCard): JsonObject = JsonObject().apply {
@@ -832,6 +848,7 @@ object ChatJson14 {
             }
         })
         if (c.imageBase64 != null) add("image", JsonObject().apply { put("mime", c.imageMime); addProperty("data", c.imageBase64) })
+        else if (c.hasImage) add("image", JsonObject().apply { put("mime", c.imageMime) })
         if (c.lastRunBy != null || c.lastRunOk != null) {
             add("lastRun", JsonObject().apply {
                 put("by", c.lastRunBy)

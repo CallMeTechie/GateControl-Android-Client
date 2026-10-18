@@ -631,10 +631,22 @@ class ConversationViewModel @Inject constructor(
     fun checklist(m: ChatMessage, itemId: String, done: Boolean) = viewModelScope.launch { after(extras.checklist(m, itemId, done)) }
     fun cancelEvent(m: ChatMessage) = viewModelScope.launch { after(extras.cancelEvent(m)) }
     fun stopArrival(m: ChatMessage) = viewModelScope.launch { after(extras.arrivalStop(m.conversationId, m.id)) }
-    fun actionRun(m: ChatMessage) = viewModelScope.launch { after(extras.actionRun(m)) }
-    fun actionApprove(m: ChatMessage) = viewModelScope.launch { after(extras.actionApprove(m)) }
-    fun actionDeny(m: ChatMessage) = viewModelScope.launch { after(extras.actionDeny(m)) }
-    fun cardButton(m: ChatMessage, b: com.gatecontrol.android.chat.ChatCardButton) = viewModelScope.launch { after(extras.actionRun(m, b.actionId, b.plugin)) }
+    /** A run that answered `result.ok: false` shows the target's message. */
+    private fun afterRun(r: ChatResult<com.gatecontrol.android.chat.ChatRunResult>) {
+        if (r is ChatResult.Ok) {
+            if (r.value.ok == false) notices.trySend(ConversationNotice.Done(com.gatecontrol.android.R.string.chat_action_failed, r.value.text ?: "–"))
+        } else {
+            notices.trySend(ConversationNotice.Error(codeOf(r)))
+        }
+    }
+
+    fun actionRun(m: ChatMessage) = viewModelScope.launch { afterRun(extras.actionRun(m)) }
+    fun actionApprove(m: ChatMessage) = viewModelScope.launch { afterRun(extras.actionApprove(m)) }
+    fun actionDeny(m: ChatMessage) = viewModelScope.launch { afterRun(extras.actionDeny(m)) }
+    fun cardButton(m: ChatMessage, b: com.gatecontrol.android.chat.ChatCardButton) = viewModelScope.launch { afterRun(extras.actionRun(m, b.actionId, b.plugin)) }
+
+    /** A plugin card's picture. */
+    suspend fun cardImage(m: ChatMessage): String? = extras.cardImage(m.id)
 
     fun pin(m: ChatMessage, pin: Boolean) = viewModelScope.launch { after(extras.pin(m.conversationId, m.id, pin)) }
 
