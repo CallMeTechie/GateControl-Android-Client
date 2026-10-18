@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -151,7 +151,8 @@ fun StatusStrip(
 private fun StripEntry(label: String, muted: Boolean, onClick: () -> Unit, description: String? = null, avatar: @Composable () -> Unit) {
     val extra = GateControlTheme.extraColors
     Column(
-        Modifier.width(66.dp).clip(MaterialTheme.shapes.small).clickable(role = Role.Button, onClick = onClick)
+        // At least the avatar's width, wider for a longer label ("Mein Status") up to a limit.
+        Modifier.widthIn(min = 66.dp, max = 96.dp).clip(MaterialTheme.shapes.small).clickable(role = Role.Button, onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
