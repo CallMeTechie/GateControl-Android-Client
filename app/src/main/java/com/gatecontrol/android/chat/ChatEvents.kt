@@ -37,6 +37,8 @@ sealed interface ChatEvent {
     /**
      * Receipts: [lastReadId] null when that person does not share them.
      * [self] = read on one of the caller's own devices, with [unread] left.
+     * [upTo] (Messenger 1.1.0): the conversation's `readUpTo` /
+     * `deliveredUpTo` for the caller right now; null from older servers.
      */
     data class Read(
         override val conversationId: Long,
@@ -45,17 +47,25 @@ sealed interface ChatEvent {
         val lastDeliveredId: Long?,
         val self: Boolean,
         val unread: Int?,
+        val upTo: UpTo? = null,
     ) : ChatEvent
+
+    /** `readUpTo` / `deliveredUpTo` of a `read` event (each null when nobody shares / nothing delivered). */
+    data class UpTo(val readUpTo: Long?, val deliveredUpTo: Long?)
 
     /** "schreibt …" until [untilMs] (epoch ms); null = stopped. */
     data class Typing(override val conversationId: Long, val userId: Long, val untilMs: Long?) : ChatEvent
 
-    data class ConversationUpdate(override val conversationId: Long, val reasons: Set<String>) : ChatEvent
+    data class ConversationUpdate(override val conversationId: Long, val reasons: Set<String>) : ChatEvent {
+        /** No longer managed by a plugin (1.1.0): a normal group now, its info editable again. */
+        val released: Boolean get() = REASON_RELEASED in reasons
+    }
 
     data class ConversationRemove(override val conversationId: Long) : ChatEvent
 
     companion object {
         const val REASON_DELETED = "deleted"
+        const val REASON_RELEASED = "released"
     }
 }
 
@@ -98,6 +108,7 @@ object ChatEvents {
                 lastDeliveredId = o.id("lastDeliveredId"),
                 self = o.flag("self") == true,
                 unread = o.get("unread")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt?.coerceAtLeast(0),
+                upTo = if (o.has("readUpTo") || o.has("deliveredUpTo")) ChatEvent.UpTo(o.id("readUpTo"), o.id("deliveredUpTo")) else null,
             )
             "typing" -> {
                 val until = ChatJson.time(o.str("until"))?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }

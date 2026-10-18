@@ -500,6 +500,7 @@ fun AppNavigation(
                         share = share,
                         onOpenInbox = openInbox,
                         onNewChat = newChat,
+                        onOpenUpdates = openSettings,
                         onOpenInfo = { id -> navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
                         onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
                     )
@@ -512,6 +513,7 @@ fun AppNavigation(
                             },
                             onOpenInbox = openInbox,
                             onNewChat = newChat,
+                            onOpenUpdates = openSettings,
                         )
                     }
                 }

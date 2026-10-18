@@ -9,6 +9,8 @@ import com.gatecontrol.android.chat.ChatRepository
 import com.gatecontrol.android.chat.ChatResult
 import com.gatecontrol.android.chat.ChatShareHandover
 import com.gatecontrol.android.chat.ChatShortcuts
+import com.gatecontrol.android.chat.ChatFeatureHint
+import com.gatecontrol.android.chat.ChatUpdateHint
 import com.gatecontrol.android.chat.ChatSync
 import com.gatecontrol.android.chat.ChatTimeline
 import com.gatecontrol.android.notify.PushRepository
@@ -53,7 +55,15 @@ class ChatListViewModel @Inject constructor(
     private val repository: ChatRepository,
     pushRepository: PushRepository,
     private val shortcuts: ChatShortcuts,
+    private val updateHint: ChatUpdateHint,
 ) : ViewModel() {
+
+    /** The server offers chat features this app does not know yet (and the hint was not dismissed for them). */
+    val showUpdateHint: StateFlow<Boolean> = combine(repository.profile, updateHint.dismissed) { p, d -> ChatFeatureHint.show(p?.features, d) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Hidden until the server names a further unknown feature. */
+    fun dismissUpdateHint() = updateHint.dismiss(repository.profile.value?.features)
 
     private val filter = MutableStateFlow(ChatFilter.All)
     private val query = MutableStateFlow("")

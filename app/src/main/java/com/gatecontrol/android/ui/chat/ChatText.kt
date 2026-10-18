@@ -41,6 +41,10 @@ object ChatText {
     fun content(ctx: Context, m: ChatMessage, c: ChatConversation?, myId: Long?): String {
         if (m.deleted) return ctx.getString(if (m.mine) R.string.chat_deleted_by_me else R.string.chat_deleted)
         if (m.undecryptable) return ctx.getString(R.string.chat_undecryptable)
+        if (m.isVideo) {
+            val len = m.videoDurationMs?.takeIf { it > 0 }?.let { VoiceWave.clock(it) }
+            return prefixed(ctx.getString(R.string.chat_kind_video), listOfNotNull(len, m.text?.takeIf { it.isNotBlank() }).joinToString(" · "))
+        }
         return when (m.kind) {
             ChatMessage.KIND_IMAGE -> prefixed(ctx.getString(R.string.chat_kind_image), m.text)
             ChatMessage.KIND_VOICE -> ctx.getString(R.string.chat_kind_voice) + (m.meta?.durationMs?.let { " · " + VoiceWave.clock(it) } ?: "")
@@ -68,6 +72,8 @@ object ChatText {
             "disappearing" -> if ((s.seconds ?: 0) <= 0) ctx.getString(R.string.chat_sys_disappearing_off, by)
             else ctx.getString(R.string.chat_sys_disappearing_on, by, disappearing(ctx, s.seconds ?: 0))
             "notice" -> m.text.orEmpty()
+            // The plugin that managed the group handed it over (Messenger 1.1.0).
+            "released" -> ctx.getString(R.string.chat_sys_released)
             else -> m.text ?: ctx.getString(R.string.chat_sys_unknown)
         }
     }

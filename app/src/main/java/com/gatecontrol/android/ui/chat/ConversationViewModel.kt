@@ -5,10 +5,13 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.chat.ChatConversation
+import com.gatecontrol.android.chat.ChatGap
+import com.gatecontrol.android.chat.ChatJump
 import com.gatecontrol.android.chat.ChatLocation
 import com.gatecontrol.android.chat.ChatMediaStore
 import com.gatecontrol.android.chat.ChatMessage
 import com.gatecontrol.android.chat.ChatMime
+import com.gatecontrol.android.chat.ChatPreview
 import com.gatecontrol.android.chat.ChatProfile
 import com.gatecontrol.android.chat.ChatRepository
 import com.gatecontrol.android.chat.ChatResult
@@ -111,6 +114,8 @@ class ConversationViewModel @Inject constructor(
     private val conversation = id.filterNotNull().flatMapLatest { repository.conversation(it) }
     private val messages = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.messages(it) }
     private val outbox = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.outbox(it) }
+    private val gaps = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.gaps(it) }
+    private val fillingGap = MutableStateFlow<ChatGap?>(null)
 
     private data class Ui(val replyTo: ChatMessage?, val editing: ChatMessage?, val shared: SharePayload?, val busy: Boolean)
     private data class Paging(val hasOlder: Boolean, val loadingOlder: Boolean, val loaded: Boolean)
@@ -120,17 +125,17 @@ class ConversationViewModel @Inject constructor(
     private val searchState = combine(search, searching) { r, s -> r to s }
 
     val uiState: StateFlow<ConversationUiState> = combine(
-        combine(id, conversation.stateInNull(), messages, outbox) { i, c, m, o -> Quad(i, c, m, o) },
+        combine(id, conversation.stateInNull(), messages, outbox, gaps) { i, c, m, o, g -> Quad(i, c, m, o, g) },
         combine(repository.profile, repository.typing, now) { p, t, n -> Triple(p, t, n) },
         ui,
         paging,
         combine(searchState, repository.dropped) { s, d -> s to d },
-    ) { (cid, c, msgs, pend), (profile, typing, nowMs), u, pg, (search, dropped) ->
+    ) { (cid, c, msgs, pend, gapList), (profile, typing, nowMs), u, pg, (search, dropped) ->
         val (results, isSearching) = search
         ConversationUiState(
             conversationId = cid,
             conversation = c,
-            items = ChatTimeline.build(msgs, pend, c),
+            items = ChatTimeline.build(msgs, pend, c, gaps = gapList),
             profile = profile,
             typing = if (cid == null) emptyList() else ChatTimeline.typingNow(typing, cid, profile?.user?.userId, nowMs),
             hasOlder = pg.hasOlder,
@@ -146,7 +151,13 @@ class ConversationViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationUiState())
 
-    private data class Quad(val id: Long?, val c: ChatConversation?, val m: List<ChatMessage>, val o: List<com.gatecontrol.android.chat.ChatPending>)
+    private data class Quad(
+        val id: Long?,
+        val c: ChatConversation?,
+        val m: List<ChatMessage>,
+        val o: List<com.gatecontrol.android.chat.ChatPending>,
+        val g: List<ChatGap>,
+    )
 
     private fun Flow<ChatConversation?>.stateInNull(): StateFlow<ChatConversation?> = stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -211,6 +222,35 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
+    /** Messages of [gap] (scrolled to after a jump far back); one load at a time. */
+    fun fillGap(gap: ChatGap) {
+        val cid = id.value ?: return
+        if (fillingGap.value != null) return
+        fillingGap.value = gap
+        viewModelScope.launch {
+            try {
+                val r = repository.fillGap(cid, gap)
+                if (r !is ChatResult.Ok) notices.trySend(ConversationNotice.Error(codeOf(r)))
+            } finally {
+                fillingGap.value = null
+            }
+        }
+    }
+
+    /** A gap is loading (its row shows progress). */
+    val gapLoading: StateFlow<ChatGap?> = fillingGap
+
+    /**
+     * Brings message [messageId] (search result, quoted message) into the
+     * conversation, loading it with its neighbours when it is not cached.
+     */
+    suspend fun jumpTo(messageId: Long): ChatResult<ChatJump> {
+        val cid = id.value ?: return ChatResult.NotConfigured
+        val r = repository.jumpTo(cid, messageId)
+        if (r is ChatResult.Ok) hasOlder.value = repository.hasOlder(cid)
+        return r
+    }
+
     fun onTyping(text: String) {
         val cid = id.value ?: return
         if (text.isBlank()) repository.typingStop(cid) else repository.typingPing(cid)
@@ -254,8 +294,18 @@ class ConversationViewModel @Inject constructor(
         return true
     }
 
-    /** Pictures from the photo picker (scaled, with preview). */
+    /**
+     * Pictures and videos from the photo picker: pictures scaled with a
+     * preview, videos as files (with frame, length and size when the
+     * server takes them).
+     */
     fun sendImages(uris: List<Uri>, caption: String?) {
+        val (videos, pictures) = uris.partition { ChatPreview.isVideo(runCatching { context.contentResolver.getType(it) }.getOrNull()) }
+        if (videos.isNotEmpty()) sendFiles(videos, if (pictures.isEmpty()) caption else null)
+        if (pictures.isNotEmpty()) sendPictures(pictures, caption)
+    }
+
+    private fun sendPictures(uris: List<Uri>, caption: String?) {
         val cid = id.value ?: return
         val limits = uiState.value.profile?.limits
         val reply = replyTo.value?.id
@@ -316,10 +366,17 @@ class ConversationViewModel @Inject constructor(
     /** A new target file for the camera app and its content URI. */
     fun newCameraTarget(): Pair<File, Uri>? = runCatching { media.newCameraTarget() }.getOrNull()
 
-    /** Any file (SAF); pictures picked as files are sent as files. */
-    fun sendFiles(uris: List<Uri>) {
+    /**
+     * Any file (SAF, videos of the photo picker, shared files); pictures
+     * picked as files are sent as files. Videos get a frame, their length
+     * and size, PDFs their first page as preview — only for servers that
+     * take them (`file_thumbs`, `video_meta`; older ones get the file alone).
+     */
+    fun sendFiles(uris: List<Uri>, caption: String? = null) {
         val cid = id.value ?: return
-        val limits = uiState.value.profile?.limits
+        val profile = uiState.value.profile
+        val limits = profile?.limits
+        val features = profile?.features
         val reply = replyTo.value?.id
         replyTo.value = null
         viewModelScope.launch {
@@ -327,7 +384,16 @@ class ConversationViewModel @Inject constructor(
             uris.forEachIndexed { i, uri ->
                 val clientId = repository.newClientId()
                 media.prepareFile(uri, clientId, limits?.maxBytes, limits?.types.orEmpty())
-                    .onSuccess { repository.sendFile(cid, it, null, if (i == 0) reply else null, clientId) }
+                    .onSuccess { f ->
+                        val file = media.withPreview(
+                            f, clientId,
+                            thumbs = ChatPreview.wantsThumb(f.mime, features),
+                            videoMeta = features?.videoMeta == true,
+                            thumbMax = limits?.thumbMaxBytes ?: 65_536,
+                            maxSide = limits?.thumbMaxSide ?: ChatPreview.THUMB_MAX_SIDE,
+                        )
+                        repository.sendFile(cid, file, if (i == 0) caption else null, if (i == 0) reply else null, clientId)
+                    }
                     .onFailure { e -> notices.trySend(ConversationNotice.PrepareFailed((e as? PrepareException)?.error ?: PrepareError.Unreadable)) }
             }
             busy.value = false
@@ -340,7 +406,7 @@ class ConversationViewModel @Inject constructor(
         shared.value = null
         val files = payload.files
         val (images, others) = files.partition { ChatMime.kindOf(it.mime) == ChatMessage.KIND_IMAGE }
-        if (images.isNotEmpty()) sendImages(images.map { Uri.fromFile(File(it.path)) }, null)
+        if (images.isNotEmpty()) sendPictures(images.map { Uri.fromFile(File(it.path)) }, null)
         if (others.isNotEmpty()) sendFiles(others.map { Uri.fromFile(File(it.path)) })
     }
 

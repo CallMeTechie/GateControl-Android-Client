@@ -123,9 +123,9 @@ class ChatShortcutsMediaTest {
         assertEquals(listOf(4L), ChatMediaLogic.merge(ChatMediaLogic.Tab.Voice, emptyList(), all).map { it.id })
         assertTrue(ChatMediaLogic.isVideo(video))
         assertFalse(ChatMediaLogic.isVideo(image))
-        assertEquals("all", ChatMediaLogic.Tab.Media.kind)
-        assertEquals("file", ChatMediaLogic.Tab.Files.kind)
-        assertEquals("voice", ChatMediaLogic.Tab.Voice.kind)
+        assertEquals("all", ChatMediaLogic.kind(ChatMediaLogic.Tab.Media, videoMeta = false))
+        assertEquals("file", ChatMediaLogic.kind(ChatMediaLogic.Tab.Files, videoMeta = false))
+        assertEquals("voice", ChatMediaLogic.kind(ChatMediaLogic.Tab.Voice, videoMeta = false))
     }
 
     @Test

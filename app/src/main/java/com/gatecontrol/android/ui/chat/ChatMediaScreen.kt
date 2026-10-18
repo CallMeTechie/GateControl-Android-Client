@@ -105,12 +105,13 @@ data class MediaTabState(
     val failed: Boolean = false,
 )
 
-/** Counts of the overview (`counts` of the server). */
-data class MediaCounts(val images: Int? = null, val files: Int? = null, val voice: Int? = null)
+/** Counts of the overview (`counts` of the server; [videos] only with `video_meta`). */
+data class MediaCounts(val images: Int? = null, val files: Int? = null, val voice: Int? = null, val videos: Int? = null)
 
 /**
  * The media overview of a conversation (`GET conversations/:id/media`):
- * pictures and videos as a grid, files and voice messages as lists,
+ * pictures and videos as a grid (servers with `video_meta`: videos in a
+ * tab of their own, `kind=video`), files and voice messages as lists,
  * paged backwards (newest first).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -130,6 +131,9 @@ class ChatMediaViewModel @Inject constructor(
     val tabs: StateFlow<Map<Tab, MediaTabState>> = _tabs.asStateFlow()
     private val _counts = MutableStateFlow(MediaCounts())
     val counts: StateFlow<MediaCounts> = _counts.asStateFlow()
+    private val _videoMeta = MutableStateFlow(repository.profile.value?.features?.videoMeta == true)
+    /** The server pages videos apart (`video_meta`): Videos tab, pictures alone under Media. */
+    val videoMeta: StateFlow<Boolean> = _videoMeta.asStateFlow()
 
     private val errors = Channel<String?>(Channel.BUFFERED)
     val error = errors.receiveAsFlow()
@@ -140,7 +144,13 @@ class ChatMediaViewModel @Inject constructor(
         if (id.value == conversationId) return
         id.value = conversationId
         _tabs.value = Tab.entries.associateWith { MediaTabState() }
-        loadMore(_tab.value)
+        viewModelScope.launch {
+            // Which tabs page how depends on the server's features.
+            if (repository.profile.value == null) repository.refreshProfile()
+            _videoMeta.value = repository.profile.value?.features?.videoMeta == true
+            if (_tab.value !in ChatMediaLogic.tabs(_videoMeta.value)) _tab.value = Tab.Media
+            loadMore(_tab.value)
+        }
     }
 
     fun select(tab: Tab) {
@@ -149,29 +159,32 @@ class ChatMediaViewModel @Inject constructor(
     }
 
     /**
-     * The next page of [tab]. Pictures and videos page through `all`
-     * (videos are files): pages without one of them are skipped, a few at a time.
+     * The next page of [tab]. Without `video_meta` pictures and videos
+     * page through `all` (videos are files): pages without one of them are
+     * skipped, a few at a time.
      */
     fun loadMore(tab: Tab) {
         val cid = id.value ?: return
         val cur = _tabs.value[tab] ?: return
         if (cur.loading || (cur.loaded && !cur.hasMore)) return
         setTab(tab) { it.copy(loading = true, failed = false) }
+        val videoMeta = _videoMeta.value
+        val kind = ChatMediaLogic.kind(tab, videoMeta)
         viewModelScope.launch {
             var state = _tabs.value[tab] ?: MediaTabState()
             var pages = 0
             while (true) {
-                val r = repository.media(cid, tab.kind, state.cursor, if (tab == Tab.Media) PAGE_ALL else PAGE)
+                val r = repository.media(cid, kind, state.cursor, if (kind == ChatMediaLogic.KIND_ALL) PAGE_ALL else PAGE)
                 if (r !is ChatResult.Ok) {
                     setTab(tab) { it.copy(loading = false, failed = true, loaded = true) }
                     errors.trySend(if (r is ChatResult.Failed) r.code else "offline")
                     return@launch
                 }
                 val page = r.value
-                _counts.update { c -> MediaCounts(page.images ?: c.images, page.files ?: c.files, page.voice ?: c.voice) }
+                _counts.update { c -> MediaCounts(page.images ?: c.images, page.files ?: c.files, page.voice ?: c.voice, page.videos ?: c.videos) }
                 val before = state.items.size
                 state = state.copy(
-                    items = ChatMediaLogic.merge(tab, state.items, page.items),
+                    items = ChatMediaLogic.merge(tab, state.items, page.items, videoMeta),
                     cursor = ChatMediaLogic.cursor(state.cursor, page.items),
                     hasMore = page.hasMore && page.items.isNotEmpty(),
                 )
@@ -221,6 +234,7 @@ fun ChatMediaScreen(
     val tab by viewModel.tab.collectAsStateWithLifecycle()
     val tabs by viewModel.tabs.collectAsStateWithLifecycle()
     val counts by viewModel.counts.collectAsStateWithLifecycle()
+    val videoMeta by viewModel.videoMeta.collectAsStateWithLifecycle()
     val player by viewModel.player.state.collectAsState()
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -243,6 +257,7 @@ fun ChatMediaScreen(
         GcSubpageBar(title = stringResource(R.string.chat_media_title), onBack = onBack, backDescription = stringResource(R.string.chat_back))
         val summary = listOfNotNull(
             counts.images?.let { resources.getQuantityString(R.plurals.chat_media_count_images, it, it) },
+            counts.videos?.let { resources.getQuantityString(R.plurals.chat_media_count_videos, it, it) },
             counts.files?.let { resources.getQuantityString(R.plurals.chat_media_count_files, it, it) },
             counts.voice?.let { resources.getQuantityString(R.plurals.chat_media_count_voice, it, it) },
         ).joinToString(" · ")
@@ -253,7 +268,12 @@ fun ChatMediaScreen(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            GcFilterChip(stringResource(R.string.chat_media_tab_media), tab == Tab.Media, { viewModel.select(Tab.Media) })
+            GcFilterChip(
+                stringResource(if (videoMeta) R.string.chat_media_tab_images else R.string.chat_media_tab_media),
+                tab == Tab.Media,
+                { viewModel.select(Tab.Media) },
+            )
+            if (videoMeta) GcFilterChip(stringResource(R.string.chat_media_tab_videos), tab == Tab.Videos, { viewModel.select(Tab.Videos) })
             GcFilterChip(stringResource(R.string.chat_media_tab_files), tab == Tab.Files, { viewModel.select(Tab.Files) })
             if (profile?.features?.voice != false || (counts.voice ?: 0) > 0) {
                 GcFilterChip(stringResource(R.string.chat_media_tab_voice), tab == Tab.Voice, { viewModel.select(Tab.Voice) })
@@ -262,7 +282,7 @@ fun ChatMediaScreen(
         val state = tabs[tab] ?: MediaTabState()
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
-                Tab.Media -> MediaGrid(state, onMore = { viewModel.loadMore(Tab.Media) }, onOpen = { m ->
+                Tab.Media, Tab.Videos -> MediaGrid(state, onMore = { viewModel.loadMore(tab) }, onOpen = { m ->
                     if (m.kind == ChatMessage.KIND_IMAGE) m.media?.id?.let(onOpenImage) else open(m, false)
                 })
                 Tab.Files -> MediaList(state, onMore = { viewModel.loadMore(Tab.Files) }) { m ->
@@ -320,20 +340,36 @@ private fun MediaTile(m: ChatMessage, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
     val video = ChatMediaLogic.isVideo(m)
     val px = with(LocalDensity.current) { 140.dp.roundToPx() }
-    val bmp = if (video) null else rememberChatBitmap(m.media?.thumbId ?: m.media?.id, px)
+    // A video shows its preview frame when the sender's app made one (Messenger 1.3.0).
+    val bmp = if (video) rememberChatBitmap(m.media?.thumbId, px) else rememberChatBitmap(m.media?.thumbId ?: m.media?.id, px)
     Box(
-        Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(6.dp)).background(if (video) Color(0xFF1B1F24) else extra.panel2)
+        Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(6.dp)).background(if (video) VIDEO_BG else extra.panel2)
             .clickable(role = Role.Button, onClickLabel = stringResource(if (video) R.string.chat_media_open else R.string.chat_kind_image), onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         when {
+            video && bmp != null -> {
+                Image(bmp, contentDescription = stringResource(R.string.chat_media_video), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                Box(Modifier.size(36.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White)
+                }
+                m.videoDurationMs?.takeIf { it > 0 }?.let { d ->
+                    Text(
+                        VoiceWave.clock(d),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(4.dp).clip(RoundedCornerShape(6.dp))
+                            .background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 4.dp, vertical = 1.dp),
+                    )
+                }
+            }
             bmp != null -> Image(bmp, contentDescription = stringResource(R.string.chat_kind_image), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             video -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(6.dp)) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.85f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.chat_media_video), tint = Color.Black)
                 }
                 Text(
-                    m.meta?.fileName ?: stringResource(R.string.chat_media_video),
+                    m.videoDurationMs?.takeIf { it > 0 }?.let { VoiceWave.clock(it) } ?: m.meta?.fileName ?: stringResource(R.string.chat_media_video),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White,
                     maxLines = 1,
@@ -371,10 +407,16 @@ private fun FileRow(m: ChatMessage, c: ChatConversation?, myId: Long?, onOpen: (
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        val thumbPx = with(LocalDensity.current) { 44.dp.roundToPx() }
+        val thumb = rememberChatBitmap(m.media?.thumbId, thumbPx)
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(extra.panel2), contentAlignment = Alignment.Center) {
             val ext = name.substringAfterLast('.', "").uppercase(Locale.ROOT).take(4)
-            if (ext.isNotEmpty()) Text(ext, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold), color = extra.accentText)
-            else Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = extra.accentText)
+            when {
+                // The file's preview (a PDF's first page) when the sender's app made one.
+                thumb != null -> Image(thumb, contentDescription = stringResource(R.string.chat_file_preview), contentScale = ContentScale.Crop, modifier = Modifier.size(44.dp))
+                ext.isNotEmpty() -> Text(ext, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold), color = extra.accentText)
+                else -> Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = extra.accentText)
+            }
         }
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)

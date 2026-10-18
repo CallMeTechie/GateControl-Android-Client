@@ -78,6 +78,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,8 +104,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.chat.ChatJump
 import com.gatecontrol.android.chat.ChatMessage
 import com.gatecontrol.android.chat.ChatMime
+import com.gatecontrol.android.chat.ChatResult
 import com.gatecontrol.android.chat.ChatPending
 import com.gatecontrol.android.chat.ChatShortcutLogic
 import com.gatecontrol.android.chat.PrepareError
@@ -117,7 +120,9 @@ import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.util.findComponentActivity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.Locale
 
@@ -272,6 +277,32 @@ fun ConversationScreen(
     val c = state.conversation
     val myId = state.myId
     val currentRows by rememberUpdatedState(rows)
+    val gapLoading by viewModel.gapLoading.collectAsStateWithLifecycle()
+    // To a message (search result, quote): scrolled to when loaded, else loaded with its
+    // neighbours first (`around=`, Messenger 1.1.0).
+    val jumpTo: (Long) -> Unit = remember(viewModel) {
+        { id ->
+            fun indexOf() = currentRows.indexOfFirst { it is TimelineItem.Message && it.message.id == id }
+            scope.launch {
+                var idx = indexOf()
+                if (idx < 0) {
+                    when (val r = viewModel.jumpTo(id)) {
+                        is ChatResult.Ok -> when (r.value) {
+                            ChatJump.Found -> idx = withTimeoutOrNull(3_000) { snapshotFlow { indexOf() }.first { it >= 0 } } ?: -1
+                            ChatJump.Missing -> Toast.makeText(context, R.string.chat_jump_missing, Toast.LENGTH_SHORT).show()
+                            ChatJump.Unsupported -> Toast.makeText(context, R.string.chat_search_not_loaded, Toast.LENGTH_SHORT).show()
+                        }
+                        is ChatResult.Failed -> Toast.makeText(context, ChatText.actionError(context, r.code), Toast.LENGTH_LONG).show()
+                        else -> Toast.makeText(context, ChatText.actionError(context, "offline"), Toast.LENGTH_LONG).show()
+                    }
+                }
+                if (idx >= 0) {
+                    listState.scrollToItem(idx)
+                    highlight = id
+                }
+            }
+        }
+    }
     val bubbleActions = remember(viewModel) {
         BubbleActions(
             onLongPress = { actionsFor = it },
@@ -287,13 +318,7 @@ fun ConversationScreen(
             onTogglePlay = viewModel::togglePlay,
             onSeek = { m, f -> viewModel.player.seek("m:${m.id}", f, m.meta?.durationMs ?: 0L) },
             onReact = viewModel::react,
-            onQuote = { id ->
-                val idx = currentRows.indexOfFirst { it is TimelineItem.Message && it.message.id == id }
-                if (idx >= 0) scope.launch {
-                    listState.animateScrollToItem(idx)
-                    highlight = id
-                }
-            },
+            onQuote = jumpTo,
         )
     }
 
@@ -380,15 +405,9 @@ fun ConversationScreen(
             val results = state.searchResults
             if (results != null) {
                 SearchResults(results, state, onPick = { m ->
-                    val idx = rows.indexOfFirst { it is TimelineItem.Message && it.message.id == m.id }
                     searchOpen = false
                     viewModel.closeSearch()
-                    if (idx >= 0) scope.launch {
-                        listState.scrollToItem(idx)
-                        highlight = m.id
-                    } else {
-                        Toast.makeText(context, R.string.chat_search_not_loaded, Toast.LENGTH_SHORT).show()
-                    }
+                    jumpTo(m.id)
                 })
             } else {
                 LazyColumn(
@@ -409,6 +428,10 @@ fun ConversationScreen(
                                 player = player,
                                 actions = bubbleActions,
                                 highlighted = highlight == item.message.id,
+                            )
+                            is TimelineItem.Gap -> GapRow(
+                                loading = gapLoading == item.gap,
+                                onLoad = { viewModel.fillGap(item.gap) },
                             )
                             is TimelineItem.Pending -> PendingBubble(
                                 p = item.pending,
@@ -522,7 +545,9 @@ fun ConversationScreen(
             maxBytes = state.profile?.limits?.maxBytes,
             onGallery = {
                 showAttach = false
-                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                // Videos are files on the server: offered only where files are.
+                val type = if (features?.files != false) ActivityResultContracts.PickVisualMedia.ImageAndVideo else ActivityResultContracts.PickVisualMedia.ImageOnly
+                photoPicker.launch(PickVisualMediaRequest(type))
             },
             onCamera = {
                 showAttach = false
@@ -661,6 +686,29 @@ private fun SearchResults(results: List<ChatMessage>, state: ConversationUiState
                 }
                 Text(ChatText.content(context, m, state.conversation, state.myId), style = MaterialTheme.typography.bodyMedium, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
+        }
+    }
+}
+
+/** Messages not loaded yet between two rows (after a jump far back): loaded once scrolled to. */
+@Composable
+private fun GapRow(loading: Boolean, onLoad: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    LaunchedEffect(Unit) { onLoad() }
+    Box(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+        } else {
+            Text(
+                stringResource(R.string.chat_gap_load),
+                style = MaterialTheme.typography.labelLarge,
+                color = extra.accentText,
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(extra.panel2)
+                    .clickable(role = Role.Button, onClick = onLoad).padding(horizontal = 14.dp, vertical = 8.dp),
+            )
         }
     }
 }

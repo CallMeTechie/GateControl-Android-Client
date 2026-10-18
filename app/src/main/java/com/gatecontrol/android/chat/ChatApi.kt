@@ -170,12 +170,15 @@ class ChatApi @Inject constructor(
         after: Long? = null,
         changedSince: String? = null,
         limit: Int = 50,
+        around: Long? = null,
     ): ChatResult<ChatMessagePage> {
         val q = buildMap {
             put("limit", limit.coerceIn(1, 100).toString())
             before?.let { put("before", it.toString()) }
             after?.let { put("after", it.toString()) }
             changedSince?.let { put("changedSince", it) }
+            // Messenger 1.1.0: about half older than the message, the message, the newer ones.
+            around?.let { put("around", it.toString()) }
         }
         return get("conversations/$conversationId/messages", q, ChatJson::messagePage)
     }

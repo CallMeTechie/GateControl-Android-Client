@@ -351,19 +351,46 @@ sehen keinen Unterschied.
   gelesen ✓✓ farbig), Antworten mit Zitat (Tippen springt zum Original),
   Reaktionen, Bearbeiten und „Für alle löschen“ nur innerhalb des
   Zeitfensters des Servers, „Für mich löschen“ immer; ältere Nachrichten
-  laden beim Hochscrollen; Suche im Chat (auf dem Server). Systemzeilen
-  („Anna hat Lena hinzugefügt“) und Hinweise anderer Plugins
-  („GateControl“) in der Mitte. Solange ein Chat offen ist, meldet die App
+  laden beim Hochscrollen; Suche im Chat (auf dem Server). Treffer der
+  Suche und Zitate, die noch nicht geladen sind, holt die App samt
+  Nachbarn (`messages?around=`, Messenger 1.1) und springt hin; was
+  zwischen ihnen und den neuesten Nachrichten fehlt, zeigt eine Zeile
+  „Weitere Nachrichten laden“, die beim Hinscrollen nachlädt (`after=`).
+  Ältere Server ohne `around` bekommen weiter den Hinweis zum Hochscrollen.
+  Systemzeilen („Anna hat Lena hinzugefügt“, „GateControl hat die Gruppe
+  freigegeben – sie ist jetzt eine normale Gruppe“) und Hinweise anderer
+  Plugins („GateControl“) in der Mitte. Gibt ein Plugin seine Gruppe frei
+  (`conversation.update` mit `released`), lädt die App den Chat neu: Name,
+  Bild und Mitglieder sind wieder bearbeitbar. Solange ein Chat offen ist, meldet die App
   ihn alle 20 s als aktiv (dann kommt dafür keine Push-Mitteilung) und
   sendet „schreibt …“ höchstens alle 3 s.
 - **Anhänge:** Fotos (Photo Picker oder **direkt mit der Kamera** — die
   Kamera-Berechtigung wird erst beim ersten Foto erfragt; beides vor dem
   Hochladen auf 2048 px WebP verkleinert, mit Vorschaubild ≤ 64 KB), Dateien (Dateiauswahl, Größe und
-  Typ wie vom Server erlaubt), **Standort** (einmalig, mit Adresse) und
+  Typ wie vom Server erlaubt), **Videos** (Photo Picker — Bilder und Videos —,
+  Dateiauswahl oder Teilen; auf dem Server eine Datei), **Standort** (einmalig, mit Adresse) und
   **Sprachnachrichten** (Mikrofon gedrückt halten, nach links wischen
   bricht ab, Höchstlänge vom Server; AAC/M4A mit Wellenform). Abspielen mit
   Springen per Tippen in die Wellenform; Bilder im Vollbild mit Zoom;
   Dateien öffnen oder teilen; Standort öffnet die Karten-App.
+- **Videos & Dateivorschauen** (Messenger 1.3.0): beim Senden eines Videos
+  nimmt die App ein Standbild bei etwa 1 s (MediaMetadataRetriever),
+  verkleinert es auf höchstens 640 px (bzw. `limits.thumbMaxSide` des
+  Servers) WebP ≤ 64 KB und liest Länge und
+  Bildgröße; zuerst geht das Vorschaubild hoch, dann das Video, die
+  Nachricht trägt `thumbMediaId` und `video { durationMs, width, height }`
+  (bleibt `kind: file`). Bei PDFs wird die erste Seite (PdfRenderer) zum
+  Vorschaubild. Im Chat zeigen Videos Standbild, Abspiel-Symbol und Länge
+  (Tippen öffnet sie in einer Video-App), Dateien ihr Vorschaubild. Die
+  neuen Felder gehen nur an Server, deren `GET me` sie unter `features`
+  einschaltet (`video_meta: true`, `file_thumbs: true`); ältere bekommen die
+  Datei wie bisher.
+- **Hinweis auf eine neuere App:** schaltet der Server unter `features`
+  eine Chat-Funktion ein, die diese App nicht kennt, zeigt der Tab „Chats“
+  oben „Für alle Chat-Funktionen gibt es eine neuere App-Version“ mit
+  „Aktualisieren“ (Play-Version: die Seite im Play Store; GitHub-Version:
+  die Einstellungen mit der Update-Prüfung). Ausgeblendet bleibt er, bis
+  eine weitere unbekannte Funktion dazukommt; er blockiert nie etwas.
 - **Offline:** alles liegt in einer lokalen Datenbank (Room) und ist ohne
   Verbindung lesbar. Gesendet wird über einen **Ausgang**: die Nachricht
   steht sofort mit Uhr im Chat und geht mit ihrer `clientId` raus — bei
@@ -372,7 +399,11 @@ sehen keinen Unterschied.
   mit „Erneut versuchen“ / „Verwerfen“.
 - **Live:** Ereignisse des Plugins kommen über die bestehende
   Push-Verbindung (`event: plugin`): neue Nachrichten, Änderungen,
-  Lesebestätigungen, „schreibt …“. Nach jedem Verbindungsaufbau holt die App
+  Lesebestätigungen, „schreibt …“. Lesebestätigungen tragen seit Messenger
+  1.1 `readUpTo` / `deliveredUpTo`: die Häkchen ändern sich direkt, ohne
+  den Chat neu zu laden (ältere Server: wie bisher über
+  `GET conversations/:id`). Als nächstes `changedSince` dient die
+  `serverTime` der Antwort. Nach jedem Verbindungsaufbau holt die App
   nach, was fehlt. Ist die Push-Verbindung aus, fragt ein offener Chat
   selbst alle paar Sekunden nach.
 - **Benachrichtigungen:** eigener Kanal **„Chats“**, eine Mitteilung pro
@@ -406,7 +437,10 @@ sehen keinen Unterschied.
   erlaubt (`can.editInfo`).
 - **Medien & Dateien** (Chat-/Gruppen-Info): Bilder und Videos als Raster,
   Dateien und Sprachnachrichten als Listen, mit Anzahl je Art; lädt beim
-  Scrollen ältere nach (`GET conversations/:id/media`). Bilder öffnen im
+  Scrollen ältere nach (`GET conversations/:id/media`). Server mit
+  `video_meta` liefern Videos getrennt (`kind=video`): dann gibt es die
+  Reiter Bilder, Videos, Dateien und Sprachnachrichten und die Anzahl der
+  Videos; Videos und Dateien zeigen ihr Vorschaubild. Bilder öffnen im
   Vollbild, Videos und Dateien in einer passenden App, alles lässt sich
   teilen; Sprachnachrichten spielen direkt in der Liste.
 - **Verlassen / entfernt:** wird man aus einer Gruppe entfernt, die Gruppe

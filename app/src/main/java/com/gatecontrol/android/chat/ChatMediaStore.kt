@@ -3,12 +3,17 @@ package com.gatecontrol.android.chat
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.ImageDecoder
+import android.graphics.pdf.PdfRenderer
+import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.LruCache
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
+import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -27,8 +32,19 @@ import kotlin.math.roundToInt
 /** A picture ready to upload: the scaled file, its preview and its size. */
 data class PreparedImage(val file: File, val mime: String, val thumb: File?, val width: Int, val height: Int)
 
-/** A file copied into the outbox. */
-data class PreparedFile(val file: File, val mime: String, val name: String, val bytes: Long)
+/**
+ * A file copied into the outbox; [thumb] a preview picture (a video's
+ * frame, a PDF's first page) and [video] a video's length and size — both
+ * only when the server takes them (`file_thumbs`, `video_meta`).
+ */
+data class PreparedFile(
+    val file: File,
+    val mime: String,
+    val name: String,
+    val bytes: Long,
+    val thumb: File? = null,
+    val video: ChatVideo? = null,
+)
 
 /** Why a picked file cannot be sent. */
 sealed interface PrepareError {
@@ -253,6 +269,118 @@ class ChatMediaStore @Inject constructor(
         Result.success(PreparedFile(target, mime, ChatMime.safeName(name, ext), bytes))
     }
 
+    // ─── previews of files (Messenger 1.3.0) ────────────────────────
+
+    /**
+     * [prepared] with what the server takes beyond the file: a video's
+     * length and size ([videoMeta]) and a preview picture of a video or a
+     * PDF ([thumbs], WebP ≤ [thumbMax] bytes, ≤ [maxSide] px — the
+     * server's `limits.thumbMaxSide`). Never fails: what cannot be read is
+     * left out.
+     */
+    suspend fun withPreview(
+        prepared: PreparedFile,
+        clientId: String,
+        thumbs: Boolean,
+        videoMeta: Boolean,
+        thumbMax: Int,
+        maxSide: Int = ChatPreview.THUMB_MAX_SIDE,
+    ): PreparedFile =
+        withContext(Dispatchers.IO) {
+            val mime = prepared.mime
+            val thumbFile = File(outboxDir, "$clientId.thumb.webp")
+            when {
+                ChatPreview.isVideo(mime) && (thumbs || videoMeta) -> {
+                    val (frame, video) = readVideo(prepared.file, thumbs, maxSide)
+                    val thumb = frame?.let { bmp ->
+                        try {
+                            encodeThumb(bmp, thumbMax, maxSide)?.let { thumbFile.apply { writeBytes(it) } }
+                        } finally {
+                            bmp.recycle()
+                        }
+                    }
+                    prepared.copy(thumb = thumb, video = video.takeIf { videoMeta })
+                }
+                ChatPreview.isPdf(mime) && thumbs -> {
+                    val page = renderPdf(prepared.file, maxSide)
+                    val thumb = page?.let { bmp ->
+                        try {
+                            encodeThumb(bmp, thumbMax, maxSide)?.let { thumbFile.apply { writeBytes(it) } }
+                        } finally {
+                            bmp.recycle()
+                        }
+                    }
+                    prepared.copy(thumb = thumb)
+                }
+                else -> prepared
+            }
+        }
+
+    /** A frame at about one second (when [frame]) plus length and picture size of the video [file]. */
+    private fun readVideo(file: File, frame: Boolean, maxSide: Int): Pair<Bitmap?, ChatVideo?> {
+        val r = MediaMetadataRetriever()
+        return try {
+            r.setDataSource(file.path)
+            val duration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            val (w, h) = ChatPreview.orientedSize(
+                r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull(),
+                r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull(),
+                r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull(),
+            )
+            val video = ChatPreview.video(duration, w, h)
+            val bmp = if (!frame) null else runCatching {
+                val at = ChatPreview.frameTimeUs(duration)
+                r.getScaledFrameAtTime(at, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, maxSide, maxSide)
+                    ?: r.getFrameAtTime(at, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            }.getOrNull()
+            bmp to video
+        } catch (e: Exception) {
+            Timber.d("Chats: video not read (%s)", e.javaClass.simpleName)
+            null to null
+        } finally {
+            runCatching { r.release() }
+        }
+    }
+
+    /** The first page of the PDF [file] on white, ≤ [maxSide] px (null: encrypted, broken). */
+    private fun renderPdf(file: File, maxSide: Int): Bitmap? = try {
+        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+            val renderer = PdfRenderer(pfd)
+            try {
+                if (renderer.pageCount < 1) return@use null
+                val page = renderer.openPage(0)
+                try {
+                    val (w, h) = ChatPreview.fit(page.width, page.height, maxSide, upscale = true)
+                    val bmp = createBitmap(w, h)
+                    bmp.eraseColor(Color.WHITE)
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    bmp
+                } finally {
+                    page.close()
+                }
+            } finally {
+                renderer.close()
+            }
+        }
+    } catch (e: Exception) {
+        Timber.d("Chats: PDF page not rendered (%s)", e.javaClass.simpleName)
+        null
+    }
+
+    /** WebP within [maxBytes] and [maxSide]: lower quality first, then smaller. */
+    private fun encodeThumb(bmp: Bitmap, maxBytes: Int, maxSide: Int): ByteArray? {
+        for (side in ChatPreview.thumbSides(maxSide)) {
+            val (w, h) = ChatPreview.fit(bmp.width, bmp.height, side)
+            val scaled = if (w == bmp.width && h == bmp.height) bmp else bmp.scale(w, h)
+            try {
+                encodeWithin(scaled, Bitmap.CompressFormat.WEBP_LOSSY, listOf(78, 64, 50, 36), maxBytes)?.let { return it }
+            } finally {
+                if (scaled !== bmp) scaled.recycle()
+            }
+        }
+        return null
+    }
+
     /** Removes the outbox copies of [clientId]. */
     fun dropOutboxFiles(vararg paths: String?) {
         for (p in paths) {
@@ -320,6 +448,66 @@ class ChatMediaStore @Inject constructor(
 }
 
 class PrepareException(val error: PrepareError) : Exception()
+
+/** Previews of video and PDF files (Messenger 1.3.0). Pure, unit-tested. */
+object ChatPreview {
+    /** The server takes previews up to 640 px (`limits.thumbMaxSide`). */
+    const val THUMB_MAX_SIDE = 640
+    private const val FRAME_AT_US = 1_000_000L
+
+    fun isVideo(mime: String?): Boolean = mime?.startsWith("video/") == true
+
+    fun isPdf(mime: String?): Boolean = mime == "application/pdf"
+
+    /** Whether a file of type [mime] gets a preview picture: videos and PDFs, on servers with `file_thumbs`. */
+    fun wantsThumb(mime: String?, features: ChatFeatures?): Boolean = features?.fileThumbs == true && (isVideo(mime) || isPdf(mime))
+
+    /** [w] × [h] within [max] on the longer side (aspect kept; larger only with [upscale]). */
+    fun fit(w: Int, h: Int, max: Int, upscale: Boolean = false): Pair<Int, Int> {
+        if (w <= 0 || h <= 0) return max to max
+        val longer = maxOf(w, h)
+        if (longer <= max && !upscale) return w to h
+        val f = max.toDouble() / longer
+        return (w * f).roundToInt().coerceAtLeast(1) to (h * f).roundToInt().coerceAtLeast(1)
+    }
+
+    /** Sizes tried for a preview until it fits the byte limit: [maxSide], then ¾ and ½ of it. */
+    fun thumbSides(maxSide: Int): List<Int> = listOf(maxSide, maxSide * 3 / 4, maxSide / 2).map { it.coerceAtLeast(32) }.distinct()
+
+    /** The picture size as shown: width and height swapped for a video recorded upright (90° / 270°). */
+    fun orientedSize(w: Int?, h: Int?, rotation: Int?): Pair<Int?, Int?> {
+        val r = ((rotation ?: 0) % 360 + 360) % 360
+        return if (r == 90 || r == 270) h to w else w to h
+    }
+
+    /** Where the preview frame is taken: at one second, in the middle of shorter videos. */
+    fun frameTimeUs(durationMs: Long?): Long = when {
+        durationMs == null || durationMs <= 0 -> FRAME_AT_US
+        durationMs * 1000 < FRAME_AT_US * 2 -> durationMs * 1000 / 2
+        else -> FRAME_AT_US
+    }
+
+    /** `video` of the send body from what the file says; null when it says nothing usable. */
+    fun video(durationMs: Long?, w: Int?, h: Int?): ChatVideo? {
+        val v = ChatVideo(
+            durationMs = durationMs?.takeIf { it in 1..24 * 3_600_000L },
+            width = w?.takeIf { it in 1..20_000 },
+            height = h?.takeIf { it in 1..20_000 },
+        )
+        return v.takeIf { it.durationMs != null || it.width != null || it.height != null }
+    }
+
+    /**
+     * The outbox keeps a video's length and size in its `meta`; the send
+     * body carries them as `video` (kind stays `file`) and `meta` keeps the
+     * file name only.
+     */
+    fun sendFields(kind: String, mime: String?, meta: ChatMeta?): Pair<ChatMeta?, ChatVideo?> {
+        if (kind != ChatMessage.KIND_FILE || !isVideo(mime) || meta == null) return meta to null
+        val video = video(meta.durationMs, meta.w, meta.h)
+        return meta.copy(durationMs = null, w = null, h = null) to video
+    }
+}
 
 /** Content types of chat files. Pure, unit-tested. */
 object ChatMime {

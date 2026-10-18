@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -43,6 +44,18 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** Outcome of [ChatRepository.jumpTo]. */
+enum class ChatJump {
+    /** In the cache now: scroll to it. */
+    Found,
+
+    /** The server does not show it (hidden for the caller, deleted for good). */
+    Missing,
+
+    /** A server before Messenger 1.1.0 (no `around=`): load it by scrolling up. */
+    Unsupported,
+}
 
 /** Where the device's copy of the chat list stands. */
 sealed interface ChatSync {
@@ -112,6 +125,9 @@ class ChatRepository @Inject constructor(
      */
     val dropped: StateFlow<Set<Long>> = _dropped.asStateFlow()
 
+    /** conversation → ranges of its cache that may miss messages (after a jump far back). */
+    private val _gaps = MutableStateFlow<Map<Long, List<ChatGap>>>(emptyMap())
+
     /** Live events arrive (push stream open): no polling needed. */
     val live: Boolean get() = pushClient.status.value is PushStatus.Connected
 
@@ -158,6 +174,7 @@ class ChatRepository @Inject constructor(
             dao.putKv(KvEntity(KV_OWNER, owner))
             _typing.value = emptyMap()
             _dropped.value = emptySet()
+            _gaps.value = emptyMap()
             // The old login's conversations are no shortcuts any more.
             shortcuts.removeAll()
         }
@@ -170,6 +187,8 @@ class ChatRepository @Inject constructor(
     private suspend fun drop(ids: Collection<Long>) {
         if (ids.isEmpty()) return
         dao.dropConversations(ids.toList())
+        ids.forEach { dao.deleteKv(KV_GAPS + it) }
+        _gaps.update { it - ids.toSet() }
         _dropped.update { it + ids }
         runCatching { shortcuts.remove(ids) }
         ids.forEach { notifier.get().conversationGone(it) }
@@ -199,6 +218,29 @@ class ChatRepository @Inject constructor(
 
     fun messages(conversationId: Long): Flow<List<ChatMessage>> =
         dao.observeMessages(conversationId).map { list -> list.mapNotNull { e -> parseObj(e.json)?.let { ChatJson.message(it) } } }
+
+    /** Ranges of [conversationId]'s cache that may miss messages ([TimelineItem.Gap]). */
+    fun gaps(conversationId: Long): Flow<List<ChatGap>> =
+        _gaps.map { it[conversationId].orEmpty() }.onStart { gapsOf(conversationId) }.distinctUntilChanged()
+
+    private suspend fun gapsOf(id: Long): List<ChatGap> {
+        _gaps.value[id]?.let { return it }
+        val g = ChatGaps.parse(dao.kv(KV_GAPS + id))
+        _gaps.update { if (id in it) it else it + (id to g) }
+        return _gaps.value[id].orEmpty()
+    }
+
+    private suspend fun setGaps(id: Long, gaps: List<ChatGap>) {
+        _gaps.update { it + (id to gaps) }
+        val raw = ChatGaps.format(gaps)
+        if (raw == null) dao.deleteKv(KV_GAPS + id) else dao.putKv(KvEntity(KV_GAPS + id, raw))
+    }
+
+    /** The cache of [id] starts over (too far behind): no gaps left. */
+    private suspend fun clearMessages(id: Long) {
+        dao.deleteMessagesOf(listOf(id))
+        setGaps(id, emptyList())
+    }
 
     fun outbox(conversationId: Long): Flow<List<ChatPending>> =
         dao.observeOutbox(conversationId).map { list -> list.map { ChatPending.of(it) } }
@@ -326,7 +368,7 @@ class ChatRepository @Inject constructor(
             cursor = page.messages.maxOfOrNull { it.id } ?: return ChatResult.Ok(Unit)
         }
         // Too far behind: the newest page, older ones on demand.
-        dao.deleteMessagesOf(listOf(id))
+        clearMessages(id)
         return loadNewest(id)
     }
 
@@ -336,7 +378,7 @@ class ChatRepository @Inject constructor(
         val page = r.value
         applyPage(id, page, from = page.messages.minOfOrNull { it.id } ?: Long.MAX_VALUE)
         dao.putKv(KvEntity(KV_OLDER + id, if (page.hasMore) "1" else "0"))
-        noteChangedSince(id)
+        noteChangedSince(id, page.serverTime)
         return ChatResult.Ok(Unit)
     }
 
@@ -364,7 +406,15 @@ class ChatRepository @Inject constructor(
         storeConversation(c.copy(readUpTo = readUpTo, deliveredUpTo = deliveredUpTo))
     }
 
-    private suspend fun noteChangedSince(id: Long) {
+    /**
+     * The next `changedSince` of [id]: the answer's [serverTime] (Messenger
+     * 1.1.0), else an estimate of the server's clock.
+     */
+    private suspend fun noteChangedSince(id: Long, serverTime: String? = null) {
+        if (serverTime != null) {
+            dao.putKv(KvEntity(KV_CHANGED + id, serverTime))
+            return
+        }
         // The device clock is good enough as a lower bound when the server time is unknown.
         val serverMs = profile.value?.serverTime?.let { ChatTimeline.epochMs(it) }
         val skew = if (serverMs != null && lastProfileMs > 0) serverMs - lastProfileMs else 0L
@@ -379,15 +429,53 @@ class ChatRepository @Inject constructor(
         if (r !is ChatResult.Ok) return handlePageFailure(id, r)
         val page = r.value
         val minCached = dao.minMessageId(id)
-        // Only messages the cache covers (older ones load on demand anyway).
-        storeMessages(page.messages.filter { minCached != null && it.id >= minCached })
+        val gaps = gapsOf(id)
+        // Only messages the cache covers (older ones and those of a gap load on demand anyway).
+        storeMessages(page.messages.filter { minCached != null && it.id >= minCached && !ChatGaps.inGap(gaps, it.id) })
         updateReceipts(id, page.readUpTo, page.deliveredUpTo)
         if (page.hasMore) {
-            dao.deleteMessagesOf(listOf(id))
+            clearMessages(id)
             loadNewest(id)
         } else {
-            noteChangedSince(id)
+            noteChangedSince(id, page.serverTime)
         }
+        return ChatResult.Ok(Unit)
+    }
+
+    /**
+     * Brings message [messageId] of conversation [id] into the cache — a
+     * search result or a quoted message not loaded yet — with its
+     * neighbours (`around=`, Messenger 1.1.0). What lies between that page
+     * and the cached messages becomes a gap ([gaps]) the conversation loads
+     * when it is scrolled to.
+     */
+    suspend fun jumpTo(id: Long, messageId: Long): ChatResult<ChatJump> {
+        if (dao.message(messageId)?.conversationId == id) return ChatResult.Ok(ChatJump.Found)
+        val r = api.messages(id, around = messageId, limit = AROUND_PAGE)
+        if (r !is ChatResult.Ok) return handlePageFailure(id, r).asFailure()
+        val page = r.value
+        // Servers before 1.1.0 ignore `around` and send the newest page.
+        if (!page.isAround) return ChatResult.Ok(ChatJump.Unsupported)
+        val min = page.messages.minOfOrNull { it.id } ?: return ChatResult.Ok(ChatJump.Missing)
+        val max = page.messages.maxOf { it.id }
+        val cachedMin = dao.minMessageId(id)
+        val cachedMax = dao.maxMessageId(id)
+        val gaps = ChatGaps.afterPage(gapsOf(id), cachedMin, cachedMax, min, max, page.hasMoreBefore ?: true, page.hasMoreAfter ?: true)
+        applyPage(id, page, from = min)
+        setGaps(id, gaps)
+        if (cachedMin == null || min < cachedMin) dao.putKv(KvEntity(KV_OLDER + id, if (page.hasMoreBefore != false) "1" else "0"))
+        return ChatResult.Ok(if (page.messages.any { it.id == messageId }) ChatJump.Found else ChatJump.Missing)
+    }
+
+    /** Loads (part of) [gap] of conversation [id] (`after=`); what is still missing stays a gap. */
+    suspend fun fillGap(id: Long, gap: ChatGap): ChatResult<Unit> {
+        val r = api.messages(id, after = gap.after, limit = PAGE)
+        if (r !is ChatResult.Ok) return handlePageFailure(id, r)
+        val page = r.value
+        val max = page.messages.maxOfOrNull { it.id } ?: gap.after
+        val gaps = ChatGaps.afterPage(gapsOf(id), dao.minMessageId(id), dao.maxMessageId(id), gap.after, max, true, page.hasMore)
+        applyPage(id, page, from = gap.after + 1)
+        setGaps(id, gaps)
         return ChatResult.Ok(Unit)
     }
 
@@ -448,20 +536,28 @@ class ChatRepository @Inject constructor(
                 dao.upsertMessages(listOf(e.copy(json = ChatJsonPatch.reactions(o, event.reactions).toString())))
             }
             is ChatEvent.Read -> {
-                if (event.self) {
+                if (event.self) notifier.get().conversationRead(conv)
+                // Own devices: unread and read mark. Since Messenger 1.1.0 the event carries
+                // readUpTo / deliveredUpTo: the ticks change right here, no GET needed.
+                if (event.self || event.upTo != null) {
                     scope.launch {
                         val e = dao.conversation(conv) ?: return@launch
                         val o = parseObj(e.json) ?: return@launch
-                        dao.upsertConversations(listOf(e.copy(json = ChatJsonPatch.read(o, event.unread ?: 0, event.lastReadId).toString())))
+                        val patched = ChatJsonPatch.readEvent(o, event)
+                        if (patched != o) dao.upsertConversations(listOf(e.copy(json = patched.toString())))
                     }
-                    notifier.get().conversationRead(conv)
-                } else {
-                    // Receipts of others: the server computes readUpTo / deliveredUpTo.
+                }
+                if (!event.self && event.upTo == null) {
+                    // Older servers: receipts of others only through the conversation.
                     coalesce("conv:$conv", 1_200L) { if (dao.conversation(conv) != null) refreshConversation(conv) }
                 }
             }
             is ChatEvent.Typing -> setTyping(conv, event.userId, event.untilMs)
-            is ChatEvent.ConversationUpdate -> coalesce("conv:$conv", 300L) { refreshConversation(conv) }
+            is ChatEvent.ConversationUpdate -> {
+                coalesce("conv:$conv", 300L) { refreshConversation(conv) }
+                // Released by its plugin (managedBy null): the list shows it as a normal group.
+                if (event.released) coalesce("list") { syncConversations() }
+            }
             is ChatEvent.ConversationRemove -> scope.launch { drop(listOf(conv)) }
         }
     }
@@ -588,11 +684,17 @@ class ChatRepository @Inject constructor(
         )
     }
 
+    /**
+     * A file; a video's length and size wait in the outbox's `meta` and go
+     * out as `video` ([ChatPreview.sendFields]), its preview as `thumbMediaId`.
+     */
     suspend fun sendFile(conversationId: Long, file: PreparedFile, caption: String?, replyTo: Long?, clientId: String) {
+        val v = file.video
         enqueue(
             outboxEntity(
                 conversationId, ChatMessage.KIND_FILE, text = caption?.trim()?.takeIf { it.isNotEmpty() }, replyTo = replyTo,
-                filePath = file.file.path, mime = file.mime, meta = ChatMeta(fileName = file.name), clientId = clientId,
+                filePath = file.file.path, mime = file.mime, thumbPath = file.thumb?.path,
+                meta = ChatMeta(fileName = file.name, durationMs = v?.durationMs, w = v?.width, h = v?.height), clientId = clientId,
             ),
         )
     }
@@ -710,25 +812,28 @@ class ChatRepository @Inject constructor(
     private suspend fun sendOne(entry: OutboxEntity): ChatResult<ChatMessage> {
         var e = entry.copy(attempts = entry.attempts + 1)
         dao.upsertOutbox(e)
-        // Files first: the media ids are kept, a retry does not upload again.
-        if (e.filePath != null && e.mediaId == null) {
-            val f = File(e.filePath)
-            if (!f.isFile) return giveUp(e, "file_missing")
-            val up = api.upload(f, e.mime ?: "application/octet-stream")
-            if (up !is ChatResult.Ok) return afterFailure(e, up, hadUpload = false)
-            e = e.copy(mediaId = up.value)
-            dao.upsertOutbox(e)
-        }
-        if (e.thumbPath != null && e.thumbMediaId == null) {
+        if (e.filePath != null && !File(e.filePath).isFile) return giveUp(e, "file_missing")
+        // The preview first, then the file: the media ids are kept, a retry does not upload again.
+        // A preview that does not go up is left out (the message goes without it).
+        if (e.thumbPath != null && e.thumbMediaId == null && e.mediaId == null) {
             val t = File(e.thumbPath)
             if (t.isFile) {
                 val up = api.upload(t, "image/webp")
                 if (up is ChatResult.Ok) {
                     e = e.copy(thumbMediaId = up.value)
                     dao.upsertOutbox(e)
+                } else if (up == ChatResult.Offline) {
+                    return afterFailure(e, up, hadUpload = false)
                 }
             }
         }
+        if (e.filePath != null && e.mediaId == null) {
+            val up = api.upload(File(e.filePath), e.mime ?: "application/octet-stream")
+            if (up !is ChatResult.Ok) return afterFailure(e, up, hadUpload = false)
+            e = e.copy(mediaId = up.value)
+            dao.upsertOutbox(e)
+        }
+        val (meta, video) = ChatPreview.sendFields(e.kind, e.mime, e.metaJson?.let { ChatOutboxLogic.metaOf(it) })
         val body = ChatJson.sendBody(
             clientId = e.clientId,
             kind = e.kind,
@@ -737,8 +842,9 @@ class ChatRepository @Inject constructor(
             mediaId = e.mediaId,
             thumbMediaId = e.thumbMediaId,
             location = e.locationJson?.let { ChatOutboxLogic.locationOf(it) },
-            meta = e.metaJson?.let { ChatOutboxLogic.metaOf(it) },
+            meta = meta,
             source = e.source,
+            video = video,
         )
         val r = api.send(e.conversationId, body)
         if (r is ChatResult.Ok) {
@@ -888,7 +994,9 @@ class ChatRepository @Inject constructor(
         private const val KV_LIST_SINCE = "list_since"
         private const val KV_CHANGED = "changed:"
         private const val KV_OLDER = "older:"
+        private const val KV_GAPS = "gaps:"
         private const val PAGE = 50
+        private const val AROUND_PAGE = 50
         private const val MAX_CATCHUP_PAGES = 6
         private const val COALESCE_MS = 250L
         private const val CHANGED_SLACK_MS = 5_000L
