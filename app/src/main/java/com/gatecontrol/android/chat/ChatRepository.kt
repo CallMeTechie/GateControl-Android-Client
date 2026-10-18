@@ -588,11 +588,17 @@ class ChatRepository @Inject constructor(
         )
     }
 
+    /**
+     * A file; a video's length and size wait in the outbox's `meta` and go
+     * out as `video` ([ChatPreview.sendFields]), its preview as `thumbMediaId`.
+     */
     suspend fun sendFile(conversationId: Long, file: PreparedFile, caption: String?, replyTo: Long?, clientId: String) {
+        val v = file.video
         enqueue(
             outboxEntity(
                 conversationId, ChatMessage.KIND_FILE, text = caption?.trim()?.takeIf { it.isNotEmpty() }, replyTo = replyTo,
-                filePath = file.file.path, mime = file.mime, meta = ChatMeta(fileName = file.name), clientId = clientId,
+                filePath = file.file.path, mime = file.mime, thumbPath = file.thumb?.path,
+                meta = ChatMeta(fileName = file.name, durationMs = v?.durationMs, w = v?.width, h = v?.height), clientId = clientId,
             ),
         )
     }
@@ -710,25 +716,28 @@ class ChatRepository @Inject constructor(
     private suspend fun sendOne(entry: OutboxEntity): ChatResult<ChatMessage> {
         var e = entry.copy(attempts = entry.attempts + 1)
         dao.upsertOutbox(e)
-        // Files first: the media ids are kept, a retry does not upload again.
-        if (e.filePath != null && e.mediaId == null) {
-            val f = File(e.filePath)
-            if (!f.isFile) return giveUp(e, "file_missing")
-            val up = api.upload(f, e.mime ?: "application/octet-stream")
-            if (up !is ChatResult.Ok) return afterFailure(e, up, hadUpload = false)
-            e = e.copy(mediaId = up.value)
-            dao.upsertOutbox(e)
-        }
-        if (e.thumbPath != null && e.thumbMediaId == null) {
+        if (e.filePath != null && !File(e.filePath).isFile) return giveUp(e, "file_missing")
+        // The preview first, then the file: the media ids are kept, a retry does not upload again.
+        // A preview that does not go up is left out (the message goes without it).
+        if (e.thumbPath != null && e.thumbMediaId == null && e.mediaId == null) {
             val t = File(e.thumbPath)
             if (t.isFile) {
                 val up = api.upload(t, "image/webp")
                 if (up is ChatResult.Ok) {
                     e = e.copy(thumbMediaId = up.value)
                     dao.upsertOutbox(e)
+                } else if (up == ChatResult.Offline) {
+                    return afterFailure(e, up, hadUpload = false)
                 }
             }
         }
+        if (e.filePath != null && e.mediaId == null) {
+            val up = api.upload(File(e.filePath), e.mime ?: "application/octet-stream")
+            if (up !is ChatResult.Ok) return afterFailure(e, up, hadUpload = false)
+            e = e.copy(mediaId = up.value)
+            dao.upsertOutbox(e)
+        }
+        val (meta, video) = ChatPreview.sendFields(e.kind, e.mime, e.metaJson?.let { ChatOutboxLogic.metaOf(it) })
         val body = ChatJson.sendBody(
             clientId = e.clientId,
             kind = e.kind,
@@ -737,8 +746,9 @@ class ChatRepository @Inject constructor(
             mediaId = e.mediaId,
             thumbMediaId = e.thumbMediaId,
             location = e.locationJson?.let { ChatOutboxLogic.locationOf(it) },
-            meta = e.metaJson?.let { ChatOutboxLogic.metaOf(it) },
+            meta = meta,
             source = e.source,
+            video = video,
         )
         val r = api.send(e.conversationId, body)
         if (r is ChatResult.Ok) {

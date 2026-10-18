@@ -522,7 +522,9 @@ fun ConversationScreen(
             maxBytes = state.profile?.limits?.maxBytes,
             onGallery = {
                 showAttach = false
-                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                // Videos are files on the server: offered only where files are.
+                val type = if (features?.files != false) ActivityResultContracts.PickVisualMedia.ImageAndVideo else ActivityResultContracts.PickVisualMedia.ImageOnly
+                photoPicker.launch(PickVisualMediaRequest(type))
             },
             onCamera = {
                 showAttach = false

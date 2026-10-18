@@ -109,6 +109,12 @@ data class ChatMeta(
     val fileName: String? = null,
 )
 
+/**
+ * `video` of a video file message (Messenger 1.3.0, `features: video_meta`):
+ * length and picture size. The message stays `kind: "file"`.
+ */
+data class ChatVideo(val durationMs: Long? = null, val width: Int? = null, val height: Int? = null)
+
 data class ChatLocation(val lat: Double, val lon: Double, val label: String?, val accuracy: Int? = null)
 
 /** The quoted message of a reply (text ≤ 200). */
@@ -157,8 +163,16 @@ data class ChatMessage(
     val reactions: List<ChatReaction>,
     /** Own messages only: sent | delivered | read. */
     val status: String?,
+    /** Video files only (servers with `video_meta`). */
+    val video: ChatVideo? = null,
 ) {
     val isSystem: Boolean get() = kind == KIND_SYSTEM
+
+    /** A file message carrying a video (`kind` stays `file`). */
+    val isVideo: Boolean get() = kind == KIND_FILE && media?.mime?.startsWith("video/") == true
+
+    /** Length of a video: `video.durationMs`, else what `meta` says. */
+    val videoDurationMs: Long? get() = video?.durationMs ?: meta?.durationMs
 
     companion object {
         const val KIND_TEXT = "text"
@@ -202,7 +216,20 @@ data class ChatFeatures(
     val edit: Boolean = true,
     val search: Boolean = true,
     val disappearing: Boolean = false,
-)
+    /** Further capabilities the server names (`video_meta`, `file_thumbs`, …). */
+    val tokens: Set<String> = emptySet(),
+) {
+    /** File messages may carry `video { durationMs, width, height }` (Messenger 1.3.0). */
+    val videoMeta: Boolean get() = VIDEO_META in tokens
+
+    /** File messages may carry a preview picture `thumbMediaId` (Messenger 1.3.0). */
+    val fileThumbs: Boolean get() = FILE_THUMBS in tokens
+
+    companion object {
+        const val VIDEO_META = "video_meta"
+        const val FILE_THUMBS = "file_thumbs"
+    }
+}
 
 data class ChatLimits(
     val maxBytes: Long? = null,
@@ -212,6 +239,8 @@ data class ChatLimits(
     val maxVoiceS: Int = 120,
     val textMax: Int = 4000,
     val thumbMaxBytes: Int = 65_536,
+    /** Longer side of a preview picture (Messenger 1.3.0 `limits.thumbMaxSide`). */
+    val thumbMaxSide: Int = 640,
     val imageMaxSide: Int = 2048,
     val groupMax: Int = 256,
     val titleMax: Int = 80,
@@ -243,4 +272,6 @@ data class ChatMediaPage(
     val voice: Int?,
     val files: Int?,
     val hasMore: Boolean,
+    /** Servers with `video_meta`: videos counted apart from the files. */
+    val videos: Int? = null,
 )

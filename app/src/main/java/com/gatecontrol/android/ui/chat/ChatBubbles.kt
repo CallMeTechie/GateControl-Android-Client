@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatecontrol.android.R
@@ -105,6 +107,8 @@ fun MessageBubble(
         return
     }
     val colors = bubbleColors(m.mine)
+    // Pictures and videos fill the bubble up to a small margin.
+    val visual = !m.deleted && !m.undecryptable && (m.kind == ChatMessage.KIND_IMAGE || m.isVideo)
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start,
@@ -138,14 +142,14 @@ fun MessageBubble(
                         onLongClick = { actions.onLongPress(m) },
                         onLongClickLabel = stringResource(R.string.chat_actions),
                     )
-                    .padding(if (m.kind == ChatMessage.KIND_IMAGE && !m.deleted) 4.dp else 10.dp),
+                    .padding(if (visual) 4.dp else 10.dp),
             ) {
                 if (showSender && conversation?.isGroup == true && !m.mine) {
                     Text(
                         ChatText.nameOf(ctx, conversation, m.senderId, myId),
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
                         color = extra.accentText,
-                        modifier = Modifier.padding(start = if (m.kind == ChatMessage.KIND_IMAGE) 6.dp else 0.dp, bottom = 2.dp),
+                        modifier = Modifier.padding(start = if (visual) 6.dp else 0.dp, bottom = 2.dp),
                     )
                 }
                 m.replyTo?.let { r -> Quote(r.senderId, if (r.deleted || r.missing) null else r.text, r.kind, r.deleted || r.missing, conversation, myId) { actions.onQuote(r.id) } }
@@ -164,7 +168,17 @@ fun MessageBubble(
                         onToggle = { actions.onTogglePlay(m) },
                         onSeek = { f -> actions.onSeek(m, f) },
                     )
-                    m.kind == ChatMessage.KIND_FILE -> FileContent(m.meta?.fileName ?: stringResource(R.string.chat_kind_file), m.media?.bytes, m.media?.mime)
+                    m.isVideo -> VideoContent(
+                        thumbId = m.media?.thumbId,
+                        localThumb = null,
+                        durationMs = m.videoDurationMs,
+                        w = m.video?.width ?: m.meta?.w,
+                        h = m.video?.height ?: m.meta?.h,
+                    )
+                    m.kind == ChatMessage.KIND_FILE -> FileContent(
+                        m.meta?.fileName ?: stringResource(R.string.chat_kind_file), m.media?.bytes, m.media?.mime,
+                        thumbId = m.media?.thumbId,
+                    )
                     m.kind == ChatMessage.KIND_LOCATION -> m.location?.let { LocationContent(it.label, it.lat, it.lon) }
                 }
                 val caption = m.text?.takeIf { !m.deleted && it.isNotBlank() }
@@ -174,8 +188,8 @@ fun MessageBubble(
                         style = MaterialTheme.typography.bodyLarge,
                         color = colors.fg,
                         modifier = Modifier.padding(
-                            start = if (m.kind == ChatMessage.KIND_IMAGE) 6.dp else 0.dp,
-                            end = if (m.kind == ChatMessage.KIND_IMAGE) 6.dp else 0.dp,
+                            start = if (visual) 6.dp else 0.dp,
+                            end = if (visual) 6.dp else 0.dp,
                             top = if (m.kind == ChatMessage.KIND_TEXT) 0.dp else 6.dp,
                         ),
                     )
@@ -187,7 +201,7 @@ fun MessageBubble(
                     status = status,
                     pending = false,
                     color = colors.meta,
-                    modifier = Modifier.align(Alignment.End).padding(end = if (m.kind == ChatMessage.KIND_IMAGE) 6.dp else 0.dp),
+                    modifier = Modifier.align(Alignment.End).padding(end = if (visual) 6.dp else 0.dp),
                 )
             }
         }
@@ -216,26 +230,30 @@ fun PendingBubble(
                 .clip(shape(true))
                 .background(colors.bg)
                 .combinedClickable(onClick = { if (p.failed) onLongPress(p) }, onLongClick = { onLongPress(p) })
-                .padding(if (p.kind == ChatMessage.KIND_IMAGE) 4.dp else 10.dp),
+                .padding(if (p.kind == ChatMessage.KIND_IMAGE || p.isVideo) 4.dp else 10.dp),
         ) {
-            when (p.kind) {
-                ChatMessage.KIND_IMAGE -> ImageContent(null, p.localPath, p.meta?.w, p.meta?.h)
-                ChatMessage.KIND_VOICE -> VoiceContent(
+            when {
+                p.isVideo -> VideoContent(thumbId = null, localThumb = p.thumbPath, durationMs = p.meta?.durationMs, w = p.meta?.w, h = p.meta?.h)
+                p.kind == ChatMessage.KIND_IMAGE -> ImageContent(null, p.localPath, p.meta?.w, p.meta?.h)
+                p.kind == ChatMessage.KIND_VOICE -> VoiceContent(
                     durationMs = p.meta?.durationMs ?: 0L,
                     waveform = p.meta?.waveform.orEmpty(),
                     state = player.takeIf { it.key == "c:${p.clientId}" },
                     onToggle = { onTogglePlay(p) },
                     onSeek = { },
                 )
-                ChatMessage.KIND_FILE -> FileContent(p.meta?.fileName ?: stringResource(R.string.chat_kind_file), p.localPath?.let { java.io.File(it).length() }, p.mime)
-                ChatMessage.KIND_LOCATION -> p.location?.let { LocationContent(it.label, it.lat, it.lon) }
+                p.kind == ChatMessage.KIND_FILE -> FileContent(
+                    p.meta?.fileName ?: stringResource(R.string.chat_kind_file), p.localPath?.let { java.io.File(it).length() }, p.mime,
+                    localThumb = p.thumbPath,
+                )
+                p.kind == ChatMessage.KIND_LOCATION -> p.location?.let { LocationContent(it.label, it.lat, it.lon) }
             }
             p.text?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.fg,
-                    modifier = Modifier.padding(top = if (p.kind == ChatMessage.KIND_TEXT) 0.dp else 6.dp, start = if (p.kind == ChatMessage.KIND_IMAGE) 6.dp else 0.dp),
+                    modifier = Modifier.padding(top = if (p.kind == ChatMessage.KIND_TEXT) 0.dp else 6.dp, start = if (p.kind == ChatMessage.KIND_IMAGE || p.isVideo) 6.dp else 0.dp),
                 )
             }
             MetaLine(ChatText.clockMs(ctx, p.createdAtMs), edited = false, disappearing = false, status = null, pending = !p.failed, color = colors.meta, modifier = Modifier.align(Alignment.End))
@@ -398,9 +416,63 @@ private fun VoiceContent(durationMs: Long, waveform: List<Int>, state: VoicePlay
     }
 }
 
+/**
+ * A video file: its preview frame (when the sender's app made one) with a
+ * play symbol and the length; tapping opens it in a video app.
+ */
 @Composable
-private fun FileContent(name: String, bytes: Long?, mime: String?) {
+internal fun VideoContent(thumbId: String?, localThumb: String?, durationMs: Long?, w: Int?, h: Int?, width: Dp = 260.dp) {
+    val px = with(LocalDensity.current) { width.roundToPx() }
+    val bmp = if (localThumb != null) rememberLocalBitmap(localThumb, px) else rememberChatBitmap(thumbId, px)
+    val ratio = if (w != null && h != null && w > 0 && h > 0) (w.toFloat() / h).coerceIn(0.5f, 2f)
+    else bmp?.let { (it.width.toFloat() / it.height.coerceAtLeast(1)).coerceIn(0.5f, 2f) } ?: (16f / 9f)
+    val label = stringResource(R.string.chat_kind_video)
+    Box(
+        Modifier.width(width).aspectRatio(ratio).clip(RoundedCornerShape(14.dp)).background(VIDEO_BG),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bmp != null) {
+            Image(bmp, contentDescription = label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(ratio))
+        }
+        Box(Modifier.size(52.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.chat_play_video), tint = Color.White, modifier = Modifier.size(34.dp))
+        }
+        Row(
+            Modifier.align(Alignment.BottomStart).padding(8.dp).clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(Icons.Outlined.Videocam, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            Text(
+                durationMs?.takeIf { it > 0 }?.let { VoiceWave.clock(it) } ?: label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+            )
+        }
+    }
+}
+
+internal val VIDEO_BG = Color(0xFF1B1F24)
+
+@Composable
+private fun FileContent(name: String, bytes: Long?, mime: String?, thumbId: String? = null, localThumb: String? = null) {
     val extra = GateControlTheme.extraColors
+    if (thumbId != null || localThumb != null) {
+        // A preview of the file (a PDF's first page) above its name.
+        val px = with(LocalDensity.current) { 260.dp.roundToPx() }
+        val bmp = if (localThumb != null) rememberLocalBitmap(localThumb, px) else rememberChatBitmap(thumbId, px)
+        if (bmp != null) {
+            val ratio = (bmp.width.toFloat() / bmp.height.coerceAtLeast(1)).coerceIn(0.6f, 2f)
+            Image(
+                bmp,
+                contentDescription = stringResource(R.string.chat_file_preview),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.padding(bottom = 8.dp).widthIn(max = 260.dp).fillMaxWidth().aspectRatio(ratio)
+                    .clip(RoundedCornerShape(10.dp)).border(1.dp, extra.border, RoundedCornerShape(10.dp)),
+            )
+        }
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.widthIn(min = 200.dp, max = 280.dp)) {
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(extra.panel2), contentAlignment = Alignment.Center) {
             val ext = name.substringAfterLast('.', "").uppercase(Locale.ROOT).take(4)

@@ -89,6 +89,13 @@ object ChatSerializer {
         } ?: JsonNull.INSTANCE)
         add("reactions", ChatJsonPatch.reactions(JsonObject(), m.reactions).get("reactions"))
         put("status", m.status)
+        m.video?.let { v ->
+            add("video", JsonObject().apply {
+                v.durationMs?.let { addProperty("durationMs", it) }
+                v.width?.let { addProperty("width", it) }
+                v.height?.let { addProperty("height", it) }
+            })
+        }
     }
 
     fun conversation(c: ChatConversation): JsonObject = JsonObject().apply {
@@ -158,6 +165,7 @@ object ChatSerializer {
             addProperty("edit", f.edit)
             addProperty("search", f.search)
             addProperty("disappearing", f.disappearing)
+            f.tokens.forEach { addProperty(it, true) }
         })
         add("limits", JsonObject().apply {
             val l = p.limits
@@ -168,6 +176,7 @@ object ChatSerializer {
             addProperty("maxVoiceS", l.maxVoiceS)
             addProperty("textMax", l.textMax)
             addProperty("thumbMaxBytes", l.thumbMaxBytes)
+            addProperty("thumbMaxSide", l.thumbMaxSide)
             addProperty("imageMaxSide", l.imageMaxSide)
             addProperty("groupMax", l.groupMax)
             addProperty("titleMax", l.titleMax)

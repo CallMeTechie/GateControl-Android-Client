@@ -23,7 +23,11 @@ data class ChatPending(
     val location: ChatLocation?,
     val failed: Boolean,
     val error: String?,
+    /** Preview picture of a file (video frame, PDF page) in the outbox. */
+    val thumbPath: String? = null,
 ) {
+    val isVideo: Boolean get() = kind == ChatMessage.KIND_FILE && ChatPreview.isVideo(mime)
+
     companion object {
         fun of(e: OutboxEntity): ChatPending = ChatPending(
             clientId = e.clientId,
@@ -38,6 +42,7 @@ data class ChatPending(
             location = e.locationJson?.let { ChatOutboxLogic.locationOf(it) },
             failed = e.state == OutboxEntity.STATE_FAILED,
             error = e.error,
+            thumbPath = e.thumbPath,
         )
     }
 }
@@ -263,7 +268,7 @@ object ChatJsonPatch {
     fun tombstone(o: JsonObject, deletedAt: String?): JsonObject = o.deepCopy().apply {
         addProperty("deleted", true)
         deletedAt?.let { addProperty("deletedAt", it) }
-        for (k in listOf("text", "replyTo", "media", "meta", "location")) add(k, JsonNull.INSTANCE)
+        for (k in listOf("text", "replyTo", "media", "meta", "location", "video")) add(k, JsonNull.INSTANCE)
         add("reactions", JsonArray())
     }
 
@@ -319,30 +324,46 @@ object ChatSelection {
 /** Pages of the media overview (`GET conversations/:id/media`). Pure, unit-tested. */
 object ChatMediaLogic {
     const val KIND_ALL = "all"
+    const val KIND_VIDEO = "video"
 
-    /** The tabs of the overview, each with the server's `kind` it pages through. */
-    enum class Tab(val kind: String) {
-        /** Pictures and videos (videos are files on the server: `all`, filtered). */
-        Media(KIND_ALL),
-        Files(ChatMessage.KIND_FILE),
-        Voice(ChatMessage.KIND_VOICE),
+    /** The tabs of the overview. */
+    enum class Tab {
+        /** Pictures — and videos too on servers without `video_meta` (videos are files there: `all`, filtered). */
+        Media,
+
+        /** Videos of their own (`kind=video`), only on servers with `video_meta`. */
+        Videos,
+        Files,
+        Voice,
     }
 
-    fun isVideo(m: ChatMessage): Boolean = m.kind == ChatMessage.KIND_FILE && m.media?.mime?.startsWith("video/") == true
+    /** The tabs shown: a Videos tab of its own when the server pages videos apart (`video_meta`). */
+    fun tabs(videoMeta: Boolean): List<Tab> = if (videoMeta) Tab.entries else Tab.entries - Tab.Videos
+
+    /** The server's `kind` a tab pages through. */
+    fun kind(tab: Tab, videoMeta: Boolean): String = when (tab) {
+        Tab.Media -> if (videoMeta) ChatMessage.KIND_IMAGE else KIND_ALL
+        Tab.Videos -> KIND_VIDEO
+        Tab.Files -> ChatMessage.KIND_FILE
+        Tab.Voice -> ChatMessage.KIND_VOICE
+    }
+
+    fun isVideo(m: ChatMessage): Boolean = m.isVideo
 
     /** Whether [m] belongs into [tab]. */
-    fun belongs(tab: Tab, m: ChatMessage): Boolean {
+    fun belongs(tab: Tab, m: ChatMessage, videoMeta: Boolean = false): Boolean {
         if (m.media == null || m.deleted) return false
         return when (tab) {
-            Tab.Media -> m.kind == ChatMessage.KIND_IMAGE || isVideo(m)
+            Tab.Media -> m.kind == ChatMessage.KIND_IMAGE || (!videoMeta && isVideo(m))
+            Tab.Videos -> isVideo(m)
             Tab.Files -> m.kind == ChatMessage.KIND_FILE && !isVideo(m)
             Tab.Voice -> m.kind == ChatMessage.KIND_VOICE
         }
     }
 
     /** [current] plus a newly loaded page: newest first, each message once, only what fits [tab]. */
-    fun merge(tab: Tab, current: List<ChatMessage>, page: List<ChatMessage>): List<ChatMessage> =
-        (current + page.filter { belongs(tab, it) }).distinctBy { it.id }.sortedByDescending { it.id }
+    fun merge(tab: Tab, current: List<ChatMessage>, page: List<ChatMessage>, videoMeta: Boolean = false): List<ChatMessage> =
+        (current + page.filter { belongs(tab, it, videoMeta) }).distinctBy { it.id }.sortedByDescending { it.id }
 
     /** `before=` for the next page: the oldest id the server sent so far. */
     fun cursor(previous: Long?, page: List<ChatMessage>): Long? =

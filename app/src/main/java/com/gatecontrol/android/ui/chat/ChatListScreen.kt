@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
@@ -80,10 +81,12 @@ fun ChatListScreen(
     onOpen: (Long) -> Unit,
     onOpenInbox: () -> Unit,
     onNewChat: () -> Unit,
+    onOpenUpdates: () -> Unit,
     selectedId: Long? = null,
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val updateHint by viewModel.showUpdateHint.collectAsStateWithLifecycle()
     val extra = GateControlTheme.extraColors
     val context = LocalContext.current
     var searching by rememberSaveable { mutableStateOf(false) }
@@ -116,6 +119,21 @@ fun ChatListScreen(
                     placeholder = stringResource(R.string.chat_search_chats_hint),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
+            }
+            if (updateHint) {
+                // The server offers chat features this app does not know yet: never blocks anything.
+                GcBanner(tone = GcTone.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    Text(
+                        stringResource(R.string.chat_update_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = {
+                        if (com.gatecontrol.android.update.PlayUpdater.enabled) openPlayStore(context) else onOpenUpdates()
+                    }) { Text(stringResource(R.string.chat_update_hint_action)) }
+                    GcIconButton(GcIcons.Close, stringResource(R.string.chat_update_hint_dismiss), onClick = viewModel::dismissUpdateHint, size = 40.dp, iconSize = 18.dp)
+                }
             }
             if (state.sharing) {
                 GcBanner(tone = GcTone.Info, icon = GcIcons.Share, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -457,4 +475,21 @@ fun ChatPrefsDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_cancel)) } },
     )
+}
+
+/** The app's page in the Play Store (Google Play build: updates come from Play only). */
+private fun openPlayStore(context: android.content.Context) {
+    val id = context.packageName
+    val market = android.content.Intent(android.content.Intent.ACTION_VIEW, "market://details?id=$id".toUri())
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(market)
+    } catch (e: android.content.ActivityNotFoundException) {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$id".toUri())
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
 }

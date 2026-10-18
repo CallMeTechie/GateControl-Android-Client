@@ -359,11 +359,30 @@ sehen keinen Unterschied.
 - **Anhänge:** Fotos (Photo Picker oder **direkt mit der Kamera** — die
   Kamera-Berechtigung wird erst beim ersten Foto erfragt; beides vor dem
   Hochladen auf 2048 px WebP verkleinert, mit Vorschaubild ≤ 64 KB), Dateien (Dateiauswahl, Größe und
-  Typ wie vom Server erlaubt), **Standort** (einmalig, mit Adresse) und
+  Typ wie vom Server erlaubt), **Videos** (Photo Picker — Bilder und Videos —,
+  Dateiauswahl oder Teilen; auf dem Server eine Datei), **Standort** (einmalig, mit Adresse) und
   **Sprachnachrichten** (Mikrofon gedrückt halten, nach links wischen
   bricht ab, Höchstlänge vom Server; AAC/M4A mit Wellenform). Abspielen mit
   Springen per Tippen in die Wellenform; Bilder im Vollbild mit Zoom;
   Dateien öffnen oder teilen; Standort öffnet die Karten-App.
+- **Videos & Dateivorschauen** (Messenger 1.3.0): beim Senden eines Videos
+  nimmt die App ein Standbild bei etwa 1 s (MediaMetadataRetriever),
+  verkleinert es auf höchstens 640 px (bzw. `limits.thumbMaxSide` des
+  Servers) WebP ≤ 64 KB und liest Länge und
+  Bildgröße; zuerst geht das Vorschaubild hoch, dann das Video, die
+  Nachricht trägt `thumbMediaId` und `video { durationMs, width, height }`
+  (bleibt `kind: file`). Bei PDFs wird die erste Seite (PdfRenderer) zum
+  Vorschaubild. Im Chat zeigen Videos Standbild, Abspiel-Symbol und Länge
+  (Tippen öffnet sie in einer Video-App), Dateien ihr Vorschaubild. Die
+  neuen Felder gehen nur an Server, deren `GET me` sie unter `features`
+  einschaltet (`video_meta: true`, `file_thumbs: true`); ältere bekommen die
+  Datei wie bisher.
+- **Hinweis auf eine neuere App:** schaltet der Server unter `features`
+  eine Chat-Funktion ein, die diese App nicht kennt, zeigt der Tab „Chats“
+  oben „Für alle Chat-Funktionen gibt es eine neuere App-Version“ mit
+  „Aktualisieren“ (Play-Version: die Seite im Play Store; GitHub-Version:
+  die Einstellungen mit der Update-Prüfung). Ausgeblendet bleibt er, bis
+  eine weitere unbekannte Funktion dazukommt; er blockiert nie etwas.
 - **Offline:** alles liegt in einer lokalen Datenbank (Room) und ist ohne
   Verbindung lesbar. Gesendet wird über einen **Ausgang**: die Nachricht
   steht sofort mit Uhr im Chat und geht mit ihrer `clientId` raus — bei
@@ -406,7 +425,10 @@ sehen keinen Unterschied.
   erlaubt (`can.editInfo`).
 - **Medien & Dateien** (Chat-/Gruppen-Info): Bilder und Videos als Raster,
   Dateien und Sprachnachrichten als Listen, mit Anzahl je Art; lädt beim
-  Scrollen ältere nach (`GET conversations/:id/media`). Bilder öffnen im
+  Scrollen ältere nach (`GET conversations/:id/media`). Server mit
+  `video_meta` liefern Videos getrennt (`kind=video`): dann gibt es die
+  Reiter Bilder, Videos, Dateien und Sprachnachrichten und die Anzahl der
+  Videos; Videos und Dateien zeigen ihr Vorschaubild. Bilder öffnen im
   Vollbild, Videos und Dateien in einer passenden App, alles lässt sich
   teilen; Sprachnachrichten spielen direkt in der Liste.
 - **Verlassen / entfernt:** wird man aus einer Gruppe entfernt, die Gruppe

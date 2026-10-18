@@ -34,6 +34,8 @@ object ChatJson {
     private const val MAX_MEMBERS = 300
     private const val MAX_REACTIONS = 32
     private const val MAX_IDS = 1000
+    private const val MAX_FEATURES = 64
+    private val FEATURE_FLAGS = setOf("direct", "groups", "voice", "files", "location", "reactions", "edit", "search", "disappearing")
 
     // ─── small helpers ──────────────────────────────────────────────
 
@@ -155,19 +157,8 @@ object ChatJson {
     fun profile(o: JsonObject): ChatProfile? {
         val u = o.obj("user") ?: return null
         val user = person(u) ?: return null
-        val f = o.obj("features")
         val l = o.obj("limits")
-        val features = if (f == null) ChatFeatures() else ChatFeatures(
-            direct = f.flag("direct") ?: true,
-            groups = f.flag("groups") ?: true,
-            voice = f.flag("voice") ?: true,
-            files = f.flag("files") ?: true,
-            location = f.flag("location") ?: true,
-            reactions = f.flag("reactions") ?: true,
-            edit = f.flag("edit") ?: true,
-            search = f.flag("search") ?: true,
-            disappearing = f.flag("disappearing") ?: false,
-        )
+        val features = features(o.get("features"))
         val d = ChatLimits()
         val limits = if (l == null) d else ChatLimits(
             maxBytes = l.long("maxBytes")?.takeIf { it > 0 },
@@ -177,6 +168,7 @@ object ChatJson {
             maxVoiceS = l.int("maxVoiceS")?.coerceIn(5, 3600) ?: d.maxVoiceS,
             textMax = l.int("textMax")?.coerceIn(1, TEXT_MAX) ?: d.textMax,
             thumbMaxBytes = l.int("thumbMaxBytes")?.coerceIn(1_024, 1_048_576) ?: d.thumbMaxBytes,
+            thumbMaxSide = l.int("thumbMaxSide")?.coerceIn(64, 2048) ?: d.thumbMaxSide,
             imageMaxSide = l.int("imageMaxSide")?.coerceIn(320, 8192) ?: d.imageMaxSide,
             groupMax = l.int("groupMax")?.coerceIn(2, 10_000) ?: d.groupMax,
             titleMax = l.int("titleMax")?.coerceIn(1, 200) ?: d.titleMax,
@@ -195,6 +187,30 @@ object ChatJson {
             features = features,
             limits = limits,
             serverTime = time(o.str("serverTime")),
+        )
+    }
+
+    /**
+     * `features` of `GET me`: the object of flags (`{ direct, groups, … }`);
+     * further keys set to `true` (`video_meta`, `file_thumbs` of Messenger
+     * 1.3.0, and whatever newer versions add) become [ChatFeatures.tokens].
+     */
+    fun features(e: JsonElement?): ChatFeatures {
+        val f = e?.objOrNull() ?: return ChatFeatures()
+        val tokens = f.entrySet().filter { (k, v) ->
+            k !in FEATURE_FLAGS && token(k) != null && v.isJsonPrimitive && v.asJsonPrimitive.isBoolean && v.asBoolean
+        }.map { it.key }.take(MAX_FEATURES).toSet()
+        return ChatFeatures(
+            direct = f.flag("direct") ?: true,
+            groups = f.flag("groups") ?: true,
+            voice = f.flag("voice") ?: true,
+            files = f.flag("files") ?: true,
+            location = f.flag("location") ?: true,
+            reactions = f.flag("reactions") ?: true,
+            edit = f.flag("edit") ?: true,
+            search = f.flag("search") ?: true,
+            disappearing = f.flag("disappearing") ?: false,
+            tokens = tokens,
         )
     }
 
@@ -296,7 +312,18 @@ object ChatJson {
             system = if (kind == ChatMessage.KIND_SYSTEM) system(o.obj("system")) else null,
             reactions = if (deleted) emptyList() else reactions(o.arr("reactions")),
             status = if (mine) o.str("status")?.takeIf { it in STATUSES } else null,
+            video = if (deleted) null else video(o.obj("video")),
         )
+    }
+
+    private fun video(o: JsonObject?): ChatVideo? {
+        if (o == null) return null
+        val v = ChatVideo(
+            durationMs = o.long("durationMs")?.coerceAtMost(24 * 3_600_000L),
+            width = o.int("width")?.takeIf { it in 1..20_000 },
+            height = o.int("height")?.takeIf { it in 1..20_000 },
+        )
+        return v.takeIf { it.durationMs != null || it.width != null || it.height != null }
     }
 
     private fun replyRef(o: JsonObject?): ChatReplyRef? {
@@ -385,7 +412,7 @@ object ChatJson {
     }
 
     /**
-     * `GET conversations/:id/media` → `{ items (newest first), counts: { image, voice, file }, hasMore }`.
+     * `GET conversations/:id/media` → `{ items (newest first), counts: { image, voice, file, video? }, hasMore }`.
      * Only messages that carry a file are kept (deleted ones have none).
      */
     fun mediaPage(o: JsonObject): ChatMediaPage? {
@@ -397,6 +424,7 @@ object ChatJson {
             voice = counts?.int("voice")?.coerceAtLeast(0),
             files = counts?.int("file")?.coerceAtLeast(0),
             hasMore = o.flag("hasMore") == true,
+            videos = counts?.int("video")?.coerceAtLeast(0),
         )
     }
 
@@ -422,6 +450,7 @@ object ChatJson {
         location: ChatLocation? = null,
         meta: ChatMeta? = null,
         source: String? = null,
+        video: ChatVideo? = null,
     ): JsonObject = JsonObject().apply {
         addProperty("clientId", clientId)
         addProperty("kind", kind)
@@ -445,6 +474,13 @@ object ChatJson {
             m.h?.let { mo.addProperty("h", it) }
             m.fileName?.let { mo.addProperty("fileName", it.take(200)) }
             if (mo.size() > 0) add("meta", mo)
+        }
+        video?.let { v ->
+            val vo = JsonObject()
+            v.durationMs?.let { vo.addProperty("durationMs", it) }
+            v.width?.let { vo.addProperty("width", it) }
+            v.height?.let { vo.addProperty("height", it) }
+            if (vo.size() > 0) add("video", vo)
         }
         source?.let { addProperty("source", it) }
     }

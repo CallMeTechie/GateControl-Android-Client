@@ -55,6 +55,7 @@ fun ChatsTwoPane(
     share: Boolean,
     onOpenInbox: () -> Unit,
     onNewChat: () -> Unit,
+    onOpenUpdates: () -> Unit,
     onOpenInfo: (Long) -> Unit,
     onOpenImage: (String) -> Unit,
 ) {
@@ -86,6 +87,7 @@ fun ChatsTwoPane(
                 },
                 onOpenInbox = onOpenInbox,
                 onNewChat = onNewChat,
+                onOpenUpdates = onOpenUpdates,
                 selectedId = selected,
             )
         },
