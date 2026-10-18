@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -156,6 +157,29 @@ fun StatusSheet(
                         Icon(Icons.Outlined.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(" " + stringResource(R.string.chat_status_story_link), fontWeight = FontWeight.ExtraBold)
                     }
+                }
+            }
+            // The own active stories: at a glance, with how many saw them, and a way to watch them.
+            val myStories = ui.feed?.me?.stories.orEmpty()
+            if (myStories.isNotEmpty() && onViewOwnStories != null) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(14.dp)).background(extra.accentBg)
+                        .border(1.dp, scheme.primary, RoundedCornerShape(14.dp))
+                        .clickable(role = Role.Button, onClick = onViewOwnStories).padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    StoryAvatar(ui.profile?.user, StoryRing.OwnActive, 48.dp)
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.chat_status_my_stories_title), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = scheme.onSurface)
+                        Text(
+                            pluralStringResource(R.plurals.chat_status_my_stories, myStories.size, myStories.size) + " · " +
+                                stringResource(R.string.chat_story_viewers, myStories.sumOf { it.viewerCount ?: 0 }),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = extra.muted,
+                        )
+                    }
+                    Text(stringResource(R.string.chat_status_my_stories_open), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold), color = scheme.primary)
                 }
             }
             // TEXT · field · n/60.
@@ -265,11 +289,6 @@ fun StatusSheet(
                     loading = ui.busy,
                     modifier = Modifier.weight(1f),
                 )
-            }
-            if (onViewOwnStories != null) {
-                TextButton(onClick = onViewOwnStories, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    Text(stringResource(R.string.chat_story_viewers, ui.feed?.me?.stories?.sumOf { it.viewerCount ?: 0 } ?: 0))
-                }
             }
             if (onOpenProfile != null) {
                 TextButton(onClick = onOpenProfile, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(stringResource(R.string.chat_status_profile)) }

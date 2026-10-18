@@ -34,6 +34,8 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -56,6 +59,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -102,6 +106,12 @@ fun StoryComposerScreen(
     onClose: () -> Unit,
     viewModel: StatusViewModel = hiltViewModel(),
 ) {
+    // The composer is always dark (like the viewer): fields, tabs and menus take the dark colours too.
+    GateControlTheme(darkTheme = true) { StoryComposer(initialKind, onClose, viewModel) }
+}
+
+@Composable
+private fun StoryComposer(initialKind: String, onClose: () -> Unit, viewModel: StatusViewModel) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val people by viewModel.people.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
@@ -115,10 +125,16 @@ fun StoryComposerScreen(
     var visibility by rememberSaveable { mutableStateOf(viewModel.defaultVisibility()) }
     val chosen = remember { mutableStateListOf<Long>() }
     var pickPeople by remember { mutableStateOf(false) }
+    var durationH by rememberSaveable { mutableIntStateOf(ChatStory.DEFAULT_DURATION_H) }
+    var pickDuration by remember { mutableStateOf(false) }
+    // A failed post stays visible here (not only as a toast).
+    var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.notice.collect { n ->
-            Toast.makeText(ctx, if (n is StatusNotice.Done) res.getString(n.res) else ChatText.actionError(ctx, (n as StatusNotice.Error).code), Toast.LENGTH_SHORT).show()
+            val msg = if (n is StatusNotice.Done) res.getString(n.res) else ChatText.actionError(ctx, (n as StatusNotice.Error).code)
+            if (n is StatusNotice.Error) error = msg
+            Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) media = uri.toString() }
@@ -134,8 +150,9 @@ fun StoryComposerScreen(
         else -> mediaUri != null
     } && (visibility != ChatStatus.VIS_CUSTOM || chosen.isNotEmpty())
     val send: () -> Unit = {
-        if (kind == ChatStory.KIND_TEXT) viewModel.postText(text.trim(), bg, font, visibility, chosen.toList(), onClose)
-        else mediaUri?.let { viewModel.postMedia(it, kind == ChatStory.KIND_VIDEO, text.trim().takeIf { t -> t.isNotEmpty() }, visibility, chosen.toList(), onClose) }
+        error = null
+        if (kind == ChatStory.KIND_TEXT) viewModel.postText(text.trim(), bg, font, visibility, chosen.toList(), durationH, onClose)
+        else mediaUri?.let { viewModel.postMedia(it, kind == ChatStory.KIND_VIDEO, text.trim().takeIf { t -> t.isNotEmpty() }, visibility, chosen.toList(), durationH, onClose) }
     }
 
     Column(Modifier.fillMaxSize().background(Color(0xFF05090D)).imePadding()) {
@@ -232,7 +249,25 @@ fun StoryComposerScreen(
                     else -> ChatStatus.VIS_ALL
                 }
             }
-            DarkChip(Icons.Outlined.Schedule, stringResource(R.string.chat_story_24h)) {}
+            if (ui.durationOn) {
+                Box {
+                    DarkChip(Icons.Outlined.Schedule, durationLabel(durationH)) { pickDuration = true }
+                    DropdownMenu(expanded = pickDuration, onDismissRequest = { pickDuration = false }) {
+                        ChatStory.DURATIONS_H.forEach { h ->
+                            DropdownMenuItem(
+                                text = { Text(durationLabel(h), fontWeight = if (h == durationH) FontWeight.Bold else FontWeight.Normal) },
+                                onClick = { durationH = h; pickDuration = false },
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Older server: always 24 h — shown, not offered.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Outlined.Schedule, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+                    Text(stringResource(R.string.chat_story_24h), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelLarge)
+                }
+            }
             Spacer(Modifier.weight(1f))
             Box(
                 Modifier.size(56.dp).clip(CircleShape).background(if (canSend) MaterialTheme.colorScheme.primary else extra.panel2)
@@ -242,6 +277,14 @@ fun StoryComposerScreen(
                 if (ui.busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                 else Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.chat_story_send), tint = MaterialTheme.colorScheme.onPrimary)
             }
+        }
+        error?.let { e ->
+            Text(
+                e,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp),
+            )
         }
         Text(
             stringResource(
@@ -269,6 +312,11 @@ fun StoryComposerScreen(
         })
     }
 }
+
+@Composable
+private fun durationLabel(hours: Int): String =
+    if (hours == ChatStory.DEFAULT_DURATION_H) stringResource(R.string.chat_story_24h)
+    else pluralStringResource(R.plurals.chat_story_hours, hours, hours)
 
 @Composable
 private fun RoundTool(description: String, onClick: () -> Unit, content: @Composable () -> Unit) {

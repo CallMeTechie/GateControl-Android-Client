@@ -21,6 +21,7 @@ import com.gatecontrol.android.ui.adaptive.HingeSplit
 import com.gatecontrol.android.ui.adaptive.LocalGcWindowLayout
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -116,6 +117,8 @@ fun VpnScreen(
     onOpenDoor: (() -> Unit)? = null,
     /** Messenger 1.4: "Status erstellen" (from the status sheet behind the avatar). */
     onOpenStoryComposer: () -> Unit = {},
+    /** Messenger 1.4: the own active stories (from the status sheet). */
+    onOpenOwnStories: () -> Unit = {},
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
@@ -254,7 +257,15 @@ fun VpnScreen(
                     size = 40.dp,
                     contentDescription = description,
                     // Always the own profile (picture, colour, "Anwesenheit teilen"), also on older servers.
+                    // Messenger 1.4: a story ring while an own story is active.
                     modifier = Modifier
+                        .then(
+                            if (chatStatus.ownStories > 0) {
+                                Modifier.border(2.dp, androidx.compose.ui.graphics.Brush.sweepGradient(com.gatecontrol.android.ui.chat.status.STORY_GLOW), CircleShape).padding(3.dp)
+                            } else {
+                                Modifier
+                            },
+                        )
                         .clip(CircleShape)
                         .combinedClickable(
                             role = Role.Button,
@@ -360,6 +371,7 @@ fun VpnScreen(
             onDismiss = { statusSheet = false },
             onOpenStoryComposer = if (chatStatus.stories) ({ statusSheet = false; onOpenStoryComposer() }) else null,
             onOpenProfile = { statusSheet = false; onOpenProfile() },
+            onViewOwnStories = { statusSheet = false; onOpenOwnStories() },
         )
     }
     val bannerSection: @Composable ColumnScope.() -> Unit = {

@@ -198,6 +198,7 @@ fun ChatListScreen(
                                     items = com.gatecontrol.android.chat.ChatStatusLogic.strip(state.feed),
                                     onOpenMine = { if (f14.status) showStatus = true else onOpenStoryComposer() },
                                     onOpen = { onOpenStory(it.user.userId) },
+                                    onViewMine = { onOpenStory(0L) },
                                 )
                             }
                             InboxRow(state, onOpenInbox)

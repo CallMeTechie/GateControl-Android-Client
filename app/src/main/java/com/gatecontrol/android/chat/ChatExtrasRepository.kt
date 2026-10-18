@@ -133,11 +133,11 @@ class ChatExtrasRepository @Inject constructor(
     }
 
     /** A text story. */
-    suspend fun postTextStory(text: String, bg: String, font: String, visibility: String, userIds: List<Long>, eventMessageId: Long?): ChatResult<ChatStory?> =
-        afterStory(api.postStory(ChatJson14.storyBody(ChatStory.KIND_TEXT, text, bg, font, null, null, null, visibility, userIds, eventMessageId)))
+    suspend fun postTextStory(text: String, bg: String, font: String, visibility: String, userIds: List<Long>, eventMessageId: Long?, durationH: Int? = null): ChatResult<ChatStory?> =
+        afterStory(api.postStory(ChatJson14.storyBody(ChatStory.KIND_TEXT, text, bg, font, null, null, null, visibility, userIds, eventMessageId, durationH)))
 
     /** A photo story (scaled like a chat picture, with its preview). */
-    suspend fun postImageStory(uri: Uri, caption: String?, visibility: String, userIds: List<Long>, eventMessageId: Long?): ChatResult<ChatStory?> {
+    suspend fun postImageStory(uri: Uri, caption: String?, visibility: String, userIds: List<Long>, eventMessageId: Long?, durationH: Int? = null): ChatResult<ChatStory?> {
         val limits = repository.profile.value?.limits ?: ChatLimits()
         val clientId = repository.newClientId()
         val img = media.prepareImage(uri, clientId, limits.imageMaxSide, limits.thumbMaxBytes) ?: return ChatResult.Failed("unreadable", 0)
@@ -146,14 +146,14 @@ class ChatExtrasRepository @Inject constructor(
             val up = api.upload(img.file, img.mime)
             if (up !is ChatResult.Ok) return up.asFailure()
             media.prime(up.value, img.file)
-            return afterStory(api.postStory(ChatJson14.storyBody(ChatStory.KIND_IMAGE, caption, null, null, up.value, thumbId, null, visibility, userIds, eventMessageId)))
+            return afterStory(api.postStory(ChatJson14.storyBody(ChatStory.KIND_IMAGE, caption, null, null, up.value, thumbId, null, visibility, userIds, eventMessageId, durationH)))
         } finally {
             media.dropOutboxFiles(img.file.path, img.thumb?.path)
         }
     }
 
     /** A video story (a frame as preview, length and size). */
-    suspend fun postVideoStory(uri: Uri, caption: String?, visibility: String, userIds: List<Long>, eventMessageId: Long?): ChatResult<ChatStory?> {
+    suspend fun postVideoStory(uri: Uri, caption: String?, visibility: String, userIds: List<Long>, eventMessageId: Long?, durationH: Int? = null): ChatResult<ChatStory?> {
         val profile = repository.profile.value
         val limits = profile?.limits ?: ChatLimits()
         val clientId = repository.newClientId()
@@ -172,14 +172,24 @@ class ChatExtrasRepository @Inject constructor(
             val thumbId = file.thumb?.let { t -> (api.upload(t, "image/webp") as? ChatResult.Ok)?.value }
             val up = api.upload(file.file, file.mime)
             if (up !is ChatResult.Ok) return up.asFailure()
-            return afterStory(api.postStory(ChatJson14.storyBody(ChatStory.KIND_VIDEO, caption, null, null, up.value, thumbId, file.video, visibility, userIds, eventMessageId)))
+            return afterStory(api.postStory(ChatJson14.storyBody(ChatStory.KIND_VIDEO, caption, null, null, up.value, thumbId, file.video, visibility, userIds, eventMessageId, durationH)))
         } finally {
             media.dropOutboxFiles(file.file.path, file.thumb?.path)
         }
     }
 
     private fun afterStory(r: ChatResult<ChatStory?>): ChatResult<ChatStory?> {
-        if (r is ChatResult.Ok) refreshFeedSoon(0L)
+        if (r is ChatResult.Ok) {
+            // At once in "Mein Status" (the feed then confirms it).
+            r.value?.let { story ->
+                _feed.update { f ->
+                    val base = f ?: ChatStatusFeed(emptyList(), null)
+                    val me = base.me ?: ChatFeedItem(repository.profile.value?.user ?: ChatPerson(0, null, null, null, null), null, emptyList(), false)
+                    base.copy(me = me.copy(stories = (me.stories.filter { it.id != story.id } + story)))
+                }
+            }
+            refreshFeedSoon(0L)
+        }
         return r
     }
 

@@ -16,7 +16,13 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** The start tab's part of Messenger 1.4: whether the avatar opens "Dein Status", and the own status. */
-data class StartStatusUi(val enabled: Boolean = false, val stories: Boolean = false, val status: ChatStatus? = null)
+data class StartStatusUi(
+    val enabled: Boolean = false,
+    val stories: Boolean = false,
+    val status: ChatStatus? = null,
+    /** Own active stories (ring around the avatar). */
+    val ownStories: Int = 0,
+)
 
 @HiltViewModel
 class StartStatusViewModel @Inject constructor(
@@ -28,6 +34,7 @@ class StartStatusViewModel @Inject constructor(
             enabled = on && p?.features?.status == true,
             stories = on && p?.features?.stories == true,
             status = f?.me?.status ?: p?.status,
+            ownStories = if (on) f?.me?.stories?.size ?: 0 else 0,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StartStatusUi())
 

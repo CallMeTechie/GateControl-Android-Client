@@ -339,6 +339,7 @@ fun AppNavigation(
                     // Long press on a door quick action: the door screen, a normal destination — no tab.
                     onOpenDoor = openDoor,
                     onOpenStoryComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
+                    onOpenOwnStories = { navController.navigate(Screen.ChatStoryView.create(0L)) { launchSingleTop = true } },
                 )
             }
 
@@ -657,6 +658,10 @@ fun AppNavigation(
                             navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true }
                         },
                         onOpenProfile = { statusSheet = false; openSettingsPane(SettingsPane.Profile) },
+                        onViewOwnStories = {
+                            statusSheet = false
+                            navController.navigate(Screen.ChatStoryView.create(0L)) { launchSingleTop = true }
+                        },
                     )
                 }
             }
