@@ -436,4 +436,16 @@
     <string name="chat_err_no_approver">Nobody in this chat may do that.</string>
     <string name="chat_err_rate_limited">Please wait a bit before trying again.</string>
     <string name="chat_err_feature_off">The administrator has switched this off.</string>
+    <plurals name="chat_story_hours">
+        <item quantity="one">%d h</item>
+        <item quantity="other">%d h</item>
+    </plurals>
+    <plurals name="chat_status_my_stories">
+        <item quantity="one">%d story active</item>
+        <item quantity="other">%d stories active</item>
+    </plurals>
+    <string name="chat_status_my_stories_title">My stories</string>
+    <string name="chat_status_my_stories_open">View</string>
+    <string name="chat_status_add_story">Add status</string>
+    <string name="chat_status_view_mine">View my stories</string>
 </resources>

@@ -17,8 +17,10 @@ object ChatFeatures14 {
     const val ACTIONS = "actions"
     const val MSG_TOOLS = "msg_tools"
     const val PRIVACY2 = "privacy2"
+    /** Messenger 1.4.1: `POST status/stories` takes `durationH`. */
+    const val STORY_DURATION = "story_duration"
 
-    val ALL: Set<String> = setOf(STATUS, STORIES, POLLS, EVENTS, ARRIVAL, ACTIONS, MSG_TOOLS, PRIVACY2)
+    val ALL: Set<String> = setOf(STATUS, STORIES, POLLS, EVENTS, ARRIVAL, ACTIONS, MSG_TOOLS, PRIVACY2, STORY_DURATION)
 }
 
 val ChatFeatures.status: Boolean get() = ChatFeatures14.STATUS in tokens
@@ -29,6 +31,7 @@ val ChatFeatures.arrival: Boolean get() = ChatFeatures14.ARRIVAL in tokens
 val ChatFeatures.actions: Boolean get() = ChatFeatures14.ACTIONS in tokens
 val ChatFeatures.msgTools: Boolean get() = ChatFeatures14.MSG_TOOLS in tokens
 val ChatFeatures.privacy2: Boolean get() = ChatFeatures14.PRIVACY2 in tokens
+val ChatFeatures.storyDuration: Boolean get() = ChatFeatures14.STORY_DURATION in tokens
 
 // ─── status and stories ─────────────────────────────────────────────
 
@@ -99,6 +102,9 @@ data class ChatStory(
         const val TEXT_MAX = 140
         const val SERVER_TEXT_MAX = 700
         const val DEFAULT_BG = "#0F766E"
+        /** How long a story may stay (hours, `durationH`); without `story_duration` always 24. */
+        val DURATIONS_H = listOf(1, 3, 6, 12, 24)
+        const val DEFAULT_DURATION_H = 24
         val FONTS = listOf(FONT_SANS, FONT_SERIF, FONT_MONO)
     }
 }

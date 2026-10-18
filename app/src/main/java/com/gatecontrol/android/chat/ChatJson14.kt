@@ -185,6 +185,7 @@ object ChatJson14 {
         visibility: String,
         userIds: List<Long>,
         eventMessageId: Long?,
+        durationH: Int? = null,
     ): JsonObject = JsonObject().apply {
         addProperty("kind", kind)
         text?.takeIf { it.isNotBlank() }?.let { addProperty("text", it.take(ChatStory.TEXT_MAX)) }
@@ -202,6 +203,7 @@ object ChatJson14 {
         addProperty("visibility", visibility)
         if (visibility == ChatStatus.VIS_CUSTOM) add("userIds", idsArray(userIds))
         eventMessageId?.let { addProperty("eventMessageId", it) }
+        durationH?.takeIf { it in ChatStory.DURATIONS_H }?.let { addProperty("durationH", it) }
     }
 
     private fun feedItem(o: JsonObject?, allowNoUser: Boolean = false): ChatFeedItem? {

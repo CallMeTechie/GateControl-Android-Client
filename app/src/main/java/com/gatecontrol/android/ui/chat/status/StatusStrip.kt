@@ -45,10 +45,12 @@ import com.gatecontrol.android.ui.chat.ChatPersonAvatar
 import com.gatecontrol.android.ui.chat.ChatText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
-/** Ring around an avatar: glowing gradient for unseen stories, grey when seen, dashed for the own entry. */
-enum class StoryRing { Unseen, Seen, Own, None }
+/** Ring around an avatar: glowing gradient for unseen stories, grey when seen, dashed for the own entry, accent for own active stories. */
+enum class StoryRing { Unseen, Seen, Own, OwnActive, None }
 
-private val GLOW = listOf(Color(0xFF2DD4BF), Color(0xFF4ADE80), Color(0xFF22D3EE), Color(0xFF2DD4BF))
+/** The colours of the story ring (also around the own avatar on the Start tab). */
+val STORY_GLOW = listOf(Color(0xFF2DD4BF), Color(0xFF4ADE80), Color(0xFF22D3EE), Color(0xFF2DD4BF))
+private val GLOW = STORY_GLOW
 
 /** An avatar with its story ring (status strip, Start tab). */
 @Composable
@@ -67,6 +69,7 @@ fun StoryAvatar(person: ChatPerson?, ring: StoryRing, size: Dp, modifier: Modifi
                 }
                 StoryRing.Seen -> drawCircle(extra.border2, radius = r, style = Stroke(stroke))
                 StoryRing.Own -> drawCircle(extra.border2, radius = r, style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f))))
+                StoryRing.OwnActive -> drawCircle(Brush.sweepGradient(GLOW), radius = r, style = Stroke(stroke))
                 StoryRing.None -> Unit
             }
             if (ring != StoryRing.None) drawCircle(bg, radius = r - stroke / 2 - 0.5f, center = Offset(this.size.width / 2, this.size.height / 2))
@@ -79,8 +82,9 @@ fun StoryAvatar(person: ChatPerson?, ring: StoryRing, size: Dp, modifier: Modifi
 
 /**
  * The status strip under "Angeheftet" (mockup Chats – Status): the own
- * entry first ("Mein Status", + to add), then the people with a status or
- * stories — unseen with a glowing ring, seen ones grey.
+ * entry first ("Mein Status": with active stories a ring, a tap shows them,
+ * + adds one), then the people with a status or stories — unseen with a
+ * glowing ring, seen ones grey.
  */
 @Composable
 fun StatusStrip(
@@ -89,6 +93,7 @@ fun StatusStrip(
     items: List<ChatFeedItem>,
     onOpenMine: () -> Unit,
     onOpen: (ChatFeedItem) -> Unit,
+    onViewMine: () -> Unit = onOpenMine,
 ) {
     val ctx = LocalContext.current
     val stripLabel = stringResource(R.string.chat_status_strip)
@@ -98,14 +103,28 @@ fun StatusStrip(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "me") {
-            StripEntry(stringResource(R.string.chat_status_mine), muted = true, onClick = onOpenMine) {
+            val addLabel = stringResource(R.string.chat_status_add_story)
+            StripEntry(
+                stringResource(R.string.chat_status_mine),
+                muted = !meHasStories,
+                description = if (meHasStories) stringResource(R.string.chat_status_view_mine) else null,
+                onClick = if (meHasStories) onViewMine else onOpenMine,
+            ) {
                 Box {
-                    StoryAvatar(me, if (meHasStories) StoryRing.Seen else StoryRing.Own, 62.dp)
+                    StoryAvatar(me, if (meHasStories) StoryRing.OwnActive else StoryRing.Own, 62.dp)
+                    // + : a new status / story (its own target when the avatar shows the stories).
                     Box(
-                        Modifier.align(Alignment.BottomEnd).size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)
-                            .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
+                        Modifier.align(Alignment.BottomEnd).size(26.dp).clip(CircleShape)
+                            .clickable(role = Role.Button, onClickLabel = addLabel, onClick = onOpenMine)
+                            .semantics { contentDescription = addLabel },
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp)) }
+                    ) {
+                        Box(
+                            Modifier.size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)
+                                .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp)) }
+                    }
                 }
             }
         }

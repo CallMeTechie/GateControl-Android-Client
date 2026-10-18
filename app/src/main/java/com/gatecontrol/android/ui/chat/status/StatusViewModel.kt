@@ -16,6 +16,7 @@ import com.gatecontrol.android.chat.ChatStory
 import com.gatecontrol.android.chat.ChatStoryViewer
 import com.gatecontrol.android.chat.status
 import com.gatecontrol.android.chat.stories
+import com.gatecontrol.android.chat.storyDuration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +39,8 @@ data class StatusUi(
     /** The server offers a status line / stories. */
     val statusOn: Boolean = false,
     val storiesOn: Boolean = false,
+    /** Messenger 1.4.1: a story's duration can be chosen. */
+    val durationOn: Boolean = false,
     val own: ChatStatus? = null,
     val busy: Boolean = false,
 )
@@ -69,6 +72,7 @@ class StatusViewModel @Inject constructor(
             feed = f,
             statusOn = p?.features?.status == true,
             storiesOn = p?.features?.stories == true,
+            durationOn = p?.features?.storyDuration == true,
             own = f?.me?.status ?: p?.status,
             busy = b,
         )
@@ -141,12 +145,16 @@ class StatusViewModel @Inject constructor(
 
     fun clear(onDone: () -> Unit) = run(onOk = onDone) { extras.clearStatus() }
 
-    fun postText(text: String, bg: String, font: String, visibility: String, userIds: List<Long>, onDone: () -> Unit) =
-        run(com.gatecontrol.android.R.string.chat_story_sent, onDone) { extras.postTextStory(text, bg, font, visibility, userIds, null) }
+    /** [durationH] only when the server takes it (`story_duration`), else the server's 24 h. */
+    private fun duration(hours: Int): Int? = hours.takeIf { ui.value.durationOn && it in ChatStory.DURATIONS_H }
 
-    fun postMedia(uri: Uri, video: Boolean, caption: String?, visibility: String, userIds: List<Long>, onDone: () -> Unit) =
+    fun postText(text: String, bg: String, font: String, visibility: String, userIds: List<Long>, durationH: Int, onDone: () -> Unit) =
+        run(com.gatecontrol.android.R.string.chat_story_sent, onDone) { extras.postTextStory(text, bg, font, visibility, userIds, null, duration(durationH)) }
+
+    fun postMedia(uri: Uri, video: Boolean, caption: String?, visibility: String, userIds: List<Long>, durationH: Int, onDone: () -> Unit) =
         run(com.gatecontrol.android.R.string.chat_story_sent, onDone) {
-            if (video) extras.postVideoStory(uri, caption, visibility, userIds, null) else extras.postImageStory(uri, caption, visibility, userIds, null)
+            if (video) extras.postVideoStory(uri, caption, visibility, userIds, null, duration(durationH))
+            else extras.postImageStory(uri, caption, visibility, userIds, null, duration(durationH))
         }
 
     fun deleteStory(story: ChatStory, onDone: () -> Unit) = run(onOk = onDone) { extras.deleteStory(story.id) }

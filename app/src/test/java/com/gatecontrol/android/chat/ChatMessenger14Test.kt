@@ -299,6 +299,10 @@ class ChatMessenger14Test {
         assertFalse(body.has("font"))
         assertFalse(body.has("userIds"), "only for custom")
         assertEquals(50, body.get("eventMessageId").asInt)
+        assertFalse(body.has("durationH"), "no duration: the server's 24 h")
+        // 1.4.1: a chosen duration, only the offered values
+        assertEquals(3, ChatJson14.storyBody(ChatStory.KIND_TEXT, "x", null, null, null, null, null, ChatStatus.VIS_ALL, emptyList(), null, 3).get("durationH").asInt)
+        assertFalse(ChatJson14.storyBody(ChatStory.KIND_TEXT, "x", null, null, null, null, null, ChatStatus.VIS_ALL, emptyList(), null, 2).has("durationH"))
         val viewers = ChatJson14.viewers(json("""{"viewers":[{"user":{"id":8,"name":"Anna"},"seenAt":"2026-10-18T10:00:00.000Z","reaction":"👏"},{"user":{}}]}"""))!!
         assertEquals(1, viewers.size)
         assertEquals("👏", viewers[0].reaction)
