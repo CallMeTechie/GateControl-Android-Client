@@ -1,0 +1,114 @@
+name: Google Play Data Safety
+
+# Sends the Data safety answers in docs/play/data-safety.csv to Google Play
+# (Play Developer API, applications.dataSafety). The CSV replaces the whole
+# declaration, so it must always hold the complete form. By hand only.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  data-safety:
+    name: Upload data safety form
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Upload
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PACKAGE_NAME: com.gatecontrol.client
+          CSV_PATH: docs/play/data-safety.csv
+        shell: python3 {0}
+        run: |
+          import base64, csv, io, json, os, subprocess, sys, tempfile, time
+          import urllib.error, urllib.parse, urllib.request
+
+          def fail(msg):
+              print(f"::error::{msg}")
+              sys.exit(1)
+
+          raw = os.environ.get("PLAY_SERVICE_ACCOUNT_JSON", "")
+          if not raw.strip():
+              fail("Secret PLAY_SERVICE_ACCOUNT_JSON is missing")
+          key = json.loads(raw)
+
+          # Basic check of the CSV before anything goes to Google.
+          with open(os.environ["CSV_PATH"], encoding="utf-8", newline="") as f:
+              labels = f.read()
+          rows = list(csv.reader(io.StringIO(labels)))
+          header = ["Question ID (machine readable)", "Response ID (machine readable)",
+                    "Response value", "Answer requirement", "Human-friendly question label"]
+          if not rows or rows[0] != header:
+              fail("CSV header does not match Google's template")
+          bad = [i for i, r in enumerate(rows[1:], start=2)
+                 if len(r) != 5 or r[2] not in ("", "TRUE", "FALSE")]
+          if bad:
+              fail(f"CSV rows with a wrong shape or value: {bad[:10]}")
+          answered = sum(1 for r in rows[1:] if r[2])
+          print(f"CSV: {len(rows) - 1} rows, {answered} answered")
+
+          def b64(data):
+              return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+          # OAuth token for the service account (JWT bearer, RS256 signed with openssl).
+          token_uri = key.get("token_uri") or "https://oauth2.googleapis.com/token"
+          now = int(time.time())
+          claims = {
+              "iss": key["client_email"],
+              "scope": "https://www.googleapis.com/auth/androidpublisher",
+              "aud": token_uri,
+              "iat": now,
+              "exp": now + 600,
+          }
+          signing_input = (b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode()) + "." +
+                           b64(json.dumps(claims).encode())).encode()
+          fd, pem = tempfile.mkstemp(dir=os.environ.get("RUNNER_TEMP"), suffix=".pem")
+          try:
+              with os.fdopen(fd, "w") as f:
+                  f.write(key["private_key"])
+              signature = subprocess.run(["openssl", "dgst", "-sha256", "-sign", pem],
+                                         input=signing_input, capture_output=True, check=True).stdout
+          finally:
+              os.remove(pem)
+          assertion = signing_input.decode() + "." + b64(signature)
+
+          def call(req):
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as resp:
+                      return resp.status, resp.read().decode()
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode()
+
+          status, body = call(urllib.request.Request(
+              token_uri,
+              data=urllib.parse.urlencode({
+                  "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                  "assertion": assertion,
+              }).encode(),
+              headers={"Content-Type": "application/x-www-form-urlencoded"},
+          ))
+          if status != 200:
+              print(body)
+              fail(f"Token request failed (HTTP {status})")
+          access_token = json.loads(body)["access_token"]
+
+          url = ("https://androidpublisher.googleapis.com/androidpublisher/v3/applications/"
+                 f"{os.environ['PACKAGE_NAME']}/dataSafety")
+          status, body = call(urllib.request.Request(
+              url,
+              data=json.dumps({"safetyLabels": labels}).encode(),
+              headers={"Authorization": f"Bearer {access_token}",
+                       "Content-Type": "application/json"},
+              method="POST",
+          ))
+          print(f"Google Play answered HTTP {status}:")
+          print(body or "(empty body)")
+          if not 200 <= status < 300:
+              fail("Data safety upload failed")
+          print("Data safety form updated.")
