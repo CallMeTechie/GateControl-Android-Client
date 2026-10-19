@@ -98,4 +98,26 @@ class QuickActionDevicesTest {
         assertEquals(1, replaced.size)
         assertEquals(listOf("status"), replaced.single().parts)
     }
+
+    @Test
+    fun `pins and widgets of a replaced plugin move to its successor`() {
+        val renames = mapOf("midea" to "raumklima")
+        val pins = QuickActionDevices.renamedPins(listOf(ac, scene, ac.copy(plugin = "raumklima")), renames)
+        assertEquals(listOf("raumklima/ac:2", "smarthome/scene:4"), pins.map { it.key }, "renamed, the duplicate dropped")
+        val device = QuickActionDevices.group(listOf(ac)).single()
+        val widgets = listOf(
+            StartWidgetPin("midea/ac:2", "midea/ac:2", listOf("value"), wide = true, snapshot = device),
+            StartWidgetPin("midea-two/x", "midea-two/x"),
+            StartWidgetPin("skoda/v:1", "skoda/climate:1"),
+        )
+        val moved = StartWidgetPin.renamed(widgets, renames)
+        assertEquals(listOf("raumklima/ac:2", "midea-two/x", "skoda/v:1"), moved.map { it.device }, "only the whole plugin id")
+        assertEquals("raumklima/ac:2", moved[0].anchor)
+        assertEquals(listOf("value"), moved[0].parts)
+        assertTrue(moved[0].wide)
+        assertNull(moved[0].snapshot, "the old copy goes, the next sync brings the new one")
+        assertEquals(widgets[2], moved[2])
+        val listed = QuickActionDevices.group(listOf(ac.copy(plugin = "raumklima", state = "off")))
+        assertEquals("off", moved[0].resolve(listed)?.actions?.single()?.state, "found again under the new plugin")
+    }
 }

@@ -180,8 +180,10 @@ class QuickActionRepository @Inject constructor(
                 response.code() == 404 -> QuickActionsLoad.Unsupported
                 !response.isSuccessful -> QuickActionsLoad.Failed("HTTP ${response.code()}")
                 else -> {
-                    val items = sanitize(response.body()?.actions.orEmpty())
+                    val raw = response.body()?.actions.orEmpty()
+                    val items = sanitize(raw)
                     _actions.value = items
+                    moveReplaced(renames(raw, items))
                     migrateWidgetPins()
                     syncPins(items)
                     syncWidgets(QuickActionDevices.group(items))
@@ -285,6 +287,28 @@ class QuickActionRepository @Inject constructor(
                 .filter { pin -> current.none { it.device == pin.device } }
             StartWidgetPin.encode((current + added).take(MAX_WIDGETS))
         }
+    }
+
+    /**
+     * Pins and widgets stored under the id of a plugin that another one
+     * replaced (core 1.186.2+, e.g. gatecontrol-midea → gatecontrol-raumklima)
+     * move to the new plugin; without this they stay the copies from before.
+     */
+    private suspend fun moveReplaced(renames: Map<String, String>) {
+        if (renames.isEmpty()) return
+        var changed = false
+        settingsRepository.updateQuickActionPins { raw ->
+            val current = decodePins(raw)
+            val next = QuickActionDevices.renamedPins(current, renames)
+            changed = next != current
+            if (changed) encodePins(next) else raw.orEmpty()
+        }
+        settingsRepository.updateStartWidgets { raw ->
+            val current = StartWidgetPin.decode(raw)
+            val next = StartWidgetPin.renamed(current, renames)
+            if (next == current) raw.orEmpty() else StartWidgetPin.encode(next)
+        }
+        if (changed) afterPinsChanged()
     }
 
     /** Widget pins follow their device (a changed device id is found again by an action) and keep a copy for offline. */
@@ -458,6 +482,20 @@ class QuickActionRepository @Inject constructor(
          * plugin lists other actions: the plugin dropped it (Fahrzeuge 1.3:
          * „Entriegeln“ became part of the lock switch).
          */
+        /** Old plugin id → the listed plugin that replaced it (an old id still listed itself stays). */
+        @Suppress("SENSELESS_COMPARISON") // Gson can put nulls into the list
+        internal fun renames(raw: List<QuickAction>, items: List<QuickActionItem>): Map<String, String> {
+            val listing = items.map { it.plugin }.toSet()
+            val out = mutableMapOf<String, String>()
+            for (a in raw) {
+                val plugin = a.plugin?.takeIf { it in listing } ?: continue
+                for (old in a.formerly.orEmpty()) {
+                    if (old != null && PLUGIN.matches(old) && old !in listing && old != plugin) out.putIfAbsent(old, plugin)
+                }
+            }
+            return out
+        }
+
         internal fun syncedPins(pins: List<QuickActionItem>, items: List<QuickActionItem>): List<QuickActionItem> {
             val byKey = items.associateBy { it.key }
             val listing = items.map { it.plugin }.toSet()

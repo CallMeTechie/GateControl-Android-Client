@@ -91,6 +91,18 @@ class QuickActionRepositoryTest {
     }
 
     @Test
+    fun `a replacing plugin's old ids become renames, unless the old plugin is listed itself`() {
+        val raw = listOf(
+            QuickAction(plugin = "gatecontrol-raumklima", id = "ac:1", title = "Wohnzimmer", formerly = listOf("gatecontrol-midea", "Bad Id", "gatecontrol-raumklima")),
+            QuickAction(plugin = "hello", id = "x", title = "X", formerly = listOf("door")),
+            QuickAction(plugin = "door", id = "open:1", title = "Tür"),
+        )
+        val items = QuickActionRepository.sanitize(raw)
+        assertEquals(mapOf("gatecontrol-midea" to "gatecontrol-raumklima"), QuickActionRepository.renames(raw, items))
+        assertEquals(emptyMap<String, String>(), QuickActionRepository.renames(listOf(QuickAction(plugin = "a", id = "x", title = "X")), items))
+    }
+
+    @Test
     fun `a pin the plugin no longer lists goes, one of a silent plugin stays`() {
         val lock = QuickActionItem("skoda", "Fahrzeuge", "lock:1", "Verriegeln")
         val unlock = QuickActionItem("skoda", "Fahrzeuge", "unlock:1", "Entriegeln")
