@@ -50,6 +50,23 @@ class RuleOpenTemplateTest {
     }
 
     @Test
+    fun `a set reminder marks the widgets of its devices - active reminders, mine or the house's`() {
+        val car = "gatecontrol-skoda/car1:climate"
+        fun reminder(id: Int, owner: Int?, scope: String = RuleScope.PERSONAL, active: Boolean = true, device: String = car) = Rule(
+            id = id, title = "r$id", scope = scope, active = active, ownerId = owner, kind = RuleLogic.KIND_REMINDER,
+            trigger = RuleTrigger(RuleTriggerType.SCHEDULE, weekdays = listOf(7), time = "18:00"),
+            conditions = RuleConditions(device = listOf(DeviceCondition(device, "value", RuleOp.LT, 50.0))),
+            actions = listOf(RuleAction(RuleActionType.NOTIFY, buttons = listOf(RuleButton.quick("gatecontrol-skoda/car1:charge"), RuleButton.DONE))),
+        )
+        assertEquals(setOf(car, "gatecontrol-skoda/car1:charge"), RuleOpenStore.plannedActions(listOf(reminder(1, 3)), 3))
+        assertEquals(emptySet<String>(), RuleOpenStore.plannedActions(listOf(reminder(1, 4)), 3), "Lena's own reminder")
+        assertEquals(emptySet<String>(), RuleOpenStore.plannedActions(listOf(reminder(1, 3, active = false)), 3), "paused")
+        assertTrue(car in RuleOpenStore.plannedActions(listOf(reminder(1, 4, scope = RuleScope.HOUSE)), 3), "a house reminder")
+        val presence = reminder(2, 3, scope = RuleScope.HOUSE).copy(kind = RuleLogic.KIND_PRESENCE, trigger = RuleTrigger(RuleTriggerType.ALL_AWAY))
+        assertEquals(emptySet<String>(), RuleOpenStore.plannedActions(listOf(presence), 3), "not a reminder")
+    }
+
+    @Test
     fun `bodies of the holiday mode, done and a new place`() {
         assertEquals("""{"on":true,"until":"2026-10-24"}""", RuleJson.vacationBody(true, "2026-10-24").toString())
         assertEquals("""{"on":false,"until":null}""", RuleJson.vacationBody(false, "2026-10-24").toString())

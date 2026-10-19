@@ -406,6 +406,7 @@ fun StartCards(
     val running by viewModel.running.collectAsStateWithLifecycle()
     val adjusting by viewModel.adjusting.collectAsStateWithLifecycle()
     val alerts by viewModel.alerts.collectAsStateWithLifecycle()
+    val planned by viewModel.planned.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
         viewModel.refreshAlerts()
         onPauseOrDispose { }
@@ -432,6 +433,7 @@ fun StartCards(
             modifier = cardModifier,
             fillHeight = fill,
             alert = alerts.isNotEmpty() && device.actions.any { "${it.plugin}/${it.id}" in alerts },
+            planned = planned.isNotEmpty() && device.actions.any { "${it.plugin}/${it.id}" in planned },
         )
     }
 

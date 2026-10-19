@@ -80,7 +80,8 @@ import kotlin.math.roundToInt
  * the card takes the height of its row (beside a taller widget) and grows
  * its buttons and gaps instead of leaving the space below empty.
  * [interactive] false: a preview (the pin sheet), nothing reacts. [alert]: a Familie reminder
- * about the device is open — an exclamation mark on its icon.
+ * about the device is open — an exclamation mark on its icon; [planned]: one is set — a small
+ * clock there instead (the „!“ wins).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -97,6 +98,7 @@ fun QuickActionWidgetCard(
     longPressLabel: String? = null,
     fillHeight: Boolean = false,
     alert: Boolean = false,
+    planned: Boolean = false,
 ) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
@@ -132,7 +134,11 @@ fun QuickActionWidgetCard(
                     GcIconSquare(size = 32.dp, background = background) {
                         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
                     }
-                    if (alert) AlertMark(Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
+                    if (alert) {
+                        AlertMark(Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
+                    } else if (planned) {
+                        PlannedMark(Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
+                    }
                 }
                 Text(
                     device.title,
@@ -313,6 +319,24 @@ private fun AlertMark(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Text("!", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black), color = Color.White, maxLines = 1)
+    }
+}
+
+/** A reminder about the device is set: a small, quiet clock. */
+@Composable
+private fun PlannedMark(modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    val description = stringResource(R.string.rules_planned_hint)
+    Box(
+        modifier
+            .size(16.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, extra.border, CircleShape)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(GcIcons.Clock, contentDescription = null, tint = extra.muted, modifier = Modifier.size(11.dp))
     }
 }
 
