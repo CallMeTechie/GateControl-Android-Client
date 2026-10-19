@@ -131,6 +131,7 @@
     <string name="rules_open_today">Heute offen</string>
     <string name="rules_open_since">seit %1$s</string>
     <string name="rules_open_snoozed">später, um %1$s</string>
+    <string name="rules_planned_hint">Erinnerung angelegt</string>
     <string name="rules_open_alert">Erinnerung offen</string>
     <string name="rules_summary_vacation">Urlaubsmodus</string>
     <plurals name="rules_summary_open">

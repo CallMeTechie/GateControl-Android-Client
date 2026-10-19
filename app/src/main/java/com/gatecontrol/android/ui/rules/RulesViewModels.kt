@@ -149,6 +149,8 @@ class RulesListViewModel @Inject constructor(
             if (r !is FamilieResult.Ok) {
                 _load.value = with(!active)
                 errors.trySend(r.errorCode())
+            } else {
+                openStore.setActive(id, active)
             }
         }
     }
@@ -213,6 +215,7 @@ class RuleEditorViewModel @Inject constructor(
     @ApplicationContext context: Context,
     private val api: FamilieApi,
     private val familie: FamilieRepository,
+    private val openStore: RuleOpenStore,
 ) : ViewModel() {
 
     private val _draft = MutableStateFlow<Rule?>(null)
@@ -299,6 +302,7 @@ class RuleEditorViewModel @Inject constructor(
             val id = d.id
             val r = if (id == null) api.createRule(d) else api.updateRule(id, d)
             _saving.value = false
+            if (r is FamilieResult.Ok) openStore.refresh(force = true)
             if (r is FamilieResult.Ok) events.trySend(RuleEditorEvent.Saved)
             else events.trySend(RuleEditorEvent.Error(r.errorCode(), (r as? FamilieResult.Failed)?.field))
         }
@@ -344,6 +348,7 @@ class RuleEditorViewModel @Inject constructor(
         viewModelScope.launch {
             val r = api.deleteRule(id)
             _saving.value = false
+            if (r is FamilieResult.Ok) openStore.refresh(force = true)
             events.trySend(if (r is FamilieResult.Ok) RuleEditorEvent.Deleted else RuleEditorEvent.Error(r.errorCode()))
         }
     }

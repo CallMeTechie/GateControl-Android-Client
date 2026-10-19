@@ -92,6 +92,10 @@ class QuickActionsViewModel @Inject constructor(
         viewModelScope.launch { repository.refresh() }
     }
 
+    /** `<plugin>/<id>` of actions an active reminder of mine is about: their widget shows a small clock. */
+    val planned: StateFlow<Set<String>> = combine(openReminders.rules, familie.profile) { rules, p -> RuleOpenStore.plannedActions(rules, p?.me?.userId) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     /** The open reminders again (on showing the start tab; at most once a minute). */
     fun refreshAlerts() {
         viewModelScope.launch { openReminders.refresh() }
