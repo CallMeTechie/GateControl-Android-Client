@@ -71,6 +71,10 @@ object QuickActionDevices {
             )
         }
 
+    /** [pins] with those of a replaced plugin moved to its successor ([renames]: old id → new id), no duplicates. */
+    fun renamedPins(pins: List<QuickActionItem>, renames: Map<String, String>): List<QuickActionItem> =
+        pins.map { p -> renames[p.plugin]?.let { p.copy(plugin = it) } ?: p }.distinctBy { it.key }
+
     /**
      * [pins] with the buttons of [device] set to [actionIds]: the device's
      * pins that stay keep their place, the others of it go, newly chosen
@@ -142,6 +146,24 @@ data class StartWidgetPin(
         }
 
         @Suppress("SENSELESS_COMPARISON")
+        /**
+         * [pins] with the devices of a replaced plugin moved to its successor
+         * ([renames]: old id → new id): device and anchor keys renamed, the old
+         * copy dropped (the next sync takes the new one), no duplicates.
+         */
+        fun renamed(pins: List<StartWidgetPin>, renames: Map<String, String>): List<StartWidgetPin> {
+            fun move(key: String?): String? {
+                if (key == null) return null
+                val slash = key.indexOf('/')
+                val to = if (slash > 0) renames[key.substring(0, slash)] else null
+                return if (to != null) to + key.substring(slash) else key
+            }
+            return pins.map { pin ->
+                val device = move(pin.device)!!
+                if (device == pin.device) pin else pin.copy(device = device, anchor = move(pin.anchor), snapshot = null)
+            }.distinctBy { it.device }
+        }
+
         fun decode(raw: String?): List<StartWidgetPin> = try {
             if (raw.isNullOrBlank()) emptyList()
             // Gson bypasses Kotlin null-safety: drop broken entries, mend the copy's lists.
