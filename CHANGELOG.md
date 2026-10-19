@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.49.0] - 2026-10-19
+
+### Features
+- small clock on a device widget while a reminder about it is set (#102)
+
+---
+
 ## [1.48.0] - 2026-10-19
 
 ### Features
