@@ -86,7 +86,9 @@ internal fun deviceText(d: DeviceCondition, options: RuleOptions): String {
     val dev = options.device(d.actionId)
     val field = dev?.fields?.firstOrNull { it.id == d.field }
     val unit = (field?.unit ?: d.unit)?.let { " $it" } ?: ""
-    return listOfNotNull(field?.label ?: d.label, options.labelOf(d.actionId) ?: d.actionId.substringAfter('/')).joinToString(" ") + " ${opText(d.op)} ${RuleLogic.format(d.value)}$unit"
+    // „Elroq · Ladestand < 50 %“ — the device's name (not the action carrying its widget), then the value
+    val name = dev?.label ?: d.actionId.substringAfter('/')
+    return listOfNotNull(name, field?.label ?: d.label).joinToString(" · ") + " ${opText(d.op)} ${RuleLogic.format(d.value)}$unit"
 }
 
 @Composable

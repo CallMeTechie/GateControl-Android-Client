@@ -207,6 +207,8 @@ data class RuleOptionAction(
     val icon: String?,
     /** toggle | button | null. */
     val kind: String?,
+    /** The device the action belongs to (a car, a lamp) — its quick actions share it. */
+    val deviceId: String? = null,
 )
 
 data class RuleOptionCalendar(val source: String, val label: String)
@@ -237,6 +239,18 @@ data class RuleOptions(
 
     /** Name of a device or quick action. */
     fun labelOf(actionId: String?): String? = action(actionId)?.title ?: device(actionId)?.label
+
+    /**
+     * The quick actions of the device behind [actionId] (the action that carries a widget, e.g. the
+     * car's climate action): its siblings with the same device — „Laden starten“, „Klimatisierung“, …
+     * Without a device just that action.
+     */
+    fun deviceActions(actionId: String?): List<RuleOptionAction> {
+        val a = action(actionId) ?: return emptyList()
+        val dev = a.deviceId ?: return listOf(a)
+        val plugin = a.actionId.substringBefore('/')
+        return actions.filter { it.deviceId == dev && it.actionId.substringBefore('/') == plugin }
+    }
 }
 
 /** [ok] null: not checked (e.g. the trigger itself). */

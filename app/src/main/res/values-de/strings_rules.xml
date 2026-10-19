@@ -93,7 +93,7 @@
     <string name="rules_chat_personal">Eine persönliche Erinnerung schreibt nur dir (dein eigener Familie-Kanal).</string>
     <string name="rules_facts">Werte anzeigen</string>
     <string name="rules_facts_desc">Gerätewerte und Termin in der Mitteilung</string>
-    <string name="rules_button_quick">Knopf „%1$s“</string>
+    <string name="rules_button_pick">Knopf für %1$s (einer)</string>
     <string name="rules_button_snooze_row">Knopf „In 1 Std.“</string>
     <string name="rules_button_snooze_desc">prüft in einer Stunde erneut (höchstens 3× am Tag)</string>
     <string name="rules_button_done_row">Knopf „Erledigt“</string>

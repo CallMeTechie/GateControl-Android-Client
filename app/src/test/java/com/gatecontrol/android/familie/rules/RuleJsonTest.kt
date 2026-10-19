@@ -185,12 +185,29 @@ class RuleJsonTest {
         val n = r.actions.single()
         assertEquals(RuleRecipients.ME, n.to!!.keyword)
         assertEquals("me", RuleJson.body(r)["actions"].asJsonArray[0].asJsonObject["to"].asString)
-        assertEquals(listOf("quick_action:gatecontrol-skoda/charge", RuleButton.SNOOZE, RuleButton.DONE), n.buttons)
+        // No device button by default: the widget hangs on any of the car's actions (often the climate one).
+        assertEquals(listOf(RuleButton.SNOOZE, RuleButton.DONE), n.buttons)
         assertTrue(RuleLogic.valid(r))
         // Without the device in the options (older plugin): still a reminder, no condition.
         val bare = RuleLogic.reminderFor(null, "gatecontrol-skoda/charge", 3, DayOfWeek.MONDAY)
         assertTrue(bare.conditions.device.isEmpty())
         assertFalse(RuleLogic.valid(bare), "it needs a title first")
+    }
+
+    @Test
+    fun `the device's actions to pick a button from, one device button at a time`() {
+        val climate = RuleOptionAction("gatecontrol-skoda/climate:1", "Klimatisierung", null, null, "toggle", deviceId = "car1")
+        val charge = RuleOptionAction("gatecontrol-skoda/charge:1", "Laden starten", null, null, "button", deviceId = "car1")
+        val other = RuleOptionAction("gatecontrol-skoda/climate:2", "Klimatisierung", null, null, "toggle", deviceId = "car2")
+        val lamp = RuleOptionAction("gatecontrol-smarthome/light:1", "Flurlicht", null, null, "toggle")
+        val o = RuleOptions(actions = listOf(climate, charge, other, lamp))
+        assertEquals(listOf(climate, charge), o.deviceActions(climate.actionId))
+        assertEquals(listOf(lamp), o.deviceActions(lamp.actionId))
+        assertTrue(o.deviceActions("gatecontrol-x/unknown").isEmpty())
+        var n = RuleAction(RuleActionType.NOTIFY, buttons = listOf(RuleButton.SNOOZE))
+        n = RuleLogic.toggleButton(n, RuleButton.quick(climate.actionId), true)
+        n = RuleLogic.toggleButton(n, RuleButton.quick(charge.actionId), true)
+        assertEquals(listOf(RuleButton.quick(charge.actionId), RuleButton.SNOOZE), n.buttons)
     }
 
     @Test

@@ -93,7 +93,7 @@
     <string name="rules_chat_personal">A personal reminder writes only to you (your own Familie channel).</string>
     <string name="rules_facts">Show values</string>
     <string name="rules_facts_desc">device values and the appointment in the notification</string>
-    <string name="rules_button_quick">Button “%1$s”</string>
+    <string name="rules_button_pick">Button for %1$s (one)</string>
     <string name="rules_button_snooze_row">Button “In 1 hour”</string>
     <string name="rules_button_snooze_desc">checks again in an hour (at most 3 times a day)</string>
     <string name="rules_button_done_row">Button “Done”</string>
