@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.47.1] - 2026-10-19
+
+### Fixes
+- reminders name the device and offer its actions as the button (#97)
+
+---
+
 ## [1.47.0] - 2026-10-18
 
 ### Features
