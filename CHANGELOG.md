@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.48.0] - 2026-10-19
+
+### Features
+- open reminders, widget hint, templates, holiday mode and new places (#101)
+
+---
+
 ## [1.47.2] - 2026-10-19
 
 ### Fixes
