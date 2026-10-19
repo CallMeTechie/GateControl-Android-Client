@@ -126,4 +126,39 @@
         <item quantity="one">%1$d Person</item>
         <item quantity="other">%1$d Personen</item>
     </plurals>
+
+    <!-- 1.11: open reminders, holiday mode, templates, new place -->
+    <string name="rules_open_today">Heute offen</string>
+    <string name="rules_open_since">seit %1$s</string>
+    <string name="rules_open_snoozed">später, um %1$s</string>
+    <string name="rules_open_alert">Erinnerung offen</string>
+    <string name="rules_summary_vacation">Urlaubsmodus</string>
+    <plurals name="rules_summary_open">
+        <item quantity="one">%1$d offen</item>
+        <item quantity="other">%1$d offen</item>
+    </plurals>
+    <string name="rules_vacation">Urlaubsmodus</string>
+    <string name="rules_vacation_hint">Pausiert alle aktiven Hausregeln und schaltet genau diese danach wieder ein.</string>
+    <string name="rules_vacation_on">Aktiv – %1$d Hausregeln pausiert</string>
+    <string name="rules_vacation_on_until">Aktiv bis %1$s – %2$d Hausregeln pausiert</string>
+    <string name="rules_vacation_until">Bis einschließlich</string>
+    <string name="rules_vacation_open_end">Ohne Datum bleibt er an, bis du ihn ausschaltest.</string>
+    <string name="rules_tpl_intro">Mit einer Vorlage beginnen – alles lässt sich danach anpassen.</string>
+    <string name="rules_tpl_empty">Leere Regel</string>
+    <string name="rules_tpl_empty_hint">Alles selbst festlegen</string>
+    <string name="rules_tpl_trash">Müll rausbringen</string>
+    <string name="rules_tpl_trash_hint">Erinnerung am Abend, mit „In 1 Std.“ und „Erledigt“</string>
+    <string name="rules_tpl_car">Auto laden</string>
+    <string name="rules_tpl_car_hint">Abends erinnern, wenn der Akku unter 50 % ist</string>
+    <string name="rules_tpl_all_away">Alle weg – Licht und Klima aus</string>
+    <string name="rules_tpl_all_away_hint">Schaltet die Geräte aus, wenn niemand mehr zuhause ist</string>
+    <string name="rules_tpl_child_alone">Kind allein zuhause</string>
+    <string name="rules_tpl_child_alone_hint">Mitteilung an die Eltern</string>
+    <string name="rules_tpl_school">An der Schule angekommen</string>
+    <string name="rules_tpl_school_hint">Mitteilung an die Eltern, wenn das Kind die Schule erreicht</string>
+    <string name="rules_place_new">+ Neuer Ort</string>
+    <string name="rules_place_new_title">Neuer Ort</string>
+    <string name="rules_place_name">Name</string>
+    <string name="rules_place_name_hint">z. B. Schule, Oma, Sportverein</string>
+    <string name="rules_place_new_hint">Orte gelten für alle Regeln. Die App meldet Ankunft und Abfahrt nur von Personen, die „Orte für Regeln teilen“ eingeschaltet haben.</string>
 </resources>

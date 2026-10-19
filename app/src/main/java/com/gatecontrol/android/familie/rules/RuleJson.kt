@@ -29,6 +29,7 @@ object RuleJson {
     private val QUICK_ID_RE = Regex("^[A-Za-z0-9:._-]{1,64}$")
     private val FIELD_RE = Regex("^(?:value|badge|reading:[A-Za-z0-9_.:-]{1,64})$")
     private val TOKEN_RE = Regex("^[A-Za-z0-9_:.-]{1,64}$")
+    private val DATE_RE = Regex("^\\d{4}-\\d{2}-\\d{2}$")
     private const val TITLE_MAX = 80
     private const val TEXT_MAX = 500
     private const val MAX_ITEMS = 200
@@ -47,8 +48,40 @@ object RuleJson {
             log = o.arr("log")?.objects()?.mapNotNull(::logEntry)?.take(MAX_ITEMS).orEmpty(),
             can = can(o.obj("can")),
             open = o.arr("open")?.objects()?.mapNotNull(::open)?.take(MAX_ITEMS).orEmpty(),
+            vacation = o.obj("vacation")?.let(::vacation),
         )
     }
+
+    /** A place of `rules/options` → `places[]`, or of `POST presence/places` → `place`. */
+    fun place(p: JsonObject): RuleOptionPlace? {
+        val id = p.int("id") ?: return null
+        return RuleOptionPlace(id, clean(p.str("name") ?: p.str("label"), 60).ifBlank { "#$id" })
+    }
+
+    /** `POST presence/places`. */
+    fun placeBody(name: String, lat: Double, lon: Double, radius: Int): JsonObject = JsonObject().apply {
+        addProperty("name", name.trim().take(40))
+        addProperty("lat", lat)
+        addProperty("lon", lon)
+        addProperty("radius", radius)
+    }
+
+    /** `vacation` (1.11). */
+    fun vacation(o: JsonObject): RuleVacation = RuleVacation(
+        on = o.bool("on") == true,
+        until = o.str("until")?.trim()?.takeIf { DATE_RE.matches(it) },
+        since = stamp(o.str("since")),
+        paused = (o.int("paused") ?: 0).coerceAtLeast(0),
+    )
+
+    /** `PUT rules/vacation`: [until] the last day or null (until switched off). */
+    fun vacationBody(on: Boolean, until: String?): JsonObject = JsonObject().apply {
+        addProperty("on", on)
+        if (on && until != null) addProperty("until", until) else add("until", JsonNull.INSTANCE)
+    }
+
+    /** `POST rules/open/<id>/done | snooze`. */
+    fun openBody(key: String): JsonObject = JsonObject().apply { addProperty("key", key) }
 
     /** `open[]`: a reminder that fired and is not done yet. */
     fun open(o: JsonObject): RuleOpen? {
@@ -60,6 +93,8 @@ object RuleJson {
             snoozed = o.str("state") == "snoozed",
             since = stamp(o.str("since")),
             actionIds = o.arr("actionIds")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString?.takeIf { ACTION_ID_RE.matches(it) } }?.distinct()?.take(20).orEmpty(),
+            userId = o.int("userId"),
+            snoozeUntil = stamp(o.str("snoozeUntil")),
         )
     }
 
@@ -226,10 +261,7 @@ object RuleJson {
                 val source = token(c.str("source")) ?: return@mapNotNull null
                 RuleOptionCalendar(source, clean(c.str("label"), 60).ifBlank { source })
             }?.distinctBy { it.source }.orEmpty(),
-            places = o.arr("places")?.objects()?.mapNotNull { p ->
-                val id = p.int("id") ?: return@mapNotNull null
-                RuleOptionPlace(id, clean(p.str("name") ?: p.str("label"), 60).ifBlank { "#$id" })
-            }?.distinctBy { it.id }.orEmpty(),
+            places = o.arr("places")?.objects()?.mapNotNull(::place)?.distinctBy { it.id }.orEmpty(),
             people = o.arr("people")?.objects()?.mapNotNull { p ->
                 val id = p.int("userId") ?: p.int("id") ?: return@mapNotNull null
                 RuleOptionPerson(id, clean(p.str("name"), 60).ifBlank { "#$id" }, child = p.str("role") == "child")

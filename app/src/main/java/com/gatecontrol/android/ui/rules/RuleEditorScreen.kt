@@ -24,14 +24,17 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,13 +60,13 @@ import com.gatecontrol.android.familie.rules.RuleOp
 import com.gatecontrol.android.familie.rules.RuleOptions
 import com.gatecontrol.android.familie.rules.RuleRecipients
 import com.gatecontrol.android.familie.rules.RuleScope
+import com.gatecontrol.android.familie.rules.RuleTemplate
 import com.gatecontrol.android.familie.rules.RuleTimeWindow
 import com.gatecontrol.android.familie.rules.RuleTrigger
 import com.gatecontrol.android.familie.rules.RuleTriggerType
 import com.gatecontrol.android.ui.chat.OptionDialog
 import com.gatecontrol.android.ui.chat.PickChip
 import com.gatecontrol.android.ui.chat.TimeOnlyDialog
-import com.gatecontrol.android.ui.familie.familieErrorMessage
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -76,11 +79,15 @@ import com.gatecontrol.android.ui.components.GcSwitch
 import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.familie.FamilieConfirmDialog
+import com.gatecontrol.android.ui.familie.FamilieFormDialog
+import com.gatecontrol.android.ui.familie.FamiliePlacePicker
+import com.gatecontrol.android.ui.familie.familieErrorMessage
 import com.gatecontrol.android.ui.familie.familieErrorText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlin.math.roundToInt
 
 /** What the editor's dialog edits right now. */
 private sealed interface EditorDialog {
@@ -95,13 +102,14 @@ private sealed interface EditorDialog {
     data class Notify(val index: Int?) : EditorDialog
     data class Chat(val index: Int?) : EditorDialog
     data object Delete : EditorDialog
+    data object NewPlace : EditorDialog
 }
 
 /**
  * The rule editor Wann → Nur wenn → Dann (mockups RuleEditor and
  * ReminderEditor). [actionId]: a new reminder for that device (long press on
- * a widget), personal. The dry run of a saved rule says whether it would
- * fire today.
+ * a widget), personal; [template]: a new rule from that template. The dry
+ * run of a saved rule says whether it would fire today.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -110,11 +118,13 @@ fun RuleEditorScreen(
     actionId: String?,
     personal: Boolean,
     onBack: () -> Unit,
+    template: RuleTemplate? = null,
     viewModel: RuleEditorViewModel = hiltViewModel(),
 ) {
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
-    LaunchedEffect(ruleId, actionId, personal) { viewModel.load(ruleId, actionId, personal) }
+    val templateTitle = template?.let { templateTitle(it) }.orEmpty()
+    LaunchedEffect(ruleId, actionId, personal, template) { viewModel.load(ruleId, actionId, personal, template, templateTitle) }
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val options by viewModel.options.collectAsStateWithLifecycle()
     val can by viewModel.can.collectAsStateWithLifecycle()
@@ -133,6 +143,7 @@ fun RuleEditorScreen(
                     onBack()
                 }
                 RuleEditorEvent.Deleted -> onBack()
+                RuleEditorEvent.PlaceCreated -> dialog = null
                 is RuleEditorEvent.Error -> Toast.makeText(ctx, ruleErrorMessage(ctx, e.code, e.field), Toast.LENGTH_LONG).show()
             }
         }
@@ -258,6 +269,7 @@ fun RuleEditorScreen(
             { dialog = null },
         )
         is EditorDialog.Chat -> ChatActionDialog(dl.index?.let { current.actions.getOrNull(it) }, current.scope == RuleScope.PERSONAL, myId, { a -> dialog = null; viewModel.edit { putAction(it, dl.index, a) } }, { dialog = null })
+        EditorDialog.NewPlace -> NewPlaceDialog(viewModel, saving, onDismiss = { dialog = null })
         EditorDialog.Delete -> FamilieConfirmDialog(
             title = stringResource(R.string.rules_delete_title),
             text = stringResource(R.string.rules_delete_text, current.title),
@@ -344,6 +356,8 @@ private fun EditorContent(
                 if (options.places.isEmpty()) Text(stringResource(R.string.rules_no_places), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     options.places.forEach { p -> PickChip(p.name, t.placeId == p.id) { vm.edit { r -> r.copy(trigger = r.trigger.copy(placeId = p.id, placeName = p.name)) } } }
+                    // Familie 1.5: parents add places for rules (the server says `parents_only` to anyone else)
+                    if (canHouse) PickChip(stringResource(R.string.rules_place_new), false) { onDialog(EditorDialog.NewPlace) }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PickChip(stringResource(R.string.rules_anyone), t.userId == null) { vm.edit { r -> r.copy(trigger = r.trigger.copy(userId = null)) } }
@@ -696,4 +710,62 @@ internal fun ruleErrorMessage(ctx: android.content.Context, code: String?, field
         else -> null
     }
     return if (res != null) ctx.getString(res) else familieErrorMessage(ctx, code) + (field?.let { " ($it)" } ?: "")
+}
+
+private val PLACE_RADII = listOf(50, 75, 100, 150, 200, 300, 500, 750, 1000, 1500, 2000)
+
+/** „+ Neuer Ort“: name, point on the map (or address, or here), radius — saved as a place for rules. */
+@Composable
+private fun NewPlaceDialog(vm: RuleEditorViewModel, saving: Boolean, onDismiss: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val locale = ruleLocale()
+    var name by rememberSaveable { mutableStateOf("") }
+    var lat by rememberSaveable { mutableStateOf<Double?>(null) }
+    var lon by rememberSaveable { mutableStateOf<Double?>(null) }
+    var radius by rememberSaveable { mutableIntStateOf(200) }
+    val hits by vm.placeHits.collectAsStateWithLifecycle()
+    val here by vm.placeHere.collectAsStateWithLifecycle()
+    LaunchedEffect(here) {
+        here?.let {
+            lat = it.lat
+            lon = it.lon
+            vm.consumePlaceHere()
+        }
+    }
+    val la = lat
+    val lo = lon
+    FamilieFormDialog(
+        title = stringResource(R.string.rules_place_new_title),
+        onDismiss = {
+            vm.clearPlaceHits()
+            onDismiss()
+        },
+        onSave = { if (la != null && lo != null) vm.createPlace(name, la, lo, radius) },
+        saveEnabled = name.isNotBlank() && la != null && lo != null && !saving,
+    ) {
+        GcTextField(value = name, onValueChange = { name = it.take(40) }, label = stringResource(R.string.rules_place_name), placeholder = stringResource(R.string.rules_place_name_hint))
+        FamiliePlacePicker(
+            lat = la,
+            lon = lo,
+            radiusM = radius,
+            hits = hits,
+            onPick = { pLat, pLon, label ->
+                lat = pLat
+                lon = pLon
+                if (label != null && name.isBlank()) name = label.substringBefore(',').take(40)
+            },
+            onHere = vm::locatePlaceHere,
+            onSearch = { vm.searchPlace(it, locale) },
+            onClearHits = vm::clearPlaceHits,
+        )
+        val idx = PLACE_RADII.indexOfFirst { it >= radius }.let { if (it < 0) PLACE_RADII.lastIndex else it }
+        Text(stringResource(R.string.familie_place_radius, radius), style = MaterialTheme.typography.titleSmall, color = extra.muted)
+        Slider(
+            value = idx.toFloat(),
+            onValueChange = { radius = PLACE_RADII[it.roundToInt().coerceIn(0, PLACE_RADII.lastIndex)] },
+            valueRange = 0f..PLACE_RADII.lastIndex.toFloat(),
+            steps = PLACE_RADII.size - 2,
+        )
+        Text(stringResource(R.string.rules_place_new_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+    }
 }

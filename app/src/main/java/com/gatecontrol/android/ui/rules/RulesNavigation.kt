@@ -15,6 +15,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.gatecontrol.android.familie.rules.RuleTemplate
 
 /**
  * Routes of "Regeln und Erinnerungen" (Familie B1): the list, the editor
@@ -23,14 +24,16 @@ import androidx.navigation.navArgument
  */
 object RulesRoutes {
     const val LIST = "rules"
-    const val EDIT = "rules/edit?id={id}&personal={personal}"
+    const val EDIT = "rules/edit?id={id}&personal={personal}&template={template}"
     const val REMINDER = "reminder/new?actionId={actionId}"
     const val ARG_ID = "id"
     const val ARG_PERSONAL = "personal"
     const val ARG_ACTION = "actionId"
+    const val ARG_TEMPLATE = "template"
 
-    /** [id] null: a new rule. */
-    fun edit(id: Int? = null, personal: Boolean = false): String = "rules/edit?id=${id ?: -1}&personal=$personal"
+    /** [id] null: a new rule, from [template] (a [com.gatecontrol.android.familie.rules.RuleTemplate] id) when given. */
+    fun edit(id: Int? = null, personal: Boolean = false, template: String? = null): String =
+        "rules/edit?id=${id ?: -1}&personal=$personal" + (template?.let { "&template=" + Uri.encode(it) } ?: "")
 
     fun reminder(actionId: String): String = "reminder/new?actionId=" + Uri.encode(actionId)
 }
@@ -49,7 +52,7 @@ fun NavGraphBuilder.rulesGraph(navController: NavController) {
             RulesListScreen(
                 onBack = { navController.popBackStack() },
                 onOpenRule = { id -> navController.navigate(RulesRoutes.edit(id)) { launchSingleTop = true } },
-                onNewRule = { navController.navigate(RulesRoutes.edit()) { launchSingleTop = true } },
+                onNewRule = { template -> navController.navigate(RulesRoutes.edit(template = template)) { launchSingleTop = true } },
             )
         }
     }
@@ -64,11 +67,17 @@ fun NavGraphBuilder.rulesGraph(navController: NavController) {
                 type = NavType.BoolType
                 defaultValue = false
             },
+            navArgument(RulesRoutes.ARG_TEMPLATE) {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            },
         ),
     ) { entry ->
         val id = entry.arguments?.getInt(RulesRoutes.ARG_ID)?.takeIf { it > 0 }
         val personal = entry.arguments?.getBoolean(RulesRoutes.ARG_PERSONAL) == true
-        Width { RuleEditorScreen(ruleId = id, actionId = null, personal = personal, onBack = { navController.popBackStack() }) }
+        val template = RuleTemplate.of(entry.arguments?.getString(RulesRoutes.ARG_TEMPLATE))
+        Width { RuleEditorScreen(ruleId = id, actionId = null, personal = personal, template = template, onBack = { navController.popBackStack() }) }
     }
     composable(
         route = RulesRoutes.REMINDER,

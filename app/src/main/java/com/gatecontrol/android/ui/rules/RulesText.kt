@@ -15,6 +15,7 @@ import com.gatecontrol.android.familie.rules.RuleLogic
 import com.gatecontrol.android.familie.rules.RuleOp
 import com.gatecontrol.android.familie.rules.RuleOptions
 import com.gatecontrol.android.familie.rules.RuleRecipients
+import com.gatecontrol.android.familie.rules.RuleTemplate
 import com.gatecontrol.android.familie.rules.RuleTrigger
 import com.gatecontrol.android.familie.rules.RuleTriggerType
 import com.gatecontrol.android.ui.components.GcIcons
@@ -48,6 +49,36 @@ internal fun triggerLabel(type: String): String = when (type) {
     RuleTriggerType.PLACE_ENTER -> stringResource(R.string.rules_trigger_place_enter)
     RuleTriggerType.PLACE_EXIT -> stringResource(R.string.rules_trigger_place_exit)
     else -> type
+}
+
+@Composable
+internal fun templateTitle(t: RuleTemplate): String = stringResource(
+    when (t) {
+        RuleTemplate.TRASH -> R.string.rules_tpl_trash
+        RuleTemplate.CAR_CHARGE -> R.string.rules_tpl_car
+        RuleTemplate.ALL_AWAY_OFF -> R.string.rules_tpl_all_away
+        RuleTemplate.CHILD_ALONE -> R.string.rules_tpl_child_alone
+        RuleTemplate.SCHOOL -> R.string.rules_tpl_school
+    },
+)
+
+@Composable
+internal fun templateHint(t: RuleTemplate): String = stringResource(
+    when (t) {
+        RuleTemplate.TRASH -> R.string.rules_tpl_trash_hint
+        RuleTemplate.CAR_CHARGE -> R.string.rules_tpl_car_hint
+        RuleTemplate.ALL_AWAY_OFF -> R.string.rules_tpl_all_away_hint
+        RuleTemplate.CHILD_ALONE -> R.string.rules_tpl_child_alone_hint
+        RuleTemplate.SCHOOL -> R.string.rules_tpl_school_hint
+    },
+)
+
+internal fun templateIcon(t: RuleTemplate): ImageVector = when (t) {
+    RuleTemplate.TRASH -> GcIcons.Trash
+    RuleTemplate.CAR_CHARGE -> GcIcons.Car
+    RuleTemplate.ALL_AWAY_OFF -> GcIcons.Power
+    RuleTemplate.CHILD_ALONE -> GcIcons.Home
+    RuleTemplate.SCHOOL -> GcIcons.Pin
 }
 
 @Composable

@@ -126,4 +126,39 @@
         <item quantity="one">%1$d person</item>
         <item quantity="other">%1$d people</item>
     </plurals>
+
+    <!-- 1.11: open reminders, holiday mode, templates, new place -->
+    <string name="rules_open_today">Open today</string>
+    <string name="rules_open_since">since %1$s</string>
+    <string name="rules_open_snoozed">later, at %1$s</string>
+    <string name="rules_open_alert">Reminder open</string>
+    <string name="rules_summary_vacation">Holiday mode</string>
+    <plurals name="rules_summary_open">
+        <item quantity="one">%1$d open</item>
+        <item quantity="other">%1$d open</item>
+    </plurals>
+    <string name="rules_vacation">Holiday mode</string>
+    <string name="rules_vacation_hint">Pauses every active house rule and switches exactly those on again afterwards.</string>
+    <string name="rules_vacation_on">On – %1$d house rules paused</string>
+    <string name="rules_vacation_on_until">On until %1$s – %2$d house rules paused</string>
+    <string name="rules_vacation_until">Until (incl.)</string>
+    <string name="rules_vacation_open_end">Without a date it stays on until you switch it off.</string>
+    <string name="rules_tpl_intro">Start from a template – everything can be changed afterwards.</string>
+    <string name="rules_tpl_empty">Empty rule</string>
+    <string name="rules_tpl_empty_hint">Set everything yourself</string>
+    <string name="rules_tpl_trash">Take out the bins</string>
+    <string name="rules_tpl_trash_hint">A reminder in the evening, with “In 1 h” and “Done”</string>
+    <string name="rules_tpl_car">Charge the car</string>
+    <string name="rules_tpl_car_hint">A reminder in the evening when the battery is below 50 %</string>
+    <string name="rules_tpl_all_away">All away – lights and A/C off</string>
+    <string name="rules_tpl_all_away_hint">Switches the devices off when nobody is home any more</string>
+    <string name="rules_tpl_child_alone">Child home alone</string>
+    <string name="rules_tpl_child_alone_hint">A message to the parents</string>
+    <string name="rules_tpl_school">Arrived at school</string>
+    <string name="rules_tpl_school_hint">A message to the parents when the child reaches school</string>
+    <string name="rules_place_new">+ New place</string>
+    <string name="rules_place_new_title">New place</string>
+    <string name="rules_place_name">Name</string>
+    <string name="rules_place_name_hint">e.g. school, grandma, sports club</string>
+    <string name="rules_place_new_hint">Places apply to all rules. The app reports arrivals and departures only for people who switched on “Share places for rules”.</string>
 </resources>

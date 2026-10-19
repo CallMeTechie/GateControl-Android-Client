@@ -163,8 +163,30 @@ data class Rule(
     val pausable: Boolean = true,
 )
 
-/** An open reminder (`GET rules` → `open[]`): the widget of [actionIds] shows a hint. */
-data class RuleOpen(val ruleId: Int, val title: String, val key: String?, val snoozed: Boolean, val since: String?, val actionIds: List<String>)
+/**
+ * An open reminder (`GET rules` → `open[]`): the widget of [actionIds] shows a hint. [userId] whose it
+ * is (Familie 1.11: parents get every member's; null from older plugins = the caller's own);
+ * [snoozeUntil] when "In 1 Std." brings it back.
+ */
+data class RuleOpen(
+    val ruleId: Int,
+    val title: String,
+    val key: String?,
+    val snoozed: Boolean,
+    val since: String?,
+    val actionIds: List<String>,
+    val userId: Int? = null,
+    val snoozeUntil: String? = null,
+) {
+    /** The caller's own (it may be ticked off or snoozed here). */
+    fun isMine(myUserId: Int?): Boolean = userId == null || userId == myUserId
+}
+
+/**
+ * The holiday mode (Familie 1.11, `GET rules` → `vacation`): every active house rule paused,
+ * [paused] of them, until [until] (`YYYY-MM-DD`, the last day) or by hand.
+ */
+data class RuleVacation(val on: Boolean, val until: String? = null, val since: String? = null, val paused: Int = 0)
 
 /** A line of the protocol. [fired] false: checked but not fired (a condition was not met). */
 data class RuleLogEntry(
@@ -182,7 +204,14 @@ data class RuleCan(val house: Boolean = false, val personal: Boolean = false) {
 }
 
 /** `GET rules`. */
-data class RulesPayload(val rules: List<Rule>, val log: List<RuleLogEntry>, val can: RuleCan, val open: List<RuleOpen> = emptyList())
+data class RulesPayload(
+    val rules: List<Rule>,
+    val log: List<RuleLogEntry>,
+    val can: RuleCan,
+    val open: List<RuleOpen> = emptyList(),
+    /** null: the plugin has no holiday mode (before 1.11). */
+    val vacation: RuleVacation? = null,
+)
 
 /** A value of a device a condition can compare (`rules/options` → `devices[].fields[]`). */
 data class RuleOptionField(val id: String, val label: String, val unit: String?, val current: String?)
