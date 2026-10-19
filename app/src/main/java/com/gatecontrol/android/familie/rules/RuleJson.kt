@@ -244,6 +244,7 @@ object RuleJson {
                     subtitle = listOfNotNull(a.str("pluginName"), a.str("subtitle")).map { clean(it, 60) }.filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null },
                     icon = a.str("icon")?.takeIf { it.length <= 4000 },
                     kind = a.str("kind")?.takeIf { it == "toggle" || it == "button" },
+                    deviceId = a.obj("device")?.str("id")?.takeIf { it.isNotBlank() && it.length <= 120 },
                 )
             }?.distinctBy { it.actionId }?.take(MAX_ITEMS).orEmpty(),
             deviceValues = features?.bool("deviceValues") != false,

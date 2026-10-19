@@ -441,7 +441,7 @@ private fun EditorContent(
 private fun buttonLabel(b: String, options: RuleOptions): String = when {
     b == RuleButton.SNOOZE -> stringResource(R.string.rules_button_snooze)
     b == RuleButton.DONE -> stringResource(R.string.rules_button_done)
-    b.startsWith(RuleButton.QUICK_PREFIX) -> options.device(b.removePrefix(RuleButton.QUICK_PREFIX))?.label ?: stringResource(R.string.rules_button_device)
+    b.startsWith(RuleButton.QUICK_PREFIX) -> b.removePrefix(RuleButton.QUICK_PREFIX).let { id -> options.action(id)?.title ?: options.device(id)?.label } ?: stringResource(R.string.rules_button_device)
     else -> b
 }
 
@@ -652,9 +652,16 @@ private fun NotifyDialog(
         }
         GcTextField(value = action.text.orEmpty(), onValueChange = { t -> action = action.copy(text = t.take(500).ifEmpty { null }) }, label = stringResource(R.string.rules_text_optional), placeholder = stringResource(R.string.rules_text_hint))
         GcSwitchRow(stringResource(R.string.rules_facts), stringResource(R.string.rules_facts_desc), action.facts, { action = action.copy(facts = it) })
-        if (deviceId != null) {
-            val b = RuleButton.quick(deviceId)
-            GcSwitchRow(stringResource(R.string.rules_button_quick, options.device(deviceId)?.label ?: deviceId.substringAfter('/')), null, b in action.buttons, { on -> action = RuleLogic.toggleButton(action, b, on) })
+        // The device's own actions as one button to choose („Laden starten“), not the action its widget hangs on.
+        val deviceActions = options.deviceActions(deviceId)
+        if (deviceActions.isNotEmpty()) {
+            Text(stringResource(R.string.rules_button_pick, options.device(deviceId)?.label ?: deviceActions.first().title), style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                deviceActions.forEach { da ->
+                    val b = RuleButton.quick(da.actionId)
+                    PickChip(da.title, b in action.buttons) { action = RuleLogic.toggleButton(action, b, b !in action.buttons) }
+                }
+            }
         }
         GcSwitchRow(stringResource(R.string.rules_button_snooze_row), stringResource(R.string.rules_button_snooze_desc), RuleButton.SNOOZE in action.buttons, { on -> action = RuleLogic.toggleButton(action, RuleButton.SNOOZE, on) })
         GcSwitchRow(stringResource(R.string.rules_button_done_row), null, RuleButton.DONE in action.buttons, { on -> action = RuleLogic.toggleButton(action, RuleButton.DONE, on) })

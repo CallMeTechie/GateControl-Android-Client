@@ -80,8 +80,10 @@ object RuleLogic {
     /**
      * A new reminder for a device (long press on a widget, mockup
      * ReminderEditor): personal, on [today] at 18:00, the device's first value
-     * below a sensible limit, a push to me with the device's own button,
-     * "In 1 Std." and "Erledigt".
+     * below a sensible limit, a push to me with "In 1 Std." and "Erledigt".
+     * No device button: the widget hangs on one of the device's actions (a
+     * car's climate action), which is rarely the one a reminder wants — the
+     * editor offers the device's actions to pick from.
      */
     fun reminderFor(device: RuleOptionDevice?, actionId: String?, myUserId: Int?, today: DayOfWeek): Rule {
         val field = device?.fields?.firstOrNull()
@@ -105,7 +107,7 @@ object RuleLogic {
                     type = RuleActionType.NOTIFY,
                     to = RuleRecipients(RuleRecipients.ME),
                     facts = true,
-                    buttons = listOfNotNull(id?.let { RuleButton.quick(it) }, RuleButton.SNOOZE, RuleButton.DONE),
+                    buttons = listOf(RuleButton.SNOOZE, RuleButton.DONE),
                 ),
             ),
         )
@@ -136,9 +138,10 @@ object RuleLogic {
         return r.copy(actions = r.actions.map { a -> if (a.type == RuleActionType.NOTIFY || a.type == RuleActionType.MESSENGER) a.copy(to = me) else a })
     }
 
-    /** Toggles the button [b] of a notify action. */
+    /** Toggles the button [b] of a notify action; at most one device button. */
     fun toggleButton(a: RuleAction, b: String, on: Boolean): RuleAction {
-        val rest = a.buttons.filter { it != b }
+        val quick = b.startsWith(RuleButton.QUICK_PREFIX)
+        val rest = a.buttons.filter { it != b && !(on && quick && it.startsWith(RuleButton.QUICK_PREFIX)) }
         // The device's own button first, then "In 1 Std.", then "Erledigt" (Android shows three).
         val order = listOf(RuleButton.QUICK_PREFIX, RuleButton.SNOOZE, RuleButton.DONE)
         val next = if (on) rest + b else rest
