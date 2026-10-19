@@ -2,6 +2,8 @@ package com.gatecontrol.android.ui.quickactions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.familie.FamilieRepository
+import com.gatecontrol.android.familie.rules.RuleOpenStore
 import com.gatecontrol.android.layout.LayoutAccess
 import com.gatecontrol.android.layout.StartArrangement
 import com.gatecontrol.android.layout.StartEntry
@@ -13,6 +15,7 @@ import com.gatecontrol.android.quickactions.QuickActionResult
 import com.gatecontrol.android.quickactions.QuickActionsLoad
 import com.gatecontrol.android.quickactions.StartWidgetPin
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -22,11 +25,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * A pin sheet to show: the device [deviceKey], opened from a start-tab
@@ -40,6 +43,8 @@ data class PinSheetRequest(val deviceKey: String, val widget: Boolean, val actio
 class QuickActionsViewModel @Inject constructor(
     private val repository: QuickActionRepository,
     private val arrangement: StartArrangement,
+    private val openReminders: RuleOpenStore,
+    familie: FamilieRepository,
 ) : ViewModel() {
 
     /** The start tab's blocks in their order (tiles, widgets, Info and usage card). */
@@ -79,8 +84,17 @@ class QuickActionsViewModel @Inject constructor(
 
     private val pending = HashMap<String, Job>()
 
+    /** `<plugin>/<id>` of actions with an open Familie reminder of mine: their widget shows „!“. */
+    val alerts: StateFlow<Set<String>> = combine(openReminders.open, familie.profile) { open, p -> RuleOpenStore.alertActions(open, p?.me?.userId) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     fun refresh() {
         viewModelScope.launch { repository.refresh() }
+    }
+
+    /** The open reminders again (on showing the start tab; at most once a minute). */
+    fun refreshAlerts() {
+        viewModelScope.launch { openReminders.refresh() }
     }
 
     /** The account's order of the start tab (throttled; on opening the tab). */

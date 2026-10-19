@@ -30,14 +30,18 @@ object RuleLogic {
     fun filter(rules: List<Rule>, filter: RuleFilter): List<Rule> =
         rules.filter { matches(it, filter) }.sortedWith(compareByDescending<Rule> { it.active }.thenBy { it.title.lowercase() })
 
-    /** Profile line: active, paused and the newest run. */
-    data class Summary(val active: Int, val paused: Int, val lastRunAt: String?)
+    /** Profile line: active, paused, the newest run, today's open reminders, the holiday mode. */
+    data class Summary(val active: Int, val paused: Int, val lastRunAt: String?, val open: Int = 0, val vacation: Boolean = false)
 
     fun summary(p: RulesPayload): Summary {
         val last = (p.rules.mapNotNull { it.lastRunAt } + p.log.filter { it.fired }.mapNotNull { it.at })
             .maxByOrNull { epoch(it) ?: Long.MIN_VALUE }
-        return Summary(p.rules.count { it.active }, p.rules.count { !it.active }, last)
+        return Summary(p.rules.count { it.active }, p.rules.count { !it.active }, last, p.open.size, p.vacation?.on == true)
     }
+
+    /** Open reminders: one's own first, then by time. */
+    fun openSorted(open: List<RuleOpen>, myUserId: Int?): List<RuleOpen> =
+        open.sortedWith(compareByDescending<RuleOpen> { it.isMine(myUserId) }.thenBy { epoch(it.since) ?: Long.MAX_VALUE })
 
     fun epoch(iso: String?): Long? = iso?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
 
@@ -146,5 +150,123 @@ object RuleLogic {
         val order = listOf(RuleButton.QUICK_PREFIX, RuleButton.SNOOZE, RuleButton.DONE)
         val next = if (on) rest + b else rest
         return a.copy(buttons = next.sortedBy { x -> order.indexOfFirst { x.startsWith(it) }.let { if (it < 0) 9 else it } }.take(3))
+    }
+
+    // ─── templates (a new rule from „Vorlage“) ──────────────────────
+
+    private val CHARGE_RE = Regex("(?i)lade|akku|batter|charge|soc")
+    private val CHARGE_ACTION_RE = Regex("(?i)laden|charg")
+    private val OFF_RE = Regex("(?i)licht|lampe|leuchte|light|lamp|klima|climate|air ?con|heiz|heat|ventilator|fan")
+    private val SCHOOL_RE = Regex("(?i)schul|school")
+    private val WASTE_RE = Regex("(?i)m(ü|ue)ll|abfall|abfuhr|tonne|waste|trash|bin")
+
+    /** The templates [o] and [can] allow: only those whose devices and triggers exist here. */
+    fun templates(o: RuleOptions, can: RuleCan): List<RuleTemplate> = buildList {
+        if (can.any) add(RuleTemplate.TRASH)
+        if (can.any && o.deviceValues && chargeField(o) != null) add(RuleTemplate.CAR_CHARGE)
+        if (can.house && RuleTriggerType.ALL_AWAY in o.triggers) add(RuleTemplate.ALL_AWAY_OFF)
+        val children = o.people.any { it.child }
+        if (can.house && children && RuleTriggerType.CHILD_HOME_ALONE in o.triggers) add(RuleTemplate.CHILD_ALONE)
+        if (can.house && children && RuleTriggerType.PLACE_ENTER in o.triggers) add(RuleTemplate.SCHOOL)
+    }
+
+    /** A device value that looks like a charge level (a "%" or its name), with its device. */
+    fun chargeField(o: RuleOptions): Pair<RuleOptionDevice, RuleOptionField>? {
+        for (d in o.devices) {
+            val f = d.fields.firstOrNull { f -> f.unit?.contains('%') == true || f.current?.contains('%') == true || CHARGE_RE.containsMatchIn(f.label) }
+            if (f != null) return d to f
+        }
+        return null
+    }
+
+    /**
+     * The rule a template starts with ([title] in the app's language; [today] for a weekly
+     * schedule). Everything stays editable; a place for [RuleTemplate.SCHOOL] may still be missing.
+     */
+    fun fromTemplate(t: RuleTemplate, o: RuleOptions, can: RuleCan, title: String, today: DayOfWeek): Rule {
+        val personal = if (can.personal) RuleScope.PERSONAL else RuleScope.HOUSE
+        val toMe = RuleRecipients(RuleRecipients.ME)
+        val toParents = RuleRecipients(RuleRecipients.PARENTS)
+        val remindButtons = if (o.buttons) listOf(RuleButton.SNOOZE, RuleButton.DONE) else emptyList()
+        return when (t) {
+            RuleTemplate.TRASH -> {
+                val cal = o.calendars.firstOrNull { it.source.startsWith("alltag:") && WASTE_RE.containsMatchIn(it.label) }
+                Rule(
+                    id = null,
+                    title = title,
+                    scope = personal,
+                    trigger = RuleTrigger(RuleTriggerType.SCHEDULE, weekdays = if (cal != null) (1..7).toList() else listOf(today.value), time = "19:00"),
+                    conditions = RuleConditions(calendar = cal?.let { CalendarCondition(dayOffset = 1, sources = listOf(it.source), match = "") }),
+                    actions = listOf(RuleAction(RuleActionType.NOTIFY, to = toMe, facts = cal != null, buttons = remindButtons)),
+                )
+            }
+            RuleTemplate.CAR_CHARGE -> {
+                val (device, field) = chargeField(o) ?: (null to null)
+                val charge = device?.let { o.deviceActions(it.actionId).firstOrNull { a -> CHARGE_ACTION_RE.containsMatchIn(a.title) } }
+                Rule(
+                    id = null,
+                    title = title,
+                    scope = personal,
+                    trigger = RuleTrigger(RuleTriggerType.SCHEDULE, weekdays = (1..7).toList(), time = "20:00"),
+                    conditions = RuleConditions(
+                        device = if (device != null && field != null) listOf(DeviceCondition(device.actionId, field.id, RuleOp.LT, 50.0)) else emptyList(),
+                    ),
+                    actions = listOf(
+                        RuleAction(
+                            RuleActionType.NOTIFY,
+                            to = toMe,
+                            facts = true,
+                            buttons = if (o.buttons) listOfNotNull(charge?.let { RuleButton.quick(it.actionId) }) + remindButtons else emptyList(),
+                        ),
+                    ),
+                )
+            }
+            RuleTemplate.ALL_AWAY_OFF -> {
+                // not the car's air conditioning: it belongs to whoever drives off
+                val car = chargeField(o)?.first?.let { d -> o.deviceActions(d.actionId).map { it.actionId }.toSet() }.orEmpty()
+                val off = o.actions.filter { it.kind == "toggle" && it.actionId !in car && (OFF_RE.containsMatchIn(it.title) || OFF_RE.containsMatchIn(it.subtitle.orEmpty())) }.take(6)
+                Rule(
+                    id = null,
+                    title = title,
+                    scope = RuleScope.HOUSE,
+                    trigger = RuleTrigger(RuleTriggerType.ALL_AWAY, graceMinutes = 10),
+                    actions = off.map { a ->
+                        RuleAction(RuleActionType.QUICK_ACTION, plugin = a.actionId.substringBefore('/'), id = a.actionId.substringAfter('/'), title = a.title, state = "off", kind = a.kind)
+                    }.ifEmpty { listOf(RuleAction(RuleActionType.NOTIFY, to = toParents)) },
+                )
+            }
+            RuleTemplate.CHILD_ALONE -> Rule(
+                id = null,
+                title = title,
+                scope = RuleScope.HOUSE,
+                trigger = RuleTrigger(RuleTriggerType.CHILD_HOME_ALONE),
+                actions = listOf(RuleAction(RuleActionType.NOTIFY, to = toParents)),
+            )
+            RuleTemplate.SCHOOL -> {
+                val place = o.places.firstOrNull { SCHOOL_RE.containsMatchIn(it.name) }
+                val children = o.people.filter { it.child }
+                Rule(
+                    id = null,
+                    title = title,
+                    scope = RuleScope.HOUSE,
+                    trigger = RuleTrigger(RuleTriggerType.PLACE_ENTER, placeId = place?.id, placeName = place?.name, userId = children.singleOrNull()?.userId),
+                    actions = listOf(RuleAction(RuleActionType.NOTIFY, to = toParents)),
+                )
+            }
+        }
+    }
+}
+
+/** The templates of a new rule (only offered when what they need is there, [RuleLogic.templates]). */
+enum class RuleTemplate(val id: String) {
+    TRASH("trash"),
+    CAR_CHARGE("car_charge"),
+    ALL_AWAY_OFF("all_away_off"),
+    CHILD_ALONE("child_alone"),
+    SCHOOL("school"),
+    ;
+
+    companion object {
+        fun of(id: String?): RuleTemplate? = entries.firstOrNull { it.id == id }
     }
 }

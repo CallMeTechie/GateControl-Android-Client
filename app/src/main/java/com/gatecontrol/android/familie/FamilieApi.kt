@@ -1,11 +1,12 @@
 package com.gatecontrol.android.familie
 
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.familie.FamilieJson.obj
+import com.gatecontrol.android.familie.board.BoardPayload
+import com.gatecontrol.android.familie.board.NoteDraft
 import com.gatecontrol.android.familie.emergency.EmergencyCard
 import com.gatecontrol.android.familie.emergency.EmergencyContact
 import com.gatecontrol.android.familie.emergency.EmergencyMemberDraft
-import com.gatecontrol.android.familie.board.BoardPayload
-import com.gatecontrol.android.familie.board.NoteDraft
 import com.gatecontrol.android.familie.meals.Meal
 import com.gatecontrol.android.familie.meals.MealWeek
 import com.gatecontrol.android.familie.money.AllowancePayload
@@ -21,23 +22,24 @@ import com.gatecontrol.android.familie.rides.Ride
 import com.gatecontrol.android.familie.rides.RideDraft
 import com.gatecontrol.android.familie.rules.Rule
 import com.gatecontrol.android.familie.rules.RuleJson
+import com.gatecontrol.android.familie.rules.RuleOptionPlace
 import com.gatecontrol.android.familie.rules.RuleOptions
 import com.gatecontrol.android.familie.rules.RuleTestResult
+import com.gatecontrol.android.familie.rules.RuleVacation
 import com.gatecontrol.android.familie.rules.RulesPayload
 import com.gatecontrol.android.familie.shopping.ShoppingOp
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
-import com.gatecontrol.android.familie.FamilieJson.obj
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.Response
 import timber.log.Timber
-import java.io.IOException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /** Outcome of a call to a plugin's app API. */
 sealed interface FamilieResult<out T> {
@@ -599,6 +601,20 @@ class FamilieApi @Inject constructor(
 
     /** A dry run: would the rule fire now, and why (not)? */
     suspend fun testRule(id: Int): FamilieResult<RuleTestResult> = post(path("rules", id, "test"), parse = RuleJson::testResult)
+
+    /** „Erledigt“ for one's own open reminder (Familie 1.11). */
+    suspend fun ruleOpenDone(ruleId: Int, key: String): FamilieResult<Unit> = post(path("rules", "open", ruleId, "done"), RuleJson.openBody(key), unit)
+
+    /** „In 1 Std.“ for one's own open reminder (at most three notifications a day: `daily_limit`). */
+    suspend fun ruleOpenSnooze(ruleId: Int, key: String): FamilieResult<Unit> = post(path("rules", "open", ruleId, "snooze"), RuleJson.openBody(key), unit)
+
+    /** The holiday mode (parents, Familie 1.11): [until] the last day, null = until switched off. */
+    suspend fun setVacation(on: Boolean, until: String?): FamilieResult<RuleVacation> =
+        put(path("rules", "vacation"), RuleJson.vacationBody(on, until)) { o -> o.obj("vacation")?.let(RuleJson::vacation) }
+
+    /** A new place for rules (parents, `POST presence/places`); radius in metres. */
+    suspend fun createRulePlace(name: String, lat: Double, lon: Double, radius: Int): FamilieResult<RuleOptionPlace> =
+        post(path("presence", "places"), RuleJson.placeBody(name, lat, lon, radius)) { o -> o.obj("place")?.let(RuleJson::place) }
 
     private fun <T> FamilieResult<*>.asFailure(): FamilieResult<T> = when (this) {
         is FamilieResult.Failed -> this

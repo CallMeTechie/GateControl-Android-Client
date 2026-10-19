@@ -10,12 +10,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -404,6 +405,11 @@ fun StartCards(
     val widgetPins by viewModel.widgets.collectAsStateWithLifecycle()
     val running by viewModel.running.collectAsStateWithLifecycle()
     val adjusting by viewModel.adjusting.collectAsStateWithLifecycle()
+    val alerts by viewModel.alerts.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshAlerts()
+        onPauseOrDispose { }
+    }
     val resolved = widgetPins.mapNotNull { pin -> pin.resolve(devices)?.let { pin.device to (pin to it) } }.toMap()
     // Widgets whose device is gone (and no copy kept) are left out before pairing, so no half stands alone by mistake.
     val shown = cards.filter { it !is StartEntry.Widget || it.device in resolved }
@@ -425,6 +431,7 @@ fun StartCards(
             onControl = { carrier, control, value -> viewModel.control(carrier, control, value) },
             modifier = cardModifier,
             fillHeight = fill,
+            alert = alerts.isNotEmpty() && device.actions.any { "${it.plugin}/${it.id}" in alerts },
         )
     }
 

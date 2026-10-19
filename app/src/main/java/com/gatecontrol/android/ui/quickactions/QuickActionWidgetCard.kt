@@ -1,14 +1,6 @@
 package com.gatecontrol.android.ui.quickactions
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
-import com.gatecontrol.android.ui.start.StartIcons
-import com.gatecontrol.android.ui.start.longPressAnywhere
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -19,8 +11,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -31,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,11 +37,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.quickactions.QuickActionControlItem
@@ -59,6 +59,8 @@ import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcSwitch
+import com.gatecontrol.android.ui.start.StartIcons
+import com.gatecontrol.android.ui.start.longPressAnywhere
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlin.math.roundToInt
 
@@ -77,7 +79,8 @@ import kotlin.math.roundToInt
  * door screen for a door), announced as [longPressLabel]. [fillHeight]:
  * the card takes the height of its row (beside a taller widget) and grows
  * its buttons and gaps instead of leaving the space below empty.
- * [interactive] false: a preview (the pin sheet), nothing reacts.
+ * [interactive] false: a preview (the pin sheet), nothing reacts. [alert]: a Familie reminder
+ * about the device is open — an exclamation mark on its icon.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -93,6 +96,7 @@ fun QuickActionWidgetCard(
     interactive: Boolean = true,
     longPressLabel: String? = null,
     fillHeight: Boolean = false,
+    alert: Boolean = false,
 ) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
@@ -124,8 +128,11 @@ fun QuickActionWidgetCard(
             verticalArrangement = if (fillHeight) SpaceBetweenAtLeast(8.dp) else Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GcIconSquare(size = 32.dp, background = background) {
-                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+                Box {
+                    GcIconSquare(size = 32.dp, background = background) {
+                        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+                    }
+                    if (alert) AlertMark(Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
                 }
                 Text(
                     device.title,
@@ -288,6 +295,24 @@ private fun MainValue(widget: QuickActionWidgetItem) {
         if (widget.label != null) {
             Text(widget.label, style = MaterialTheme.typography.labelSmall, color = extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+    }
+}
+
+/** The „!“ of an open reminder (not a bell: a reminder waits for the person, it does not ring). */
+@Composable
+private fun AlertMark(modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    val description = stringResource(R.string.rules_open_alert)
+    Box(
+        modifier
+            .size(16.dp)
+            .clip(CircleShape)
+            .background(extra.warn)
+            .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("!", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black), color = Color.White, maxLines = 1)
     }
 }
 

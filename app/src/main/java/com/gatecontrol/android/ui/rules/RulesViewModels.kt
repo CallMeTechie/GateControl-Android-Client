@@ -1,21 +1,32 @@
 package com.gatecontrol.android.ui.rules
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.familie.FamilieResult
+import com.gatecontrol.android.familie.GeoHit
 import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.familie.errorCode
 import com.gatecontrol.android.familie.rules.Rule
 import com.gatecontrol.android.familie.rules.RuleCan
 import com.gatecontrol.android.familie.rules.RuleFilter
 import com.gatecontrol.android.familie.rules.RuleLogic
+import com.gatecontrol.android.familie.rules.RuleOpen
+import com.gatecontrol.android.familie.rules.RuleOpenStore
 import com.gatecontrol.android.familie.rules.RuleOptions
 import com.gatecontrol.android.familie.rules.RuleScope
+import com.gatecontrol.android.familie.rules.RuleTemplate
 import com.gatecontrol.android.familie.rules.RuleTestResult
 import com.gatecontrol.android.familie.rules.RulesPayload
+import com.gatecontrol.android.ui.familie.LatLon
+import com.gatecontrol.android.ui.familie.PlaceLookup
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.LocalDate
+import java.util.Locale
+import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,9 +36,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import javax.inject.Inject
 
 /** How the rules list stands. */
 sealed interface RulesLoad {
@@ -51,6 +61,7 @@ class ProfileRulesViewModel @Inject constructor(
     private val api: FamilieApi,
     familie: FamilieRepository,
     plugins: PluginDirectory,
+    private val openStore: RuleOpenStore,
 ) : ViewModel() {
 
     private val available: StateFlow<Boolean> = combine(familie.profile, plugins.state) { p, s -> s.familieApi && p?.modules?.rules == true }
@@ -58,9 +69,9 @@ class ProfileRulesViewModel @Inject constructor(
 
     private val _payload = MutableStateFlow<RulesPayload?>(null)
 
-    /** null: not shown. */
+    /** null: not shown (a child without own rules still sees it while a reminder of theirs is open). */
     val summary: StateFlow<RuleLogic.Summary?> = combine(available, _payload) { on, p ->
-        if (on && p != null && p.can.any) RuleLogic.summary(p) else null
+        if (on && p != null && (p.can.any || p.open.isNotEmpty())) RuleLogic.summary(p) else null
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
@@ -70,14 +81,25 @@ class ProfileRulesViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             if (!available.value) return@launch
-            api.rules().let { r -> if (r is FamilieResult.Ok) _payload.value = r.value else if (unsupported(r)) _payload.value = null }
+            api.rules().let { r ->
+                if (r is FamilieResult.Ok) {
+                    _payload.value = r.value
+                    openStore.update(r.value)
+                } else if (unsupported(r)) _payload.value = null
+            }
         }
     }
 }
 
-/** "Regeln und Erinnerungen" (mockup RulesList): filter, pause switch, protocol. */
+/**
+ * "Regeln und Erinnerungen" (mockup RulesList): today's open reminders („Erledigt“, „In 1 Std.“), the
+ * holiday mode, filter, pause switch, protocol.
+ */
 @HiltViewModel
-class RulesListViewModel @Inject constructor(private val api: FamilieApi) : ViewModel() {
+class RulesListViewModel @Inject constructor(
+    private val api: FamilieApi,
+    private val openStore: RuleOpenStore,
+) : ViewModel() {
 
     private val _load = MutableStateFlow<RulesLoad>(RulesLoad.Loading)
     val load: StateFlow<RulesLoad> = _load.asStateFlow()
@@ -92,6 +114,10 @@ class RulesListViewModel @Inject constructor(private val api: FamilieApi) : View
     private val errors = Channel<String?>(Channel.BUFFERED)
     val error: Flow<String?> = errors.receiveAsFlow()
 
+    private val _busy = MutableStateFlow<Set<String>>(emptySet())
+    /** Open reminders (`<ruleId>|<key>`) and the holiday mode (`vacation`) on their way to the server. */
+    val busy: StateFlow<Set<String>> = _busy.asStateFlow()
+
     fun setFilter(f: RuleFilter) {
         _filter.value = f
     }
@@ -102,6 +128,7 @@ class RulesListViewModel @Inject constructor(private val api: FamilieApi) : View
         }
         viewModelScope.launch {
             val r = api.rules()
+            if (r is FamilieResult.Ok) openStore.update(r.value)
             _load.value = when {
                 r is FamilieResult.Ok -> RulesLoad.Loaded(r.value)
                 unsupported(r) -> RulesLoad.Unsupported
@@ -125,11 +152,52 @@ class RulesListViewModel @Inject constructor(private val api: FamilieApi) : View
             }
         }
     }
+
+    /** „Erledigt“ / „In 1 Std.“ for one's own open reminder; the list follows from the server. */
+    fun openAction(o: RuleOpen, done: Boolean) {
+        val key = o.key ?: return
+        val tag = "${o.ruleId}|$key"
+        if (tag in _busy.value) return
+        _busy.update { it + tag }
+        viewModelScope.launch {
+            val r = if (done) api.ruleOpenDone(o.ruleId, key) else api.ruleOpenSnooze(o.ruleId, key)
+            if (r !is FamilieResult.Ok) errors.trySend(r.errorCode())
+            reload()
+            _busy.update { it - tag }
+        }
+    }
+
+    /** The holiday mode on (until [until], the last day; null = until switched off) or off. */
+    fun setVacation(on: Boolean, until: String?) {
+        if (VACATION in _busy.value) return
+        _busy.update { it + VACATION }
+        viewModelScope.launch {
+            val r = api.setVacation(on, until)
+            if (r !is FamilieResult.Ok) errors.trySend(r.errorCode())
+            reload()
+            _busy.update { it - VACATION }
+        }
+    }
+
+    private suspend fun reload() {
+        val r = api.rules()
+        if (r is FamilieResult.Ok) {
+            openStore.update(r.value)
+            _load.value = RulesLoad.Loaded(r.value)
+        }
+    }
+
+    companion object {
+        const val VACATION = "vacation"
+    }
 }
 
 /** One-shot results of the editor. */
 sealed interface RuleEditorEvent {
     data object Saved : RuleEditorEvent
+
+    /** „+ Neuer Ort“ saved: the rule uses it now. */
+    data object PlaceCreated : RuleEditorEvent
     data object Deleted : RuleEditorEvent
     data class Error(val code: String?, val field: String? = null) : RuleEditorEvent
 }
@@ -142,6 +210,7 @@ sealed interface RuleEditorEvent {
  */
 @HiltViewModel
 class RuleEditorViewModel @Inject constructor(
+    @ApplicationContext context: Context,
     private val api: FamilieApi,
     private val familie: FamilieRepository,
 ) : ViewModel() {
@@ -171,9 +240,9 @@ class RuleEditorViewModel @Inject constructor(
 
     private var loadedKey: String? = null
 
-    /** [ruleId] an existing rule; else new — for the device [actionId] a reminder. */
-    fun load(ruleId: Int?, actionId: String?, personal: Boolean) {
-        val key = "$ruleId|$actionId|$personal"
+    /** [ruleId] an existing rule; else new — for the device [actionId] a reminder, or from [template] (named [templateTitle]). */
+    fun load(ruleId: Int?, actionId: String?, personal: Boolean, template: RuleTemplate? = null, templateTitle: String = "") {
+        val key = "$ruleId|$actionId|$personal|${template?.id}"
         if (loadedKey == key) return
         loadedKey = key
         viewModelScope.launch {
@@ -191,6 +260,7 @@ class RuleEditorViewModel @Inject constructor(
             _draft.value = when {
                 ruleId != null -> (list as? FamilieResult.Ok)?.value?.rules?.firstOrNull { it.id == ruleId }
                 actionId != null -> RuleLogic.reminderFor(_options.value.device(actionId), actionId, me, LocalDate.now().dayOfWeek)
+                template != null -> RuleLogic.fromTemplate(template, _options.value, _can.value, templateTitle, LocalDate.now().dayOfWeek)
                 else -> RuleLogic.newRule(personal || !_can.value.house, me)
             }
             _loadState.value = when {
@@ -231,6 +301,39 @@ class RuleEditorViewModel @Inject constructor(
             _saving.value = false
             if (r is FamilieResult.Ok) events.trySend(RuleEditorEvent.Saved)
             else events.trySend(RuleEditorEvent.Error(r.errorCode(), (r as? FamilieResult.Failed)?.field))
+        }
+    }
+
+    // ─── „+ Neuer Ort“ (parents) ─────────────────────────────────────
+
+    private val lookup = PlaceLookup(context, viewModelScope) { code -> events.trySend(RuleEditorEvent.Error(code)) }
+    val placeHits: StateFlow<List<GeoHit>> = lookup.hits
+    val placeHere: StateFlow<LatLon?> = lookup.here
+
+    fun searchPlace(query: String, locale: Locale) = lookup.search(query, locale)
+
+    fun clearPlaceHits() = lookup.clearHits()
+
+    fun locatePlaceHere() = lookup.locateHere()
+
+    fun consumePlaceHere() = lookup.consumeHere()
+
+    /** Saves a place for rules and puts it into the trigger. */
+    fun createPlace(name: String, lat: Double, lon: Double, radius: Int) {
+        if (_saving.value || name.isBlank()) return
+        _saving.value = true
+        viewModelScope.launch {
+            val r = api.createRulePlace(name, lat, lon, radius)
+            _saving.value = false
+            if (r is FamilieResult.Ok) {
+                val place = r.value
+                _options.value = _options.value.copy(places = _options.value.places.filter { it.id != place.id } + place)
+                edit { it.copy(trigger = it.trigger.copy(placeId = place.id, placeName = place.name)) }
+                lookup.clearHits()
+                events.trySend(RuleEditorEvent.PlaceCreated)
+            } else {
+                events.trySend(RuleEditorEvent.Error(r.errorCode(), (r as? FamilieResult.Failed)?.field))
+            }
         }
     }
 
