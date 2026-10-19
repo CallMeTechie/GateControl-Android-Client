@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.47.2] - 2026-10-19
+
+### Fixes
+- move pins and widgets of a replaced plugin to its successor (#100)
+
+---
+
 ## [1.47.1] - 2026-10-19
 
 ### Fixes
