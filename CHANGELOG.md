@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.55.0] - 2026-10-20
+
+### Features
+- school messages and absences in the timetable (#108)
+
+---
+
 ## [1.54.0] - 2026-10-20
 
 ### Features
