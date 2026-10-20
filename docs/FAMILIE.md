@@ -190,6 +190,15 @@ its own) as a card and a screen of the Familie tab. Code: `familie/school/`
   an id dropped. The plugin only returns the children the person may see
   (0, 1 or several). 403 (`FORBIDDEN`, not from the app / `no_user`) and
   404 (plugin gone or not licensed) have their own texts and drop the cache.
+- **Homework and exams** (plugin 1.2+, optional per day, absent when
+  empty): `days[].homework [{ subject, subjectLong?, text, givenDate?,
+  completed? }]` (due that day) and `days[].exams [{ subject, subjectLong?,
+  name, start?, end?, type?, text? }]`. Defensive like the rest: a list of
+  the wrong type reads as none, homework without a text and exams without
+  name and subject are dropped, bad dates / times null, an end not after
+  the start null; texts cleaned and capped (≤ 20 homework, ≤ 10 exams per
+  day). Older answers simply have none; the offline copy is the raw text,
+  so it keeps them.
 - **Range and offline:** one request for this week and next (Monday …
   Sunday of next week, 14 days) feeds card and screen; `SchoolRepository`
   keeps it in memory and in `files/familie/school.json` (the raw answer
@@ -203,20 +212,33 @@ its own) as a card and a screen of the Familie tab. Code: `familie/school/`
   plugin is listed, arranged / hidden like every card): the default day,
   per child "Planmäßig", "2 Ausfälle · 1 Vertretung · 1 Zusatzstunde",
   "Frei" or the holidays' name, plus the next one or two changed lessons
-  (today only those not over). Tap → the screen on that child and day.
+  (today only those not over). With exams / open homework on that day a
+  line "Morgen: Mathematik-Arbeit · 2 Hausaufgaben" ("2 Arbeiten" for
+  several). At most `CARD_LESSONS` (2) lines per child: the exam line
+  first, then changed lessons; a line with homework alone only when a line
+  is left (`SchoolLogic.summary`, unit-tested). Tap → the screen on that
+  child and day.
 - **Screen** (`FamilieDest.School`, key `school[/<studentId>|-[/<date>]]`):
   tabs Stundenplan / Änderungen; child chips with more than one child; the
   week (arrows, swipe over the day for the next / previous school day)
-  and a day strip Mo–Fr (Sa with lessons, a dot = changes); lessons with
+  and a day strip Mo–Fr (Sa with lessons, a dot = changes, an accent dot =
+  exam); a "Klassenarbeiten" block on top (accent / Pro colours, icon:
+  subject, name / type, time range, text); lessons with
   time, "3. Std." / "3.–4. Std.", subject (long name, else short),
   teacher, room; cancelled = struck through + red "Entfällt", changed =
   orange with the old teacher / room / subject struck through + "Vertretung",
   extra = "Zusatz"; `substText` / `info` / `text` as a second line; holiday
-  banner, "Kein Unterricht", "Stand: HH:MM" (`updatedAt`), pull to refresh,
+  banner; the badge "Arbeit" on a lesson when an exam of its subject
+  overlaps it in time (`SchoolLogic.examFor`; exams without a start and
+  cancelled lessons never match); a "Hausaufgaben" block under the lessons
+  (subject, text, "aufgegeben am …", done ones with a check, "erledigt"
+  and struck through); "Kein Unterricht", "Stand: HH:MM" (`updatedAt`), pull to refresh,
   error with retry, offline note over the stored copy. Screen readers get
   one sentence per lesson including the state. "Änderungen": the change
   log of the last 7 days of the selected child, by lesson day.
-- **Push** (topic `plugin:gatecontrol-schule:changes`, `data.schule {
+- **Push** (topics `plugin:gatecontrol-schule:changes`, and since 1.2 the
+  evening-before reminders `…:exams` / `…:homework` — any topic with the
+  prefix `plugin:gatecontrol-schule:`; `data.schule {
   studentId, date }`): `PushMessage.dataJson` carries `data`, so
   `FamiliePushHandler.destination` → `SchoolPush.destination` gives the
   dest key `school/<studentId>/<date>`; the tap goes through

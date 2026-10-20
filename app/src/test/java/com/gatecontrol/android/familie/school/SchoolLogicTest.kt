@@ -114,6 +114,110 @@ class SchoolLogicTest {
         assertEquals("1 Vertretung", SchoolLogic.summaryText(SchoolDaySummary("x", SchoolDaySummary.Status.CHANGES, changed = 1), texts))
     }
 
+    private val agendaTexts = object : SchoolAgendaTexts {
+        override fun exam(subject: String) = "$subject-Arbeit"
+        override fun exams(n: Int) = if (n == 1) "1 Arbeit" else "$n Arbeiten"
+        override fun homework(n: Int) = if (n == 1) "1 Hausaufgabe" else "$n Hausaufgaben"
+    }
+
+    private fun exam(subject: String, start: String? = null, end: String? = null, long: String? = null, name: String = "Arbeit") =
+        SchoolExam(subject = subject, subjectLong = long, name = name, start = start, end = end)
+
+    private fun homework(done: Boolean = false) = SchoolHomework(subject = "M", text = "S. 42", completed = done)
+
+    private val threeChanges = listOf(
+        lesson("08:00", "08:45", LessonState.CANCELLED, "D"),
+        lesson("08:50", "09:35", LessonState.CHANGED, "E"),
+        lesson("09:50", "10:35", LessonState.EXTRA, "Mu"),
+    )
+
+    @Test
+    fun `the card line names one exam, counts several and adds open homework`() {
+        fun line(vararg days: SchoolDay) = SchoolLogic.agendaText(SchoolLogic.summary(student(*days), d("2026-10-21")), agendaTexts)
+        val lessons = listOf(lesson("08:00", "08:45"))
+
+        assertEquals("Mathe-Arbeit", line(SchoolDay("2026-10-21", lessons = lessons, exams = listOf(exam("M", long = "Mathe")))))
+        assertEquals("M-Arbeit", line(SchoolDay("2026-10-21", lessons = lessons, exams = listOf(exam("M")))), "no long name: the short one")
+        assertEquals("Vokabeltest", line(SchoolDay("2026-10-21", lessons = lessons, exams = listOf(exam("", name = "Vokabeltest")))), "no subject: the name")
+        assertEquals("2 Arbeiten", line(SchoolDay("2026-10-21", lessons = lessons, exams = listOf(exam("M"), exam("E")))))
+        assertEquals(
+            "Mathe-Arbeit · 2 Hausaufgaben",
+            line(SchoolDay("2026-10-21", lessons = lessons, exams = listOf(exam("M", long = "Mathe")), homework = listOf(homework(), homework(), homework(done = true)))),
+            "completed homework does not count",
+        )
+        assertEquals("1 Hausaufgabe", line(SchoolDay("2026-10-21", lessons = lessons, homework = listOf(homework()))))
+        assertNull(line(SchoolDay("2026-10-21", lessons = lessons, homework = listOf(homework(done = true)))), "all done: no line")
+        assertNull(line(SchoolDay("2026-10-21", lessons = lessons)))
+        assertNull(line(), "unknown day")
+        // Also on a day without lessons.
+        assertEquals("E-Arbeit", line(SchoolDay("2026-10-21", exams = listOf(exam("E")))))
+    }
+
+    @Test
+    fun `exams take the first card line, changed lessons the rest, homework alone only a free one`() {
+        // Rule: at most CARD_LESSONS lines per child.
+        assertEquals(2, SchoolLogic.CARD_LESSONS)
+        fun summary(day: SchoolDay, now: LocalDateTime? = null) = SchoolLogic.summary(student(day), d(day.date), now)
+        fun lines(s: SchoolDaySummary) = s.next.size + if (s.agenda) 1 else 0
+
+        // No exam: the changed lessons use both lines.
+        val plain = summary(SchoolDay("2026-10-21", lessons = threeChanges))
+        assertEquals(listOf("D", "E"), plain.next.map { it.subject })
+        assertEquals(false, plain.agenda)
+
+        // An exam: its line first, one changed lesson; the counts stay complete.
+        val withExam = summary(SchoolDay("2026-10-21", lessons = threeChanges, exams = listOf(exam("M"))))
+        assertTrue(withExam.agenda)
+        assertEquals(listOf("D"), withExam.next.map { it.subject })
+        assertEquals(2, lines(withExam))
+        assertEquals(1, withExam.cancelled)
+        assertEquals(1, withExam.changed)
+        assertEquals(1, withExam.extra)
+
+        // Homework alone: below the changed lessons, only when a line is left.
+        val full = summary(SchoolDay("2026-10-21", lessons = threeChanges, homework = listOf(homework())))
+        assertEquals(false, full.agenda)
+        assertEquals(2, full.next.size)
+        assertEquals(1, full.homework, "still counted")
+        val oneChange = summary(SchoolDay("2026-10-21", lessons = threeChanges.take(1), homework = listOf(homework())))
+        assertTrue(oneChange.agenda)
+        assertEquals(1, oneChange.next.size)
+        // Later on the day fewer changed lessons are left: room for homework again.
+        val later = summary(SchoolDay("2026-10-21", lessons = threeChanges, homework = listOf(homework())), at("2026-10-21", "09:00"))
+        assertEquals(listOf("E", "Mu"), later.next.map { it.subject })
+        assertEquals(false, later.agenda)
+        val evening = summary(SchoolDay("2026-10-21", lessons = threeChanges, homework = listOf(homework())), at("2026-10-21", "10:00"))
+        assertTrue(evening.agenda)
+
+        // Exams and homework: one line, never more than CARD_LESSONS in all.
+        val both = summary(SchoolDay("2026-10-21", lessons = threeChanges, exams = listOf(exam("M"), exam("E")), homework = listOf(homework(), homework())))
+        assertTrue(both.agenda)
+        assertEquals(1, both.next.size)
+        assertEquals(2, lines(both))
+        assertEquals("2 Arbeiten · 2 Hausaufgaben", SchoolLogic.agendaText(both, agendaTexts))
+    }
+
+    @Test
+    fun `an exam marks the lesson of its subject and time`() {
+        val m = SchoolLesson(start = "08:00", end = "08:45", subject = "M", subjectLong = "Mathematik")
+        val m2 = SchoolLesson(start = "08:50", end = "09:35", subject = "M", subjectLong = "Mathematik")
+        val e = SchoolLesson(start = "09:50", end = "10:35", subject = "E")
+        val ka = exam("M", "08:00", "09:35")
+        assertEquals(ka, SchoolLogic.examFor(m, listOf(ka)))
+        assertEquals(ka, SchoolLogic.examFor(m2, listOf(ka)), "a double-period exam marks both")
+        assertNull(SchoolLogic.examFor(e, listOf(ka)), "other subject")
+        assertNull(SchoolLogic.examFor(m, listOf(exam("M", "09:50", "10:35"))), "other time")
+        assertNull(SchoolLogic.examFor(m, listOf(exam("M"))), "no time: no badge")
+        assertNull(SchoolLogic.examFor(m, listOf(exam("M", "08:45", "09:30"))), "touching is not overlapping")
+        // Only a start: it has to fall into the lesson.
+        assertEquals("08:10", SchoolLogic.examFor(m, listOf(exam("M", "08:10")))?.start)
+        assertNull(SchoolLogic.examFor(m2, listOf(exam("M", "08:10"))))
+        // The long name matches too, ignoring case; a cancelled lesson is never marked.
+        assertEquals("09:00", SchoolLogic.examFor(m2, listOf(exam("Ma", "09:00", "09:30", long = "mathematik")))?.start)
+        assertNull(SchoolLogic.examFor(m.copy(state = LessonState.CANCELLED), listOf(ka)))
+        assertNull(SchoolLogic.examFor(m, emptyList()))
+    }
+
     @Test
     fun `lessons on a holiday still count`() {
         val s = student(SchoolDay("2026-10-20", holiday = "Brückentag", lessons = listOf(lesson("08:00", "08:45"))))

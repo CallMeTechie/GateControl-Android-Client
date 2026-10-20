@@ -13,8 +13,18 @@ data class SchoolDaySummary(
     val cancelled: Int = 0,
     val changed: Int = 0,
     val extra: Int = 0,
-    /** The next changed lessons of the day (at most [SchoolLogic.CARD_LESSONS]; today only those not over). */
+    /**
+     * The next changed lessons of the day the card lists (today only those
+     * not over); together with the [agenda] line at most
+     * [SchoolLogic.CARD_LESSONS] lines, see [SchoolLogic.summary].
+     */
     val next: List<SchoolLesson> = emptyList(),
+    /** The exams of the day. */
+    val exams: List<SchoolExam> = emptyList(),
+    /** Homework due on the day and not completed. */
+    val homework: Int = 0,
+    /** The card shows the line "Morgen: Mathe-Arbeit · 2 Hausaufgaben" ([SchoolLogic.agendaText]). */
+    val agenda: Boolean = false,
 ) {
     enum class Status {
         /** Holidays (no lessons): [holiday] names them. */
@@ -44,6 +54,16 @@ interface SchoolSummaryTexts {
     fun extra(n: Int): String
 }
 
+/** Texts of the card's exam / homework line (an interface, so the wording is unit-tested). */
+interface SchoolAgendaTexts {
+    /** One exam: "Mathematik-Arbeit". */
+    fun exam(subject: String): String
+    /** Several exams: "2 Arbeiten". */
+    fun exams(n: Int): String
+    /** Open homework: "2 Hausaufgaben". */
+    fun homework(n: Int): String
+}
+
 /**
  * Which days the timetable shows and how a day reads (pure, unit-tested).
  * Times are the device's local time, which is taken to be the school's.
@@ -53,7 +73,7 @@ object SchoolLogic {
     /** From this hour on, the card and the screen show the next school day. */
     const val SWITCH_HOUR = 15
 
-    /** Changed lessons the card lists per child. */
+    /** Lines the card lists under a child: changed lessons and the exam / homework line. */
     const val CARD_LESSONS = 2
 
     /** Days loaded at once: this week and next (Monday … Sunday of next week). */
@@ -112,26 +132,72 @@ object SchoolLogic {
     /**
      * How [student]'s [date] reads; with [now] on that very day only the
      * changed lessons that are not over yet count as "next".
+     *
+     * The card has room for [CARD_LESSONS] lines per child. Priority when
+     * space is short: (1) the exam line — with exams it always shows (open
+     * homework rides along on it) and takes the first line; (2) the changed
+     * lessons fill the remaining lines; (3) a line with open homework alone
+     * only shows when a line is still free. Counts in the summary text are
+     * never cut.
      */
     fun summary(student: SchoolStudent, date: LocalDate, now: LocalDateTime? = null): SchoolDaySummary {
         val key = date.toString()
         val day = student.day(key) ?: return SchoolDaySummary(key, SchoolDaySummary.Status.UNKNOWN)
+        val exams = day.exams
+        val homework = day.homework.count { !it.completed }
         if (day.lessons.isEmpty()) {
+            val agenda = exams.isNotEmpty() || homework > 0
             return if (day.holiday != null) {
-                SchoolDaySummary(key, SchoolDaySummary.Status.HOLIDAY, holiday = day.holiday)
+                SchoolDaySummary(key, SchoolDaySummary.Status.HOLIDAY, holiday = day.holiday, exams = exams, homework = homework, agenda = agenda)
             } else {
-                SchoolDaySummary(key, SchoolDaySummary.Status.FREE)
+                SchoolDaySummary(key, SchoolDaySummary.Status.FREE, exams = exams, homework = homework, agenda = agenda)
             }
         }
         val cancelled = day.lessons.count { it.state == LessonState.CANCELLED }
         val changed = day.lessons.count { it.state == LessonState.CHANGED }
         val extra = day.lessons.count { it.state == LessonState.EXTRA }
         val nowTime = now?.takeIf { it.toLocalDate() == date }?.toLocalTime()?.toString()?.take(5)
+        val examLine = exams.isNotEmpty()
         val next = day.lessons
             .filter { it.isSpecial && (nowTime == null || it.end > nowTime) }
-            .take(CARD_LESSONS)
+            .take(if (examLine) CARD_LESSONS - 1 else CARD_LESSONS)
+        val agenda = examLine || (homework > 0 && next.size < CARD_LESSONS)
         val status = if (cancelled + changed + extra == 0) SchoolDaySummary.Status.PLANNED else SchoolDaySummary.Status.CHANGES
-        return SchoolDaySummary(key, status, day.holiday, cancelled, changed, extra, next)
+        return SchoolDaySummary(key, status, day.holiday, cancelled, changed, extra, next, exams, homework, agenda)
+    }
+
+    /**
+     * The card's exam / homework line without the day: "Mathematik-Arbeit",
+     * "2 Arbeiten", "Mathematik-Arbeit · 2 Hausaufgaben", "1 Hausaufgabe";
+     * null when the summary has no such line. An exam without a subject is
+     * named by its name.
+     */
+    fun agendaText(s: SchoolDaySummary, texts: SchoolAgendaTexts): String? {
+        if (!s.agenda) return null
+        val exams = when (s.exams.size) {
+            0 -> null
+            1 -> s.exams[0].let { e -> e.title.ifBlank { null }?.let(texts::exam) ?: e.name }
+            else -> texts.exams(s.exams.size)
+        }
+        val homework = s.homework.takeIf { it > 0 }?.let(texts::homework)
+        return listOfNotNull(exams, homework).joinToString(" · ").ifBlank { null }
+    }
+
+    /**
+     * The exam written in [lesson], if any: same subject (short or long
+     * name, ignoring case) and the times overlap. Exams without a start
+     * time and cancelled lessons never match (better no badge than a wrong
+     * one); an exam without an end counts as starting in the lesson.
+     */
+    fun examFor(lesson: SchoolLesson, exams: List<SchoolExam>): SchoolExam? {
+        if (lesson.state == LessonState.CANCELLED) return null
+        return exams.firstOrNull { e ->
+            val start = e.start ?: return@firstOrNull false
+            val sameSubject = (e.subject.isNotBlank() && e.subject.equals(lesson.subject, ignoreCase = true)) ||
+                (e.subjectLong != null && lesson.subjectLong != null && e.subjectLong.equals(lesson.subjectLong, ignoreCase = true))
+            val overlaps = if (e.end != null) start < lesson.end && lesson.start < e.end else start >= lesson.start && start < lesson.end
+            sameSubject && overlaps
+        }
     }
 
     /** "Planmäßig", "2 Ausfälle · 1 Vertretung", "Frei", the holidays' name. */

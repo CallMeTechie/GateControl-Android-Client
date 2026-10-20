@@ -70,7 +70,9 @@ private const val TAB_CHANGES = "changes"
 /**
  * Stundenplan (Schule plugin, WebUntis): a child chip per student (more
  * than one), a day strip Mo–Fr (Sa with lessons) for this week and next,
- * the lessons of the day with their state, "Stand" of the last fetch, and
+ * the day's exams ("Klassenarbeiten", on top), its lessons with their
+ * state (an "Arbeit" badge on the lesson an exam is written in), the
+ * homework due ("Hausaufgaben"), "Stand" of the last fetch, and
  * the tab "Änderungen" (the change log of the last 7 days by day). Opens
  * on [initialStudentId] / [initialDate] (card or push), else on the first
  * child and [SchoolLogic.defaultDay].
@@ -198,8 +200,10 @@ private fun Plan(
     // Day strip.
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         days.forEach { d ->
-            val special = student.day(d.toString())?.lessons?.any { it.isSpecial } == true
-            DayChip(d, selected = d == date, isToday = d == today, special = special, onClick = { onDate(d) }, modifier = Modifier.weight(1f))
+            val sd = student.day(d.toString())
+            val special = sd?.lessons?.any { it.isSpecial } == true
+            val exam = sd?.exams?.isNotEmpty() == true
+            DayChip(d, selected = d == date, isToday = d == today, special = special, exam = exam, onClick = { onDate(d) }, modifier = Modifier.weight(1f))
         }
     }
 
@@ -227,6 +231,8 @@ private fun Plan(
                 Text(stringResource(R.string.school_holiday, h), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
             }
         }
+        val exams = day?.exams.orEmpty()
+        if (exams.isNotEmpty()) SchoolExamsCard(exams)
         val lessons = day?.lessons.orEmpty()
         if (lessons.isEmpty()) {
             if (day?.holiday == null) FamilieEmpty(GcIcons.School, stringResource(R.string.school_no_lessons))
@@ -234,10 +240,11 @@ private fun Plan(
             GcCard(contentPadding = PaddingValues(vertical = 2.dp), verticalArrangement = Arrangement.Top) {
                 lessons.forEachIndexed { i, l ->
                     if (i > 0) GcRowDivider()
-                    SchoolLessonRow(l)
+                    SchoolLessonRow(l, exam = SchoolLogic.examFor(l, exams))
                 }
             }
         }
+        day?.homework?.takeIf { it.isNotEmpty() }?.let { SchoolHomeworkCard(it) }
         val updated = student.updatedAt ?: tt.updatedAt
         Text(
             if (updated != null) stringResource(R.string.school_updated, updatedText(updated)) else stringResource(R.string.school_never_updated),
@@ -267,13 +274,17 @@ private fun updatedText(ms: Long): String {
     return if (d == LocalDate.now(zone)) time else FamilieFormat.day(d, appLocale()) + " " + time
 }
 
-/** A day of the strip: weekday and date; a dot when something changed (also said in words). */
+/**
+ * A day of the strip: weekday and date; a dot when something changed, a
+ * second one (accent colour) for an exam (both also said in words).
+ */
 @Composable
-private fun DayChip(date: LocalDate, selected: Boolean, isToday: Boolean, special: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun DayChip(date: LocalDate, selected: Boolean, isToday: Boolean, special: Boolean, exam: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
     val locale = appLocale()
     val full = FamilieFormat.day(date, locale)
-    val description = if (special) stringResource(R.string.school_day_with_changes, full) else full
+    val withChanges = if (special) stringResource(R.string.school_day_with_changes, full) else full
+    val description = if (exam) stringResource(R.string.school_day_with_exams, withChanges) else withChanges
     Column(
         modifier
             .heightIn(min = 56.dp)
@@ -296,7 +307,11 @@ private fun DayChip(date: LocalDate, selected: Boolean, isToday: Boolean, specia
             color = if (selected) extra.accentText else extra.muted,
         )
         Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        Box(Modifier.size(6.dp).clip(CircleShape).background(if (special) extra.warn else androidx.compose.ui.graphics.Color.Transparent))
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            // Without either: an empty spot, so all chips keep their height.
+            if (special || !exam) Box(Modifier.size(6.dp).clip(CircleShape).background(if (special) extra.warn else androidx.compose.ui.graphics.Color.Transparent))
+            if (exam) Box(Modifier.size(6.dp).clip(CircleShape).background(extra.pro))
+        }
     }
 }
 

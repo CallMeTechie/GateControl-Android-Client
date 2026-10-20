@@ -89,6 +89,86 @@ class SchoolJsonTest {
         assertNull(SchoolJson.timetable(null as String?))
     }
 
+    private val withAgenda = """
+        {"ok":true,"updatedAt":1792483200000,"students":[
+          {"id":3,"name":"Lena","days":[
+            {"date":"2026-10-21","lessons":[],
+             "homework":[
+               {"subject":"M","subjectLong":"Mathematik","text":"S. 42 Nr. 3\u0007","givenDate":"2026-10-19","completed":false},
+               {"subject":"D","text":"Gedicht lernen","completed":true},
+               {"subject":"E","text":"Vokabeln","givenDate":"19.10.2026","completed":"yes"},
+               {"subject":"Bio","text":"   "},
+               {"subject":"Ku"},
+               "nonsense",
+               {"subject":"M","subjectLong":"Mathematik","text":"S. 42 Nr. 3","givenDate":"2026-10-19","completed":false}
+             ],
+             "exams":[
+               {"subject":"E","subjectLong":"Englisch","name":"Vokabeltest","start":"11:00"},
+               {"subject":"M","subjectLong":"Mathematik","name":"Klassenarbeit 2","start":"08:00","end":"09:30","type":"Schulaufgabe","text":"Kapitel 3 und 4"},
+               {"subject":"D","name":"Diktat","start":"10:00","end":"09:00"},
+               {"subject":"Ch","name":"Test","start":"later"},
+               {"name":"  ","text":"no subject, no name"},
+               {"subject":"Ph","name":"${"x".repeat(150)}"}
+             ]},
+            {"date":"2026-10-22","homework":"none","exams":{"subject":"M"}}
+          ]}
+        ]}
+    """.trimIndent()
+
+    @Test
+    fun `homework and exams of a day are parsed and broken entries dropped`() {
+        val tt = SchoolJson.timetable(obj(withAgenda))!!
+        val day = tt.students[0].day("2026-10-21")!!
+
+        // Homework: cleaned text, entries without a text dropped, duplicates once.
+        assertEquals(listOf("S. 42 Nr. 3", "Gedicht lernen", "Vokabeln"), day.homework.map { it.text })
+        val m = day.homework[0]
+        assertEquals("Mathematik", m.title)
+        assertEquals("2026-10-19", m.givenDate)
+        assertFalse(m.completed)
+        assertTrue(day.homework[1].completed)
+        assertNull(day.homework[2].givenDate, "a date not in ISO form is dropped")
+        assertFalse(day.homework[2].completed, "only true / 1 count as completed")
+
+        // Exams: by time (without a time first), without name and subject dropped.
+        assertEquals(listOf("Ch", "Ph", "M", "D", "E"), day.exams.map { it.subject })
+        assertNull(day.exams[0].start, "a time that is no time is dropped")
+        val ph = day.exams[1]
+        assertEquals(100, ph.name.length, "the name is capped")
+        assertNull(ph.start)
+        val ma = day.exams[2]
+        assertEquals("Mathematik", ma.title)
+        assertEquals("Klassenarbeit 2", ma.name)
+        assertEquals("08:00", ma.start)
+        assertEquals("09:30", ma.end)
+        assertEquals("Schulaufgabe", ma.type)
+        assertEquals("Kapitel 3 und 4", ma.text)
+        val d = day.exams[3]
+        assertEquals("10:00", d.start)
+        assertNull(d.end, "an end before the start is dropped")
+        assertNull(day.exams[4].end)
+
+        // Lists of the wrong type read as none.
+        val other = tt.students[0].day("2026-10-22")!!
+        assertTrue(other.homework.isEmpty())
+        assertTrue(other.exams.isEmpty())
+    }
+
+    @Test
+    fun `older answers without homework and exams still parse, and the stored text keeps them`() {
+        val old = SchoolJson.timetable(obj(answer))!!
+        old.students.flatMap { it.days }.forEach {
+            assertTrue(it.homework.isEmpty())
+            assertTrue(it.exams.isEmpty())
+        }
+        // The offline copy is the raw text: read back, homework and exams are still there.
+        val o = obj(withAgenda)
+        val stored = SchoolJson.timetable(o.toString())!!
+        assertEquals(SchoolJson.timetable(o), stored)
+        assertEquals(3, stored.students[0].day("2026-10-21")!!.homework.size)
+        assertEquals(5, stored.students[0].day("2026-10-21")!!.exams.size)
+    }
+
     @Test
     fun `the change log keeps valid entries in the server's order`() {
         val changes = SchoolJson.changes(

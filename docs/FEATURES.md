@@ -357,13 +357,20 @@ Wenn der Server das Plugin „Schule“ anbietet, hat der Familie-Tab die Karte
 **„Stundenplan“** (anordnen und ausblenden wie jede Karte). Sie zeigt für
 heute — ab 15 Uhr, am Freitagnachmittag und am Wochenende für den nächsten
 Schultag — je Kind „Planmäßig“, „2 Ausfälle“, „1 Vertretung“, „Frei“ oder
-die Ferien und die nächsten ein, zwei geänderten Stunden. Ein Tippen öffnet
+die Ferien und die nächsten ein, zwei geänderten Stunden; steht an dem Tag
+eine Klassenarbeit an oder sind Hausaufgaben fällig, kommt die Zeile
+„Morgen: Mathematik-Arbeit · 2 Hausaufgaben“ dazu (Arbeiten haben Vorrang
+vor geänderten Stunden). Ein Tippen öffnet
 den **Stundenplan**: Kind wählen (bei mehreren), Tage Mo–Fr (Sa, wenn
 Unterricht ist) dieser und nächster Woche, Stunden mit Zeit, Stunde,
 Fach, Lehrkraft und Raum; Ausfälle rot durchgestrichen („Entfällt“),
 Vertretungen orange mit der durchgestrichenen ursprünglichen Lehrkraft /
 dem ursprünglichen Raum, Zusatzstunden markiert, Ferien, „Stand“ des
-letzten Abrufs. Der Reiter **„Änderungen“** listet die erkannten Änderungen
+letzten Abrufs. Ab Schule-Plugin 1.2 stehen oben die **Klassenarbeiten** des
+Tages (die betroffene Stunde trägt „Arbeit“) und unten die fälligen
+**Hausaufgaben** (erledigte abgehakt und durchgestrichen, „aufgegeben am …“).
+Erinnerungen an Arbeiten und Hausaufgaben am Vorabend öffnen den Plan
+ebenfalls bei Kind und Tag. Der Reiter **„Änderungen“** listet die erkannten Änderungen
 der letzten 7 Tage nach Tag. Ein Tippen auf eine Stundenplan-Mitteilung
 öffnet den Plan bei diesem Kind und Tag. Offline bleibt der zuletzt
 geladene Stand sichtbar. Wer welche Kinder sieht, legt der Admin im

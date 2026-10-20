@@ -17,6 +17,9 @@ import java.time.LocalDate
  * Lenient where it does not matter (unknown `state` → normal, missing
  * optional fields), strict where it does: a day without a valid date, a
  * lesson without valid times and a student without an id are dropped.
+ * `homework` / `exams` of a day (plugin 1.2+) are optional: absent or
+ * broken lists read as none, entries without a text (homework) or without
+ * name and subject (exam) are dropped.
  */
 object SchoolJson {
 
@@ -26,6 +29,8 @@ object SchoolJson {
     private const val MAX_STUDENTS = 20
     private const val MAX_LESSONS = 30
     private const val MAX_CHANGES = 200
+    private const val MAX_HOMEWORK = 20
+    private const val MAX_EXAMS = 10
 
     /** `GET app/timetable`; null without a `students` list. */
     fun timetable(o: JsonObject): SchoolTimetable? {
@@ -61,6 +66,44 @@ object SchoolJson {
             lessons = o.arr("lessons")?.objects()?.mapNotNull(::lesson).orEmpty()
                 .sortedWith(compareBy({ it.start }, { it.end }))
                 .take(MAX_LESSONS),
+            homework = o.arr("homework")?.objects()?.mapNotNull(::homework).orEmpty().distinct().take(MAX_HOMEWORK),
+            // Exams without a time first, then by time.
+            exams = o.arr("exams")?.objects()?.mapNotNull(::exam).orEmpty().distinct()
+                .sortedWith(compareBy({ it.start ?: "" }, { it.end ?: "" }))
+                .take(MAX_EXAMS),
+        )
+    }
+
+    /** One homework of `days[].homework` (plugin 1.2+); without a text it is dropped. */
+    internal fun homework(o: JsonObject): SchoolHomework? {
+        val text = text(o.str("text"), 300) ?: return null
+        return SchoolHomework(
+            subject = FamilieJson.clean(o.str("subject"), 30),
+            subjectLong = text(o.str("subjectLong"), 60),
+            text = text,
+            givenDate = date(o.str("givenDate")),
+            completed = o.bool("completed") == true,
+        )
+    }
+
+    /**
+     * One exam of `days[].exams` (plugin 1.2+); without a name and a
+     * subject it is dropped. An end time needs a start before it.
+     */
+    internal fun exam(o: JsonObject): SchoolExam? {
+        val subject = FamilieJson.clean(o.str("subject"), 30)
+        val subjectLong = text(o.str("subjectLong"), 60)
+        val name = FamilieJson.clean(o.str("name"), 100)
+        if (name.isBlank() && subject.isBlank() && subjectLong == null) return null
+        val start = FamilieJson.time(o.str("start"))
+        return SchoolExam(
+            subject = subject,
+            subjectLong = subjectLong,
+            name = name,
+            start = start,
+            end = FamilieJson.time(o.str("end"))?.takeIf { start != null && it > start },
+            type = text(o.str("type"), 40),
+            text = text(o.str("text"), 300),
         )
     }
 
