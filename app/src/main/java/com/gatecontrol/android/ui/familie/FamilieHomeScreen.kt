@@ -104,6 +104,9 @@ fun FamilieHomeScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     val access by viewModel.layoutAccess.collectAsStateWithLifecycle()
+    val schule by viewModel.schule.collectAsStateWithLifecycle()
+    val schoolSnapshot by viewModel.schoolSnapshot.collectAsStateWithLifecycle()
+    val schoolError by viewModel.schoolError.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val errorText = message?.let { familieErrorText(it) }
     var arranging by rememberSaveable { mutableStateOf(false) }
@@ -132,7 +135,7 @@ fun FamilieHomeScreen(
 
     val arrangeFor = profile
     if (arranging && arrangeFor != null) {
-        val available = FamilieCards.available(arrangeFor)
+        val available = FamilieCards.available(arrangeFor, schule)
         FamilieArrangeScreen(
             profile = arrangeFor,
             order = FamilieLayout.merge(layout.familie, available),
@@ -166,8 +169,10 @@ fun FamilieHomeScreen(
                 p == null -> FamilieErrorBanner(profileError, onRetry = viewModel::refresh)
                 !p.modules.any -> FamilieEmpty(GcIcons.Family, stringResource(R.string.familie_all_off))
                 else -> {
-                    val order = FamilieLayout.visible(FamilieLayout.merge(layout.familie, FamilieCards.available(p)), layout.familieHidden)
-                    HomeCards(p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange)
+                    val order = FamilieLayout.visible(FamilieLayout.merge(layout.familie, FamilieCards.available(p, schule)), layout.familieHidden)
+                    HomeCards(p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange) {
+                        SchoolCard(schoolSnapshot, schoolError, selected is FamilieDest.School, onOpen)
+                    }
                 }
             }
             if (p != null && profileError == "offline") {
@@ -224,6 +229,7 @@ private fun HomeCards(
     onOpenProfile: () -> Unit,
     onTaskDone: (Int) -> Unit,
     onArrange: () -> Unit,
+    schoolCard: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val arrangeLabel = stringResource(R.string.familie_arrange)
@@ -258,6 +264,7 @@ private fun HomeCards(
                     FamilieLayout.SHOPPING -> ShoppingCard(shopping, selected, onOpen)
                     FamilieLayout.LOCATE -> LocateCard(p, overview, selected, onOpen)
                     FamilieLayout.DATES -> DatesCard(overview, selected == FamilieDest.Dates, onOpen)
+                    FamilieLayout.SCHOOL -> schoolCard()
                     FamilieLayout.MEALS -> MealsCard(p, overview, selected is FamilieDest.Meals, onOpen)
                     FamilieLayout.BOARD -> BoardCard(overview, selected == FamilieDest.Board, onOpen)
                     FamilieLayout.ALLOWANCE -> AllowanceCard(p, overview, selected is FamilieDest.Allowance, onOpen)

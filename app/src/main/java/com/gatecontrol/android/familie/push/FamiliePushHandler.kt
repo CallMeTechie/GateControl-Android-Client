@@ -10,6 +10,8 @@ import com.gatecontrol.android.familie.LocateMode
 import com.gatecontrol.android.familie.locate.FamiliePermissions
 import com.gatecontrol.android.familie.locate.LocateAnswerer
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
+import com.gatecontrol.android.familie.school.SchoolPush
+import com.gatecontrol.android.familie.school.SchoolRepository
 import com.gatecontrol.android.familie.shopping.ShoppingRepository
 import com.gatecontrol.android.location.DeviceLocator
 import androidx.core.app.NotificationManagerCompat
@@ -41,11 +43,17 @@ class FamiliePushHandler @Inject constructor(
     private val answerer: Lazy<LocateAnswerer>,
     private val registrar: Lazy<GeofenceRegistrar>,
     private val shopping: Lazy<ShoppingRepository>,
+    private val school: Lazy<SchoolRepository>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
     /** A Familie message arrived for the first time on this device. */
     fun onNew(message: PushMessage) {
+        // Schule plugin: an open timetable (and the Familie card) reloads.
+        if (SchoolPush.isSchool(message)) {
+            school.get().onPush()
+            return
+        }
         val event = FamiliePush.parse(message) ?: return
         val topicKey = FamiliePush.topicKey(message.topic)
         repository.emit(event)
@@ -110,8 +118,13 @@ class FamiliePushHandler @Inject constructor(
         }
     }
 
-    /** Where a tap on the message leads (FamilieDest key), null for other senders. */
-    fun destination(message: PushMessage): String? = FamiliePush.parse(message)?.let { FamiliePush.destination(it).key }
+    /**
+     * Where a tap on the message leads (FamilieDest key), null for other
+     * senders. Schule messages open the timetable (a Familie screen) on
+     * the child and day of `data.schule`.
+     */
+    fun destination(message: PushMessage): String? =
+        FamiliePush.parse(message)?.let { FamiliePush.destination(it).key } ?: SchoolPush.destination(message)?.key
 
     companion object {
         /** Requests expire after 10 minutes; a replay of an older one is not answered. */

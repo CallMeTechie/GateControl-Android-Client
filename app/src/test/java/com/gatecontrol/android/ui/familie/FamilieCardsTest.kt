@@ -26,14 +26,32 @@ class FamilieCardsTest {
 
     @Test
     fun `parents get every card but the child's, in the default order`() {
-        val cards = FamilieCards.available(profile(FamilieRole.PARENT))
+        val cards = FamilieCards.available(profile(FamilieRole.PARENT), schule = true)
         assertEquals(FamilieLayout.DEFAULT_ORDER - FamilieLayout.CHILD, cards)
     }
 
     @Test
     fun `children get their own card, no locating and no household book`() {
-        val cards = FamilieCards.available(profile(FamilieRole.CHILD))
+        val cards = FamilieCards.available(profile(FamilieRole.CHILD), schule = true)
         assertEquals(FamilieLayout.DEFAULT_ORDER - FamilieLayout.LOCATE - FamilieLayout.EXPENSES, cards)
+    }
+
+    @Test
+    fun `the timetable card comes with the schule plugin only, after the dates`() {
+        val without = FamilieCards.available(profile(FamilieRole.PARENT))
+        assertEquals(FamilieLayout.DEFAULT_ORDER - FamilieLayout.CHILD - FamilieLayout.SCHOOL, without)
+        val with = FamilieCards.available(profile(FamilieRole.PARENT), schule = true)
+        assertEquals(with.indexOf(FamilieLayout.DATES) + 1, with.indexOf(FamilieLayout.SCHOOL))
+        // No Familie module needed: the plugin decides which children the person sees.
+        assertEquals(
+            listOf(FamilieLayout.MEMBERS, FamilieLayout.SCHOOL),
+            FamilieCards.available(profile(FamilieRole.CHILD, FamilieModules(), members = emptyList()), schule = true),
+        )
+        // An arrangement saved before the card existed: it joins after the last card ranked before it; hidden stays hidden.
+        val saved = listOf(FamilieLayout.MEMBERS, FamilieLayout.DATES, FamilieLayout.MEALS, FamilieLayout.TASKS)
+        val merged = FamilieLayout.merge(saved, listOf(FamilieLayout.MEMBERS, FamilieLayout.TASKS, FamilieLayout.DATES, FamilieLayout.SCHOOL, FamilieLayout.MEALS))
+        assertEquals(listOf(FamilieLayout.MEMBERS, FamilieLayout.DATES, FamilieLayout.MEALS, FamilieLayout.TASKS, FamilieLayout.SCHOOL), merged)
+        assertEquals(saved, FamilieLayout.visible(merged, listOf(FamilieLayout.SCHOOL)))
     }
 
     @Test

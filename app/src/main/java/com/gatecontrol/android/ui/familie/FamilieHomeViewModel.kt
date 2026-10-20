@@ -7,6 +7,9 @@ import com.gatecontrol.android.familie.FamilieOverview
 import com.gatecontrol.android.familie.FamilieProfile
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.familie.FamilieResult
+import com.gatecontrol.android.familie.PluginDirectory
+import com.gatecontrol.android.familie.school.SchoolRepository
+import com.gatecontrol.android.familie.school.SchoolSnapshot
 import com.gatecontrol.android.familie.errorCode
 import com.gatecontrol.android.familie.push.FamiliePushEvent
 import com.gatecontrol.android.familie.shopping.ShoppingLogic
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,7 +38,17 @@ class FamilieHomeViewModel @Inject constructor(
     private val shopping: ShoppingRepository,
     private val presenceStore: com.gatecontrol.android.familie.presence.PresenceStore,
     private val tabLayout: TabLayoutRepository,
+    private val plugins: PluginDirectory,
+    private val school: SchoolRepository,
 ) : ViewModel() {
+
+    /** The Schule plugin is listed: the card "Stundenplan" is available. */
+    val schule: StateFlow<Boolean> = plugins.state.map { it.schule }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, plugins.state.value.schule)
+
+    /** This week's and next week's timetable for the card (offline: the stored one). */
+    val schoolSnapshot: StateFlow<SchoolSnapshot?> = school.snapshot
+    val schoolError: StateFlow<String?> = school.error
 
     /** The tab's card order and hidden cards (from the account where the server keeps it). */
     val layout: StateFlow<TabLayout> = tabLayout.layout
@@ -69,6 +83,16 @@ class FamilieHomeViewModel @Inject constructor(
             if (repository.cachedProfile() != null) _profileLoaded.value = true
         }
         viewModelScope.launch {
+            // On, and whenever the plugin shows up: the stored timetable at once, then a fresh one.
+            plugins.state.map { it.schule }.distinctUntilChanged().collect { on ->
+                if (on) {
+                    school.cached()
+                    school.refresh(maxAgeMs = SCHOOL_MAX_AGE_MS)
+                }
+            }
+        }
+        viewModelScope.launch { school.pushes.collect { if (plugins.state.value.schule) school.refresh() } }
+        viewModelScope.launch {
             repository.events.collect { event ->
                 // Something changed that the overview shows.
                 if (event !is FamiliePushEvent.LocateRequest) refreshOverview()
@@ -78,6 +102,7 @@ class FamilieHomeViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch { tabLayout.refresh() }
+        if (plugins.state.value.schule) viewModelScope.launch { school.refresh(maxAgeMs = SCHOOL_MAX_AGE_MS) }
         viewModelScope.launch {
             _loading.value = true
             val p = repository.refreshProfile()
@@ -125,5 +150,10 @@ class FamilieHomeViewModel @Inject constructor(
 
     fun clearMessage() {
         _message.value = null
+    }
+
+    private companion object {
+        /** The start screen asks on every resume; a timetable this fresh is kept. */
+        const val SCHOOL_MAX_AGE_MS = 60_000L
     }
 }

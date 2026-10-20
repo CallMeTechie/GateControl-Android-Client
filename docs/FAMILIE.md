@@ -33,6 +33,8 @@ every other call of the app.
   to a house).
 - `gatecontrol-alltag` listed → the dates screen also loads Alltag
   appointments and waste dates (`GET …/gatecontrol-alltag/api/app/events`).
+- `gatecontrol-schule` listed (`PluginAvailability.schule`) → the card and
+  screen "Stundenplan", see [Stundenplan](#stundenplan-schule-plugin).
 
 ## Code
 
@@ -61,7 +63,8 @@ Screens are addressed by `FamilieDest` (`home`, `shopping/<listId>`,
 `tasks`, `dates`, `locate/<child>[/<request>]`, `sos/<id>/<user>/<lat>/<lon>/<acc>`,
 `child`, `places`, `place/<id|new>`, 1.1: `rides[/<rideId>]`,
 `emergency[/<userId>]`, 1.2: `allowance[/<childId>]`, `wishes[/<userId>]`,
-`expenses[/list/<listId>]`, `board`, `meals[/<YYYY-Www>]`, `presence`): route `familie?dest=` (tab; on wide
+`expenses[/list/<listId>]`, `board`, `meals[/<YYYY-Www>]`, `presence`,
+Schule plugin: `school[/<studentId>|-[/<YYYY-MM-DD>]]`): route `familie?dest=` (tab; on wide
 windows the screen beside the start screen, `GcTwoPane`) and
 `familie/page?dest=` (phones).
 
@@ -79,8 +82,8 @@ All screens follow `GET me`: only modules that are on, filtered by role.
   with the account like the start tab's order (`GET/PUT
   /api/v1/client/layout`, lists `familie`/`familieHidden`; on the device for
   scope `device` or older servers). Ids: `members`, `child`, `emergency`,
-  `tasks`, `rides`, `shopping`, `locate`, `dates`, `meals`, `board`,
-  `allowance`, `wishes`, `expenses`, `places`.
+  `tasks`, `rides`, `shopping`, `locate`, `dates`, `school` (Schule
+  plugin), `meals`, `board`, `allowance`, `wishes`, `expenses`, `places`.
 - **Einkaufsliste**: lists as chips, add (text + quantity), tick, edit,
   delete, "Erledigte entfernen", new / rename / delete list, "Ich gehe
   einkaufen" (`POST shopping/lists/<id>/going`). A line under the title
@@ -171,6 +174,56 @@ message (`PushOpenActivity` with the dest, or `open_app_route
 plg-gatecontrol-familie`) opens the Familie tab at that screen; without the
 tab the message detail opens as before.
 
+## Stundenplan (Schule plugin)
+
+The WebUntis timetable of the `gatecontrol-schule` plugin (1.0.0, no tab of
+its own) as a card and a screen of the Familie tab. Code: `familie/school/`
+(`SchoolModels`, `SchoolJson`, `SchoolLogic`, `SchoolRepository`,
+`SchoolPush`), `ui/familie/SchoolScreen.kt`, `SchoolViewModel.kt`,
+`SchoolUi.kt` (card, lesson and change rows).
+
+- **API** (`FamilieApi.schoolTimetable` / `schoolChanges`): `GET
+  …/gatecontrol-schule/api/app/timetable?from&to` (≤ 14 days) and `GET
+  …/app/changes?days=7`. Parsed from the Gson tree like Familie: unknown
+  `state` → normal, unknown `kind` → changed, missing optionals null,
+  days with a bad date, lessons without valid times and students without
+  an id dropped. The plugin only returns the children the person may see
+  (0, 1 or several). 403 (`FORBIDDEN`, not from the app / `no_user`) and
+  404 (plugin gone or not licensed) have their own texts and drop the cache.
+- **Range and offline:** one request for this week and next (Monday …
+  Sunday of next week, 14 days) feeds card and screen; `SchoolRepository`
+  keeps it in memory and in `files/familie/school.json` (the raw answer
+  text + login hash, read back through `SchoolJson`). The start screen
+  reloads it on resume at most once a minute; a Schule push reloads it.
+- **Default day** (`SchoolLogic.defaultDay`): today when it is a school day
+  (Mon–Fri, Saturday only with lessons) and before 15:00, otherwise the
+  next school day (Friday afternoon and weekends → Monday). Holidays are
+  not skipped (the card names them).
+- **Card** `school` (FamilieLayout id, after `dates`; available whenever the
+  plugin is listed, arranged / hidden like every card): the default day,
+  per child "Planmäßig", "2 Ausfälle · 1 Vertretung · 1 Zusatzstunde",
+  "Frei" or the holidays' name, plus the next one or two changed lessons
+  (today only those not over). Tap → the screen on that child and day.
+- **Screen** (`FamilieDest.School`, key `school[/<studentId>|-[/<date>]]`):
+  tabs Stundenplan / Änderungen; child chips with more than one child; the
+  week (arrows, swipe over the day for the next / previous school day)
+  and a day strip Mo–Fr (Sa with lessons, a dot = changes); lessons with
+  time, "3. Std." / "3.–4. Std.", subject (long name, else short),
+  teacher, room; cancelled = struck through + red "Entfällt", changed =
+  orange with the old teacher / room / subject struck through + "Vertretung",
+  extra = "Zusatz"; `substText` / `info` / `text` as a second line; holiday
+  banner, "Kein Unterricht", "Stand: HH:MM" (`updatedAt`), pull to refresh,
+  error with retry, offline note over the stored copy. Screen readers get
+  one sentence per lesson including the state. "Änderungen": the change
+  log of the last 7 days of the selected child, by lesson day.
+- **Push** (topic `plugin:gatecontrol-schule:changes`, `data.schule {
+  studentId, date }`): `PushMessage.dataJson` carries `data`, so
+  `FamiliePushHandler.destination` → `SchoolPush.destination` gives the
+  dest key `school/<studentId>/<date>`; the tap goes through
+  `PushOpenActivity` → `PushNavTarget.Familie` like Familie messages
+  (without the Familie tab: the message detail). A day outside this and
+  next week loads the two weeks from that day's Monday (not cached).
+
 ## Geofencing (place reminders)
 
 Play services `GeofencingClient`. Registered: places with `targetUserId ==
@@ -236,7 +289,9 @@ changed file, no plain text on disk),
 `FamiliePushTest` (parse, routing, buttons, freshness), `FamilieLogicTest`
 (tab visibility, owner key, permission decisions, geofence selection,
 destinations, agenda, API paths), `FamilieApiTest` (bridge paths, error
-codes, offline). Core: `ApiClientTest` (PUT, PATCH / DELETE with query), `PushEventParserTest` (`dataJson`),
+codes, offline), `school/SchoolJsonTest`, `SchoolLogicTest` (default day,
+range, summary text, change groups), `SchoolPushTest`; `FamilieCardsTest`
+(cards per role, the timetable card). Core: `ApiClientTest` (PUT, PATCH / DELETE with query), `PushEventParserTest` (`dataJson`),
 `PushRepositoryTest` (hook once, also when muted). `ManifestSecurityTest`
 checks the new components are not exported.
 

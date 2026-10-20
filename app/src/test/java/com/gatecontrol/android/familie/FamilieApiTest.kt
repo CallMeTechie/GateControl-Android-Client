@@ -54,6 +54,27 @@ class FamilieApiTest {
     }
 
     @Test
+    fun `timetable and changes come from the schule plugin`() = runBlocking {
+        coEvery { api.pluginGet("gatecontrol-schule", "app/timetable", any()) } returns
+            ok("""{"ok":true,"updatedAt":null,"students":[{"id":3,"name":"Lena","days":[]}]}""")
+        val r = familie.schoolTimetable("2026-10-19", "2026-11-01")
+        assertEquals(listOf(3), (r as FamilieResult.Ok).value.timetable.students.map { it.id })
+        coVerify { api.pluginGet("gatecontrol-schule", "app/timetable", mapOf("from" to "2026-10-19", "to" to "2026-11-01")) }
+
+        coEvery { api.pluginGet("gatecontrol-schule", "app/changes", any()) } returns ok("""{"ok":true,"changes":[]}""")
+        assertEquals(FamilieResult.Ok(emptyList<Any>()), familie.schoolChanges(99))
+        coVerify { api.pluginGet("gatecontrol-schule", "app/changes", mapOf("days" to "30")) }
+
+        // Not from the app / plugin missing / bad range.
+        coEvery { api.pluginGet("gatecontrol-schule", "app/timetable", any()) } returns error(403, """{"ok":false,"code":"FORBIDDEN","error":"…"}""")
+        assertEquals(FamilieResult.Failed("FORBIDDEN", 403), familie.schoolTimetable("2026-10-19", "2026-11-01"))
+        coEvery { api.pluginGet("gatecontrol-schule", "app/timetable", any()) } returns error(404, """{"ok":false,"code":"not_found"}""")
+        assertEquals(FamilieResult.Failed("not_found", 404), familie.schoolTimetable("2026-10-19", "2026-11-01"))
+        coEvery { api.pluginGet("gatecontrol-schule", "app/timetable", any()) } returns ok("""{"ok":true}""")
+        assertEquals(FamilieResult.Failed(FamilieApi.CODE_INVALID, 200), familie.schoolTimetable("2026-10-19", "2026-11-01"))
+    }
+
+    @Test
     fun `error answers carry the contract code`() = runBlocking {
         coEvery { api.pluginPost(any(), "locate/5", any()) } returns error(429, """{"ok":false,"code":"too_soon","error":"Bitte warten","retryAfter":42,"requestId":17}""")
         assertEquals(FamilieResult.Failed("too_soon", 429, retryAfter = 42, requestId = 17), familie.requestLocation(5))
