@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.52.0] - 2026-10-20
+
+### Features
+- rule trigger "Stunde fällt aus" (school_change) (#105)
+
+---
+
 ## [1.51.0] - 2026-10-20
 
 ### Features
