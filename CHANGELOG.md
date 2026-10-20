@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.0] - 2026-10-20
+
+### Features
+- homework and exams in the Schule timetable (#106)
+
+---
+
 ## [1.52.0] - 2026-10-20
 
 ### Features
