@@ -30,6 +30,8 @@ Jedes Release zusätzlich in den geschlossenen Test: Repo-Variable `PLAY_TRACK=a
 ### Datenschutzerklärung
 `https://github.com/CallMeTechie/GateControl-Android-Client/blob/main/docs/PRIVACY_POLICY.md`
 
+Link zum Löschen der Daten (Datensicherheit → „Können Nutzer die Löschung ihrer Daten beantragen?“): `https://github.com/CallMeTechie/GateControl-Android-Client/blob/main/docs/DATA_DELETION.md`
+
 ### App-Zugriff
 „Alle oder einige Funktionen sind eingeschränkt“ → Anleitung für die Prüfer:
 
