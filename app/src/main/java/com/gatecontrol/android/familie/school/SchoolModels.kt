@@ -48,11 +48,44 @@ data class SchoolLesson(
     val isSpecial: Boolean get() = state != LessonState.NORMAL
 }
 
-/** A day of the requested range (also without lessons); [holiday] names the holidays. */
+/** Homework due on a day (plugin 1.2+); [givenDate] = when it was set (`YYYY-MM-DD`). */
+data class SchoolHomework(
+    /** Short subject; may be blank when WebUntis sends none. */
+    val subject: String = "",
+    val subjectLong: String? = null,
+    val text: String,
+    val givenDate: String? = null,
+    val completed: Boolean = false,
+) {
+    val title: String get() = subjectLong ?: subject
+}
+
+/** An exam on a day (plugin 1.2+); times are the school's local time (`HH:MM`), when known. */
+data class SchoolExam(
+    /** Short subject; may be blank when WebUntis sends none. */
+    val subject: String = "",
+    val subjectLong: String? = null,
+    /** What the exam is called ("Klassenarbeit 2"); may be blank when only the subject is known. */
+    val name: String = "",
+    val start: String? = null,
+    val end: String? = null,
+    val type: String? = null,
+    val text: String? = null,
+) {
+    val title: String get() = subjectLong ?: subject
+}
+
+/**
+ * A day of the requested range (also without lessons); [holiday] names
+ * the holidays. [homework] is due on the day, [exams] are written on it
+ * (both empty for answers of plugins before 1.2).
+ */
 data class SchoolDay(
     val date: String,
     val holiday: String? = null,
     val lessons: List<SchoolLesson> = emptyList(),
+    val homework: List<SchoolHomework> = emptyList(),
+    val exams: List<SchoolExam> = emptyList(),
 )
 
 data class SchoolStudent(

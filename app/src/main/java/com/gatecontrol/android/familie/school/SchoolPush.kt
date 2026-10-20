@@ -8,9 +8,11 @@ import com.gatecontrol.android.notify.model.PushMessage
 import com.google.gson.JsonParser
 
 /**
- * Pushes of the Schule plugin (topic `plugin:gatecontrol-schule:changes`,
- * `data.schule = { studentId, date }`): a tap opens the timetable on that
- * child and day (a screen of the Familie tab). Pure, unit-tested.
+ * Pushes of the Schule plugin (every topic `plugin:gatecontrol-schule:…`:
+ * `changes`, and since 1.2 the evening-before reminders `exams` and
+ * `homework`; all with `data.schule = { studentId, date }`): a tap opens
+ * the timetable on that child and day (a screen of the Familie tab).
+ * Pure, unit-tested.
  */
 object SchoolPush {
 

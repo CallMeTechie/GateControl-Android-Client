@@ -52,4 +52,24 @@
     <string name="school_error_missing">The timetable plugin is not (or no longer) available on the server, or it is not licensed.</string>
     <string name="school_error_plugin">The timetable plugin on the server is not responding right now.</string>
     <string name="school_error_invalid">The server did not accept the requested days.</string>
+    <!-- Homework and exams (plugin 1.2+) -->
+    <string name="school_exams_title">Exams</string>
+    <string name="school_homework_title">Homework</string>
+    <string name="school_exam_badge">Exam</string>
+    <string name="school_desc_exam">Exam: %1$s</string>
+    <string name="school_desc_homework">Homework %1$s</string>
+    <string name="school_homework_done">done</string>
+    <string name="school_homework_open">not done yet</string>
+    <string name="school_homework_given">set on %1$s</string>
+    <string name="school_day_with_exams">%1$s, with an exam</string>
+    <string name="school_card_agenda">%1$s: %2$s</string>
+    <string name="school_card_exam">%1$s exam</string>
+    <plurals name="school_card_exams">
+        <item quantity="one">%1$d exam</item>
+        <item quantity="other">%1$d exams</item>
+    </plurals>
+    <plurals name="school_card_homework">
+        <item quantity="one">%1$d homework task</item>
+        <item quantity="other">%1$d homework tasks</item>
+    </plurals>
 </resources>

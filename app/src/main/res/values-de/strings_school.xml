@@ -52,4 +52,24 @@
     <string name="school_error_missing">Das Stundenplan-Plugin ist auf dem Server nicht (mehr) verfügbar oder nicht lizenziert.</string>
     <string name="school_error_plugin">Das Stundenplan-Plugin auf dem Server antwortet gerade nicht.</string>
     <string name="school_error_invalid">Der Server hat die angefragten Tage nicht angenommen.</string>
+    <!-- Hausaufgaben und Klassenarbeiten (Plugin 1.2+) -->
+    <string name="school_exams_title">Klassenarbeiten</string>
+    <string name="school_homework_title">Hausaufgaben</string>
+    <string name="school_exam_badge">Arbeit</string>
+    <string name="school_desc_exam">Klassenarbeit: %1$s</string>
+    <string name="school_desc_homework">Hausaufgabe %1$s</string>
+    <string name="school_homework_done">erledigt</string>
+    <string name="school_homework_open">noch nicht erledigt</string>
+    <string name="school_homework_given">aufgegeben am %1$s</string>
+    <string name="school_day_with_exams">%1$s, mit Klassenarbeit</string>
+    <string name="school_card_agenda">%1$s: %2$s</string>
+    <string name="school_card_exam">%1$s-Arbeit</string>
+    <plurals name="school_card_exams">
+        <item quantity="one">%1$d Arbeit</item>
+        <item quantity="other">%1$d Arbeiten</item>
+    </plurals>
+    <plurals name="school_card_homework">
+        <item quantity="one">%1$d Hausaufgabe</item>
+        <item quantity="other">%1$d Hausaufgaben</item>
+    </plurals>
 </resources>
