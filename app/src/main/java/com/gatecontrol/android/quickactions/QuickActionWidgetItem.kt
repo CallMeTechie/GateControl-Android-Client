@@ -27,6 +27,8 @@ data class QuickActionWidgetItem(
     val power: Boolean = true,
     /** Shown in the widget's head right of the device name (core 1.175+), e.g. battery and charge level. */
     val badge: QuickActionReadingItem? = null,
+    /** SVG path beside the main value in place of the [label] text (core 1.187+), e.g. a calendar for „this month“. */
+    val icon: String? = null,
 ) {
     /** Gson bypasses Kotlin defaults: an older stored shape may leave the lists null. */
     @Suppress("SENSELESS_COMPARISON", "UNNECESSARY_SAFE_CALL")
@@ -56,6 +58,7 @@ data class QuickActionWidgetItem(
             return QuickActionWidgetItem(
                 value = value, unit = unit, status = status, state = state, controls = controls,
                 label = label, readings = readings, power = raw.power != false, badge = badge,
+                icon = QuickActionIcons.sanitize(raw.icon),
             )
         }
 

@@ -44,4 +44,14 @@ class WidgetLayoutTest {
         assertNull(QuickActionWidgetItem.badgeOf(battery.copy(icon = "<svg>")))
         assertEquals(w, w.normalized())
     }
+
+    @Test
+    fun `the value's icon (core 1_187) passes when it is a path, else it is dropped`() {
+        val cal = "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4"
+        val w = QuickActionWidgetItem.from(QuickActionWidget(value = JsonPrimitive(65), unit = "km", label = "Diesen Monat", icon = cal))
+        assertEquals(cal, w!!.icon)
+        assertEquals("Diesen Monat", w.label, "kept: the accessible name of the icon")
+        assertNull(QuickActionWidgetItem.from(QuickActionWidget(value = JsonPrimitive(65), icon = "<svg onload=x>"))!!.icon)
+        assertNull(QuickActionWidgetItem.from(QuickActionWidget(value = JsonPrimitive(65)))!!.icon)
+    }
 }
