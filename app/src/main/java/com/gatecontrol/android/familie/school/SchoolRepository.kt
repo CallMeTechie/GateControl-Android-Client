@@ -33,6 +33,11 @@ data class SchoolSnapshot(
  * [SchoolJson] (no reflective models in the file). Another login, a plugin
  * that is gone (404) or no access (403) drops it. Other ranges (a push
  * about a later day) are loaded without being kept.
+ *
+ * Messages and absences (plugin 1.4+, [inbox]) are kept the same way in
+ * `files/familie/school-inbox.json`. A route an older plugin does not
+ * know (404) or that the login may not use (403) reads as "not offered":
+ * its list is dropped and the screen hides that tab, without an error.
  */
 @Singleton
 class SchoolRepository @Inject constructor(
@@ -45,6 +50,13 @@ class SchoolRepository @Inject constructor(
         val to: String? = null,
         val savedAt: Long = 0L,
         val json: String? = null,
+    )
+
+    private data class StoredInbox(
+        val owner: String? = null,
+        val savedAt: Long = 0L,
+        val messages: String? = null,
+        val absences: String? = null,
     )
 
     private val mutex = Mutex()
@@ -135,6 +147,85 @@ class SchoolRepository @Inject constructor(
 
     suspend fun changes(days: Int = 7): FamilieResult<List<SchoolChange>> = api.schoolChanges(days)
 
+    private val inboxLoading = Mutex()
+    @Volatile private var inboxLoaded = false
+    /** The answers behind [inbox] as they came (written to the file again with the other part). */
+    private var inboxRaw = StoredInbox()
+
+    private val _inbox = MutableStateFlow<SchoolInbox?>(null)
+    /** Messages and absences of this login (plugin 1.4+); null before the first load. */
+    val inbox: StateFlow<SchoolInbox?> = _inbox.asStateFlow()
+
+    /** The stored messages and absences of this login (no network); null when there are none. */
+    suspend fun cachedInbox(): SchoolInbox? = mutex.withLock {
+        val owner = storage.ownerKey()
+        if (!inboxLoaded) {
+            val stored = storage.read<StoredInbox>(INBOX_FILE, object : TypeToken<StoredInbox>() {}.type)
+                ?.takeIf { it.owner == owner }
+            if (stored != null) {
+                inboxRaw = stored
+                _inbox.value = SchoolInbox(
+                    messages = SchoolJson.messages(stored.messages),
+                    absences = SchoolJson.absences(stored.absences),
+                    savedAt = stored.savedAt,
+                    owner = owner,
+                )
+            }
+            inboxLoaded = true
+        }
+        _inbox.value?.takeIf { it.owner == owner } ?: run {
+            _inbox.value = null
+            inboxRaw = StoredInbox()
+            null
+        }
+    }
+
+    /**
+     * Loads the messages of the last [MESSAGE_DAYS] and the absences of the
+     * last [ABSENCE_DAYS] days. With [maxAgeMs] an inbox loaded without
+     * errors less than that ago is kept as it is. A failed part keeps its
+     * last list and tells its error; 404 / 403 drop the part (not offered).
+     */
+    suspend fun refreshInbox(maxAgeMs: Long = 0L): SchoolInbox = inboxLoading.withLock {
+        val current = cachedInbox()
+        if (current != null && maxAgeMs > 0 && current.messagesError == null && current.absencesError == null &&
+            System.currentTimeMillis() - current.savedAt in 0 until maxAgeMs
+        ) {
+            return@withLock current
+        }
+        val m = part(api.schoolMessages(MESSAGE_DAYS), current?.messages, inboxRaw.messages)
+        val a = part(api.schoolAbsences(ABSENCE_DAYS), current?.absences, inboxRaw.absences)
+        val owner = storage.ownerKey()
+        val answered = m.answered || a.answered
+        val now = System.currentTimeMillis()
+        mutex.withLock {
+            val inbox = SchoolInbox(
+                messages = m.list,
+                absences = a.list,
+                messagesError = m.error,
+                absencesError = a.error,
+                savedAt = if (answered) now else current?.savedAt ?: 0L,
+                owner = owner,
+            )
+            _inbox.value = inbox
+            if (answered) {
+                inboxRaw = StoredInbox(owner, now, m.raw, a.raw)
+                storage.write(INBOX_FILE, inboxRaw)
+            }
+            inbox
+        }
+    }
+
+    /** One part of the inbox after a load: the list to show, its JSON and the error to tell. */
+    private class Part<T>(val list: List<T>?, val raw: String?, val error: String?, val answered: Boolean)
+
+    private fun <T> part(r: FamilieResult<SchoolListFetch<T>>, old: List<T>?, oldRaw: String?): Part<T> = when (r) {
+        is FamilieResult.Ok -> Part(r.value.items, r.value.raw, null, answered = true)
+        // Older plugin (route unknown) or not for this login: not offered, silently.
+        is FamilieResult.Failed -> if (r.http == 404 || r.http == 403) Part(null, null, null, answered = true) else Part(old, oldRaw, r.code, answered = false)
+        FamilieResult.Offline, FamilieResult.NotConfigured -> Part(old, oldRaw, FamilieApi.CODE_OFFLINE, answered = false)
+    }
+
     /** A Schule push arrived (FamiliePushHandler). */
     fun onPush() {
         _pushes.tryEmit(Unit)
@@ -143,9 +234,19 @@ class SchoolRepository @Inject constructor(
     suspend fun clear() = mutex.withLock {
         _snapshot.value = null
         storage.delete(FILE)
+        _inbox.value = null
+        inboxRaw = StoredInbox()
+        storage.delete(INBOX_FILE)
     }
 
     companion object {
         private const val FILE = "school.json"
+        private const val INBOX_FILE = "school-inbox.json"
+
+        /** Days of messages loaded (`app/messages?days=`). */
+        const val MESSAGE_DAYS = 30
+
+        /** Days of absences loaded (`app/absences?days=`). */
+        const val ABSENCE_DAYS = 60
     }
 }

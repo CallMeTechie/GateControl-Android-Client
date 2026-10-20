@@ -55,6 +55,7 @@ import com.gatecontrol.android.familie.school.SchoolChange
 import com.gatecontrol.android.familie.school.SchoolDaySummary
 import com.gatecontrol.android.familie.school.SchoolExam
 import com.gatecontrol.android.familie.school.SchoolHomework
+import com.gatecontrol.android.familie.school.SchoolInbox
 import com.gatecontrol.android.familie.school.SchoolLesson
 import com.gatecontrol.android.familie.school.SchoolLogic
 import com.gatecontrol.android.familie.school.SchoolSnapshot
@@ -432,11 +433,12 @@ fun SchoolChangeRow(c: SchoolChange, showStudent: Boolean) {
  * Familie card "Stundenplan": for the day [SchoolLogic.defaultDay] picks,
  * per child the summary ("Planmäßig", "2 Ausfälle", "Frei", the holidays),
  * the line "Morgen: Mathematik-Arbeit · 2 Hausaufgaben" and the next
- * changed lessons — together at most [SchoolLogic.CARD_LESSONS] lines,
- * exams first (see [SchoolLogic.summary]). A tap opens the timetable.
+ * changed lessons and — lowest priority, plugin 1.4+ — "1 neue Nachricht"
+ * from [inbox]; together at most [SchoolLogic.CARD_LESSONS] lines, exams
+ * first (see [SchoolLogic.summary]). A tap opens the timetable.
  */
 @Composable
-fun SchoolCard(snapshot: SchoolSnapshot?, error: String?, selected: Boolean, onOpen: (FamilieDest) -> Unit) {
+fun SchoolCard(snapshot: SchoolSnapshot?, error: String?, selected: Boolean, onOpen: (FamilieDest) -> Unit, inbox: SchoolInbox? = null) {
     val extra = GateControlTheme.extraColors
     FamilieSectionCard(
         title = stringResource(R.string.school_title),
@@ -462,7 +464,7 @@ fun SchoolCard(snapshot: SchoolSnapshot?, error: String?, selected: Boolean, onO
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 tt.students.forEach { s ->
-                    val summary = SchoolLogic.summary(s, day, now)
+                    val summary = SchoolLogic.summary(s, day, now, SchoolLogic.newMessages(inbox?.messages, s.id))
                     val bar = avatarColor(s.colorHex)
                     // A child's block (plugin 1.3+): a bar in its colour along the left edge.
                     Column(
@@ -505,6 +507,22 @@ fun SchoolCard(snapshot: SchoolSnapshot?, error: String?, selected: Boolean, onO
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(start = 64.dp, end = 16.dp),
                             )
+                        }
+                        if (summary.newMessages > 0) {
+                            Row(
+                                Modifier.padding(start = 64.dp, end = 16.dp).semantics(mergeDescendants = true) {},
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(GcIcons.Mail, contentDescription = null, tint = extra.blue, modifier = Modifier.size(14.dp))
+                                Text(
+                                    pluralStringResource(R.plurals.school_card_messages, summary.newMessages, summary.newMessages),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = extra.blue,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }

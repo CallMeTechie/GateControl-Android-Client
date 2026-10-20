@@ -64,7 +64,8 @@ Screens are addressed by `FamilieDest` (`home`, `shopping/<listId>`,
 `child`, `places`, `place/<id|new>`, 1.1: `rides[/<rideId>]`,
 `emergency[/<userId>]`, 1.2: `allowance[/<childId>]`, `wishes[/<userId>]`,
 `expenses[/list/<listId>]`, `board`, `meals[/<YYYY-Www>]`, `presence`,
-Schule plugin: `school[/<studentId>|-[/<YYYY-MM-DD>]]`): route `familie?dest=` (tab; on wide
+Schule plugin: `school[/<studentId>|-[/<YYYY-MM-DD>]]`, 1.4: `school/messages[/<studentId>|-[/<messageId>]]`,
+`school/absences[/<studentId>]`): route `familie?dest=` (tab; on wide
 windows the screen beside the start screen, `GcTwoPane`) and
 `familie/page?dest=` (phones).
 
@@ -245,6 +246,36 @@ its own) as a card and a screen of the Familie tab. Code: `familie/school/`
   `PushOpenActivity` → `PushNavTarget.Familie` like Familie messages
   (without the Familie tab: the message detail). A day outside this and
   next week loads the two weeks from that day's Monday (not cached).
+- **Messages and absences** (plugin 1.4+; `FamilieApi.schoolMessages` /
+  `schoolAbsences`): `GET …/app/messages?days=30` → `messages [{ id,
+  accountId, studentIds[], subject, preview, body?, sender, sentAt (ISO),
+  hasAttachments, isNew }]` and `GET …/app/absences?days=60` → `absences
+  [{ id, studentId, date, start?, end?, endDate?, reason?, excused
+  (true/false/null), text? }]`. Parsed defensively (`SchoolJson.messages`
+  / `absences`): entries without id (absences also without student or
+  valid date) dropped, duplicates dropped, texts cleaned and capped
+  (subject 200, preview 300, body 20 000 with line breaks kept, HTML turned
+  into plain text), no preview → the start of the body, an `endDate` not
+  after `date` / an `end` not after `start` read as none; ≤ 200 messages,
+  ≤ 300 absences. A message belongs to every child in `studentIds`
+  (`SchoolLogic.messagesFor`; none listed → shown with no child).
+  `SchoolRepository.refreshInbox` loads both (with the timetable: screen
+  refresh, start screen at most once a minute, every Schule push) and keeps
+  them like the timetable in `files/familie/school-inbox.json` (raw answers
+  + login hash). 404 (older plugin) and 403 drop that part silently — its
+  tab is hidden (`SchoolInbox.hasMessages` / `hasAbsences`); offline /
+  server trouble keep the last list with a note. Screen tabs "Nachrichten"
+  (sender, date, subject, preview, "neu" badge, clip for attachments; tap →
+  the message with its full text, else the preview and "Volltext in
+  WebUntis"; back key returns to the list) and "Fehlzeiten" (date / range,
+  time, reason, chip "entschuldigt" / "unentschuldigt" / "offen" in words);
+  the tab row scrolls when the labels do not fit. Card: "1 neue Nachricht"
+  per child as the lowest-priority line (only when a line is still free
+  after exams, changes and homework). Push `…:messages` (`data.schule {
+  messageId, studentId? }`) → `school/messages/<studentId>|-/<messageId>`
+  (opens that message, with one of its children); `…:absences` (`{
+  studentId, date }`) → `school/absences/<studentId>`. "neu" is the
+  server's `isNew`; the app has no call to mark a message read.
 
 ## Geofencing (place reminders)
 

@@ -157,3 +157,87 @@ data class SchoolChange(
 ) {
     val title: String get() = subjectLong ?: subject
 }
+
+/**
+ * A WebUntis message of the parents' inbox (plugin 1.4+, `GET app/messages`).
+ * It belongs to every child in [studentIds] ([isFor]); one without
+ * children shows with none of them.
+ */
+data class SchoolMessage(
+    val id: String,
+    /** WebUntis account it came in through. */
+    val accountId: Int? = null,
+    val studentIds: List<Int> = emptyList(),
+    /** May be blank (no subject). */
+    val subject: String = "",
+    /** One line of the text; may be blank. */
+    val preview: String = "",
+    /** The full text when the plugin sends it; else only [preview] (the rest is in WebUntis). */
+    val body: String? = null,
+    /** May be blank (unknown sender). */
+    val sender: String = "",
+    /** When it was sent (epoch ms); null without a valid time. */
+    val sentAt: Long? = null,
+    val hasAttachments: Boolean = false,
+    /** Not read in WebUntis yet. */
+    val isNew: Boolean = false,
+) {
+    fun isFor(studentId: Int): Boolean = studentId in studentIds
+}
+
+/** How the school rates an absence: `excused` true / false / null (not decided yet). */
+enum class AbsenceStatus { EXCUSED, UNEXCUSED, OPEN }
+
+/**
+ * An absence of a child (plugin 1.4+, `GET app/absences`): on [date]
+ * (until [endDate] when it spans days), from [start] to [end] (`HH:MM`,
+ * either may be unknown).
+ */
+data class SchoolAbsence(
+    val id: String,
+    val studentId: Int,
+    val date: String,
+    val start: String? = null,
+    val end: String? = null,
+    val endDate: String? = null,
+    val reason: String? = null,
+    val excused: Boolean? = null,
+    val text: String? = null,
+) {
+    val status: AbsenceStatus
+        get() = when (excused) {
+            true -> AbsenceStatus.EXCUSED
+            false -> AbsenceStatus.UNEXCUSED
+            null -> AbsenceStatus.OPEN
+        }
+}
+
+/** A list answer and its JSON as it came (kept on the device for offline starts). */
+data class SchoolListFetch<T>(val items: List<T>, val raw: String)
+
+/**
+ * Messages and absences (plugin 1.4+). A list is null when there is none
+ * to show: not loaded yet, or the plugin does not offer it (an older
+ * plugin answers 404, no access 403) — then its tab is hidden. [messagesError]
+ * / [absencesError]: code of the last failed load (the list, if any, is
+ * the last one loaded); null after a success.
+ */
+data class SchoolInbox(
+    val messages: List<SchoolMessage>? = null,
+    val absences: List<SchoolAbsence>? = null,
+    val messagesError: String? = null,
+    val absencesError: String? = null,
+    /** Last load with an answer (epoch ms). */
+    val savedAt: Long = 0L,
+    /** Login the data belongs to. */
+    val owner: String = "",
+) {
+    /** The "Nachrichten" tab shows: a list, or an error to tell (offline, server trouble). */
+    val hasMessages: Boolean get() = messages != null || messagesError != null
+
+    /** The "Fehlzeiten" tab shows: a list, or an error to tell. */
+    val hasAbsences: Boolean get() = absences != null || absencesError != null
+}
+
+/** Which view of the timetable screen a link or push opens. */
+enum class SchoolView { PLAN, MESSAGES, ABSENCES }

@@ -1,5 +1,8 @@
 package com.gatecontrol.android.familie
 
+import com.gatecontrol.android.familie.school.SchoolJson
+import com.gatecontrol.android.familie.school.SchoolView
+
 /**
  * A screen of the Familie tab, as navigation argument (`familie?dest=…`,
  * `familie/page?dest=…`) and as target of a push message. [key] is plain
@@ -100,12 +103,34 @@ sealed interface FamilieDest {
     /**
      * Stundenplan (Schule plugin): [studentId]'s timetable on [date]
      * (`YYYY-MM-DD`); without them the first child on the default day.
+     * [view] MESSAGES opens the tab "Nachrichten" (on message [messageId]
+     * when given), ABSENCES the tab "Fehlzeiten" of [studentId] (plugin 1.4+;
+     * [date] is not used there).
      */
-    data class School(val studentId: Int? = null, val date: String? = null) : FamilieDest {
-        override val key get() = when {
-            studentId == null && date == null -> "school"
-            date == null -> "school/$studentId"
-            else -> "school/${studentId ?: "-"}/$date"
+    data class School(
+        val studentId: Int? = null,
+        val date: String? = null,
+        val view: SchoolView = SchoolView.PLAN,
+        val messageId: String? = null,
+    ) : FamilieDest {
+        override val key get() = when (view) {
+            SchoolView.MESSAGES -> when {
+                studentId == null && messageId == null -> "school/messages"
+                messageId == null -> "school/messages/$studentId"
+                else -> "school/messages/${studentId ?: "-"}/$messageId"
+            }
+            SchoolView.ABSENCES ->
+                if (studentId == null) "school/absences" else "school/absences/$studentId"
+            SchoolView.PLAN -> when {
+                studentId == null && date == null -> "school"
+                date == null -> "school/$studentId"
+                else -> "school/${studentId ?: "-"}/$date"
+            }
+        }
+
+        companion object {
+            /** Message ids a key can carry (WebUntis ids are numbers; the plugin may prefix the account). */
+            val MESSAGE_ID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$")
         }
     }
 
@@ -174,13 +199,24 @@ sealed interface FamilieDest {
                 }
                 "presence" -> if (p.size == 1) Presence else null
                 "school" -> {
-                    if (p.size > 3) return null
-                    val student = when (val s = p.getOrNull(1)) {
+                    val view = when (p.getOrNull(1)) {
+                        "messages" -> SchoolView.MESSAGES
+                        "absences" -> SchoolView.ABSENCES
+                        else -> SchoolView.PLAN
+                    }
+                    // Index of the student: `school/<id>/…`, `school/messages/<id>/…`.
+                    val at = if (view == SchoolView.PLAN) 1 else 2
+                    if (p.size > at + (if (view == SchoolView.ABSENCES) 1 else 2)) return null
+                    val student = when (val s = p.getOrNull(at)) {
                         null, "-" -> null
                         else -> s.toIntOrNull()?.takeIf { it > 0 } ?: return null
                     }
-                    val date = p.getOrNull(2)?.let { d -> com.gatecontrol.android.familie.school.SchoolJson.date(d) ?: return null }
-                    School(student, date)
+                    val more = p.getOrNull(at + 1)
+                    when (view) {
+                        SchoolView.PLAN -> School(student, more?.let { d -> SchoolJson.date(d) ?: return null })
+                        SchoolView.MESSAGES -> School(student, null, view, more?.let { id -> id.takeIf { School.MESSAGE_ID_RE.matches(it) } ?: return null })
+                        SchoolView.ABSENCES -> if (p.size > at && student == null) null else School(student, null, view)
+                    }
                 }
                 else -> null
             }

@@ -72,4 +72,31 @@
         <item quantity="one">%1$d Hausaufgabe</item>
         <item quantity="other">%1$d Hausaufgaben</item>
     </plurals>
+    <!-- Nachrichten und Fehlzeiten (Plugin 1.4+) -->
+    <string name="school_tab_messages">Nachrichten</string>
+    <string name="school_tab_absences">Fehlzeiten</string>
+    <string name="school_messages_none">Keine Nachrichten für %1$s in den letzten %2$d Tagen.</string>
+    <string name="school_absences_none">Keine Fehlzeiten für %1$s in den letzten %2$d Tagen.</string>
+    <string name="school_message_new">neu</string>
+    <string name="school_message_no_subject">(kein Betreff)</string>
+    <string name="school_message_unknown_sender">Unbekannter Absender</string>
+    <string name="school_message_attachments">Mit Anhängen – öffnen in WebUntis.</string>
+    <string name="school_message_full_in_webuntis">Volltext in WebUntis</string>
+    <string name="school_message_back">Alle Nachrichten</string>
+    <string name="school_message_open">Nachricht öffnen</string>
+    <string name="school_message_not_found">Diese Nachricht ist nicht (mehr) in der Liste.</string>
+    <string name="school_message_from">Von %1$s</string>
+    <string name="school_desc_attachments">mit Anhängen</string>
+    <string name="school_inbox_offline_cached">Offline – die Liste wie zuletzt geladen.</string>
+    <string name="school_absence_excused">entschuldigt</string>
+    <string name="school_absence_unexcused">unentschuldigt</string>
+    <string name="school_absence_open">offen</string>
+    <string name="school_absence_all_day">ganztägig</string>
+    <string name="school_absence_until">bis %1$s</string>
+    <string name="school_absence_from">ab %1$s</string>
+    <string name="school_desc_absence_status">Status: %1$s</string>
+    <plurals name="school_card_messages">
+        <item quantity="one">%1$d neue Nachricht</item>
+        <item quantity="other">%1$d neue Nachrichten</item>
+    </plurals>
 </resources>

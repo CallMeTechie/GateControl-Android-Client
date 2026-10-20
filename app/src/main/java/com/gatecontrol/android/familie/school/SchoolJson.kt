@@ -5,6 +5,7 @@ import com.gatecontrol.android.familie.FamilieJson.arr
 import com.gatecontrol.android.familie.FamilieJson.bool
 import com.gatecontrol.android.familie.FamilieJson.dbl
 import com.gatecontrol.android.familie.FamilieJson.int
+import com.gatecontrol.android.familie.FamilieJson.ints
 import com.gatecontrol.android.familie.FamilieJson.objects
 import com.gatecontrol.android.familie.FamilieJson.str
 import com.gatecontrol.android.profile.AvatarPalette
@@ -12,6 +13,9 @@ import com.gatecontrol.android.profile.ProfileJson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 
 /**
  * Turns the Schule plugin's JSON into [SchoolModels] — read from the Gson
@@ -24,7 +28,8 @@ import java.time.LocalDate
  * name and subject (exam) are dropped. A student's `color` / `avatarUrl`
  * (plugin 1.3+) are optional too: a colour that is not `#RRGGBB` and an
  * avatar address that is not a user avatar ([ProfileJson.avatarUrl]) read
- * as none.
+ * as none. Messages and absences (plugin 1.4+) follow the same rules;
+ * message texts may come as HTML and are turned into plain text ([plain]).
  */
 object SchoolJson {
 
@@ -36,6 +41,16 @@ object SchoolJson {
     private const val MAX_CHANGES = 200
     private const val MAX_HOMEWORK = 20
     private const val MAX_EXAMS = 10
+    private const val MAX_MESSAGES = 200
+    private const val MAX_ABSENCES = 300
+    private const val MAX_ID = 80
+    private const val MAX_BODY = 20_000
+
+    private val HTML_RE = Regex("<(br|p|div|span|b|i|u|strong|em|a|ul|ol|li|font|table|tr|td)\\b[^>]*>|</[a-zA-Z]+>|&(nbsp|amp|lt|gt|quot|#39);", RegexOption.IGNORE_CASE)
+    private val BREAK_RE = Regex("<br\\s*/?>|</(p|div|li|tr)>", RegexOption.IGNORE_CASE)
+    private val TAG_RE = Regex("<[^>]*>")
+    private val CONTROL_BUT_NEWLINE_RE = Regex("[\\u0000-\\u0009\\u000B-\\u001F\\u007F]")
+    private val BLANK_LINES_RE = Regex("\n{3,}")
 
     /** `GET app/timetable`; null without a `students` list. */
     fun timetable(o: JsonObject): SchoolTimetable? {
@@ -175,6 +190,120 @@ object SchoolJson {
                 pushed = c.bool("pushed") == true,
             )
         }.distinctBy { it.id }.take(MAX_CHANGES)
+    }
+
+    // ─── Messages and absences (plugin 1.4+) ─────────────────────────
+
+    /**
+     * `GET app/messages`, newest first (without a time last); null without
+     * a `messages` list. Entries without an id are dropped; a message
+     * without a preview gets the start of its text.
+     */
+    fun messages(o: JsonObject): List<SchoolMessage>? {
+        val list = o.arr("messages") ?: return null
+        return list.objects().mapNotNull(::message).distinctBy { it.id }
+            .sortedByDescending { it.sentAt ?: Long.MIN_VALUE }
+            .take(MAX_MESSAGES)
+    }
+
+    /** The stored answer read back (null when it is not one). */
+    fun messages(raw: String?): List<SchoolMessage>? = parse(raw)?.let(::messages)
+
+    internal fun message(o: JsonObject): SchoolMessage? {
+        val id = text(o.str("id"), MAX_ID) ?: return null
+        val body = multiline(o.str("body"), MAX_BODY)
+        return SchoolMessage(
+            id = id,
+            accountId = o.int("accountId")?.takeIf { it > 0 },
+            studentIds = o.ints("studentIds").filter { it > 0 }.distinct().take(MAX_STUDENTS),
+            subject = FamilieJson.clean(plain(o.str("subject")), 200),
+            preview = text(plain(o.str("preview")), 300) ?: body?.let { FamilieJson.clean(it, 300) }.orEmpty(),
+            body = body,
+            sender = FamilieJson.clean(plain(o.str("sender")), 100),
+            sentAt = instantMs(o, "sentAt"),
+            hasAttachments = o.bool("hasAttachments") == true,
+            isNew = o.bool("isNew") == true,
+        )
+    }
+
+    /**
+     * `GET app/absences`, latest first; null without an `absences` list.
+     * Entries without id, student or valid date are dropped; an `endDate`
+     * not after `date` and an `end` not after `start` (same day) read as none.
+     */
+    fun absences(o: JsonObject): List<SchoolAbsence>? {
+        val list = o.arr("absences") ?: return null
+        return list.objects().mapNotNull(::absence).distinctBy { it.id }
+            .sortedWith(compareByDescending<SchoolAbsence> { it.date }.thenByDescending { it.start ?: "" })
+            .take(MAX_ABSENCES)
+    }
+
+    /** The stored answer read back (null when it is not one). */
+    fun absences(raw: String?): List<SchoolAbsence>? = parse(raw)?.let(::absences)
+
+    internal fun absence(o: JsonObject): SchoolAbsence? {
+        val id = text(o.str("id"), MAX_ID) ?: return null
+        val studentId = o.int("studentId")?.takeIf { it > 0 } ?: return null
+        val date = date(o.str("date")) ?: return null
+        val endDate = date(o.str("endDate"))?.takeIf { it > date }
+        val start = FamilieJson.time(o.str("start"))
+        return SchoolAbsence(
+            id = id,
+            studentId = studentId,
+            date = date,
+            start = start,
+            end = FamilieJson.time(o.str("end"))?.takeIf { start == null || endDate != null || it > start },
+            endDate = endDate,
+            reason = text(plain(o.str("reason")), 100),
+            excused = o.bool("excused"),
+            text = text(plain(o.str("text")), 300),
+        )
+    }
+
+    /** ISO time (`2026-10-20T07:15:00Z`, with offset, or local) or epoch ms → epoch ms. */
+    private fun instantMs(o: JsonObject, key: String): Long? {
+        o.str(key)?.trim()?.let { s ->
+            if (s.isEmpty()) return null
+            runCatching { return OffsetDateTime.parse(s).toInstant().toEpochMilli() }
+            runCatching { return LocalDateTime.parse(s).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }
+            s.toDoubleOrNull()?.let { return it.takeIf { ms -> ms > 0 }?.toLong() }
+            return null
+        }
+        return null
+    }
+
+    /**
+     * A text that may come as HTML (WebUntis messages): line breaks and
+     * paragraphs become new lines, other tags go, the usual entities are
+     * decoded; plain text stays as it is.
+     */
+    internal fun plain(value: String?): String? {
+        if (value == null || !HTML_RE.containsMatchIn(value)) return value
+        return value
+            .replace(BREAK_RE, "\n")
+            .replace(TAG_RE, "")
+            .replace("&nbsp;", " ")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&amp;", "&")
+    }
+
+    /** Like [FamilieJson.clean] but keeps line breaks (at most one blank line in a row); null when blank. */
+    internal fun multiline(value: String?, max: Int): String? {
+        val text = plain(value) ?: return null
+        return text.replace("\r\n", "\n").replace('\r', '\n')
+            .replace(CONTROL_BUT_NEWLINE_RE, " ")
+            .lines().joinToString("\n") { it.trimEnd() }
+            .replace(BLANK_LINES_RE, "\n\n")
+            .trim()
+            .take(max)
+            .takeIf { it.isNotBlank() }
+    }
+
+    private fun parse(raw: String?): JsonObject? = raw?.let {
+        runCatching { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }.getOrNull()
     }
 
     /** A real calendar date (`2026-02-30` is not). */

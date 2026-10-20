@@ -51,7 +51,13 @@ fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> 
         FamilieDest.Board -> BoardScreen(onBack = onBack)
         is FamilieDest.Meals -> MealsScreen(onBack = onBack, initialWeek = dest.week)
         FamilieDest.Presence -> PresenceScreen(onBack = onBack, onOpenProfile = onOpenProfile)
-        is FamilieDest.School -> SchoolScreen(onBack = onBack, initialStudentId = dest.studentId, initialDate = dest.date)
+        is FamilieDest.School -> SchoolScreen(
+            onBack = onBack,
+            initialStudentId = dest.studentId,
+            initialDate = dest.date,
+            initialView = dest.view,
+            initialMessageId = dest.messageId,
+        )
     }
 }
 
