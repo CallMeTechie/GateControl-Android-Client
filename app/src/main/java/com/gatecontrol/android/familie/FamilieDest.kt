@@ -97,6 +97,18 @@ sealed interface FamilieDest {
         override val key = "presence"
     }
 
+    /**
+     * Stundenplan (Schule plugin): [studentId]'s timetable on [date]
+     * (`YYYY-MM-DD`); without them the first child on the default day.
+     */
+    data class School(val studentId: Int? = null, val date: String? = null) : FamilieDest {
+        override val key get() = when {
+            studentId == null && date == null -> "school"
+            date == null -> "school/$studentId"
+            else -> "school/${studentId ?: "-"}/$date"
+        }
+    }
+
     companion object {
         private val UUID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
@@ -161,6 +173,15 @@ sealed interface FamilieDest {
                     else -> null
                 }
                 "presence" -> if (p.size == 1) Presence else null
+                "school" -> {
+                    if (p.size > 3) return null
+                    val student = when (val s = p.getOrNull(1)) {
+                        null, "-" -> null
+                        else -> s.toIntOrNull()?.takeIf { it > 0 } ?: return null
+                    }
+                    val date = p.getOrNull(2)?.let { d -> com.gatecontrol.android.familie.school.SchoolJson.date(d) ?: return null }
+                    School(student, date)
+                }
                 else -> null
             }
         }

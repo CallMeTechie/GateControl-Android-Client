@@ -47,6 +47,12 @@ data class PluginAvailability(
      * 1.177+, not on kiosk devices): the tab "Chats" (docs/FEATURES.md).
      */
     val messengerTab: Boolean = false,
+    /**
+     * The Schule plugin (WebUntis timetable) is listed for this user: the
+     * Familie tab gets the card "Stundenplan" and its screen. It never gets
+     * a tab of its own (docs/FAMILIE.md "Stundenplan").
+     */
+    val schule: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -62,6 +68,7 @@ data class PluginAvailability(
                 alltag = plugins.any { it.id == ALLTAG_PLUGIN },
                 door = plugins.any { it.id == com.gatecontrol.android.door.DOOR_PLUGIN },
                 messengerTab = plugins.any { it.id == com.gatecontrol.android.chat.MESSENGER_PLUGIN && it.tab != null },
+                schule = plugins.any { it.id == com.gatecontrol.android.familie.school.SCHULE_PLUGIN },
             )
         }
 

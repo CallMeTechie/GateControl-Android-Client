@@ -20,6 +20,10 @@ import com.gatecontrol.android.familie.presence.PresencePayload
 import com.gatecontrol.android.familie.rides.DriverChoice
 import com.gatecontrol.android.familie.rides.Ride
 import com.gatecontrol.android.familie.rides.RideDraft
+import com.gatecontrol.android.familie.school.SCHULE_PLUGIN
+import com.gatecontrol.android.familie.school.SchoolChange
+import com.gatecontrol.android.familie.school.SchoolFetch
+import com.gatecontrol.android.familie.school.SchoolJson
 import com.gatecontrol.android.familie.rules.Rule
 import com.gatecontrol.android.familie.rules.RuleJson
 import com.gatecontrol.android.familie.rules.RuleOptionPlace
@@ -83,7 +87,8 @@ fun FamilieResult<*>.errorCode(): String? = when (this) {
  * The Familie plugin's app API (contract B3) through the core server's
  * client plugin bridge (`/api/v1/client/plugins/gatecontrol-familie/api/…`,
  * contract A3): one method per endpoint, typed answers from [FamilieJson].
- * Also the Alltag plugin's `app/events` (B5). Never throws.
+ * Also the Alltag plugin's `app/events` (B5) and the Schule plugin's
+ * `app/timetable` / `app/changes`. Never throws.
  */
 @Singleton
 class FamilieApi @Inject constructor(
@@ -268,6 +273,18 @@ class FamilieApi @Inject constructor(
     /** Alltag appointments and waste dates (B5, ≤ 62 days). */
     suspend fun alltagEvents(from: String, to: String): FamilieResult<AlltagPayload> =
         get(path("app", "events"), mapOf("from" to from, "to" to to), plugin = ALLTAG_PLUGIN, parse = FamilieJson::alltag)
+
+    // ─── Schule plugin (WebUntis timetable) ──────────────────────────
+
+    /** Timetable of the students the caller may see, [from]…[to] (`YYYY-MM-DD`, ≤ 14 days), with the answer as it came. */
+    suspend fun schoolTimetable(from: String, to: String): FamilieResult<SchoolFetch> =
+        get(path("app", "timetable"), mapOf("from" to from, "to" to to), plugin = SCHULE_PLUGIN) { o ->
+            SchoolJson.timetable(o)?.let { SchoolFetch(it, o.toString()) }
+        }
+
+    /** The change log of the last [days] days (1…30), newest first. */
+    suspend fun schoolChanges(days: Int = 7): FamilieResult<List<SchoolChange>> =
+        get(path("app", "changes"), mapOf("days" to days.coerceIn(1, 30).toString()), plugin = SCHULE_PLUGIN, parse = SchoolJson::changes)
 
     // ─── locate ──────────────────────────────────────────────────────
 

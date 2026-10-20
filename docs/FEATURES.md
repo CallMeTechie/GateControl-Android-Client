@@ -351,6 +351,26 @@ zurück geht es dorthin, wo man war.
 
 ---
 
+## Stundenplan (Plugin `gatecontrol-schule`, WebUntis)
+
+Wenn der Server das Plugin „Schule“ anbietet, hat der Familie-Tab die Karte
+**„Stundenplan“** (anordnen und ausblenden wie jede Karte). Sie zeigt für
+heute — ab 15 Uhr, am Freitagnachmittag und am Wochenende für den nächsten
+Schultag — je Kind „Planmäßig“, „2 Ausfälle“, „1 Vertretung“, „Frei“ oder
+die Ferien und die nächsten ein, zwei geänderten Stunden. Ein Tippen öffnet
+den **Stundenplan**: Kind wählen (bei mehreren), Tage Mo–Fr (Sa, wenn
+Unterricht ist) dieser und nächster Woche, Stunden mit Zeit, Stunde,
+Fach, Lehrkraft und Raum; Ausfälle rot durchgestrichen („Entfällt“),
+Vertretungen orange mit der durchgestrichenen ursprünglichen Lehrkraft /
+dem ursprünglichen Raum, Zusatzstunden markiert, Ferien, „Stand“ des
+letzten Abrufs. Der Reiter **„Änderungen“** listet die erkannten Änderungen
+der letzten 7 Tage nach Tag. Ein Tippen auf eine Stundenplan-Mitteilung
+öffnet den Plan bei diesem Kind und Tag. Offline bleibt der zuletzt
+geladene Stand sichtbar. Wer welche Kinder sieht, legt der Admin im
+Plugin fest.
+
+---
+
 ## Chats (Plugin `gatecontrol-messenger`, GateControl 1.177+)
 
 Wenn der Server das Plugin „Messenger“ mit einem App-Tab für diese Person

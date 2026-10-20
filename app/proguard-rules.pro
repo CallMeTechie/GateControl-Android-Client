@@ -27,6 +27,11 @@
 # generic signatures must survive, or List<FamilieMember> reads back as
 # LinkedTreeMap (ClassCastException in 1.29.0).
 -keep class com.gatecontrol.android.familie.** { <fields>; }
+# Stundenplan (Schule plugin, familie.school): answers are read from the Gson
+# tree (SchoolJson); the offline copy stores the raw answer text in a small
+# reflective wrapper (SchoolRepository.Stored) - covered by the rule above,
+# named here so a package move cannot silently drop it.
+-keep class com.gatecontrol.android.familie.school.** { <fields>; }
 # Door tab (Tür & Kamera): the plugin's answers are parsed from the Gson tree
 # (DoorJson) and only the raw `me` JSON is cached, but the models keep their
 # field names the same way, in case they are ever (de)serialized by reflection.

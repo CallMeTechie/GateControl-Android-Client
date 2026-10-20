@@ -42,6 +42,29 @@ class FamilieLogicTest {
     }
 
     @Test
+    fun `the schule plugin switches on the timetable, with or without a tab`() {
+        val listed = PluginAvailability.from(
+            listOf(
+                ClientPlugin("gatecontrol-familie", "Familie", "1.9.0", ClientPluginTab("Familie", "M3 11l9-7 9 7")),
+                ClientPlugin("gatecontrol-schule", "Schule", "1.0.0", null),
+            ),
+        )
+        assertTrue(listed.schule)
+        assertTrue(listed.familieTab)
+        assertTrue(PluginAvailability.from(listOf(ClientPlugin("gatecontrol-schule", tab = ClientPluginTab("Schule", null)))).schule)
+        assertFalse(PluginAvailability.from(listOf(ClientPlugin("gatecontrol-familie", tab = ClientPluginTab("F", null)))).schule)
+        assertFalse(PluginAvailability.from(listOf(ClientPlugin("gatecontrol-schule-beta"))).schule)
+        assertFalse(PluginAvailability.NONE.schule)
+    }
+
+    @Test
+    fun `a cached availability from before the timetable reads it as off`() {
+        val old = com.google.gson.Gson().fromJson("""{"familieTab":true,"familieApi":true,"alltag":true}""", PluginAvailability::class.java)
+        assertTrue(old.familieTab)
+        assertFalse(old.schule)
+    }
+
+    @Test
     fun `a tab icon that is not a plain svg path is ignored`() {
         val evil = PluginAvailability.from(listOf(ClientPlugin("gatecontrol-familie", tab = ClientPluginTab("F", "<script>alert(1)</script>"))))
         assertTrue(evil.familieTab)
@@ -126,6 +149,7 @@ class FamilieLogicTest {
             FamilieDest.Rides(), FamilieDest.Rides("12"), FamilieDest.Rides("3:2026-10-14"), FamilieDest.Emergency(), FamilieDest.Emergency(5),
             FamilieDest.Allowance(), FamilieDest.Allowance(5), FamilieDest.Wishes(), FamilieDest.Wishes(3), FamilieDest.Expenses(),
             FamilieDest.Expenses("l1-abc"), FamilieDest.Board, FamilieDest.Meals(), FamilieDest.Meals("2026-W42"), FamilieDest.Presence,
+            FamilieDest.School(), FamilieDest.School(3), FamilieDest.School(3, "2026-10-20"), FamilieDest.School(null, "2026-10-20"),
         )
         all.forEach { assertEquals(it, FamilieDest.parse(it.key), it.key) }
     }
@@ -137,6 +161,7 @@ class FamilieLogicTest {
             "rides/x", "rides/3:tomorrow", "rides/1/2", "emergency/x", "emergency/0", "emergency/1/2",
             "allowance/x", "allowance/0", "wishes/1/2", "expenses/list", "expenses/list/bad id", "expenses/x", "board/1",
             "meals/2026-W60", "meals/next", "presence/1",
+            "school/x", "school/0", "school/3/tomorrow", "school/3/2026-02-30", "school/3/2026-10-20/1",
         ).forEach {
             assertNull(FamilieDest.parse(it), it.toString())
         }

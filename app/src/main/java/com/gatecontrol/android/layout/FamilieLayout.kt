@@ -14,6 +14,8 @@ object FamilieLayout {
     const val SHOPPING = "shopping"
     const val LOCATE = "locate"
     const val DATES = "dates"
+    /** Stundenplan of the Schule plugin (not a Familie module). */
+    const val SCHOOL = "school"
     const val MEALS = "meals"
     const val BOARD = "board"
     const val ALLOWANCE = "allowance"
@@ -22,7 +24,7 @@ object FamilieLayout {
     const val PLACES = "places"
 
     /** The order before anybody arranged the tab. */
-    val DEFAULT_ORDER = listOf(MEMBERS, CHILD, EMERGENCY, TASKS, RIDES, SHOPPING, LOCATE, DATES, MEALS, BOARD, ALLOWANCE, WISHES, EXPENSES, PLACES)
+    val DEFAULT_ORDER = listOf(MEMBERS, CHILD, EMERGENCY, TASKS, RIDES, SHOPPING, LOCATE, DATES, SCHOOL, MEALS, BOARD, ALLOWANCE, WISHES, EXPENSES, PLACES)
 
     /**
      * The [available] cards in the [saved] order; a card the order lacks

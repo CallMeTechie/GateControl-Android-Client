@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stundenplan (plugin gatecontrol-schule, WebUntis), a card and a screen of the Familie tab, see docs/FAMILIE.md -->
+<resources>
+    <string name="school_title">Timetable</string>
+    <string name="school_tab_plan">Timetable</string>
+    <string name="school_tab_changes">Changes</string>
+    <string name="school_none">No timetable is shared with you. The administrator assigns children and recipients on the page “School” in the portal.</string>
+    <string name="school_planned">As planned</string>
+    <string name="school_free">No lessons</string>
+    <string name="school_unknown">No timetable for this day yet</string>
+    <plurals name="school_cancelled_count">
+        <item quantity="one">%1$d cancellation</item>
+        <item quantity="other">%1$d cancellations</item>
+    </plurals>
+    <plurals name="school_changed_count">
+        <item quantity="one">%1$d substitution</item>
+        <item quantity="other">%1$d substitutions</item>
+    </plurals>
+    <plurals name="school_extra_count">
+        <item quantity="one">%1$d extra lesson</item>
+        <item quantity="other">%1$d extra lessons</item>
+    </plurals>
+    <string name="school_day_today">Today</string>
+    <string name="school_day_tomorrow">Tomorrow</string>
+    <string name="school_card_child">%1$s: %2$s</string>
+    <string name="school_period">Period %1$d</string>
+    <string name="school_periods">Periods %1$d–%2$d</string>
+    <string name="school_state_cancelled">Cancelled</string>
+    <string name="school_state_changed">Substitution</string>
+    <string name="school_state_extra">Extra</string>
+    <string name="school_desc_time">%1$s to %2$s</string>
+    <string name="school_desc_teacher">teacher %1$s</string>
+    <string name="school_desc_room">room %1$s</string>
+    <string name="school_desc_instead">%1$s instead of %2$s</string>
+    <string name="school_holiday">%1$s – no lessons</string>
+    <string name="school_no_lessons">No lessons</string>
+    <string name="school_updated">Updated: %1$s</string>
+    <string name="school_never_updated">Not fetched from WebUntis yet</string>
+    <string name="school_offline_cached">Offline – showing the timetable as last loaded.</string>
+    <string name="school_week_this">This week</string>
+    <string name="school_week_next">Next week</string>
+    <string name="school_week_of">Week of %1$s</string>
+    <string name="school_day_with_changes">%1$s, with changes</string>
+    <string name="school_changes_none">No changes in the last 7 days.</string>
+    <string name="school_change_cancelled">%1$s is cancelled</string>
+    <string name="school_change_changed">%1$s: substitution or change</string>
+    <string name="school_change_extra">Extra lesson: %1$s</string>
+    <string name="school_change_restored">%1$s takes place after all</string>
+    <string name="school_change_detected">noticed %1$s</string>
+    <string name="school_change_pushed">notification sent</string>
+    <string name="school_error_forbidden">No access to the timetable.</string>
+    <string name="school_error_missing">The timetable plugin is not (or no longer) available on the server, or it is not licensed.</string>
+    <string name="school_error_plugin">The timetable plugin on the server is not responding right now.</string>
+    <string name="school_error_invalid">The server did not accept the requested days.</string>
+</resources>

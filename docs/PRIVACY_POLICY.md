@@ -81,7 +81,7 @@ Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder 
 
 ### Speicherung und Löschung
 
-Daten auf dem Gerät werden gelöscht, wenn du die App deinstallierst oder ihre Daten löschst. Daten auf deinem Server verwaltet dessen Betreiber.
+Daten auf dem Gerät werden gelöscht, wenn du die App deinstallierst oder ihre Daten löschst. Daten auf deinem Server verwaltet dessen Betreiber. Wie du Daten löschst oder die Löschung beantragst: [Daten löschen](DATA_DELETION.md).
 
 ### Kinder
 
@@ -168,7 +168,7 @@ Only to scan the setup QR code when you open the scanner. No images are stored o
 
 ### Retention and deletion
 
-Data on the device is deleted when you uninstall the app or clear its data. Data on your server is managed by its operator.
+Data on the device is deleted when you uninstall the app or clear its data. Data on your server is managed by its operator. How to delete your data or request its deletion: [Data deletion](DATA_DELETION.md).
 
 ### Children
 

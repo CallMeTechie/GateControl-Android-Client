@@ -11,8 +11,13 @@ import com.gatecontrol.android.ui.components.GcIcons
 /** The cards of the Familie tab: which there are for a profile (pure, unit-tested), and their names and icons. */
 object FamilieCards {
 
-    /** The cards [p] gets, in the default order — the same conditions the start screen shows them under. */
-    fun available(p: FamilieProfile): List<String> {
+    /**
+     * The cards [p] gets, in the default order — the same conditions the
+     * start screen shows them under. [schule]: the Schule plugin is listed
+     * (PluginAvailability), which adds "Stundenplan" for everybody — the
+     * plugin itself answers only with the children the person may see.
+     */
+    fun available(p: FamilieProfile, schule: Boolean = false): List<String> {
         val m = p.modules
         return buildList {
             add(FamilieLayout.MEMBERS)
@@ -23,6 +28,7 @@ object FamilieCards {
             if (m.shopping) add(FamilieLayout.SHOPPING)
             if (p.me.isParent && m.locate && p.children.isNotEmpty()) add(FamilieLayout.LOCATE)
             if (m.dates) add(FamilieLayout.DATES)
+            if (schule) add(FamilieLayout.SCHOOL)
             if (m.meals) add(FamilieLayout.MEALS)
             if (m.board) add(FamilieLayout.BOARD)
             if (m.allowance && (p.me.isChild || p.children.isNotEmpty())) add(FamilieLayout.ALLOWANCE)
@@ -42,6 +48,7 @@ object FamilieCards {
         FamilieLayout.SHOPPING -> GcIcons.Cart
         FamilieLayout.LOCATE -> GcIcons.Crosshair
         FamilieLayout.DATES -> GcIcons.Calendar
+        FamilieLayout.SCHOOL -> GcIcons.School
         FamilieLayout.MEALS -> GcIcons.Meal
         FamilieLayout.BOARD -> GcIcons.Board
         FamilieLayout.ALLOWANCE -> GcIcons.Wallet
@@ -63,6 +70,7 @@ object FamilieCards {
             FamilieLayout.SHOPPING -> R.string.familie_shopping_title
             FamilieLayout.LOCATE -> R.string.familie_locate_title
             FamilieLayout.DATES -> R.string.familie_dates_title
+            FamilieLayout.SCHOOL -> R.string.school_title
             FamilieLayout.MEALS -> R.string.familie_meals_title
             FamilieLayout.BOARD -> R.string.familie_board_title
             FamilieLayout.ALLOWANCE -> if (p?.me?.isChild == true) R.string.familie_allowance_mine else R.string.familie_allowance_title
