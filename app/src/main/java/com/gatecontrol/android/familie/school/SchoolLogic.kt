@@ -1,5 +1,6 @@
 package com.gatecontrol.android.familie.school
 
+import com.gatecontrol.android.profile.AvatarPalette
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -227,4 +228,19 @@ object SchoolLogic {
     /** The student to show: [wanted] when it is there, else the first one. */
     fun pickStudent(timetable: SchoolTimetable?, wanted: Int?): SchoolStudent? =
         timetable?.student(wanted) ?: timetable?.students?.firstOrNull()
+
+    /**
+     * Whether text on [hex] (`#RRGGBB`) should be dark: the WCAG relative
+     * luminance is above the point where white and black contrast equally
+     * (≈ 0.179), so the darker ink reads better. False for an invalid colour.
+     */
+    fun darkInkOn(hex: String?): Boolean {
+        val h = AvatarPalette.validHex(hex) ?: return false
+        fun channel(i: Int): Double {
+            val c = h.substring(i, i + 2).toInt(16) / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        val l = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+        return l > 0.179
+    }
 }

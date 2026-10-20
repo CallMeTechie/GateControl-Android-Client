@@ -7,6 +7,8 @@ import com.gatecontrol.android.familie.FamilieJson.dbl
 import com.gatecontrol.android.familie.FamilieJson.int
 import com.gatecontrol.android.familie.FamilieJson.objects
 import com.gatecontrol.android.familie.FamilieJson.str
+import com.gatecontrol.android.profile.AvatarPalette
+import com.gatecontrol.android.profile.ProfileJson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.time.LocalDate
@@ -19,7 +21,10 @@ import java.time.LocalDate
  * lesson without valid times and a student without an id are dropped.
  * `homework` / `exams` of a day (plugin 1.2+) are optional: absent or
  * broken lists read as none, entries without a text (homework) or without
- * name and subject (exam) are dropped.
+ * name and subject (exam) are dropped. A student's `color` / `avatarUrl`
+ * (plugin 1.3+) are optional too: a colour that is not `#RRGGBB` and an
+ * avatar address that is not a user avatar ([ProfileJson.avatarUrl]) read
+ * as none.
  */
 object SchoolJson {
 
@@ -55,8 +60,19 @@ object SchoolJson {
             klasse = text(o.str("klasse"), 30),
             updatedAt = stampMs(o),
             days = o.arr("days")?.objects()?.mapNotNull(::day).orEmpty().distinctBy { it.date }.sortedBy { it.date },
+            colorHex = color(o.str("color")),
+            avatarUrl = avatarUrl(o.str("avatarUrl")),
         )
     }
+
+    /** A student's `color` (plugin 1.3+): `#RRGGBB` (upper case), else null. */
+    internal fun color(value: String?): String? = AvatarPalette.validHex(value)
+
+    /**
+     * A student's `avatarUrl` (plugin 1.3+): a server-relative avatar path
+     * or an http(s) URL of one, as for user avatars ([ProfileJson.avatarUrl]); else null.
+     */
+    internal fun avatarUrl(value: String?): String? = ProfileJson.avatarUrl(value)
 
     private fun day(o: JsonObject): SchoolDay? {
         val date = date(o.str("date")) ?: return null

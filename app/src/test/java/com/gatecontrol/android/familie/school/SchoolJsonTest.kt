@@ -196,4 +196,68 @@ class SchoolJsonTest {
         assertNull(changes[2].start)
         assertNull(SchoolJson.changes(obj("""{"ok":true}""")))
     }
+
+    // ─── colour and avatar per student (plugin 1.3+) ────────────────
+
+    private fun students(vararg fields: String) = SchoolJson.timetable(
+        obj("""{"students":[""" + fields.mapIndexed { i, f -> """{"id":${i + 1},"name":"Kind ${i + 1}"$f}""" }.joinToString(",") + "]}"),
+    )!!.students
+
+    @Test
+    fun `a student's colour and avatar are read`() {
+        val s = students(""","color":"#3b82f6","avatarUrl":"/avatars/AbCdEfGhIjKlMnOpQrStUv12.webp"""")[0]
+        assertEquals("#3B82F6", s.colorHex, "normalised to upper case")
+        assertEquals("/avatars/AbCdEfGhIjKlMnOpQrStUv12.webp", s.avatarUrl)
+        assertTrue(s.hasFace)
+    }
+
+    @Test
+    fun `answers without colour and avatar keep working`() {
+        val s = students("")[0]
+        assertNull(s.colorHex)
+        assertNull(s.avatarUrl)
+        assertFalse(s.hasFace)
+        // The stored answer of an older plugin reads the same.
+        val raw = """{"updatedAt":1,"students":[{"id":2,"name":"Lena","days":[]}]}"""
+        assertNull(SchoolJson.timetable(raw)!!.students[0].colorHex)
+    }
+
+    @Test
+    fun `a colour that is not #RRGGBB reads as none`() {
+        listOf("\"red\"", "\"#FFF\"", "\"3B82F6\"", "\"#3B82F6FF\"", "\"#GGGGGG\"", "\"\"", "null", "12", "{}", "[]").forEach { v ->
+            assertNull(students(""","color":$v""")[0].colorHex, v)
+        }
+        assertEquals("#14B8A6", SchoolJson.color(" #14b8a6 "))
+    }
+
+    @Test
+    fun `only http(s) and server-relative avatar addresses are kept`() {
+        assertEquals("/avatars/AbCdEfGhIjKlMnOpQrStUv12.png", SchoolJson.avatarUrl("/avatars/AbCdEfGhIjKlMnOpQrStUv12.png"))
+        assertEquals(
+            "https://gc.example.com/avatars/AbCdEfGhIjKlMnOpQrStUv12.jpg",
+            SchoolJson.avatarUrl("https://gc.example.com/avatars/AbCdEfGhIjKlMnOpQrStUv12.jpg"),
+        )
+        assertEquals(
+            "http://192.168.1.2:3000/avatars/AbCdEfGhIjKlMnOpQrStUv12.webp",
+            SchoolJson.avatarUrl("http://192.168.1.2:3000/avatars/AbCdEfGhIjKlMnOpQrStUv12.webp"),
+        )
+        listOf(
+            null,
+            "",
+            "javascript:alert(1)",
+            "file:///sdcard/avatars/AbCdEfGhIjKlMnOpQrStUv12.png",
+            "ftp://gc.example.com/avatars/AbCdEfGhIjKlMnOpQrStUv12.png",
+            "content://media/avatars/AbCdEfGhIjKlMnOpQrStUv12.png",
+            "data:image/png;base64,AAAA",
+            "avatars/AbCdEfGhIjKlMnOpQrStUv12.png",
+            "/avatars/../etc/passwd",
+            "/avatars/AbCdEfGhIjKlMnOpQrStUv12.png?x=1",
+            "https://gc.example.com/avatars/AbCdEfGhIjKlMnOpQrStUv12.png#f",
+            "https:///avatars/AbCdEfGhIjKlMnOpQrStUv12.png",
+        ).forEach { assertNull(SchoolJson.avatarUrl(it), it) }
+        // Not a string: none, the student is still read.
+        val s = students(""","avatarUrl":{"url":"/avatars/AbCdEfGhIjKlMnOpQrStUv12.png"},"color":"#22C55E"""")[0]
+        assertNull(s.avatarUrl)
+        assertEquals("#22C55E", s.colorHex)
+    }
 }

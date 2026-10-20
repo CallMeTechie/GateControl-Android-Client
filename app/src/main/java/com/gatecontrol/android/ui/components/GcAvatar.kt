@@ -82,6 +82,8 @@ fun GcAvatar(
     size: Dp = 40.dp,
     contentDescription: String? = null,
     image: ImageBitmap? = null,
+    /** Colour of the initials on [colorHex] (default white). */
+    initialsColor: Color? = null,
 ) {
     val extra = GateControlTheme.extraColors
     val fill = avatarColor(colorHex)
@@ -118,7 +120,7 @@ fun GcAvatar(
                 val textSize = (size.value * if (initials.length > 2) 0.28f else 0.36f)
                 Text(
                     initials,
-                    color = if (fill != null) Color.White else extra.accentText,
+                    color = if (fill != null) initialsColor ?: Color.White else extra.accentText,
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = textSize.sp),
                     maxLines = 1,
                 )
