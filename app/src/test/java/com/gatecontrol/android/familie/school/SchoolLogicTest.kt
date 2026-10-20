@@ -1,6 +1,7 @@
 package com.gatecontrol.android.familie.school
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -255,5 +256,17 @@ class SchoolLogicTest {
         val lena = SchoolLogic.changesByDay(changes, studentId = 3)
         assertEquals(listOf("2026-10-20", "2026-10-19"), lena.map { it.first })
         assertTrue(SchoolLogic.changesByDay(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `dark ink on light child colours, white on dark ones`() {
+        assertTrue(SchoolLogic.darkInkOn("#EAB308"), "yellow")
+        assertTrue(SchoolLogic.darkInkOn("#FFFFFF"))
+        assertTrue(SchoolLogic.darkInkOn("#84CC16"), "lime")
+        assertFalse(SchoolLogic.darkInkOn("#000000"))
+        assertFalse(SchoolLogic.darkInkOn("#7C3AED"), "violet")
+        assertFalse(SchoolLogic.darkInkOn("#64748B"), "slate")
+        assertFalse(SchoolLogic.darkInkOn("nope"))
+        assertFalse(SchoolLogic.darkInkOn(null))
     }
 }

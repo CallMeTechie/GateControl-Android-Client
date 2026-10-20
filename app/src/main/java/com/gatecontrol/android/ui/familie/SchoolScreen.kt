@@ -123,8 +123,14 @@ fun SchoolScreen(
                 }
                 if (tt.students.size > 1) {
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Plugin 1.3+: avatar and colour per child; older answers: the plain chips.
+                        val faces = tt.students.any { it.hasFace }
                         tt.students.forEach { s ->
-                            GcFilterChip(text = s.name, selected = s.id == student?.id, onClick = { viewModel.selectStudent(s.id) })
+                            if (faces) {
+                                SchoolChildChip(s, selected = s.id == student?.id, onClick = { viewModel.selectStudent(s.id) })
+                            } else {
+                                GcFilterChip(text = s.name, selected = s.id == student?.id, onClick = { viewModel.selectStudent(s.id) })
+                            }
                         }
                     }
                 }

@@ -97,7 +97,14 @@ data class SchoolStudent(
     /** Last fetch of this student (epoch ms). */
     val updatedAt: Long? = null,
     val days: List<SchoolDay> = emptyList(),
+    /** The child's colour (`#RRGGBB`, plugin 1.3+); null = the app's accent styling. */
+    val colorHex: String? = null,
+    /** Picture of the linked GateControl user (plugin 1.3+, same rules as user avatars); null = initials. */
+    val avatarUrl: String? = null,
 ) {
+    /** Colour or picture to tell this child apart (plugin 1.3+). */
+    val hasFace: Boolean get() = colorHex != null || avatarUrl != null
+
     fun day(date: String): SchoolDay? = days.firstOrNull { it.date == date }
 }
 

@@ -1,6 +1,21 @@
 package com.gatecontrol.android.ui.familie
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Dp
+import com.gatecontrol.android.familie.school.SchoolStudent
+import com.gatecontrol.android.profile.AvatarRing
+import com.gatecontrol.android.ui.components.GcAvatar
+import com.gatecontrol.android.ui.components.avatarColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -448,45 +463,137 @@ fun SchoolCard(snapshot: SchoolSnapshot?, error: String?, selected: Boolean, onO
                 )
                 tt.students.forEach { s ->
                     val summary = SchoolLogic.summary(s, day, now)
-                    GcListRow(
-                        title = s.name,
-                        description = schoolSummaryText(summary),
-                        onClick = { onOpen(FamilieDest.School(s.id, day.toString())) },
-                        leading = { FamilieAvatar(s.name, null, size = 32.dp) },
-                        trailing = {
-                            val tone = when {
-                                summary.cancelled > 0 -> GcTone.Error
-                                summary.status == SchoolDaySummary.Status.CHANGES -> GcTone.Warn
-                                else -> null
-                            }
-                            if (tone != null) Icon(GcIcons.Alert, contentDescription = null, tint = if (tone == GcTone.Error) MaterialTheme.colorScheme.error else extra.warn, modifier = Modifier.size(18.dp))
-                        },
-                    )
-                    schoolAgendaText(summary)?.let { what ->
-                        Text(
-                            stringResource(R.string.school_card_agenda, schoolDayLabel(day, now.toLocalDate()), what),
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (summary.exams.isNotEmpty()) FontWeight.SemiBold else null),
-                            color = if (summary.exams.isNotEmpty()) extra.pro else extra.muted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 64.dp, end = 16.dp),
+                    val bar = avatarColor(s.colorHex)
+                    // A child's block (plugin 1.3+): a bar in its colour along the left edge.
+                    Column(
+                        Modifier.fillMaxWidth().then(if (bar != null) Modifier.drawBehind { childBar(bar) } else Modifier),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        GcListRow(
+                            title = s.name,
+                            description = schoolSummaryText(summary),
+                            onClick = { onOpen(FamilieDest.School(s.id, day.toString())) },
+                            leading = { SchoolChildAvatar(s, 32.dp) },
+                            trailing = {
+                                val tone = when {
+                                    summary.cancelled > 0 -> GcTone.Error
+                                    summary.status == SchoolDaySummary.Status.CHANGES -> GcTone.Warn
+                                    else -> null
+                                }
+                                if (tone != null) Icon(GcIcons.Alert, contentDescription = null, tint = if (tone == GcTone.Error) MaterialTheme.colorScheme.error else extra.warn, modifier = Modifier.size(18.dp))
+                            },
                         )
-                    }
-                    summary.next.forEach { l ->
-                        val line = listOfNotNull(schoolPeriod(l.period, l.periodEnd), l.start, l.title.ifBlank { null }).joinToString(" · ") +
-                            (schoolStateLabel(l.state)?.let { " – $it" } ?: "") +
-                            (instead(l.teacher, l.teacherOld)?.takeIf { l.state == LessonState.CHANGED }?.let { " ($it)" } ?: "")
-                        Text(
-                            line,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = schoolStateColor(l.state),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 64.dp, end = 16.dp),
-                        )
+                        schoolAgendaText(summary)?.let { what ->
+                            Text(
+                                stringResource(R.string.school_card_agenda, schoolDayLabel(day, now.toLocalDate()), what),
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (summary.exams.isNotEmpty()) FontWeight.SemiBold else null),
+                                color = if (summary.exams.isNotEmpty()) extra.pro else extra.muted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 64.dp, end = 16.dp),
+                            )
+                        }
+                        summary.next.forEach { l ->
+                            val line = listOfNotNull(schoolPeriod(l.period, l.periodEnd), l.start, l.title.ifBlank { null }).joinToString(" · ") +
+                                (schoolStateLabel(l.state)?.let { " – $it" } ?: "") +
+                                (instead(l.teacher, l.teacherOld)?.takeIf { l.state == LessonState.CHANGED }?.let { " ($it)" } ?: "")
+                            Text(
+                                line,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = schoolStateColor(l.state),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 64.dp, end = 16.dp),
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/** Colour bar of a child's block on the card: 4 dp wide, in the gutter left of the avatar. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.childBar(color: Color) {
+    val w = 4.dp.toPx()
+    val inset = 10.dp.toPx()
+    if (size.height <= 2 * inset) return
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(6.dp.toPx(), inset),
+        size = Size(w, size.height - 2 * inset),
+        cornerRadius = CornerRadius(w / 2),
+    )
+}
+
+/** Ink for initials on a child's colour: dark on light colours, else white (contrast). */
+private val DARK_INK = Color(0xFF111827)
+
+/**
+ * Avatar of a child (Schule 1.3+): the linked user's picture, else the
+ * initials on the child's colour (dark or white, whichever reads better,
+ * [SchoolLogic.darkInkOn]). Without colour and picture: the Familie
+ * initials avatar as before.
+ */
+@Composable
+fun SchoolChildAvatar(s: SchoolStudent, size: Dp, modifier: Modifier = Modifier) {
+    if (!s.hasFace) {
+        FamilieAvatar(s.name, null, modifier, size = size)
+        return
+    }
+    GcAvatar(
+        url = s.avatarUrl,
+        initials = initials(s.name),
+        colorHex = s.colorHex,
+        ring = AvatarRing.None,
+        modifier = modifier,
+        size = size,
+        initialsColor = if (SchoolLogic.darkInkOn(s.colorHex)) DARK_INK else null,
+    )
+}
+
+/**
+ * Child chip of the timetable (Schule 1.3+): avatar and name; selected =
+ * filled with a tint of the child's colour and framed in it (without a
+ * colour the app's accent), so several children are told apart at a
+ * glance. The name stays visible and the state is said as "selected".
+ */
+@Composable
+fun SchoolChildChip(s: SchoolStudent, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    val color = avatarColor(s.colorHex)
+    val shape = RoundedCornerShape(10.dp)
+    val bg = when {
+        !selected -> Color.Transparent
+        color != null -> color.copy(alpha = if (extra.isDark) 0.30f else 0.16f)
+        else -> extra.accentBg
+    }
+    val border = when {
+        selected && color != null -> color
+        selected -> MaterialTheme.colorScheme.primary
+        else -> extra.border2
+    }
+    Row(
+        modifier
+            .height(40.dp)
+            .clip(shape)
+            .background(bg)
+            .border(if (selected) 2.dp else 1.dp, border, shape)
+            .selectable(selected = selected, onClick = onClick)
+            .padding(start = 6.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SchoolChildAvatar(s, 28.dp)
+        Text(
+            s.name,
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = if (selected) FontWeight.SemiBold else null),
+            color = when {
+                !selected -> extra.muted
+                color != null -> MaterialTheme.colorScheme.onSurface
+                else -> extra.accentText
+            },
+            maxLines = 1,
+        )
     }
 }
