@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.0] - 2026-10-20
+
+### Features
+- Stundenplan of the Schule plugin (card, screen, push) (#104)
+
+---
+
 ## [1.50.0] - 2026-10-20
 
 ### Features
