@@ -59,6 +59,8 @@ import com.gatecontrol.android.familie.rules.RuleLogic
 import com.gatecontrol.android.familie.rules.RuleOp
 import com.gatecontrol.android.familie.rules.RuleOptions
 import com.gatecontrol.android.familie.rules.RuleRecipients
+import com.gatecontrol.android.familie.rules.RuleSchoolDays
+import com.gatecontrol.android.familie.rules.RuleSchoolKind
 import com.gatecontrol.android.familie.rules.RuleScope
 import com.gatecontrol.android.familie.rules.RuleTemplate
 import com.gatecontrol.android.familie.rules.RuleTimeWindow
@@ -191,11 +193,11 @@ fun RuleEditorScreen(
     when (val dl = dialog) {
         EditorDialog.Trigger -> OptionDialog(
             stringResource(R.string.rules_when),
-            options.triggers.filter { it in RuleTriggerType.ALL }.map { it to triggerLabel(it) },
+            options.triggers.filter { it in RuleTriggerType.KNOWN }.map { it to triggerLabel(it) },
             current.trigger.type,
             { type ->
                 dialog = null
-                viewModel.edit { r -> r.copy(trigger = defaultTrigger(type, r.trigger, options)) }
+                viewModel.edit { r -> r.copy(trigger = defaultTrigger(type, r.trigger, options, RuleLogic.schoolChildFixed(r, can.house), myId)) }
             },
             { dialog = null },
         )
@@ -288,12 +290,13 @@ private fun putAction(r: Rule, index: Int?, a: RuleAction): Rule {
     return r.copy(actions = list)
 }
 
-private fun defaultTrigger(type: String, old: RuleTrigger, options: RuleOptions): RuleTrigger = when (type) {
+private fun defaultTrigger(type: String, old: RuleTrigger, options: RuleOptions, childOnly: Boolean, myId: Int?): RuleTrigger = when (type) {
     old.type -> old
     RuleTriggerType.SCHEDULE -> RuleTrigger(type, weekdays = listOf(1, 2, 3, 4, 5), time = "07:00")
     in RuleTriggerType.PERSON -> RuleTrigger(type, userId = options.people.firstOrNull()?.userId)
     in RuleTriggerType.PLACE -> RuleTrigger(type, placeId = options.places.firstOrNull()?.id)
     RuleTriggerType.ALL_AWAY -> RuleTrigger(type, graceMinutes = 10)
+    RuleTriggerType.SCHOOL_CHANGE -> RuleLogic.schoolTrigger(childOnly, myId)
     else -> RuleTrigger(type)
 }
 
@@ -332,7 +335,11 @@ private fun EditorContent(
     }
 
     Step(1, stringResource(R.string.rules_when)) {
-        SelRow(triggerIcon(d.trigger.type), triggerLabel(d.trigger.type), null) { onDialog(EditorDialog.Trigger) }
+        SelRow(
+            triggerIcon(d.trigger.type),
+            triggerLabel(d.trigger.type),
+            if (d.trigger.type == RuleTriggerType.SCHOOL_CHANGE) triggerText(d.trigger, options, nameOf) else null,
+        ) { onDialog(EditorDialog.Trigger) }
         val t = d.trigger
         when (t.type) {
             RuleTriggerType.SCHEDULE -> {
@@ -371,6 +378,7 @@ private fun EditorContent(
                     }
                 }
             }
+            RuleTriggerType.SCHOOL_CHANGE -> SchoolTriggerFields(t, options, RuleLogic.schoolChildFixed(d, canHouse), myId, nameOf, vm)
         }
         if (!reminder) Text(stringResource(R.string.rules_when_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
     }
@@ -449,6 +457,39 @@ private fun EditorContent(
         style = MaterialTheme.typography.bodySmall,
         color = extra.muted,
     )
+}
+
+/** school_change: whose timetable (any child or one; a child's own rule: itself), what happened, which day. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SchoolTriggerFields(t: RuleTrigger, options: RuleOptions, childFixed: Boolean, myId: Int?, nameOf: (Int) -> String?, vm: RuleEditorViewModel) {
+    val extra = GateControlTheme.extraColors
+    val students = options.school?.students.orEmpty()
+    GcSectionLabel(stringResource(R.string.rules_school_child))
+    if (childFixed) {
+        val me = myId ?: t.userId
+        // a child's own rule watches only the child itself
+        if (me != null && t.userId != me) LaunchedEffect(me) { vm.edit { r -> r.copy(trigger = r.trigger.copy(userId = me)) } }
+        val name = me?.let { id -> students.firstOrNull { it.userId == id }?.name ?: nameOf(id) } ?: stringResource(R.string.rules_school_self)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { PickChip(name, true) {} }
+    } else {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PickChip(stringResource(R.string.rules_school_any_child), t.userId == null) { vm.edit { r -> r.copy(trigger = r.trigger.copy(userId = null)) } }
+            students.forEach { s -> PickChip(s.name, t.userId == s.userId) { vm.edit { r -> r.copy(trigger = r.trigger.copy(userId = s.userId)) } } }
+            // a child no longer in the timetable (still the rule's)
+            t.userId?.takeIf { id -> students.none { it.userId == id } }?.let { id -> PickChip(nameOf(id) ?: "#$id", true) {} }
+        }
+    }
+    GcSectionLabel(stringResource(R.string.rules_school_kinds))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RuleSchoolKind.ALL.forEach { k -> PickChip(schoolKindLabel(k), k in t.kinds) { vm.edit { r -> r.copy(trigger = RuleLogic.toggleSchoolKind(r.trigger, k)) } } }
+    }
+    if (t.kinds.isEmpty()) Text(stringResource(R.string.rules_school_kinds_none), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    GcSectionLabel(stringResource(R.string.rules_school_days))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RuleSchoolDays.ALL.forEach { day -> PickChip(schoolDaysLabel(day), (t.days ?: RuleSchoolDays.ANY) == day) { vm.edit { r -> r.copy(trigger = r.trigger.copy(days = day)) } } }
+    }
+    Text(stringResource(R.string.rules_school_event_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
 }
 
 @Composable
@@ -664,7 +705,7 @@ private fun NotifyDialog(
         } else {
             Text(recipientsText(action.to, myId, nameOf), style = MaterialTheme.typography.bodyMedium)
         }
-        GcTextField(value = action.text.orEmpty(), onValueChange = { t -> action = action.copy(text = t.take(500).ifEmpty { null }) }, label = stringResource(R.string.rules_text_optional), placeholder = stringResource(R.string.rules_text_hint))
+        GcTextField(value = action.text.orEmpty(), onValueChange = { t -> action = action.copy(text = t.take(500).ifEmpty { null }) }, label = stringResource(R.string.rules_text_optional), placeholder = textHint(rule))
         GcSwitchRow(stringResource(R.string.rules_facts), stringResource(R.string.rules_facts_desc), action.facts, { action = action.copy(facts = it) })
         // The device's own actions as one button to choose („Laden starten“), not the action its widget hangs on.
         val deviceActions = options.deviceActions(deviceId)
@@ -681,6 +722,12 @@ private fun NotifyDialog(
         GcSwitchRow(stringResource(R.string.rules_button_done_row), null, RuleButton.DONE in action.buttons, { on -> action = RuleLogic.toggleButton(action, RuleButton.DONE, on) })
     }
 }
+
+/** The placeholder of a push text: the placeholders the rule's trigger fills („{event}“ of a timetable change). */
+@Composable
+private fun textHint(rule: Rule): String = stringResource(
+    if (rule.trigger.type == RuleTriggerType.SCHOOL_CHANGE) R.string.rules_text_hint_school else R.string.rules_text_hint,
+)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

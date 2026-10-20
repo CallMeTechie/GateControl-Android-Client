@@ -263,7 +263,7 @@ class RuleEditorViewModel @Inject constructor(
             _draft.value = when {
                 ruleId != null -> (list as? FamilieResult.Ok)?.value?.rules?.firstOrNull { it.id == ruleId }
                 actionId != null -> RuleLogic.reminderFor(_options.value.device(actionId), actionId, me, LocalDate.now().dayOfWeek)
-                template != null -> RuleLogic.fromTemplate(template, _options.value, _can.value, templateTitle, LocalDate.now().dayOfWeek)
+                template != null -> RuleLogic.fromTemplate(template, _options.value, _can.value, templateTitle, LocalDate.now().dayOfWeek, me)
                 else -> RuleLogic.newRule(personal || !_can.value.house, me)
             }
             _loadState.value = when {

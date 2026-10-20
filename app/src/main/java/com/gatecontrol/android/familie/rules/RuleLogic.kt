@@ -77,8 +77,40 @@ object RuleLogic {
             RuleTriggerType.SCHEDULE -> t.weekdays.isNotEmpty() && t.time != null
             in RuleTriggerType.PERSON -> t.userId != null
             in RuleTriggerType.PLACE -> t.placeId != null
+            RuleTriggerType.SCHOOL_CHANGE -> t.kinds.isNotEmpty()
             else -> true
         }
+    }
+
+    /**
+     * What the line of a school_change trigger says: the one [kind] it watches (null: several —
+     * „der Stundenplan ändert sich“) and the [day] (null: any day).
+     */
+    data class SchoolSummary(val kind: String?, val day: String?)
+
+    fun schoolSummary(t: RuleTrigger): SchoolSummary = SchoolSummary(
+        kind = t.kinds.singleOrNull(),
+        day = t.days?.takeIf { it == RuleSchoolDays.TODAY || it == RuleSchoolDays.TOMORROW },
+    )
+
+    /**
+     * The child a school_change trigger may watch is fixed: a child's own rule (no house rights,
+     * personal) only watches the child itself.
+     */
+    fun schoolChildFixed(r: Rule, canHouse: Boolean): Boolean = r.scope == RuleScope.PERSONAL && !canHouse
+
+    /** A fresh school_change trigger: lessons that are cancelled, any day; any child, or [myUserId] for a child's own rule. */
+    fun schoolTrigger(childOnly: Boolean, myUserId: Int?): RuleTrigger = RuleTrigger(
+        RuleTriggerType.SCHOOL_CHANGE,
+        userId = if (childOnly) myUserId else null,
+        kinds = listOf(RuleSchoolKind.CANCELLED),
+        days = RuleSchoolDays.ANY,
+    )
+
+    /** Toggles [kind] of a school_change trigger, keeping the order of [RuleSchoolKind.ALL] (may leave none: invalid). */
+    fun toggleSchoolKind(t: RuleTrigger, kind: String): RuleTrigger {
+        val next = if (kind in t.kinds) t.kinds - kind else t.kinds + kind
+        return t.copy(kinds = RuleSchoolKind.ALL.filter { it in next })
     }
 
     /**
@@ -168,6 +200,8 @@ object RuleLogic {
         val children = o.people.any { it.child }
         if (can.house && children && RuleTriggerType.CHILD_HOME_ALONE in o.triggers) add(RuleTemplate.CHILD_ALONE)
         if (can.house && children && RuleTriggerType.PLACE_ENTER in o.triggers) add(RuleTemplate.SCHOOL)
+        // parents as a house rule, a child as its own
+        if (can.any && RuleTriggerType.SCHOOL_CHANGE in o.triggers) add(RuleTemplate.SCHOOL_CANCELLED)
     }
 
     /** A device value that looks like a charge level (a "%" or its name), with its device. */
@@ -181,9 +215,10 @@ object RuleLogic {
 
     /**
      * The rule a template starts with ([title] in the app's language; [today] for a weekly
-     * schedule). Everything stays editable; a place for [RuleTemplate.SCHOOL] may still be missing.
+     * schedule; [myUserId] the child of its own [RuleTemplate.SCHOOL_CANCELLED]). Everything stays
+     * editable; a place for [RuleTemplate.SCHOOL] may still be missing.
      */
-    fun fromTemplate(t: RuleTemplate, o: RuleOptions, can: RuleCan, title: String, today: DayOfWeek): Rule {
+    fun fromTemplate(t: RuleTemplate, o: RuleOptions, can: RuleCan, title: String, today: DayOfWeek, myUserId: Int? = null): Rule {
         val personal = if (can.personal) RuleScope.PERSONAL else RuleScope.HOUSE
         val toMe = RuleRecipients(RuleRecipients.ME)
         val toParents = RuleRecipients(RuleRecipients.PARENTS)
@@ -253,8 +288,22 @@ object RuleLogic {
                     actions = listOf(RuleAction(RuleActionType.NOTIFY, to = toParents)),
                 )
             }
+            RuleTemplate.SCHOOL_CANCELLED -> {
+                // parents: a house rule for any child to the parents; a child: its own, to itself
+                val house = can.house
+                Rule(
+                    id = null,
+                    title = title,
+                    scope = if (house) RuleScope.HOUSE else RuleScope.PERSONAL,
+                    trigger = schoolTrigger(childOnly = !house, myUserId = myUserId),
+                    actions = listOf(RuleAction(RuleActionType.NOTIFY, to = if (house) toParents else toMe, text = SCHOOL_EVENT)),
+                )
+            }
         }
     }
+
+    /** The notify placeholder of a school_change rule: „Lena: Mathe 3. Std. (09:50) fällt aus“. */
+    const val SCHOOL_EVENT = "{event}"
 }
 
 /** The templates of a new rule (only offered when what they need is there, [RuleLogic.templates]). */
@@ -264,6 +313,7 @@ enum class RuleTemplate(val id: String) {
     ALL_AWAY_OFF("all_away_off"),
     CHILD_ALONE("child_alone"),
     SCHOOL("school"),
+    SCHOOL_CANCELLED("school_cancelled"),
     ;
 
     companion object {
