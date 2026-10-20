@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.54.0] - 2026-10-20
+
+### Features
+- child colour and avatar in the timetable (#107)
+
+---
+
 ## [1.53.0] - 2026-10-20
 
 ### Features
