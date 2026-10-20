@@ -284,8 +284,18 @@ private fun TemperaturePart(icon: ImageVector, iconTint: Color, text: String, te
 @Composable
 private fun MainValue(widget: QuickActionWidgetItem) {
     val extra = GateControlTheme.extraColors
+    // core 1.187: an icon beside the value says what it is (a calendar for „this month“) instead of a text line
+    val valueIcon = remember(widget.icon) { QuickActionIcons.vectorOrNull(widget.icon) }
     Column {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (valueIcon != null) {
+                Icon(
+                    valueIcon,
+                    contentDescription = widget.label,
+                    tint = extra.muted,
+                    modifier = Modifier.padding(end = 2.dp, bottom = 5.dp).size(18.dp),
+                )
+            }
             Text(
                 widget.value ?: "–",
                 style = MaterialTheme.typography.headlineMedium,
@@ -298,7 +308,7 @@ private fun MainValue(widget: QuickActionWidgetItem) {
                 Text(widget.unit, style = MaterialTheme.typography.bodyMedium, color = extra.muted, maxLines = 1, modifier = Modifier.padding(bottom = 3.dp))
             }
         }
-        if (widget.label != null) {
+        if (widget.label != null && valueIcon == null) {
             Text(widget.label, style = MaterialTheme.typography.labelSmall, color = extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

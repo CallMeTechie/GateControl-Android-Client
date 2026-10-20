@@ -535,6 +535,8 @@ data class QuickActionWidget(
     @SerializedName("power") val power: Boolean? = null,
     /** One small value for the widget's head, e.g. a car's battery (core 1.175+): icon required, no id. */
     @SerializedName("badge") val badge: QuickActionReading? = null,
+    /** An SVG path shown small beside [value] instead of the [label] text (core 1.187+), e.g. a calendar. */
+    @SerializedName("icon") val icon: String? = null,
 )
 
 /** A small value of a widget or tile: icon and/or value with unit, coloured by [state]. */
