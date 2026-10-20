@@ -75,6 +75,24 @@ class FamilieApiTest {
     }
 
     @Test
+    fun `messages and absences come from the schule plugin, 404 from an older one`() = runBlocking {
+        coEvery { api.pluginGet("gatecontrol-schule", "app/messages", any()) } returns
+            ok("""{"ok":true,"messages":[{"id":"1","studentIds":[3],"subject":"Hallo"}]}""")
+        val m = familie.schoolMessages()
+        assertEquals(listOf("1"), (m as FamilieResult.Ok).value.items.map { it.id })
+        coVerify { api.pluginGet("gatecontrol-schule", "app/messages", mapOf("days" to "30")) }
+
+        coEvery { api.pluginGet("gatecontrol-schule", "app/absences", any()) } returns ok("""{"ok":true,"absences":[]}""")
+        assertEquals(emptyList<Any>(), (familie.schoolAbsences() as FamilieResult.Ok).value.items)
+        coVerify { api.pluginGet("gatecontrol-schule", "app/absences", mapOf("days" to "60")) }
+
+        coEvery { api.pluginGet("gatecontrol-schule", "app/messages", any()) } returns error(404, """{"ok":false,"code":"not_found"}""")
+        assertEquals(FamilieResult.Failed("not_found", 404), familie.schoolMessages())
+        coEvery { api.pluginGet("gatecontrol-schule", "app/absences", any()) } returns ok("""{"ok":true}""")
+        assertEquals(FamilieResult.Failed(FamilieApi.CODE_INVALID, 200), familie.schoolAbsences())
+    }
+
+    @Test
     fun `error answers carry the contract code`() = runBlocking {
         coEvery { api.pluginPost(any(), "locate/5", any()) } returns error(429, """{"ok":false,"code":"too_soon","error":"Bitte warten","retryAfter":42,"requestId":17}""")
         assertEquals(FamilieResult.Failed("too_soon", 429, retryAfter = 42, requestId = 17), familie.requestLocation(5))

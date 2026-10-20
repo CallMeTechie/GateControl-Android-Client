@@ -26,7 +26,15 @@ data class SchoolDaySummary(
     val homework: Int = 0,
     /** The card shows the line "Morgen: Mathe-Arbeit · 2 Hausaufgaben" ([SchoolLogic.agendaText]). */
     val agenda: Boolean = false,
+    /**
+     * New messages the card names in a line of its own ("1 neue Nachricht");
+     * 0 when there are none or no line is left for them (lowest priority).
+     */
+    val newMessages: Int = 0,
 ) {
+    /** Lines the card shows under the child (exam / homework, changed lessons, new messages). */
+    val lines: Int get() = (if (agenda) 1 else 0) + next.size + (if (newMessages > 0) 1 else 0)
+
     enum class Status {
         /** Holidays (no lessons): [holiday] names them. */
         HOLIDAY,
@@ -138,10 +146,16 @@ object SchoolLogic {
      * space is short: (1) the exam line — with exams it always shows (open
      * homework rides along on it) and takes the first line; (2) the changed
      * lessons fill the remaining lines; (3) a line with open homework alone
-     * only shows when a line is still free. Counts in the summary text are
-     * never cut.
+     * only shows when a line is still free; (4) the line with [newMessages]
+     * (plugin 1.4+) only when one is still free after all that. Counts in
+     * the summary text are never cut.
      */
-    fun summary(student: SchoolStudent, date: LocalDate, now: LocalDateTime? = null): SchoolDaySummary {
+    fun summary(student: SchoolStudent, date: LocalDate, now: LocalDateTime? = null, newMessages: Int = 0): SchoolDaySummary =
+        dayOnly(student, date, now).let { s ->
+            if (newMessages > 0 && s.lines < CARD_LESSONS) s.copy(newMessages = newMessages) else s
+        }
+
+    private fun dayOnly(student: SchoolStudent, date: LocalDate, now: LocalDateTime?): SchoolDaySummary {
         val key = date.toString()
         val day = student.day(key) ?: return SchoolDaySummary(key, SchoolDaySummary.Status.UNKNOWN)
         val exams = day.exams
@@ -224,6 +238,31 @@ object SchoolLogic {
             .groupBy { it.date }
             .toSortedMap(compareByDescending { it })
             .map { (date, list) -> date to list.sortedWith(compareBy({ it.start ?: "" }, { -(it.detectedAt ?: 0L) })) }
+
+    // ─── Messages and absences (plugin 1.4+) ─────────────────────────
+
+    /** [studentId]'s messages (its id in `studentIds`), newest first (without a time last). */
+    fun messagesFor(messages: List<SchoolMessage>?, studentId: Int): List<SchoolMessage> =
+        messages.orEmpty().filter { it.isFor(studentId) }.sortedByDescending { it.sentAt ?: Long.MIN_VALUE }
+
+    /** New (unread) messages of [studentId]; a message to two children counts for each. */
+    fun newMessages(messages: List<SchoolMessage>?, studentId: Int): Int =
+        messages.orEmpty().count { it.isNew && it.isFor(studentId) }
+
+    /** [studentId]'s absences, latest first. */
+    fun absencesFor(absences: List<SchoolAbsence>?, studentId: Int): List<SchoolAbsence> =
+        absences.orEmpty().filter { it.studentId == studentId }
+            .sortedWith(compareByDescending<SchoolAbsence> { it.date }.thenByDescending { it.start ?: "" })
+
+    /**
+     * The child to show a message with: [current] when the message is for
+     * it, else the first of its children the timetable knows; null keeps
+     * the current child.
+     */
+    fun studentForMessage(message: SchoolMessage, current: Int?, timetable: SchoolTimetable?): Int? = when {
+        current != null && message.isFor(current) -> current
+        else -> message.studentIds.firstOrNull { id -> timetable?.student(id) != null }
+    }
 
     /** The student to show: [wanted] when it is there, else the first one. */
     fun pickStudent(timetable: SchoolTimetable?, wanted: Int?): SchoolStudent? =

@@ -5,6 +5,7 @@ import com.gatecontrol.android.familie.locate.FamiliePermissions.AnswerPlan
 import com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness
 import com.gatecontrol.android.familie.locate.FamiliePermissions.SendPath
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
+import com.gatecontrol.android.familie.school.SchoolView
 import com.gatecontrol.android.network.ClientPlugin
 import com.gatecontrol.android.network.ClientPluginTab
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -150,6 +151,9 @@ class FamilieLogicTest {
             FamilieDest.Allowance(), FamilieDest.Allowance(5), FamilieDest.Wishes(), FamilieDest.Wishes(3), FamilieDest.Expenses(),
             FamilieDest.Expenses("l1-abc"), FamilieDest.Board, FamilieDest.Meals(), FamilieDest.Meals("2026-W42"), FamilieDest.Presence,
             FamilieDest.School(), FamilieDest.School(3), FamilieDest.School(3, "2026-10-20"), FamilieDest.School(null, "2026-10-20"),
+            FamilieDest.School(view = SchoolView.MESSAGES), FamilieDest.School(3, view = SchoolView.MESSAGES),
+            FamilieDest.School(3, view = SchoolView.MESSAGES, messageId = "4711"), FamilieDest.School(view = SchoolView.MESSAGES, messageId = "2:msg-9.1"),
+            FamilieDest.School(view = SchoolView.ABSENCES), FamilieDest.School(4, view = SchoolView.ABSENCES),
         )
         all.forEach { assertEquals(it, FamilieDest.parse(it.key), it.key) }
     }
@@ -162,6 +166,8 @@ class FamilieLogicTest {
             "allowance/x", "allowance/0", "wishes/1/2", "expenses/list", "expenses/list/bad id", "expenses/x", "board/1",
             "meals/2026-W60", "meals/next", "presence/1",
             "school/x", "school/0", "school/3/tomorrow", "school/3/2026-02-30", "school/3/2026-10-20/1",
+            "school/messages/x", "school/messages/0", "school/messages/3/bad id", "school/messages/3/-x", "school/messages/3/1/2",
+            "school/absences/x", "school/absences/-", "school/absences/3/2026-10-20",
         ).forEach {
             assertNull(FamilieDest.parse(it), it.toString())
         }

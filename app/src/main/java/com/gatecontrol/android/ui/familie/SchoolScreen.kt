@@ -23,9 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +46,7 @@ import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.school.SchoolLogic
 import com.gatecontrol.android.familie.school.SchoolStudent
 import com.gatecontrol.android.familie.school.SchoolTimetable
+import com.gatecontrol.android.familie.school.SchoolView
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcFilterChip
@@ -55,7 +54,6 @@ import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
-import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.time.Instant
@@ -64,24 +62,25 @@ import java.time.ZoneId
 import java.time.format.TextStyle
 import kotlin.math.abs
 
-private const val TAB_PLAN = "plan"
-private const val TAB_CHANGES = "changes"
-
 /**
  * Stundenplan (Schule plugin, WebUntis): a child chip per student (more
  * than one), a day strip Mo–Fr (Sa with lessons) for this week and next,
  * the day's exams ("Klassenarbeiten", on top), its lessons with their
  * state (an "Arbeit" badge on the lesson an exam is written in), the
  * homework due ("Hausaufgaben"), "Stand" of the last fetch, and
- * the tab "Änderungen" (the change log of the last 7 days by day). Opens
- * on [initialStudentId] / [initialDate] (card or push), else on the first
- * child and [SchoolLogic.defaultDay].
+ * the tab "Änderungen" (the change log of the last 7 days by day) and,
+ * with plugin 1.4+, "Nachrichten" and "Fehlzeiten" of the child (hidden
+ * when the plugin does not offer them). Opens on [initialStudentId] /
+ * [initialDate] / [initialView] (card or push; [initialMessageId] opens
+ * that message), else on the first child and [SchoolLogic.defaultDay].
  */
 @Composable
 fun SchoolScreen(
     onBack: () -> Unit,
     initialStudentId: Int? = null,
     initialDate: String? = null,
+    initialView: SchoolView = SchoolView.PLAN,
+    initialMessageId: String? = null,
     viewModel: SchoolViewModel = hiltViewModel(),
 ) {
     val timetable by viewModel.timetable.collectAsStateWithLifecycle()
@@ -92,11 +91,24 @@ fun SchoolScreen(
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val changes by viewModel.changes.collectAsStateWithLifecycle()
     val changesError by viewModel.changesError.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(TAB_PLAN) }
-    LaunchedEffect(initialStudentId, initialDate) { viewModel.open(initialStudentId, initialDate) }
+    val inbox by viewModel.inbox.collectAsStateWithLifecycle()
+    val tab by viewModel.tab.collectAsStateWithLifecycle()
+    val messageId by viewModel.messageId.collectAsStateWithLifecycle()
+    LaunchedEffect(initialStudentId, initialDate, initialView, initialMessageId) {
+        viewModel.open(initialStudentId, initialDate, initialView, initialMessageId)
+    }
 
     val tt = timetable
     val student = SchoolLogic.pickStudent(tt, studentId)
+    // Messages / absences only when the plugin offers them (1.4+); a push may ask for one before the first load.
+    val box = inbox
+    val tabs = buildList {
+        add(SchoolTab.PLAN to stringResource(R.string.school_tab_plan))
+        add(SchoolTab.CHANGES to stringResource(R.string.school_tab_changes))
+        if (box?.hasMessages == true || (box == null && tab == SchoolTab.MESSAGES)) add(SchoolTab.MESSAGES to stringResource(R.string.school_tab_messages))
+        if (box?.hasAbsences == true || (box == null && tab == SchoolTab.ABSENCES)) add(SchoolTab.ABSENCES to stringResource(R.string.school_tab_absences))
+    }
+    val shown = tab.takeIf { t -> tabs.any { it.first == t } } ?: SchoolTab.PLAN
 
     FamiliePageFrame(
         title = stringResource(R.string.school_title),
@@ -104,11 +116,7 @@ fun SchoolScreen(
         refreshing = busy && tt != null,
         onRefresh = viewModel::refresh,
     ) {
-        GcSegmented(
-            options = listOf(TAB_PLAN to stringResource(R.string.school_tab_plan), TAB_CHANGES to stringResource(R.string.school_tab_changes)),
-            selected = tab,
-            onSelect = { tab = it },
-        )
+        SchoolTabs(tabs, selected = shown, onSelect = viewModel::selectTab)
         when {
             tt == null && error != null -> SchoolError(error, onRetry = viewModel::refresh)
             tt == null -> FamilieLoading()
@@ -135,10 +143,11 @@ fun SchoolScreen(
                     }
                 }
                 if (student != null) {
-                    if (tab == TAB_PLAN) {
-                        Plan(tt, student, date, windowStart, viewModel::selectDate, viewModel::shiftWeek)
-                    } else {
-                        Changes(changes, changesError, showStudent = false, studentId = student.id, onRetry = viewModel::refresh)
+                    when (shown) {
+                        SchoolTab.PLAN -> Plan(tt, student, date, windowStart, viewModel::selectDate, viewModel::shiftWeek)
+                        SchoolTab.CHANGES -> Changes(changes, changesError, showStudent = false, studentId = student.id, onRetry = viewModel::refresh)
+                        SchoolTab.MESSAGES -> SchoolMessagesTab(box, student, messageId, viewModel::openMessage, viewModel::closeMessage, viewModel::refresh)
+                        SchoolTab.ABSENCES -> SchoolAbsencesTab(box, student, onRetry = viewModel::refresh)
                     }
                 }
             }
@@ -147,7 +156,7 @@ fun SchoolScreen(
 }
 
 @Composable
-private fun SchoolError(code: String?, onRetry: (() -> Unit)?) {
+internal fun SchoolError(code: String?, onRetry: (() -> Unit)?) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         GcBanner(tone = if (code == FamilieApi.CODE_OFFLINE) GcTone.Warn else GcTone.Error, icon = GcIcons.Alert) {
             Text(schoolErrorText(code), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)

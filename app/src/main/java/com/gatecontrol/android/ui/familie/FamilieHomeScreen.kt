@@ -107,6 +107,7 @@ fun FamilieHomeScreen(
     val schule by viewModel.schule.collectAsStateWithLifecycle()
     val schoolSnapshot by viewModel.schoolSnapshot.collectAsStateWithLifecycle()
     val schoolError by viewModel.schoolError.collectAsStateWithLifecycle()
+    val schoolInbox by viewModel.schoolInbox.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val errorText = message?.let { familieErrorText(it) }
     var arranging by rememberSaveable { mutableStateOf(false) }
@@ -171,7 +172,7 @@ fun FamilieHomeScreen(
                 else -> {
                     val order = FamilieLayout.visible(FamilieLayout.merge(layout.familie, FamilieCards.available(p, schule)), layout.familieHidden)
                     HomeCards(p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange) {
-                        SchoolCard(schoolSnapshot, schoolError, selected is FamilieDest.School, onOpen)
+                        SchoolCard(schoolSnapshot, schoolError, selected is FamilieDest.School, onOpen, schoolInbox)
                     }
                 }
             }

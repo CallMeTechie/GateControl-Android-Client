@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.errorCode
 import com.gatecontrol.android.familie.school.SchoolChange
+import com.gatecontrol.android.familie.school.SchoolInbox
 import com.gatecontrol.android.familie.school.SchoolLogic
 import com.gatecontrol.android.familie.school.SchoolRepository
 import com.gatecontrol.android.familie.school.SchoolTimetable
+import com.gatecontrol.android.familie.school.SchoolView
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,10 +23,14 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
 
+/** The tabs of the timetable screen; MESSAGES and ABSENCES only with plugin 1.4+. */
+enum class SchoolTab { PLAN, CHANGES, MESSAGES, ABSENCES }
+
 /**
  * Stundenplan screen: this week and next (the range the Familie card
  * keeps, offline too), or — for a push about a later day — the two weeks
- * from that day's Monday; the selected child and day; the change log.
+ * from that day's Monday; the selected child and day; the change log;
+ * messages and absences (plugin 1.4+, [inbox]) with the open message.
  */
 @HiltViewModel
 class SchoolViewModel @Inject constructor(
@@ -70,6 +76,16 @@ class SchoolViewModel @Inject constructor(
     private val _changesError = MutableStateFlow<String?>(null)
     val changesError: StateFlow<String?> = _changesError.asStateFlow()
 
+    /** Messages and absences (plugin 1.4+); a list is null when the plugin does not offer it. */
+    val inbox: StateFlow<SchoolInbox?> = repository.inbox
+
+    private val _tab = MutableStateFlow(SchoolTab.PLAN)
+    val tab: StateFlow<SchoolTab> = _tab.asStateFlow()
+
+    private val _messageId = MutableStateFlow<String?>(null)
+    /** The message shown in full (tab "Nachrichten"); null = the list. */
+    val messageId: StateFlow<String?> = _messageId.asStateFlow()
+
     private var loadJob: Job? = null
     private var opened = false
 
@@ -82,22 +98,39 @@ class SchoolViewModel @Inject constructor(
                 if (_studentId.value == null || tt.student(_studentId.value) == null) {
                     _studentId.value = SchoolLogic.pickStudent(tt, _studentId.value)?.id
                 }
+                followMessage()
             }
+        }
+        // A message opened by a push: show it with one of its children.
+        viewModelScope.launch {
+            combine(inbox, _messageId) { _, _ -> }.collect { followMessage() }
         }
     }
 
+    private fun followMessage() {
+        val id = _messageId.value ?: return
+        val message = inbox.value?.messages?.firstOrNull { it.id == id } ?: return
+        SchoolLogic.studentForMessage(message, _studentId.value, timetable.value)?.let { _studentId.value = it }
+    }
+
     /**
-     * The child and day to start on (from the card or a push). The view
-     * model can outlive one screen (wide windows): new arguments apply, the
-     * same ones again do nothing.
+     * The child, day and view to start on (from the card or a push;
+     * [messageId] opens that message). The view model can outlive one
+     * screen (wide windows): new arguments apply, the same ones again do nothing.
      */
-    fun open(studentId: Int?, date: String?) {
-        val args = studentId to date
+    fun open(studentId: Int?, date: String?, view: SchoolView = SchoolView.PLAN, messageId: String? = null) {
+        val args = OpenArgs(studentId, date, view, messageId)
         if (opened && args == lastArgs) return
         val first = !opened
         opened = true
         lastArgs = args
         if (studentId != null) _studentId.value = studentId
+        _tab.value = when (view) {
+            SchoolView.PLAN -> SchoolTab.PLAN
+            SchoolView.MESSAGES -> SchoolTab.MESSAGES
+            SchoolView.ABSENCES -> SchoolTab.ABSENCES
+        }
+        _messageId.value = messageId.takeIf { view == SchoolView.MESSAGES }
         val d = date?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         val start = _windowStart.value
         if (d != null) {
@@ -108,12 +141,18 @@ class SchoolViewModel @Inject constructor(
         if (first || _windowStart.value != start) {
             viewModelScope.launch {
                 repository.cached()
+                repository.cachedInbox()
                 refresh()
             }
+        } else if (view != SchoolView.PLAN) {
+            // A push about a message or an absence: fetch it.
+            refresh()
         }
     }
 
-    private var lastArgs: Pair<Int?, String?>? = null
+    private data class OpenArgs(val studentId: Int?, val date: String?, val view: SchoolView, val messageId: String?)
+
+    private var lastArgs: OpenArgs? = null
 
     fun refresh() {
         loadJob?.cancel()
@@ -133,12 +172,28 @@ class SchoolViewModel @Inject constructor(
                 }
                 else -> _changesError.value = c.errorCode()
             }
+            repository.refreshInbox()
             _busy.value = false
         }
     }
 
     fun selectStudent(id: Int) {
+        if (_studentId.value != id) _messageId.value = null
         _studentId.value = id
+    }
+
+    fun selectTab(tab: SchoolTab) {
+        _tab.value = tab
+        if (tab != SchoolTab.MESSAGES) _messageId.value = null
+    }
+
+    fun openMessage(id: String) {
+        _messageId.value = id
+    }
+
+    /** Back from a message to the list. */
+    fun closeMessage() {
+        _messageId.value = null
     }
 
     fun selectDate(date: LocalDate) {

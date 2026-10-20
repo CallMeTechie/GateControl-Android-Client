@@ -146,6 +146,10 @@ object GcIcons {
     val Meal = icon("Meal", 2f, "M7 2v8a2 2 0 0 0 4 0V2M9 10v12", "M17 2c-2 2-2 6 0 8v12")
     /** Stundenplan (Schule plugin): a mortarboard. */
     val School = icon("School", 2f, "M22 9 12 4 2 9l10 5 10-5z", "M6 11v5c3 2.7 9 2.7 12 0v-5", "M22 9v6")
+    /** School messages (Schule plugin 1.4+): an envelope. */
+    val Mail = icon("Mail", 2f, "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7")
+    /** A message with attachments. */
+    val Paperclip = icon("Paperclip", 2f, "m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48")
     val ChevronLeft = icon("ChevronLeft", 2f, "m15 18-6-6 6-6")
     val ChevronUp = icon("ChevronUp", 2f, "m18 15-6-6-6 6")
     val ChevronDown = icon("ChevronDown", 2f, "m6 9 6 6 6-6")

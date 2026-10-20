@@ -8,6 +8,7 @@ import com.gatecontrol.android.familie.FamilieProfile
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.PluginDirectory
+import com.gatecontrol.android.familie.school.SchoolInbox
 import com.gatecontrol.android.familie.school.SchoolRepository
 import com.gatecontrol.android.familie.school.SchoolSnapshot
 import com.gatecontrol.android.familie.errorCode
@@ -50,6 +51,9 @@ class FamilieHomeViewModel @Inject constructor(
     val schoolSnapshot: StateFlow<SchoolSnapshot?> = school.snapshot
     val schoolError: StateFlow<String?> = school.error
 
+    /** Messages (plugin 1.4+) for the card's "1 neue Nachricht"; null when there are none to show. */
+    val schoolInbox: StateFlow<SchoolInbox?> = school.inbox
+
     /** The tab's card order and hidden cards (from the account where the server keeps it). */
     val layout: StateFlow<TabLayout> = tabLayout.layout
 
@@ -87,11 +91,20 @@ class FamilieHomeViewModel @Inject constructor(
             plugins.state.map { it.schule }.distinctUntilChanged().collect { on ->
                 if (on) {
                     school.cached()
+                    school.cachedInbox()
                     school.refresh(maxAgeMs = SCHOOL_MAX_AGE_MS)
+                    school.refreshInbox(maxAgeMs = SCHOOL_MAX_AGE_MS)
                 }
             }
         }
-        viewModelScope.launch { school.pushes.collect { if (plugins.state.value.schule) school.refresh() } }
+        viewModelScope.launch {
+            school.pushes.collect {
+                if (plugins.state.value.schule) {
+                    school.refresh()
+                    school.refreshInbox()
+                }
+            }
+        }
         viewModelScope.launch {
             repository.events.collect { event ->
                 // Something changed that the overview shows.
@@ -102,7 +115,12 @@ class FamilieHomeViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch { tabLayout.refresh() }
-        if (plugins.state.value.schule) viewModelScope.launch { school.refresh(maxAgeMs = SCHOOL_MAX_AGE_MS) }
+        if (plugins.state.value.schule) {
+            viewModelScope.launch {
+                school.refresh(maxAgeMs = SCHOOL_MAX_AGE_MS)
+                school.refreshInbox(maxAgeMs = SCHOOL_MAX_AGE_MS)
+            }
+        }
         viewModelScope.launch {
             _loading.value = true
             val p = repository.refreshProfile()

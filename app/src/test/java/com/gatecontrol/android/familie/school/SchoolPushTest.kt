@@ -53,6 +53,40 @@ class SchoolPushTest {
     }
 
     @Test
+    fun `a message push opens that message in the messages view`() {
+        val m = message("plugin:gatecontrol-schule:messages", """{"schule":{"messageId":"4711","studentId":3}}""")
+        assertTrue(SchoolPush.isSchool(m))
+        val dest = SchoolPush.destination(m)
+        assertEquals(FamilieDest.School(3, null, SchoolView.MESSAGES, "4711"), dest)
+        assertEquals(dest, FamilieDest.parse(dest!!.key), "the key survives the notification intent")
+
+        // studentId is optional; a number as id is fine too.
+        val noChild = SchoolPush.destination(message("plugin:gatecontrol-schule:messages", """{"schule":{"messageId":12}}"""))
+        assertEquals(FamilieDest.School(null, null, SchoolView.MESSAGES, "12"), noChild)
+        assertEquals(noChild, FamilieDest.parse(noChild!!.key))
+        // An id the link cannot carry, no context: the messages view as it opens.
+        assertEquals(
+            FamilieDest.School(3, null, SchoolView.MESSAGES, null),
+            SchoolPush.destination(message("plugin:gatecontrol-schule:messages", """{"schule":{"messageId":"a/b?c","studentId":3}}""")),
+        )
+        assertEquals(FamilieDest.School(view = SchoolView.MESSAGES), SchoolPush.destination(message("plugin:gatecontrol-schule:messages", null)))
+    }
+
+    @Test
+    fun `an absence push opens the absences of that child`() {
+        val m = message("plugin:gatecontrol-schule:absences", """{"schule":{"studentId":4,"date":"2026-10-20"}}""")
+        assertTrue(SchoolPush.isSchool(m))
+        val dest = SchoolPush.destination(m)
+        assertEquals(FamilieDest.School(4, null, SchoolView.ABSENCES), dest)
+        assertEquals(dest, FamilieDest.parse(dest!!.key))
+        assertEquals(
+            FamilieDest.School(view = SchoolView.ABSENCES),
+            SchoolPush.destination(message("plugin:gatecontrol-schule:absences", """{"schule":{"studentId":-1}}""")),
+        )
+        assertEquals(FamilieDest.School(view = SchoolView.ABSENCES), SchoolPush.destination(message("plugin:gatecontrol-schule:absences", null)))
+    }
+
+    @Test
     fun `other senders are not school messages`() {
         val familie = message("plugin:gatecontrol-familie:tasks", """{"schule":{"studentId":3}}""")
         assertFalse(SchoolPush.isSchool(familie))

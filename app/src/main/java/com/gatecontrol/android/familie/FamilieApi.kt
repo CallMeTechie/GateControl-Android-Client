@@ -21,9 +21,12 @@ import com.gatecontrol.android.familie.rides.DriverChoice
 import com.gatecontrol.android.familie.rides.Ride
 import com.gatecontrol.android.familie.rides.RideDraft
 import com.gatecontrol.android.familie.school.SCHULE_PLUGIN
+import com.gatecontrol.android.familie.school.SchoolAbsence
 import com.gatecontrol.android.familie.school.SchoolChange
 import com.gatecontrol.android.familie.school.SchoolFetch
 import com.gatecontrol.android.familie.school.SchoolJson
+import com.gatecontrol.android.familie.school.SchoolListFetch
+import com.gatecontrol.android.familie.school.SchoolMessage
 import com.gatecontrol.android.familie.rules.Rule
 import com.gatecontrol.android.familie.rules.RuleJson
 import com.gatecontrol.android.familie.rules.RuleOptionPlace
@@ -285,6 +288,18 @@ class FamilieApi @Inject constructor(
     /** The change log of the last [days] days (1…30), newest first. */
     suspend fun schoolChanges(days: Int = 7): FamilieResult<List<SchoolChange>> =
         get(path("app", "changes"), mapOf("days" to days.coerceIn(1, 30).toString()), plugin = SCHULE_PLUGIN, parse = SchoolJson::changes)
+
+    /** Messages of the last [days] days (1…90; plugin 1.4+, older plugins answer 404), with the answer as it came. */
+    suspend fun schoolMessages(days: Int = 30): FamilieResult<SchoolListFetch<SchoolMessage>> =
+        get(path("app", "messages"), mapOf("days" to days.coerceIn(1, 90).toString()), plugin = SCHULE_PLUGIN) { o ->
+            SchoolJson.messages(o)?.let { SchoolListFetch(it, o.toString()) }
+        }
+
+    /** Absences of the last [days] days (1…180; plugin 1.4+, older plugins answer 404), with the answer as it came. */
+    suspend fun schoolAbsences(days: Int = 60): FamilieResult<SchoolListFetch<SchoolAbsence>> =
+        get(path("app", "absences"), mapOf("days" to days.coerceIn(1, 180).toString()), plugin = SCHULE_PLUGIN) { o ->
+            SchoolJson.absences(o)?.let { SchoolListFetch(it, o.toString()) }
+        }
 
     // ─── locate ──────────────────────────────────────────────────────
 
