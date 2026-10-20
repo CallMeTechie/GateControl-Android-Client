@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.50.0] - 2026-10-20
+
+### Features
+- an icon beside a widget's large value (#103)
+
+---
+
 ## [1.49.0] - 2026-10-19
 
 ### Features
