@@ -76,7 +76,7 @@ class RuleOpenTemplateTest {
     }
 
     private val options = RuleOptions(
-        triggers = RuleTriggerType.ALL,
+        triggers = RuleTriggerType.KNOWN,
         devices = listOf(
             RuleOptionDevice("gatecontrol-smarthome/flur", "Flur", null, "toggle", emptyList()),
             RuleOptionDevice("gatecontrol-skoda/car1:climate", "Elroq", null, null, listOf(RuleOptionField("value", "Ladestand", null, "32 %"))),
@@ -98,11 +98,16 @@ class RuleOpenTemplateTest {
         val parent = RuleCan(house = true, personal = true)
         assertEquals(RuleTemplate.entries.toList(), RuleLogic.templates(options, parent))
         val child = RuleCan(house = false, personal = true)
-        assertEquals(listOf(RuleTemplate.TRASH, RuleTemplate.CAR_CHARGE), RuleLogic.templates(options, child))
+        assertEquals(listOf(RuleTemplate.TRASH, RuleTemplate.CAR_CHARGE, RuleTemplate.SCHOOL_CANCELLED), RuleLogic.templates(options, child))
         val bare = RuleOptions(triggers = listOf(RuleTriggerType.SCHEDULE))
         assertEquals(listOf(RuleTemplate.TRASH), RuleLogic.templates(bare, parent))
+        val noSchool = options.copy(triggers = RuleTriggerType.ALL)
+        assertFalse(RuleTemplate.SCHOOL_CANCELLED in RuleLogic.templates(noSchool, parent), "without the Schule plugin")
+        assertFalse(RuleTemplate.SCHOOL_CANCELLED in RuleLogic.templates(noSchool, child))
+        assertFalse(RuleTemplate.SCHOOL_CANCELLED in RuleLogic.templates(RuleOptions(), parent), "an older plugin never offers it")
         assertEquals(emptyList<RuleTemplate>(), RuleLogic.templates(options, RuleCan()))
         assertEquals(RuleTemplate.SCHOOL, RuleTemplate.of("school"))
+        assertEquals(RuleTemplate.SCHOOL_CANCELLED, RuleTemplate.of("school_cancelled"))
         assertNull(RuleTemplate.of("nope"))
     }
 
@@ -141,5 +146,20 @@ class RuleOpenTemplateTest {
         assertTrue(RuleLogic.valid(school))
         val noPlace = RuleLogic.fromTemplate(RuleTemplate.SCHOOL, options.copy(places = emptyList()), can, "Schule", DayOfWeek.WEDNESDAY)
         assertFalse(RuleLogic.valid(noPlace), "a place still to pick or create")
+
+        val cancelled = RuleLogic.fromTemplate(RuleTemplate.SCHOOL_CANCELLED, options, can, "Stunde fällt aus", DayOfWeek.WEDNESDAY, myUserId = 3)
+        assertEquals(RuleScope.HOUSE, cancelled.scope)
+        assertEquals(RuleTrigger(RuleTriggerType.SCHOOL_CHANGE, userId = null, kinds = listOf(RuleSchoolKind.CANCELLED), days = RuleSchoolDays.ANY), cancelled.trigger, "any child")
+        assertEquals(RuleAction(RuleActionType.NOTIFY, to = RuleRecipients(RuleRecipients.PARENTS), text = "{event}"), cancelled.actions.single(), "no buttons")
+        assertTrue(RuleLogic.valid(cancelled))
+        val own = RuleLogic.fromTemplate(RuleTemplate.SCHOOL_CANCELLED, options, RuleCan(house = false, personal = true), "Stunde fällt aus", DayOfWeek.WEDNESDAY, myUserId = 4)
+        assertEquals(RuleScope.PERSONAL, own.scope)
+        assertEquals(4, own.trigger.userId, "a child's own rule: only itself")
+        assertEquals(listOf(RuleSchoolKind.CANCELLED), own.trigger.kinds)
+        assertEquals(RuleRecipients(RuleRecipients.ME), own.actions.single().to)
+        assertEquals("{event}", own.actions.single().text)
+        assertTrue(own.actions.single().buttons.isEmpty())
+        assertTrue(RuleLogic.valid(own))
+        assertEquals(own, RuleLogic.forScope(own, 4))
     }
 }

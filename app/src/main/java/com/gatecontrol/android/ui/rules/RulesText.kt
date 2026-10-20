@@ -15,6 +15,8 @@ import com.gatecontrol.android.familie.rules.RuleLogic
 import com.gatecontrol.android.familie.rules.RuleOp
 import com.gatecontrol.android.familie.rules.RuleOptions
 import com.gatecontrol.android.familie.rules.RuleRecipients
+import com.gatecontrol.android.familie.rules.RuleSchoolDays
+import com.gatecontrol.android.familie.rules.RuleSchoolKind
 import com.gatecontrol.android.familie.rules.RuleTemplate
 import com.gatecontrol.android.familie.rules.RuleTrigger
 import com.gatecontrol.android.familie.rules.RuleTriggerType
@@ -35,6 +37,7 @@ internal fun triggerIcon(type: String): ImageVector = when (type) {
     RuleTriggerType.SCHEDULE -> GcIcons.Bell
     in RuleTriggerType.PLACE -> GcIcons.Pin
     RuleTriggerType.ALL_AWAY -> GcIcons.Power
+    RuleTriggerType.SCHOOL_CHANGE -> GcIcons.School
     else -> GcIcons.Home
 }
 
@@ -48,6 +51,7 @@ internal fun triggerLabel(type: String): String = when (type) {
     RuleTriggerType.PERSON_AWAY -> stringResource(R.string.rules_trigger_person_away)
     RuleTriggerType.PLACE_ENTER -> stringResource(R.string.rules_trigger_place_enter)
     RuleTriggerType.PLACE_EXIT -> stringResource(R.string.rules_trigger_place_exit)
+    RuleTriggerType.SCHOOL_CHANGE -> stringResource(R.string.rules_trigger_school_change)
     else -> type
 }
 
@@ -59,6 +63,7 @@ internal fun templateTitle(t: RuleTemplate): String = stringResource(
         RuleTemplate.ALL_AWAY_OFF -> R.string.rules_tpl_all_away
         RuleTemplate.CHILD_ALONE -> R.string.rules_tpl_child_alone
         RuleTemplate.SCHOOL -> R.string.rules_tpl_school
+        RuleTemplate.SCHOOL_CANCELLED -> R.string.rules_tpl_school_cancelled
     },
 )
 
@@ -70,6 +75,7 @@ internal fun templateHint(t: RuleTemplate): String = stringResource(
         RuleTemplate.ALL_AWAY_OFF -> R.string.rules_tpl_all_away_hint
         RuleTemplate.CHILD_ALONE -> R.string.rules_tpl_child_alone_hint
         RuleTemplate.SCHOOL -> R.string.rules_tpl_school_hint
+        RuleTemplate.SCHOOL_CANCELLED -> R.string.rules_tpl_school_cancelled_hint
     },
 )
 
@@ -79,6 +85,7 @@ internal fun templateIcon(t: RuleTemplate): ImageVector = when (t) {
     RuleTemplate.ALL_AWAY_OFF -> GcIcons.Power
     RuleTemplate.CHILD_ALONE -> GcIcons.Home
     RuleTemplate.SCHOOL -> GcIcons.Pin
+    RuleTemplate.SCHOOL_CANCELLED -> GcIcons.School
 }
 
 @Composable
@@ -88,10 +95,52 @@ internal fun scheduleText(t: RuleTrigger): String {
     return listOfNotNull(days.takeIf { it.isNotEmpty() }, t.time).joinToString(" ")
 }
 
+/** The kinds of a school_change trigger as chips. */
+@Composable
+internal fun schoolKindLabel(kind: String): String = when (kind) {
+    RuleSchoolKind.CANCELLED -> stringResource(R.string.rules_school_kind_cancelled)
+    RuleSchoolKind.CHANGED -> stringResource(R.string.rules_school_kind_changed)
+    RuleSchoolKind.EXTRA -> stringResource(R.string.rules_school_kind_extra)
+    RuleSchoolKind.RESTORED -> stringResource(R.string.rules_school_kind_restored)
+    else -> kind
+}
+
+@Composable
+internal fun schoolDaysLabel(days: String): String = when (days) {
+    RuleSchoolDays.TODAY -> stringResource(R.string.rules_school_days_today)
+    RuleSchoolDays.TOMORROW -> stringResource(R.string.rules_school_days_tomorrow)
+    else -> stringResource(R.string.rules_school_days_any)
+}
+
+/** „Wenn bei Lena eine Stunde ausfällt (morgen)“, „Wenn sich bei einem Kind der Stundenplan ändert“. */
+@Composable
+internal fun schoolText(t: RuleTrigger, child: String?): String {
+    val s = RuleLogic.schoolSummary(t)
+    val who = child?.let { stringResource(R.string.rules_school_who_child, it) } ?: stringResource(R.string.rules_school_who_any)
+    val line = stringResource(
+        when (s.kind) {
+            RuleSchoolKind.CANCELLED -> R.string.rules_school_cancelled
+            RuleSchoolKind.CHANGED -> R.string.rules_school_changed
+            RuleSchoolKind.EXTRA -> R.string.rules_school_extra
+            RuleSchoolKind.RESTORED -> R.string.rules_school_restored
+            else -> R.string.rules_school_any
+        },
+        who,
+    )
+    val day = when (s.day) {
+        RuleSchoolDays.TODAY -> stringResource(R.string.rules_today)
+        RuleSchoolDays.TOMORROW -> stringResource(R.string.rules_tomorrow)
+        else -> null
+    }
+    return if (day != null) "$line ($day)" else line
+}
+
 /** "So 18:00", "Anna kommt heim", "Schule betreten · Lena", "Alle weg · nach 10 Min.". */
 @Composable
 internal fun triggerText(t: RuleTrigger, options: RuleOptions, nameOf: (Int) -> String?): String {
-    val person = t.userId?.let { id -> nameOf(id) ?: options.people.firstOrNull { it.userId == id }?.name }
+    val person = t.userId?.let { id ->
+        nameOf(id) ?: options.people.firstOrNull { it.userId == id }?.name ?: options.school?.students?.firstOrNull { it.userId == id }?.name
+    }
     val place = t.placeName ?: t.placeId?.let { id -> options.places.firstOrNull { it.id == id }?.name }
     return when (t.type) {
         RuleTriggerType.SCHEDULE -> scheduleText(t)
@@ -102,6 +151,7 @@ internal fun triggerText(t: RuleTrigger, options: RuleOptions, nameOf: (Int) -> 
             person ?: stringResource(R.string.rules_anyone),
         ).joinToString(" · ")
         RuleTriggerType.ALL_AWAY -> triggerLabel(t.type) + (t.graceMinutes?.takeIf { it > 0 }?.let { " · " + stringResource(R.string.rules_after_min, it) } ?: "")
+        RuleTriggerType.SCHOOL_CHANGE -> schoolText(t, person ?: t.userId?.let { "#$it" })
         else -> triggerLabel(t.type)
     }
 }

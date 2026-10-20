@@ -24,10 +24,34 @@ object RuleTriggerType {
     const val PLACE_ENTER = "place_enter"
     const val PLACE_EXIT = "place_exit"
 
+    /** Familie 1.12: the timetable of the Schule plugin changes (only offered with Schule installed). */
+    const val SCHOOL_CHANGE = "school_change"
+
     val PRESENCE = setOf(ALL_AWAY, FIRST_HOME, CHILD_HOME_ALONE, PERSON_HOME, PERSON_AWAY)
     val PLACE = setOf(PLACE_ENTER, PLACE_EXIT)
     val PERSON = setOf(PERSON_HOME, PERSON_AWAY)
+    /** What an older plugin without `triggers` in its options offers. */
     val ALL = listOf(SCHEDULE, FIRST_HOME, ALL_AWAY, CHILD_HOME_ALONE, PERSON_HOME, PERSON_AWAY, PLACE_ENTER, PLACE_EXIT)
+
+    /** Every trigger the editor knows; the ones beyond [ALL] only when the plugin offers them. */
+    val KNOWN = ALL + SCHOOL_CHANGE
+}
+
+/** `trigger.kinds` of [RuleTriggerType.SCHOOL_CHANGE]: what happened to a lesson. */
+object RuleSchoolKind {
+    const val CANCELLED = "cancelled"
+    const val CHANGED = "changed"
+    const val EXTRA = "extra"
+    const val RESTORED = "restored"
+    val ALL = listOf(CANCELLED, CHANGED, EXTRA, RESTORED)
+}
+
+/** `trigger.days` of [RuleTriggerType.SCHOOL_CHANGE]: which school day the change is about. */
+object RuleSchoolDays {
+    const val TODAY = "today"
+    const val TOMORROW = "tomorrow"
+    const val ANY = "any"
+    val ALL = listOf(TODAY, TOMORROW, ANY)
 }
 
 /** `actions[].type` values. */
@@ -58,8 +82,10 @@ object RuleOp {
 
 /**
  * When a rule fires. [weekdays] (ISO, Mo = 1) and [time] (`HH:MM`) for a
- * schedule; [userId] for person triggers (null at a place: anyone);
- * [placeId] for place triggers; [graceMinutes] for "alle weg".
+ * schedule; [userId] for person triggers (null at a place: anyone; at
+ * school_change: any child); [placeId] for place triggers; [graceMinutes]
+ * for "alle weg"; [kinds] ([RuleSchoolKind]) and [days] ([RuleSchoolDays])
+ * for school_change.
  */
 data class RuleTrigger(
     val type: String,
@@ -69,6 +95,8 @@ data class RuleTrigger(
     val placeId: Int? = null,
     val placeName: String? = null,
     val graceMinutes: Int? = null,
+    val kinds: List<String> = emptyList(),
+    val days: String? = null,
 )
 
 /** A local time window (may span midnight). */
@@ -246,6 +274,12 @@ data class RuleOptionPlace(val id: Int, val name: String)
 
 data class RuleOptionPerson(val userId: Int, val name: String, val child: Boolean = false)
 
+/** A child with a timetable (`rules/options` → `school.students[]`). */
+data class RuleOptionStudent(val userId: Int, val name: String)
+
+/** `rules/options` → `school` (Familie 1.12, only with the Schule plugin installed). */
+data class RuleOptionSchool(val students: List<RuleOptionStudent> = emptyList())
+
 /** `GET rules/options`: what the editor offers. Empty lists from an older plugin. */
 data class RuleOptions(
     val triggers: List<String> = RuleTriggerType.ALL,
@@ -261,6 +295,8 @@ data class RuleOptions(
     /** Device values as conditions and buttons in pushes are possible (`features`). */
     val deviceValues: Boolean = true,
     val buttons: Boolean = true,
+    /** The timetable's children; null without the Schule plugin (or before Familie 1.12). */
+    val school: RuleOptionSchool? = null,
 ) {
     fun device(actionId: String?): RuleOptionDevice? = devices.firstOrNull { it.actionId == actionId }
 

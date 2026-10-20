@@ -140,6 +140,7 @@ object RuleJson {
         val src = t ?: o
         val schedule = o.obj("schedule")
         val weekdays = (src.ints("weekdays").ifEmpty { schedule?.ints("weekdays").orEmpty() }).filter { it in 1..7 }.distinct().sorted()
+        val school = type == RuleTriggerType.SCHOOL_CHANGE
         return RuleTrigger(
             type = type,
             weekdays = weekdays,
@@ -148,7 +149,15 @@ object RuleJson {
             placeId = src.int("placeId") ?: o.int("placeId"),
             placeName = (src.str("placeName") ?: o.str("placeName"))?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
             graceMinutes = (src.int("graceMinutes") ?: o.int("graceMinutes"))?.coerceIn(0, 120),
+            kinds = if (school) schoolKinds(src) else emptyList(),
+            days = if (school) src.str("days")?.takeIf { it in RuleSchoolDays.ALL } ?: RuleSchoolDays.ANY else null,
         )
+    }
+
+    /** `kinds` of a school_change trigger: the known ones in their order; none (or only unknown) → cancelled. */
+    private fun schoolKinds(t: JsonObject): List<String> {
+        val given = t.arr("kinds")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString }.orEmpty().toSet()
+        return RuleSchoolKind.ALL.filter { it in given }.ifEmpty { listOf(RuleSchoolKind.CANCELLED) }
     }
 
     fun conditions(o: JsonObject?): RuleConditions {
@@ -281,6 +290,14 @@ object RuleJson {
             }?.distinctBy { it.actionId }?.take(MAX_ITEMS).orEmpty(),
             deviceValues = features?.bool("deviceValues") != false,
             buttons = features?.bool("buttons") != false,
+            school = o.obj("school")?.let { sc ->
+                RuleOptionSchool(
+                    students = sc.arr("students")?.objects()?.mapNotNull { st ->
+                        val id = st.int("userId") ?: return@mapNotNull null
+                        RuleOptionStudent(id, clean(st.str("name"), 60).ifBlank { "#$id" })
+                    }?.distinctBy { it.userId }?.take(50).orEmpty(),
+                )
+            },
         )
     }
 
@@ -344,6 +361,12 @@ object RuleJson {
                 if (t.userId == null) add("userId", JsonNull.INSTANCE) else addProperty("userId", t.userId)
             }
             RuleTriggerType.ALL_AWAY -> t.graceMinutes?.let { addProperty("graceMinutes", it) }
+            // Familie 1.12: userId null = any child; at least one kind
+            RuleTriggerType.SCHOOL_CHANGE -> {
+                if (t.userId == null) add("userId", JsonNull.INSTANCE) else addProperty("userId", t.userId)
+                add("kinds", JsonArray().apply { t.kinds.forEach { add(it) } })
+                addProperty("days", t.days ?: RuleSchoolDays.ANY)
+            }
         }
     }
 
