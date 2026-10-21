@@ -2,7 +2,9 @@ package com.gatecontrol.android.ui.notifications
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.chat.ChatRepository
 import com.gatecontrol.android.push.routes.NotifyDest
+import com.gatecontrol.android.push.routes.NotifyRouteChat
 import com.gatecontrol.android.push.routes.NotifyRouteGroup
 import com.gatecontrol.android.push.routes.NotifyRouteTopic
 import com.gatecontrol.android.push.routes.NotifyRoutes
@@ -13,6 +15,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,6 +39,7 @@ import org.junit.jupiter.api.Test
 class NotifyRoutesViewModelTest {
 
     private val repository: NotifyRoutesRepository = mockk()
+    private val chats: ChatRepository = mockk(relaxed = true)
     private val viewModels = mutableListOf<ViewModel>()
 
     private val msgs = NotifyRouteTopic("plugin:gatecontrol-schule:messages", "Nachrichten der Schule", NotifyDest.INBOX, false, null)
@@ -63,7 +67,7 @@ class NotifyRoutesViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun vm() = NotifyRoutesViewModel(repository).also { viewModels += it }
+    private fun vm() = NotifyRoutesViewModel(repository, chats).also { viewModels += it }
 
     private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(5_000) { block() } }
 
@@ -152,6 +156,53 @@ class NotifyRoutesViewModelTest {
         assertEquals(msgs, vm.uiState.value.routes!!.topic(msgs.id))
         // Reloaded after the refusal (once on open, once now).
         coVerify(exactly = 2) { repository.load() }
+    }
+
+    @Test
+    fun `a new own chat is confirmed and fetched into the chat list`() {
+        val chat = NotifyRouteChat("plugin:gatecontrol-schule", "Schule", 42L, created = true)
+        coEvery { repository.set(msgs.id, NotifyDest.OWN) } returns RoutesSave.Ok(routes.with(msgs.id, NotifyDest.OWN), chat)
+        val vm = vm()
+        vm.pick(msgs.id)
+        vm.choose(NotifyDest.OWN)
+        assertEquals(RoutesChatNotice(chat), await { vm.notice.first() })
+        assertNull(vm.uiState.value.saving)
+        verify(exactly = 1) { chats.conversationEnsured(42L) }
+    }
+
+    @Test
+    fun `an existing own chat is named as such`() {
+        val chat = NotifyRouteChat("plugin:gatecontrol-schule", "Schule", 7L, created = false)
+        coEvery { repository.set(msgs.id, NotifyDest.OWN) } returns RoutesSave.Ok(null, chat)
+        val vm = vm()
+        vm.pick(msgs.id)
+        vm.choose(NotifyDest.OWN)
+        val n = await { vm.notice.first() } as RoutesChatNotice
+        assertFalse(n.chat.created)
+        assertEquals("Schule", n.chat.label)
+        verify(exactly = 1) { chats.conversationEnsured(7L) }
+    }
+
+    @Test
+    fun `an older server or another destination says nothing extra`() {
+        // 1.191: no chat in the answer — saved quietly, the chat list still asked to catch up.
+        coEvery { repository.set(msgs.id, NotifyDest.OWN) } returns RoutesSave.Ok(routes.with(msgs.id, NotifyDest.OWN))
+        val vm = vm()
+        vm.pick(msgs.id)
+        vm.choose(NotifyDest.OWN)
+        await { vm.uiState.first { it.saving == null } }
+        verify(exactly = 1) { chats.conversationEnsured(null) }
+
+        // Back to GateControl: no chat, no message, no chat list refresh.
+        coEvery { repository.set(changes.id, NotifyDest.INBOX) } returns RoutesSave.Ok(routes.with(changes.id, NotifyDest.INBOX))
+        vm.pick(changes.id)
+        vm.choose(NotifyDest.INBOX)
+        await { vm.uiState.first { it.saving == null } }
+        verify(exactly = 1) { chats.conversationEnsured(any()) }
+
+        // Nothing was sent to the screen.
+        val pending = runBlocking { kotlinx.coroutines.withTimeoutOrNull(200) { vm.notice.first() } }
+        assertNull(pending)
     }
 
     @Test

@@ -24,8 +24,11 @@ sealed interface RoutesLoad {
 
 /** Answer of a change. */
 sealed interface RoutesSave {
-    /** Saved; [routes] the server's new state when it sent one. */
-    data class Ok(val routes: NotifyRoutes?) : RoutesSave
+    /**
+     * Saved; [routes] the server's new state when it sent one; [chat] the own
+     * chat of the source a change to "own" made sure of (core 1.192+, else null).
+     */
+    data class Ok(val routes: NotifyRoutes?, val chat: NotifyRouteChat? = null) : RoutesSave
 
     /** Refused: [code] `family_not_allowed`, `locked`, `no_sink`, `forbidden`, `unsupported`, `network`, … */
     data class Refused(val code: String) : RoutesSave
@@ -112,7 +115,11 @@ class NotifyRoutesRepository @Inject constructor(
                     ?: return RoutesSave.Refused(ERR_NETWORK)
             if (response.isSuccessful) {
                 // The answer has the GET's form; an answer without groups just says "saved".
-                RoutesSave.Ok(NotifyRoutesJson.parse(response.body())?.takeIf { it.groups.isNotEmpty() })
+                val body = response.body()
+                RoutesSave.Ok(
+                    routes = NotifyRoutesJson.parse(body)?.takeIf { it.groups.isNotEmpty() },
+                    chat = if (dest == NotifyDest.OWN) NotifyRoutesJson.chat(body) else null,
+                )
             } else {
                 val body = response.errorBody()?.use { b -> b.string().takeIf { it.length < 16_384 } }
                 RoutesSave.Refused(refusal(response.code(), body))

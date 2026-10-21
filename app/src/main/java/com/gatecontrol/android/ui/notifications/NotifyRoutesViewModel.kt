@@ -2,7 +2,9 @@ package com.gatecontrol.android.ui.notifications
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.chat.ChatRepository
 import com.gatecontrol.android.push.routes.NotifyDest
+import com.gatecontrol.android.push.routes.NotifyRouteChat
 import com.gatecontrol.android.push.routes.NotifyRouteTopic
 import com.gatecontrol.android.push.routes.NotifyRoutes
 import com.gatecontrol.android.push.routes.NotifyRoutesRepository
@@ -35,20 +37,27 @@ data class NotifyRoutesUiState(
     val saving: String? = null,
 )
 
+/** A short message of the screen after a change. */
+sealed interface NotifyRoutesMessage
+
 /** A change the server refused ([code] as NotifyRoutesRepository names it). */
-data class RoutesNotice(val code: String)
+data class RoutesNotice(val code: String) : NotifyRoutesMessage
+
+/** Saved to the own chat of a source: [chat] was just created or an existing one is used. */
+data class RoutesChatNotice(val chat: NotifyRouteChat) : NotifyRoutesMessage
 
 /** Settings › Benachrichtigungen › "Wo Mitteilungen erscheinen" (and from the chat settings). */
 @HiltViewModel
 class NotifyRoutesViewModel @Inject constructor(
     private val repository: NotifyRoutesRepository,
+    private val chats: ChatRepository,
 ) : ViewModel() {
 
     private val state = MutableStateFlow(NotifyRoutesUiState())
     val uiState: StateFlow<NotifyRoutesUiState> = state.asStateFlow()
 
-    private val notices = Channel<RoutesNotice>(Channel.BUFFERED)
-    val notice: Flow<RoutesNotice> = notices.receiveAsFlow()
+    private val notices = Channel<NotifyRoutesMessage>(Channel.BUFFERED)
+    val notice: Flow<NotifyRoutesMessage> = notices.receiveAsFlow()
 
     init {
         refresh()
@@ -98,6 +107,11 @@ class NotifyRoutesViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = repository.set(t.id, dest)) {
                 is RoutesSave.Ok -> {
+                    if (dest == NotifyDest.OWN) {
+                        // The source's own chat may be new: into the chat list now, not only with its live event.
+                        chats.conversationEnsured(r.chat?.conversationId)
+                        r.chat?.let { notices.send(RoutesChatNotice(it)) }
+                    }
                     val next = r.routes ?: (repository.load() as? RoutesLoad.Ok)?.routes
                     state.update { it.copy(routes = next ?: it.routes, saving = null) }
                 }

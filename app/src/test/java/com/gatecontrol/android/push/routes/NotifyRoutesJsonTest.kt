@@ -122,6 +122,33 @@ class NotifyRoutesJsonTest {
         assertEquals("failed", NotifyRoutesRepository.refusal(500, """{"error":"Some <b>HTML</b>"}"""))
     }
 
+    @Test
+    fun `the chat of a change to own is read, missing or broken is null`() {
+        val created = NotifyRoutesJson.chat(
+            json("""{"ok":true,"chat":{"source":"plugin:gatecontrol-schule","label":"Schule","conversationId":"42","created":true}}"""),
+        )
+        assertEquals(NotifyRouteChat("plugin:gatecontrol-schule", "Schule", 42L, created = true), created)
+        val existing = NotifyRoutesJson.chat(json("""{"chat":{"source":"core","label":"GateControl","conversationId":7,"created":false}}"""))!!
+        assertFalse(existing.created)
+        assertEquals(7L, existing.conversationId)
+        // Older servers (1.191), inbox / family, a failure: no chat.
+        assertNull(NotifyRoutesJson.chat(json("""{"ok":true}""")))
+        assertNull(NotifyRoutesJson.chat(json("""{"ok":true,"chat":null}""")))
+        assertNull(NotifyRoutesJson.chat(json("""{"chat":"Schule"}""")))
+        assertNull(NotifyRoutesJson.chat(null))
+        // No label: the source's name; neither: nothing to name.
+        assertEquals("gatecontrol-schule", NotifyRoutesJson.chat(json("""{"chat":{"source":"plugin:gatecontrol-schule","conversationId":"3"}}"""))!!.label)
+        assertNull(NotifyRoutesJson.chat(json("""{"chat":{"source":"https://evil","conversationId":"3"}}""")))
+        // Untrusted: a bad id is dropped, control characters go, a missing flag is false.
+        val odd = NotifyRoutesJson.chat(json("""{"chat":{"source":"x y","label":"Sch\u0007ule","conversationId":"1; drop","created":"yes"}}"""))!!
+        assertNull(odd.source)
+        assertEquals("Sch ule", odd.label)
+        assertNull(odd.conversationId)
+        assertFalse(odd.created)
+        assertNull(NotifyRoutesJson.chat(json("""{"chat":{"label":"S","conversationId":"-4"}}"""))!!.conversationId)
+        assertNull(NotifyRoutesJson.chat(json("""{"chat":{"label":"S","conversationId":"0"}}"""))!!.conversationId)
+    }
+
     // ─── repository ─────────────────────────────────────────────────
 
     private val api: ApiClient = mockk()
@@ -164,6 +191,14 @@ class NotifyRoutesJsonTest {
         // `{ ok:true }` only: saved, the screen reloads.
         coEvery { api.putPushRoutes(any()) } returns Response.success(json("""{"ok":true}"""))
         assertEquals(RoutesSave.Ok(null), repo.set("devices", NotifyDest.OWN))
+        // 1.192: the own chat it made sure of — only read for a change to own.
+        val withChat = """{"ok":true,"chat":{"source":"plugin:gatecontrol-schule","label":"Schule","conversationId":"42","created":true}}"""
+        coEvery { api.putPushRoutes(any()) } returns Response.success(json(withChat))
+        assertEquals(
+            RoutesSave.Ok(null, NotifyRouteChat("plugin:gatecontrol-schule", "Schule", 42L, created = true)),
+            repo.set("plugin:gatecontrol-schule:changes", NotifyDest.OWN),
+        )
+        assertEquals(RoutesSave.Ok(null), repo.set("plugin:gatecontrol-schule:changes", NotifyDest.INBOX))
         coEvery { api.putPushRoutes(any()) } returns error(403, """{"ok":false,"error":"family_not_allowed"}""")
         assertEquals(RoutesSave.Refused("family_not_allowed"), repo.set("devices", NotifyDest.FAMILY))
         coEvery { api.putPushRoutes(any()) } returns error(409, """{"ok":false,"error":"no_sink"}""")

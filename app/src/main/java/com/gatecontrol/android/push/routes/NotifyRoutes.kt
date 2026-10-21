@@ -34,6 +34,18 @@ data class NotifyRouteTopic(
 data class NotifyRouteGroup(val source: String, val label: String, val topics: List<NotifyRouteTopic>)
 
 /**
+ * The own chat of a source that a change to "own" made sure of (core 1.192,
+ * `chat` of the PUT answer): [created] = just created, false = an existing
+ * one is used. [conversationId] null when the server sent none usable.
+ */
+data class NotifyRouteChat(
+    val source: String?,
+    val label: String,
+    val conversationId: Long?,
+    val created: Boolean,
+)
+
+/**
  * The answer: [sink] = a plugin delivers notifications into chats (the
  * messenger) — without it everything stays in GateControl; [canFamily] =
  * this person may choose the family chat (admins and parents).
@@ -85,6 +97,7 @@ object NotifyRoutesJson {
     private val SOURCE_RE = Regex("^(?:core|plugin:[a-z0-9]+(?:-[a-z0-9]+)*)$")
     private val CONTROL_RE = Regex("[\\u0000-\\u001F\\u007F]")
     private val ERROR_RE = Regex("^[a-z][a-z0-9_]{0,39}$")
+    private val ID_RE = Regex("^[0-9]{1,18}$")
     private const val MAX_GROUPS = 64
     private const val MAX_TOPICS = 64
 
@@ -118,6 +131,26 @@ object NotifyRoutesJson {
             if (topics.isEmpty()) null else NotifyRouteGroup(source, label, topics)
         }.take(MAX_GROUPS)
         return NotifyRoutes(sink = o.flag("sink") == true, canFamily = o.flag("canFamily") == true, groups = groups)
+    }
+
+    /**
+     * `chat` of the PUT answer (core 1.192): `{ source, label, conversationId, created }`
+     * or null — missing for inbox / family, on older servers (1.191) or when it failed.
+     */
+    fun chat(o: JsonObject?): NotifyRouteChat? {
+        val c = o?.get("chat")?.objOrNull() ?: return null
+        val source = c.str("source")?.takeIf { SOURCE_RE.matches(it) }
+        val label = line(c.str("label"), 60)
+            ?: source?.let { if (it == "core") "GateControl" else it.removePrefix("plugin:") }
+            ?: return null
+        val id = c.get("conversationId")?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive?.let { p ->
+            when {
+                p.isString -> p.asString.trim().takeIf { ID_RE.matches(it) }?.toLongOrNull()
+                p.isNumber -> p.asString.takeIf { ID_RE.matches(it) }?.toLongOrNull()
+                else -> null
+            }
+        }?.takeIf { it > 0 }
+        return NotifyRouteChat(source = source, label = label, conversationId = id, created = c.flag("created") == true)
     }
 
     /** Body of the PUT. */

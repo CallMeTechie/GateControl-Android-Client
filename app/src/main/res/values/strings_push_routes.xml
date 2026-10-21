@@ -33,4 +33,6 @@
     <string name="push_routes_err_forbidden">You may not change this here.</string>
     <string name="push_routes_err_network">Not saved – no connection to the server.</string>
     <string name="push_routes_err_failed">Not saved. Please try again shortly.</string>
+    <string name="push_routes_chat_created">Chat “%1$s” created</string>
+    <string name="push_routes_chat_existing">Appears in the existing chat “%1$s”</string>
 </resources>
