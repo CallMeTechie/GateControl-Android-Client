@@ -26,7 +26,9 @@ import com.gatecontrol.android.familie.school.SchoolChange
 import com.gatecontrol.android.familie.school.SchoolFetch
 import com.gatecontrol.android.familie.school.SchoolJson
 import com.gatecontrol.android.familie.school.SchoolListFetch
+import com.gatecontrol.android.familie.school.SchoolAttachmentFile
 import com.gatecontrol.android.familie.school.SchoolMessage
+import com.gatecontrol.android.familie.school.SchoolMessageAnswer
 import com.gatecontrol.android.familie.rules.Rule
 import com.gatecontrol.android.familie.rules.RuleJson
 import com.gatecontrol.android.familie.rules.RuleOptionPlace
@@ -45,6 +47,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.ResponseBody
 import retrofit2.Response
 import timber.log.Timber
 
@@ -102,6 +105,10 @@ class FamilieApi @Inject constructor(
         const val CODE_OFFLINE = "offline"
         const val CODE_INVALID = "invalid_answer"
         private const val TIMEOUT_MS = 20_000L
+        /** A school attachment: the plugin logs in at the school and downloads it first (~30 s). */
+        private const val ATTACHMENT_TIMEOUT_MS = 75_000L
+        /** Download of a plugin file (≤ 25 MB). */
+        private const val MEDIA_TIMEOUT_MS = 120_000L
         /** No slashes, no leading dot (`..`): one plain path segment. */
         private val SEGMENT_RE = Regex("^[A-Za-z0-9_:-][A-Za-z0-9_.:-]{0,63}$")
 
@@ -116,11 +123,15 @@ class FamilieApi @Inject constructor(
         plugin: String = FAMILIE_PLUGIN,
         request: suspend ApiClient.() -> Response<JsonObject>,
         parse: (JsonObject) -> T?,
+        timeoutMs: Long = TIMEOUT_MS,
+        slow: Boolean = false,
     ): FamilieResult<T> {
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return FamilieResult.NotConfigured
         return try {
-            val response = withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.getClient(url).request() }
+            // A slow call (the plugin fetches a file first) runs on the media client: long read timeout, no call limit.
+            val client = if (slow) apiClientProvider.mediaClient(url) else apiClientProvider.getClient(url)
+            val response = withTimeoutOrNull(timeoutMs) { client.request() }
                 ?: return FamilieResult.Offline
             if (response.isSuccessful) {
                 val body = response.body() ?: JsonObject()
@@ -165,6 +176,18 @@ class FamilieApi @Inject constructor(
         return call(FAMILIE_PLUGIN, { pluginPost(FAMILIE_PLUGIN, p, body) }, parse)
     }
 
+    /** A POST without a body to another plugin's app API; [slow] for calls the plugin needs long for. */
+    private suspend fun <T> postTo(
+        plugin: String,
+        path: String?,
+        timeoutMs: Long = TIMEOUT_MS,
+        slow: Boolean = false,
+        parse: (JsonObject) -> T?,
+    ): FamilieResult<T> {
+        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
+        return call(plugin, { pluginPost(plugin, p, JsonObject()) }, parse, timeoutMs, slow)
+    }
+
     private suspend fun <T> patch(path: String?, body: JsonObject, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?): FamilieResult<T> {
         val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
         return call(FAMILIE_PLUGIN, { pluginPatch(FAMILIE_PLUGIN, p, body, query) }, parse)
@@ -177,7 +200,7 @@ class FamilieApi @Inject constructor(
 
     private suspend fun delete(path: String?, query: Map<String, String> = emptyMap()): FamilieResult<Unit> {
         val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(FAMILIE_PLUGIN, { pluginDelete(FAMILIE_PLUGIN, p, query) }) { }
+        return call(FAMILIE_PLUGIN, { pluginDelete(FAMILIE_PLUGIN, p, query) }, parse = { })
     }
 
     private val unit: (JsonObject) -> Unit = { }
@@ -294,6 +317,43 @@ class FamilieApi @Inject constructor(
         get(path("app", "messages"), mapOf("days" to days.coerceIn(1, 90).toString()), plugin = SCHULE_PLUGIN) { o ->
             SchoolJson.messages(o)?.let { SchoolListFetch(it, o.toString()) }
         }
+
+    /** Marks a message read for this user (plugin 1.5+, idempotent; older plugins answer 404). */
+    suspend fun schoolMessageRead(id: String): FamilieResult<SchoolMessageAnswer> =
+        postTo(SCHULE_PLUGIN, path("app", "messages", id, "read"), parse = SchoolJson::messageAnswer)
+
+    /** Sends the read confirmation to the school (plugin 1.5+; only on the person's explicit tap). */
+    suspend fun schoolMessageConfirm(id: String): FamilieResult<SchoolMessageAnswer> =
+        postTo(SCHULE_PLUGIN, path("app", "messages", id, "confirm"), ATTACHMENT_TIMEOUT_MS, slow = true, parse = SchoolJson::messageAnswer)
+
+    /** Lets the plugin fetch an attachment into its media store (plugin 1.5+; up to ~30 s). */
+    suspend fun schoolAttachment(messageId: String, attachmentId: String): FamilieResult<SchoolAttachmentFile> =
+        postTo(
+            SCHULE_PLUGIN,
+            path("app", "messages", messageId, "attachments", attachmentId),
+            timeoutMs = ATTACHMENT_TIMEOUT_MS,
+            slow = true,
+            parse = SchoolJson::attachmentFile,
+        )
+
+    /**
+     * A file of the Schule plugin's media store (`GET …/plugins/gatecontrol-schule/media/<mediaId>`,
+     * with the device token like every client call); the caller closes the body.
+     * Null when the server cannot be reached.
+     */
+    suspend fun schoolMedia(mediaId: String): Response<ResponseBody>? {
+        if (path(mediaId) == null) return null
+        val url = setupRepository.getServerUrl()
+        if (url.isBlank() || !setupRepository.isConfigured()) return null
+        return try {
+            withTimeoutOrNull(MEDIA_TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(SCHULE_PLUGIN, mediaId) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Familie: school file not loaded (%s)", e.javaClass.simpleName)
+            null
+        }
+    }
 
     /** Absences of the last [days] days (1…180; plugin 1.4+, older plugins answer 404), with the answer as it came. */
     suspend fun schoolAbsences(days: Int = 60): FamilieResult<SchoolListFetch<SchoolAbsence>> =

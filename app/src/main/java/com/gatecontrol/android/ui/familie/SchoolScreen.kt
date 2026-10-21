@@ -94,6 +94,10 @@ fun SchoolScreen(
     val inbox by viewModel.inbox.collectAsStateWithLifecycle()
     val tab by viewModel.tab.collectAsStateWithLifecycle()
     val messageId by viewModel.messageId.collectAsStateWithLifecycle()
+    val confirming by viewModel.confirming.collectAsStateWithLifecycle()
+    val confirmError by viewModel.confirmError.collectAsStateWithLifecycle()
+    val loadingAttachments by viewModel.loadingAttachments.collectAsStateWithLifecycle()
+    val attachmentError by viewModel.attachmentError.collectAsStateWithLifecycle()
     LaunchedEffect(initialStudentId, initialDate, initialView, initialMessageId) {
         viewModel.open(initialStudentId, initialDate, initialView, initialMessageId)
     }
@@ -146,7 +150,23 @@ fun SchoolScreen(
                     when (shown) {
                         SchoolTab.PLAN -> Plan(tt, student, date, windowStart, viewModel::selectDate, viewModel::shiftWeek)
                         SchoolTab.CHANGES -> Changes(changes, changesError, showStudent = false, studentId = student.id, onRetry = viewModel::refresh)
-                        SchoolTab.MESSAGES -> SchoolMessagesTab(box, student, messageId, viewModel::openMessage, viewModel::closeMessage, viewModel::refresh)
+                        SchoolTab.MESSAGES -> SchoolMessagesTab(
+                            box,
+                            student,
+                            messageId,
+                            viewModel::openMessage,
+                            viewModel::closeMessage,
+                            viewModel::refresh,
+                            SchoolMessageActions(
+                                confirming = confirming,
+                                confirmError = confirmError,
+                                onConfirm = viewModel::confirm,
+                                loadingAttachments = loadingAttachments,
+                                attachmentError = attachmentError,
+                                onAttachment = viewModel::openAttachment,
+                                files = viewModel.files,
+                            ),
+                        )
                         SchoolTab.ABSENCES -> SchoolAbsencesTab(box, student, onRetry = viewModel::refresh)
                     }
                 }

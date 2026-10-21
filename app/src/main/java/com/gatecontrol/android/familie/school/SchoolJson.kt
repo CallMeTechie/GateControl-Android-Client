@@ -6,6 +6,7 @@ import com.gatecontrol.android.familie.FamilieJson.bool
 import com.gatecontrol.android.familie.FamilieJson.dbl
 import com.gatecontrol.android.familie.FamilieJson.int
 import com.gatecontrol.android.familie.FamilieJson.ints
+import com.gatecontrol.android.familie.FamilieJson.obj
 import com.gatecontrol.android.familie.FamilieJson.objects
 import com.gatecontrol.android.familie.FamilieJson.str
 import com.gatecontrol.android.profile.AvatarPalette
@@ -30,6 +31,9 @@ import java.time.ZoneId
  * avatar address that is not a user avatar ([ProfileJson.avatarUrl]) read
  * as none. Messages and absences (plugin 1.4+) follow the same rules;
  * message texts may come as HTML and are turned into plain text ([plain]).
+ * The fields of plugin 1.5 (`fullText`, `attachments`, `read`,
+ * `confirmation`) are optional: missing they read as preview only, none,
+ * unread and no confirmation asked.
  */
 object SchoolJson {
 
@@ -45,6 +49,13 @@ object SchoolJson {
     private const val MAX_ABSENCES = 300
     private const val MAX_ID = 80
     private const val MAX_BODY = 20_000
+    private const val MAX_ATTACHMENTS = 30
+
+    /** An attachment id goes into a request path: one plain segment. */
+    private val ATTACHMENT_ID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$")
+    /** A media id of the core's plugin media store. */
+    private val MEDIA_ID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
+    private val MIME_RE = Regex("^[a-z0-9][a-z0-9.+-]{0,40}/[a-z0-9][a-z0-9.+-]{0,80}$")
 
     private val HTML_RE = Regex("<(br|p|div|span|b|i|u|strong|em|a|ul|ol|li|font|table|tr|td)\\b[^>]*>|</[a-zA-Z]+>|&(nbsp|amp|lt|gt|quot|#39);", RegexOption.IGNORE_CASE)
     private val BREAK_RE = Regex("<br\\s*/?>|</(p|div|li|tr)>", RegexOption.IGNORE_CASE)
@@ -212,6 +223,9 @@ object SchoolJson {
     internal fun message(o: JsonObject): SchoolMessage? {
         val id = text(o.str("id"), MAX_ID) ?: return null
         val body = multiline(o.str("body"), MAX_BODY)
+        val attachments = o.arr("attachments")?.objects()?.mapNotNull(::attachment).orEmpty()
+            .distinctBy { it.id }.take(MAX_ATTACHMENTS)
+        val read = o.bool("read") == true
         return SchoolMessage(
             id = id,
             accountId = o.int("accountId")?.takeIf { it > 0 },
@@ -221,10 +235,93 @@ object SchoolJson {
             body = body,
             sender = FamilieJson.clean(plain(o.str("sender")), 100),
             sentAt = instantMs(o, "sentAt"),
-            hasAttachments = o.bool("hasAttachments") == true,
-            isNew = o.bool("isNew") == true,
+            hasAttachments = o.bool("hasAttachments") == true || attachments.isNotEmpty(),
+            // A message this user has read is not new, whatever else the answer says.
+            isNew = o.bool("isNew") == true && !read,
+            fullText = o.bool("fullText") == true && body != null,
+            attachments = attachments,
+            read = read,
+            confirmation = o.obj("confirmation")?.let(::confirmation),
+            extended = o.bool("fullText") != null || o.bool("read") != null,
         )
     }
+
+    /**
+     * One of `attachments` (plugin 1.5+): without an id that can go into a
+     * path it is dropped; a negative size or a type that is not `type/sub`
+     * read as unknown.
+     */
+    internal fun attachment(o: JsonObject): SchoolAttachment? {
+        val id = o.str("id")?.trim()?.takeIf { ATTACHMENT_ID_RE.matches(it) } ?: return null
+        return SchoolAttachment(
+            id = id,
+            name = fileName(o.str("name")).orEmpty(),
+            size = o.dbl("size")?.takeIf { it >= 0 }?.toLong(),
+            mime = mime(o.str("mime")),
+        )
+    }
+
+    /** `confirmation` (plugin 1.5+): sent when `confirmedAt` is set (also when it is not a valid time). */
+    internal fun confirmation(o: JsonObject): SchoolConfirmation {
+        val at = o.str("confirmedAt")?.trim()?.takeIf { it.isNotEmpty() }
+        return SchoolConfirmation(
+            confirmed = at != null,
+            confirmedAt = if (at != null) instantMs(o, "confirmedAt") else null,
+            by = if (at != null) text(plain(o.str("by")), 100) else null,
+        )
+    }
+
+    /**
+     * The answer of `POST app/messages/<id>/read` / `confirm`: `{ ok, message }`.
+     * An answer without a (valid) message is still a success (the call is
+     * idempotent); then there is nothing to update.
+     */
+    fun messageAnswer(o: JsonObject): SchoolMessageAnswer {
+        val raw = o.obj("message")
+        val message = raw?.let(::message)
+        return SchoolMessageAnswer(message, raw.takeIf { message != null })
+    }
+
+    /** `POST app/messages/<id>/attachments/<attId>` → `{ ok, file: { mediaId, name, mime, bytes } }`; null without a valid media id. */
+    fun attachmentFile(o: JsonObject): SchoolAttachmentFile? {
+        val f = o.obj("file") ?: return null
+        val mediaId = f.str("mediaId")?.trim()?.takeIf { MEDIA_ID_RE.matches(it) } ?: return null
+        return SchoolAttachmentFile(
+            mediaId = mediaId,
+            name = fileName(f.str("name")),
+            mime = mime(f.str("mime")),
+            bytes = f.dbl("bytes")?.takeIf { it >= 0 }?.toLong(),
+        )
+    }
+
+    /**
+     * The stored `GET app/messages` answer [raw] with the message of the same
+     * id replaced by [message] (from `read` / `confirm`); [raw] unchanged
+     * when the message is not in it, null when [raw] is not an answer.
+     */
+    fun replaceMessage(raw: String?, message: JsonObject): String? {
+        val o = parse(raw) ?: return null
+        val list = o.arr("messages") ?: return null
+        val id = text(message.str("id"), MAX_ID) ?: return raw
+        for (i in 0 until list.size()) {
+            val e = list[i]
+            if (e.isJsonObject && text(e.asJsonObject.str("id"), MAX_ID) == id) {
+                list.set(i, message)
+                return o.toString()
+            }
+        }
+        return raw
+    }
+
+    /** A file name to show and save under: no path, no control characters, ≤ 200 characters; null when blank. */
+    internal fun fileName(value: String?): String? =
+        value?.substringAfterLast('/')?.substringAfterLast('\\')
+            ?.let { FamilieJson.clean(it, 200) }
+            ?.takeIf { it.isNotBlank() && it != "." && it != ".." }
+
+    /** `type/subtype` in lower case without parameters; null otherwise. */
+    internal fun mime(value: String?): String? =
+        value?.substringBefore(';')?.trim()?.lowercase()?.takeIf { MIME_RE.matches(it) }
 
     /**
      * `GET app/absences`, latest first; null without an `absences` list.

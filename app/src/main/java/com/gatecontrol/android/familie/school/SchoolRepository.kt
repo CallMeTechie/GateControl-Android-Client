@@ -3,6 +3,7 @@ package com.gatecontrol.android.familie.school
 import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.FamilieStorage
+import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,12 @@ data class SchoolSnapshot(
  * `files/familie/school-inbox.json`. A route an older plugin does not
  * know (404) or that the login may not use (403) reads as "not offered":
  * its list is dropped and the screen hides that tab, without an error.
+ *
+ * Opening a message marks it read at once on the device ([markRead]: the
+ * "neu" badge and the card's count go immediately) and then on the server
+ * (`POST app/messages/<id>/read`, plugin 1.5+; an older plugin's 404 is
+ * ignored). Until the server's list says it is read, the local mark stays
+ * (kept in the file too), and a failed call is sent again with the next load.
  */
 @Singleton
 class SchoolRepository @Inject constructor(
@@ -57,6 +64,8 @@ class SchoolRepository @Inject constructor(
         val savedAt: Long = 0L,
         val messages: String? = null,
         val absences: String? = null,
+        /** Messages opened on this device that the server still calls new (null in files of older app versions). */
+        val readIds: List<String>? = null,
     )
 
     private val mutex = Mutex()
@@ -151,6 +160,8 @@ class SchoolRepository @Inject constructor(
     @Volatile private var inboxLoaded = false
     /** The answers behind [inbox] as they came (written to the file again with the other part). */
     private var inboxRaw = StoredInbox()
+    /** Messages opened on this device that the server's list still calls new ([markRead]). */
+    private var readIds: Set<String> = emptySet()
 
     private val _inbox = MutableStateFlow<SchoolInbox?>(null)
     /** Messages and absences of this login (plugin 1.4+); null before the first load. */
@@ -164,8 +175,9 @@ class SchoolRepository @Inject constructor(
                 ?.takeIf { it.owner == owner }
             if (stored != null) {
                 inboxRaw = stored
+                readIds = stored.readIds.orEmpty().toSet()
                 _inbox.value = SchoolInbox(
-                    messages = SchoolJson.messages(stored.messages),
+                    messages = SchoolLogic.withLocalRead(SchoolJson.messages(stored.messages), readIds),
                     absences = SchoolJson.absences(stored.absences),
                     savedAt = stored.savedAt,
                     owner = owner,
@@ -176,6 +188,7 @@ class SchoolRepository @Inject constructor(
         _inbox.value?.takeIf { it.owner == owner } ?: run {
             _inbox.value = null
             inboxRaw = StoredInbox()
+            readIds = emptySet()
             null
         }
     }
@@ -198,9 +211,11 @@ class SchoolRepository @Inject constructor(
         val owner = storage.ownerKey()
         val answered = m.answered || a.answered
         val now = System.currentTimeMillis()
-        mutex.withLock {
+        val (inbox, retry) = mutex.withLock {
+            // A fresh list from the server: keep the local mark only where it still says "new".
+            if (m.answered) readIds = SchoolLogic.pendingLocalRead(readIds, m.list)
             val inbox = SchoolInbox(
-                messages = m.list,
+                messages = SchoolLogic.withLocalRead(m.list, readIds),
                 absences = a.list,
                 messagesError = m.error,
                 absencesError = a.error,
@@ -209,11 +224,79 @@ class SchoolRepository @Inject constructor(
             )
             _inbox.value = inbox
             if (answered) {
-                inboxRaw = StoredInbox(owner, now, m.raw, a.raw)
+                inboxRaw = StoredInbox(owner, now, m.raw, a.raw, readIds.toList().takeIf { it.isNotEmpty() })
                 storage.write(INBOX_FILE, inboxRaw)
             }
-            inbox
+            inbox to if (m.answered) SchoolLogic.readToRetry(readIds, m.list) else emptyList()
         }
+        // `read` calls that did not get through before (offline): once more, quietly.
+        retry.forEach { id -> sendRead(id) }
+        if (retry.isEmpty()) inbox else _inbox.value ?: inbox
+    }
+
+    /**
+     * The person opened message [id]: read on the device at once (optimistic,
+     * also when the call fails), then `POST app/messages/<id>/read`. A 404
+     * (older plugin, or a message that is gone) and other trouble are not
+     * told; the mark stays until the server's list agrees.
+     */
+    suspend fun markRead(id: String) {
+        val unread = mutex.withLock {
+            val inbox = _inbox.value ?: return@withLock false
+            val m = inbox.messages?.firstOrNull { it.id == id } ?: return@withLock false
+            // Read already (by the server's list or on this device), or an older plugin that does not call it new: nothing to send.
+            if (!m.isNew && (m.read || !m.extended)) return@withLock false
+            readIds = readIds + id
+            _inbox.value = inbox.copy(messages = SchoolLogic.withLocalRead(inbox.messages, readIds))
+            persistInbox()
+            true
+        }
+        if (unread) sendRead(id)
+    }
+
+    private suspend fun sendRead(id: String) {
+        when (val r = api.schoolMessageRead(id)) {
+            is FamilieResult.Ok -> r.value.raw?.let { applyMessage(it) }
+            // 404: plugin before 1.5 or the message is gone - nothing to tell. Other trouble: again with the next load.
+            else -> Unit
+        }
+    }
+
+    /**
+     * Sends the read confirmation for message [id] to the school (only on
+     * the person's explicit tap); the message as the plugin now has it on success.
+     */
+    suspend fun confirm(id: String): FamilieResult<SchoolMessage?> = when (val r = api.schoolMessageConfirm(id)) {
+        is FamilieResult.Ok -> {
+            mutex.withLock {
+                // Confirming also reads it.
+                readIds = readIds + id
+                _inbox.value?.let { inbox -> _inbox.value = inbox.copy(messages = SchoolLogic.withLocalRead(inbox.messages, readIds)) }
+                persistInbox()
+            }
+            r.value.raw?.let { applyMessage(it) }
+            FamilieResult.Ok(_inbox.value?.messages?.firstOrNull { it.id == id } ?: r.value.message)
+        }
+        is FamilieResult.Failed -> r
+        FamilieResult.Offline -> FamilieResult.Offline
+        FamilieResult.NotConfigured -> FamilieResult.NotConfigured
+    }
+
+    /** A message from `read` / `confirm` replaces its entry in the list (and in the stored answer). */
+    private suspend fun applyMessage(message: JsonObject) = mutex.withLock {
+        val raw = SchoolJson.replaceMessage(inboxRaw.messages, message) ?: return@withLock
+        if (raw == inboxRaw.messages) return@withLock
+        val list = SchoolJson.messages(raw) ?: return@withLock
+        inboxRaw = inboxRaw.copy(messages = raw)
+        _inbox.value?.let { inbox -> _inbox.value = inbox.copy(messages = SchoolLogic.withLocalRead(list, readIds)) }
+        persistInbox()
+    }
+
+    /** Writes the stored answers with the local read marks (under [mutex]; nothing before a first answer). */
+    private fun persistInbox() {
+        if (inboxRaw.owner == null) return
+        inboxRaw = inboxRaw.copy(readIds = readIds.toList().takeIf { it.isNotEmpty() })
+        storage.write(INBOX_FILE, inboxRaw)
     }
 
     /** One part of the inbox after a load: the list to show, its JSON and the error to tell. */
@@ -236,6 +319,7 @@ class SchoolRepository @Inject constructor(
         storage.delete(FILE)
         _inbox.value = null
         inboxRaw = StoredInbox()
+        readIds = emptySet()
         storage.delete(INBOX_FILE)
     }
 

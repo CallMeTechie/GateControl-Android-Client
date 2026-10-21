@@ -266,16 +266,40 @@ its own) as a card and a screen of the Familie tab. Code: `familie/school/`
   tab is hidden (`SchoolInbox.hasMessages` / `hasAbsences`); offline /
   server trouble keep the last list with a note. Screen tabs "Nachrichten"
   (sender, date, subject, preview, "neu" badge, clip for attachments; tap →
-  the message with its full text, else the preview and "Volltext in
-  WebUntis"; back key returns to the list) and "Fehlzeiten" (date / range,
+  the message; back key returns to the list) and "Fehlzeiten" (date / range,
   time, reason, chip "entschuldigt" / "unentschuldigt" / "offen" in words);
   the tab row scrolls when the labels do not fit. Card: "1 neue Nachricht"
   per child as the lowest-priority line (only when a line is still free
   after exams, changes and homework). Push `…:messages` (`data.schule {
   messageId, studentId? }`) → `school/messages/<studentId>|-/<messageId>`
   (opens that message, with one of its children); `…:absences` (`{
-  studentId, date }`) → `school/absences/<studentId>`. "neu" is the
-  server's `isNew`; the app has no call to mark a message read.
+  studentId, date }`) → `school/absences/<studentId>`.
+- **Messages without WebUntis** (plugin 1.5+, GateControl 1.190+): the app
+  never points to WebUntis. `GET app/messages` adds `fullText`,
+  `attachments [{ id, name, size?, mime? }]`, `read`, `isNew` (unread for
+  this user) and `confirmation null | { confirmedAt?, by? }`; missing
+  (older plugin) they read as preview only, none, unread, not asked
+  (`SchoolMessage.extended` false). Detail: the selectable text (`body`,
+  else the preview); without `fullText` the note "Der vollständige Text
+  wird beim nächsten Abruf geladen." (older plugin without a body: "nur
+  eine Vorschau"). **Read**: opening (also from a push) calls
+  `SchoolRepository.markRead` once per opening — the badge, bold text and
+  the card's "n neue Nachrichten" go at once (local mark `readIds`, kept in
+  `school-inbox.json` until the server's list says read), then `POST
+  app/messages/<id>/read` (the answer's message replaces the stored one;
+  404 of an older plugin ignored; offline → sent again with the next load).
+  **Confirmation**: a card "Die Schule bittet um eine Lesebestätigung" with
+  "Lesen bestätigen" and a question first → `POST …/confirm`; afterwards
+  "Bestätigt am … (von …)"; the list shows "Bestätigung erbeten" while
+  open; 409 / 502 / 503 are told in words. **Attachments**: a list (type
+  symbol, name, type and size); a tap → `POST …/attachments/<attId>` (up to
+  ~30 s, media client) → `GET …/plugins/gatecontrol-schule/media/<mediaId>`
+  (`FamilieApi.schoolMedia`, device token) → `cache/school/<msg>_<att>/<name>`
+  (`SchoolFiles`, ≤ 26 MB, unused folders removed after 7 days; FileProvider
+  path `school/`) → `ACTION_VIEW` with the type; no app for it → "Teilen"
+  offered. A spinner per attachment; the plugin's codes (`…_NOT_FOUND`,
+  `…_TOO_LARGE`, `…_TYPE`, `SCHULE_GATECONTROL_TOO_OLD`, `…_FAILED`,
+  `SCHULE_UNTIS_UNAVAILABLE`) are told in words under the attachment.
 
 ## Geofencing (place reminders)
 
