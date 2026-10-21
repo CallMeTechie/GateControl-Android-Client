@@ -86,6 +86,13 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start the Familie background work")
         }
 
+        // GateDrop: share target on with chats or GateDrop, LAN presence for direct transfers.
+        try {
+            EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).gateDropStartup().start()
+        } catch (e: Throwable) {
+            Timber.e(e, "Failed to start GateDrop")
+        }
+
         // Google Play build: in-app update (network watch, install in the background).
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
             try {
@@ -133,6 +140,7 @@ class GateControlApp : Application() {
         fun crashReportUploader(): CrashReportUploader
         fun familieStartup(): com.gatecontrol.android.familie.FamilieStartup
         fun updateCoordinator(): com.gatecontrol.android.update.UpdateCoordinator
+        fun gateDropStartup(): com.gatecontrol.android.gatedrop.GateDropStartup
     }
 
     private fun installCrashLogger(context: Context) {

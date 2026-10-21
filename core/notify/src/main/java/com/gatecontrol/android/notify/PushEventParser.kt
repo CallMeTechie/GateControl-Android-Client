@@ -234,8 +234,10 @@ object PushEventParser {
         val seq = dto.seq ?: fallbackSeq ?: return null
         val id = dto.id ?: return null
         if (seq <= 0 || id <= 0) return null
+        val kind = dto.kind?.takeIf { it == PushMessage.KIND_MESSAGE || it == PushMessage.KIND_DATA }
         val title = clean(dto.title, MAX_TITLE)
-        if (title.isBlank()) return null
+        // A data push (core 1.193+) carries only `data`: no title needed.
+        if (title.isBlank() && kind != PushMessage.KIND_DATA) return null
         val topic = dto.topic?.takeIf { TOPIC_RE.matches(it) } ?: PushTopic.ADMIN_NOTICE
         val state = when (dto.state) {
             PushState.READ -> PushState.READ
@@ -261,7 +263,7 @@ object PushEventParser {
             via = via,
             dataJson = dto.data?.toString()?.takeIf { it.length <= MAX_DATA_JSON },
             imageUrl = imagePath(dto.imageUrl),
-            kind = dto.kind?.takeIf { it == PushMessage.KIND_MESSAGE },
+            kind = kind,
         )
     }
 

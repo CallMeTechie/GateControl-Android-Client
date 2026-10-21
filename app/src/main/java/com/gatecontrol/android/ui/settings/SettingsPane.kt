@@ -14,6 +14,8 @@ enum class SettingsPane(val key: String) {
     TrustedNetworks("trusted-networks"),
     Location("location"),
     Notifications("notifications"),
+    /** GateDrop "Geteilt" (only while the server offers GateDrop). */
+    Shared("shared"),
     Logs("logs"),
     Diagnosis("diagnosis"),
     ;

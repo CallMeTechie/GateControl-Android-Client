@@ -135,4 +135,14 @@ interface PushPresenter {
      * on a message by themselves (e.g. answering a locate request).
      */
     suspend fun onNew(message: PushMessage) {}
+
+    /**
+     * A push the app handles completely by itself (e.g. a GateDrop
+     * transfer offer): true keeps it out of the inbox and the shade; it is
+     * still acknowledged as delivered. Data pushes (`kind: "data"`, core
+     * 1.193+) never reach the inbox or the shade, whatever this answers.
+     * Called for every notification before anything else; must be quick
+     * and idempotent (replays after a reconnect).
+     */
+    fun consume(message: PushMessage): Boolean = false
 }

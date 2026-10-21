@@ -127,8 +127,12 @@ data class PushMessage(
     val isUnread: Boolean get() = state == PushState.DELIVERED
     val isChat: Boolean get() = kind == KIND_MESSAGE
 
+    /** A data push (`kind: "data"`, core 1.193+): no banner, no inbox — only its `data` for an app feature. */
+    val isData: Boolean get() = kind == KIND_DATA
+
     companion object {
         const val KIND_MESSAGE = "message"
+        const val KIND_DATA = "data"
     }
 }
 

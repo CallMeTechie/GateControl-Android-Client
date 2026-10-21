@@ -82,6 +82,29 @@ class PushRepositoryTest {
     }
 
     @Test
+    fun `a data push consumed by the app is acknowledged but never shown or stored`() = runBlocking {
+        presenter.consumeIf = { it.id == 60L }
+        repo.onNotification(message(id = 60, seq = 300))
+
+        assertEquals(listOf(60L), presenter.consumed.map { it.id })
+        assertTrue(presenter.shown.isEmpty())
+        assertTrue(presenter.fresh.isEmpty())
+        assertTrue(inbox.items.value.isEmpty())
+        assertEquals(300L, store.lastSeq())
+        assertEquals(listOf(listOf(300L) to "delivered"), acks())
+    }
+
+    @Test
+    fun `a data push is never shown or stored, even when no feature takes it`() = runBlocking {
+        repo.onNotification(message(id = 61, seq = 301).copy(kind = com.gatecontrol.android.notify.model.PushMessage.KIND_DATA, title = ""))
+
+        assertTrue(presenter.shown.isEmpty())
+        assertTrue(presenter.fresh.isEmpty())
+        assertTrue(inbox.items.value.isEmpty())
+        assertEquals(listOf(listOf(301L) to "delivered"), acks())
+    }
+
+    @Test
     fun `a notification is shown, stored, remembered and acknowledged as delivered`() = runBlocking {
         repo.onNotification(message(id = 45, seq = 123, priority = "critical"))
 

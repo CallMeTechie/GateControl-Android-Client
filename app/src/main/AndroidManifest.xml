@@ -8,6 +8,11 @@
     <!-- Chats: live arrival (Messenger 1.4) shares the position while the
          person drives, started by them from the open chat. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- GateDrop: sending and receiving files (upload, download, direct LAN
+         transfer) run in WorkManager's foreground service with a progress
+         notification, started by the person (share sheet, "Speichern") or
+         by a GateDrop push. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -263,18 +268,19 @@
             android:name=".chat.ChatActionReceiver"
             android:exported="false" />
 
-        <!-- Chats: share target "Teilen → GateControl" (text, pictures,
-             files). Exported for the system's share sheet, but disabled
-             until the server offers the chats (ChatShareActivity.setEnabled).
-             Reads only content:// URIs of other apps, never file:// or the
-             app's own providers. -->
+        <!-- Share target "Teilen → GateControl" (text, pictures, files):
+             the GateDrop sheet when the server offers GateDrop, else the
+             chats. Exported for the system's share sheet, but disabled
+             until the server offers the chats or GateDrop
+             (ChatShareActivity.setEnabled). Reads only content:// URIs of
+             other apps, never file:// or the app's own providers. -->
         <activity
             android:name=".chat.ChatShareActivity"
             android:exported="true"
             android:enabled="false"
             android:excludeFromRecents="true"
             android:taskAffinity=""
-            android:label="@string/chat_share_label"
+            android:label="@string/share_target_label"
             android:theme="@style/Theme.GateControl.TileAction">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -307,6 +313,19 @@
             android:label="@string/chat_title"
             android:theme="@style/Theme.GateControl"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- GateDrop: buttons of its notifications (Kopieren, Speichern).
+             NOT exported: only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".gatedrop.GateDropActionReceiver"
+            android:exported="false" />
+
+        <!-- GateDrop: WorkManager's foreground service carries the transfers
+             (upload, download, direct LAN transfer) as data sync. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

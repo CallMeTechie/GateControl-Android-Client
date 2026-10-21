@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GateDrop (plugin gatecontrol-gatedrop): share with people, own devices, NAS and links for externals -->
+    <string name="share_target_label">GateControl</string>
+
+    <!-- Share sheet -->
+    <string name="gatedrop_share_title">Share with GateControl</string>
+    <plurals name="gatedrop_share_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <string name="gatedrop_share_text_item">Text</string>
+    <string name="gatedrop_share_link_item">Link</string>
+    <string name="gatedrop_people">People</string>
+    <string name="gatedrop_family">Family</string>
+    <string name="gatedrop_devices">My devices</string>
+    <string name="gatedrop_device_direct">online · directly over Wi-Fi</string>
+    <string name="gatedrop_device_online">online</string>
+    <string name="gatedrop_device_offline">offline · arrives as soon as it is online</string>
+    <string name="gatedrop_nas">Store</string>
+    <string name="gatedrop_link_section">Link for externals</string>
+    <string name="gatedrop_link_row">Create a link</string>
+    <string name="gatedrop_link_row_desc">Download without a GateControl account</string>
+    <string name="gatedrop_link_chosen_pin">%1$s · with PIN</string>
+    <string name="gatedrop_link_name">Link</string>
+    <string name="gatedrop_note">Message (optional)</string>
+    <string name="gatedrop_note_hint">e.g. photos of the hiking day</string>
+    <string name="gatedrop_send">Send</string>
+    <string name="gatedrop_send_to">Send to %1$s</string>
+    <string name="gatedrop_and">%1$s and %2$s</string>
+    <plurals name="gatedrop_more">
+        <item quantity="one">%d more</item>
+        <item quantity="other">%d more</item>
+    </plurals>
+    <string name="gatedrop_in_chat">Share in a chat …</string>
+    <string name="gatedrop_targets_error">Your GateControl server cannot be reached.</string>
+    <string name="gatedrop_retry">Try again</string>
+    <string name="gatedrop_no_targets">There is nobody to share with yet.</string>
+    <plurals name="gatedrop_skipped">
+        <item quantity="one">%d file is not sent (larger than 2 GB, more than 20 or not readable).</item>
+        <item quantity="other">%d files are not sent (larger than 2 GB, more than 20 or not readable).</item>
+    </plurals>
+    <string name="gatedrop_preparing">Preparing …</string>
+    <string name="gatedrop_waiting_link">Creating the link …</string>
+    <string name="gatedrop_uploading_percent">Uploading … %1$d %%</string>
+    <string name="gatedrop_progress_background">You can close this – sending continues in the background.</string>
+    <string name="gatedrop_sending_toast">Sending …</string>
+    <string name="gatedrop_done">Done</string>
+
+    <!-- Link for externals -->
+    <string name="gatedrop_link_title">Link for externals</string>
+    <plurals name="gatedrop_link_intro">
+        <item quantity="one">Whoever has the link can download the file – without a GateControl account. It stays on your server, not with a third-party service.</item>
+        <item quantity="other">Whoever has the link can download the %d files – without a GateControl account. They stay on your server, not with a third-party service.</item>
+    </plurals>
+    <string name="gatedrop_link_valid">Valid</string>
+    <string name="gatedrop_expiry_1h">1 hour</string>
+    <string name="gatedrop_expiry_1d">1 day</string>
+    <string name="gatedrop_expiry_7d">7 days</string>
+    <string name="gatedrop_expiry_once">Download once</string>
+    <string name="gatedrop_expiry_1h_short">1 h</string>
+    <string name="gatedrop_expiry_1d_short">1 day</string>
+    <string name="gatedrop_expiry_7d_short">7 days</string>
+    <string name="gatedrop_expiry_once_short">1×</string>
+    <string name="gatedrop_link_pin">Protect with a PIN</string>
+    <string name="gatedrop_link_pin_desc">Pass the PIN on separately, e.g. by phone</string>
+    <string name="gatedrop_link_apply">Apply</string>
+    <string name="gatedrop_link_remove">Without a link</string>
+    <string name="gatedrop_link_label">Link</string>
+    <string name="gatedrop_link_pin_label">PIN</string>
+    <string name="gatedrop_copy">Copy</string>
+    <string name="gatedrop_copied">Copied</string>
+    <string name="gatedrop_link_share">Share link …</string>
+    <string name="gatedrop_link_footer">See and end active links under Settings › Shared.</string>
+
+    <!-- Notifications -->
+    <string name="gatedrop_channel_progress">GateDrop – transfers</string>
+    <string name="gatedrop_channel_received">GateDrop – received</string>
+    <string name="gatedrop_progress_sending">Sending …</string>
+    <string name="gatedrop_progress_receiving">Receiving …</string>
+    <string name="gatedrop_cancel">Cancel</string>
+    <string name="gatedrop_sent_title">Sent</string>
+    <string name="gatedrop_sent_to">To %1$s</string>
+    <string name="gatedrop_link_ready">Link for externals is ready</string>
+    <string name="gatedrop_link_with_pin">%1$s\nPIN: %2$s</string>
+    <string name="gatedrop_send_failed">Not sent</string>
+    <string name="gatedrop_send_failed_desc">Your GateControl server could not be reached or refused it.</string>
+    <string name="gatedrop_someone">Someone</string>
+    <string name="gatedrop_received_title">%1$s sent you %2$s</string>
+    <string name="gatedrop_received_generic">GateDrop: something new for you</string>
+    <string name="gatedrop_what_file">a file</string>
+    <string name="gatedrop_what_link">a link</string>
+    <string name="gatedrop_what_text">a text</string>
+    <plurals name="gatedrop_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <string name="gatedrop_open">Open</string>
+    <string name="gatedrop_save">Save</string>
+    <string name="gatedrop_saving">Saving …</string>
+    <string name="gatedrop_saved_in">In Downloads/GateControl</string>
+    <string name="gatedrop_receive_failed">Receiving failed</string>
+    <string name="gatedrop_receive_failed_from">From %1$s</string>
+
+    <!-- Screen "Shared" -->
+    <string name="gatedrop_settings_group">Sharing</string>
+    <string name="gatedrop_settings_row_desc">Received, sent and links for externals</string>
+    <string name="gatedrop_shared_title">Shared</string>
+    <string name="gatedrop_reload">Reload</string>
+    <string name="gatedrop_tab_received">Received</string>
+    <string name="gatedrop_tab_sent">Sent</string>
+    <string name="gatedrop_tab_links">Links</string>
+    <string name="gatedrop_shared_footer">What goes to your own devices lands here and as a notification. What people send arrives in the chat as usual. Received items are deleted from the server after 7 days.</string>
+    <string name="gatedrop_offline">Offline – showing what this device knows.</string>
+    <string name="gatedrop_from">from %1$s · %2$s</string>
+    <string name="gatedrop_to">to %1$s</string>
+    <string name="gatedrop_saved_locally">saved</string>
+    <string name="gatedrop_item_text">Text: %1$s</string>
+    <string name="gatedrop_item_link">Link: %1$s</string>
+    <string name="gatedrop_empty_received">Nothing received yet.</string>
+    <string name="gatedrop_empty_sent">Nothing sent yet.</string>
+    <string name="gatedrop_empty_links">No links.</string>
+    <string name="gatedrop_no_app">No app can open this.</string>
+    <string name="gatedrop_status_pending">waiting</string>
+    <string name="gatedrop_status_direct">sent directly</string>
+    <string name="gatedrop_status_delivered">delivered</string>
+    <string name="gatedrop_status_opened">opened</string>
+    <string name="gatedrop_status_failed">failed</string>
+    <string name="gatedrop_status_expired">expired</string>
+    <string name="gatedrop_link_expires">expires %1$s</string>
+    <plurals name="gatedrop_link_downloads">
+        <item quantity="one">%d download</item>
+        <item quantity="other">%d downloads</item>
+    </plurals>
+    <string name="gatedrop_link_state_expired">expired</string>
+    <string name="gatedrop_link_state_locked">locked (wrong PIN)</string>
+    <string name="gatedrop_link_state_revoked">ended</string>
+    <string name="gatedrop_link_end">End</string>
+    <string name="gatedrop_link_end_title">End the link?</string>
+    <string name="gatedrop_link_end_text">The link stops working right away.</string>
+</resources>

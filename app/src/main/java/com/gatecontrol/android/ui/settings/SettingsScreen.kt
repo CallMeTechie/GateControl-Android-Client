@@ -79,6 +79,8 @@ fun SettingsScreen(
     onNavigateToProfile: () -> Unit = {},
     /** Verbindung → Verbindungsdetails. */
     onNavigateToConnection: () -> Unit = {},
+    /** GateDrop "Geteilt"; null hides the row (no GateDrop on the server). */
+    onNavigateToShared: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
     selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -275,6 +277,20 @@ fun SettingsScreen(
                 trailing = { GcChevron() },
                 selected = selectedPane == SettingsPane.Notifications,
             )
+        }
+
+        // --- Teilen (GateDrop) -------------------------------------------------
+        if (onNavigateToShared != null) {
+            SettingsGroup(stringResource(R.string.gatedrop_settings_group)) {
+                GcListRow(
+                    title = stringResource(R.string.gatedrop_shared_title),
+                    description = stringResource(R.string.gatedrop_settings_row_desc),
+                    onClick = onNavigateToShared,
+                    leading = { Icon(GcIcons.Share, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                    trailing = { GcChevron() },
+                    selected = selectedPane == SettingsPane.Shared,
+                )
+            }
         }
 
         // --- Darstellung ---------------------------------------------------

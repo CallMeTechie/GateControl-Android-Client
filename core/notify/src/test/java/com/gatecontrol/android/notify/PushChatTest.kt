@@ -78,6 +78,20 @@ class PushChatTest {
         assertFalse(assertInstanceOf(PushEvent.Notification::class.java, other).message.isChat)
     }
 
+    @Test
+    fun `a data push is kind data and needs no title`() {
+        val data = PushEventParser.parse(
+            "notification", "9",
+            """{"seq":9,"id":19,"topic":"plugin:gatecontrol-gatedrop:received","priority":"info","title":"","kind":"data","silent":true,"data":{"gatedrop":{"transfer":"tr_1"}}}""",
+        ) as PushEvent.Notification
+        assertEquals(PushMessage.KIND_DATA, data.message.kind)
+        assertTrue(data.message.isData)
+        assertTrue(data.message.dataJson!!.contains("gatedrop"))
+        // Without kind data an empty title is still no notification.
+        val none = PushEventParser.parse("notification", "9", """{"seq":9,"id":19,"title":"","data":{}}""")
+        assertTrue(none !is PushEvent.Notification)
+    }
+
     // ─── repository ─────────────────────────────────────────────────
 
     @TempDir lateinit var dir: File

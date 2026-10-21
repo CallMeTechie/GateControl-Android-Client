@@ -7,6 +7,7 @@ import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.HEAD
 import retrofit2.http.HTTP
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -166,6 +167,46 @@ interface ApiClient {
     suspend fun pluginMediaUpload(
         @Path("id") plugin: String,
         @Body body: RequestBody,
+    ): Response<JsonObject>
+
+    /**
+     * Resumable variant (core 1.193+, `media.resumable`): `?uploadId=<id>&offset=<n>`
+     * with `Content-Range: bytes n-(size-1)/size` continues an interrupted upload.
+     */
+    @PUT("api/v1/client/plugins/{id}/media")
+    suspend fun pluginMediaUploadPart(
+        @Path("id") plugin: String,
+        @QueryMap query: Map<String, String>,
+        @Header("Content-Range") contentRange: String?,
+        @Body body: RequestBody,
+    ): Response<JsonObject>
+
+    /** Status of a resumable upload: `HEAD …/media?uploadId=` (`Upload-Offset` header; core 1.193+). */
+    @HEAD("api/v1/client/plugins/{id}/media")
+    suspend fun pluginMediaHead(
+        @Path("id") plugin: String,
+        @Query("uploadId") uploadId: String,
+    ): Response<Void>
+
+    /** Status of a resumable upload as JSON: `GET …/media?uploadId=` → `{ offset, total, mime }`. */
+    @GET("api/v1/client/plugins/{id}/media")
+    suspend fun pluginMediaStatus(
+        @Path("id") plugin: String,
+        @Query("uploadId") uploadId: String,
+    ): Response<JsonObject>
+
+    /** How much of a resumable upload the server has (`Upload-Offset` header), older path form. */
+    @HEAD("api/v1/client/plugins/{id}/media/uploads/{uploadId}")
+    suspend fun pluginMediaUploadHead(
+        @Path("id") plugin: String,
+        @Path("uploadId") uploadId: String,
+    ): Response<Void>
+
+    /** The same as JSON `{ offset }`, for servers that answer it with a body. */
+    @GET("api/v1/client/plugins/{id}/media/uploads/{uploadId}")
+    suspend fun pluginMediaUploadStatus(
+        @Path("id") plugin: String,
+        @Path("uploadId") uploadId: String,
     ): Response<JsonObject>
 
     /** A plugin file (404 unless the plugin lets the token's owner see it); [range] `bytes=a-b`. */

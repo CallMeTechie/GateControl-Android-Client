@@ -53,9 +53,15 @@ sealed interface PushNavTarget {
      */
     data class Logbook(val vehicleId: Long? = null) : PushNavTarget
 
+    /** GateDrop: the screen "Geteilt" on [tab] (received | sent | links). */
+    data class Shared(val tab: String = "received") : PushNavTarget
+
     companion object {
         /** App route of the Familie plugin (`plg-gatecontrol-familie`). */
         const val FAMILIE_ROUTE = "plg-gatecontrol-familie"
+
+        /** App route of GateDrop (`plg-gatecontrol-gatedrop`). */
+        const val GATEDROP_ROUTE = "plg-gatecontrol-gatedrop"
 
         /** App route of the door plugin (`plg-gatecontrol-door`). */
         const val DOOR_ROUTE = "plg-gatecontrol-door"
@@ -75,6 +81,8 @@ sealed interface PushNavTarget {
             FAMILIE_ROUTE -> Familie("home", messageId?.takeIf { it > 0 })
             DOOR_ROUTE -> Door(doorDest ?: "home", messageId?.takeIf { it > 0 })
             com.gatecontrol.android.chat.MESSENGER_ROUTE -> Chat()
+            // GateDrop (deliveries, "Link geladen"): the screen "Geteilt".
+            GATEDROP_ROUTE -> Shared()
             else -> if (messageId != null && messageId > 0) Detail(messageId) else Inbox
         }
     }

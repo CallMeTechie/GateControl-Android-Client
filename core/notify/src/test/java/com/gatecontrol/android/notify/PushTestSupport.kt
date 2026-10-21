@@ -44,6 +44,12 @@ class FakePresenter : PushPresenter {
         fresh += message
     }
 
+    /** Messages a test lets the app feature consume (data pushes). */
+    var consumeIf: (PushMessage) -> Boolean = { false }
+    val consumed = CopyOnWriteArrayList<PushMessage>()
+
+    override fun consume(message: PushMessage): Boolean = consumeIf(message).also { if (it) consumed += message }
+
     override suspend fun ensureTopicChannels(topics: List<PushTopic>) {
         channelTopics += topics
     }

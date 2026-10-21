@@ -53,6 +53,12 @@ data class PluginAvailability(
      * a tab of its own (docs/FAMILIE.md "Stundenplan").
      */
     val schule: Boolean = false,
+    /**
+     * The GateDrop plugin is listed for this user: "Teilen → GateControl"
+     * shows the GateDrop sheet (people, own devices, NAS, link), the
+     * screen "Geteilt" and GateDrop's pushes (contract F).
+     */
+    val gatedrop: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -69,6 +75,7 @@ data class PluginAvailability(
                 door = plugins.any { it.id == com.gatecontrol.android.door.DOOR_PLUGIN },
                 messengerTab = plugins.any { it.id == com.gatecontrol.android.chat.MESSENGER_PLUGIN && it.tab != null },
                 schule = plugins.any { it.id == com.gatecontrol.android.familie.school.SCHULE_PLUGIN },
+                gatedrop = plugins.any { it.id == com.gatecontrol.android.gatedrop.GATEDROP_PLUGIN },
             )
         }
 
