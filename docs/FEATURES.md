@@ -351,6 +351,34 @@ zurück geht es dorthin, wo man war.
 
 ---
 
+## Fahrtenbuch (Plugin `gatecontrol-skoda` 1.6, GateControl 1.189+)
+
+Kein eigener Tab: Die Schnellaktion „Fahrtenbuch“ des Fahrzeuge-Plugins
+**öffnet** das Fahrtenbuch, statt etwas auszuführen (Feld `opens` der
+Schnellaktion; Details: [LOGBOOK.md](LOGBOOK.md)). Im Widget auf dem
+Start-Tab ist sie ein breiter Knopf „Öffnen“; Kachel, Home-Widget,
+App-Verknüpfung und Schnelleinstellungen öffnen die App dort. Die vier
+Zweck-Knöpfe im Widget setzen weiter den Zweck der letzten Fahrt.
+
+- **Fahrtenbuch:** Monat wählen (keine Zukunft), Summe in km mit Zahl der
+  Fahrten, Balken und Summen nach Arbeitsweg / Geschäftlich / Privat,
+  Kartenvorschau, Fahrten nach Tag (neueste zuerst). Fahrten ohne Zweck
+  haben die drei Zweck-Knöpfe direkt in der Liste. Fahrzeugwahl bei mehreren
+  eigenen Fahrzeugen, Export des Monats als PDF oder CSV über „Teilen“.
+- **Karte:** alle Fahrten des Monats, farbig nach Zweck (offen grau
+  gestrichelt, Luftlinie gestrichelt); gleiche Strecken einmal mit Anzahl
+  („18×“); Filter nach Zweck; Tippen zeigt Strecke, Zweck, Fahrten und km
+  mit „n Fahrten zeigen“ und „Letzte Fahrt“.
+- **Fahrt:** Karte mit A und B, „Strecke berechnet“ oder „Luftlinie“,
+  Start/Ziel mit Uhrzeit und Kilometerstand, Zweck, „Anlass /
+  Geschäftspartner“, Fahrer, Dauer, „Start und Ziel ändern“. Ohne
+  Bearbeitungsrecht nur ansehen.
+- Nichts davon wird auf dem Gerät gespeichert; ohne Verbindung bleibt der
+  zuletzt geladene Stand sichtbar, solange die App läuft. Tablets: Liste
+  links, Karte oder Fahrt rechts.
+
+---
+
 ## Stundenplan (Plugin `gatecontrol-schule`, WebUntis)
 
 Wenn der Server das Plugin „Schule“ anbietet, hat der Familie-Tab die Karte

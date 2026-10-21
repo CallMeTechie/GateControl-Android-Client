@@ -53,6 +53,7 @@ import com.gatecontrol.android.quickactions.QuickActionDeviceGroup
 import com.gatecontrol.android.quickactions.QuickActionIcons
 import com.gatecontrol.android.quickactions.QuickActionItem
 import com.gatecontrol.android.quickactions.QuickActionReadingItem
+import com.gatecontrol.android.quickactions.QuickActionScreens
 import com.gatecontrol.android.quickactions.QuickActionWidgetItem
 import com.gatecontrol.android.quickactions.WidgetPart
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -185,7 +186,9 @@ fun QuickActionWidgetCard(
                     modifier = if (fillHeight) Modifier.weight(1f, fill = false) else Modifier,
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    actionButtons.chunked(buttonsPerRow(actionButtons.size)).forEach { row ->
+                    // Actions that open an app screen (the logbook) get a wide "Öffnen" button below the others.
+                    val (openers, iconButtons) = actionButtons.partition { QuickActionScreens.opensScreen(it) }
+                    iconButtons.chunked(buttonsPerRow(iconButtons.size)).forEach { row ->
                         Row(
                             (if (fillHeight) Modifier.weight(1f, fill = false) else Modifier).fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -200,6 +203,9 @@ fun QuickActionWidgetCard(
                                 )
                             }
                         }
+                    }
+                    openers.forEach { action ->
+                        OpenScreenButton(action, onClick = { if (interactive) onRun(action) })
                     }
                 }
             }
@@ -433,6 +439,41 @@ private fun ActionButton(action: QuickActionItem, running: Boolean, onClick: () 
     ) {
         if (running) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp), color = glyph)
         else Icon(icon, contentDescription = null, tint = glyph, modifier = Modifier.size(if (grow) 22.dp else 20.dp))
+    }
+}
+
+/**
+ * An action that opens an app screen ([QuickActionScreens], e.g. the
+ * logbook): its icon, "Öffnen" and a chevron, accent frame, the widget's
+ * whole width (mockup "Widget: Knopf öffnet das Fahrtenbuch").
+ */
+@Composable
+private fun OpenScreenButton(action: QuickActionItem, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val icon = remember(action.displayIcon) { QuickActionIcons.vector(action.displayIcon) }
+    val shape = RoundedCornerShape(12.dp)
+    val description = stringResource(R.string.quick_action_open_screen, action.title)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(shape)
+            .background(extra.accentBg)
+            .border(2.dp, MaterialTheme.colorScheme.primary, shape)
+            .combinedClickable(role = Role.Button, onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = description }
+            .padding(horizontal = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(18.dp))
+        Text(
+            stringResource(R.string.quick_action_open),
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            color = extra.accentText,
+            maxLines = 1,
+        )
+        Icon(GcIcons.ChevronRight, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(15.dp))
     }
 }
 

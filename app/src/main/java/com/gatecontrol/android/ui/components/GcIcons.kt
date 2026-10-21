@@ -178,6 +178,15 @@ object GcIcons {
     val LockOpen = icon("LockOpen", 2f, rect(4f, 11f, 16f, 10f, 2f), "M8 11V7a4 4 0 0 1 7.9-1")
     val Camera = icon("Camera", 2f, "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z", circle(12f, 13f, 4f))
 
+    // Logbook ("Fahrtenbuch") of the vehicles plugin: the book, the map and the trip purposes.
+    val Logbook = icon("Logbook", 2f, "M6 3h11a2 2 0 0 1 2 2v16H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 7h7M8 11h7M8 15h4")
+    val Map = icon("Map", 2f, "M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14M15 6v14")
+    val Expand = icon("Expand", 2f, "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7")
+    val Shrink = icon("Shrink", 2f, "M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7")
+    val Briefcase = icon("Briefcase", 2f, rect(3f, 7f, 18f, 13f, 2f), "M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18")
+    val House = icon("House", 2f, "M3 11l9-8 9 8", "M5 10v10h14V10")
+    val Commute = icon("Commute", 2f, "M3 17l6-6 4 4 8-8", "M14 7h7v7")
+
     /**
      * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).
      * Throws on a path that cannot be parsed; callers fall back to their own icon.

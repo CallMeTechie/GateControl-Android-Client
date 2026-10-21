@@ -498,6 +498,17 @@ data class QuickAction(
     @SerializedName("confirmWhen") val confirmWhen: String? = null,
     /** The ids the plugin replaced (core 1.186.2+): pins and widgets stored under one move to this plugin. */
     @SerializedName("formerly") val formerly: List<String>? = null,
+    /**
+     * An app screen this action opens instead of running (core 1.189+), e.g.
+     * `{screen: "logbook", ref: "3"}` of the vehicles plugin; null = a normal action.
+     */
+    @SerializedName("opens") val opens: QuickActionOpens? = null,
+)
+
+/** [screen] `^[a-z][a-z0-9_-]{0,39}$`, [ref] what to show there (≤ 80 chars), e.g. a vehicle id. */
+data class QuickActionOpens(
+    @SerializedName("screen") val screen: String? = null,
+    @SerializedName("ref") val ref: String? = null,
 )
 
 data class QuickActionDevice(

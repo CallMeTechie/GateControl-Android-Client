@@ -23,7 +23,8 @@ import kotlinx.coroutines.withContext
  * Quick Settings tiles for the first three pinned quick actions (slot 1–3).
  * A switch shows its last known state; a tap runs the action right away,
  * except actions that want a confirmation: those open the confirmation and,
- * on a locked device, only after unlocking. An empty slot opens the app.
+ * on a locked device, only after unlocking. An empty slot opens the app, an
+ * action that opens an app screen (the logbook) opens the app there.
  */
 abstract class QuickActionTileService(private val slot: Int) : TileService() {
 
@@ -51,7 +52,8 @@ abstract class QuickActionTileService(private val slot: Int) : TileService() {
             withContext(Dispatchers.Main) {
                 when {
                     item == null -> open(Intent(this@QuickActionTileService, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    item.needsConfirm -> {
+                    // Asking first, or opening an app screen (the logbook): through the activity.
+                    item.needsConfirm || QuickActionScreens.opensScreen(item) -> {
                         val run = { open(QuickActionActivity.intent(this@QuickActionTileService, item)) }
                         if (isLocked) unlockAndRun(run) else run()
                     }

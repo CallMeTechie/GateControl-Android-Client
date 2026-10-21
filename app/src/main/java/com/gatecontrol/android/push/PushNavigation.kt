@@ -46,6 +46,13 @@ sealed interface PushNavTarget {
      */
     data class ChatShare(val conversationId: Long? = null) : PushNavTarget
 
+    /**
+     * The logbook ("Fahrtenbuch") of the vehicles plugin, of [vehicleId]
+     * (null = the first own vehicle): a quick action with `opens` (start-tab
+     * widget or button, home-screen widget, shortcut, Quick Settings tile).
+     */
+    data class Logbook(val vehicleId: Long? = null) : PushNavTarget
+
     companion object {
         /** App route of the Familie plugin (`plg-gatecontrol-familie`). */
         const val FAMILIE_ROUTE = "plg-gatecontrol-familie"
@@ -74,8 +81,9 @@ sealed interface PushNavTarget {
 }
 
 /**
- * Hand-over from the non-exported [PushOpenActivity] to the navigation:
- * the exported MainActivity deliberately reads no intent extras.
+ * Hand-over from the non-exported [PushOpenActivity] (and
+ * QuickActionActivity, for quick actions that open a screen) to the
+ * navigation: the exported MainActivity deliberately reads no intent extras.
  */
 object PushNavigation {
     private val _pending = MutableStateFlow<PushNavTarget?>(null)

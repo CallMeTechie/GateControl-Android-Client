@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Logbook ("Fahrtenbuch") of the vehicles plugin (gatecontrol-skoda 1.6+) -->
+    <string name="quick_action_open">Open</string>
+    <string name="quick_action_open_screen">Open %1$s</string>
+
+    <string name="logbook_title">Logbook</string>
+    <string name="logbook_choose_vehicle">Choose vehicle, %1$s</string>
+    <string name="logbook_map_all">All trips on the map</string>
+    <string name="logbook_export">Export as PDF or CSV</string>
+    <string name="logbook_export_title">Export logbook</string>
+    <string name="logbook_export_text">Trips of %1$s</string>
+    <string name="logbook_export_pdf">PDF – to print or hand in</string>
+    <string name="logbook_export_csv">CSV – for spreadsheets</string>
+    <string name="logbook_export_failed">The export did not work.</string>
+    <string name="logbook_prev_month">Previous month</string>
+    <string name="logbook_next_month">Next month</string>
+    <plurals name="logbook_trips">
+        <item quantity="one">%d trip</item>
+        <item quantity="other">%d trips</item>
+    </plurals>
+    <string name="logbook_km_trips">km · %1$s</string>
+    <string name="logbook_km">%1$s km</string>
+    <string name="logbook_purpose_commute">Commute</string>
+    <string name="logbook_purpose_business">Business</string>
+    <string name="logbook_purpose_private">Private</string>
+    <string name="logbook_purpose_open">Open</string>
+    <string name="logbook_purpose_missing">Purpose missing</string>
+    <string name="logbook_purpose_choose">Choose purpose</string>
+    <string name="logbook_bar_desc">Commute %1$s km, business %2$s km, private %3$s km, open %4$s km</string>
+    <string name="logbook_map_open">Open all trips of %1$s on the map</string>
+    <string name="logbook_map_button">Map</string>
+    <string name="logbook_empty">No trip this month yet</string>
+    <string name="logbook_empty_hint">Trips appear here after the car has parked.</string>
+    <string name="logbook_no_vehicle">No vehicle of your own. The logbook only shows vehicles that belong to you.</string>
+    <string name="logbook_moving">The car is on the road right now – the trip appears after arrival.</string>
+    <string name="logbook_read_only">View only – trips cannot be changed here.</string>
+    <string name="logbook_offline_shown">Offline – showing what was loaded last.</string>
+    <string name="logbook_error_offline">Server not reachable. Check the connection (VPN).</string>
+    <string name="logbook_error_not_found">The logbook needs the vehicles plugin 1.6 or later on the server.</string>
+    <string name="logbook_error_not_owner">This vehicle does not belong to you.</string>
+    <string name="logbook_error_generic">Did not work (%1$s).</string>
+    <string name="logbook_retry">Try again</string>
+    <string name="logbook_saved">Saved</string>
+    <string name="logbook_save_failed">Saving did not work.</string>
+    <string name="logbook_filter_clear">Show all trips</string>
+    <string name="logbook_unknown_place">Unknown place</string>
+    <string name="logbook_route_to">%1$s → %2$s</string>
+    <string name="logbook_route_both">%1$s ↔ %2$s</string>
+    <string name="logbook_times">%1$s – %2$s</string>
+
+    <!-- All trips on the map -->
+    <string name="logbook_back_to_list">Back to the logbook</string>
+    <string name="logbook_map_desc">Map with all trips of %1$s</string>
+    <string name="logbook_filter">Filter trips</string>
+    <string name="logbook_filter_all">All %1$d</string>
+    <string name="logbook_show_trips">Show %1$s</string>
+    <string name="logbook_latest_trip">Latest trip</string>
+    <string name="logbook_map_hint">Tap a route or a place. The same route is drawn once, the number says how often.</string>
+    <string name="logbook_map_empty">No trip with a route in this month.</string>
+
+    <!-- One trip -->
+    <string name="logbook_trip_map_desc">Map of the trip from %1$s to %2$s</string>
+    <string name="logbook_map_large">Show the map large</string>
+    <string name="logbook_map_small">Show the map small</string>
+    <string name="logbook_route_road">Route calculated</string>
+    <string name="logbook_route_line">Straight line</string>
+    <string name="logbook_depart">Departure %1$s</string>
+    <string name="logbook_arrive">Arrival %1$s</string>
+    <string name="logbook_purpose">Purpose</string>
+    <string name="logbook_note">Reason / business partner</string>
+    <string name="logbook_note_hint">e.g. customer, appointment</string>
+    <string name="logbook_driver">Driver</string>
+    <string name="logbook_duration">Duration</string>
+    <string name="logbook_duration_min">%1$d min</string>
+    <string name="logbook_duration_hours">%1$d h %2$d min</string>
+    <string name="logbook_edit_places">Change start and destination</string>
+    <string name="logbook_start">Start</string>
+    <string name="logbook_destination">Destination</string>
+    <string name="logbook_save">Save</string>
+    <string name="logbook_cancel">Cancel</string>
+    <string name="logbook_trip_not_found">This trip is not (or no longer) in the logbook.</string>
+    <string name="logbook_edited">Changed by hand</string>
+</resources>

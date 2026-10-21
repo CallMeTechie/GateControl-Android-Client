@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import com.gatecontrol.android.MainActivity
 import com.gatecontrol.android.R
 import com.gatecontrol.android.support.CrashReports
 import dagger.hilt.android.AndroidEntryPoint
@@ -20,7 +21,9 @@ import javax.inject.Inject
 /**
  * Invisible, NON-exported activity that runs one quick action — from an app
  * shortcut, the widget or a Quick Settings tile. Asks first when the action
- * wants a confirmation, shows the result as a toast and finishes.
+ * wants a confirmation, shows the result as a toast and finishes. An action
+ * that opens an app screen ([QuickActionScreens], e.g. the logbook) is not
+ * run: the app opens at that screen instead.
  *
  * Only this app can start it (shortcut intents and the widget's pending
  * intents run with the app's identity); the action itself is checked again
@@ -50,9 +53,24 @@ class QuickActionActivity : ComponentActivity() {
                     id = id,
                     title = intent.getStringExtra(EXTRA_TITLE) ?: id,
                     confirm = intent.getBooleanExtra(EXTRA_CONFIRM, false),
+                    opensScreen = intent.getStringExtra(EXTRA_OPENS_SCREEN),
+                    opensRef = intent.getStringExtra(EXTRA_OPENS_REF),
                 )
-            if (item.needsConfirm) confirm(item) else runAndFinish(item)
+            when {
+                QuickActionScreens.open(item) -> openAppAndFinish()
+                item.needsConfirm -> confirm(item)
+                else -> runAndFinish(item)
+            }
         }
+    }
+
+    /** The screen was handed to the navigation ([QuickActionScreens.open]): bring up the app. */
+    private fun openAppAndFinish() {
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        )
+        finish()
     }
 
     private fun confirm(item: QuickActionItem) {
@@ -80,6 +98,8 @@ class QuickActionActivity : ComponentActivity() {
         private const val EXTRA_ID = "com.gatecontrol.android.extra.QA_ID"
         private const val EXTRA_TITLE = "com.gatecontrol.android.extra.QA_TITLE"
         private const val EXTRA_CONFIRM = "com.gatecontrol.android.extra.QA_CONFIRM"
+        private const val EXTRA_OPENS_SCREEN = "com.gatecontrol.android.extra.QA_OPENS_SCREEN"
+        private const val EXTRA_OPENS_REF = "com.gatecontrol.android.extra.QA_OPENS_REF"
 
         private val runScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
@@ -91,6 +111,10 @@ class QuickActionActivity : ComponentActivity() {
                 .putExtra(EXTRA_ID, item.id)
                 .putExtra(EXTRA_TITLE, item.title)
                 .putExtra(EXTRA_CONFIRM, item.needsConfirm)
+                .apply {
+                    item.opensScreen?.let { putExtra(EXTRA_OPENS_SCREEN, it) }
+                    item.opensRef?.let { putExtra(EXTRA_OPENS_REF, it) }
+                }
                 .addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_NO_ANIMATION or

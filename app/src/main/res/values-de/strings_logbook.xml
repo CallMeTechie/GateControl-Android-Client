@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fahrtenbuch des Fahrzeuge-Plugins (gatecontrol-skoda 1.6+) -->
+    <string name="quick_action_open">Öffnen</string>
+    <string name="quick_action_open_screen">%1$s öffnen</string>
+
+    <string name="logbook_title">Fahrtenbuch</string>
+    <string name="logbook_choose_vehicle">Fahrzeug wählen, %1$s</string>
+    <string name="logbook_map_all">Alle Fahrten auf der Karte</string>
+    <string name="logbook_export">Als PDF oder CSV exportieren</string>
+    <string name="logbook_export_title">Fahrtenbuch exportieren</string>
+    <string name="logbook_export_text">Fahrten im %1$s</string>
+    <string name="logbook_export_pdf">PDF – zum Drucken oder Abgeben</string>
+    <string name="logbook_export_csv">CSV – für Tabellen</string>
+    <string name="logbook_export_failed">Der Export hat nicht geklappt.</string>
+    <string name="logbook_prev_month">Vorheriger Monat</string>
+    <string name="logbook_next_month">Nächster Monat</string>
+    <plurals name="logbook_trips">
+        <item quantity="one">%d Fahrt</item>
+        <item quantity="other">%d Fahrten</item>
+    </plurals>
+    <string name="logbook_km_trips">km · %1$s</string>
+    <string name="logbook_km">%1$s km</string>
+    <string name="logbook_purpose_commute">Arbeitsweg</string>
+    <string name="logbook_purpose_business">Geschäftlich</string>
+    <string name="logbook_purpose_private">Privat</string>
+    <string name="logbook_purpose_open">Offen</string>
+    <string name="logbook_purpose_missing">Zweck fehlt</string>
+    <string name="logbook_purpose_choose">Zweck wählen</string>
+    <string name="logbook_bar_desc">Arbeitsweg %1$s km, Geschäftlich %2$s km, Privat %3$s km, offen %4$s km</string>
+    <string name="logbook_map_open">Alle Fahrten im %1$s auf der Karte öffnen</string>
+    <string name="logbook_map_button">Karte</string>
+    <string name="logbook_empty">Noch keine Fahrt in diesem Monat</string>
+    <string name="logbook_empty_hint">Fahrten erscheinen hier, sobald das Auto geparkt hat.</string>
+    <string name="logbook_no_vehicle">Kein eigenes Fahrzeug. Das Fahrtenbuch zeigt nur Fahrzeuge, die dir gehören.</string>
+    <string name="logbook_moving">Das Auto ist gerade unterwegs – die Fahrt erscheint nach der Ankunft.</string>
+    <string name="logbook_read_only">Nur ansehen – Fahrten lassen sich hier nicht ändern.</string>
+    <string name="logbook_offline_shown">Offline – zu sehen ist der zuletzt geladene Stand.</string>
+    <string name="logbook_error_offline">Server nicht erreichbar. Prüfe die Verbindung (VPN).</string>
+    <string name="logbook_error_not_found">Das Fahrtenbuch braucht auf dem Server das Fahrzeuge-Plugin ab Version 1.6.</string>
+    <string name="logbook_error_not_owner">Dieses Fahrzeug gehört dir nicht.</string>
+    <string name="logbook_error_generic">Hat nicht geklappt (%1$s).</string>
+    <string name="logbook_retry">Erneut versuchen</string>
+    <string name="logbook_saved">Gespeichert</string>
+    <string name="logbook_save_failed">Speichern hat nicht geklappt.</string>
+    <string name="logbook_filter_clear">Alle Fahrten zeigen</string>
+    <string name="logbook_unknown_place">Unbekannter Ort</string>
+    <string name="logbook_route_to">%1$s → %2$s</string>
+    <string name="logbook_route_both">%1$s ↔ %2$s</string>
+    <string name="logbook_times">%1$s – %2$s</string>
+
+    <!-- Alle Fahrten auf der Karte -->
+    <string name="logbook_back_to_list">Zurück zum Fahrtenbuch</string>
+    <string name="logbook_map_desc">Karte mit allen Fahrten im %1$s</string>
+    <string name="logbook_filter">Fahrten filtern</string>
+    <string name="logbook_filter_all">Alle %1$d</string>
+    <string name="logbook_show_trips">%1$s zeigen</string>
+    <string name="logbook_latest_trip">Letzte Fahrt</string>
+    <string name="logbook_map_hint">Tippe auf eine Strecke oder einen Ort. Gleiche Strecken werden einmal gezeichnet, die Zahl sagt wie oft.</string>
+    <string name="logbook_map_empty">Keine Fahrt mit Strecke in diesem Monat.</string>
+
+    <!-- Eine Fahrt -->
+    <string name="logbook_trip_map_desc">Karte der Fahrt von %1$s nach %2$s</string>
+    <string name="logbook_map_large">Karte groß anzeigen</string>
+    <string name="logbook_map_small">Karte klein anzeigen</string>
+    <string name="logbook_route_road">Strecke berechnet</string>
+    <string name="logbook_route_line">Luftlinie</string>
+    <string name="logbook_depart">Abfahrt %1$s</string>
+    <string name="logbook_arrive">Ankunft %1$s</string>
+    <string name="logbook_purpose">Zweck</string>
+    <string name="logbook_note">Anlass / Geschäftspartner</string>
+    <string name="logbook_note_hint">z. B. Kunde, Termin</string>
+    <string name="logbook_driver">Fahrer</string>
+    <string name="logbook_duration">Dauer</string>
+    <string name="logbook_duration_min">%1$d Min</string>
+    <string name="logbook_duration_hours">%1$d Std. %2$d Min</string>
+    <string name="logbook_edit_places">Start und Ziel ändern</string>
+    <string name="logbook_start">Start</string>
+    <string name="logbook_destination">Ziel</string>
+    <string name="logbook_save">Speichern</string>
+    <string name="logbook_cancel">Abbrechen</string>
+    <string name="logbook_trip_not_found">Diese Fahrt ist nicht (mehr) im Fahrtenbuch.</string>
+    <string name="logbook_edited">Von Hand geändert</string>
+</resources>

@@ -63,6 +63,13 @@ data class QuickActionItem(
     val look: QuickActionLookItem? = null,
     /** Switches: ask first only before switching to this state, "on" | "off" (core 1.172+). */
     val confirmWhen: String? = null,
+    /**
+     * An app screen a tap opens instead of running the action (core 1.189+,
+     * `opens.screen`, e.g. "logbook"), with [opensRef] (`opens.ref`, e.g. the
+     * vehicle id). Only screens the app knows count ([QuickActionScreens]).
+     */
+    val opensScreen: String? = null,
+    val opensRef: String? = null,
 ) {
     val key: String get() = "$plugin/$id"
     val isOn: Boolean get() = toggle && state == "on"
@@ -427,6 +434,7 @@ class QuickActionRepository @Inject constructor(
         private const val RUN_TIMEOUT_MS = 15_000L
         private val ID = Regex("^[A-Za-z0-9:._-]{1,64}$")
         private val PLUGIN = Regex("^[a-z0-9][a-z0-9._-]{0,63}$")
+        private val OPENS_SCREEN = Regex("^[a-z][a-z0-9_-]{0,39}$")
         private val gson = Gson()
         private val pinType = object : TypeToken<List<QuickActionItem>>() {}.type
 
@@ -441,6 +449,7 @@ class QuickActionRepository @Inject constructor(
                 else -> return@mapNotNull null
             }
             val device = deviceOf(a.device)
+            val opens = a.opens?.takeIf { o -> o.screen?.let { OPENS_SCREEN.matches(it) } == true }
             QuickActionItem(
                 plugin = plugin,
                 pluginName = a.pluginName?.let(::clean)?.take(40)?.takeIf { it.isNotBlank() } ?: plugin,
@@ -458,6 +467,8 @@ class QuickActionRepository @Inject constructor(
                 deviceIcon = device?.icon,
                 look = if (toggle) QuickActionLookItem.from(a.look) else null,
                 confirmWhen = if (toggle) a.confirmWhen?.takeIf { it == "on" || it == "off" } else null,
+                opensScreen = opens?.screen,
+                opensRef = opens?.ref?.let(::clean)?.takeIf { it.isNotEmpty() && it.length <= 80 },
             )
         }.distinctBy { it.key }
 
