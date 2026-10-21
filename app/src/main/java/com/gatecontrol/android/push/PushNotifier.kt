@@ -60,6 +60,7 @@ class PushNotifier @Inject constructor(
     private val media: NotifyMediaLoader,
     private val door: dagger.Lazy<DoorRepository>,
     private val chats: dagger.Lazy<com.gatecontrol.android.chat.ChatNotifier>,
+    private val gatedrop: dagger.Lazy<com.gatecontrol.android.gatedrop.GateDropPushHandler>,
 ) : PushPresenter {
 
     companion object {
@@ -133,7 +134,12 @@ class PushNotifier @Inject constructor(
         chats.get().gone(ids)
     }
 
+    /** GateDrop's silent transfer pushes: received in the background, never shown. */
+    override fun consume(message: PushMessage): Boolean = gatedrop.get().consume(message)
+
     override suspend fun show(message: PushMessage, notificationId: Int, channel: ChannelSpec, quiet: Boolean) {
+        // GateDrop deliveries: its own notification with Öffnen / Speichern / Kopieren.
+        if (runCatching { gatedrop.get().show(message, notificationId, quiet) }.getOrDefault(false)) return
         val ctx = localized()
         if (nm.getNotificationChannel(channel.id) == null) createChannels(ctx, listOf(channel))
 
@@ -292,6 +298,7 @@ class PushNotifier @Inject constructor(
     override suspend fun onNew(message: PushMessage) {
         familie.get().onNew(message)
         if (DoorPush.isDoorMessage(message)) door.get().onPush(message)
+        gatedrop.get().onNew(message)
     }
 
     /** Distinct data URI per message and slot: PendingIntents must not overwrite each other. */

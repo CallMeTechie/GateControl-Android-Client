@@ -123,6 +123,7 @@ import com.gatecontrol.android.ui.chat.ChatsTwoPane
 import com.gatecontrol.android.ui.chat.ConversationScreen
 import com.gatecontrol.android.ui.chat.NewChatScreen
 import com.gatecontrol.android.chat.ChatShareHandover
+import com.gatecontrol.android.ui.gatedrop.SharedScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
 
@@ -415,6 +416,7 @@ fun AppNavigation(
                                 onNavigateToDiagnosis = { paneKey = SettingsPane.Diagnosis.key },
                                 onNavigateToProfile = { paneKey = SettingsPane.Profile.key },
                                 onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
+                                onNavigateToShared = if (plugins.gatedrop) { { paneKey = SettingsPane.Shared.key } } else null,
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
                             )
@@ -443,6 +445,7 @@ fun AppNavigation(
                         onNavigateToDiagnosis = { navController.navigate(Screen.Diagnosis.route) { launchSingleTop = true } },
                         onNavigateToProfile = openProfileFromSettings,
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
+                        onNavigateToShared = if (plugins.gatedrop) { { navController.navigate(Screen.Shared.create()) { launchSingleTop = true } } } else null,
                     )
                 }
             }
@@ -984,6 +987,24 @@ fun AppNavigation(
                 ) }
             }
 
+            composable(
+                route = Screen.Shared.route,
+                arguments = listOf(
+                    navArgument(Screen.Shared.ARG_TAB) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                GcContentWidth {
+                    SharedScreen(
+                        onBack = { if (!navController.popBackStack()) navigateToTab(Screen.Vpn.route) },
+                        initialTab = backStackEntry.arguments?.getString(Screen.Shared.ARG_TAB) ?: "received",
+                    )
+                }
+            }
+
             composable(Screen.Logs.route) {
                 LogsScreen(
                     onNavigateBack = { navController.popBackStack() },
@@ -1058,6 +1079,11 @@ private fun openPushTarget(
             }
         }
         PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
+        // GateDrop "Geteilt": one at a time, the tab the notification asks for.
+        is PushNavTarget.Shared -> navController.navigate(Screen.Shared.create(target.tab)) {
+            popUpTo(Screen.Shared.route) { inclusive = true }
+            launchSingleTop = true
+        }
         // Wide screens: the message opens beside the inbox list.
         is PushNavTarget.Detail -> if (layout.twoPane) {
             navController.navigate(Screen.Inbox.create(target.id)) { launchSingleTop = true }
@@ -1283,6 +1309,7 @@ private fun SettingsPane.route(): String = when (this) {
     SettingsPane.TrustedNetworks -> Screen.TrustedNetworks.route
     SettingsPane.Location -> Screen.LocationSharing.route
     SettingsPane.Notifications -> Screen.SettingsNotifications.route
+    SettingsPane.Shared -> Screen.Shared.create()
     SettingsPane.Logs -> Screen.Logs.route
     SettingsPane.Diagnosis -> Screen.Diagnosis.route
 }
@@ -1298,6 +1325,7 @@ private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, on
         SettingsPane.TrustedNetworks -> TrustedNetworksScreen(onBack = {})
         SettingsPane.Location -> LocationSharingScreen(onBack = {})
         SettingsPane.Notifications -> NotificationSettingsScreen(onBack = {}, onOpenRoutes = onOpenRoutes)
+        SettingsPane.Shared -> SharedScreen(onBack = {})
         SettingsPane.Logs -> LogsScreen(onNavigateBack = {})
         SettingsPane.Diagnosis -> DiagnosisScreen(onBack = {})
     }

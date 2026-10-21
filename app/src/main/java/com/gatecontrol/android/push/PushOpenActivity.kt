@@ -56,6 +56,17 @@ class PushOpenActivity : ComponentActivity() {
             finish()
             return
         }
+        // GateDrop: the screen "Geteilt" (a GateDrop notification), the message read when it came from one.
+        intent.getStringExtra(EXTRA_SHARED)?.let { tab ->
+            intent.getLongExtra(EXTRA_ID, 0L).takeIf { it > 0 }?.let { mid -> ackScope.launch { repository.markRead(listOf(mid), null) } }
+            PushNavigation.request(PushNavTarget.Shared(tab))
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+            return
+        }
         // The bell on the home-screen widget: straight to "Mitteilungen".
         if (intent.getBooleanExtra(EXTRA_INBOX, false)) {
             PushNavigation.request(PushNavTarget.Inbox)
@@ -128,6 +139,15 @@ class PushOpenActivity : ComponentActivity() {
                 .putExtra(EXTRA_CHAT, conversationId ?: 0L)
                 .putExtra(EXTRA_CHAT_MESSAGE, messageId ?: 0L)
                 .apply { open?.let { putExtra(EXTRA_CHAT_OPEN, it) } }
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+
+        private const val EXTRA_SHARED = "com.gatecontrol.android.push.extra.SHARED"
+
+        /** Opens "Geteilt" (GateDrop) on [tab]; [messageId] (a push of the inbox) is marked read. */
+        fun sharedIntent(context: Context, tab: String, messageId: Long? = null): Intent =
+            Intent(context, PushOpenActivity::class.java)
+                .putExtra(EXTRA_SHARED, tab)
+                .apply { messageId?.takeIf { it > 0 }?.let { putExtra(EXTRA_ID, it) } }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
 
         /** Opens "Mitteilungen" (the widget's bell). */

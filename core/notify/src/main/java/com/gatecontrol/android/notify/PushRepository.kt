@@ -62,6 +62,15 @@ class PushRepository @Inject constructor(
      * and acknowledged as delivered right away.
      */
     suspend fun onNotification(message: PushMessage) {
+        // A data push (`kind: "data"`) or one an app feature handles by itself:
+        // dispatched to the app, never in the inbox or the shade, just the ack.
+        val consumed = runCatching { presenter.consume(message) }.getOrDefault(false)
+        if (consumed || message.isData) {
+            store.addPendingAcks(listOf(PendingAck(message.seq, PushState.DELIVERED)))
+            store.saveLastSeq(message.seq)
+            flushAcks()
+            return
+        }
         if (message.isChat) {
             onChat(message)
             return

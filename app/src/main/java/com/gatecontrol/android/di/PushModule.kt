@@ -1,6 +1,6 @@
 package com.gatecontrol.android.di
 
-import com.gatecontrol.android.chat.ChatEventSink
+import com.gatecontrol.android.gatedrop.AppPluginEventSink
 import com.gatecontrol.android.notify.PluginEventSink
 import com.gatecontrol.android.notify.PushPresenter
 import com.gatecontrol.android.notify.ServerControlSink
@@ -21,7 +21,7 @@ abstract class PushModule {
     @Binds
     abstract fun bindServerControl(impl: ServerControlHandler): ServerControlSink
 
-    /** Plugins' realtime events of the push stream: the messenger's go to the chats. */
+    /** Plugins' realtime events of the push stream: the messenger's go to the chats, GateDrop's to GateDrop. */
     @Binds
-    abstract fun bindPluginEvents(impl: ChatEventSink): PluginEventSink
+    abstract fun bindPluginEvents(impl: AppPluginEventSink): PluginEventSink
 }

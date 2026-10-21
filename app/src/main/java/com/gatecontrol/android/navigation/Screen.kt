@@ -178,6 +178,12 @@ sealed class Screen(val route: String) {
     /** Picker "Inhalte der Info-Karte" (pencil of the start tab's Info card). */
     data object InfoCardPicker : Screen("info-card")
     data object Logs : Screen("settings/logs")
+    /** GateDrop "Geteilt" (Empfangen / Gesendet / Links); `tab` picks the list. */
+    data object Shared : Screen("shared?tab={tab}") {
+        const val ARG_TAB = "tab"
+        const val BASE = "shared"
+        fun create(tab: String? = null): String = if (tab == null) BASE else "$BASE?tab=$tab"
+    }
     data object QrScanner : Screen("setup/qr")
     /** Setup screen opened from Settings to connect an existing install (scan starts right away). */
     data object Enroll : Screen("setup/enroll?link={link}") {
