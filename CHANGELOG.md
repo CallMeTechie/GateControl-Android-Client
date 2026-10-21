@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.56.0] - 2026-10-21
+
+### Features
+- the vehicle logbook in the app with maps (#109)
+
+---
+
 ## [1.55.0] - 2026-10-20
 
 ### Features
