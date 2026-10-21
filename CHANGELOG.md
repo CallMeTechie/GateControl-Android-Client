@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.59.0] - 2026-10-21
+
+### Features
+- confirm the own chat of a source and show it in the chat list (#112)
+
+---
+
 ## [1.58.0] - 2026-10-21
 
 ### Features
