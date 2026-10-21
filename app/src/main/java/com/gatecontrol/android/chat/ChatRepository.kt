@@ -572,6 +572,17 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    /**
+     * A chat was made sure of elsewhere ("Wo Mitteilungen erscheinen" → own
+     * chat of a source): fetched into the list right away, without waiting
+     * for its live event (coalesced with it when that arrives too).
+     */
+    fun conversationEnsured(id: Long?) {
+        if (!available.value) return
+        if (id != null) coalesce("conv:$id", 300L) { refreshConversation(id) }
+        coalesce("list") { syncConversations() }
+    }
+
     private suspend fun hasCache(conv: Long): Boolean = conv == _active.value || dao.maxMessageId(conv) != null
 
     /** Runs [block] once after [delayMs], however often it is asked for meanwhile. */

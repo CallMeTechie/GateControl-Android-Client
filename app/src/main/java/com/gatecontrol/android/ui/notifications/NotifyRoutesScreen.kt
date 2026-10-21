@@ -66,7 +66,14 @@ fun NotifyRoutesScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.notice.collect { n ->
-            Toast.makeText(context, resources.getString(refusalText(n.code)), Toast.LENGTH_LONG).show()
+            when (n) {
+                is RoutesNotice -> Toast.makeText(context, resources.getString(refusalText(n.code)), Toast.LENGTH_LONG).show()
+                is RoutesChatNotice -> Toast.makeText(
+                    context,
+                    resources.getString(if (n.chat.created) R.string.push_routes_chat_created else R.string.push_routes_chat_existing, n.chat.label),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
         }
     }
 
