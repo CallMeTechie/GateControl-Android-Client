@@ -20,7 +20,9 @@ object ChatFeatures14 {
     /** Messenger 1.4.1: `POST status/stories` takes `durationH`. */
     const val STORY_DURATION = "story_duration"
 
-    val ALL: Set<String> = setOf(STATUS, STORIES, POLLS, EVENTS, ARRIVAL, ACTIONS, MSG_TOOLS, PRIVACY2, STORY_DURATION)
+    /** Messenger 1.6: GateControl's notifications in chats (notice channels, notice cards, `listPinned`). */
+    const val NOTICES = "notices"
+    val ALL: Set<String> = setOf(STATUS, STORIES, POLLS, EVENTS, ARRIVAL, ACTIONS, MSG_TOOLS, PRIVACY2, STORY_DURATION, NOTICES)
 }
 
 val ChatFeatures.status: Boolean get() = ChatFeatures14.STATUS in tokens
@@ -32,6 +34,7 @@ val ChatFeatures.actions: Boolean get() = ChatFeatures14.ACTIONS in tokens
 val ChatFeatures.msgTools: Boolean get() = ChatFeatures14.MSG_TOOLS in tokens
 val ChatFeatures.privacy2: Boolean get() = ChatFeatures14.PRIVACY2 in tokens
 val ChatFeatures.storyDuration: Boolean get() = ChatFeatures14.STORY_DURATION in tokens
+val ChatFeatures.notices: Boolean get() = ChatFeatures14.NOTICES in tokens
 
 // ─── status and stories ─────────────────────────────────────────────
 
@@ -399,6 +402,26 @@ data class ChatPluginCard(
     val lastRunOk: Boolean? = null,
     /** The card has a picture to fetch (`GET messages/:id/card/image`) — `image { mime, bytes }` without data. */
     val hasImage: Boolean = false,
+    /** Messenger 1.6 notice cards: a picture of the core (`/notify-media/…`, loaded like push pictures). */
+    val imageUrl: String? = null,
+    /** Messenger 1.6: the GateControl notification the card carries (notice channels, family chat). */
+    val notice: ChatCardNotice? = null,
+)
+
+/**
+ * `notice` of a notice card (Messenger 1.6): the notification behind it —
+ * its source and topic with their names (the card's head line
+ * "<sourceLabel> · <topicLabel>"), priority and the notification's `data`
+ * (as JSON text, untrusted: read like a push's `data`, e.g. to open the
+ * school message of "Ganze Nachricht lesen").
+ */
+data class ChatCardNotice(
+    val source: String?,
+    val sourceLabel: String?,
+    val topic: String?,
+    val topicLabel: String?,
+    val priority: String?,
+    val dataJson: String?,
 )
 
 /** What the Familie plugin offers right now (`GET me` → `integrations.familie`). */

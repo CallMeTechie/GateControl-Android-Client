@@ -103,6 +103,8 @@ private fun Context.openAppNotificationSettings() {
 @Composable
 fun NotificationSettingsScreen(
     onBack: () -> Unit,
+    /** "Wo Mitteilungen erscheinen" (core 1.191+; the row stays hidden on older servers). */
+    onOpenRoutes: (() -> Unit)? = null,
     viewModel: NotificationSettingsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
@@ -233,6 +235,7 @@ fun NotificationSettingsScreen(
                         enabled = !topic.locked,
                     )
                 }
+                if (onOpenRoutes != null) NotifyRoutesEntryRow(onOpenRoutes)
                 GcListRow(
                     title = stringResource(R.string.push_topics_android),
                     description = stringResource(R.string.push_topics_android_desc),
@@ -309,7 +312,7 @@ fun NotificationSettingsScreen(
 }
 
 @Composable
-private fun Group(title: String, content: @Composable () -> Unit) {
+internal fun Group(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         GcSectionLabel(title, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
         GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) { content() }
@@ -402,15 +405,16 @@ private fun waitReason(reason: WaitReason): String = stringResource(
     },
 )
 
+/** A radio row with title and description (also the choices of "Wo Mitteilungen erscheinen"). */
 @Composable
-private fun ModeRow(title: String, desc: String, recommended: Boolean, selected: Boolean, onSelect: () -> Unit) {
+internal fun ModeRow(title: String, desc: String, recommended: Boolean, selected: Boolean, onSelect: () -> Unit, enabled: Boolean = true) {
     val extra = GateControlTheme.extraColors
-    val accent = MaterialTheme.colorScheme.primary
+    val accent = if (enabled) MaterialTheme.colorScheme.primary else extra.faint
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.Top,
@@ -427,7 +431,7 @@ private fun ModeRow(title: String, desc: String, recommended: Boolean, selected:
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f, fill = false))
+                Text(title, style = MaterialTheme.typography.titleMedium, color = if (enabled) MaterialTheme.colorScheme.onSurface else extra.muted, modifier = Modifier.weight(1f, fill = false))
                 if (recommended) GcChip(stringResource(R.string.push_recommended), tone = GcTone.Ok, small = true)
             }
             Text(desc, style = MaterialTheme.typography.bodySmall, color = extra.muted)

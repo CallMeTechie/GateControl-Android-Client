@@ -30,7 +30,10 @@ import javax.inject.Inject
 enum class ChatFilter { All, Unread, Groups, Events }
 
 data class ChatListUiState(
+    /** Section "Chats" (while searching or sharing: every match, pinned ones too). */
     val conversations: List<ChatConversation> = emptyList(),
+    /** Messenger 1.6: chats pinned to the list (`listPinned`), under "Angeheftet" after GateControl. */
+    val pinned: List<ChatConversation> = emptyList(),
     val filter: ChatFilter = ChatFilter.All,
     val query: String = "",
     val unreadChats: Int = 0,
@@ -117,8 +120,11 @@ class ChatListViewModel @Inject constructor(
             q.isEmpty() || (c.title ?: c.peer?.name ?: "").lowercase().contains(q) ||
                 c.members.any { (it.name ?: "").lowercase().contains(q) }
         }
+        // Messenger 1.6: "Angeheftet" (GateControl, then the pinned chats) above "Chats" — not while searching or sharing.
+        val sections = com.gatecontrol.android.chat.ChatListSections.split(visible, sectioned = q.isEmpty() && share == null)
         ChatListUiState(
-            conversations = visible,
+            conversations = sections.chats,
+            pinned = sections.pinned,
             filter = b.filter,
             query = b.query,
             unreadChats = sorted.count { it.unread > 0 },

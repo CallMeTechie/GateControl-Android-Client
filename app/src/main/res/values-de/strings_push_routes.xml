@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Wo Mitteilungen erscheinen" (core 1.191 push routes): GateControl, family chat or an own notice chat per kind of notification. -->
+<resources>
+    <string name="push_routes_title">Wo Mitteilungen erscheinen</string>
+    <string name="push_routes_entry_desc">GateControl, Familien-Chat oder ein eigener Chat je Art</string>
+    <string name="push_routes_intro">Für jede Art von Mitteilung wählst du den Chat. Im Familien-Chat sehen sie alle in der Familie.</string>
+    <string name="push_routes_intro_family">Den Familien-Chat stellen nur Erwachsene ein – er gilt dann für alle in der Familie.</string>
+    <string name="push_routes_dest_inbox">GateControl</string>
+    <string name="push_routes_dest_family">Familien-Chat</string>
+    <string name="push_routes_dest_own">Chat „%1$s“</string>
+    <string name="push_routes_option_own">Eigener Chat „%1$s“</string>
+    <string name="push_routes_option_inbox_desc">Im angehefteten Chat „GateControl“ – nur für dich</string>
+    <string name="push_routes_option_family_desc">Für alle in Familie sichtbar</string>
+    <string name="push_routes_option_own_desc">Ein eigener Chat für alles von %1$s – nur für dich</string>
+    <string name="push_routes_sheet_sub">%1$s · wo sollen sie erscheinen?</string>
+    <string name="push_routes_family_set_by">Von %1$s für die ganze Familie festgelegt</string>
+    <string name="push_routes_family_set">Für die ganze Familie festgelegt</string>
+    <string name="push_routes_family_only_adults">Ändern können das nur Erwachsene in der Familie.</string>
+    <string name="push_routes_locked">immer GateControl</string>
+    <string name="push_routes_locked_a11y">Gesperrt, erscheint immer in GateControl</string>
+    <string name="push_routes_no_sink">Braucht das Messenger-Plugin – bis dahin erscheint alles in GateControl.</string>
+    <string name="push_routes_footer">Neue Plugins erscheinen hier von selbst. Ausschalten kannst du jede Art weiterhin unter „Benachrichtigungen“.</string>
+    <string name="push_routes_loading">Wird geladen …</string>
+    <string name="push_routes_load_failed">Konnte nicht geladen werden.</string>
+    <string name="push_routes_retry">Erneut versuchen</string>
+    <string name="push_routes_unsupported">Dein GateControl-Server kennt diese Einstellung noch nicht.</string>
+    <string name="push_routes_empty">Noch keine Arten von Mitteilungen.</string>
+    <string name="push_routes_saving">Wird gespeichert</string>
+    <string name="push_routes_change">Ändern, wo sie erscheinen</string>
+    <string name="push_routes_err_family">Den Familien-Chat dürfen nur Erwachsene in der Familie wählen.</string>
+    <string name="push_routes_err_locked">Diese Mitteilungen erscheinen immer in GateControl.</string>
+    <string name="push_routes_err_no_sink">Dafür braucht der Server das Messenger-Plugin.</string>
+    <string name="push_routes_err_forbidden">Das darfst du hier nicht ändern.</string>
+    <string name="push_routes_err_network">Nicht gespeichert – keine Verbindung zum Server.</string>
+    <string name="push_routes_err_failed">Nicht gespeichert. Versuch es gleich noch einmal.</string>
+</resources>

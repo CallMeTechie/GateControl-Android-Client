@@ -339,6 +339,18 @@ interface ApiClient {
     @POST("api/v1/client/push/test")
     suspend fun pushTest(): PushTestResponse
 
+    /**
+     * Where each kind of notification appears (core 1.191+, 404 before):
+     * `{ ok, sink, canFamily, groups: [ { source, label, topics } ] }`.
+     * Raw JSON, read from the Gson tree (app push.routes.NotifyRoutesJson).
+     */
+    @GET("api/v1/client/push/routes")
+    suspend fun getPushRoutes(): Response<JsonObject>
+
+    /** `{ topic, dest: inbox | own | family }`; 403 family_not_allowed, 409 locked / no_sink. */
+    @PUT("api/v1/client/push/routes")
+    suspend fun putPushRoutes(@Body body: JsonObject): Response<JsonObject>
+
     @GET("api/v1/pihole/summary")
     suspend fun getPiholeSummary(): PiholeSummaryResponse
 

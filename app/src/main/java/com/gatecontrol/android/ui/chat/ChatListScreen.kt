@@ -68,6 +68,7 @@ import com.gatecontrol.android.chat.ChatPrefs
 import com.gatecontrol.android.chat.ChatSync
 import com.gatecontrol.android.chat.ChatSystemBubbles
 import com.gatecontrol.android.ui.components.GcBanner
+import com.gatecontrol.android.ui.components.GcChip
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
@@ -78,9 +79,10 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
 
 /**
- * The tab "Chats": the pinned "GateControl" entry (the core inbox), the
- * conversations with unread badge, preview and "schreibt …", filters and
- * a search, the chat preferences and "Neuer Chat".
+ * The tab "Chats": the status strip, under "Angeheftet" the "GateControl"
+ * entry (the core inbox) and the chats pinned to the list (Messenger 1.6,
+ * the family group), then the conversations with unread badge, preview and
+ * "schreibt …", filters and a search, the chat preferences and "Neuer Chat".
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -187,9 +189,10 @@ fun ChatListScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-                    if (!state.sharing && state.query.isBlank()) {
+                    val sectioned = !state.sharing && state.query.isBlank()
+                    if (sectioned) {
+                        // "Mein Status" above "Angeheftet"; there GateControl, then the chats pinned to the list (Messenger 1.6).
                         item(key = "pinned") {
-                            SectionLabel(stringResource(R.string.chat_pinned))
                             if (f14?.status == true || f14?.stories == true) {
                                 val me = state.feed?.me
                                 com.gatecontrol.android.ui.chat.status.StatusStrip(
@@ -201,8 +204,22 @@ fun ChatListScreen(
                                     onViewMine = { onOpenStory(0L) },
                                 )
                             }
+                            SectionLabel(stringResource(R.string.chat_pinned))
                             InboxRow(state, onOpenInbox)
-                            SectionLabel(stringResource(R.string.chat_section_chats))
+                        }
+                        items(state.pinned, key = { "p" + it.id }) { c ->
+                            ConversationRow(
+                                c = c,
+                                typingText = state.typing[c.id]?.let { ChatText.typing(context, c, it, myId) },
+                                myId = myId,
+                                selected = c.id == selectedId,
+                                onClick = { onOpen(c.id) },
+                                onLongClick = if (f14?.msgTools == true) ({ menuFor = c }) else null,
+                            )
+                        }
+                        // Only pinned chats so far: no empty "Chats" heading.
+                        if (state.conversations.isNotEmpty() || state.pinned.isEmpty()) {
+                            item(key = "chats") { SectionLabel(stringResource(R.string.chat_section_chats)) }
                         }
                     }
                     if (state.sync is ChatSync.Offline && state.loaded) {
@@ -251,7 +268,7 @@ fun ChatListScreen(
                             }
                         }
                     }
-                    if (state.conversations.isEmpty()) {
+                    if (state.conversations.isEmpty() && (!sectioned || state.pinned.isEmpty())) {
                         item(key = "empty") {
                             Text(
                                 stringResource(
@@ -448,6 +465,11 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                if (c.isNotice) {
+                    // Messenger 1.6: a notice channel (GateControl's notifications of one source, read only).
+                    Spacer(Modifier.width(6.dp))
+                    GcChip(stringResource(R.string.chat_notice_tag), tone = GcTone.Neutral, small = true)
+                }
                 if (c.muted) {
                     Spacer(Modifier.width(6.dp))
                     Icon(Icons.AutoMirrored.Outlined.VolumeOff, contentDescription = stringResource(R.string.chat_muted), tint = extra.faint, modifier = Modifier.size(16.dp))
