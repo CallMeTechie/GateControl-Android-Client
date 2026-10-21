@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.57.0] - 2026-10-21
+
+### Features
+- read school messages fully in the app, without WebUntis (#110)
+
+---
+
 ## [1.56.0] - 2026-10-21
 
 ### Features
