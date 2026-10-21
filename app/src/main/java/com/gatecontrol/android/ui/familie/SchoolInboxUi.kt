@@ -1,6 +1,14 @@
 package com.gatecontrol.android.ui.familie
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.text.format.Formatter
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,19 +26,28 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
@@ -39,11 +56,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.gatecontrol.android.R
 import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.school.AbsenceStatus
 import com.gatecontrol.android.familie.school.SchoolAbsence
+import com.gatecontrol.android.familie.school.SchoolAttachment
+import com.gatecontrol.android.familie.school.SchoolConfirmation
+import com.gatecontrol.android.familie.school.SchoolFileKind
+import com.gatecontrol.android.familie.school.SchoolFiles
 import com.gatecontrol.android.familie.school.SchoolInbox
+import com.gatecontrol.android.familie.school.SchoolLocalFile
 import com.gatecontrol.android.familie.school.SchoolLogic
 import com.gatecontrol.android.familie.school.SchoolMessage
 import com.gatecontrol.android.familie.school.SchoolRepository
@@ -53,11 +76,15 @@ import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChip
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcRowDivider
+import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.time.Instant
+import java.time.ZoneId
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Tabs of the timetable screen. They share the width like [GcSegmented]
@@ -126,9 +153,13 @@ private fun InboxStaleBanner(error: String?) {
 
 /**
  * Tab "Nachrichten" (plugin 1.4+): [student]'s messages, newest first —
- * sender, date, subject, preview, a "neu" badge (also said in words) and
- * a clip for attachments; a tap shows the message ([openId]), the back
- * key or "Alle Nachrichten" return to the list.
+ * sender, date, subject, preview, a "neu" badge (also said in words), a
+ * clip for attachments and "Bestätigung erbeten" while the school waits
+ * for a read confirmation; a tap shows the message ([openId]), the back
+ * key or "Alle Nachrichten" return to the list. Opening reads it (the view
+ * model): the badge and bold text go at once. Attachments the view model
+ * loaded ([files]) open in another app; without one for the type the
+ * person can share the file instead.
  */
 @Composable
 internal fun SchoolMessagesTab(
@@ -138,16 +169,18 @@ internal fun SchoolMessagesTab(
     onOpen: (String) -> Unit,
     onClose: () -> Unit,
     onRetry: () -> Unit,
+    actions: SchoolMessageActions,
 ) {
     val messages = inbox?.messages
     val error = inbox?.messagesError
     BackHandler(enabled = openId != null, onBack = onClose)
+    SchoolFileOpener(actions.files)
     when {
         messages == null && error != null -> SchoolError(error, onRetry)
         messages == null -> FamilieLoading()
         openId != null -> {
             InboxStaleBanner(error)
-            SchoolMessageDetail(messages.firstOrNull { it.id == openId }, onClose)
+            SchoolMessageDetail(messages.firstOrNull { it.id == openId }, onClose, actions)
         }
         else -> {
             InboxStaleBanner(error)
@@ -166,6 +199,20 @@ internal fun SchoolMessagesTab(
     }
 }
 
+/** What the message detail can do and how it stands (from [SchoolViewModel]). */
+internal class SchoolMessageActions(
+    /** Message whose confirmation is being sent. */
+    val confirming: String?,
+    val confirmError: SchoolActionError?,
+    val onConfirm: (String) -> Unit,
+    /** Attachments being loaded. */
+    val loadingAttachments: Set<String>,
+    val attachmentError: SchoolActionError?,
+    val onAttachment: (messageId: String, attachment: SchoolAttachment) -> Unit,
+    /** Attachments loaded and ready to open. */
+    val files: Flow<SchoolLocalFile>,
+)
+
 @Composable
 private fun SchoolMessageRow(m: SchoolMessage, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
@@ -174,12 +221,14 @@ private fun SchoolMessageRow(m: SchoolMessage, onClick: () -> Unit) {
     val sent = m.sentAt?.let { sentText(it) }
     val newLabel = stringResource(R.string.school_message_new)
     val openLabel = stringResource(R.string.school_message_open)
+    val confirmLabel = stringResource(R.string.school_confirm_chip)
     val description = listOfNotNull(
         newLabel.takeIf { m.isNew },
         stringResource(R.string.school_message_from, sender),
         subject,
         sent,
         stringResource(R.string.school_desc_attachments).takeIf { m.hasAttachments },
+        confirmLabel.takeIf { m.confirmationPending },
         m.preview.ifBlank { null },
     ).joinToString(", ")
     Row(
@@ -225,17 +274,19 @@ private fun SchoolMessageRow(m: SchoolMessage, onClick: () -> Unit) {
             if (m.preview.isNotBlank()) {
                 Text(m.preview, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
+            if (m.confirmationPending) GcChip(confirmLabel, tone = GcTone.Warn, small = true, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
 
 /**
  * One message in full: subject (a heading), sender, date, the text
- * (selectable); without a full text the preview and the hint
- * "Volltext in WebUntis". [m] null: the message is not in the list.
+ * (selectable); without the full text a note that it comes with the next
+ * fetch. Below: the read confirmation the school asks for and the
+ * attachments. [m] null: the message is not in the list.
  */
 @Composable
-private fun SchoolMessageDetail(m: SchoolMessage?, onClose: () -> Unit) {
+private fun SchoolMessageDetail(m: SchoolMessage?, onClose: () -> Unit, actions: SchoolMessageActions) {
     val extra = GateControlTheme.extraColors
     GcOutlineButton(text = stringResource(R.string.school_message_back), onClick = onClose, icon = GcIcons.ChevronLeft, fillWidth = false)
     if (m == null) {
@@ -243,15 +294,12 @@ private fun SchoolMessageDetail(m: SchoolMessage?, onClose: () -> Unit) {
         return
     }
     GcCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                m.subject.ifBlank { stringResource(R.string.school_message_no_subject) },
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f).semantics { heading() },
-            )
-            if (m.isNew) GcChip(stringResource(R.string.school_message_new), tone = GcTone.Info, small = true)
-        }
+        Text(
+            m.subject.ifBlank { stringResource(R.string.school_message_no_subject) },
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.semantics { heading() },
+        )
         Text(
             stringResource(R.string.school_message_from, m.sender.ifBlank { stringResource(R.string.school_message_unknown_sender) }),
             style = MaterialTheme.typography.bodyMedium,
@@ -259,28 +307,272 @@ private fun SchoolMessageDetail(m: SchoolMessage?, onClose: () -> Unit) {
         )
         m.sentAt?.let { Text(sentText(it), style = MaterialTheme.typography.bodySmall, color = extra.muted) }
         GcRowDivider()
-        if (m.body != null) {
+        if (m.text.isNotBlank()) {
             SelectionContainer {
-                Text(m.body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-            }
-        } else {
-            if (m.preview.isNotBlank()) {
-                Text(m.preview, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-            }
-            GcBanner(tone = GcTone.Info, icon = GcIcons.External) {
-                Text(stringResource(R.string.school_message_full_in_webuntis), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(m.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             }
         }
-        if (m.hasAttachments) {
+        // Plugin 1.5+ loads the rest with its next fetch; older plugins only ever send the preview.
+        val hint = when {
+            m.fullText -> null
+            m.extended -> R.string.school_message_full_text_later
+            m.body == null -> R.string.school_message_preview_only
+            else -> null
+        }
+        hint?.let { res ->
+            GcBanner(tone = GcTone.Info, icon = GcIcons.Clock) {
+                Text(stringResource(res), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+    m.confirmation?.let { SchoolConfirmationCard(m, it, actions) }
+    if (m.attachments.isNotEmpty()) {
+        SchoolAttachmentsCard(m, actions)
+    } else if (m.hasAttachments) {
+        Row(
+            Modifier.padding(horizontal = 4.dp).semantics(mergeDescendants = true) {},
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(GcIcons.Paperclip, contentDescription = null, tint = extra.muted, modifier = Modifier.size(16.dp))
+            Text(
+                stringResource(if (m.extended) R.string.school_message_attachments_later else R.string.school_message_has_attachments),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.muted,
+            )
+        }
+    }
+}
+
+/**
+ * The school asks for a read confirmation: while open a button
+ * "Lesen bestätigen" (with a short question first); afterwards
+ * "Bestätigt am … (von …)".
+ */
+@Composable
+private fun SchoolConfirmationCard(m: SchoolMessage, c: SchoolConfirmation, actions: SchoolMessageActions) {
+    val extra = GateControlTheme.extraColors
+    var ask by rememberSaveable(m.id) { mutableStateOf(false) }
+    GcCard(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (c.confirmed) {
             Row(
                 Modifier.semantics(mergeDescendants = true) {},
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(GcIcons.Paperclip, contentDescription = null, tint = extra.muted, modifier = Modifier.size(16.dp))
-                Text(stringResource(R.string.school_message_attachments), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                Icon(GcIcons.Check, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(20.dp))
+                Text(confirmedText(c), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            }
+        } else {
+            Row(
+                Modifier.semantics(mergeDescendants = true) {},
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(GcIcons.Alert, contentDescription = null, tint = extra.warn, modifier = Modifier.size(20.dp))
+                Text(
+                    stringResource(R.string.school_confirm_requested),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            actions.confirmError?.takeIf { it.id == m.id }?.let { e ->
+                GcBanner(tone = GcTone.Error, icon = GcIcons.Alert) {
+                    Text(schoolActionErrorText(e.code), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+            GcPrimaryButton(
+                text = stringResource(R.string.school_confirm_button),
+                onClick = { ask = true },
+                loading = actions.confirming == m.id,
+                enabled = actions.confirming == null,
+                icon = GcIcons.Check,
+            )
+        }
+    }
+    if (ask) {
+        FamilieConfirmDialog(
+            title = stringResource(R.string.school_confirm_title),
+            text = stringResource(R.string.school_confirm_text),
+            confirmLabel = stringResource(R.string.school_confirm_button),
+            onConfirm = {
+                ask = false
+                actions.onConfirm(m.id)
+            },
+            onDismiss = { ask = false },
+        )
+    }
+}
+
+/** "Bestätigt am Mo., 13. Okt. 14:05 (von Anna)"; without a time "Bestätigt". */
+@Composable
+private fun confirmedText(c: SchoolConfirmation): String {
+    val at = c.confirmedAt?.let { ms ->
+        val zone = ZoneId.systemDefault()
+        val instant = Instant.ofEpochMilli(ms)
+        FamilieFormat.day(instant.atZone(zone).toLocalDate(), appLocale()) + " " + FamilieFormat.time(instant, zone)
+    }
+    return when {
+        at != null && c.by != null -> stringResource(R.string.school_confirmed_at_by, at, c.by)
+        at != null -> stringResource(R.string.school_confirmed_at, at)
+        c.by != null -> stringResource(R.string.school_confirmed_by, c.by)
+        else -> stringResource(R.string.school_confirmed)
+    }
+}
+
+/** The attachments: type symbol, name, type and size; a tap loads and opens one (a spinner while it loads). */
+@Composable
+private fun SchoolAttachmentsCard(m: SchoolMessage, actions: SchoolMessageActions) {
+    GcSectionLabel(stringResource(R.string.school_attachments_title), Modifier.padding(start = 4.dp, top = 4.dp).semantics { heading() })
+    GcCard(contentPadding = PaddingValues(vertical = 2.dp), verticalArrangement = Arrangement.Top) {
+        m.attachments.forEachIndexed { i, a ->
+            if (i > 0) GcRowDivider()
+            SchoolAttachmentRow(
+                a,
+                loading = a.id in actions.loadingAttachments,
+                error = actions.attachmentError?.takeIf { it.id == a.id }?.code,
+                onClick = { actions.onAttachment(m.id, a) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SchoolAttachmentRow(a: SchoolAttachment, loading: Boolean, error: String?, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val context = LocalContext.current
+    val kind = SchoolLogic.fileKind(a.mime, a.name)
+    val name = a.name.ifBlank { stringResource(R.string.school_attachment_unnamed) }
+    val kindLabel = stringResource(fileKindLabel(kind))
+    val size = a.size?.let { Formatter.formatShortFileSize(context, it) }
+    val details = listOfNotNull(kindLabel, size).joinToString(" · ")
+    val openLabel = stringResource(R.string.school_attachment_open)
+    val loadingLabel = stringResource(R.string.school_attachment_loading)
+    val errorText = error?.let { schoolActionErrorText(it) }
+    val description = listOfNotNull(
+        stringResource(R.string.school_desc_attachment, name),
+        details,
+        loadingLabel.takeIf { loading },
+        errorText,
+    ).joinToString(", ")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(enabled = !loading, onClickLabel = openLabel, role = Role.Button, onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = description
+                role = Role.Button
+                if (loading) disabled()
+                onClick(label = openLabel) { if (!loading) onClick(); !loading }
+            }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(extra.panel2),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(if (kind == SchoolFileKind.IMAGE) GcIcons.Photo else GcIcons.File, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(18.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(details, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
+            }
+            if (loading) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+            } else {
+                Icon(GcIcons.Download, contentDescription = null, tint = extra.muted, modifier = Modifier.size(18.dp))
             }
         }
+        errorText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@StringRes
+private fun fileKindLabel(kind: SchoolFileKind): Int = when (kind) {
+    SchoolFileKind.PDF -> R.string.school_file_pdf
+    SchoolFileKind.IMAGE -> R.string.school_file_image
+    SchoolFileKind.DOCUMENT -> R.string.school_file_document
+    SchoolFileKind.SHEET -> R.string.school_file_sheet
+    SchoolFileKind.MEDIA -> R.string.school_file_media
+    SchoolFileKind.ARCHIVE -> R.string.school_file_archive
+    SchoolFileKind.OTHER -> R.string.school_file_other
+}
+
+/** Errors of opening an attachment or confirming, in words; others as [schoolErrorText]. */
+@Composable
+private fun schoolActionErrorText(code: String): String = when (code) {
+    "SCHULE_ATTACHMENT_NOT_FOUND" -> stringResource(R.string.school_attachment_error_not_found)
+    "SCHULE_ATTACHMENT_TOO_LARGE" -> stringResource(R.string.school_attachment_error_too_large)
+    "SCHULE_ATTACHMENT_TYPE" -> stringResource(R.string.school_attachment_error_type)
+    "SCHULE_GATECONTROL_TOO_OLD" -> stringResource(R.string.school_attachment_error_server_old)
+    "SCHULE_ATTACHMENT_FAILED", SchoolFiles.CODE_DOWNLOAD -> stringResource(R.string.school_attachment_error_failed)
+    "SCHULE_UNTIS_UNAVAILABLE" -> stringResource(R.string.school_error_school_unavailable)
+    "SCHULE_MESSAGE_NOT_FOUND" -> stringResource(R.string.school_message_error_not_found)
+    "SCHULE_CONFIRM_NOT_REQUIRED" -> stringResource(R.string.school_confirm_error_not_required)
+    "SCHULE_CONFIRM_FAILED" -> stringResource(R.string.school_confirm_error_failed)
+    else -> schoolErrorText(code)
+}
+
+/**
+ * Opens each attachment of [files] in another app (ACTION_VIEW through the
+ * FileProvider); when no app takes the type, a question offers to share
+ * the file instead.
+ */
+@Composable
+private fun SchoolFileOpener(files: Flow<SchoolLocalFile>) {
+    val context = LocalContext.current
+    var noApp by remember { mutableStateOf<SchoolLocalFile?>(null) }
+    LaunchedEffect(files) {
+        files.collect { f ->
+            when (viewSchoolFile(context, f)) {
+                FileOpen.OPENED -> Unit
+                FileOpen.NO_APP -> noApp = f
+                FileOpen.FAILED -> Toast.makeText(context, R.string.school_attachment_error_failed, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    noApp?.let { f ->
+        FamilieConfirmDialog(
+            title = stringResource(R.string.school_attachment_no_app_title),
+            text = stringResource(R.string.school_attachment_no_app_text, f.name),
+            confirmLabel = stringResource(R.string.school_attachment_share),
+            onConfirm = {
+                noApp = null
+                shareSchoolFile(context, f)
+            },
+            onDismiss = { noApp = null },
+        )
+    }
+}
+
+private enum class FileOpen { OPENED, NO_APP, FAILED }
+
+private fun schoolFileUri(context: Context, f: SchoolLocalFile): Uri =
+    FileProvider.getUriForFile(context, context.packageName + ".provider", f.file)
+
+private fun viewSchoolFile(context: Context, f: SchoolLocalFile): FileOpen = try {
+    val uri = schoolFileUri(context, f)
+    val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, f.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    intent.clipData = ClipData.newRawUri(f.name, uri)
+    context.startActivity(intent)
+    FileOpen.OPENED
+} catch (e: ActivityNotFoundException) {
+    FileOpen.NO_APP
+} catch (e: Exception) {
+    FileOpen.FAILED
+}
+
+private fun shareSchoolFile(context: Context, f: SchoolLocalFile) {
+    try {
+        val uri = schoolFileUri(context, f)
+        val intent = Intent(Intent.ACTION_SEND).setType(f.mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        intent.clipData = ClipData.newRawUri(f.name, uri)
+        context.startActivity(Intent.createChooser(intent, null))
+    } catch (e: Exception) {
+        Toast.makeText(context, R.string.school_attachment_error_failed, Toast.LENGTH_LONG).show()
     }
 }
 

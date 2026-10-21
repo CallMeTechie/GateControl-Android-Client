@@ -80,8 +80,10 @@
     <string name="school_message_new">neu</string>
     <string name="school_message_no_subject">(kein Betreff)</string>
     <string name="school_message_unknown_sender">Unbekannter Absender</string>
-    <string name="school_message_attachments">Mit Anhängen – öffnen in WebUntis.</string>
-    <string name="school_message_full_in_webuntis">Volltext in WebUntis</string>
+    <string name="school_message_full_text_later">Der vollständige Text wird beim nächsten Abruf geladen.</string>
+    <string name="school_message_preview_only">Von dieser Nachricht ist nur eine Vorschau verfügbar.</string>
+    <string name="school_message_attachments_later">Die Anhänge stehen nach dem nächsten Abruf bereit.</string>
+    <string name="school_message_has_attachments">Diese Nachricht hat Anhänge.</string>
     <string name="school_message_back">Alle Nachrichten</string>
     <string name="school_message_open">Nachricht öffnen</string>
     <string name="school_message_not_found">Diese Nachricht ist nicht (mehr) in der Liste.</string>
@@ -99,4 +101,38 @@
         <item quantity="one">%1$d neue Nachricht</item>
         <item quantity="other">%1$d neue Nachrichten</item>
     </plurals>
+    <!-- Nachrichten: Volltext, Anhänge, Lesebestätigung (Plugin 1.5+) -->
+    <string name="school_attachments_title">Anhänge</string>
+    <string name="school_attachment_unnamed">Anhang</string>
+    <string name="school_attachment_open">Anhang öffnen</string>
+    <string name="school_attachment_loading">wird geladen</string>
+    <string name="school_desc_attachment">Anhang %1$s</string>
+    <string name="school_file_pdf">PDF</string>
+    <string name="school_file_image">Bild</string>
+    <string name="school_file_document">Dokument</string>
+    <string name="school_file_sheet">Tabelle</string>
+    <string name="school_file_media">Audio oder Video</string>
+    <string name="school_file_archive">Archiv</string>
+    <string name="school_file_other">Datei</string>
+    <string name="school_attachment_error_not_found">Dieser Anhang ist nicht mehr verfügbar.</string>
+    <string name="school_attachment_error_too_large">Dieser Anhang ist zu groß (über 25 MB).</string>
+    <string name="school_attachment_error_type">Dieser Dateityp kann nicht geladen werden.</string>
+    <string name="school_attachment_error_server_old">Der GateControl-Server ist zu alt, um Anhänge zu laden. Bitte deinen Administrator, ihn zu aktualisieren.</string>
+    <string name="school_attachment_error_failed">Der Anhang konnte nicht geladen werden. Versuch es später noch einmal.</string>
+    <string name="school_error_school_unavailable">Das System der Schule ist gerade nicht erreichbar. Versuch es später noch einmal.</string>
+    <string name="school_message_error_not_found">Diese Nachricht ist nicht mehr verfügbar.</string>
+    <string name="school_attachment_no_app_title">Keine App für diese Datei</string>
+    <string name="school_attachment_no_app_text">Keine App auf diesem Gerät kann „%1$s“ öffnen. Du kannst die Datei stattdessen mit einer anderen App teilen.</string>
+    <string name="school_attachment_share">Teilen</string>
+    <string name="school_confirm_requested">Die Schule bittet um eine Lesebestätigung.</string>
+    <string name="school_confirm_button">Lesen bestätigen</string>
+    <string name="school_confirm_title">Lesen bestätigen?</string>
+    <string name="school_confirm_text">Die Schule sieht dann, dass die Nachricht gelesen wurde.</string>
+    <string name="school_confirm_chip">Bestätigung erbeten</string>
+    <string name="school_confirmed_at">Bestätigt am %1$s</string>
+    <string name="school_confirmed_at_by">Bestätigt am %1$s (von %2$s)</string>
+    <string name="school_confirmed_by">Bestätigt (von %1$s)</string>
+    <string name="school_confirmed">Lesen bestätigt</string>
+    <string name="school_confirm_error_not_required">Die Schule bittet für diese Nachricht nicht mehr um eine Bestätigung.</string>
+    <string name="school_confirm_error_failed">Die Bestätigung konnte nicht gesendet werden. Versuch es später noch einmal.</string>
 </resources>

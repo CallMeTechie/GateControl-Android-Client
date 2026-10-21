@@ -2,26 +2,37 @@ package com.gatecontrol.android.ui.familie
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.errorCode
+import com.gatecontrol.android.familie.school.SchoolAttachment
 import com.gatecontrol.android.familie.school.SchoolChange
+import com.gatecontrol.android.familie.school.SchoolFiles
 import com.gatecontrol.android.familie.school.SchoolInbox
+import com.gatecontrol.android.familie.school.SchoolLocalFile
 import com.gatecontrol.android.familie.school.SchoolLogic
 import com.gatecontrol.android.familie.school.SchoolRepository
 import com.gatecontrol.android.familie.school.SchoolTimetable
 import com.gatecontrol.android.familie.school.SchoolView
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
+
+/** A failed action on [id] (a message or an attachment) with its error [code]. */
+data class SchoolActionError(val id: String, val code: String)
 
 /** The tabs of the timetable screen; MESSAGES and ABSENCES only with plugin 1.4+. */
 enum class SchoolTab { PLAN, CHANGES, MESSAGES, ABSENCES }
@@ -31,10 +42,13 @@ enum class SchoolTab { PLAN, CHANGES, MESSAGES, ABSENCES }
  * keeps, offline too), or — for a push about a later day — the two weeks
  * from that day's Monday; the selected child and day; the change log;
  * messages and absences (plugin 1.4+, [inbox]) with the open message.
+ * Opening a message marks it read ([SchoolRepository.markRead]); its read
+ * confirmation and attachments (plugin 1.5+) are handled here too.
  */
 @HiltViewModel
 class SchoolViewModel @Inject constructor(
     private val repository: SchoolRepository,
+    private val schoolFiles: SchoolFiles,
 ) : ViewModel() {
 
     private val today: LocalDate get() = LocalDate.now()
@@ -86,6 +100,29 @@ class SchoolViewModel @Inject constructor(
     /** The message shown in full (tab "Nachrichten"); null = the list. */
     val messageId: StateFlow<String?> = _messageId.asStateFlow()
 
+    private val _confirming = MutableStateFlow<String?>(null)
+    /** Message whose read confirmation is being sent. */
+    val confirming: StateFlow<String?> = _confirming.asStateFlow()
+
+    private val _confirmError = MutableStateFlow<SchoolActionError?>(null)
+    /** The last failed confirmation (message id and error code). */
+    val confirmError: StateFlow<SchoolActionError?> = _confirmError.asStateFlow()
+
+    private val _loadingAttachments = MutableStateFlow<Set<String>>(emptySet())
+    /** Attachments being fetched (their ids). */
+    val loadingAttachments: StateFlow<Set<String>> = _loadingAttachments.asStateFlow()
+
+    private val _attachmentError = MutableStateFlow<SchoolActionError?>(null)
+    /** The last attachment that could not be loaded (attachment id and error code). */
+    val attachmentError: StateFlow<SchoolActionError?> = _attachmentError.asStateFlow()
+
+    private val _files = MutableSharedFlow<SchoolLocalFile>(extraBufferCapacity = 1)
+    /** An attachment is on the device: the screen opens it with another app. */
+    val files: SharedFlow<SchoolLocalFile> = _files.asSharedFlow()
+
+    /** The message `read` was sent for since it was opened (once per opening). */
+    private var readSentFor: String? = null
+
     private var loadJob: Job? = null
     private var opened = false
 
@@ -108,9 +145,17 @@ class SchoolViewModel @Inject constructor(
     }
 
     private fun followMessage() {
-        val id = _messageId.value ?: return
+        val id = _messageId.value ?: run {
+            readSentFor = null
+            return
+        }
         val message = inbox.value?.messages?.firstOrNull { it.id == id } ?: return
         SchoolLogic.studentForMessage(message, _studentId.value, timetable.value)?.let { _studentId.value = it }
+        // Shown (from the list or a push): read, once per opening.
+        if (readSentFor != id) {
+            readSentFor = id
+            viewModelScope.launch { repository.markRead(id) }
+        }
     }
 
     /**
@@ -188,12 +233,40 @@ class SchoolViewModel @Inject constructor(
     }
 
     fun openMessage(id: String) {
+        _confirmError.value = null
+        _attachmentError.value = null
         _messageId.value = id
     }
 
     /** Back from a message to the list. */
     fun closeMessage() {
         _messageId.value = null
+    }
+
+    /** Sends the read confirmation of message [id] (after the person agreed). */
+    fun confirm(id: String) {
+        if (_confirming.value != null) return
+        _confirming.value = id
+        _confirmError.value = null
+        viewModelScope.launch {
+            val r = repository.confirm(id)
+            if (r !is FamilieResult.Ok) _confirmError.value = SchoolActionError(id, r.errorCode() ?: FamilieApi.CODE_INVALID)
+            _confirming.value = null
+        }
+    }
+
+    /** Loads [attachment] of message [messageId] (once at a time) and hands it to the screen to open. */
+    fun openAttachment(messageId: String, attachment: SchoolAttachment) {
+        if (attachment.id in _loadingAttachments.value) return
+        _loadingAttachments.update { it + attachment.id }
+        _attachmentError.value = null
+        viewModelScope.launch {
+            when (val r = schoolFiles.load(messageId, attachment)) {
+                is FamilieResult.Ok -> _files.tryEmit(r.value)
+                else -> _attachmentError.value = SchoolActionError(attachment.id, r.errorCode() ?: FamilieApi.CODE_INVALID)
+            }
+            _loadingAttachments.update { it - attachment.id }
+        }
     }
 
     fun selectDate(date: LocalDate) {

@@ -53,6 +53,9 @@ data class SchoolDaySummary(
     }
 }
 
+/** What a school attachment is, for its symbol. */
+enum class SchoolFileKind { PDF, IMAGE, DOCUMENT, SHEET, MEDIA, ARCHIVE, OTHER }
+
 /** Texts of a summary line, from the app's strings (an interface, so the wording is unit-tested). */
 interface SchoolSummaryTexts {
     fun planned(): String
@@ -248,6 +251,69 @@ object SchoolLogic {
     /** New (unread) messages of [studentId]; a message to two children counts for each. */
     fun newMessages(messages: List<SchoolMessage>?, studentId: Int): Int =
         messages.orEmpty().count { it.isNew && it.isFor(studentId) }
+
+    /** [m] as read on this device: no longer new (the "neu" chip and bold text go at once). */
+    fun markedRead(m: SchoolMessage): SchoolMessage = if (!m.isNew && m.read) m else m.copy(isNew = false, read = true)
+
+    /** [messages] with those in [readIds] (opened on this device) marked read. */
+    fun withLocalRead(messages: List<SchoolMessage>?, readIds: Set<String>): List<SchoolMessage>? =
+        if (messages == null || readIds.isEmpty()) messages else messages.map { if (it.id in readIds) markedRead(it) else it }
+
+    /**
+     * The ids opened on this device that still need the local mark after a
+     * fresh list: those the server still calls new (its `read` did not get
+     * through yet, or an older plugin that cannot keep it). Messages gone
+     * from the list, or that the server knows as read, drop out.
+     */
+    fun pendingLocalRead(readIds: Set<String>, fresh: List<SchoolMessage>?): Set<String> {
+        if (fresh == null) return readIds
+        val newIds = fresh.filter { it.isNew }.mapTo(HashSet()) { it.id }
+        return readIds.filterTo(LinkedHashSet()) { it in newIds }
+    }
+
+    /** Of [pending], those to send `read` again: the plugin keeps the read state ([SchoolMessage.extended]); at most [max]. */
+    fun readToRetry(pending: Set<String>, fresh: List<SchoolMessage>?, max: Int = 5): List<String> =
+        fresh.orEmpty().filter { it.id in pending && it.extended && it.isNew }.map { it.id }.take(max)
+
+    /** Kind of file for its symbol, from the type or else the name's extension. */
+    fun fileKind(mime: String?, name: String?): SchoolFileKind {
+        val m = mime.orEmpty().lowercase()
+        val ext = name?.substringAfterLast('.', "")?.lowercase().orEmpty()
+        return when {
+            m == "application/pdf" || ext == "pdf" -> SchoolFileKind.PDF
+            m.startsWith("image/") || ext in IMAGE_EXT -> SchoolFileKind.IMAGE
+            m.startsWith("audio/") || m.startsWith("video/") || ext in MEDIA_EXT -> SchoolFileKind.MEDIA
+            m.contains("spreadsheet") || m.contains("excel") || m == "text/csv" || ext in SHEET_EXT -> SchoolFileKind.SHEET
+            m.contains("word") || m.contains("document") || m.startsWith("text/") || m.contains("presentation") ||
+                m.contains("powerpoint") || ext in DOC_EXT -> SchoolFileKind.DOCUMENT
+            m.contains("zip") || ext in ARCHIVE_EXT -> SchoolFileKind.ARCHIVE
+            else -> SchoolFileKind.OTHER
+        }
+    }
+
+    private val IMAGE_EXT = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "bmp")
+    private val MEDIA_EXT = setOf("mp3", "m4a", "wav", "ogg", "mp4", "mov", "webm")
+    private val SHEET_EXT = setOf("xls", "xlsx", "ods", "csv")
+    private val DOC_EXT = setOf("doc", "docx", "odt", "rtf", "txt", "ppt", "pptx", "odp")
+    private val ARCHIVE_EXT = setOf("zip", "7z", "rar")
+
+    private val NAME_BAD_RE = Regex("[\\u0000-\\u001F\\u007F/\\\\:*?\"<>|]")
+
+    /**
+     * A file name safe to save under: reserved characters replaced, no
+     * leading dot, ≤ 120 characters (the extension kept); blank → `anhang.<[ext]>`.
+     */
+    fun safeFileName(name: String?, ext: String): String {
+        val cleaned = name?.let { NAME_BAD_RE.replace(it, "_").trim().trimStart('.').trim() }?.takeIf { it.isNotBlank() }
+            ?: return "anhang.$ext"
+        if (cleaned.length <= 120) return cleaned
+        val e = cleaned.substringAfterLast('.', "").take(10)
+        return if (e.isNotEmpty()) cleaned.take(119 - e.length) + "." + e else cleaned.take(120)
+    }
+
+    /** The cache folder of one attachment (`cache/school/<this>/<name>`): message and attachment id, safe for a path. */
+    fun attachmentFolder(messageId: String, attachmentId: String): String =
+        (messageId + "_" + attachmentId).replace(Regex("[^A-Za-z0-9_.-]"), "_").trimStart('.').take(160).ifEmpty { "_" }
 
     /** [studentId]'s absences, latest first. */
     fun absencesFor(absences: List<SchoolAbsence>?, studentId: Int): List<SchoolAbsence> =

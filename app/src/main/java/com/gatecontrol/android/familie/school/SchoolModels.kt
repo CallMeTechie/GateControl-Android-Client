@@ -1,5 +1,7 @@
 package com.gatecontrol.android.familie.school
 
+import com.google.gson.JsonObject
+
 /**
  * Models of the Schule plugin's app API (gatecontrol-schule,
  * `/api/v1/client/plugins/gatecontrol-schule/api/app/…`, README "API"):
@@ -159,31 +161,86 @@ data class SchoolChange(
 }
 
 /**
- * A WebUntis message of the parents' inbox (plugin 1.4+, `GET app/messages`).
+ * A file attached to a message (plugin 1.5+): [size] in bytes and [mime]
+ * when the school told them. Opened through `POST app/messages/<id>/attachments/<attId>`
+ * and the plugin's media download ([SchoolFiles]).
+ */
+data class SchoolAttachment(
+    val id: String,
+    /** File name to show; may be blank (the app names it). */
+    val name: String = "",
+    val size: Long? = null,
+    val mime: String? = null,
+)
+
+/**
+ * The school asks for a read confirmation (plugin 1.5+). [confirmed]: it
+ * was sent (from GateControl or already in the school's system), at
+ * [confirmedAt] (epoch ms, when known) by [by] (display name, only when
+ * confirmed from GateControl).
+ */
+data class SchoolConfirmation(
+    val confirmed: Boolean = false,
+    val confirmedAt: Long? = null,
+    val by: String? = null,
+)
+
+/**
+ * A message of the parents' school inbox (plugin 1.4+, `GET app/messages`).
  * It belongs to every child in [studentIds] ([isFor]); one without
- * children shows with none of them.
+ * children shows with none of them. Plugin 1.5 adds the full text
+ * ([fullText]), the attachments, the read state of this user ([read],
+ * [isNew]) and the read confirmation; for older plugins those read as
+ * "preview only", none, unread and not asked ([extended] false).
  */
 data class SchoolMessage(
     val id: String,
-    /** WebUntis account it came in through. */
+    /** School account it came in through. */
     val accountId: Int? = null,
     val studentIds: List<Int> = emptyList(),
     /** May be blank (no subject). */
     val subject: String = "",
     /** One line of the text; may be blank. */
     val preview: String = "",
-    /** The full text when the plugin sends it; else only [preview] (the rest is in WebUntis). */
+    /** The text when the plugin sends it (the whole text when [fullText]); else only [preview]. */
     val body: String? = null,
     /** May be blank (unknown sender). */
     val sender: String = "",
     /** When it was sent (epoch ms); null without a valid time. */
     val sentAt: Long? = null,
     val hasAttachments: Boolean = false,
-    /** Not read in WebUntis yet. */
+    /** Unread for this user (plugin 1.5+; before: not read at the school yet). */
     val isNew: Boolean = false,
+    /** [body] is the complete text (plugin 1.5+); false: the rest comes with a later fetch. */
+    val fullText: Boolean = false,
+    /** Empty when there are none or they are not loaded yet. */
+    val attachments: List<SchoolAttachment> = emptyList(),
+    /** This user opened it (plugin 1.5+). */
+    val read: Boolean = false,
+    /** Null: the school does not ask for a read confirmation. */
+    val confirmation: SchoolConfirmation? = null,
+    /** The answer came from plugin 1.5+ (it has `fullText` / `read`): read state per user, full text, attachments. */
+    val extended: Boolean = false,
 ) {
     fun isFor(studentId: Int): Boolean = studentId in studentIds
+
+    /** The school asks for a read confirmation and none was sent yet. */
+    val confirmationPending: Boolean get() = confirmation != null && !confirmation.confirmed
+
+    /** The text to show: the body, else the preview. */
+    val text: String get() = body ?: preview
 }
+
+/** `POST app/messages/<id>/read` / `confirm`: the message as the plugin now has it, and its JSON (null when the answer has none). */
+data class SchoolMessageAnswer(val message: SchoolMessage?, val raw: JsonObject?)
+
+/** `POST app/messages/<id>/attachments/<attId>`: the file in the plugin's media store. */
+data class SchoolAttachmentFile(
+    val mediaId: String,
+    val name: String? = null,
+    val mime: String? = null,
+    val bytes: Long? = null,
+)
 
 /** How the school rates an absence: `excused` true / false / null (not decided yet). */
 enum class AbsenceStatus { EXCUSED, UNEXCUSED, OPEN }

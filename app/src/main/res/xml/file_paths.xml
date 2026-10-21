@@ -11,4 +11,8 @@
          picture (cacheDir/camera, pruned after a day). The camera app gets
          write access to the one file for the capture only. -->
     <cache-path name="camera" path="camera/" />
+    <!-- School messages: an attachment the person opens or shares
+         (cacheDir/school/<message>_<attachment>/<name>, removed after a
+         week without use). -->
+    <cache-path name="school" path="school/" />
 </paths>

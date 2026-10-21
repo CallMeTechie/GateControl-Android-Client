@@ -80,8 +80,10 @@
     <string name="school_message_new">new</string>
     <string name="school_message_no_subject">(no subject)</string>
     <string name="school_message_unknown_sender">Unknown sender</string>
-    <string name="school_message_attachments">Has attachments – open them in WebUntis.</string>
-    <string name="school_message_full_in_webuntis">Full text in WebUntis</string>
+    <string name="school_message_full_text_later">The full text will be loaded with the next update.</string>
+    <string name="school_message_preview_only">Only a preview of this message is available.</string>
+    <string name="school_message_attachments_later">The attachments will be available after the next update.</string>
+    <string name="school_message_has_attachments">This message has attachments.</string>
     <string name="school_message_back">All messages</string>
     <string name="school_message_open">Open message</string>
     <string name="school_message_not_found">This message is not in the list (any more).</string>
@@ -99,4 +101,38 @@
         <item quantity="one">%1$d new message</item>
         <item quantity="other">%1$d new messages</item>
     </plurals>
+    <!-- Messages: full text, attachments, read confirmation (plugin 1.5+) -->
+    <string name="school_attachments_title">Attachments</string>
+    <string name="school_attachment_unnamed">Attachment</string>
+    <string name="school_attachment_open">Open attachment</string>
+    <string name="school_attachment_loading">loading</string>
+    <string name="school_desc_attachment">Attachment %1$s</string>
+    <string name="school_file_pdf">PDF</string>
+    <string name="school_file_image">Image</string>
+    <string name="school_file_document">Document</string>
+    <string name="school_file_sheet">Spreadsheet</string>
+    <string name="school_file_media">Audio or video</string>
+    <string name="school_file_archive">Archive</string>
+    <string name="school_file_other">File</string>
+    <string name="school_attachment_error_not_found">This attachment is no longer available.</string>
+    <string name="school_attachment_error_too_large">This attachment is too large (over 25 MB).</string>
+    <string name="school_attachment_error_type">This type of file cannot be loaded.</string>
+    <string name="school_attachment_error_server_old">The GateControl server is too old to load attachments. Ask your administrator to update it.</string>
+    <string name="school_attachment_error_failed">The attachment could not be loaded. Please try again later.</string>
+    <string name="school_error_school_unavailable">The school’s system cannot be reached right now. Please try again later.</string>
+    <string name="school_message_error_not_found">This message is no longer available.</string>
+    <string name="school_attachment_no_app_title">No app for this file</string>
+    <string name="school_attachment_no_app_text">No app on this device can open “%1$s”. You can share the file with another app instead.</string>
+    <string name="school_attachment_share">Share</string>
+    <string name="school_confirm_requested">The school asks for a read confirmation.</string>
+    <string name="school_confirm_button">Confirm reading</string>
+    <string name="school_confirm_title">Confirm reading?</string>
+    <string name="school_confirm_text">The school will then see that the message has been read.</string>
+    <string name="school_confirm_chip">Confirmation requested</string>
+    <string name="school_confirmed_at">Confirmed on %1$s</string>
+    <string name="school_confirmed_at_by">Confirmed on %1$s (by %2$s)</string>
+    <string name="school_confirmed_by">Confirmed (by %1$s)</string>
+    <string name="school_confirmed">Read confirmed</string>
+    <string name="school_confirm_error_not_required">The school no longer asks for a confirmation of this message.</string>
+    <string name="school_confirm_error_failed">The confirmation could not be sent. Please try again later.</string>
 </resources>
