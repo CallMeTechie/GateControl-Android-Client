@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.60.0] - 2026-10-21
+
+### Features
+- share with people, own devices, NAS and links from the share sheet; receive directly in the LAN or over the server (#113)
+
+---
+
 ## [1.59.0] - 2026-10-21
 
 ### Features
