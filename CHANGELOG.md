@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.58.0] - 2026-10-21
+
+### Features
+- the chat as the inbox for all notifications – pinned family chat, notice chats, where notifications appear (#111)
+
+---
+
 ## [1.57.0] - 2026-10-21
 
 ### Features
