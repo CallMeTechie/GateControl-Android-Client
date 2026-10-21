@@ -266,6 +266,17 @@ object ChatJson {
             archived = o.flag("archived") == true,
             pinned = o.ids("pinned").take(10),
             nextEvent = ChatJson14.nextEvent(o.obj("nextEvent")),
+            listPinned = o.flag("listPinned") == true,
+            notice = notice(o.obj("notice")),
+        )
+    }
+
+    /** `notice { source, label }` of a notice channel (Messenger 1.6); anything else than an object → none. */
+    fun notice(o: JsonObject?): ChatNotice? {
+        if (o == null) return null
+        return ChatNotice(
+            source = o.str("source")?.trim()?.takeIf { it.length <= 80 && ChatNotice.SOURCE_RE.matches(it) },
+            label = line(o.str("label"), 60),
         )
     }
 

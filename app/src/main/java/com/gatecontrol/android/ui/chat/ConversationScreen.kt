@@ -423,8 +423,8 @@ fun ConversationScreen(
                 onCardButton = { m, b ->
                     val route = b.route
                     when {
-                        // "Live-Bild": the plugin's own screen (the app's route navigation, e.g. the door screen).
-                        route != null -> com.gatecontrol.android.push.PushNavigation.request(com.gatecontrol.android.push.PushNavTarget.forRoute(route, null))
+                        // "Live-Bild", "Ganze Nachricht lesen": the plugin's own screen (the app's route navigation, e.g. the door screen).
+                        route != null -> com.gatecontrol.android.push.PushNavigation.request(com.gatecontrol.android.chat.ChatCardLinks.target(route, m.card?.notice))
                         b.needsConfirm -> confirmRun = m to b
                         else -> viewModel.cardButton(m, b)
                     }
@@ -517,7 +517,8 @@ fun ConversationScreen(
                 GcIconButton(Icons.Outlined.Info, stringResource(R.string.chat_info), onClick = onOpenInfo)
             }
         }
-        if (c?.managedBy != null) {
+        // A notice channel (Messenger 1.6) is the messenger's own, read only: no "kept by a plugin" hint.
+        if (c?.managedBy != null && !c.isNotice) {
             Text(
                 stringResource(R.string.chat_managed_hint),
                 style = MaterialTheme.typography.bodySmall,

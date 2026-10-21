@@ -100,6 +100,7 @@ import com.gatecontrol.android.ui.notifications.InboxScreen
 import com.gatecontrol.android.ui.notifications.InboxViewModel
 import com.gatecontrol.android.ui.notifications.NotificationDetailScreen
 import com.gatecontrol.android.ui.notifications.NotificationSettingsScreen
+import com.gatecontrol.android.ui.notifications.NotifyRoutesScreen
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -423,6 +424,7 @@ fun AppNavigation(
                                 SettingsPaneContent(
                                     pane = pane,
                                     onOpenEnroll = { navController.navigate(Screen.Enroll.create()) },
+                                    onOpenRoutes = { navController.navigate(Screen.NotifyRoutes.route) { launchSingleTop = true } },
                                     onOpenRules = { navController.navigate(RulesRoutes.LIST) { launchSingleTop = true } },
                                     onSelectPane = { paneKey = it.key },
                                 )
@@ -657,6 +659,7 @@ fun AppNavigation(
                         onOpenPage = { p -> navController.navigate(Screen.ChatSettings.create(p)) },
                         onOpenStatus = { statusSheet = true },
                         onOpenQuietHours = { openSettingsPane(SettingsPane.Notifications) },
+                        onOpenRoutes = { navController.navigate(Screen.NotifyRoutes.route) { launchSingleTop = true } },
                     )
                 } }
                 if (statusSheet) {
@@ -921,7 +924,16 @@ fun AppNavigation(
             }
 
             composable(Screen.SettingsNotifications.route) {
-                GcContentWidth { NotificationSettingsScreen(onBack = { navController.popBackStack() }) }
+                GcContentWidth {
+                    NotificationSettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenRoutes = { navController.navigate(Screen.NotifyRoutes.route) { launchSingleTop = true } },
+                    )
+                }
+            }
+
+            composable(Screen.NotifyRoutes.route) {
+                GcContentWidth { NotifyRoutesScreen(onBack = { navController.popBackStack() }) }
             }
 
             composable(Screen.Profile.route) {
@@ -1277,7 +1289,7 @@ private fun SettingsPane.route(): String = when (this) {
 
 /** A settings page in the detail pane beside the settings list. */
 @Composable
-private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, onSelectPane: (SettingsPane) -> Unit, onOpenRules: () -> Unit = {}) {
+private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, onSelectPane: (SettingsPane) -> Unit, onOpenRules: () -> Unit = {}, onOpenRoutes: (() -> Unit)? = null) {
     when (pane) {
         SettingsPane.Profile -> ProfileScreen(onBack = {}, onOpenRules = onOpenRules)
         SettingsPane.Connection -> ConnectionDetailsScreen(onBack = {}, onOpenDiagnosis = { onSelectPane(SettingsPane.Diagnosis) })
@@ -1285,7 +1297,7 @@ private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, on
         SettingsPane.SplitTunnel -> SplitTunnelScreen(onBack = {})
         SettingsPane.TrustedNetworks -> TrustedNetworksScreen(onBack = {})
         SettingsPane.Location -> LocationSharingScreen(onBack = {})
-        SettingsPane.Notifications -> NotificationSettingsScreen(onBack = {})
+        SettingsPane.Notifications -> NotificationSettingsScreen(onBack = {}, onOpenRoutes = onOpenRoutes)
         SettingsPane.Logs -> LogsScreen(onNavigateBack = {})
         SettingsPane.Diagnosis -> DiagnosisScreen(onBack = {})
     }

@@ -256,4 +256,6 @@
     <string name="chat_sys_released">GateControl released the group – it is a normal group now</string>
     <string name="chat_jump_missing">This message is no longer available.</string>
     <string name="chat_gap_load">Load more messages</string>
+    <!-- Messenger 1.6: a notice channel (GateControl's notifications of one source) -->
+    <string name="chat_notice_tag">Notifications</string>
 </resources>

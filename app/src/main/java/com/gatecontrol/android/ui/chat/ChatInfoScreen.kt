@@ -413,7 +413,8 @@ fun ChatInfoScreen(
                 val sub = buildList {
                     add(resources.getString(if (conv.isGroup) R.string.chat_kind_group else R.string.chat_kind_direct))
                     if (conv.isGroup) add(resources.getQuantityString(R.plurals.chat_members, conv.members.size, conv.members.size))
-                    if (conv.managedBy != null) add(resources.getString(R.string.chat_managed_short))
+                    if (conv.isNotice) add(resources.getString(R.string.chat_notice_tag))
+                    else if (conv.managedBy != null) add(resources.getString(R.string.chat_managed_short))
                 }.joinToString(" · ")
                 Text(sub, style = MaterialTheme.typography.bodyMedium, color = extra.muted, textAlign = TextAlign.Center)
             }

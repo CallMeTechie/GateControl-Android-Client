@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
@@ -142,6 +143,8 @@ fun ChatSettingsScreen(
     onOpenPage: (String) -> Unit,
     onOpenStatus: () -> Unit,
     onOpenQuietHours: () -> Unit,
+    /** "Wo Mitteilungen erscheinen" (core 1.191+; hidden on older servers). */
+    onOpenRoutes: (() -> Unit)? = null,
     viewModel: ChatSettingsViewModel = hiltViewModel(),
 ) {
     val ctx = LocalContext.current
@@ -196,7 +199,7 @@ fun ChatSettingsScreen(
                 ChatSettingsPage.LISTS -> ListsPage(viewModel)
                 ChatSettingsPage.HOME -> HomePage(viewModel)
                 ChatSettingsPage.HELP -> HelpPage(viewModel)
-                else -> MainPage(viewModel, onOpenPage, onOpenStatus)
+                else -> MainPage(viewModel, onOpenPage, onOpenStatus, onOpenRoutes)
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -259,7 +262,7 @@ private fun statusVisLabel(v: String): String = stringResource(
 // ─── main ───────────────────────────────────────────────────────────
 
 @Composable
-private fun MainPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit, onOpenStatus: () -> Unit) {
+private fun MainPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit, onOpenStatus: () -> Unit, onOpenRoutes: (() -> Unit)?) {
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
     val profile by vm.profile.collectAsStateWithLifecycle()
@@ -287,6 +290,14 @@ private fun MainPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit, on
         NavRow(Icons.AutoMirrored.Outlined.Chat, extra.blue, extra.blueBg, stringResource(R.string.chat_settings_chats), stringResource(R.string.chat_settings_chats_desc)) { onOpenPage(ChatSettingsPage.CHATS) }
         NavRow(Icons.Outlined.Palette, extra.pro, extra.proBg, stringResource(R.string.chat_settings_look), stringResource(R.string.chat_settings_look_desc)) { onOpenPage(ChatSettingsPage.LOOK) }
         NavRow(Icons.Outlined.Notifications, extra.warn, extra.warnBg, stringResource(R.string.chat_settings_notify), stringResource(R.string.chat_settings_notify_desc)) { onOpenPage(ChatSettingsPage.NOTIFY) }
+        if (onOpenRoutes != null) {
+            // GateControl's notifications in chats (core 1.191): only when the server has the page.
+            val routesEntry: com.gatecontrol.android.ui.notifications.NotifyRoutesEntryViewModel = hiltViewModel()
+            val routesOn by routesEntry.visible.collectAsStateWithLifecycle()
+            if (routesOn) {
+                NavRow(Icons.Outlined.Inbox, extra.blue, extra.blueBg, stringResource(R.string.push_routes_title), stringResource(R.string.push_routes_entry_desc)) { onOpenRoutes() }
+            }
+        }
         NavRow(Icons.Outlined.Storage, extra.accentText, extra.accentBg, stringResource(R.string.chat_settings_storage), stringResource(R.string.chat_settings_storage_desc)) { onOpenPage(ChatSettingsPage.STORAGE) }
         NavRow(Icons.Outlined.Devices, extra.blue, extra.blueBg, stringResource(R.string.chat_settings_devices), stringResource(R.string.chat_settings_devices_desc)) { onOpenPage(ChatSettingsPage.DEVICES) }
         if (f?.msgTools == true) {

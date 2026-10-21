@@ -149,6 +149,8 @@ sealed class Screen(val route: String) {
         fun create(mediaId: String): String = "chats/image/$mediaId"
     }
     data object SettingsNotifications : Screen("settings/notifications")
+    /** "Wo Mitteilungen erscheinen" (core 1.191): from Benachrichtigungen and from the chat settings. */
+    data object NotifyRoutes : Screen("settings/notifications/routes")
     /**
      * Own profile: picture and favourite colour (own avatar on the start
      * tab and in the Familie tab); its gear opens the settings.

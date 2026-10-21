@@ -557,9 +557,15 @@ fun PluginCardContent(m: ChatMessage, actions: RichActions) {
     val doorbell = card.kind == "doorbell"
     Column(Modifier.width(276.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // A doorbell names the door in the header; a notice (shopping, task, request of a plugin) shows its title as the headline.
+        // Messenger 1.6 notice cards name their notification: "<sourceLabel> · <topicLabel>".
+        val notice = card.notice?.takeIf { it.sourceLabel != null || it.topicLabel != null }
         Header(
             if (doorbell) Icons.Outlined.DoorFront else Icons.Outlined.Info,
-            listOfNotNull(stringResource(if (doorbell) R.string.chat_card_doorbell else R.string.chat_card_notice), card.title?.takeIf { doorbell }?.uppercase(locale(ctx)), ChatText.clock(ctx, m.createdAt)).joinToString(" · "),
+            if (notice != null) {
+                listOfNotNull(notice.sourceLabel?.uppercase(locale(ctx)), notice.topicLabel?.uppercase(locale(ctx)), ChatText.clock(ctx, m.createdAt)).joinToString(" · ")
+            } else {
+                listOfNotNull(stringResource(if (doorbell) R.string.chat_card_doorbell else R.string.chat_card_notice), card.title?.takeIf { doorbell }?.uppercase(locale(ctx)), ChatText.clock(ctx, m.createdAt)).joinToString(" · ")
+            },
             if (doorbell) extra.warn else extra.blue,
         )
         val inline by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, card.imageBase64, card.hasImage, m.id) {
@@ -571,7 +577,9 @@ fun PluginCardContent(m: ChatMessage, actions: RichActions) {
             }
         }
         val px = with(LocalDensity.current) { 276.dp.roundToPx() }
-        val picture = inline ?: rememberChatBitmap(card.imageMediaId, px)
+        // Notice cards: the notification's picture on the core (`/notify-media/…`), loaded like push pictures.
+        val pushPicture = com.gatecontrol.android.ui.notifications.rememberPushPicture(card.imageUrl, px)
+        val picture = inline ?: rememberChatBitmap(card.imageMediaId, px) ?: pushPicture
         if (picture != null) {
             Image(
                 picture,

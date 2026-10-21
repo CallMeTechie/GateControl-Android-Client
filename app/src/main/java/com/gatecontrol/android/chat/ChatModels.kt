@@ -99,8 +99,22 @@ data class ChatConversation(
     val pinned: List<Long> = emptyList(),
     /** Messenger 1.4 (`events`): the soonest upcoming event. */
     val nextEvent: ChatNextEvent? = null,
+    /**
+     * Messenger 1.6: shown under "Angeheftet" with the GateControl entry
+     * (the family group the Familie plugin keeps).
+     */
+    val listPinned: Boolean = false,
+    /**
+     * Messenger 1.6: a notice channel (GateControl's notifications of one
+     * source, e.g. "Schule", only for the caller) — read only, tagged
+     * "Mitteilungen" in the list.
+     */
+    val notice: ChatNotice? = null,
 ) {
     val isGroup: Boolean get() = kind == KIND_GROUP
+
+    /** A notice channel of a source (Messenger 1.6 `notice`). */
+    val isNotice: Boolean get() = notice != null
 
     /** Newest activity for sorting: the last message's time, else the change time. */
     val activityAt: String get() = lastMessage?.createdAt ?: updatedAt ?: createdAt ?: ""
@@ -108,6 +122,18 @@ data class ChatConversation(
     companion object {
         const val KIND_DIRECT = "direct"
         const val KIND_GROUP = "group"
+    }
+}
+
+/**
+ * `notice` of a conversation (Messenger 1.6): the source whose
+ * notifications the channel carries — `core` or `plugin:<id>` (null when
+ * the server sent something else) — and its name ("Schule").
+ */
+data class ChatNotice(val source: String?, val label: String?) {
+    companion object {
+        /** `core` or `plugin:<id>`. */
+        val SOURCE_RE = Regex("^(?:core|plugin:[a-z0-9]+(?:-[a-z0-9]+)*)$")
     }
 }
 

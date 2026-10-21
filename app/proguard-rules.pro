@@ -42,6 +42,11 @@
 # quick action's `opens` (QuickActionOpens, network package) and the pins'
 # opensScreen/opensRef are covered by the network and quickactions rules.
 -keep class com.gatecontrol.android.logbook.** { <fields>; }
+# "Wo Mitteilungen erscheinen" (push routes, core 1.191): read from the Gson
+# tree (NotifyRoutesJson) and sent as a JsonObject, nothing reflective; the
+# models keep their field names like the logbook's all the same. Chat
+# conversations (listPinned, notice) are tree-parsed too (ChatJson).
+-keep class com.gatecontrol.android.push.routes.** { <fields>; }
 
 # ── WireGuard ─────────────────────────────────────────────
 -keep class com.wireguard.** { *; }

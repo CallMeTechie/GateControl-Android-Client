@@ -774,13 +774,18 @@ object ChatJson14 {
         }
     }
 
-    private val ROUTE_RE = Regex("^(?:vpn|services|gateways|inbox|plg-[a-z0-9]+(?:-[a-z0-9]+)*)$")
+    /**
+     * An app route; a plugin route may name a screen of the plugin after a
+     * `/` (Messenger 1.6 notice cards: `plg-gatecontrol-schule/messages/<id>`),
+     * see [ChatCardLinks].
+     */
+    private val ROUTE_RE = Regex("^(?:vpn|services|gateways|inbox|plg-[a-z0-9]+(?:-[a-z0-9]+)*(?:/[A-Za-z0-9_.:-]{1,80}){0,3})$")
     private val BASE64_RE = Regex("^[A-Za-z0-9+/]+={0,2}$")
     private val IMAGE_MIMES = setOf("image/jpeg", "image/webp", "image/png")
     /** A snapshot up to about 512 KB as base64. */
     private const val IMAGE_B64_MAX = 720_000
 
-    private fun route(value: String?): String? = value?.takeIf { ROUTE_RE.matches(it) }
+    private fun route(value: String?): String? = value?.takeIf { ROUTE_RE.matches(it) && it.split('/').none { s -> s.all { c -> c == '.' } } }
 
     fun card(o: JsonObject?, messageMediaId: String? = null): ChatPluginCard? {
         if (o == null) return null
@@ -803,15 +808,16 @@ object ChatJson14 {
                 )
             }
         }?.take(4).orEmpty()
-        // `link { label, route }`: a button that opens a screen of the app ("Live-Bild").
-        val link = o.obj("link")?.let { l -> route(l.str("route"))?.let { r -> ChatCardButton(null, ChatJson.line(l.str("label"), 24), null, r) } }
+        // `link { label ≤ 40, route }`: a button that opens a screen of the app ("Live-Bild", "Ganze Nachricht lesen").
+        val link = o.obj("link")?.let { l -> route(l.str("route"))?.let { r -> ChatCardButton(null, ChatJson.line(l.str("label"), 40), null, r) } }
         val image = o.obj("image")
         val b64 = image?.str("data")?.takeIf { it.length <= IMAGE_B64_MAX && BASE64_RE.matches(it) }
         val lastRun = o.obj("lastRun")
         return ChatPluginCard(
             kind = ChatJson.token(o.str("kind")) ?: "notice",
             title = ChatJson.line(o.str("title"), 120),
-            text = ChatJson.text(o.str("text"), 1000),
+            // Notice cards (Messenger 1.6) carry a whole message, up to 4000 characters.
+            text = ChatJson.text(o.str("text"), ChatJson.TEXT_MAX),
             imageMediaId = ChatJson.mediaId(o.str("imageMediaId")) ?: ChatJson.mediaId(o.str("mediaId")) ?: messageMediaId,
             buttons = buttons + listOfNotNull(link),
             imageBase64 = b64,
@@ -819,6 +825,24 @@ object ChatJson14 {
             lastRunBy = lastRun?.id("by"),
             lastRunOk = lastRun?.flag("ok"),
             hasImage = b64 == null && image != null,
+            imageUrl = o.str("imageUrl")?.trim()?.takeIf { com.gatecontrol.android.notify.PushEventParser.IMAGE_PATH_RE.matches(it) },
+            notice = cardNotice(o.obj("notice")),
+        )
+    }
+
+    private val NOTICE_TOPIC_RE = Regex("^(?:[a-z][a-z0-9_]{0,31}|plugin:[a-z0-9]+(?:-[a-z0-9]+)*:[a-z][a-z0-9_-]{0,31})$")
+    private const val NOTICE_DATA_MAX = 16_384
+
+    /** `notice { source, sourceLabel, topic, topicLabel, priority, data }` of a notice card (Messenger 1.6). */
+    fun cardNotice(o: JsonObject?): ChatCardNotice? {
+        if (o == null) return null
+        return ChatCardNotice(
+            source = o.str("source")?.takeIf { ChatNotice.SOURCE_RE.matches(it) },
+            sourceLabel = ChatJson.line(o.str("sourceLabel"), 60),
+            topic = o.str("topic")?.takeIf { NOTICE_TOPIC_RE.matches(it) },
+            topicLabel = ChatJson.line(o.str("topicLabel"), 80),
+            priority = ChatJson.token(o.str("priority")),
+            dataJson = o.obj("data")?.toString()?.takeIf { it.length <= NOTICE_DATA_MAX },
         )
     }
 
@@ -857,6 +881,17 @@ object ChatJson14 {
         })
         if (c.imageBase64 != null) add("image", JsonObject().apply { put("mime", c.imageMime); addProperty("data", c.imageBase64) })
         else if (c.hasImage) add("image", JsonObject().apply { put("mime", c.imageMime) })
+        c.imageUrl?.let { addProperty("imageUrl", it) }
+        c.notice?.let { n ->
+            add("notice", JsonObject().apply {
+                put("source", n.source)
+                put("sourceLabel", n.sourceLabel)
+                put("topic", n.topic)
+                put("topicLabel", n.topicLabel)
+                put("priority", n.priority)
+                n.dataJson?.let { d -> runCatching { com.google.gson.JsonParser.parseString(d) }.getOrNull()?.takeIf { it.isJsonObject }?.let { add("data", it) } }
+            })
+        }
         if (c.lastRunBy != null || c.lastRunOk != null) {
             add("lastRun", JsonObject().apply {
                 put("by", c.lastRunBy)

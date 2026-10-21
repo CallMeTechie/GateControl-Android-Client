@@ -160,6 +160,13 @@ object ChatSerializer {
         if (c.archived) addProperty("archived", true)
         if (c.pinned.isNotEmpty()) add("pinned", ids(c.pinned))
         c.nextEvent?.let { add("nextEvent", ChatJson14.writeNextEvent(it)) }
+        if (c.listPinned) addProperty("listPinned", true)
+        c.notice?.let { n ->
+            add("notice", JsonObject().apply {
+                put("source", n.source)
+                put("label", n.label)
+            })
+        }
     }
 
     fun profile(p: ChatProfile): JsonObject = JsonObject().apply {
