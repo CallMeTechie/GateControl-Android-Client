@@ -40,6 +40,9 @@ Details:
 - Familie tab (`docs/FAMILIE.md`): the start screen as list, the picked
   screen (shopping, tasks, locating, …) beside it (`familie?dest=…`); on
   phones each screen is its own route (`familie/page?dest=…`).
+- Logbook (`docs/LOGBOOK.md`): the list on the left, the all-trips map of
+  its month — or a tapped trip — on the right (`LogbookTwoPane`); on phones
+  map and trip are their own routes.
 - Single-column pages (setup, network with its remote segment, profile,
   quick actions, the Info card picker) stay
   centred with a maximum width instead of stretching.

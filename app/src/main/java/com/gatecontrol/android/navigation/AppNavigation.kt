@@ -88,6 +88,10 @@ import com.gatecontrol.android.familie.PluginAvailability
 import com.gatecontrol.android.ui.familie.FamilieHomeScreen
 import com.gatecontrol.android.ui.familie.FamiliePage
 import com.gatecontrol.android.ui.familie.FamilieTwoPane
+import com.gatecontrol.android.ui.logbook.LogbookMapScreen
+import com.gatecontrol.android.ui.logbook.LogbookScreen
+import com.gatecontrol.android.ui.logbook.LogbookTripScreen
+import com.gatecontrol.android.ui.logbook.LogbookTwoPane
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.push.PushNavTarget
@@ -752,6 +756,93 @@ fun AppNavigation(
                 }
             }
 
+            // Logbook of the vehicles plugin (no tab): opened by its quick action (docs/LOGBOOK.md).
+            composable(
+                route = Screen.Logbook.route,
+                arguments = listOf(
+                    navArgument(Screen.Logbook.ARG_VEHICLE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val vehicle = backStackEntry.arguments?.getString(Screen.Logbook.ARG_VEHICLE)?.toLongOrNull()
+                val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Vpn.route) }
+                if (layout.twoPane) {
+                    LogbookTwoPane(vehicleId = vehicle, onBack = back)
+                } else {
+                    GcContentWidth {
+                        LogbookScreen(
+                            vehicleId = vehicle,
+                            onBack = back,
+                            onOpenMap = { v, m -> navController.navigate(Screen.LogbookMap.create(v, m)) { launchSingleTop = true } },
+                            onOpenTrip = { trip, v, m -> navController.navigate(Screen.LogbookTrip.create(trip.id, v, m)) },
+                        )
+                    }
+                }
+            }
+
+            composable(
+                route = Screen.LogbookMap.route,
+                arguments = listOf(
+                    navArgument(Screen.LogbookMap.ARG_VEHICLE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument(Screen.LogbookMap.ARG_MONTH) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val vehicle = backStackEntry.arguments?.getString(Screen.LogbookMap.ARG_VEHICLE)?.toLongOrNull()
+                val month = backStackEntry.arguments?.getString(Screen.LogbookMap.ARG_MONTH)
+                val toList: () -> Unit = {
+                    if (!navController.popBackStack(Screen.Logbook.route, inclusive = false)) {
+                        navController.navigate(Screen.Logbook.create(vehicle)) {
+                            popUpTo(Screen.LogbookMap.route) { inclusive = true }
+                        }
+                    }
+                }
+                LogbookMapScreen(
+                    vehicleId = vehicle,
+                    month = month,
+                    onBack = toList,
+                    onShowTrips = toList,
+                    onOpenTrip = { trip, v, m -> navController.navigate(Screen.LogbookTrip.create(trip.id, v, m)) },
+                )
+            }
+
+            composable(
+                route = Screen.LogbookTrip.route,
+                arguments = listOf(
+                    navArgument(Screen.LogbookTrip.ARG_ID) { type = NavType.LongType },
+                    navArgument(Screen.LogbookTrip.ARG_VEHICLE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument(Screen.LogbookTrip.ARG_MONTH) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                val args = backStackEntry.arguments
+                GcContentWidth {
+                    LogbookTripScreen(
+                        tripId = args?.getLong(Screen.LogbookTrip.ARG_ID) ?: 0L,
+                        vehicleId = args?.getString(Screen.LogbookTrip.ARG_VEHICLE)?.toLongOrNull(),
+                        month = args?.getString(Screen.LogbookTrip.ARG_MONTH),
+                        onBack = { if (!navController.popBackStack()) navController.navigate(Screen.Logbook.create()) },
+                    )
+                }
+            }
+
             composable(Screen.SettingsServer.route) {
                 GcContentWidth {
                     ServerSettingsScreen(
@@ -994,6 +1085,11 @@ private fun openPushTarget(
                     if (dest != FamilieDest.Home) navController.navigate(Screen.FamiliePage.create(dest.key))
                 }
             }
+        }
+        // A quick action with `opens` (the logbook): one logbook screen at a time, the vehicle's.
+        is PushNavTarget.Logbook -> navController.navigate(Screen.Logbook.create(target.vehicleId)) {
+            popUpTo(Screen.Logbook.route) { inclusive = true }
+            launchSingleTop = true
         }
         is PushNavTarget.Door -> {
             val steps = DoorNavigation.forPush(target.dest, pluginListed = door, twoPane = layout.twoPane)

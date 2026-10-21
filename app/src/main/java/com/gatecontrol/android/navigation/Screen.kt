@@ -66,6 +66,33 @@ sealed class Screen(val route: String) {
         fun create(dest: String): String = "door/page?dest=" + android.net.Uri.encode(dest)
     }
     /**
+     * Logbook ("Fahrtenbuch") of the vehicles plugin: a normal destination,
+     * never a tab, opened by the logbook quick action (`opens`, docs/LOGBOOK.md).
+     * `vehicle` = vehicle id, none = the first own vehicle. Wide windows:
+     * the map or a trip beside the list.
+     */
+    data object Logbook : Screen("logbook?vehicle={vehicle}") {
+        const val ARG_VEHICLE = "vehicle"
+        const val BASE = "logbook"
+        fun create(vehicleId: Long? = null): String = if (vehicleId == null) BASE else "$BASE?vehicle=$vehicleId"
+    }
+    /** All trips of a month on the map (phones). */
+    data object LogbookMap : Screen("logbook/map?vehicle={vehicle}&month={month}") {
+        const val ARG_VEHICLE = "vehicle"
+        const val ARG_MONTH = "month"
+        fun create(vehicleId: Long?, month: String?): String =
+            "logbook/map?" + listOfNotNull(vehicleId?.let { "vehicle=$it" }, month?.let { "month=$it" }).joinToString("&")
+    }
+    /** One trip with its map (phones). */
+    data object LogbookTrip : Screen("logbook/trip/{id}?vehicle={vehicle}&month={month}") {
+        const val ARG_ID = "id"
+        const val ARG_VEHICLE = "vehicle"
+        const val ARG_MONTH = "month"
+        fun create(id: Long, vehicleId: Long?, month: String?): String =
+            "logbook/trip/$id" + listOfNotNull(vehicleId?.let { "vehicle=$it" }, month?.let { "month=$it" })
+                .takeIf { it.isNotEmpty() }?.joinToString("&", prefix = "?").orEmpty()
+    }
+    /**
      * Tab "Chats" of the messenger plugin (only when the server lists it
      * with an app tab). `conv` is shown beside the list on wide windows;
      * `share` = pick a chat for what was shared from another app.

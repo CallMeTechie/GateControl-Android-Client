@@ -36,6 +36,12 @@
 # (DoorJson) and only the raw `me` JSON is cached, but the models keep their
 # field names the same way, in case they are ever (de)serialized by reflection.
 -keep class com.gatecontrol.android.door.** { <fields>; }
+# Logbook (Fahrzeuge plugin): answers are parsed from the Gson tree
+# (LogbookJson), nothing is stored; the models keep their field names like
+# the door's, in case they are ever (de)serialized by reflection. The
+# quick action's `opens` (QuickActionOpens, network package) and the pins'
+# opensScreen/opensRef are covered by the network and quickactions rules.
+-keep class com.gatecontrol.android.logbook.** { <fields>; }
 
 # ── WireGuard ─────────────────────────────────────────────
 -keep class com.wireguard.** { *; }

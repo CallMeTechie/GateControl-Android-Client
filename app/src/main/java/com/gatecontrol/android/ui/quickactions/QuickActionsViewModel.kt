@@ -12,6 +12,7 @@ import com.gatecontrol.android.quickactions.QuickActionDevices
 import com.gatecontrol.android.quickactions.QuickActionItem
 import com.gatecontrol.android.quickactions.QuickActionRepository
 import com.gatecontrol.android.quickactions.QuickActionResult
+import com.gatecontrol.android.quickactions.QuickActionScreens
 import com.gatecontrol.android.quickactions.QuickActionsLoad
 import com.gatecontrol.android.quickactions.StartWidgetPin
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -112,9 +113,16 @@ class QuickActionsViewModel @Inject constructor(
         _sheet.value = null
     }
 
-    /** Runs [item], asking first where it wants that ([confirming]). */
+    /**
+     * Runs [item], asking first where it wants that ([confirming]); an
+     * action that opens an app screen (the logbook) opens it instead.
+     */
     fun ask(item: QuickActionItem) {
-        if (item.needsConfirm) _confirming.value = item else run(item)
+        when {
+            QuickActionScreens.open(item) -> Unit
+            item.needsConfirm -> _confirming.value = item
+            else -> run(item)
+        }
     }
 
     fun confirm() {

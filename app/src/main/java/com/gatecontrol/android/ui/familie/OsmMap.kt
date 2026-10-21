@@ -143,23 +143,29 @@ fun OsmMap(
                 view.invalidate()
             },
         )
-        Text(
-            stringResource(R.string.familie_osm_attribution),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .background(GateControlTheme.extraColors.panel2.copy(alpha = 0.85f), RoundedCornerShape(topStart = 8.dp))
-                .clickable { openUrl(context, "https://www.openstreetmap.org/copyright") }
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-        )
+        OsmAttribution(Modifier.align(Alignment.BottomEnd))
     }
+}
+
+/** "© OpenStreetMap" in a map's corner (always shown, OSM tile policy); a tap opens the copyright page. */
+@Composable
+internal fun OsmAttribution(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Text(
+        stringResource(R.string.familie_osm_attribution),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier
+            .background(GateControlTheme.extraColors.panel2.copy(alpha = 0.85f), RoundedCornerShape(topStart = 8.dp))
+            .clickable { openUrl(context, "https://www.openstreetmap.org/copyright") }
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
 }
 
 private const val MIN_POINT_ZOOM = 14.0
 
 /** osmdroid settings: User-Agent = application id (OSM tile policy), caches in the app's cache dir. */
-private fun configureOsm(context: Context) {
+internal fun configureOsm(context: Context) {
     val config = Configuration.getInstance()
     config.userAgentValue = BuildConfig.APPLICATION_ID
     val base = File(context.cacheDir, "osmdroid")
