@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.61.0] - 2026-10-22
+
+### Features
+- fetch sends that reached the phone while it was offline (GET pending) (#114)
+
+---
+
 ## [1.60.0] - 2026-10-21
 
 ### Features
