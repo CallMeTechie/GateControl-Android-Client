@@ -9,7 +9,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -284,16 +288,21 @@ class GateDropRepository @Inject constructor(
         }
         val entry = GdReceived(key = key, sendId = offer.sendId, from = offer.from, at = System.currentTimeMillis(), files = files)
         store.upsert(entry)
+        // Shown here: a delivery of the same send over the server (push or `pending`) adds nothing.
+        offer.sendId?.let { store.markHandled(it) }
         api.transferResult(offer.transferId, true, bytes = outcome.bytes)
         notifier.received(entry)
         true
     }
 
     /**
-     * A send delivered over the server (`{ gatedrop: { send } }` push, or
-     * "Speichern"): learn its content, save the files when [save] (or when
-     * small enough / on Wi-Fi with [autoSave]) and update the notification
-     * [notificationId] when [show].
+     * A send delivered over the server (`{ gatedrop: { send } }` push, a
+     * send of `pending`, or "Speichern"): learn its content, save the files
+     * when [save] (or when small enough / on Wi-Fi with [autoSave]) and
+     * update the notification [notificationId] when [show]. Acknowledged
+     * (`opened`) once everything is on the device; remembered as handled so
+     * the push and the poll of `pending` deliver it once. A failed download
+     * stays unhandled and is tried again by the next poll.
      */
     suspend fun fetchSend(
         sendId: String,
@@ -306,6 +315,21 @@ class GateDropRepository @Inject constructor(
         onProgress: (Int?) -> Unit = {},
     ): Boolean {
         val key = "s:$sendId"
+        val ownId = GateDropNotifier.receivedId(key)
+        // Processed already (poll of `pending` or an earlier push): only "Speichern" goes on.
+        if (!save && store.isHandled(sendId)) {
+            // A delivery push's placeholder takes over the notification posted back then.
+            if (show && notificationId != null && notificationId != ownId) {
+                val known = store.get(key)
+                if (known != null) {
+                    notifier.received(known, notificationId, messageId, quiet = true)
+                    notifier.cancel(ownId)
+                } else {
+                    notifier.cancel(notificationId)
+                }
+            }
+            return true
+        }
         val detail = api.sendDetail(sendId).valueOrNull()
         val known = store.get(key)
         if (detail == null && known == null) return false
@@ -319,18 +343,27 @@ class GateDropRepository @Inject constructor(
                 link = detail.link,
                 note = detail.note,
                 files = detail.items.map { item ->
-                    GdReceivedFile(item.name, item.mime, item.bytes, item.mediaId, known?.files?.firstOrNull { it.mediaId != null && it.mediaId == item.mediaId }?.uri)
+                    GdReceivedFile(
+                        item.name,
+                        item.mime,
+                        item.bytes,
+                        item.mediaId?.takeIf { item.available },
+                        known?.files?.firstOrNull { it.mediaId != null && it.mediaId == item.mediaId }?.uri,
+                    )
                 },
             )
         } else {
             known!!
         }
         store.upsert(entry)
-        val nid = notificationId ?: GateDropNotifier.receivedId(key)
+        val nid = notificationId ?: ownId
+        // Tried before (a download failed): quiet, and posted again only when something changed.
+        val repeat = known != null && !save && notificationId == null
         val wantSave = save || (autoSave && GateDropLogic.autoSave(entry.files.sumOf { it.bytes }, unmetered()))
         val missing = entry.files.indices.filter { entry.files[it].uri == null && entry.files[it].mediaId != null }
+        var savedNow = false
         if (wantSave && missing.isNotEmpty()) {
-            if (show) notifier.received(entry, nid, messageId, quiet = true, saving = true)
+            if (show && !repeat) notifier.received(entry, nid, messageId, quiet = quiet, saving = true)
             val total = missing.sumOf { entry.files[it].bytes }
             var before = 0L
             for (i in missing) {
@@ -338,13 +371,59 @@ class GateDropRepository @Inject constructor(
                 val base = before
                 val uri = download(f) { onProgress(percent(base + it, total)) } ?: break
                 store.markSaved(key, i, uri)
+                savedNow = true
                 before += f.bytes
             }
             entry = store.get(key) ?: entry
-            if (entry.files.any { it.uri != null }) runCatching { api.opened(sendId) }
         }
-        if (show) notifier.received(entry, nid, messageId, quiet = quiet || wantSave)
+        val outcome = GateDropLogic.receiveOutcome(entry, wantSave)
+        if (outcome.ack) api.opened(sendId)
+        // Handled once the person was told (or saved it themselves); a quiet fetch leaves that to the push.
+        if (outcome.handled && (show || save)) store.markHandled(sendId)
+        if (show && (!repeat || savedNow)) notifier.received(entry, nid, messageId, quiet = quiet || repeat || (wantSave && missing.isNotEmpty()))
         return true
+    }
+
+    // ─── sends waiting for this device (`pending`) ──────────────────
+
+    private val pendingPoller = GateDropPendingPoller(object : GateDropPendingPoller.Host {
+        override suspend fun fetchPending() = api.pending()
+        override fun isHandled(sendId: String) = store.isHandled(sendId)
+        override fun local(sendId: String) = store.get("s:$sendId") ?: store.bySend(sendId)
+        override fun markHandled(sendId: String) = store.markHandled(sendId)
+        override suspend fun process(send: GdEntry) {
+            GateDropReceiveWorker.enqueueSend(context, send.id, save = false, autoSave = true, show = true)
+        }
+        override suspend fun ack(sendId: String) = api.opened(sendId) is GdResult.Ok
+    })
+
+    @Volatile private var pendingDebounce: Job? = null
+
+    /**
+     * Fetches what was sent to this device while it was offline (`GET
+     * pending`); [force] skips the short pause after the last answer.
+     * Never runs twice at once; an older plugin (404) or a login without
+     * a device (409 `no_device`) is ignored.
+     */
+    suspend fun pollPending(force: Boolean = false): GdPollOutcome {
+        if (!available.value) return GdPollOutcome.Unsupported
+        val outcome = pendingPoller.poll(force)
+        if (outcome is GdPollOutcome.Done && (outcome.processed.isNotEmpty() || outcome.acked.isNotEmpty())) {
+            Timber.i("GateDrop: pending — %d to receive, %d acknowledged", outcome.processed.size, outcome.acked.size)
+        }
+        return outcome
+    }
+
+    /** [pollPending] once the triggers (start, stream, network) settled. */
+    fun pollPendingSoon(delayMs: Long = PENDING_DEBOUNCE_MS) {
+        synchronized(this) {
+            pendingDebounce?.cancel()
+            pendingDebounce = scope.launch {
+                delay(delayMs)
+                // Not cut off by the next trigger once it runs.
+                withContext(NonCancellable) { runCatching { pollPending() } }
+            }
+        }
     }
 
     private suspend fun download(f: GdReceivedFile, onBytes: (Long) -> Unit): String? = withContext(Dispatchers.IO) {
@@ -415,5 +494,7 @@ class GateDropRepository @Inject constructor(
         private const val PUSH_WAIT_MS = 90_000L
         /** Unchanged presence is not repeated more often. */
         private const val PRESENCE_MIN_MS = 4 * 60_000L
+        /** Triggers of the poll of `pending` come in bursts. */
+        private const val PENDING_DEBOUNCE_MS = 2_000L
     }
 }

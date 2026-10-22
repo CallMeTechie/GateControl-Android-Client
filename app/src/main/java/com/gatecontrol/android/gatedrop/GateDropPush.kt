@@ -74,6 +74,8 @@ class GateDropPushHandler @Inject constructor(
     /** Shows a delivery push as GateDrop's notification (what is known so far); true when shown. */
     suspend fun show(message: PushMessage, notificationId: Int, quiet: Boolean): Boolean {
         val sendId = deliverySendId(message) ?: return false
+        // Received already (poll of `pending`, a direct transfer): its notification is up, the push adds nothing.
+        if (store.isHandled(sendId)) return true
         val known = store.bySend(sendId)
         val entry = known ?: GdReceived(
             key = "s:$sendId",
@@ -96,6 +98,7 @@ class GateDropPushHandler @Inject constructor(
     fun onNew(message: PushMessage) {
         val sendId = deliverySendId(message) ?: return
         val nid = shown.remove(sendId)
+        if (nid == null && store.isHandled(sendId)) return
         GateDropReceiveWorker.enqueueSend(
             context,
             sendId = sendId,
@@ -105,6 +108,8 @@ class GateDropPushHandler @Inject constructor(
             notificationId = nid,
             messageId = message.id,
             quiet = true,
+            // A fetch of the same send from `pending` may be under way: this one replaces the placeholder after it.
+            after = nid != null,
         )
     }
 
@@ -123,6 +128,7 @@ class GateDropPushHandler @Inject constructor(
 class AppPluginEventSink @Inject constructor(
     private val chats: com.gatecontrol.android.chat.ChatEventSink,
     private val gatedrop: dagger.Lazy<GateDropPushHandler>,
+    private val gatedropRepository: dagger.Lazy<GateDropRepository>,
 ) : PluginEventSink {
     override fun onPluginEvent(plugin: String, type: String, data: JsonElement?) {
         if (plugin == GATEDROP_PLUGIN) {
@@ -134,6 +140,8 @@ class AppPluginEventSink @Inject constructor(
 
     override fun onStreamOpen() {
         chats.onStreamOpen()
+        // (Re)connected: what was sent to this device while it was offline.
+        runCatching { gatedropRepository.get().pollPendingSoon() }
     }
 }
 

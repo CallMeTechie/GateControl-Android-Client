@@ -38,4 +38,13 @@ class GateDropStoreJsonTest {
         assertTrue(GateDropStoreJson.receivedList(null).isEmpty())
         assertEquals(1, GateDropStoreJson.receivedList("""[{"key":"a","at":1},{"nokey":1}]""").size)
     }
+
+    @Test
+    fun `handled ids round trip`() {
+        val ids = listOf("s1", "42", "abc_def")
+        assertEquals(ids, GateDropStoreJson.handledList(GateDropStoreJson.handledJson(ids)))
+        assertTrue(GateDropStoreJson.handledList(null).isEmpty())
+        assertTrue(GateDropStoreJson.handledList("{oops").isEmpty())
+        assertEquals(listOf("a", "7"), GateDropStoreJson.handledList("""["a",7,"a",{"x":1},"bad id!"]"""))
+    }
 }

@@ -147,6 +147,14 @@ class GateDropApi @Inject constructor(
         return get("sends/$id", parse = GateDropJson::entry)
     }
 
+    /**
+     * The sends waiting for this device (`GET pending`, GateDrop 1.1),
+     * oldest first. An older plugin answers 404, a login without a device
+     * 409 `no_device`.
+     */
+    suspend fun pending(): GdResult<List<GdEntry>> = get("pending", parse = GateDropJson::pending)
+
+    /** Receipt of a send (`POST sends/<id>/opened`): it leaves `pending`. */
     suspend fun opened(sendId: String): GdResult<Unit> {
         val id = seg(sendId) ?: return GdResult.Failed(CODE_INVALID, 0)
         return post("sends/$id/opened", JsonObject(), unit)

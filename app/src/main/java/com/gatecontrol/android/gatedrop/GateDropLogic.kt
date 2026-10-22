@@ -19,6 +19,21 @@ data class GdSelection(
 /** How a device row reads ("online · direkt im WLAN", "offline · kommt an, sobald online"). */
 enum class GdDeviceState { DIRECT, ONLINE, OFFLINE }
 
+/** What a poll of `pending` does with one send waiting for this device. */
+enum class GdPendingAction {
+    /** Receive it as a delivery push would (notification, auto-save, then acknowledge). */
+    PROCESS,
+
+    /** Already on this device: only the acknowledgement (`opened`) is missing. */
+    ACK,
+
+    /** Nothing to do now (handled and waiting for "Speichern", expired, nothing to fetch yet). */
+    SKIP,
+}
+
+/** After receiving a send over the server: remember it as handled, acknowledge it. */
+data class GdReceiveOutcome(val handled: Boolean, val ack: Boolean)
+
 /** How the files of one send travel. */
 data class GdSendPlan(
     /** Upload the files to the server before `POST sends`. */
@@ -152,7 +167,7 @@ object GateDropLogic {
     /** Delivery summary of a sent entry: the "worst" state wins so a waiting device stays visible. */
     fun overallStatus(deliveries: List<GdDelivery>): String? {
         if (deliveries.isEmpty()) return null
-        val order = listOf(GdDelivery.FAILED, GdDelivery.EXPIRED, GdDelivery.PENDING, GdDelivery.DIRECT, GdDelivery.DELIVERED, GdDelivery.OPENED)
+        val order = listOf(GdDelivery.FAILED, GdDelivery.EXPIRED, GdDelivery.WAITING, GdDelivery.PENDING, GdDelivery.DIRECT, GdDelivery.DELIVERED, GdDelivery.OPENED)
         return deliveries.map { it.status }.minByOrNull { s -> order.indexOf(s).let { if (it < 0) order.size else it } }
     }
 
@@ -185,4 +200,45 @@ object GateDropLogic {
         val onlyLocal = local.filter { it.key !in serverKeys && (it.sendId == null || it.sendId !in serverSends) }
         return (fromServer + onlyLocal).sortedByDescending { it.at }
     }
+
+    // ─── sends waiting for this device (`pending`) ───────────────────
+
+    /** How many handled send ids are remembered (dedupe of `pending` and pushes). */
+    const val HANDLED_MAX = 500
+
+    /** Everything of [entry] is on this device: no files, or every file saved. */
+    fun complete(entry: GdReceived): Boolean = entry.files.all { it.uri != null }
+
+    /**
+     * A send received over the server: [wantSave] = its files were to be
+     * saved now (Wi-Fi, small enough, or "Speichern"). Complete → handled
+     * and acknowledged; not to be saved now → handled (the notification
+     * offers "Speichern", acknowledged once saved); a failed download →
+     * neither, so it is tried again.
+     */
+    fun receiveOutcome(entry: GdReceived, wantSave: Boolean): GdReceiveOutcome = when {
+        complete(entry) -> GdReceiveOutcome(handled = true, ack = true)
+        !wantSave -> GdReceiveOutcome(handled = true, ack = false)
+        else -> GdReceiveOutcome(handled = false, ack = false)
+    }
+
+    /**
+     * One send of `pending`: [handled] = processed before (by a poll or a
+     * push), [local] = what this device keeps of it (over the server or
+     * received directly).
+     */
+    fun pendingAction(send: GdEntry, handled: Boolean, local: GdReceived?): GdPendingAction = when {
+        send.expired -> GdPendingAction.SKIP
+        // On the device already: the acknowledgement did not get through (or it came directly).
+        local != null && complete(local) -> GdPendingAction.ACK
+        handled -> GdPendingAction.SKIP
+        local == null -> GdPendingAction.PROCESS
+        // Tried before and a download failed: again, once something can be fetched.
+        send.items.any { item -> item.mediaId != null && item.available && local.files.none { it.mediaId == item.mediaId && it.uri != null } } -> GdPendingAction.PROCESS
+        else -> GdPendingAction.SKIP
+    }
+
+    /** [ids] with [id] as the newest, at most [max] (the oldest go). */
+    fun remember(ids: List<String>, id: String, max: Int = HANDLED_MAX): List<String> =
+        (ids.filter { it != id } + id).takeLast(max)
 }

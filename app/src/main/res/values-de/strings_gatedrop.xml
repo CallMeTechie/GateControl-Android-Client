@@ -122,6 +122,8 @@
     <string name="gatedrop_empty_links">Keine Links.</string>
     <string name="gatedrop_no_app">Keine App kann das öffnen.</string>
     <string name="gatedrop_status_pending">wartet</string>
+    <string name="gatedrop_status_waiting">Wartet, bis „%1$s“ online ist</string>
+    <string name="gatedrop_status_waiting_any">wartet, bis das Gerät online ist</string>
     <string name="gatedrop_status_direct">direkt übertragen</string>
     <string name="gatedrop_status_delivered">zugestellt</string>
     <string name="gatedrop_status_opened">geöffnet</string>

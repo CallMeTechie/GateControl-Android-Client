@@ -5,11 +5,13 @@ import android.content.pm.ServiceInfo
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -213,7 +215,12 @@ class GateDropReceiveWorker(appContext: Context, params: WorkerParameters) : Cor
             }.onFailure { Timber.w("GateDrop: receive not scheduled (%s)", it.javaClass.simpleName) }
         }
 
-        /** A send over the server: learn it, save its files when [save] (or [autoSave] allows). */
+        /**
+         * A send over the server: learn it, save its files when [save] (or
+         * [autoSave] allows). One fetch per send at a time; [after] (a
+         * delivery push with its placeholder) runs after a fetch already
+         * under way (e.g. from `pending`) instead of being dropped.
+         */
         fun enqueueSend(
             context: Context,
             sendId: String,
@@ -223,6 +230,7 @@ class GateDropReceiveWorker(appContext: Context, params: WorkerParameters) : Cor
             notificationId: Int? = null,
             messageId: Long? = null,
             quiet: Boolean = false,
+            after: Boolean = false,
         ) {
             runCatching {
                 val request = OneTimeWorkRequestBuilder<GateDropReceiveWorker>()
@@ -243,10 +251,41 @@ class GateDropReceiveWorker(appContext: Context, params: WorkerParameters) : Cor
                     .build()
                 WorkManager.getInstance(context).enqueueUniqueWork(
                     "gatedrop-fetch-$sendId",
-                    if (save) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
+                    when {
+                        save -> ExistingWorkPolicy.REPLACE
+                        after -> ExistingWorkPolicy.APPEND_OR_REPLACE
+                        else -> ExistingWorkPolicy.KEEP
+                    },
                     request,
                 )
             }.onFailure { Timber.w("GateDrop: fetch not scheduled (%s)", it.javaClass.simpleName) }
+        }
+    }
+}
+
+/**
+ * Every 15 minutes with a network: fetches what was sent to this device
+ * while it was offline (`GET pending`), also when the app is not open.
+ * The sends found are received by [GateDropReceiveWorker].
+ */
+class GateDropPendingWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        runCatching { deps(applicationContext).gateDropRepository().pollPending(force = true) }
+            .onFailure { if (it is CancellationException) throw it }
+        return Result.success()
+    }
+
+    companion object {
+        private const val NAME = "gatedrop-pending"
+
+        fun schedule(context: Context) {
+            runCatching {
+                val request = PeriodicWorkRequestBuilder<GateDropPendingWorker>(15, TimeUnit.MINUTES)
+                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                    .build()
+                WorkManager.getInstance(context).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+            }.onFailure { Timber.w("GateDrop: pending poll not scheduled (%s)", it.javaClass.simpleName) }
         }
     }
 }
