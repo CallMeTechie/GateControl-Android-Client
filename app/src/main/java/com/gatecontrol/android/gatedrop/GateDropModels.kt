@@ -139,6 +139,8 @@ data class GdDelivery(
 ) {
     companion object {
         const val PENDING = "pending"
+        /** The target device was offline when sent: it fetches the send once it is online (GateDrop 1.1). */
+        const val WAITING = "waiting"
         const val DIRECT = "direct"
         const val DELIVERED = "delivered"
         const val OPENED = "opened"
@@ -197,6 +199,8 @@ data class GdItem(
     val name: String,
     val mime: String,
     val bytes: Long,
+    /** The file can be fetched from the server now (`available`, GateDrop 1.1; older builds: always). */
+    val available: Boolean = true,
 )
 
 /** One entry of `GET inbox?kind=received|sent` or `GET sends/<id>`. */
@@ -211,6 +215,8 @@ data class GdEntry(
     val items: List<GdItem> = emptyList(),
     val deliveries: List<GdDelivery> = emptyList(),
     val opened: Boolean = false,
+    /** The send expired: its files are gone from the server. */
+    val expired: Boolean = false,
 )
 
 /** One link for externals (`GET inbox?kind=links`). */

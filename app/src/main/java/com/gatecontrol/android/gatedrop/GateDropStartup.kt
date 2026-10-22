@@ -36,6 +36,11 @@ import javax.inject.Singleton
  *   network change and every ~5 minutes while the app is in the
  *   foreground (`listening` false: Android only listens while a transfer
  *   needs it);
+ * * what was sent to this device while it was offline (`GET pending`):
+ *   fetched at start and in the foreground, on network changes, with the
+ *   presence tick and every 15 minutes in the background
+ *   ([GateDropPendingWorker]); the push stream's (re)connect asks too
+ *   ([AppPluginEventSink]);
  * * left-over send copies are pruned.
  */
 @Singleton
@@ -64,7 +69,13 @@ class GateDropStartup @Inject constructor(
             setupRepository.revision.drop(1).collect { repository.store.reload() }
         }
         scope.launch {
-            repository.available.collect { on -> if (on) presenceSoon(force = true) }
+            repository.available.collect { on ->
+                if (on) {
+                    presenceSoon(force = true)
+                    repository.pollPendingSoon()
+                    GateDropPendingWorker.schedule(context)
+                }
+            }
         }
         scope.launch { runCatching { repository.store.prune() } }
         watchNetworks()
@@ -86,6 +97,7 @@ class GateDropStartup @Inject constructor(
         ticker = scope.launch {
             while (isActive) {
                 runCatching { repository.reportPresence() }
+                runCatching { repository.pollPending() }
                 delay(PRESENCE_INTERVAL_MS)
             }
         }
@@ -116,10 +128,14 @@ class GateDropStartup @Inject constructor(
     }
 
     private fun changed() {
-        if (repository.available.value) presenceSoon()
+        if (!repository.available.value) return
+        presenceSoon()
+        repository.pollPendingSoon(NETWORK_SETTLE_MS)
     }
 
     companion object {
         private const val PRESENCE_INTERVAL_MS = 5 * 60_000L
+        /** A new network (and the tunnel over it) needs a moment before the server is reachable. */
+        private const val NETWORK_SETTLE_MS = 5_000L
     }
 }

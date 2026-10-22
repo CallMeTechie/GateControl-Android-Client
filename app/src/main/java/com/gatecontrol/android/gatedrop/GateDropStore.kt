@@ -87,7 +87,33 @@ class GateDropStore @Inject constructor(
 
     /** Another login: start empty. */
     fun reload() {
-        synchronized(lock) { _received.value = read() }
+        synchronized(lock) {
+            _received.value = read()
+            handled = readHandled()
+        }
+    }
+
+    // ─── handled sends (dedupe of `pending` and pushes) ─────────────
+
+    /** Ids of the sends received over the server and dealt with, oldest first (at most [GateDropLogic.HANDLED_MAX]). */
+    @Volatile private var handled: List<String> = readHandled()
+
+    private fun readHandled(): List<String> {
+        if (prefs.getString(KEY_HANDLED_OWNER, null) != owner()) return emptyList()
+        return GateDropStoreJson.handledList(prefs.getString(KEY_HANDLED, null))
+    }
+
+    /** The send was processed already (notified, saved or waiting for "Speichern"). */
+    fun isHandled(sendId: String): Boolean = sendId in handled
+
+    fun markHandled(sendId: String) = synchronized(lock) {
+        if (sendId in handled) return@synchronized
+        val next = GateDropLogic.remember(handled, sendId)
+        prefs.edit {
+            putString(KEY_HANDLED_OWNER, owner())
+            putString(KEY_HANDLED, GateDropStoreJson.handledJson(next))
+        }
+        handled = next
     }
 
     fun get(key: String): GdReceived? = _received.value.firstOrNull { it.key == key }
@@ -152,6 +178,8 @@ class GateDropStore @Inject constructor(
         private const val PREFS = "gatedrop"
         private const val KEY_OWNER = "owner"
         private const val KEY_RECEIVED = "received"
+        private const val KEY_HANDLED = "handled"
+        private const val KEY_HANDLED_OWNER = "handled_owner"
         const val OUT_DIR = "gatedrop-out"
         const val MAX_RECEIVED = 100
         val JOB_ID_RE = Regex("^[A-Za-z0-9_-]{8,64}$")
@@ -214,6 +242,15 @@ object GateDropStoreJson {
                 }.orEmpty(),
             )
         }
+    }
+
+    fun handledJson(ids: List<String>): String = JsonArray().apply { ids.forEach { add(it) } }.toString()
+
+    /** The remembered send ids; malformed entries dropped, at most [GateDropLogic.HANDLED_MAX] (the newest). */
+    fun handledList(json: String?): List<String> {
+        if (json.isNullOrBlank()) return emptyList()
+        val arr = runCatching { JsonParser.parseString(json).asJsonArray }.getOrNull() ?: return emptyList()
+        return arr.mapNotNull { GateDropJson.idOf(it) }.distinct().takeLast(GateDropLogic.HANDLED_MAX)
     }
 
     fun jobJson(job: GdJob): JsonObject = JsonObject().apply {

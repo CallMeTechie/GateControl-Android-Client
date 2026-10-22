@@ -315,4 +315,45 @@ class GateDropJsonTest {
         assertEquals("4819", GateDropJson.pin(JsonParser.parseString("4819")))
         assertNull(GateDropJson.pin(JsonParser.parseString("\"12\"")))
     }
+
+    @Test
+    fun `pending lists the waiting sends oldest first`() {
+        val list = GateDropJson.pending(
+            obj(
+                """{"ok":true,"items":[
+                {"id":"s1","role":"sent","createdAt":"2026-10-20T08:00:00Z","expiresAt":"2026-10-27T08:00:00Z","expired":false,
+                 "from":{"userId":3,"name":"Max","avatarUrl":"/a/3.webp","deviceId":"d-pc","deviceName":"Büro-PC"},
+                 "text":null,"link":null,"note":"Für dich",
+                 "items":[{"index":0,"mediaId":"m1234567890","name":"a.pdf","mime":"application/pdf","bytes":12,"local":false,"available":true},
+                          {"index":1,"mediaId":null,"name":"b.jpg","mime":"image/jpeg","bytes":34,"local":true,"available":false}],
+                 "deliveries":[{"kind":"device","target":"d-phone","targetName":"Handy","status":"waiting","via":"server"}]},
+                {"id":"s2","role":"sent","createdAt":"2026-10-21T08:00:00Z","expired":false,"from":{"name":"Max","deviceName":"Laptop"},
+                 "text":"Hallo","items":[],"deliveries":[]},
+                {"id":"s1","text":"dup"},
+                {"nope":1}
+                ]}""",
+            ),
+        )!!
+        assertEquals(listOf("s1", "s2"), list.map { it.id })
+        val first = list[0]
+        assertEquals("Büro-PC", first.from)
+        assertEquals("Für dich", first.note)
+        assertFalse(first.expired)
+        assertEquals(2, first.items.size)
+        assertEquals("m1234567890", first.items[0].mediaId)
+        assertTrue(first.items[0].available)
+        assertNull(first.items[1].mediaId)
+        assertFalse(first.items[1].available)
+        assertEquals(GdDelivery.WAITING, first.deliveries.single().status)
+        assertEquals("Handy", first.deliveries.single().targetName)
+        assertEquals("Hallo", list[1].text)
+        assertTrue(list[1].items.isEmpty())
+        // An expired send, an empty list, no list.
+        assertTrue(GateDropJson.pending(obj("""{"ok":true,"items":[{"id":"x","expired":true}]}"""))!!.single().expired)
+        assertTrue(GateDropJson.pending(obj("""{"ok":true,"items":[]}"""))!!.isEmpty())
+        assertNull(GateDropJson.pending(obj("""{"ok":true}""")))
+        assertNull(GateDropJson.pending(null))
+        // Older views without `available`: the files count as available.
+        assertTrue(GateDropJson.entry(obj("""{"id":"s","items":[{"mediaId":"m1234567890","name":"a"}]}"""))!!.items.single().available)
+    }
 }

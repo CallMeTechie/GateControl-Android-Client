@@ -139,6 +139,71 @@ class GateDropLogicTest {
         assertEquals(GdDelivery.PENDING, GateDropLogic.overallStatus(listOf(d(GdDelivery.DELIVERED), d(GdDelivery.PENDING))))
         assertEquals(GdDelivery.FAILED, GateDropLogic.overallStatus(listOf(d(GdDelivery.FAILED), d(GdDelivery.OPENED))))
         assertEquals(GdDelivery.DELIVERED, GateDropLogic.overallStatus(listOf(d(GdDelivery.DELIVERED), d(GdDelivery.OPENED))))
+        // A device that was offline when sent stays visible.
+        assertEquals(GdDelivery.WAITING, GateDropLogic.overallStatus(listOf(d(GdDelivery.OPENED), d(GdDelivery.WAITING), d(GdDelivery.PENDING))))
+        assertEquals(GdDelivery.FAILED, GateDropLogic.overallStatus(listOf(d(GdDelivery.WAITING), d(GdDelivery.FAILED))))
+    }
+
+    @Test
+    fun `an offline own device gets the files over the server`() {
+        val devices = listOf(pc, laptop, phone)
+        val offlineOnly = GateDropLogic.plan(2, GdRecipients(devices = listOf("lap")), devices)
+        assertTrue(offlineOnly.uploadFirst)
+        assertFalse(offlineOnly.localItems)
+        // The send job only counts devices that were online and direct as direct.
+        val direct = listOf(laptop).filter { it.online && it.direct }.map { GdDevice(it.id, it.id, online = true, direct = true) }
+        assertTrue(GateDropLogic.plan(1, GdRecipients(devices = listOf("lap")), direct).uploadFirst)
+        // Selectable: an offline device is a valid recipient.
+        assertTrue(GateDropLogic.canSend(GdSelection().toggleDevice("lap"), targets, fileCount = 1, hasText = false))
+    }
+
+    private fun file(mediaId: String?, uri: String? = null) = GdReceivedFile("f", "application/pdf", 10, mediaId, uri)
+
+    @Test
+    fun `receive outcome - handled and acknowledged`() {
+        val text = GdReceived("s:1", "1", "PC", 1, text = "Hallo")
+        assertEquals(GdReceiveOutcome(handled = true, ack = true), GateDropLogic.receiveOutcome(text, wantSave = true))
+        assertEquals(GdReceiveOutcome(handled = true, ack = true), GateDropLogic.receiveOutcome(text, wantSave = false))
+        val saved = GdReceived("s:2", "2", "PC", 1, files = listOf(file("m1234567890", "content://1")))
+        assertEquals(GdReceiveOutcome(handled = true, ack = true), GateDropLogic.receiveOutcome(saved, wantSave = true))
+        // Too big for mobile data: the notification offers "Speichern", acknowledged only after saving.
+        val big = GdReceived("s:3", "3", "PC", 1, files = listOf(file("m1234567890")))
+        assertEquals(GdReceiveOutcome(handled = true, ack = false), GateDropLogic.receiveOutcome(big, wantSave = false))
+        // A download failed: neither, so the next poll tries again.
+        val partly = GdReceived("s:4", "4", "PC", 1, files = listOf(file("m1234567890", "content://1"), file("m0987654321")))
+        assertEquals(GdReceiveOutcome(handled = false, ack = false), GateDropLogic.receiveOutcome(partly, wantSave = true))
+    }
+
+    @Test
+    fun `pending action per send`() {
+        val send = GdEntry("7", at = 1, items = listOf(GdItem("m1234567890", "a.pdf", "application/pdf", 10)))
+        assertEquals(GdPendingAction.PROCESS, GateDropLogic.pendingAction(send, handled = false, local = null))
+        // Dedupe: handled by a push or an earlier poll.
+        assertEquals(GdPendingAction.SKIP, GateDropLogic.pendingAction(send, handled = true, local = GdReceived("s:7", "7", null, 1, files = listOf(file("m1234567890")))))
+        // On the device (saved or received directly) but not acknowledged yet.
+        val saved = GdReceived("s:7", "7", null, 1, files = listOf(file("m1234567890", "content://1")))
+        assertEquals(GdPendingAction.ACK, GateDropLogic.pendingAction(send, handled = true, local = saved))
+        assertEquals(GdPendingAction.ACK, GateDropLogic.pendingAction(send, handled = false, local = saved.copy(key = "t:x")))
+        // A failed download: again.
+        assertEquals(GdPendingAction.PROCESS, GateDropLogic.pendingAction(send, handled = false, local = GdReceived("s:7", "7", null, 1, files = listOf(file("m1234567890")))))
+        // Nothing can be fetched yet (the sender still has to upload): no new try.
+        val notYet = send.copy(items = listOf(GdItem(null, "a.pdf", "application/pdf", 10, available = false)))
+        assertEquals(GdPendingAction.SKIP, GateDropLogic.pendingAction(notYet, handled = false, local = GdReceived("s:7", "7", null, 1, files = listOf(file(null)))))
+        assertEquals(GdPendingAction.SKIP, GateDropLogic.pendingAction(send.copy(expired = true), handled = false, local = null))
+        // Text and link sends are received too.
+        assertEquals(GdPendingAction.PROCESS, GateDropLogic.pendingAction(GdEntry("8", at = 1, text = "Hallo"), handled = false, local = null))
+    }
+
+    @Test
+    fun `handled ids are bounded and newest last`() {
+        var ids = emptyList<String>()
+        for (i in 1..510) ids = GateDropLogic.remember(ids, "s$i")
+        assertEquals(GateDropLogic.HANDLED_MAX, ids.size)
+        assertEquals("s11", ids.first())
+        assertEquals("s510", ids.last())
+        ids = GateDropLogic.remember(ids, "s11")
+        assertEquals("s11", ids.last())
+        assertEquals(GateDropLogic.HANDLED_MAX, ids.size)
     }
 
     @Test

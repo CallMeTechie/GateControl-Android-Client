@@ -256,6 +256,7 @@ private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (
 @Composable
 private fun statusText(status: String?): String? = when (status) {
     GdDelivery.PENDING -> stringResource(R.string.gatedrop_status_pending)
+    GdDelivery.WAITING -> stringResource(R.string.gatedrop_status_waiting_any)
     GdDelivery.DIRECT -> stringResource(R.string.gatedrop_status_direct)
     GdDelivery.DELIVERED -> stringResource(R.string.gatedrop_status_delivered)
     GdDelivery.OPENED -> stringResource(R.string.gatedrop_status_opened)
@@ -290,7 +291,14 @@ private fun SentList(ui: SharedUi) {
                 else -> stringResource(R.string.gatedrop_item_text, e.text?.lineSequence()?.firstOrNull().orEmpty().take(60))
             }
             val to = e.deliveries.map { deliveryName(it) }.distinct().take(3).joinToString(", ")
-            val status = statusText(GateDropLogic.overallStatus(e.deliveries))
+            val overall = GateDropLogic.overallStatus(e.deliveries)
+            // The target device was offline: it fetches the send once it is online.
+            val waiting = e.deliveries.firstOrNull { it.status == GdDelivery.WAITING }
+            val status = if (overall == GdDelivery.WAITING && waiting != null) {
+                waiting.targetName?.let { stringResource(R.string.gatedrop_status_waiting, it) } ?: statusText(overall)
+            } else {
+                statusText(overall)
+            }
             GcListRow(
                 title = title,
                 description = listOfNotNull(

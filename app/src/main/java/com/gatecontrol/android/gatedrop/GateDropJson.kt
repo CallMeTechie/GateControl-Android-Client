@@ -344,6 +344,7 @@ object GateDropJson {
             name = safeName(nameRaw),
             mime = mime(o.firstStr("mime", "type")),
             bytes = o.long("bytes") ?: o.long("size") ?: 0L,
+            available = o.flag("available") != false,
         )
     }
 
@@ -372,6 +373,7 @@ object GateDropJson {
             items = root.arr("items")?.mapNotNull { item(it.objOrNull()) }?.take(MAX_ITEMS * 5).orEmpty(),
             deliveries = root.arr("deliveries")?.mapNotNull { delivery(it.objOrNull()) }?.take(MAX_LIST).orEmpty(),
             opened = root.flag("opened") == true || root.str("status") == GdDelivery.OPENED,
+            expired = root.flag("expired") == true,
         )
     }
 
@@ -379,6 +381,16 @@ object GateDropJson {
     fun entries(o: JsonObject?): List<GdEntry>? {
         if (o == null) return null
         val list = listOf("sends", "entries", "list", "received", "sent", "inbox", "items").firstNotNullOfOrNull { o.arr(it) } ?: return null
+        return list.mapNotNull { entry(it.objOrNull()) }.distinctBy { it.id }.take(MAX_LIST)
+    }
+
+    /**
+     * `GET pending` (GateDrop 1.1) → the sends waiting for this device, in
+     * the server's order (oldest first); null when the answer holds no list.
+     */
+    fun pending(o: JsonObject?): List<GdEntry>? {
+        if (o == null) return null
+        val list = listOf("items", "sends", "pending").firstNotNullOfOrNull { o.arr(it) } ?: return null
         return list.mapNotNull { entry(it.objOrNull()) }.distinctBy { it.id }.take(MAX_LIST)
     }
 
