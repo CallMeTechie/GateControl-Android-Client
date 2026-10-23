@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import androidx.lifecycle.viewModelScope
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.Closeable
 import java.io.File
+import java.util.concurrent.Executors
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationSettingsViewModelTest {
@@ -63,9 +65,14 @@ class NotificationSettingsViewModelTest {
         override fun watchNetwork(onChange: (String) -> Unit) = Closeable {}
     }
 
+    // A real main thread: with Dispatchers.Unconfined as Main, coroutines resumed from the DataStore's IO
+    // threads could end up queued in an event loop nobody ran, and uiState then stopped updating (rare
+    // timeouts in CI).
+    private val mainThread = Executors.newSingleThreadExecutor { Thread(it, "test-main") }.asCoroutineDispatcher()
+
     @BeforeEach
     fun setUp() {
-        Dispatchers.setMain(Dispatchers.Unconfined)
+        Dispatchers.setMain(mainThread)
         store = PushPrefsStore(
             PreferenceDataStoreFactory.create(
                 scope = storeScope,
@@ -83,11 +90,12 @@ class NotificationSettingsViewModelTest {
         runBlocking { viewModels.forEach { it.viewModelScope.coroutineContext[Job]!!.cancelAndJoin() } }
         storeScope.cancel()
         Dispatchers.resetMain()
+        mainThread.close()
     }
 
     private fun vm() = NotificationSettingsViewModel(store, repository, controller, platform, portal, setup, client).also { viewModels += it }
 
-    private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(5_000) { block() } }
+    private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(10_000) { block() } }
 
     @Test
     fun `first switch-on proposes the mode instead of enabling right away`() {
@@ -109,6 +117,9 @@ class NotificationSettingsViewModelTest {
         assertTrue(s.enabled)
         assertTrue(s.modeChosen)
         assertEquals(PushMode.ALWAYS, s.mode)
+        // uiState is combined on its own coroutines and may lag a moment behind: wait for "on with the dialog
+        // closed" (a reopened dialog never gets there and times out) instead of reading the value right away.
+        await { vm.uiState.first { it.enabled && !it.modeDialogVisible } }
         assertFalse(vm.uiState.value.modeDialogVisible)
 
         // Permission answered → the battery exemption follows (optimisation active).
@@ -211,7 +222,7 @@ class NotificationSettingsViewModelTest {
     fun `the screen reads the quiet hours from the server and shows what the store holds`() {
         val vm = vm()
         await { vm.uiState.first { it.quiet == QuietDisplay.Unknown } }
-        io.mockk.coVerify { repository.refreshQuiet() }
+        io.mockk.coVerify(timeout = 10_000) { repository.refreshQuiet() }
         await { store.saveQuiet(QuietInfo(true, QuietHours("22:00", "07:00", null, false))) }
         val s = await { vm.uiState.first { it.quiet is QuietDisplay.Window } }
         assertEquals(QuietDisplay.Window("22:00", "07:00", null, false), s.quiet)
@@ -228,6 +239,6 @@ class NotificationSettingsViewModelTest {
             SettingsEffect.OpenUrl("https://portal.example.com/auto?t=x&next=%2Fportal%23benachrichtigungen"),
             await { vm.effect.first() },
         )
-        io.mockk.coVerify { portal.resolve("/portal#benachrichtigungen") }
+        io.mockk.coVerify(timeout = 10_000) { portal.resolve("/portal#benachrichtigungen") }
     }
 }

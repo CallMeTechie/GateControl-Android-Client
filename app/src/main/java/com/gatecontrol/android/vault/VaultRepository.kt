@@ -392,8 +392,13 @@ class VaultRepository @Inject constructor(
         return Sync.Error("too_many_pages")
     }
 
-    /** POST items for the outbox in requests ≤ ~48 KB; null when done (or nothing to do), else why not. */
+    /**
+     * POST items for the outbox in requests ≤ ~48 KB; null when done (or nothing to do), else why not. Only while
+     * unlocked: a conflict copy or a re-encryption needs the keys, a locked sync only fetches.
+     */
     private suspend fun flushLocked(): Sync? {
+        if (session.keys() == null) return null
+        refreshKeys()
         var rounds = 0
         while (_state.value.outbox.isNotEmpty() && rounds++ < 20) {
             val batch = ArrayList<VaultJson.SaveItem>()
@@ -405,7 +410,8 @@ class VaultRepository @Inject constructor(
                 bytes += b
             }
             when (val r = api.save(batch, deviceName)) {
-                is VResult.Ok -> applyResults(batch, r.value)
+                // the vault has a newer key we do not know yet: fetch first, the next flush encrypts again
+                is VResult.Ok -> if (applyResults(batch, r.value)) return null
                 VResult.Offline -> return Sync.Offline
                 is VResult.Failed -> return Sync.Error(r.code)
                 VResult.NotConfigured -> return Sync.Error("not_configured")
@@ -414,13 +420,16 @@ class VaultRepository @Inject constructor(
         return null
     }
 
-    private fun applyResults(batch: List<VaultJson.SaveItem>, results: List<VSaveResult>) {
+    /** Stores the server's answers to [batch]; true when a save was refused for an old key (fetch, then again). */
+    private fun applyResults(batch: List<VaultJson.SaveItem>, results: List<VSaveResult>, rekey: Boolean = false): Boolean {
         var s = _state.value
+        var staleKey = false
         val byId = results.associateBy { it.id }
         for (sent in batch) {
             val res = byId[sent.id] ?: continue
             val queued = s.outbox.firstOrNull { it.id == sent.id }
-            // the entry was changed again meanwhile: that newer save stays queued on top of the new revision
+            // a newer save of the entry is queued (the person's own during a key change): it goes on top of the new
+            // revision — encrypted again, since the revision is part of what the blob is bound to
             val changedAgain = queued != null && queued.blob != sent.blob
             val items = s.items.toMutableMap()
             var outbox = s.outbox
@@ -432,7 +441,13 @@ class VaultRepository @Inject constructor(
                         blob = sent.blob, state = if (old?.trashed == true) "trash" else "live", trashedAt = old?.trashedAt,
                         updatedAt = old?.updatedAt, updatedBy = myUserId(), device = deviceName, seq = res.seq ?: 0,
                     )
-                    outbox = if (changedAgain) outbox.map { if (it.id == sent.id) it.copy(baseRev = res.rev ?: (sent.baseRev + 1)) else it } else outbox.filter { it.id != sent.id }
+                    val rev = res.rev ?: (sent.baseRev + 1)
+                    outbox = if (changedAgain) outbox.map { if (it.id == sent.id) rebase(s.vault(sent.vaultId), it, rev) ?: it else it } else outbox.filter { it.id != sent.id }
+                }
+                rekey -> {
+                    // a key change only re-encrypts: take the newer version (the next round moves it to the new
+                    // key) and leave the person's own queued saves alone
+                    if (res.code == "conflict" && res.current != null) items[sent.id] = res.current
                 }
                 res.code == "conflict" && res.current != null -> {
                     // both versions stay: the server's as the entry, ours as a copy
@@ -444,9 +459,8 @@ class VaultRepository @Inject constructor(
                     }
                 }
                 res.code == "stale_key" -> {
-                    // the vault got a new key: encrypt again with it (sync brought it), else give up on this save
-                    val again = reencrypt(s.vault(sent.vaultId), queued ?: sent)
-                    outbox = outbox.filter { it.id != sent.id } + listOfNotNull(again)
+                    // the vault got a new key: the save stays queued until a fetch brought it (refreshKeys)
+                    staleKey = true
                 }
                 else -> {
                     outbox = outbox.filter { it.id != sent.id }
@@ -457,6 +471,18 @@ class VaultRepository @Inject constructor(
         }
         setState(s)
         rebuild()
+        return staleKey
+    }
+
+    /** Queued saves still on an older key than their vault wants now: encrypted again with the new one. */
+    private fun refreshKeys() {
+        val s = _state.value
+        var changed = false
+        val outbox = s.outbox.map { p ->
+            val v = s.vault(p.vaultId)
+            if (v == null || p.keyRev == v.wantedKeyRev) p else rebase(v, p, p.baseRev)?.also { changed = true } ?: p
+        }
+        if (changed) setState(s.copy(outbox = outbox))
     }
 
     private fun plainOf(vault: VVault?, save: VaultJson.SaveItem): EntryData? =
@@ -469,10 +495,11 @@ class VaultRepository @Inject constructor(
         return encryptSave(v, VaultCrypto.newId(), 0, copy)
     }
 
-    private fun reencrypt(vault: VVault?, save: VaultJson.SaveItem): VaultJson.SaveItem? {
+    /** [save] encrypted again on top of [baseRev] with the key its vault wants now; null when that is not possible. */
+    private fun rebase(vault: VVault?, save: VaultJson.SaveItem, baseRev: Int): VaultJson.SaveItem? {
         val v = vault ?: return null
         val data = plainOf(v, save) ?: return null
-        return encryptSave(v, save.id, save.baseRev, data)
+        return encryptSave(v, save.id, baseRev, data)
     }
 
     /** The save of [data] as entry [id] on top of [baseRev], encrypted with the key a save must use now. */
@@ -697,7 +724,7 @@ class VaultRepository @Inject constructor(
             suspend fun send() {
                 if (batch.isEmpty()) return
                 val r = api.save(batch, deviceName)
-                if (r is VResult.Ok) applyResults(batch, r.value)
+                if (r is VResult.Ok) applyResults(batch, r.value, rekey = true)
                 batch = ArrayList()
                 bytes = 0
             }
