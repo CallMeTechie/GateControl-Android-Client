@@ -42,6 +42,10 @@ mockk = "1.14.11"
 turbine = "1.2.1"
 robolectric = "4.17"
 org-json = "20260814"
+# Vault: Argon2id, XChaCha20-Poly1305, X25519, BLAKE2b in pure Java (no native code, runs in unit tests).
+bouncycastle = "1.85"
+# Vault: the recovery key as a QR code.
+zxing = "3.5.3"
 
 [libraries]
 glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
@@ -110,6 +114,10 @@ camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = 
 
 # ML Kit
 mlkit-barcode = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkit-barcode" }
+
+# Vault
+bouncycastle-prov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 # Logging
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
