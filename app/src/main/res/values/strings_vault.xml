@@ -28,7 +28,6 @@
     <string name="vault_intro_title">Your passwords, on your server</string>
     <string name="vault_intro_text">End-to-end encrypted: only your devices can read them – not the server, not an administrator. Works offline and syncs without the VPN.</string>
     <string name="vault_intro_start">Set up Vault</string>
-    <string name="vault_intro_loading">Checking Vault …</string>
     <string name="vault_unavailable">Vault cannot be reached. Check the connection to your server.</string>
     <string name="vault_retry">Try again</string>
     <string name="vault_setup_title">Set up Vault</string>
@@ -99,7 +98,6 @@
     <string name="vault_recover_typo">Typo? The key has 56 characters in 14 groups – check them once more.</string>
     <string name="vault_recover_new_pw">New master password</string>
     <string name="vault_recover_button">Continue</string>
-    <string name="vault_recover_done">Done. Keep your new recovery key – the old one no longer works.</string>
 
     <!-- List -->
     <string name="vault_search_hint">Search %1$s</string>
@@ -112,7 +110,10 @@
     <string name="vault_new_entry">New entry</string>
     <string name="vault_empty">No entries yet. Add one with + or import them.</string>
     <string name="vault_no_results">Nothing found.</string>
-    <string name="vault_unreadable">%1$d entries could not be opened.</string>
+    <plurals name="vault_unreadable">
+        <item quantity="one">%d entry could not be opened.</item>
+        <item quantity="other">%d entries could not be opened.</item>
+    </plurals>
     <string name="vault_menu_vaults">Vaults &amp; sharing</string>
     <string name="vault_menu_emergency">Emergency access</string>
     <string name="vault_menu_import">Import</string>
@@ -186,7 +187,6 @@
     <string name="vault_purge_confirm">Delete “%1$s” for good? This cannot be undone.</string>
     <string name="vault_trashed_info">In the trash – deleted for good after 30 days.</string>
     <string name="vault_read_only">Read only</string>
-    <string name="vault_needs_online">This needs a connection to the server.</string>
 
     <!-- Edit, generator -->
     <string name="vault_generate">Generate password</string>
@@ -220,7 +220,6 @@
     <string name="vault_role_read">View</string>
     <string name="vault_role_write">Edit</string>
     <string name="vault_role_manage">Manage</string>
-    <string name="vault_role">Role</string>
     <string name="vault_you">%1$s (you)</string>
     <string name="vault_add_person">Add person</string>
     <string name="vault_add_title">Add %1$s</string>
@@ -280,20 +279,43 @@
     <string name="vault_import_fmt_bitwarden">JSON or CSV</string>
     <string name="vault_import_fmt_csv">CSV</string>
     <string name="vault_import_fmt_keepass">CSV (KeePassXC)</string>
-    <string name="vault_import_pick">Choose file</string>
     <string name="vault_import_other">Other file</string>
-    <string name="vault_import_found">%1$d entries found</string>
-    <string name="vault_import_logins">%1$d logins</string>
-    <string name="vault_import_totp">%1$d with 2FA</string>
-    <string name="vault_import_notes">%1$d notes</string>
-    <string name="vault_import_cards">%1$d cards</string>
-    <string name="vault_import_dupes">%1$d entries exist already – they are skipped</string>
+    <plurals name="vault_import_found">
+        <item quantity="one">%d entry found</item>
+        <item quantity="other">%d entries found</item>
+    </plurals>
+    <plurals name="vault_import_logins">
+        <item quantity="one">%d login</item>
+        <item quantity="other">%d logins</item>
+    </plurals>
+    <plurals name="vault_import_totp">
+        <item quantity="one">%d with 2FA</item>
+        <item quantity="other">%d with 2FA</item>
+    </plurals>
+    <plurals name="vault_import_notes">
+        <item quantity="one">%d note</item>
+        <item quantity="other">%d notes</item>
+    </plurals>
+    <plurals name="vault_import_cards">
+        <item quantity="one">%d card</item>
+        <item quantity="other">%d cards</item>
+    </plurals>
+    <plurals name="vault_import_dupes">
+        <item quantity="one">%d entry exists already – it is skipped</item>
+        <item quantity="other">%d entries exist already – they are skipped</item>
+    </plurals>
     <string name="vault_import_into">Into vault</string>
     <string name="vault_import_info">The file is read and encrypted on this device only. Delete it afterwards – it contains everything in plain text.</string>
-    <string name="vault_import_button">Import %1$d entries</string>
+    <plurals name="vault_import_button">
+        <item quantity="one">Import %d entry</item>
+        <item quantity="other">Import %d entries</item>
+    </plurals>
     <string name="vault_import_encrypted">This export is password-protected. Export again without a password (JSON or CSV).</string>
     <string name="vault_import_unknown">This file is not an export Vault knows.</string>
-    <string name="vault_import_done">%1$d entries imported.</string>
+    <plurals name="vault_import_done">
+        <item quantity="one">%d entry imported.</item>
+        <item quantity="other">%d entries imported.</item>
+    </plurals>
 
     <!-- Settings -->
     <string name="vault_settings_title">Vault settings</string>
@@ -322,6 +344,4 @@
     <string name="vault_af_save_title">Save this login in Vault?</string>
     <string name="vault_af_no_entries">No matching entry.</string>
 
-    <!-- Pushes -->
-    <string name="vault_push_open">Open Vault</string>
 </resources>

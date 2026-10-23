@@ -2,7 +2,7 @@ package com.gatecontrol.android.ui.vault
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.Settings
 import android.view.autofill.AutofillManager
 import androidx.activity.compose.BackHandler
@@ -188,7 +188,7 @@ fun vaultAutofillActive(context: Context): Boolean =
 
 fun openAutofillSettings(context: Context) {
     runCatching {
-        context.startActivity(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:" + context.packageName)))
+        context.startActivity(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, ("package:" + context.packageName).toUri()))
     }
 }
 

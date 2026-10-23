@@ -612,6 +612,45 @@ Unterschied. Unbekannte Nachrichtenarten neuerer Server zeigt der Chat als
 
 ---
 
+## Vault (Plugin `gatecontrol-vault` 1.0)
+
+Wenn der Server das Plugin „Vault“ anbietet, hat die untere Leiste den Tab
+**Vault** (zwischen Chats und Netzwerk): ein Passwort-Manager mit
+Ende-zu-Ende-Verschlüsselung. Der Server sieht nur verschlüsselte Daten;
+Abgleich über die normale Server-Adresse, auch ohne aktiven Tunnel.
+
+- **Einrichten:** Master-Passwort (Stärke-Anzeige, mind. 12 Zeichen),
+  Wiederherstellungsschlüssel (56 Zeichen, kopieren, drucken), danach
+  Fingerabdruck-Entsperren und Autofill einschalten. Schlüssel:
+  Argon2id (64 MiB, t=3), XChaCha20-Poly1305, X25519 — dasselbe Format wie
+  die Windows-Apps (Testvektoren aus `gatecontrol-client-core`).
+- **Entsperren:** Master-Passwort, Fingerabdruck (Schlüssel im Keystore,
+  an starke Biometrie gebunden) oder Wiederherstellungsschlüssel mit neuem
+  Master-Passwort. Automatisch sperren nach 0/1/5/15/60 Minuten im
+  Hintergrund (Standard 5).
+- **Einträge:** Login (mit TOTP-Code und Ring), Einmal-Code, Notiz, Karte,
+  WLAN (QR-Code), Identität; eigene Felder, Favoriten, Suche, Filter nach
+  Typ, Verlauf früherer Versionen, Papierkorb. Kopierte Geheimnisse sind
+  als vertraulich markiert und werden nach 30 s aus der Zwischenablage
+  gelöscht. Passwort-Generator (Zeichen oder Wörter).
+- **Offline:** eine verschlüsselte Kopie liegt auf dem Gerät; Änderungen
+  ohne Verbindung gehen in eine Warteschlange. Bei Konflikten entsteht eine
+  Kopie „(Konflikt)“, nichts geht verloren.
+- **Teilen:** weitere Tresore anlegen, Personen des Servers mit Rolle
+  (Lesen, Bearbeiten, Verwalten) hinzufügen, Sicherheitsnummer zum
+  Vergleichen; beim Entfernen werden die Schlüssel des Tresors erneuert.
+- **Notfallzugriff:** Vertrauenspersonen mit Wartezeit; sie können nach
+  Ablauf der Frist (ohne Widerspruch) den Tresor lesen.
+- **Import:** Bitwarden (JSON/CSV), Chrome, 1Password, KeePass, Firefox
+  (CSV); Duplikate werden erkannt.
+- **Autofill:** GateControl als Android-Autofill-Dienst (Einstellungen →
+  Passwörter & Autofill). Passende Einträge nach App oder Webseite,
+  „Entsperren“ solange gesperrt, „In Vault suchen …“ (wahlweise für diese
+  App merken) und Speichern neuer Logins. Die Vorschläge zeigen nur Titel
+  und Benutzername; das Passwort wird erst beim Auswählen eingesetzt.
+
+---
+
 ## Einstellungen
 
 Seit 1.35 kein Tab mehr: das Zahnrad oben rechts im Profil öffnet sie (mit

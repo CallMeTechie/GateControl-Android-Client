@@ -386,7 +386,7 @@ private fun VaultList(viewModel: VaultViewModel, nav: VaultNav) {
                     }
                     if (unreadable > 0) {
                         GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
-                            Text(stringResource(R.string.vault_unreadable, unreadable), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(pluralStringResource(R.plurals.vault_unreadable, unreadable, unreadable), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }

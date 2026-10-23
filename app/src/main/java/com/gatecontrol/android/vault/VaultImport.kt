@@ -23,7 +23,7 @@ object VaultImport {
     }
 
     fun parse(text: String): Outcome {
-        val t = text.trimStart('﻿').trim()
+        val t = text.trimStart('\uFEFF').trim()
         if (t.startsWith("{")) return bitwardenJson(t)
         return csv(t)
     }

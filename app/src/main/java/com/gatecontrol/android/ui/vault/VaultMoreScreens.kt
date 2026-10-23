@@ -356,18 +356,18 @@ fun VaultImportScreen(onBack: () -> Unit, onForgot: () -> Unit, viewModel: Vault
                                     Icon(GcIcons.File, null, tint = x.accentText, modifier = Modifier.size(22.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(fileName ?: o.result.source, style = MaterialTheme.typography.titleMedium)
-                                        Text(stringResource(R.string.vault_import_found, o.result.entries.size), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                                        Text(pluralStringResource(R.plurals.vault_import_found, o.result.entries.size, o.result.entries.size), style = MaterialTheme.typography.bodySmall, color = x.muted)
                                     }
                                     GcSecondaryButton(stringResource(R.string.vault_import_other), onClick = { pick.launch(types) }, fillWidth = false)
                                 }
                                 GcRowDivider()
                                 listOf(
-                                    stringResource(R.string.vault_import_logins, o.result.logins),
-                                    stringResource(R.string.vault_import_totp, o.result.withTotp),
-                                    stringResource(R.string.vault_import_notes, o.result.notes),
-                                    stringResource(R.string.vault_import_cards, o.result.cards),
+                                    pluralStringResource(R.plurals.vault_import_logins, o.result.logins, o.result.logins),
+                                    pluralStringResource(R.plurals.vault_import_totp, o.result.withTotp, o.result.withTotp),
+                                    pluralStringResource(R.plurals.vault_import_notes, o.result.notes, o.result.notes),
+                                    pluralStringResource(R.plurals.vault_import_cards, o.result.cards, o.result.cards),
                                 ).forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                                if (dupes > 0) Text(stringResource(R.string.vault_import_dupes, dupes), style = MaterialTheme.typography.bodyMedium, color = x.warn)
+                                if (dupes > 0) Text(pluralStringResource(R.plurals.vault_import_dupes, dupes, dupes), style = MaterialTheme.typography.bodyMedium, color = x.warn)
                             }
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -388,9 +388,9 @@ fun VaultImportScreen(onBack: () -> Unit, onForgot: () -> Unit, viewModel: Vault
                         }
                         GcBanner(tone = GcTone.Info, icon = GcIcons.Shield) { Text(stringResource(R.string.vault_import_info), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium) }
                         if (done != null) {
-                            GcBanner(tone = GcTone.Ok, icon = GcIcons.Check) { Text(stringResource(R.string.vault_import_done, done!!), color = MaterialTheme.colorScheme.onSurface) }
+                            GcBanner(tone = GcTone.Ok, icon = GcIcons.Check) { Text(pluralStringResource(R.plurals.vault_import_done, done!!, done!!), color = MaterialTheme.colorScheme.onSurface) }
                         } else {
-                            GcPrimaryButton(stringResource(R.string.vault_import_button, fresh.size), enabled = fresh.isNotEmpty() && target != null && !busy, loading = busy, minHeight = 52.dp, onClick = {
+                            GcPrimaryButton(pluralStringResource(R.plurals.vault_import_button, fresh.size, fresh.size), enabled = fresh.isNotEmpty() && target != null && !busy, loading = busy, minHeight = 52.dp, onClick = {
                                 busy = true
                                 viewModel.import(target!!, fresh) { n -> busy = false; done = n }
                             })

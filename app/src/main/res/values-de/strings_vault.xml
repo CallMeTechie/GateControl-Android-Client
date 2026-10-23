@@ -28,7 +28,6 @@
     <string name="vault_intro_title">Deine Passwörter, auf deinem Server</string>
     <string name="vault_intro_text">Ende-zu-Ende verschlüsselt: Nur deine Geräte können sie lesen – nicht der Server, kein Admin. Funktioniert offline und gleicht ohne VPN ab.</string>
     <string name="vault_intro_start">Vault einrichten</string>
-    <string name="vault_intro_loading">Vault wird geprüft …</string>
     <string name="vault_unavailable">Vault ist nicht erreichbar. Prüfe die Verbindung zu deinem Server.</string>
     <string name="vault_retry">Erneut versuchen</string>
     <string name="vault_setup_title">Vault einrichten</string>
@@ -99,7 +98,6 @@
     <string name="vault_recover_typo">Tippfehler? Der Schlüssel hat 56 Zeichen in 14 Gruppen – prüfe sie noch einmal.</string>
     <string name="vault_recover_new_pw">Neues Hauptpasswort</string>
     <string name="vault_recover_button">Weiter</string>
-    <string name="vault_recover_done">Fertig. Bewahre deinen neuen Wiederherstellungsschlüssel auf – der alte gilt nicht mehr.</string>
 
     <!-- Liste -->
     <string name="vault_search_hint">%1$s durchsuchen</string>
@@ -112,7 +110,10 @@
     <string name="vault_new_entry">Neuer Eintrag</string>
     <string name="vault_empty">Noch keine Einträge. Lege einen mit + an oder importiere sie.</string>
     <string name="vault_no_results">Nichts gefunden.</string>
-    <string name="vault_unreadable">%1$d Einträge ließen sich nicht öffnen.</string>
+    <plurals name="vault_unreadable">
+        <item quantity="one">%d Eintrag ließ sich nicht öffnen.</item>
+        <item quantity="other">%d Einträge ließen sich nicht öffnen.</item>
+    </plurals>
     <string name="vault_menu_vaults">Tresore &amp; Teilen</string>
     <string name="vault_menu_emergency">Notfallzugriff</string>
     <string name="vault_menu_import">Importieren</string>
@@ -186,7 +187,6 @@
     <string name="vault_purge_confirm">„%1$s“ endgültig löschen? Das lässt sich nicht rückgängig machen.</string>
     <string name="vault_trashed_info">Im Papierkorb – wird nach 30 Tagen endgültig gelöscht.</string>
     <string name="vault_read_only">Nur lesen</string>
-    <string name="vault_needs_online">Dafür braucht es eine Verbindung zum Server.</string>
 
     <!-- Bearbeiten, Generator -->
     <string name="vault_generate">Passwort erzeugen</string>
@@ -220,7 +220,6 @@
     <string name="vault_role_read">Sehen</string>
     <string name="vault_role_write">Bearbeiten</string>
     <string name="vault_role_manage">Verwalten</string>
-    <string name="vault_role">Rolle</string>
     <string name="vault_you">%1$s (du)</string>
     <string name="vault_add_person">Person hinzufügen</string>
     <string name="vault_add_title">%1$s hinzufügen</string>
@@ -280,20 +279,43 @@
     <string name="vault_import_fmt_bitwarden">JSON oder CSV</string>
     <string name="vault_import_fmt_csv">CSV</string>
     <string name="vault_import_fmt_keepass">CSV (KeePassXC)</string>
-    <string name="vault_import_pick">Datei wählen</string>
     <string name="vault_import_other">Andere Datei</string>
-    <string name="vault_import_found">%1$d Einträge erkannt</string>
-    <string name="vault_import_logins">%1$d Logins</string>
-    <string name="vault_import_totp">%1$d mit 2FA</string>
-    <string name="vault_import_notes">%1$d Notizen</string>
-    <string name="vault_import_cards">%1$d Karten</string>
-    <string name="vault_import_dupes">%1$d Einträge gibt es schon – sie werden übersprungen</string>
+    <plurals name="vault_import_found">
+        <item quantity="one">%d Eintrag erkannt</item>
+        <item quantity="other">%d Einträge erkannt</item>
+    </plurals>
+    <plurals name="vault_import_logins">
+        <item quantity="one">%d Login</item>
+        <item quantity="other">%d Logins</item>
+    </plurals>
+    <plurals name="vault_import_totp">
+        <item quantity="one">%d mit 2FA</item>
+        <item quantity="other">%d mit 2FA</item>
+    </plurals>
+    <plurals name="vault_import_notes">
+        <item quantity="one">%d Notiz</item>
+        <item quantity="other">%d Notizen</item>
+    </plurals>
+    <plurals name="vault_import_cards">
+        <item quantity="one">%d Karte</item>
+        <item quantity="other">%d Karten</item>
+    </plurals>
+    <plurals name="vault_import_dupes">
+        <item quantity="one">%d Eintrag gibt es schon – er wird übersprungen</item>
+        <item quantity="other">%d Einträge gibt es schon – sie werden übersprungen</item>
+    </plurals>
     <string name="vault_import_into">In Tresor</string>
     <string name="vault_import_info">Die Datei wird nur auf diesem Gerät gelesen und verschlüsselt. Lösche sie danach – sie enthält alles im Klartext.</string>
-    <string name="vault_import_button">%1$d Einträge importieren</string>
+    <plurals name="vault_import_button">
+        <item quantity="one">%d Eintrag importieren</item>
+        <item quantity="other">%d Einträge importieren</item>
+    </plurals>
     <string name="vault_import_encrypted">Dieser Export ist mit einem Passwort geschützt. Exportiere noch einmal ohne Passwort (JSON oder CSV).</string>
     <string name="vault_import_unknown">Diese Datei ist kein Export, den Vault kennt.</string>
-    <string name="vault_import_done">%1$d Einträge importiert.</string>
+    <plurals name="vault_import_done">
+        <item quantity="one">%d Eintrag importiert.</item>
+        <item quantity="other">%d Einträge importiert.</item>
+    </plurals>
 
     <!-- Einstellungen -->
     <string name="vault_settings_title">Vault-Einstellungen</string>
@@ -322,6 +344,4 @@
     <string name="vault_af_save_title">Diesen Login in Vault speichern?</string>
     <string name="vault_af_no_entries">Kein passender Eintrag.</string>
 
-    <!-- Mitteilungen -->
-    <string name="vault_push_open">Vault öffnen</string>
 </resources>

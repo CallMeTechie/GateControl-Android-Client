@@ -1,7 +1,7 @@
 package com.gatecontrol.android.ui.vault
 
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -87,10 +87,11 @@ fun VaultToast(text: String?, onGone: () -> Unit, modifier: Modifier = Modifier)
 fun VaultEntryFields(data: EntryData, clipboardSeconds: Int, onCopied: (String) -> Unit) {
     val x = GateControlTheme.extraColors
     val context = LocalContext.current
+    val resources = androidx.compose.ui.platform.LocalResources.current
     var shown by remember { mutableStateOf(setOf<String>()) }
     fun copy(label: String, value: String, secret: Boolean) {
         VaultClipboard.copy(context, value, secret, clipboardSeconds)
-        onCopied(if (secret) context.getString(R.string.vault_copied_secret, label, clipboardSeconds) else context.getString(R.string.vault_copied))
+        onCopied(if (secret) resources.getString(R.string.vault_copied_secret, label, clipboardSeconds) else resources.getString(R.string.vault_copied))
     }
 
     @Composable
@@ -167,7 +168,7 @@ fun VaultEntryFields(data: EntryData, clipboardSeconds: Int, onCopied: (String) 
             if (first != null) {
                 GcIconButton(GcIcons.External, stringResource(R.string.vault_open_website), size = 44.dp, iconSize = 20.dp, onClick = {
                     val url = if (first.contains("://")) first else "https://$first"
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 })
             }
         }

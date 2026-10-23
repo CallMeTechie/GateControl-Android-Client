@@ -314,6 +314,31 @@
             android:theme="@style/Theme.GateControl"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Vault: Android's autofill service (fills logins from Vault in other
+             apps and browsers, offers to save new ones). Only the system binds it. -->
+        <service
+            android:name=".vault.autofill.VaultAutofillService"
+            android:exported="true"
+            android:label="@string/vault_af_service"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.autofill"
+                android:resource="@xml/vault_autofill_service" />
+        </service>
+
+        <!-- Vault: unlock / pick an entry / save a login for autofill. NOT
+             exported: only the autofill service's own PendingIntents start it. -->
+        <activity
+            android:name=".vault.autofill.VaultAutofillActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:label="@string/vault_title"
+            android:theme="@style/Theme.GateControl"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- GateDrop: buttons of its notifications (Kopieren, Speichern).
              NOT exported: only the app's own PendingIntents reach it. -->
         <receiver

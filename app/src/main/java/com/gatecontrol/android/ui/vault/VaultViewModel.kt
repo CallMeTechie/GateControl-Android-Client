@@ -231,6 +231,5 @@ class VaultViewModel @Inject constructor(
     override fun onCleared() {
         // what a trusted person read stays in memory only while its screen is open
         _emergencyView.value = null
-        super.onCleared()
     }
 }
