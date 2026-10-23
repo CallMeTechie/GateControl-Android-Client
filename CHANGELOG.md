@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.62.0] - 2026-10-23
+
+### Features
+- who may send to this device; other people's devices as share targets (#116)
+
+---
+
 ## [1.61.1] - 2026-10-23
 
 ### Fixes
