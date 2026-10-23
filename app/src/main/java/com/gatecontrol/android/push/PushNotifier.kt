@@ -61,6 +61,7 @@ class PushNotifier @Inject constructor(
     private val door: dagger.Lazy<DoorRepository>,
     private val chats: dagger.Lazy<com.gatecontrol.android.chat.ChatNotifier>,
     private val gatedrop: dagger.Lazy<com.gatecontrol.android.gatedrop.GateDropPushHandler>,
+    private val vault: dagger.Lazy<com.gatecontrol.android.vault.VaultRepository>,
 ) : PushPresenter {
 
     companion object {
@@ -299,6 +300,8 @@ class PushNotifier @Inject constructor(
         familie.get().onNew(message)
         if (DoorPush.isDoorMessage(message)) door.get().onPush(message)
         gatedrop.get().onNew(message)
+        // Vault: a vault shared just now or an emergency step — fetch it (the push itself carries nothing)
+        if (com.gatecontrol.android.vault.VaultPush.isVaultMessage(message)) runCatching { vault.get().syncNow() }
     }
 
     /** Distinct data URI per message and slot: PendingIntents must not overwrite each other. */
@@ -308,7 +311,8 @@ class PushNotifier @Inject constructor(
     private fun openIntent(message: PushMessage, action: PushAction?, slot: Int, familieDest: String? = null): PendingIntent {
         // Door messages: the ring's detail (or the door screen) for the tap and for "Ansehen".
         val doorDest = DoorPush.destination(message)?.key
-        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest).setData(uri(message, slot))
+        val vaultDest = com.gatecontrol.android.vault.VaultPush.destination(message)
+        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 

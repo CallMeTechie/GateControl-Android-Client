@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Vault (Plugin gatecontrol-vault): Ende-zu-Ende verschlüsselter Passwort-Manager -->
+    <string name="vault_title">Vault</string>
+    <string name="vault_tab">Vault</string>
+    <string name="vault_back">Zurück</string>
+    <string name="vault_offline">Offline</string>
+    <string name="vault_synced">Abgeglichen</string>
+    <string name="vault_syncing">Gleicht ab …</string>
+    <string name="vault_lock">Vault sperren</string>
+    <string name="vault_more">Mehr</string>
+    <string name="vault_save">Speichern</string>
+    <string name="vault_cancel">Abbrechen</string>
+    <string name="vault_next">Weiter</string>
+    <string name="vault_copy">Kopieren</string>
+    <string name="vault_copy_x">%1$s kopieren</string>
+    <string name="vault_copied">Kopiert</string>
+    <string name="vault_copied_secret">%1$s kopiert · wird in %2$d s gelöscht</string>
+    <string name="vault_error_offline">Keine Verbindung zum Server.</string>
+    <string name="vault_error_generic">Das hat nicht geklappt (%1$s).</string>
+    <string name="vault_notice_conflict">Auf zwei Geräten gleichzeitig geändert – beide Fassungen bleiben erhalten (die Kopie ist als „Konflikt“ markiert).</string>
+    <string name="vault_conflict_suffix">(Konflikt)</string>
+    <string name="vault_notice_limit">Der Tresor ist voll – eine Änderung wurde nicht gespeichert.</string>
+    <string name="vault_notice_refused">Eine Änderung wurde abgelehnt (keine Berechtigung oder der Tresor ist nicht mehr da).</string>
+    <string name="vault_pending">Noch nicht abgeglichen</string>
+
+    <!-- Einstieg, Einrichtung -->
+    <string name="vault_intro_title">Deine Passwörter, auf deinem Server</string>
+    <string name="vault_intro_text">Ende-zu-Ende verschlüsselt: Nur deine Geräte können sie lesen – nicht der Server, kein Admin. Funktioniert offline und gleicht ohne VPN ab.</string>
+    <string name="vault_intro_start">Vault einrichten</string>
+    <string name="vault_unavailable">Vault ist nicht erreichbar. Prüfe die Verbindung zu deinem Server.</string>
+    <string name="vault_retry">Erneut versuchen</string>
+    <string name="vault_setup_title">Vault einrichten</string>
+    <string name="vault_setup_step">Schritt %1$d von %2$d</string>
+    <string name="vault_setup_pw_title">Dein Hauptpasswort</string>
+    <string name="vault_setup_pw_text">Es öffnet deinen Vault auf allen Geräten. Es verlässt dieses Gerät nie – auch der GateControl-Server kennt es nicht.</string>
+    <string name="vault_setup_pw_label">Hauptpasswort</string>
+    <string name="vault_setup_pw_repeat">Wiederholen</string>
+    <string name="vault_setup_pw_match">Stimmt überein</string>
+    <string name="vault_setup_pw_rule">Mindestens 12 Zeichen und nicht schwach – ein paar zufällige Wörter eignen sich gut.</string>
+    <string name="vault_setup_pw_mismatch">Die Passwörter stimmen nicht überein.</string>
+    <string name="vault_show_password">Passwort anzeigen</string>
+    <string name="vault_hide_password">Passwort verbergen</string>
+    <string name="vault_strength_weak">Schwach</string>
+    <string name="vault_strength_fair">Mittel</string>
+    <string name="vault_strength_strong">Stark</string>
+    <string name="vault_strength_very">Sehr stark</string>
+    <string name="vault_strength_detail">%1$d Zeichen · %2$d Wörter</string>
+    <string name="vault_setup_warn_title">Niemand kann es zurücksetzen</string>
+    <string name="vault_setup_warn_text">Auch kein Admin. Im nächsten Schritt bekommst du einen Wiederherstellungsschlüssel – ohne ihn sind die Daten bei vergessenem Passwort verloren.</string>
+    <string name="vault_setup_creating">Schlüssel werden erzeugt …</string>
+    <string name="vault_recovery_title">Dein Wiederherstellungsschlüssel</string>
+    <string name="vault_recovery_text">Damit kommst du an deinen Vault, wenn du das Hauptpasswort vergisst. Er wird nur dieses eine Mal angezeigt.</string>
+    <string name="vault_recovery_qr">QR-Code des Schlüssels</string>
+    <string name="vault_recovery_print">Drucken / PDF</string>
+    <string name="vault_recovery_tip1">Ausdrucken und zu wichtigen Unterlagen legen.</string>
+    <string name="vault_recovery_tip2">Nicht als Foto in der Cloud oder als Notiz auf dem Handy speichern.</string>
+    <string name="vault_recovery_tip3">Zusätzlich kannst du später Vertrauenspersonen für den Notfallzugriff festlegen.</string>
+    <string name="vault_recovery_confirm">Ich habe den Schlüssel sicher aufbewahrt</string>
+    <string name="vault_recovery_print_title">GateControl Vault – Wiederherstellungsschlüssel</string>
+    <string name="vault_recovery_print_note">Bewahre dieses Blatt sicher auf. Wer diesen Schlüssel und deinen Vault hat, kann ihn lesen. Erstellt am %1$s.</string>
+    <string name="vault_setup_done_title">Fast fertig</string>
+    <string name="vault_setup_done_text">Wähle, wie du Vault öffnest und ob es Passwörter in anderen Apps ausfüllt.</string>
+    <string name="vault_bio_title">Mit Fingerabdruck entsperren</string>
+    <string name="vault_bio_text">Dein Hauptpasswort wird nicht gespeichert. Ein neu angelegter Fingerabdruck schaltet das ab.</string>
+    <string name="vault_autofill_title">In anderen Apps ausfüllen</string>
+    <string name="vault_autofill_text">Wähle GateControl als Autofill-Dienst in den Android-Einstellungen.</string>
+    <string name="vault_autofill_open">Einstellungen öffnen</string>
+    <string name="vault_autofill_active">Aktiv</string>
+    <string name="vault_setup_finish">Vault öffnen</string>
+
+    <!-- Entsperren, Wiederherstellung -->
+    <string name="vault_locked_title">Vault ist gesperrt</string>
+    <string name="vault_locked_info">%1$s · %2$s</string>
+    <plurals name="vault_entries_count">
+        <item quantity="one">%d Eintrag</item>
+        <item quantity="other">%d Einträge</item>
+    </plurals>
+    <plurals name="vault_vaults_count">
+        <item quantity="one">%d Tresor</item>
+        <item quantity="other">%d Tresore</item>
+    </plurals>
+    <string name="vault_last_sync">Zuletzt abgeglichen %1$s</string>
+    <string name="vault_bio_button">Mit Fingerabdruck entsperren</string>
+    <string name="vault_bio_hint">Finger auf den Sensor legen</string>
+    <string name="vault_unlock_password">Mit Hauptpasswort entsperren</string>
+    <string name="vault_unlock_button">Entsperren</string>
+    <string name="vault_unlock_wrong">Falsches Hauptpasswort.</string>
+    <string name="vault_unlocking">Entsperre …</string>
+    <string name="vault_forgot">Passwort vergessen?</string>
+    <string name="vault_bio_prompt_title">Vault entsperren</string>
+    <string name="vault_bio_prompt_negative">Hauptpasswort verwenden</string>
+    <string name="vault_bio_invalidated">Entsperren per Fingerabdruck wurde abgeschaltet (neuer Fingerabdruck oder geänderte Displaysperre). Nutze dein Hauptpasswort.</string>
+    <string name="vault_recover_title">Zugang wiederherstellen</string>
+    <string name="vault_recover_text">Gib deinen Wiederherstellungsschlüssel ein. Danach wählst du ein neues Hauptpasswort – und bekommst auch einen neuen Wiederherstellungsschlüssel.</string>
+    <string name="vault_recover_key">Wiederherstellungsschlüssel</string>
+    <string name="vault_recover_wrong">Dieser Wiederherstellungsschlüssel stimmt nicht.</string>
+    <string name="vault_recover_typo">Tippfehler? Der Schlüssel hat 56 Zeichen in 14 Gruppen – prüfe sie noch einmal.</string>
+    <string name="vault_recover_new_pw">Neues Hauptpasswort</string>
+    <string name="vault_recover_button">Weiter</string>
+
+    <!-- Liste -->
+    <string name="vault_search_hint">%1$s durchsuchen</string>
+    <string name="vault_search">Suchen</string>
+    <string name="vault_filter_all">Alle</string>
+    <string name="vault_section_favorites">Favoriten</string>
+    <string name="vault_section_all">Alle · A–Z</string>
+    <string name="vault_section_trash">Papierkorb</string>
+    <string name="vault_shared">Geteilt</string>
+    <string name="vault_new_entry">Neuer Eintrag</string>
+    <string name="vault_empty">Noch keine Einträge. Lege einen mit + an oder importiere sie.</string>
+    <string name="vault_no_results">Nichts gefunden.</string>
+    <plurals name="vault_unreadable">
+        <item quantity="one">%d Eintrag ließ sich nicht öffnen.</item>
+        <item quantity="other">%d Einträge ließen sich nicht öffnen.</item>
+    </plurals>
+    <string name="vault_menu_vaults">Tresore &amp; Teilen</string>
+    <string name="vault_menu_emergency">Notfallzugriff</string>
+    <string name="vault_menu_import">Importieren</string>
+    <string name="vault_menu_trash">Papierkorb</string>
+    <string name="vault_menu_settings">Einstellungen</string>
+    <string name="vault_menu_sync">Jetzt abgleichen</string>
+    <string name="vault_trash_empty">Der Papierkorb ist leer.</string>
+
+    <!-- Arten -->
+    <string name="vault_type_login">Login</string>
+    <string name="vault_type_totp">2FA-Code</string>
+    <string name="vault_type_note">Notiz</string>
+    <string name="vault_type_card">Karte</string>
+    <string name="vault_type_wifi">WLAN</string>
+    <string name="vault_type_identity">Identität</string>
+    <string name="vault_new_login">Neuer Login</string>
+    <string name="vault_new_totp">Neuer 2FA-Code</string>
+    <string name="vault_new_note">Neue Notiz</string>
+    <string name="vault_new_card">Neue Karte</string>
+    <string name="vault_new_wifi">Neues WLAN</string>
+    <string name="vault_new_identity">Neue Identität</string>
+    <string name="vault_edit_title">Bearbeiten</string>
+
+    <!-- Felder -->
+    <string name="vault_field_title">Titel</string>
+    <string name="vault_field_vault">Tresor</string>
+    <string name="vault_field_username">Benutzername</string>
+    <string name="vault_field_password">Passwort</string>
+    <string name="vault_field_totp">2FA-Code</string>
+    <string name="vault_field_totp_secret">2FA-Schlüssel (otpauth-Link oder Base32)</string>
+    <string name="vault_field_urls">Website und App</string>
+    <string name="vault_field_url">Website</string>
+    <string name="vault_field_app">App (Paketname)</string>
+    <string name="vault_field_notes">Notiz</string>
+    <string name="vault_field_holder">Karteninhaber</string>
+    <string name="vault_field_number">Kartennummer</string>
+    <string name="vault_field_expiry">Gültig bis (MM/JJ)</string>
+    <string name="vault_field_cvc">Prüfnummer</string>
+    <string name="vault_field_pin">PIN</string>
+    <string name="vault_field_ssid">Netzwerkname</string>
+    <string name="vault_field_security">Sicherheit</string>
+    <string name="vault_field_name">Name</string>
+    <string name="vault_field_email">E-Mail</string>
+    <string name="vault_field_phone">Telefon</string>
+    <string name="vault_field_address">Adresse</string>
+    <string name="vault_field_birthday">Geburtstag</string>
+    <string name="vault_custom_fields">Weitere Felder</string>
+    <string name="vault_custom_add">Feld hinzufügen</string>
+    <string name="vault_custom_name">Feldname</string>
+    <string name="vault_custom_value">Wert</string>
+    <string name="vault_custom_secret">Verborgen</string>
+    <string name="vault_custom_remove">Feld entfernen</string>
+    <string name="vault_add_url">Website hinzufügen</string>
+    <string name="vault_add_app">App hinzufügen</string>
+
+    <!-- Eintrag -->
+    <string name="vault_totp_left">Noch %1$d Sekunden gültig</string>
+    <string name="vault_totp_invalid">Dieser 2FA-Schlüssel lässt sich nicht lesen.</string>
+    <string name="vault_open_website">Website öffnen</string>
+    <string name="vault_fav_add">Zu Favoriten</string>
+    <string name="vault_fav_remove">Favorit entfernen</string>
+    <string name="vault_changed">Geändert %1$s auf „%2$s“</string>
+    <string name="vault_changed_short">Geändert %1$s</string>
+    <string name="vault_history_link">Verlauf ansehen</string>
+    <string name="vault_history_title">Verlauf</string>
+    <string name="vault_history_restore">Diese Fassung wiederherstellen</string>
+    <string name="vault_history_empty">Keine früheren Fassungen.</string>
+    <string name="vault_trash_action">In den Papierkorb</string>
+    <string name="vault_restore_action">Wiederherstellen</string>
+    <string name="vault_purge_action">Endgültig löschen</string>
+    <string name="vault_purge_confirm">„%1$s“ endgültig löschen? Das lässt sich nicht rückgängig machen.</string>
+    <string name="vault_trashed_info">Im Papierkorb – wird nach 30 Tagen endgültig gelöscht.</string>
+    <string name="vault_read_only">Nur lesen</string>
+
+    <!-- Bearbeiten, Generator -->
+    <string name="vault_generate">Passwort erzeugen</string>
+    <string name="vault_gen_random">Zufällig</string>
+    <string name="vault_gen_words">Wörter</string>
+    <string name="vault_gen_length">Länge</string>
+    <string name="vault_gen_word_count">Wörter</string>
+    <string name="vault_gen_upper">Großbuchstaben (A–Z)</string>
+    <string name="vault_gen_digits">Ziffern (0–9)</string>
+    <string name="vault_gen_symbols">Sonderzeichen (!#$…)</string>
+    <string name="vault_gen_ambiguous">Verwechselbare vermeiden (l, 1, O, 0)</string>
+    <string name="vault_gen_again">Neu erzeugen</string>
+    <string name="vault_gen_use">Übernehmen</string>
+    <string name="vault_edit_title_required">Ein Titel fehlt.</string>
+    <string name="vault_save_readonly">In diesem Tresor darfst du nur lesen.</string>
+    <string name="vault_save_too_large">Der Eintrag ist zu groß (höchstens 32 KB verschlüsselt).</string>
+    <string name="vault_save_locked">Vault wurde inzwischen gesperrt.</string>
+    <string name="vault_discard">Änderungen verwerfen?</string>
+    <string name="vault_discard_yes">Verwerfen</string>
+    <string name="vault_keep_editing">Weiter bearbeiten</string>
+
+    <!-- Tresore, Teilen -->
+    <string name="vault_vaults_title">Tresore</string>
+    <string name="vault_personal">Persönlich</string>
+    <string name="vault_new_vault">Neuer geteilter Tresor</string>
+    <string name="vault_new_vault_name">Name</string>
+    <string name="vault_new_vault_hint">z. B. Familie, Streaming, Team</string>
+    <string name="vault_create">Anlegen</string>
+    <string name="vault_share_title">Tresor „%1$s“</string>
+    <string name="vault_members">Mitglieder · %1$d</string>
+    <string name="vault_role_read">Sehen</string>
+    <string name="vault_role_write">Bearbeiten</string>
+    <string name="vault_role_manage">Verwalten</string>
+    <string name="vault_you">%1$s (du)</string>
+    <string name="vault_add_person">Person hinzufügen</string>
+    <string name="vault_add_title">%1$s hinzufügen</string>
+    <string name="vault_safety_text">Vergleiche diese Nummer mit der auf dem Gerät von %1$s (Vault › Einstellungen). Stimmt sie überein, ist sicher, dass niemand dazwischen sitzt.</string>
+    <string name="vault_safety_match">Stimmt überein</string>
+    <string name="vault_remove_member">Entfernen</string>
+    <string name="vault_leave">Tresor verlassen</string>
+    <string name="vault_delete_vault">Tresor löschen</string>
+    <string name="vault_rename">Umbenennen</string>
+    <string name="vault_remove_info">Entfernst du jemanden, bekommt der Tresor einen neuen Schlüssel. Passwörter, die die Person gesehen hat, solltest du danach ändern.</string>
+    <string name="vault_rekey_needed">Bekommt beim nächsten Abgleich einen neuen Schlüssel</string>
+    <string name="vault_no_people">Noch niemand sonst hat Vault eingerichtet.</string>
+    <string name="vault_person_no_vault">hat Vault noch nicht eingerichtet</string>
+    <string name="vault_delete_vault_confirm">„%1$s“ mit allen Einträgen löschen – für alle?</string>
+    <string name="vault_leave_confirm">„%1$s“ verlassen? Du verlierst den Zugriff auf die Einträge.</string>
+    <string name="vault_last_manager">Ein Tresor braucht jemanden, der ihn verwaltet. Mache zuerst eine andere Person zur Verwaltung.</string>
+    <string name="vault_member_remove_confirm">%1$s aus „%2$s“ entfernen?</string>
+
+    <!-- Notfallzugriff -->
+    <string name="vault_em_title">Notfallzugriff</string>
+    <string name="vault_em_requested">%1$s hat Zugriff angefordert</string>
+    <string name="vault_em_requested_text">Wenn du nicht ablehnst, kann %1$s deinen Vault in %2$s öffnen.</string>
+    <string name="vault_em_deny">Ablehnen</string>
+    <string name="vault_em_approve">Sofort freigeben</string>
+    <string name="vault_em_mine">Meine Vertrauenspersonen</string>
+    <string name="vault_em_wait">Wartezeit %1$s · Lesen</string>
+    <string name="vault_em_status_ready">Bereit</string>
+    <string name="vault_em_status_requested">Angefordert</string>
+    <string name="vault_em_status_granted">Freigegeben</string>
+    <string name="vault_em_add">Vertrauensperson hinzufügen</string>
+    <string name="vault_em_for">Ich bin Vertrauensperson für</string>
+    <string name="vault_em_request">Anfordern</string>
+    <string name="vault_em_request_confirm">Zugriff auf den Vault von %1$s anfordern? %1$s wird benachrichtigt und kann innerhalb von %2$s ablehnen.</string>
+    <string name="vault_em_open">Öffnen</string>
+    <string name="vault_em_waiting_until">Frei in %1$s, wenn %2$s nicht ablehnt</string>
+    <string name="vault_em_info">Der Server gibt den Zugang erst nach der Wartezeit frei. Lesen kann er ihn nie – nur das Gerät der Vertrauensperson.</string>
+    <string name="vault_em_wait_label">Wartezeit</string>
+    <string name="vault_em_remove">Entfernen</string>
+    <string name="vault_em_decline">Ablehnen</string>
+    <string name="vault_em_take_back">Zurücknehmen</string>
+    <string name="vault_em_none">Noch niemand.</string>
+    <string name="vault_em_view_title">Vault von %1$s</string>
+    <string name="vault_em_read_only">Nur lesen – Notfallzugriff</string>
+    <plurals name="vault_hours">
+        <item quantity="one">%d Stunde</item>
+        <item quantity="other">%d Stunden</item>
+    </plurals>
+    <plurals name="vault_days">
+        <item quantity="one">%d Tag</item>
+        <item quantity="other">%d Tage</item>
+    </plurals>
+    <string name="vault_em_remaining">%1$d Std. %2$d Min.</string>
+
+    <!-- Import -->
+    <string name="vault_import_title">Importieren</string>
+    <string name="vault_import_from">Woher?</string>
+    <string name="vault_import_fmt_bitwarden">JSON oder CSV</string>
+    <string name="vault_import_fmt_csv">CSV</string>
+    <string name="vault_import_fmt_keepass">CSV (KeePassXC)</string>
+    <string name="vault_import_other">Andere Datei</string>
+    <plurals name="vault_import_found">
+        <item quantity="one">%d Eintrag erkannt</item>
+        <item quantity="other">%d Einträge erkannt</item>
+    </plurals>
+    <plurals name="vault_import_logins">
+        <item quantity="one">%d Login</item>
+        <item quantity="other">%d Logins</item>
+    </plurals>
+    <plurals name="vault_import_totp">
+        <item quantity="one">%d mit 2FA</item>
+        <item quantity="other">%d mit 2FA</item>
+    </plurals>
+    <plurals name="vault_import_notes">
+        <item quantity="one">%d Notiz</item>
+        <item quantity="other">%d Notizen</item>
+    </plurals>
+    <plurals name="vault_import_cards">
+        <item quantity="one">%d Karte</item>
+        <item quantity="other">%d Karten</item>
+    </plurals>
+    <plurals name="vault_import_dupes">
+        <item quantity="one">%d Eintrag gibt es schon – er wird übersprungen</item>
+        <item quantity="other">%d Einträge gibt es schon – sie werden übersprungen</item>
+    </plurals>
+    <string name="vault_import_into">In Tresor</string>
+    <string name="vault_import_info">Die Datei wird nur auf diesem Gerät gelesen und verschlüsselt. Lösche sie danach – sie enthält alles im Klartext.</string>
+    <plurals name="vault_import_button">
+        <item quantity="one">%d Eintrag importieren</item>
+        <item quantity="other">%d Einträge importieren</item>
+    </plurals>
+    <string name="vault_import_encrypted">Dieser Export ist mit einem Passwort geschützt. Exportiere noch einmal ohne Passwort (JSON oder CSV).</string>
+    <string name="vault_import_unknown">Diese Datei ist kein Export, den Vault kennt.</string>
+    <plurals name="vault_import_done">
+        <item quantity="one">%d Eintrag importiert.</item>
+        <item quantity="other">%d Einträge importiert.</item>
+    </plurals>
+
+    <!-- Einstellungen -->
+    <string name="vault_settings_title">Vault-Einstellungen</string>
+    <string name="vault_auto_lock">Automatisch sperren</string>
+    <string name="vault_auto_lock_now">Beim Verlassen der App</string>
+    <plurals name="vault_auto_lock_after">
+        <item quantity="one">Nach %d Minute</item>
+        <item quantity="other">Nach %d Minuten</item>
+    </plurals>
+    <string name="vault_change_pw">Hauptpasswort ändern</string>
+    <string name="vault_change_pw_done">Hauptpasswort geändert.</string>
+    <string name="vault_my_safety">Meine Sicherheitsnummer</string>
+    <string name="vault_my_safety_text">Andere vergleichen sie, wenn sie einen Tresor mit dir teilen oder dich als Vertrauensperson festlegen.</string>
+    <string name="vault_delete_account">Vault-Konto löschen</string>
+    <string name="vault_delete_account_confirm">Dein Vault-Konto löschen? Dein persönlicher Tresor und jeder Tresor, in dem nur du bist, werden endgültig gelöscht – auf allen Geräten.</string>
+    <string name="vault_autofill_setting">Autofill-Dienst</string>
+
+    <!-- Ausfüllen -->
+    <string name="vault_af_service">GateControl Vault</string>
+    <string name="vault_af_unlock">Vault entsperren zum Ausfüllen</string>
+    <string name="vault_af_search">In Vault suchen …</string>
+    <string name="vault_af_header">Vault · passend zu „%1$s“</string>
+    <string name="vault_af_pick_title">Eintrag wählen</string>
+    <string name="vault_af_remember">Für diese App merken</string>
+    <string name="vault_af_saved">In Vault gespeichert.</string>
+    <string name="vault_af_save_title">Diesen Login in Vault speichern?</string>
+    <string name="vault_af_no_entries">Kein passender Eintrag.</string>
+
+</resources>

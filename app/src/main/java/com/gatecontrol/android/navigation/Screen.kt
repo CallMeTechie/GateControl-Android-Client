@@ -93,6 +93,42 @@ sealed class Screen(val route: String) {
                 .takeIf { it.isNotEmpty() }?.joinToString("&", prefix = "?").orEmpty()
     }
     /**
+     * Tab "Vault" (plugin gatecontrol-vault, only when the server lists it):
+     * set up, unlock, the entries. Its pages are routes of their own (no tab bar).
+     */
+    data object Vault : Screen("vault")
+    data object VaultSetup : Screen("vault/setup")
+    data object VaultRecover : Screen("vault/recover")
+    data object VaultEntry : Screen("vault/entry/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: String) = "vault/entry/$id"
+    }
+    /** New entry (`type`, optional `vault`) or edit one (`id`). */
+    data object VaultEdit : Screen("vault/edit?id={id}&type={type}&vault={vault}") {
+        const val ARG_ID = "id"
+        const val ARG_TYPE = "type"
+        const val ARG_VAULT = "vault"
+        fun create(id: String? = null, type: String? = null, vault: String? = null) =
+            "vault/edit?" + listOfNotNull(id?.let { "id=$it" }, type?.let { "type=$it" }, vault?.let { "vault=$it" }).joinToString("&")
+    }
+    data object VaultHistory : Screen("vault/history/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: String) = "vault/history/$id"
+    }
+    data object VaultVaults : Screen("vault/vaults")
+    data object VaultShare : Screen("vault/share/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: String) = "vault/share/$id"
+    }
+    data object VaultTrash : Screen("vault/trash")
+    data object VaultEmergency : Screen("vault/emergency")
+    data object VaultEmergencyView : Screen("vault/emergency/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: String) = "vault/emergency/$id"
+    }
+    data object VaultImport : Screen("vault/import")
+    data object VaultSettings : Screen("vault/settings")
+    /**
      * Tab "Chats" of the messenger plugin (only when the server lists it
      * with an app tab). `conv` is shown beside the list on wide windows;
      * `share` = pick a chat for what was shared from another app.

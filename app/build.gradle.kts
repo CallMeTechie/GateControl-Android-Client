@@ -200,6 +200,10 @@ dependencies {
     // ML Kit
     implementation(libs.mlkit.barcode)
 
+    // Vault: end-to-end encryption (README "Kryptoformat" of gatecontrol-vault) and the recovery key's QR
+    implementation(libs.bouncycastle.prov)
+    implementation(libs.zxing.core)
+
     // Retrofit (needed for HttpException in error handling)
     implementation(libs.retrofit)
     implementation(libs.okhttp)
