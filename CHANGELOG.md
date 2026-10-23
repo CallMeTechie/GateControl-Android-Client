@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.61.1] - 2026-10-23
+
+### Fixes
+- send own device ids as text (#115)
+
+---
+
 ## [1.61.0] - 2026-10-22
 
 ### Features
