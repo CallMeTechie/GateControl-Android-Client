@@ -51,6 +51,20 @@ class GateDropLogicTest {
     }
 
     @Test
+    fun `other people's open devices are targets like own ones, named with their owner`() {
+        val surface = GdDevice("51", "Surface", "windows", online = true, direct = true, owner = GdOwner("3", "Marc"))
+        val withOthers = targets.copy(peopleDevices = listOf(surface))
+        val sel = GdSelection().toggleDevice("pc").toggleDevice("51").toggleDevice("gone")
+        assertEquals(listOf("pc", "51"), GateDropLogic.recipients(sel, withOthers).devices)
+        assertEquals(listOf("Büro-PC", "Surface · Marc"), GateDropLogic.chosenNames(sel, withOthers))
+        assertEquals("Surface · Marc", GateDropLogic.deviceLabel(surface))
+        // without the plugin's list the id is not offered
+        assertEquals(listOf("pc"), GateDropLogic.recipients(sel, targets).devices)
+        // only it, directly reachable: the files stay local
+        assertTrue(GateDropLogic.plan(1, GateDropLogic.recipients(GdSelection().toggleDevice("51"), withOthers), withOthers.allDevices).localItems)
+    }
+
+    @Test
     fun `can send`() {
         val none = GdSelection()
         assertFalse(GateDropLogic.canSend(none, targets, 1, false))

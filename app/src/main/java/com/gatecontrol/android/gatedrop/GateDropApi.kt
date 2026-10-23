@@ -113,6 +113,11 @@ class GateDropApi @Inject constructor(
     suspend fun presence(lan: List<Pair<String, Int>>, port: Int?, listening: Boolean): GdResult<Unit> =
         put("presence", GateDropJson.presenceBody(lan, port, listening), unit)
 
+    /** Who may send to this device ([GdReceiveFrom]); `not_found` from GateDrop < 1.2 (no such setting). */
+    suspend fun receiveFrom(): GdResult<String> = get("device", parse = GateDropJson::receiveFrom)
+
+    suspend fun setReceiveFrom(value: String): GdResult<String> = put("device", GateDropJson.deviceBody(value), GateDropJson::receiveFrom)
+
     // ─── sending ────────────────────────────────────────────────────
 
     suspend fun send(items: List<GdSendItem>, text: String?, link: String?, note: String?, to: GdRecipients): GdResult<GdSendResult> =

@@ -40,6 +40,37 @@ class GateDropJsonTest {
         assertEquals("/Familie/Fotos", t.nas.single().path)
         assertTrue(t.nasOffered)
         assertTrue(t.linkOffered)
+        assertNull(t.me.receiveFrom, "GateDrop < 1.2: no setting")
+        assertTrue(t.peopleDevices.isEmpty())
+    }
+
+    @Test
+    fun `targets with other people's devices and this device's setting`() {
+        val t = GateDropJson.targets(
+            obj(
+                """{"ok":true,"me":{"canLink":false,"canNas":false,"deviceId":"42","receiveFrom":"everyone"},"people":[],
+                "devices":[{"id":"43","name":"Büro-PC","online":true}],
+                "peopleDevices":[{"id":51,"name":"Surface","platform":"windows","online":false,"direct":false,"owner":{"id":3,"name":"Marc"}},
+                  {"id":"52","name":"ohne Besitzer"},{"id":"43","name":"doppelt","owner":{"id":3,"name":"Marc"}}]}""",
+            ),
+        )!!
+        assertEquals("everyone", t.me.receiveFrom)
+        assertEquals(listOf("51"), t.peopleDevices.map { it.id }, "an owner is required; an own device stays own")
+        assertEquals(GdOwner("3", "Marc"), t.peopleDevices.single().owner)
+        assertNull(t.devices.single().owner)
+        assertEquals(listOf("43", "51"), t.allDevices.map { it.id })
+        assertNull(GateDropJson.targets(obj("""{"me":{"receiveFrom":"all"}}"""))!!.me.receiveFrom)
+    }
+
+    @Test
+    fun `device setting answer and body, the sender's name by own`() {
+        assertEquals("self", GateDropJson.receiveFrom(obj("""{"ok":true,"device":{"id":"42","receiveFrom":"self"}}""")))
+        assertNull(GateDropJson.receiveFrom(obj("""{"ok":true,"device":{"id":"42","receiveFrom":"x"}}""")))
+        assertEquals("everyone", GateDropJson.deviceBody("everyone").get("receiveFrom").asString)
+        val own = GateDropJson.entry(obj("""{"id":"0123456789abcdef01234567","from":{"userId":2,"name":"Anna","deviceName":"Pixel","own":true}}"""))!!
+        val other = GateDropJson.entry(obj("""{"id":"0123456789abcdef01234567","from":{"userId":3,"name":"Marc","deviceName":"Marcs Handy","own":false}}"""))!!
+        val old = GateDropJson.entry(obj("""{"id":"0123456789abcdef01234567","from":{"userId":3,"name":"Marc","deviceName":"Marcs Handy"}}"""))!!
+        assertEquals(listOf("Pixel", "Marc", "Marcs Handy"), listOf(own.from, other.from, old.from))
     }
 
     @Test

@@ -10,6 +10,7 @@ import com.gatecontrol.android.gatedrop.GateDropRepository
 import com.gatecontrol.android.gatedrop.GdEntry
 import com.gatecontrol.android.gatedrop.GdInboxKind
 import com.gatecontrol.android.gatedrop.GdLink
+import com.gatecontrol.android.gatedrop.GdReceiveFrom
 import com.gatecontrol.android.gatedrop.GdReceived
 import com.gatecontrol.android.gatedrop.GdResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,6 +30,10 @@ data class SharedUi(
     val sent: List<GdEntry> = emptyList(),
     val links: List<GdLink> = emptyList(),
     val saving: Set<String> = emptySet(),
+    /** Who may send to this device ([GdReceiveFrom]); null while unknown or without the setting (GateDrop < 1.2). */
+    val receiveFrom: String? = null,
+    /** Saving it failed: the previous value is shown again. */
+    val receiveFromFailed: Boolean = false,
 )
 
 /**
@@ -47,6 +52,7 @@ class SharedViewModel @Inject constructor(
     private var serverReceived: List<GdEntry>? = null
 
     init {
+        loadReceiveFrom()
         viewModelScope.launch {
             repository.store.received.collect { local ->
                 _ui.update { it.copy(received = GateDropLogic.mergeReceived(serverReceived, local), saving = it.saving.filter { key -> local.firstOrNull { e -> e.key == key }?.files?.all { f -> f.uri != null } != true }.toSet()) }
@@ -79,6 +85,26 @@ class SharedViewModel @Inject constructor(
                     _ui.update { it.copy(loading = false, offline = r !is GdResult.Ok, received = GateDropLogic.mergeReceived(serverReceived, repository.store.received.value)) }
                 }
             }
+        }
+    }
+
+    /** This device's "who may send to it"; stays hidden when the server does not know the setting. */
+    private fun loadReceiveFrom() {
+        viewModelScope.launch {
+            val r = repository.api.receiveFrom()
+            if (r is GdResult.Ok) _ui.update { it.copy(receiveFrom = r.value) }
+        }
+    }
+
+    /** "Nur ich" / "Alle im GateControl-Netz" — shown at once, back to the old value when the server refuses. */
+    fun setReceiveFrom(value: String) {
+        val old = _ui.value.receiveFrom ?: return
+        if (GdReceiveFrom.of(value) == null || value == old) return
+        _ui.update { it.copy(receiveFrom = value, receiveFromFailed = false) }
+        viewModelScope.launch {
+            val r = repository.api.setReceiveFrom(value)
+            if (r is GdResult.Ok) _ui.update { it.copy(receiveFrom = r.value) }
+            else _ui.update { it.copy(receiveFrom = old, receiveFromFailed = true) }
         }
     }
 

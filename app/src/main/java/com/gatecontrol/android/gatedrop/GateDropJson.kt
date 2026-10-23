@@ -216,13 +216,17 @@ object GateDropJson {
         val root = o.obj("targets") ?: o
         val me = root.obj("me")
         val people = root.arr("people")?.mapNotNull { person(it.objOrNull()) }?.distinctBy { it.id }?.take(MAX_LIST).orEmpty()
-        val devices = root.arr("devices")?.mapNotNull { device(it.objOrNull()) }?.distinctBy { it.id }?.take(MAX_LIST).orEmpty()
+        val devices = root.arr("devices")?.mapNotNull { device(it.objOrNull())?.copy(owner = null) }?.distinctBy { it.id }?.take(MAX_LIST).orEmpty()
+        // Other people's devices need their owner; one listed as own as well stays own.
+        val peopleDevices = root.arr("peopleDevices")?.mapNotNull { device(it.objOrNull())?.takeIf { d -> d.owner != null } }
+            ?.distinctBy { it.id }?.filter { d -> devices.none { it.id == d.id } }?.take(MAX_LIST).orEmpty()
         val nas = root.arr("nas")?.mapNotNull { nas(it.objOrNull()) }?.distinctBy { it.id }?.take(MAX_LIST).orEmpty()
         val links = root.obj("links")
         return GdTargets(
-            me = GdMe(canLink = me?.flag("canLink") == true, canNas = me?.flag("canNas") == true),
+            me = GdMe(canLink = me?.flag("canLink") == true, canNas = me?.flag("canNas") == true, receiveFrom = GdReceiveFrom.of(me?.str("receiveFrom"))),
             people = people,
             devices = devices,
+            peopleDevices = peopleDevices,
             nas = nas,
             linksEnabled = links?.flag("enabled") ?: (root.flag("linksEnabled") == true),
         )
@@ -255,8 +259,26 @@ object GateDropJson {
             platform = o.str("platform")?.lowercase()?.takeIf { it.length <= 20 && it.all { c -> c.isLetterOrDigit() } },
             online = o.flag("online") == true,
             direct = o.flag("direct") == true,
+            owner = o.obj("owner")?.let { w ->
+                val ownerId = w.id("id", "userId") ?: return@let null
+                GdOwner(ownerId, line(w.firstStr("name", "displayName"), 80) ?: return@let null)
+            },
         )
     }
+
+    /** `GET`/`PUT device` → this device's [GdReceiveFrom]; null when the answer has none. */
+    fun receiveFrom(o: JsonObject?): String? = GdReceiveFrom.of((o?.obj("device") ?: o)?.str("receiveFrom"))
+
+    /** Body of `PUT device`. */
+    fun deviceBody(receiveFrom: String): JsonObject = JsonObject().apply { addProperty("receiveFrom", receiveFrom) }
+
+    /**
+     * Who sent it, as the recipient reads it: one's own device by its name ("Büro-PC"),
+     * another person by theirs (`from.own == false`, GateDrop ≥ 1.2).
+     */
+    private fun senderOf(from: JsonObject): String? =
+        if (from.flag("own") == false) from.firstStr("name", "deviceName", "device", "label")
+        else from.firstStr("deviceName", "device", "name", "label")
 
     fun nas(o: JsonObject?): GdNas? {
         if (o == null) return null
@@ -356,8 +378,8 @@ object GateDropJson {
         val fromEl = root.get("from") ?: root.get("sender")
         val from = when {
             fromEl == null -> root.firstStr("fromName", "senderName")
-            // A device ("Büro-PC") names the sender better than the person behind it.
-            fromEl.isJsonObject -> fromEl.asJsonObject.firstStr("device", "deviceName", "name", "label")
+            // An own device ("Büro-PC") names the sender better than the person behind it.
+            fromEl.isJsonObject -> senderOf(fromEl.asJsonObject)
             fromEl.isJsonPrimitive && fromEl.asJsonPrimitive.isString -> fromEl.asString
             else -> null
         }
@@ -485,8 +507,8 @@ object GateDropJson {
         val fromEl = root.get("from")
         val from = when {
             fromEl == null -> null
-            // The device ("Büro-PC") names the sender better than the person.
-            fromEl.isJsonObject -> fromEl.asJsonObject.firstStr("deviceName", "device", "name", "label")
+            // An own device ("Büro-PC") names the sender better than the person.
+            fromEl.isJsonObject -> senderOf(fromEl.asJsonObject)
             fromEl.isJsonPrimitive && fromEl.asJsonPrimitive.isString -> fromEl.asString
             else -> null
         }
