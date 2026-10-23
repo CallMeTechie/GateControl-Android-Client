@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -188,6 +189,7 @@ fun AppNavigation(
             Screen.Network.route -> TabItem(route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe, onlineRdpHostCount)
             Screen.Familie.route -> TabItem(route, Screen.Familie.create(), R.string.nav_familie, familieIcon)
             Screen.Chats.route -> TabItem(route, Screen.Chats.create(), R.string.nav_chats, Icons.AutoMirrored.Outlined.Chat, chatBadge)
+            Screen.Vault.route -> TabItem(route, Screen.Vault.route, R.string.vault_tab, GcIcons.Vault)
             else -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
         }
     }
@@ -894,7 +896,7 @@ fun AppNavigation(
                                     onBack = { selected = null },
                                     onNavigate = { target ->
                                         if (target is PushNavTarget.Detail) selected = target.id
-                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab)
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault)
                                     },
                                     viewModel = detailViewModel,
                                 )
@@ -921,7 +923,7 @@ fun AppNavigation(
                         onBack = {
                             if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
                         },
-                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab) },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault) },
                     )
                 }
             }
@@ -1010,6 +1012,8 @@ fun AppNavigation(
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
+
+            vaultRoutes(navController, navigateToTab)
         }
 
         // A tapped push message (PushOpenActivity) — only once the app is set up.
@@ -1018,7 +1022,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab)
+            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -1044,8 +1048,18 @@ private fun openPushTarget(
     door: Boolean = false,
     /** The messenger plugin is listed with its tab "Chats". */
     chats: Boolean = false,
+    /** The Vault plugin is listed: its pushes open the tab or "Notfallzugriff". */
+    vault: Boolean = false,
 ) {
     when (target) {
+        is PushNavTarget.Vault -> when {
+            !vault -> if (target.messageId != null) navController.navigate(Screen.NotificationDetail.create(target.messageId)) else navigateToTab(Screen.Vpn.route)
+            target.dest == "emergency" -> {
+                navigateToTab(Screen.Vault.route)
+                navController.navigate(Screen.VaultEmergency.route) { launchSingleTop = true }
+            }
+            else -> navigateToTab(Screen.Vault.route)
+        }
         is PushNavTarget.Chat -> when {
             !chats -> navigateToTab(Screen.Vpn.route)
             // Messenger 1.4: the conversation picks up the message (and what to open) when it shows.
@@ -1348,5 +1362,99 @@ private fun InboxPanePlaceholder() {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 12.dp),
         )
+    }
+}
+
+/**
+ * Vault (plugin gatecontrol-vault): the tab and its pages, each a route of its own so the tab bar shows on the list
+ * only and back works as everywhere else.
+ */
+private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, navigateToTab: (String) -> Unit) {
+    val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Vault.route) }
+    val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
+    val recover: () -> Unit = { go(Screen.VaultRecover.route) }
+    composable(Screen.Vault.route) {
+        GcContentWidth {
+            com.gatecontrol.android.ui.vault.VaultScreen(
+                com.gatecontrol.android.ui.vault.VaultNav(
+                    setup = { go(Screen.VaultSetup.route) },
+                    recover = recover,
+                    entry = { go(Screen.VaultEntry.create(it)) },
+                    newEntry = { type, vault -> go(Screen.VaultEdit.create(type = type, vault = vault)) },
+                    vaults = { go(Screen.VaultVaults.route) },
+                    emergency = { go(Screen.VaultEmergency.route) },
+                    import = { go(Screen.VaultImport.route) },
+                    trash = { go(Screen.VaultTrash.route) },
+                    settings = { go(Screen.VaultSettings.route) },
+                ),
+            )
+        }
+    }
+    composable(Screen.VaultSetup.route) {
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultSetupScreen(onBack = back, onDone = back) }
+    }
+    composable(Screen.VaultRecover.route) {
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultRecoverScreen(onBack = back, onDone = back) }
+    }
+    composable(Screen.VaultEntry.route, arguments = listOf(navArgument(Screen.VaultEntry.ARG_ID) { type = NavType.StringType })) { e ->
+        val id = e.arguments?.getString(Screen.VaultEntry.ARG_ID).orEmpty()
+        GcContentWidth {
+            com.gatecontrol.android.ui.vault.VaultEntryScreen(
+                id = id, onBack = back, onForgot = recover,
+                onEdit = { go(Screen.VaultEdit.create(id = it)) },
+                onHistory = { go(Screen.VaultHistory.create(it)) },
+            )
+        }
+    }
+    composable(
+        Screen.VaultEdit.route,
+        arguments = listOf(
+            navArgument(Screen.VaultEdit.ARG_ID) { type = NavType.StringType; nullable = true; defaultValue = null },
+            navArgument(Screen.VaultEdit.ARG_TYPE) { type = NavType.StringType; nullable = true; defaultValue = null },
+            navArgument(Screen.VaultEdit.ARG_VAULT) { type = NavType.StringType; nullable = true; defaultValue = null },
+        ),
+    ) { e ->
+        val id = e.arguments?.getString(Screen.VaultEdit.ARG_ID)
+        GcContentWidth {
+            com.gatecontrol.android.ui.vault.VaultEditScreen(
+                id = id,
+                type = e.arguments?.getString(Screen.VaultEdit.ARG_TYPE),
+                vaultHint = e.arguments?.getString(Screen.VaultEdit.ARG_VAULT),
+                onBack = back, onForgot = recover,
+                onDone = { saved ->
+                    // a new entry: its page replaces the editor; an edited one: back to its page
+                    if (id == null) {
+                        navController.popBackStack()
+                        go(Screen.VaultEntry.create(saved))
+                    } else {
+                        back()
+                    }
+                },
+            )
+        }
+    }
+    composable(Screen.VaultHistory.route, arguments = listOf(navArgument(Screen.VaultHistory.ARG_ID) { type = NavType.StringType })) { e ->
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultHistoryScreen(e.arguments?.getString(Screen.VaultHistory.ARG_ID).orEmpty(), onBack = back, onForgot = recover) }
+    }
+    composable(Screen.VaultVaults.route) {
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultVaultsScreen(onBack = back, onOpen = { go(Screen.VaultShare.create(it)) }, onForgot = recover) }
+    }
+    composable(Screen.VaultShare.route, arguments = listOf(navArgument(Screen.VaultShare.ARG_ID) { type = NavType.StringType })) { e ->
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultShareScreen(e.arguments?.getString(Screen.VaultShare.ARG_ID).orEmpty(), onBack = back, onForgot = recover) }
+    }
+    composable(Screen.VaultTrash.route) {
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultTrashScreen(onBack = back, onOpen = { go(Screen.VaultEntry.create(it)) }, onForgot = recover) }
+    }
+    composable(Screen.VaultEmergency.route) {
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultEmergencyScreen(onBack = back, onOpen = { go(Screen.VaultEmergencyView.create(it)) }, onForgot = recover) }
+    }
+    composable(Screen.VaultEmergencyView.route, arguments = listOf(navArgument(Screen.VaultEmergencyView.ARG_ID) { type = NavType.StringType })) { e ->
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultEmergencyViewScreen(e.arguments?.getString(Screen.VaultEmergencyView.ARG_ID).orEmpty(), onBack = back, onForgot = recover) }
+    }
+    composable(Screen.VaultImport.route) {
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultImportScreen(onBack = back, onForgot = recover) }
+    }
+    composable(Screen.VaultSettings.route) {
+        GcContentWidth { com.gatecontrol.android.ui.vault.VaultSettingsScreen(onBack = back, onForgot = recover) }
     }
 }

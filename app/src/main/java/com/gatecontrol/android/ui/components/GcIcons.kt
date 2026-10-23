@@ -191,5 +191,23 @@ object GcIcons {
      * A 24×24 stroke icon from an SVG path a server sends (plugin tab icon).
      * Throws on a path that cannot be parsed; callers fall back to their own icon.
      */
+    // Vault (mockups A1–A10)
+    val Copy = icon("Copy", 1.8f, rect(8f, 8f, 13f, 13f, 2f), "M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3")
+    val EyeOff = icon("EyeOff", 1.8f, "M2 12s3.6-7 10-7c1.6 0 3 .4 4.3 1M22 12s-3.6 7-10 7c-1.6 0-3-.4-4.3-1", circle(12f, 12f, 3f), "M3 3l18 18")
+    val Fingerprint = icon(
+        "Fingerprint", 1.6f, "M12 11v3a6 6 0 0 1-1.2 3.6", "M8.5 10.5a3.5 3.5 0 0 1 7 0v2.5a10 10 0 0 1-.7 3.7",
+        "M5.5 15.5A10 10 0 0 0 6 13v-2.5a6 6 0 0 1 9.5-4.9", "M18 9.2c.3.7.5 1.5.5 2.3V13c0 1.2-.1 2.4-.4 3.5", "M3.5 12V10.5A8.5 8.5 0 0 1 17 3.6",
+    )
+    val Users = icon("Users", 1.8f, circle(9f, 8f, 3.5f), "M2.5 20a6.5 6.5 0 0 1 13 0", "M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5")
+    val Upload = icon("Upload", 2f, "M12 15V3M7 8l5-5 5 5M5 21h14")
+    val MoreVertical = icon("MoreVertical", 2.6f, "M12 5h.01M12 12h.01M12 19h.01")
+    val CreditCard = icon("CreditCard", 1.8f, rect(2f, 5f, 20f, 14f, 2f), "M2 10h20M6 15h4")
+    val Note = icon("Note", 1.8f, "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z", "M14 3v6h6M8 13h8M8 17h5")
+    val IdCard = icon("IdCard", 1.8f, rect(2f, 4f, 20f, 16f, 2f), circle(8f, 11f, 2.5f), "M4.5 17a3.5 3.5 0 0 1 7 0M14 9h5M14 13h4")
+    val Printer = icon("Printer", 1.8f, "M6 9V3h12v6", rect(3f, 9f, 18f, 8f, 2f), "M6 14h12v7H6z")
+    val History = icon("History", 2f, "M3 12a9 9 0 1 0 3-6.7L3 8", "M3 3v5h5", "M12 7v5l3 2")
+    val Vault = icon("Vault", 1.8f, rect(4f, 10f, 16f, 11f, 2.5f), "M8 10V7a4 4 0 0 1 8 0v3", circle(12f, 15.5f, 1.5f))
+    val Lifebuoy = icon("Lifebuoy", 1.8f, circle(12f, 12f, 9f), circle(12f, 12f, 4f), "M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6")
+
     fun fromPath(name: String, path: String): ImageVector = icon(name, 2f, path)
 }

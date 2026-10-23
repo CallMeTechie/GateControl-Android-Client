@@ -59,6 +59,11 @@ data class PluginAvailability(
      * screen "Geteilt" and GateDrop's pushes (contract F).
      */
     val gatedrop: Boolean = false,
+    /**
+     * The Vault plugin (password manager, end-to-end encrypted) is listed for
+     * this user: the tab "Vault" and the autofill service.
+     */
+    val vault: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -76,6 +81,7 @@ data class PluginAvailability(
                 messengerTab = plugins.any { it.id == com.gatecontrol.android.chat.MESSENGER_PLUGIN && it.tab != null },
                 schule = plugins.any { it.id == com.gatecontrol.android.familie.school.SCHULE_PLUGIN },
                 gatedrop = plugins.any { it.id == com.gatecontrol.android.gatedrop.GATEDROP_PLUGIN },
+                vault = plugins.any { it.id == com.gatecontrol.android.vault.VAULT_PLUGIN },
             )
         }
 
