@@ -520,7 +520,8 @@ object GateDropJson {
         text(note, NOTE_MAX)?.let { addProperty("note", it) }
         add("to", JsonObject().apply {
             add("people", JsonArray().apply { to.people.distinct().forEach { add(idElement(it)) } })
-            add("devices", JsonArray().apply { to.devices.distinct().forEach { add(idElement(it)) } })
+            // device ids are GateControl token ids: text, even when only digits (GateDrop ≤ 1.1.0 refused numbers)
+            add("devices", JsonArray().apply { to.devices.distinct().forEach { add(JsonPrimitive(it)) } })
             add("nas", JsonArray().apply {
                 to.nas.distinctBy { it.id }.forEach { n ->
                     add(JsonObject().apply {

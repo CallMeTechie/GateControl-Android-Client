@@ -244,7 +244,7 @@ class GateDropJsonTest {
             text = "Hallo",
             link = "ftp://nope",
             note = "  ",
-            to = GdRecipients(people = listOf("7", "family"), devices = listOf("tok-12"), nas = listOf(GdNasRef("f1", "/Fotos")), link = GdLinkRequest(GdExpiry.ONCE, pin = false)),
+            to = GdRecipients(people = listOf("7", "family"), devices = listOf("107"), nas = listOf(GdNasRef("f1", "/Fotos")), link = GdLinkRequest(GdExpiry.ONCE, pin = false)),
         )
         val items = body.getAsJsonArray("items")
         assertEquals("0123456789abcdef", items[0].asJsonObject.get("mediaId").asString)
@@ -257,7 +257,8 @@ class GateDropJsonTest {
         val to = body.getAsJsonObject("to")
         assertTrue(to.getAsJsonArray("people")[0].asJsonPrimitive.isNumber)
         assertEquals("family", to.getAsJsonArray("people")[1].asString)
-        assertEquals("tok-12", to.getAsJsonArray("devices")[0].asString)
+        assertTrue(to.getAsJsonArray("devices")[0].asJsonPrimitive.isString, "device ids stay text")
+        assertEquals("107", to.getAsJsonArray("devices")[0].asString)
         assertEquals("/Fotos", to.getAsJsonArray("nas")[0].asJsonObject.get("path").asString)
         assertEquals("once", to.getAsJsonObject("link").get("expires").asString)
         assertFalse(to.getAsJsonObject("link").get("pin").asBoolean)
