@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.63.0] - 2026-10-23
+
+### Features
+- Vault – Passwort-Manager (Tab, Abgleich, Autofill) (#117)
+
+---
+
 ## [1.62.0] - 2026-10-23
 
 ### Features
