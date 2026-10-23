@@ -49,6 +49,7 @@ import com.gatecontrol.android.gatedrop.GateDropNotifier
 import com.gatecontrol.android.gatedrop.GdDelivery
 import com.gatecontrol.android.gatedrop.GdEntry
 import com.gatecontrol.android.gatedrop.GdLink
+import com.gatecontrol.android.gatedrop.GdReceiveFrom
 import com.gatecontrol.android.gatedrop.GdReceived
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
@@ -95,6 +96,7 @@ fun SharedScreen(
             Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            ui.receiveFrom?.let { mode -> ReceiveFromCard(mode, ui.receiveFromFailed, viewModel::setReceiveFrom) }
             GcSegmented(
                 options = listOf(
                     GateDropNotifier.TAB_RECEIVED to stringResource(R.string.gatedrop_tab_received),
@@ -157,6 +159,32 @@ private fun open(ctx: Context, intent: Intent) {
 
 private fun time(ctx: Context, at: Long?): String =
     if (at == null || at <= 0) "" else DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString()
+
+
+/** "Wer darf an dieses Gerät senden?" — only me (default) or everyone on the own GateControl. */
+@Composable
+private fun ReceiveFromCard(mode: String, failed: Boolean, onSelect: (String) -> Unit) {
+    val extra = GateControlTheme.extraColors
+    GcCard(contentPadding = PaddingValues(16.dp)) {
+        Text(stringResource(R.string.gatedrop_receive_from_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        GcSegmented(
+            options = listOf(
+                GdReceiveFrom.SELF to stringResource(R.string.gatedrop_receive_from_self),
+                GdReceiveFrom.EVERYONE to stringResource(R.string.gatedrop_receive_from_everyone),
+            ),
+            selected = mode,
+            onSelect = onSelect,
+        )
+        Text(
+            stringResource(if (mode == GdReceiveFrom.EVERYONE) R.string.gatedrop_receive_from_everyone_desc else R.string.gatedrop_receive_from_self_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = extra.muted,
+        )
+        if (failed) {
+            Text(stringResource(R.string.gatedrop_receive_from_failed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
 
 @Composable
 private fun EmptyCard(text: String) {

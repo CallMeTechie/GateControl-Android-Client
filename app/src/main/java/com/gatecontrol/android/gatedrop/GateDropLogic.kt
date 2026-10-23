@@ -69,7 +69,7 @@ object GateDropLogic {
      */
     fun recipients(selection: GdSelection, targets: GdTargets): GdRecipients {
         val people = targets.people.filter { it.id in selection.people }.map { if (it.isFamily) GdPerson.FAMILY_ID else it.id }
-        val devices = targets.devices.filter { it.id in selection.devices }.map { it.id }
+        val devices = targets.allDevices.filter { it.id in selection.devices }.map { it.id }
         val nas = if (targets.nasOffered) targets.nas.filter { it.id in selection.nas }.map { GdNasRef(it.id, it.path) } else emptyList()
         val link = selection.link?.takeIf { targets.linkOffered }
         return GdRecipients(people = people.distinct(), devices = devices, nas = nas, link = link)
@@ -78,8 +78,11 @@ object GateDropLogic {
     /** Names of the chosen targets in sheet order (people, devices, NAS); the link is named by the caller. */
     fun chosenNames(selection: GdSelection, targets: GdTargets): List<String> =
         targets.people.filter { it.id in selection.people }.map { it.name } +
-            targets.devices.filter { it.id in selection.devices }.map { it.name } +
+            targets.allDevices.filter { it.id in selection.devices }.map { deviceLabel(it) } +
             (if (targets.nasOffered) targets.nas.filter { it.id in selection.nas }.map { it.label } else emptyList())
+
+    /** "Büro-PC", or another person's device with its owner: "Surface · Marc". */
+    fun deviceLabel(d: GdDevice): String = d.owner?.let { "${d.name} · ${it.name}" } ?: d.name
 
     /** Something to send and somewhere to send it. */
     fun canSend(selection: GdSelection, targets: GdTargets, fileCount: Int, hasText: Boolean): Boolean {

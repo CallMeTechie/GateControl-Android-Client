@@ -3,8 +3,24 @@ package com.gatecontrol.android.gatedrop
 /** Plugin id of GateDrop ("Teilen" over the own server, docs: GateDrop contract B). */
 const val GATEDROP_PLUGIN = "gatecontrol-gatedrop"
 
-/** What the caller may do beyond people and own devices (`targets.me`). */
-data class GdMe(val canLink: Boolean = false, val canNas: Boolean = false)
+/**
+ * What the caller may do beyond people and own devices (`targets.me`);
+ * [receiveFrom] is this device's "who may send to it" ([GdReceiveFrom]), null without the setting (GateDrop < 1.2).
+ */
+data class GdMe(val canLink: Boolean = false, val canNas: Boolean = false, val receiveFrom: String? = null)
+
+/** Who may send to this device (`GET`/`PUT device`, GateDrop ≥ 1.2). */
+object GdReceiveFrom {
+    /** Only the owner (the default). */
+    const val SELF = "self"
+    /** Every account of the own GateControl: listed for them under "Geräte anderer". */
+    const val EVERYONE = "everyone"
+
+    fun of(value: String?): String? = value?.takeIf { it == SELF || it == EVERYONE }
+}
+
+/** The owner of another person's device (`targets.peopleDevices[].owner`). */
+data class GdOwner(val id: String, val name: String)
 
 /** A person (`kind` user) or the family (`kind` family) of `targets.people`. */
 data class GdPerson(
@@ -27,7 +43,7 @@ data class GdPerson(
     }
 }
 
-/** An own installation (Android, Windows, …) of `targets.devices`. */
+/** An own installation (Android, Windows, …) of `targets.devices`, or another person's open one ([owner] set). */
 data class GdDevice(
     val id: String,
     val name: String,
@@ -35,6 +51,8 @@ data class GdDevice(
     val online: Boolean = false,
     /** Same network as this device and listening: the files may go directly. */
     val direct: Boolean = false,
+    /** Another person's device they opened for everyone (`targets.peopleDevices`); null = an own device. */
+    val owner: GdOwner? = null,
 )
 
 /** A NAS folder files may be put into (`targets.nas`). */
@@ -45,9 +63,14 @@ data class GdTargets(
     val me: GdMe = GdMe(),
     val people: List<GdPerson> = emptyList(),
     val devices: List<GdDevice> = emptyList(),
+    /** Other people's devices open for everyone ("Geräte anderer", GateDrop ≥ 1.2). */
+    val peopleDevices: List<GdDevice> = emptyList(),
     val nas: List<GdNas> = emptyList(),
     val linksEnabled: Boolean = false,
 ) {
+    /** Own devices and other people's open ones — both go into `to.devices`. */
+    val allDevices: List<GdDevice> get() = devices + peopleDevices
+
     /** "Ablegen" is offered: allowed for the caller and folders exist. */
     val nasOffered: Boolean get() = me.canNas && nas.isNotEmpty()
 

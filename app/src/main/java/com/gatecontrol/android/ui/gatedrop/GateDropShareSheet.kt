@@ -199,6 +199,16 @@ private fun Main(
                     }
                 }
             }
+            // ─── Geräte anderer (their owner opened them for everyone) ───
+            if (targets.peopleDevices.isNotEmpty()) {
+                GcSectionLabel(stringResource(R.string.gatedrop_people_devices))
+                GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+                    targets.peopleDevices.forEachIndexed { i, d ->
+                        if (i > 0) GcRowDivider()
+                        DeviceRow(d, d.id in ui.selection.devices) { onToggleDevice(d.id) }
+                    }
+                }
+            }
             // ─── Ablegen (NAS) ───
             if (targets.nasOffered) {
                 GcSectionLabel(stringResource(R.string.gatedrop_nas))
@@ -231,7 +241,7 @@ private fun Main(
                     )
                 }
             }
-            if (targets.people.isEmpty() && targets.devices.isEmpty() && !targets.nasOffered && !targets.linkOffered) {
+            if (targets.people.isEmpty() && targets.allDevices.isEmpty() && !targets.nasOffered && !targets.linkOffered) {
                 Text(stringResource(R.string.gatedrop_no_targets), style = MaterialTheme.typography.bodyMedium, color = extra.muted)
             }
         }
@@ -343,15 +353,17 @@ private fun PersonChoice(p: GdPerson, serverUrl: String, checked: Boolean, onCli
 @Composable
 private fun DeviceRow(d: GdDevice, checked: Boolean, onClick: () -> Unit) {
     val state = GateDropLogic.deviceState(d)
+    val status = stringResource(
+        when (state) {
+            GdDeviceState.DIRECT -> R.string.gatedrop_device_direct
+            GdDeviceState.ONLINE -> R.string.gatedrop_device_online
+            GdDeviceState.OFFLINE -> R.string.gatedrop_device_offline
+        },
+    )
     CheckRow(
         title = d.name,
-        description = stringResource(
-            when (state) {
-                GdDeviceState.DIRECT -> R.string.gatedrop_device_direct
-                GdDeviceState.ONLINE -> R.string.gatedrop_device_online
-                GdDeviceState.OFFLINE -> R.string.gatedrop_device_offline
-            },
-        ),
+        // another person's device: whose it is first ("Marc · online")
+        description = d.owner?.let { stringResource(R.string.gatedrop_device_owner, it.name, status) } ?: status,
         descriptionAccent = state == GdDeviceState.DIRECT,
         icon = if (d.platform == "android" || d.platform == "ios") Icons.Outlined.PhoneAndroid else Icons.Outlined.Computer,
         checked = checked,

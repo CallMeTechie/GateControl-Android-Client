@@ -127,7 +127,7 @@ class GateDropShareViewModel @Inject constructor(
                 link = shareLink,
                 note = s.note.trim().ifBlank { null },
                 to = to,
-                directDevices = targets.devices.filter { it.id in to.devices && it.online && it.direct }.map { it.id },
+                directDevices = targets.allDevices.filter { it.id in to.devices && it.online && it.direct }.map { it.id },
             )
             repository.store.saveJob(job)
             repository.setJobState(jobId, GdJobState.Preparing)

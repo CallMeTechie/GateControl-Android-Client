@@ -17,6 +17,8 @@
     <string name="gatedrop_device_direct">online · directly over Wi-Fi</string>
     <string name="gatedrop_device_online">online</string>
     <string name="gatedrop_device_offline">offline · arrives as soon as it is online</string>
+    <string name="gatedrop_people_devices">Other people\'s devices</string>
+    <string name="gatedrop_device_owner">%1$s · %2$s</string>
     <string name="gatedrop_nas">Store</string>
     <string name="gatedrop_link_section">Link for externals</string>
     <string name="gatedrop_link_row">Create a link</string>
@@ -106,6 +108,12 @@
     <string name="gatedrop_settings_group">Sharing</string>
     <string name="gatedrop_settings_row_desc">Received, sent and links for externals</string>
     <string name="gatedrop_shared_title">Shared</string>
+    <string name="gatedrop_receive_from_title">Who may send to this device?</string>
+    <string name="gatedrop_receive_from_self">Only me</string>
+    <string name="gatedrop_receive_from_everyone">Everyone on GateControl</string>
+    <string name="gatedrop_receive_from_self_desc">Only your own devices see this device when sharing.</string>
+    <string name="gatedrop_receive_from_everyone_desc">Everyone on your GateControl server sees this device when sharing and can send files, texts and links straight to it.</string>
+    <string name="gatedrop_receive_from_failed">The setting could not be saved.</string>
     <string name="gatedrop_reload">Reload</string>
     <string name="gatedrop_tab_received">Received</string>
     <string name="gatedrop_tab_sent">Sent</string>
