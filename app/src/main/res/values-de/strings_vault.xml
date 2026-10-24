@@ -343,5 +343,19 @@
     <string name="vault_af_saved">In Vault gespeichert.</string>
     <string name="vault_af_save_title">Diesen Login in Vault speichern?</string>
     <string name="vault_af_no_entries">Kein passender Eintrag.</string>
+    <string name="vault_wifi_nearby">WLAN in der Nähe</string>
+    <string name="vault_wifi_nearby_title">WLANs in der Nähe</string>
+    <string name="vault_wifi_scan_again">Erneut suchen</string>
+    <string name="vault_wifi_scanning">Suche WLANs …</string>
+    <string name="vault_wifi_none">Keine WLANs gefunden.</string>
+    <string name="vault_wifi_connected">Verbunden</string>
+    <string name="vault_wifi_open">Offen</string>
+    <string name="vault_wifi_signal">Signal %1$d von 4</string>
+    <string name="vault_wifi_perm_title">Standort für die WLAN-Suche</string>
+    <string name="vault_wifi_perm_explain">Android zeigt WLANs in der Nähe nur Apps mit Standort-Berechtigung. GateControl nutzt sie hier nur, um die WLAN-Namen aufzulisten – der Standort wird weder gespeichert noch gesendet.</string>
+    <string name="vault_wifi_perm_denied">Ohne Standort-Berechtigung kann GateControl keine WLANs suchen. Du kannst sie in den App-Einstellungen erlauben oder den Namen eintippen.</string>
+    <string name="vault_wifi_location_off">Für die WLAN-Suche muss der Standort eingeschaltet sein.</string>
+    <string name="vault_wifi_off">WLAN ist ausgeschaltet.</string>
+    <string name="vault_wifi_open_settings">Einstellungen öffnen</string>
 
 </resources>

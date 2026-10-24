@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.vault
 
+import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
@@ -156,6 +158,7 @@ fun VaultEditScreen(
     viewModel: VaultViewModel = hiltViewModel(),
 ) {
     val x = GateControlTheme.extraColors
+    val context = LocalContext.current
     val vaults by viewModel.vaults.collectAsStateWithLifecycle()
     VaultLockGate(viewModel, onForgot) {
         val existing = remember(id) { id?.let { viewModel.repository.entry(it) } }
@@ -166,10 +169,12 @@ fun VaultEditScreen(
             mutableStateOf(existing?.vaultId ?: writable.firstOrNull { it.id == vaultHint }?.id ?: writable.firstOrNull { it.vault.personal }?.id ?: writable.firstOrNull()?.id)
         }
         var generator by remember { mutableStateOf(false) }
+        var wifiNearby by remember { mutableStateOf(false) }
         var discard by remember { mutableStateOf(false) }
         var vaultMenu by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
         var busy by remember { mutableStateOf(false) }
+        val hasWifi = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI) }
         val dirty = draft != start || (existing != null && vaultId != existing.vaultId)
         BackHandler(enabled = dirty) { discard = true }
         val msgTitle = stringResource(R.string.vault_edit_title_required)
@@ -231,6 +236,10 @@ fun VaultEditScreen(
                             error = if (v.isNotBlank() && VaultTotp.parse(v) == null) stringResource(R.string.vault_totp_invalid) else null,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                         )
+                        key == "ssid" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GcTextField(v, update, stringResource(label), keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
+                            if (hasWifi) GcSecondaryButton(stringResource(R.string.vault_wifi_nearby), onClick = { wifiNearby = true }, icon = GcIcons.Wifi, fillWidth = false)
+                        }
                         key == "address" -> GcTextField(v, update, stringResource(label), singleLine = false)
                         else -> GcTextField(
                             v, update, stringResource(label),
@@ -302,6 +311,15 @@ fun VaultEditScreen(
             VaultGeneratorSheet(onDismiss = { generator = false }, onUse = { pw ->
                 draft = draft.copy(fields = draft.fields + ("password" to pw))
                 generator = false
+            })
+        }
+        if (wifiNearby) {
+            VaultWifiSheet(viewModel.wifiScanner, onDismiss = { wifiNearby = false }, onPick = { n ->
+                draft = draft.copy(
+                    title = draft.title.ifBlank { n.ssid },
+                    fields = draft.fields + ("ssid" to n.ssid) + ("security" to n.security),
+                )
+                wifiNearby = false
             })
         }
         if (discard) {

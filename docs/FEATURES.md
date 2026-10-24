@@ -633,6 +633,12 @@ Abgleich über die normale Server-Adresse, auch ohne aktiven Tunnel.
   Typ, Verlauf früherer Versionen, Papierkorb. Kopierte Geheimnisse sind
   als vertraulich markiert und werden nach 30 s aus der Zwischenablage
   gelöscht. Passwort-Generator (Zeichen oder Wörter).
+- **WLAN in der Nähe:** Beim WLAN-Eintrag listet „WLAN in der Nähe“ die
+  Netze in Reichweite (verbundenes zuerst, dann nach Signal); ein Tipp
+  übernimmt Name und Sicherheit (WPA2, WPA3, WPA2/WPA3, WPA, WEP, Offen).
+  Android liefert Scan-Ergebnisse nur mit Standort-Berechtigung und
+  eingeschaltetem Standort – erfragt erst beim ersten Suchen, nichts wird
+  gespeichert oder gesendet.
 - **Offline:** eine verschlüsselte Kopie liegt auf dem Gerät; Änderungen
   ohne Verbindung gehen in eine Warteschlange. Bei Konflikten entsteht eine
   Kopie „(Konflikt)“, nichts geht verloren.
