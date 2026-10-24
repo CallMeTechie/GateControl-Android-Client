@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.66.0] - 2026-10-24
+
+### Features
+- WLAN-QR-Code groß anzeigen, Freigabe auf Wandtablet und Portalseite (#121)
+
+---
+
 ## [1.65.1] - 2026-10-24
 
 ### Fixes
