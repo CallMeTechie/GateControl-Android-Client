@@ -357,5 +357,13 @@
     <string name="vault_wifi_location_off">Location must be switched on for the Wi-Fi search.</string>
     <string name="vault_wifi_off">Wi-Fi is switched off.</string>
     <string name="vault_wifi_open_settings">Open settings</string>
+    <string name="vault_qr_scan">Scan QR code</string>
+    <string name="vault_qr_aim">Point the camera at the website’s 2FA QR code.</string>
+    <string name="vault_qr_from_image">From image (screenshot)</string>
+    <string name="vault_qr_not_totp">This is not a 2FA QR code.</string>
+    <string name="vault_qr_hotp">Vault does not support counter-based codes (HOTP).</string>
+    <string name="vault_qr_none_in_image">No QR code found in the image.</string>
+    <string name="vault_qr_camera_denied">Without the camera permission you can pick a screenshot of the QR code or type the key.</string>
+    <string name="vault_qr_pick_account">Which account?</string>
 
 </resources>

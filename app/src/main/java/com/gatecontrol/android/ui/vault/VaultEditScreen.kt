@@ -170,6 +170,7 @@ fun VaultEditScreen(
         }
         var generator by remember { mutableStateOf(false) }
         var wifiNearby by remember { mutableStateOf(false) }
+        var totpScan by remember { mutableStateOf(false) }
         var discard by remember { mutableStateOf(false) }
         var vaultMenu by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
@@ -231,11 +232,14 @@ fun VaultEditScreen(
                             GcIconButton(GcIcons.Refresh, stringResource(R.string.vault_generate), onClick = { generator = true }, size = 44.dp, iconSize = 20.dp)
                         })
                         key in SECRET_FIELDS && key != "totp" -> VaultPasswordField(v, update, stringResource(label))
-                        key == "totp" -> GcTextField(
-                            v, update, stringResource(label), mono = true,
-                            error = if (v.isNotBlank() && VaultTotp.parse(v) == null) stringResource(R.string.vault_totp_invalid) else null,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-                        )
+                        key == "totp" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GcTextField(
+                                v, update, stringResource(label), mono = true,
+                                error = if (v.isNotBlank() && VaultTotp.parse(v) == null) stringResource(R.string.vault_totp_invalid) else null,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                            )
+                            GcSecondaryButton(stringResource(R.string.vault_qr_scan), onClick = { totpScan = true }, icon = GcIcons.Qr, fillWidth = false)
+                        }
                         key == "ssid" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             GcTextField(v, update, stringResource(label), keyboardOptions = KeyboardOptions(autoCorrectEnabled = false))
                             if (hasWifi) GcSecondaryButton(stringResource(R.string.vault_wifi_nearby), onClick = { wifiNearby = true }, icon = GcIcons.Wifi, fillWidth = false)
@@ -311,6 +315,15 @@ fun VaultEditScreen(
             VaultGeneratorSheet(onDismiss = { generator = false }, onUse = { pw ->
                 draft = draft.copy(fields = draft.fields + ("password" to pw))
                 generator = false
+            })
+        }
+        if (totpScan) {
+            VaultTotpScanDialog(onDismiss = { totpScan = false }, onPick = { acc ->
+                var f = draft.fields + ("totp" to acc.uri)
+                // a login also takes the account name when it has no user name yet
+                if (draft.type == "login" && draft.field("username").isBlank() && acc.name.isNotBlank()) f = f + ("username" to acc.name)
+                draft = draft.copy(title = draft.title.ifBlank { acc.issuer.ifBlank { acc.name } }, fields = f)
+                totpScan = false
             })
         }
         if (wifiNearby) {

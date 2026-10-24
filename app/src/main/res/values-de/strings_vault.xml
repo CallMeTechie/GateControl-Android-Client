@@ -357,5 +357,13 @@
     <string name="vault_wifi_location_off">Für die WLAN-Suche muss der Standort eingeschaltet sein.</string>
     <string name="vault_wifi_off">WLAN ist ausgeschaltet.</string>
     <string name="vault_wifi_open_settings">Einstellungen öffnen</string>
+    <string name="vault_qr_scan">QR-Code scannen</string>
+    <string name="vault_qr_aim">Halte die Kamera auf den 2FA-QR-Code der Website.</string>
+    <string name="vault_qr_from_image">Aus Bild (Screenshot)</string>
+    <string name="vault_qr_not_totp">Das ist kein 2FA-QR-Code.</string>
+    <string name="vault_qr_hotp">Zählerbasierte Codes (HOTP) unterstützt Vault nicht.</string>
+    <string name="vault_qr_none_in_image">Im Bild wurde kein QR-Code gefunden.</string>
+    <string name="vault_qr_camera_denied">Ohne Kamera-Berechtigung kannst du einen Screenshot des QR-Codes wählen oder den Schlüssel eintippen.</string>
+    <string name="vault_qr_pick_account">Welches Konto?</string>
 
 </resources>

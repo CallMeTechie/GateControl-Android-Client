@@ -633,6 +633,13 @@ Abgleich über die normale Server-Adresse, auch ohne aktiven Tunnel.
   Typ, Verlauf früherer Versionen, Papierkorb. Kopierte Geheimnisse sind
   als vertraulich markiert und werden nach 30 s aus der Zwischenablage
   gelöscht. Passwort-Generator (Zeichen oder Wörter).
+- **2FA per QR-Code:** Beim Login und beim 2FA-Code öffnet „QR-Code
+  scannen“ die Kamera; „Aus Bild (Screenshot)“ liest den QR-Code aus einem
+  Bild, wenn die Website auf demselben Handy offen ist. Übernommen werden
+  `otpauth://totp`-Codes (mit Ziffern, Intervall, Algorithmus) und Exporte
+  aus dem Google Authenticator (`otpauth-migration://`, Auswahl des
+  Kontos); Titel und – beim Login – Benutzername kommen aus dem Code, wenn
+  sie leer sind. HOTP wird abgelehnt.
 - **WLAN in der Nähe:** Beim WLAN-Eintrag listet „WLAN in der Nähe“ die
   Netze in Reichweite (verbundenes zuerst, dann nach Signal); ein Tipp
   übernimmt Name und Sicherheit (WPA2, WPA3, WPA2/WPA3, WPA, WEP, Offen).
