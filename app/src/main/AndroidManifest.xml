@@ -30,6 +30,11 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Vault: "WLAN in der Nähe" lists the WLANs in range when adding a WLAN
+         entry (scan results need the location permission above, asked only
+         then). -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
 
     <!-- Query all launchable apps for split-tunnel app picker -->
     <queries>

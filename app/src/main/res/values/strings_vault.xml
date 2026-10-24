@@ -343,5 +343,19 @@
     <string name="vault_af_saved">Saved in Vault.</string>
     <string name="vault_af_save_title">Save this login in Vault?</string>
     <string name="vault_af_no_entries">No matching entry.</string>
+    <string name="vault_wifi_nearby">Wi-Fi nearby</string>
+    <string name="vault_wifi_nearby_title">Wi-Fi networks nearby</string>
+    <string name="vault_wifi_scan_again">Scan again</string>
+    <string name="vault_wifi_scanning">Searching for Wi-Fi …</string>
+    <string name="vault_wifi_none">No Wi-Fi networks found.</string>
+    <string name="vault_wifi_connected">Connected</string>
+    <string name="vault_wifi_open">Open</string>
+    <string name="vault_wifi_signal">Signal %1$d of 4</string>
+    <string name="vault_wifi_perm_title">Location for the Wi-Fi search</string>
+    <string name="vault_wifi_perm_explain">Android only shows nearby Wi-Fi networks to apps with the location permission. GateControl uses it here only to list the network names – the location is neither stored nor sent.</string>
+    <string name="vault_wifi_perm_denied">Without the location permission GateControl cannot search for Wi-Fi networks. You can allow it in the app settings or type the name.</string>
+    <string name="vault_wifi_location_off">Location must be switched on for the Wi-Fi search.</string>
+    <string name="vault_wifi_off">Wi-Fi is switched off.</string>
+    <string name="vault_wifi_open_settings">Open settings</string>
 
 </resources>

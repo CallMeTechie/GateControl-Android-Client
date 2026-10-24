@@ -14,6 +14,7 @@ import com.gatecontrol.android.vault.VaultCrypto
 import com.gatecontrol.android.vault.VaultImport
 import com.gatecontrol.android.vault.VaultRepository
 import com.gatecontrol.android.vault.VaultSession
+import com.gatecontrol.android.vault.VaultWifiScanner
 import com.gatecontrol.android.vault.VaultStore
 import com.gatecontrol.android.vault.VaultView
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,6 +39,7 @@ class VaultViewModel @Inject constructor(
     private val session: VaultSession,
     private val store: VaultStore,
     val biometric: VaultBiometric,
+    val wifiScanner: VaultWifiScanner,
 ) : ViewModel() {
 
     private val checked = MutableStateFlow(false)
