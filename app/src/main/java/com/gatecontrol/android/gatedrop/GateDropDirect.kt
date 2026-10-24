@@ -8,23 +8,16 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
-import okio.BufferedSink
-import okio.source
 import timber.log.Timber
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.net.Inet4Address
-import java.net.Proxy
 import java.util.Base64
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import javax.net.SocketFactory
 
 /** A local file to send directly (index = position in the send). */
 data class GdLocalFile(val file: File, val name: String, val size: Long)
@@ -45,7 +38,9 @@ sealed interface GdDirectOutcome {
  * token never leaves for a LAN address. Each candidate gets 2 s to accept
  * the connection; after that (or any error) the caller falls back to the
  * server. Sockets go out over the Wi-Fi/Ethernet network that holds the
- * candidate, not through the VPN.
+ * candidate, not through the VPN, and are plain sockets ([GateDropHttp]):
+ * OkHttp would refuse cleartext to LAN addresses under the app's network
+ * security policy.
  */
 @Singleton
 class GateDropDirect @Inject constructor(
@@ -59,7 +54,6 @@ class GateDropDirect @Inject constructor(
         const val H_ITEM = "X-GD-Item"
         const val H_NAME = "X-GD-Name"
         const val H_SIZE = "X-GD-Size"
-        private val OCTET = "application/octet-stream".toMediaType()
 
         fun encodeName(name: String): String = Base64.getUrlEncoder().withoutPadding().encodeToString(name.toByteArray(Charsets.UTF_8))
 
@@ -93,126 +87,142 @@ class GateDropDirect @Inject constructor(
     private fun networkFor(host: String): Network? =
         lanNetworks().firstOrNull { (_, addrs) -> addrs.any { (ip, prefix) -> GateDropLogic.inSubnet(host, ip, prefix) } }?.first
 
-    private fun client(network: Network?, readTimeoutS: Long = 30): OkHttpClient = OkHttpClient.Builder()
-        .proxy(Proxy.NO_PROXY)
-        .connectTimeout(GateDropLogic.CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        .readTimeout(readTimeoutS, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(false)
-        .followRedirects(false)
-        .followSslRedirects(false)
-        .apply { network?.let { socketFactory(it.socketFactory) } }
-        .build()
+    /**
+     * Sockets to [host]: bound to the Wi-Fi/Ethernet network that holds it
+     * (so the VPN never routes the LAN address into the tunnel), else the
+     * system's. Plain sockets on purpose — see [GateDropHttp].
+     */
+    internal var socketFactoryFor: (String) -> SocketFactory = { host ->
+        networkFor(host)?.socketFactory ?: SocketFactory.getDefault().also {
+            Timber.i("GateDrop: no Wi-Fi network holds the candidate, the system routes it")
+        }
+    }
+
+    private fun http(host: String, readTimeoutMs: Int) =
+        GateDropHttp(socketFactoryFor(host), GateDropLogic.CONNECT_TIMEOUT_MS.toInt(), readTimeoutMs)
 
     /**
      * Push (this device sends, the target listens): every file is posted
      * to the first candidate that accepts; that candidate is kept for the
-     * other files.
+     * other files. Failed reasons: `no_candidate`, the connect error of the
+     * last candidate (`connect_timeout`, `refused`, `unreachable`, …) or,
+     * once connected, `http_<status>` / `broken`.
      */
     suspend fun push(direct: GdDirect, files: List<GdLocalFile>, onProgress: (Long) -> Unit = {}): GdDirectOutcome = withContext(Dispatchers.IO) {
         val candidates = GateDropLogic.orderCandidates(direct.candidates, lanAddresses())
-        if (candidates.isEmpty()) return@withContext GdDirectOutcome.Failed("no_candidate")
+        if (candidates.isEmpty()) return@withContext GdDirectOutcome.Failed("no_candidate").also { Timber.i("GateDrop: push %s – no candidate", direct.transferId) }
         var chosen: GdCandidate? = null
         var total = 0L
         files.forEachIndexed { index, f ->
             val tryList = chosen?.let { listOf(it) } ?: candidates
+            var reason = "push_failed"
             var ok = false
             for (c in tryList) {
                 val base = total
                 val r = runCatching { pushOne(c, direct, index, f) { onProgress(base + it) } }
                 if (r.exceptionOrNull() is CancellationException) throw r.exceptionOrNull()!!
-                if (r.getOrDefault(false)) {
+                val err = r.exceptionOrNull()
+                if (err == null) {
                     chosen = c
                     ok = true
                     break
                 }
-                Timber.d("GateDrop: push to a candidate failed (%s)", r.exceptionOrNull()?.javaClass?.simpleName ?: "refused")
+                reason = (err as? GdHttpException)?.code ?: "broken"
+                Timber.i("GateDrop: push of %s to %s:%d failed (%s: %s)", direct.transferId, c.host, c.port, reason, err.message)
+                // Reached and refused / broken off: another address of the same device will not do better.
+                if ((err as? GdHttpException)?.connected != false) break
             }
-            if (!ok) return@withContext GdDirectOutcome.Failed("push_failed")
+            if (!ok) return@withContext GdDirectOutcome.Failed(reason)
             total += f.size
             onProgress(total)
         }
+        Timber.i("GateDrop: push of %s done (%d bytes)", direct.transferId, total)
         GdDirectOutcome.Done(total)
     }
 
-    private fun pushOne(c: GdCandidate, direct: GdDirect, index: Int, f: GdLocalFile, onBytes: (Long) -> Unit): Boolean {
+    private fun pushOne(c: GdCandidate, direct: GdDirect, index: Int, f: GdLocalFile, onBytes: (Long) -> Unit) {
         val size = f.size
-        val body = object : RequestBody() {
-            override fun contentType() = OCTET
-            override fun contentLength(): Long = GateDropCrypto.encryptedLength(size)
-            override fun writeTo(sink: BufferedSink) {
-                GateDropCrypto.encryptingStream(FileInputStream(f.file), direct.key, direct.transferId, index, size).use { enc ->
-                    val src = enc.source()
-                    val buf = okio.Buffer()
-                    var sent = 0L
-                    while (true) {
-                        val n = src.read(buf, 256 * 1024L)
-                        if (n < 0) break
-                        sink.write(buf, n)
-                        sent += n
-                        onBytes(minOf(size, sent))
-                    }
+        val headers = linkedMapOf(
+            "Content-Type" to "application/octet-stream",
+            H_TICKET to direct.ticket,
+            H_ITEM to index.toString(),
+            H_NAME to encodeName(f.name),
+            H_SIZE to size.toString(),
+        )
+        http(c.host, readTimeoutMs = 120_000).execute(
+            c.host, c.port, "POST", "$PATH${direct.transferId}", headers, GateDropCrypto.encryptedLength(size),
+        ) { sink ->
+            GateDropCrypto.encryptingStream(FileInputStream(f.file), direct.key, direct.transferId, index, size).use { enc ->
+                val buf = ByteArray(256 * 1024)
+                var sent = 0L
+                while (true) {
+                    val n = enc.read(buf)
+                    if (n < 0) break
+                    sink.write(buf, 0, n)
+                    sent += n
+                    onBytes(minOf(size, sent))
                 }
             }
+        }.use { r ->
+            if (!r.isSuccessful) throw GdHttpException("http_${r.status}", connected = true)
         }
-        val request = Request.Builder()
-            .url("http://${c.host}:${c.port}$PATH${direct.transferId}")
-            .header(H_TICKET, direct.ticket)
-            .header(H_ITEM, index.toString())
-            .header(H_NAME, encodeName(f.name))
-            .header(H_SIZE, size.toString())
-            .post(body)
-            .build()
-        client(networkFor(c.host), readTimeoutS = 120).newCall(request).execute().use { r -> return r.isSuccessful }
     }
 
     /**
      * Pull (this device receives, the sender listens): every file is
      * fetched from the first candidate that answers and written, checked
      * block by block, to [sinkFor]'s stream. A file that fails its check
-     * fails the whole transfer.
+     * fails the whole transfer. Failed reasons as for [push], plus
+     * `auth_failed` (a block did not decrypt).
      */
     suspend fun pull(offer: GdTransferOffer, sinkFor: (Int, GdOfferItem) -> OutputStream, onProgress: (Long) -> Unit = {}): GdDirectOutcome = withContext(Dispatchers.IO) {
         val candidates = GateDropLogic.orderCandidates(offer.candidates, lanAddresses())
-        if (candidates.isEmpty()) return@withContext GdDirectOutcome.Failed("no_candidate")
+        if (candidates.isEmpty()) return@withContext GdDirectOutcome.Failed("no_candidate").also { Timber.i("GateDrop: pull %s – no candidate", offer.transferId) }
         var chosen: GdCandidate? = null
         var total = 0L
         offer.items.forEachIndexed { index, item ->
             val tryList = chosen?.let { listOf(it) } ?: candidates
+            var reason = "pull_failed"
             var ok = false
             for (c in tryList) {
                 val base = total
-                val request = Request.Builder()
-                    .url("http://${c.host}:${c.port}$PATH${offer.transferId}/$index")
-                    .header(H_TICKET, offer.ticket)
-                    .get()
-                    .build()
                 val r = runCatching {
-                    client(networkFor(c.host), readTimeoutS = 60).newCall(request).execute().use { resp ->
-                        if (!resp.isSuccessful) return@use false
-                        val body = resp.body
-                        val announced = body.contentLength()
-                        if (announced >= 0 && announced != GateDropCrypto.encryptedLength(item.bytes)) throw IOException("length mismatch")
-                        sinkFor(index, item).use { out ->
-                            GateDropCrypto.decryptStream(body.byteStream(), out, offer.key, offer.transferId, index, item.bytes) { onProgress(base + it) }
+                    http(c.host, readTimeoutMs = 60_000).execute(
+                        c.host, c.port, "GET", "$PATH${offer.transferId}/$index", mapOf(H_TICKET to offer.ticket),
+                    ).use { resp ->
+                        if (!resp.isSuccessful) throw GdHttpException("http_${resp.status}", connected = true)
+                        val announced = resp.contentLength
+                        if (announced != null && announced != GateDropCrypto.encryptedLength(item.bytes)) throw GdHttpException("bad_size", connected = true)
+                        try {
+                            sinkFor(index, item).use { out ->
+                                GateDropCrypto.decryptStream(resp.body, out, offer.key, offer.transferId, index, item.bytes) { onProgress(base + it) }
+                            }
+                        } catch (e: GdHttpException) {
+                            throw e
+                        } catch (e: java.security.GeneralSecurityException) {
+                            throw GdHttpException("auth_failed", connected = true, message = e.javaClass.simpleName, cause = e)
+                        } catch (e: IOException) {
+                            throw GdHttpException(if (e is java.net.SocketTimeoutException) "timeout" else "broken", connected = true, message = "${e.javaClass.simpleName}: ${e.message}", cause = e)
                         }
-                        true
                     }
                 }
                 if (r.exceptionOrNull() is CancellationException) throw r.exceptionOrNull()!!
-                if (r.getOrDefault(false)) {
+                val err = r.exceptionOrNull()
+                if (err == null) {
                     chosen = c
                     ok = true
                     break
                 }
-                Timber.d("GateDrop: pull from a candidate failed (%s)", r.exceptionOrNull()?.javaClass?.simpleName ?: "refused")
-                // A broken item after the connection was made: no other candidate gets the same file twice.
-                if (r.exceptionOrNull() != null && chosen != null) break
+                reason = (err as? GdHttpException)?.code ?: "broken"
+                Timber.i("GateDrop: pull of %s from %s:%d failed (%s: %s)", offer.transferId, c.host, c.port, reason, err.message)
+                // Reached and refused / broken off: another address of the same device will not do better.
+                if ((err as? GdHttpException)?.connected != false) break
             }
-            if (!ok) return@withContext GdDirectOutcome.Failed("pull_failed")
+            if (!ok) return@withContext GdDirectOutcome.Failed(reason)
             total += item.bytes
             onProgress(total)
         }
+        Timber.i("GateDrop: pull of %s done (%d bytes)", offer.transferId, total)
         GdDirectOutcome.Done(total)
     }
 }

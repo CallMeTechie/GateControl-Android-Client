@@ -287,3 +287,20 @@ data class GdUploadPart(val complete: Boolean?, val mediaId: String?, val offset
 
 /** Answer of `POST transfers/<id>/result`. */
 data class GdTransferAnswer(val fallback: String? = null, val missing: List<Int>? = null)
+
+/**
+ * Where a direct transfer stands (`GET transfers/<id>`), also once it
+ * ended. [peerError]: what the other end reported when it gave up
+ * (GateDrop 1.2.1+, else null).
+ */
+data class GdTransferStatus(val status: String?, val peerOk: Boolean? = null, val peerError: String? = null) {
+    /** The other end gave up (or the ticket ran out): no point in waiting for it. */
+    val ended: Boolean get() = status == FAILED || status == EXPIRED
+
+    companion object {
+        const val OPEN = "open"
+        const val DONE = "done"
+        const val FAILED = "failed"
+        const val EXPIRED = "expired"
+    }
+}

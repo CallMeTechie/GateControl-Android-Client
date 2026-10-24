@@ -141,6 +141,12 @@ class GateDropApi @Inject constructor(
         return get("transfers/$id", parse = GateDropJson::offer)
     }
 
+    /** Where a transfer stands (`GET transfers/<id>`), also once it ended: did the other end give up? */
+    suspend fun transferStatus(transferId: String): GdResult<GdTransferStatus> {
+        val id = seg(transferId) ?: return GdResult.Failed(CODE_INVALID, 0)
+        return get("transfers/$id", parse = GateDropJson::transferStatus)
+    }
+
     // ─── inbox, links ───────────────────────────────────────────────
 
     suspend fun inbox(kind: GdInboxKind): GdResult<List<GdEntry>> = get("inbox", mapOf("kind" to kind.wire), GateDropJson::entries)

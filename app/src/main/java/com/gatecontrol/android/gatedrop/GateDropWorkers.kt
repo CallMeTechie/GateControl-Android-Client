@@ -157,7 +157,11 @@ class GateDropReceiveWorker(appContext: Context, params: WorkerParameters) : Cor
                 val file = offerFile(applicationContext, transfer.removePrefix("t:"))
                 val offer = runCatching { GateDropJson.offer(com.google.gson.JsonParser.parseString(file.readText()).asJsonObject) }.getOrNull()
                 file.delete()
-                offer ?: return Result.failure()
+                if (offer == null) {
+                    // The offer is gone (or unreadable): the sender must not wait for this device.
+                    runCatching { repo.reportDirectFailed(transfer.removePrefix("t:"), "bad_offer") }
+                    return Result.failure()
+                }
                 foreground(offer.from, null)
                 val progress = MutableStateFlow<Int?>(null)
                 coroutineScope {

@@ -36,6 +36,7 @@ class GateDropPushHandler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val notifier: GateDropNotifier,
     private val store: GateDropStore,
+    private val repository: dagger.Lazy<GateDropRepository>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
@@ -52,7 +53,12 @@ class GateDropPushHandler @Inject constructor(
         val data = GateDropJson.pushData(message.dataJson) ?: return false
         if (data.has("transfer")) {
             val offer = GateDropJson.offer(data)
-            if (offer != null) GateDropReceiveWorker.enqueueOffer(context, offer, data.toString())
+            if (offer != null) {
+                GateDropReceiveWorker.enqueueOffer(context, offer, data.toString())
+            } else {
+                // Unusable: tell the plugin now, the sender must not wait for this device.
+                GateDropJson.transferIdOf(data)?.let { id -> scope.launch { runCatching { repository.get().reportDirectFailed(id, "bad_offer") } } }
+            }
             // Even a malformed transfer push is no notification of its own.
             return true
         }
