@@ -365,5 +365,47 @@
     <string name="vault_qr_none_in_image">No QR code found in the image.</string>
     <string name="vault_qr_camera_denied">Without the camera permission you can pick a screenshot of the QR code or type the key.</string>
     <string name="vault_qr_pick_account">Which account?</string>
+    <!-- 1.4.0 of the plugin: the Wi-Fi QR code, shares on the wall tablet / the portal's start page -->
+    <string name="vault_wifi_qr_title">Wi-Fi QR code</string>
+    <string name="vault_wifi_qr_label">QR code for the Wi-Fi %1$s</string>
+    <string name="vault_wifi_qr_hint">Scan it with a phone camera to connect.</string>
+    <string name="vault_wifi_qr_full">Full screen</string>
+    <string name="vault_wifi_qr_close">Tap to close</string>
+    <string name="vault_wifi_share_title">Shares</string>
+    <string name="vault_wifi_share_loading">Loading shares …</string>
+    <string name="vault_wifi_share_none">This Wi-Fi is not shown anywhere right now.</string>
+    <string name="vault_wifi_share_to_wall">Share on the wall tablet</string>
+    <string name="vault_wifi_share_to_portal">Share on the portal page</string>
+    <string name="vault_wifi_share_on_wall">On the wall tablet</string>
+    <string name="vault_wifi_share_on_portal">On the portal’s start page</string>
+    <string name="vault_wifi_share_ask">How long should “%1$s” be shown?</string>
+    <string name="vault_wifi_share_d_5m">5 minutes</string>
+    <string name="vault_wifi_share_d_1h">1 hour</string>
+    <string name="vault_wifi_share_d_24h">24 hours</string>
+    <string name="vault_wifi_share_d_forever">Until ended</string>
+    <string name="vault_wifi_share_start">Share</string>
+    <string name="vault_wifi_share_warn_wall">While the share runs, everyone in front of the wall tablet sees this Wi-Fi with its QR code and can show the password.</string>
+    <string name="vault_wifi_share_warn_portal">While the share runs, everyone signed in to this GateControl’s portal sees this Wi-Fi with its QR code and can show the password.</string>
+    <string name="vault_wifi_share_copy_hint">For this, a copy of the network name and password is kept readable on the server. It ends with the share; trashing, deleting or moving the entry ends it at once. If you change the entry, the share keeps the old state until you update it.</string>
+    <string name="vault_wifi_share_started_wall">Now shown on the wall tablet.</string>
+    <string name="vault_wifi_share_started_portal">Now shown on the portal’s start page.</string>
+    <string name="vault_wifi_share_end">End</string>
+    <string name="vault_wifi_share_ended">Share ended.</string>
+    <string name="vault_wifi_share_update">Update</string>
+    <string name="vault_wifi_share_updated">Share updated.</string>
+    <string name="vault_wifi_share_stale">older state</string>
+    <string name="vault_wifi_share_forever">until it is ended</string>
+    <string name="vault_wifi_share_expired">expired</string>
+    <string name="vault_wifi_share_left_min">%1$s left</string>
+    <string name="vault_wifi_share_left_hours">%1$d h left</string>
+    <string name="vault_wifi_share_left_days">%1$d days left</string>
+    <string name="vault_wifi_share_by">shared by %1$s</string>
+    <string name="vault_wifi_share_no_wall">Showing it on the wall tablet works once the Family plugin with a wall tablet is installed.</string>
+    <string name="vault_wifi_share_err_no_wall">No wall tablet: this needs the Family plugin with the wall tablet switched on.</string>
+    <string name="vault_wifi_share_err_unavailable">The wall tablet cannot be reached right now. Try again in a moment.</string>
+    <string name="vault_wifi_share_err_rate_limited">Too many shares in a short time. Try again later.</string>
+    <string name="vault_wifi_share_err_limit">4 shares are already running on this target. End one first.</string>
+    <string name="vault_wifi_share_err_trashed">The entry is in the trash.</string>
+    <string name="vault_wifi_share_err_forbidden">Only people who may write in this vault can share or end.</string>
 
 </resources>

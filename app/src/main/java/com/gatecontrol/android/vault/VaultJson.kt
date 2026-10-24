@@ -164,6 +164,40 @@ object VaultJson {
         received = o.arr("received")?.mapNotNull { emergency(it.objOrNull()) } ?: return null,
     )
 
+    private val SHARE_ID = Regex("^[0-9a-f]{24}$")
+    private val SHARE_SECURITY = setOf("WPA", "WEP", "SAE", "nopass")
+
+    fun wifiShare(o: JsonObject?): VWifiShare? {
+        o ?: return null
+        return VWifiShare(
+            id = o.str("id")?.takeIf { SHARE_ID.matches(it) } ?: return null,
+            itemId = id(o.str("itemId")) ?: return null,
+            target = o.str("target")?.takeIf { it in VaultWifiQr.TARGETS } ?: return null,
+            ssid = o.str("ssid")?.take(64) ?: return null,
+            security = o.str("security")?.takeIf { it in SHARE_SECURITY } ?: return null,
+            password = o.str("password")?.take(128).orEmpty(),
+            hidden = o.bool("hidden") == true,
+            expiresAt = o.str("expiresAt"),
+            createdBy = o.obj("createdBy")?.str("name").orEmpty().take(120),
+            canEnd = o.bool("canEnd") == true,
+        )
+    }
+
+    /** GET wifi-shares → the shares (invalid ones dropped) and the targets. */
+    fun wifiShares(o: JsonObject): VWifiShares? {
+        val list = o.arr("shares")?.mapNotNull { wifiShare(it.objOrNull()) } ?: return null
+        val t = o.obj("targets")
+        return VWifiShares(list, wall = t?.bool("wall") == true, portal = t?.bool("portal") != false)
+    }
+
+    fun wifiShareAnswer(o: JsonObject): VWifiShare? = wifiShare(o.obj("share"))
+
+    /** POST wifi-shares body: the entry, where, how long, and the copy. */
+    fun wifiShareBody(itemId: String, target: String, duration: String, w: VaultWifiQr.Wifi) = JsonObject().apply {
+        addProperty("itemId", itemId); addProperty("target", target); addProperty("duration", duration)
+        addProperty("ssid", w.ssid); addProperty("security", w.security); addProperty("password", w.password); addProperty("hidden", w.hidden)
+    }
+
     fun access(o: JsonObject): VAccess? {
         val g = o.obj("grantor") ?: return null
         return VAccess(

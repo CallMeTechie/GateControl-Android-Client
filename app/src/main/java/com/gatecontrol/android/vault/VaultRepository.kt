@@ -753,6 +753,30 @@ class VaultRepository @Inject constructor(
         }
     }
 
+    // ─── Wi-Fi shares (plugin 1.4.0, README "WLAN-Freigaben") ──────
+
+    /** The running shares of a Wi-Fi entry (online). */
+    suspend fun wifiShares(entryId: String): VResult<VWifiShares> = when (val r = api.wifiShares(entryId)) {
+        is VResult.Ok -> VResult.Ok(r.value.copy(shares = r.value.shares.filter { it.itemId == entryId }))
+        else -> r
+    }
+
+    /**
+     * Shows a Wi-Fi entry on the wall tablet or the portal's start page: this device decrypted the entry and sends a
+     * copy of network name, security, password and hidden — nothing else. [duration]: 5m · 1h · 24h · forever, or
+     * keep (renew the copy of a running share, same end).
+     */
+    suspend fun shareWifi(entryId: String, target: String, duration: String): VResult<VWifiShare> {
+        if (session.keys() == null) return VResult.Failed("locked", 0)
+        val e = entry(entryId) ?: return VResult.Failed("not_found", 0)
+        if (e.trashed) return VResult.Failed("conflict", 0)
+        if (e.data.type != "wifi" || target !in VaultWifiQr.TARGETS || (duration !in VaultWifiQr.DURATIONS && duration != "keep")) return VResult.Failed("invalid", 0)
+        val w = VaultWifiQr.of(e.data) ?: return VResult.Failed("invalid", 0)
+        return api.shareWifi(entryId, target, duration, w)
+    }
+
+    suspend fun endWifiShare(id: String): VResult<Unit> = api.endWifiShare(id)
+
     // ─── emergency access (README › Notfallzugriff) ────────────────
 
     suspend fun emergency(): VResult<VEmergencyList> = api.emergency()

@@ -57,6 +57,7 @@ import com.gatecontrol.android.vault.VResult
 import com.gatecontrol.android.vault.VaultMatch
 import com.gatecontrol.android.vault.VaultRepository
 import com.gatecontrol.android.vault.VaultTotp
+import com.gatecontrol.android.vault.VaultWifiQr
 import kotlinx.coroutines.delay
 import java.time.Instant
 
@@ -269,6 +270,11 @@ fun VaultEntryScreen(
                     if (entry.trashed) GcBanner(tone = GcTone.Warn, icon = GcIcons.Trash) { Text(stringResource(R.string.vault_trashed_info), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium) }
                     if (!canWrite) GcBanner(tone = GcTone.Info, icon = GcIcons.Eye) { Text(stringResource(R.string.vault_read_only), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium) }
                     VaultEntryFields(entry.data, viewModel.clipboardSeconds) { toast = it }
+                    if (entry.data.type == "wifi") {
+                        // 1.4.0: the Wi-Fi QR code, large; the shares on the wall tablet / portal (not before the server has the entry)
+                        VaultWifiQrCard(entry.data)
+                        if (!entry.pending && !entry.trashed && VaultWifiQr.of(entry.data) != null) VaultWifiShares(entry, canWrite, viewModel) { toast = it }
+                    }
                     Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         val ago = vaultAgo(entry.updatedAt)
                         if (entry.pending) {
