@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.65.0] - 2026-10-24
+
+### Features
+- 2FA per QR-Code einrichten (#119)
+
+---
+
 ## [1.64.0] - 2026-10-24
 
 ### Features
