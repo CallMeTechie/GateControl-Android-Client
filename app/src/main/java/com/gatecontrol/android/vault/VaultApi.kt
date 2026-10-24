@@ -171,6 +171,16 @@ class VaultApi @Inject constructor(
 
     // ─── emergency access ──────────────────────────────────────────
 
+    // ─── Wi-Fi shares (plugin 1.4.0) ────────────────────────────────
+
+    suspend fun wifiShares(itemId: String): VResult<VWifiShares> =
+        get("wifi-shares", mapOf("item" to (seg(itemId) ?: return bad())), VaultJson::wifiShares)
+
+    suspend fun shareWifi(itemId: String, target: String, duration: String, w: VaultWifiQr.Wifi): VResult<VWifiShare> =
+        post("wifi-shares", VaultJson.wifiShareBody(seg(itemId) ?: return bad(), target, duration, w), VaultJson::wifiShareAnswer)
+
+    suspend fun endWifiShare(id: String): VResult<Unit> = del("wifi-shares/${seg(id) ?: return bad()}", unit)
+
     suspend fun emergency(): VResult<VEmergencyList> = get("emergency", parse = VaultJson::emergencyList)
 
     suspend fun putEmergency(granteeId: Int, waitHours: Int, sealedKey: String): VResult<VEmergency> =

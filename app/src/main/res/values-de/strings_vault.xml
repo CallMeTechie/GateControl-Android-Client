@@ -365,5 +365,47 @@
     <string name="vault_qr_none_in_image">Im Bild wurde kein QR-Code gefunden.</string>
     <string name="vault_qr_camera_denied">Ohne Kamera-Berechtigung kannst du einen Screenshot des QR-Codes wählen oder den Schlüssel eintippen.</string>
     <string name="vault_qr_pick_account">Welches Konto?</string>
+    <!-- 1.4.0 of the plugin: the Wi-Fi QR code, shares on the wall tablet / the portal's start page -->
+    <string name="vault_wifi_qr_title">WLAN-QR-Code</string>
+    <string name="vault_wifi_qr_label">QR-Code für das WLAN %1$s</string>
+    <string name="vault_wifi_qr_hint">Mit der Handy-Kamera scannen, um sich zu verbinden.</string>
+    <string name="vault_wifi_qr_full">Vollbild</string>
+    <string name="vault_wifi_qr_close">Zum Schließen tippen</string>
+    <string name="vault_wifi_share_title">Freigaben</string>
+    <string name="vault_wifi_share_loading">Freigaben werden geladen …</string>
+    <string name="vault_wifi_share_none">Dieses WLAN wird gerade nirgends gezeigt.</string>
+    <string name="vault_wifi_share_to_wall">Freigabe auf Wandtablet</string>
+    <string name="vault_wifi_share_to_portal">Freigabe auf Portalseite</string>
+    <string name="vault_wifi_share_on_wall">Auf dem Wandtablet</string>
+    <string name="vault_wifi_share_on_portal">Auf der Portal-Startseite</string>
+    <string name="vault_wifi_share_ask">Wie lange soll „%1$s“ gezeigt werden?</string>
+    <string name="vault_wifi_share_d_5m">5 Minuten</string>
+    <string name="vault_wifi_share_d_1h">1 Stunde</string>
+    <string name="vault_wifi_share_d_24h">24 Stunden</string>
+    <string name="vault_wifi_share_d_forever">Dauerhaft</string>
+    <string name="vault_wifi_share_start">Freigeben</string>
+    <string name="vault_wifi_share_warn_wall">Solange die Freigabe läuft, sieht jeder vor dem Wandtablet dieses WLAN mit QR-Code und kann das Passwort einblenden.</string>
+    <string name="vault_wifi_share_warn_portal">Solange die Freigabe läuft, sehen alle angemeldeten Portal-Nutzer dieses GateControl das WLAN mit QR-Code und können das Passwort einblenden.</string>
+    <string name="vault_wifi_share_copy_hint">Dafür liegt eine Kopie von Netzname und Passwort lesbar auf dem Server. Sie endet mit der Freigabe; Papierkorb, Löschen oder Verschieben des Eintrags beenden sie sofort. Änderst du den Eintrag, bleibt die Freigabe beim alten Stand, bis du sie aktualisierst.</string>
+    <string name="vault_wifi_share_started_wall">Wird jetzt auf dem Wandtablet gezeigt.</string>
+    <string name="vault_wifi_share_started_portal">Wird jetzt auf der Portal-Startseite gezeigt.</string>
+    <string name="vault_wifi_share_end">Beenden</string>
+    <string name="vault_wifi_share_ended">Freigabe beendet.</string>
+    <string name="vault_wifi_share_update">Aktualisieren</string>
+    <string name="vault_wifi_share_updated">Freigabe aktualisiert.</string>
+    <string name="vault_wifi_share_stale">älterer Stand</string>
+    <string name="vault_wifi_share_forever">bis sie beendet wird</string>
+    <string name="vault_wifi_share_expired">abgelaufen</string>
+    <string name="vault_wifi_share_left_min">noch %1$s</string>
+    <string name="vault_wifi_share_left_hours">noch %1$d Std.</string>
+    <string name="vault_wifi_share_left_days">noch %1$d Tage</string>
+    <string name="vault_wifi_share_by">freigegeben von %1$s</string>
+    <string name="vault_wifi_share_no_wall">Auf dem Wandtablet zeigen geht, sobald das Familie-Plugin mit Wand-Tablet installiert ist.</string>
+    <string name="vault_wifi_share_err_no_wall">Kein Wandtablet da: Dafür braucht es das Familie-Plugin mit eingeschaltetem Wand-Tablet.</string>
+    <string name="vault_wifi_share_err_unavailable">Das Wandtablet ist gerade nicht erreichbar. Versuche es gleich noch einmal.</string>
+    <string name="vault_wifi_share_err_rate_limited">Zu viele Freigaben in kurzer Zeit. Versuche es später noch einmal.</string>
+    <string name="vault_wifi_share_err_limit">Es laufen schon 4 Freigaben auf diesem Ziel. Beende zuerst eine.</string>
+    <string name="vault_wifi_share_err_trashed">Der Eintrag liegt im Papierkorb.</string>
+    <string name="vault_wifi_share_err_forbidden">Freigeben und Beenden darf nur, wer in diesem Tresor schreiben darf.</string>
 
 </resources>

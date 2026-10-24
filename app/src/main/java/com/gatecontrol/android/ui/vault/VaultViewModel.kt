@@ -9,6 +9,7 @@ import com.gatecontrol.android.vault.EntryData
 import com.gatecontrol.android.vault.VEmergencyList
 import com.gatecontrol.android.vault.VPerson
 import com.gatecontrol.android.vault.VResult
+import com.gatecontrol.android.vault.VWifiShares
 import com.gatecontrol.android.vault.VaultBiometric
 import com.gatecontrol.android.vault.VaultCrypto
 import com.gatecontrol.android.vault.VaultImport
@@ -105,6 +106,19 @@ class VaultViewModel @Inject constructor(
         }
     }
 
+    /** A failed Wi-Fi share call as one line: its own codes first (plugin 1.4.0). */
+    fun shareMessage(r: VResult<*>): String? = when ((r as? VResult.Failed)?.code) {
+        "no_wall" -> context.getString(R.string.vault_wifi_share_err_no_wall)
+        "unavailable" -> context.getString(R.string.vault_wifi_share_err_unavailable)
+        "rate_limited" -> context.getString(R.string.vault_wifi_share_err_rate_limited)
+        "limit" -> context.getString(R.string.vault_wifi_share_err_limit)
+        "conflict" -> context.getString(R.string.vault_wifi_share_err_trashed)
+        "forbidden" -> context.getString(R.string.vault_wifi_share_err_forbidden)
+        else -> message(r)
+    }
+
+    fun text(id: Int): String = context.getString(id)
+
     // ─── setup and unlock ──────────────────────────────────────────
 
     fun setup(password: String, done: (VResult<String>) -> Unit) {
@@ -182,6 +196,12 @@ class VaultViewModel @Inject constructor(
     fun import(vaultId: String, list: List<EntryData>, done: (Int) -> Unit) = viewModelScope.launch { done(repository.saveMany(vaultId, list)) }
 
     fun parseImport(text: String): VaultImport.Outcome = VaultImport.parse(text)
+
+    // ─── Wi-Fi shares (plugin 1.4.0) ───────────────────────────────
+
+    fun wifiShares(id: String, done: (VResult<VWifiShares>) -> Unit) = viewModelScope.launch { done(repository.wifiShares(id)) }
+    fun shareWifi(id: String, target: String, duration: String, done: (VResult<*>) -> Unit) = viewModelScope.launch { done(repository.shareWifi(id, target, duration)) }
+    fun endWifiShare(id: String, done: (VResult<*>) -> Unit) = viewModelScope.launch { done(repository.endWifiShare(id)) }
 
     // ─── vaults and members ────────────────────────────────────────
 

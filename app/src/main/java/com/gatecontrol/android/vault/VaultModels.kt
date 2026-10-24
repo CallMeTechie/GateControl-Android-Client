@@ -89,6 +89,24 @@ data class VHistory(val rev: Int, val keyRev: Int, val blob: String, val updated
 
 data class VSaveResult(val id: String, val ok: Boolean, val rev: Int?, val seq: Long?, val code: String?, val current: VItem?)
 
+/** A running Wi-Fi share (plugin 1.4.0, GET wifi-shares): the copy the server keeps for the wall tablet / portal. */
+data class VWifiShare(
+    val id: String,
+    val itemId: String,
+    val target: String,
+    val ssid: String,
+    val security: String,
+    val password: String,
+    val hidden: Boolean,
+    /** null: until someone ends it. */
+    val expiresAt: String?,
+    val createdBy: String,
+    val canEnd: Boolean,
+)
+
+/** GET wifi-shares: the running shares and whether the wall tablet (Familie plugin) is there. */
+data class VWifiShares(val shares: List<VWifiShare>, val wall: Boolean, val portal: Boolean)
+
 data class VEmergency(
     val id: String,
     val grantorId: Int,
