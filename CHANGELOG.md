@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.65.1] - 2026-10-24
+
+### Fixes
+- Direktübertragung im WLAN ohne OkHttp – Klartext-HTTP wurde blockiert (#120)
+
+---
+
 ## [1.65.0] - 2026-10-24
 
 ### Features
