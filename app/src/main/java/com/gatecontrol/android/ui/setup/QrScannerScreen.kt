@@ -89,7 +89,7 @@ fun QrScannerScreen(
     ) {
         when {
             hasCameraPermission -> {
-                QrCameraPreview(onQrScanned = onQrScanned)
+                QrCameraPreview(onQrScanned = { onQrScanned(parseQrPayload(it)); true })
                 QrOverlay()
             }
 
@@ -120,10 +120,14 @@ fun QrScannerScreen(
     }
 }
 
+/**
+ * Camera preview that reads QR codes. [onQrScanned] gets each code's text and returns true to
+ * stop (the code was taken) or false to keep scanning (e.g. not the kind of code wanted).
+ */
 @androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
-private fun QrCameraPreview(
-    onQrScanned: (String) -> Unit,
+internal fun QrCameraPreview(
+    onQrScanned: (String) -> Boolean,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -166,11 +170,9 @@ private fun QrCameraPreview(
                                 )
                                 barcodeScanner.process(image)
                                     .addOnSuccessListener { barcodes ->
-                                        barcodes.firstOrNull()?.rawValue?.let { raw ->
-                                            if (!scanned) {
-                                                scanned = true
-                                                onQrScanned(parseQrPayload(raw))
-                                            }
+                                        for (raw in barcodes.mapNotNull { it.rawValue }) {
+                                            if (scanned) break
+                                            if (onQrScanned(raw)) scanned = true
                                         }
                                     }
                                     .addOnCompleteListener { imageProxy.close() }
@@ -200,7 +202,7 @@ private fun QrCameraPreview(
 }
 
 @Composable
-private fun QrOverlay() {
+internal fun QrOverlay() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
