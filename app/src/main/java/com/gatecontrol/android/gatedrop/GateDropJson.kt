@@ -351,6 +351,22 @@ object GateDropJson {
     fun fallbackOf(o: JsonObject?): String? = o?.str("fallback")?.lowercase()?.takeIf { it.length <= 20 }
 
     /** Answer of `POST transfers/<id>/result`: `{ fallback: null|"server"|"upload", missing?: [indexes] }`. */
+    private val ERROR_CODE_RE = Regex("^[a-z0-9_.-]{1,64}$")
+
+    /**
+     * `GET transfers/<id>` → its status (also after it ended, when key and
+     * ticket are gone and [offer] has nothing); null when no transfer.
+     */
+    fun transferStatus(o: JsonObject?): GdTransferStatus? {
+        val t = o?.obj("transfer") ?: o ?: return null
+        if (!t.has("status") && !t.has("id")) return null
+        val status = t.str("status")?.takeIf { it in setOf(GdTransferStatus.OPEN, GdTransferStatus.DONE, GdTransferStatus.FAILED, GdTransferStatus.EXPIRED) }
+        val peer = t.obj("peer")
+        val peerOk = peer?.prim("ok")?.takeIf { it.isBoolean }?.asBoolean
+        val peerError = if (peerOk == false) peer?.str("error")?.takeIf { ERROR_CODE_RE.matches(it) } else null
+        return GdTransferStatus(status, peerOk, peerError)
+    }
+
     fun transferAnswer(o: JsonObject?): GdTransferAnswer = GdTransferAnswer(
         fallback = fallbackOf(o),
         missing = o?.arr("missing")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt?.takeIf { it in 0 until MAX_ITEMS } }?.distinct()?.sorted(),
@@ -523,6 +539,14 @@ object GateDropJson {
             sendId = idOf(root.get("send")) ?: idOf(root.get("sendId")) ?: root.obj("send")?.let { idOf(it.get("id")) },
             itemCount = root.long("itemCount")?.toInt()?.takeIf { it in 1..MAX_ITEMS } ?: raw.size,
         )
+    }
+
+    /** Transfer id of a transfer push (also a malformed one, to report it); null when there is none. */
+    fun transferIdOf(o: JsonObject?): String? {
+        if (o == null) return null
+        val outer = o.obj("gatedrop") ?: o
+        val root = outer.obj("transfer") ?: outer
+        return token((if (root === outer) idOf(root.get("transfer")) else idOf(root.get("id"))) ?: root.firstStr("transferId"))
     }
 
     /** Send id of a server delivery push `{ gatedrop: { send } }`; null for a transfer push or anything else. */

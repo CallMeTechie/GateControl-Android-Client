@@ -388,4 +388,26 @@ class GateDropJsonTest {
         // Older views without `available`: the files count as available.
         assertTrue(GateDropJson.entry(obj("""{"id":"s","items":[{"mediaId":"m1234567890","name":"a"}]}"""))!!.items.single().available)
     }
+    @Test
+    fun `transfer status - also once ended (no key, no ticket), with the other end's reason`() {
+        val ended = obj("""{"ok":true,"transfer":{"id":"0123456789abcdef01234567","side":"sender","mode":"pull","status":"failed","key":null,"ticket":null,"peer":{"ok":false,"error":"pull_failed"}}}""")
+        assertNull(GateDropJson.offer(ended))
+        val st = GateDropJson.transferStatus(ended)!!
+        assertEquals(GdTransferStatus(GdTransferStatus.FAILED, peerOk = false, peerError = "pull_failed"), st)
+        assertTrue(st.ended)
+        // GateDrop 1.2.0: no peer
+        val open = GateDropJson.transferStatus(obj("""{"transfer":{"id":"x","status":"open"}}"""))!!
+        assertEquals(GdTransferStatus(GdTransferStatus.OPEN), open)
+        assertFalse(open.ended)
+        assertEquals(GdTransferStatus(null, false, null), GateDropJson.transferStatus(obj("""{"transfer":{"id":"x","status":"odd","peer":{"ok":false,"error":"Bad Code!"}}}""")))
+        assertNull(GateDropJson.transferStatus(obj("""{"ok":true}""")))
+    }
+
+    @Test
+    fun `transfer id of a malformed transfer push (reported as bad_offer)`() {
+        val bad = GateDropJson.pushData("""{"gatedrop":{"transfer":"0123456789abcdef01234567","mode":"pull","items":[{"name":"a","bytes":1}]}}""")!!
+        assertNull(GateDropJson.offer(bad))
+        assertEquals("0123456789abcdef01234567", GateDropJson.transferIdOf(bad))
+        assertNull(GateDropJson.transferIdOf(obj("""{"transfer":"../admin"}""")))
+    }
 }

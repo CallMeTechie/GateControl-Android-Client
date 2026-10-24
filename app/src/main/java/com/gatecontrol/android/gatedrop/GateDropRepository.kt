@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
@@ -191,7 +190,7 @@ class GateDropRepository @Inject constructor(
                 val ok = outcome is GdDirectOutcome.Done
                 val answer = api.transferResult(d.transferId, ok, (outcome as? GdDirectOutcome.Done)?.bytes, (outcome as? GdDirectOutcome.Failed)?.reason)
                 results += ok to answer.valueOrNull()
-                Timber.i("GateDrop: direct transfer %s", if (ok) "done" else "failed, server path")
+                Timber.i("GateDrop: direct transfer %s %s", d.transferId, if (ok) "done" else "failed (${(outcome as? GdDirectOutcome.Failed)?.reason}), server path")
             }
         }
         val missing = GateDropLogic.missingAfterDirect(localItems, job.files.size, results)
@@ -217,14 +216,32 @@ class GateDropRepository @Inject constructor(
                     // The plugin learns that this device listens right now.
                     reportPresence(listening = true, force = true)
                     val done = listener.serve(d, files, onProgress)
-                    val bytes = withTimeoutOrNull(PULL_WAIT_MS) { runCatching { done.await() }.getOrNull() }
-                    if (bytes != null) GdDirectOutcome.Done(bytes) else GdDirectOutcome.Failed("pull_timeout")
+                    // The receiver reports a failed fetch at once: stop waiting then.
+                    waitOutcome(d.transferId, GateDropWait.await(done, PULL_WAIT_MS) { api.transferStatus(d.transferId).valueOrNull() }, "receiver_failed", "pull_timeout")
                 }
             } finally {
                 listener.stop()
                 reportPresence(listening = false, force = true)
             }
         }
+    }
+
+    /** The end of a wait for the other device → the outcome (with the reason in the log). */
+    private fun waitOutcome(transferId: String, w: GdWait, peerFailed: String, timedOut: String): GdDirectOutcome = when (w) {
+        is GdWait.Done -> GdDirectOutcome.Done(w.bytes)
+        is GdWait.PeerGaveUp -> GdDirectOutcome.Failed(peerFailed).also { Timber.i("GateDrop: %s – the other device gave up (%s)", transferId, w.reason) }
+        GdWait.TimedOut -> GdDirectOutcome.Failed(timedOut).also { Timber.i("GateDrop: %s – the other device did not come (%s)", transferId, timedOut) }
+        GdWait.Broken -> GdDirectOutcome.Failed("broken").also { Timber.i("GateDrop: %s – broke off", transferId) }
+    }
+
+    /**
+     * A transfer offer that cannot be used (malformed push, lost offer
+     * file): the plugin learns it at once, so the sender takes the server
+     * path now instead of waiting for this device.
+     */
+    suspend fun reportDirectFailed(transferId: String, reason: String) {
+        Timber.i("GateDrop: direct offer %s unusable (%s), the server delivers", transferId, reason)
+        api.transferResult(transferId, false, error = reason)
     }
 
     // ─── receiving ──────────────────────────────────────────────────
@@ -237,6 +254,7 @@ class GateDropRepository @Inject constructor(
     suspend fun receiveOffer(pushed: GdTransferOffer, onProgress: (Int?) -> Unit = {}): Boolean = receiving.withLock {
         val key = "t:${pushed.transferId}"
         if (store.get(key)?.files?.all { it.uri != null } == true) return true
+        Timber.i("GateDrop: direct offer %s (%s, %d item(s), %d candidate(s))", pushed.transferId, pushed.mode.wire, pushed.itemCount, pushed.candidates.size)
         // The push left the file list out (too long): `GET transfers/<id>`.
         val offer = if (!pushed.needsDetails) {
             pushed
@@ -266,8 +284,8 @@ class GateDropRepository @Inject constructor(
                         } else {
                             reportPresence(listening = true, force = true)
                             val done = listener.expect(offer, sinkFor, progress)
-                            val bytes = withTimeoutOrNull(PUSH_WAIT_MS) { runCatching { done.await() }.getOrNull() }
-                            if (bytes != null) GdDirectOutcome.Done(bytes) else GdDirectOutcome.Failed("push_timeout")
+                            // The sender reports a failed push at once: stop waiting then.
+                            waitOutcome(offer.transferId, GateDropWait.await(done, PUSH_WAIT_MS) { api.transferStatus(offer.transferId).valueOrNull() }, "sender_failed", "push_timeout")
                         }
                     } finally {
                         listener.stop()
@@ -279,8 +297,10 @@ class GateDropRepository @Inject constructor(
 
         if (outcome !is GdDirectOutcome.Done || pendings.size != offer.items.size) {
             pendings.values.forEach { it.discard() }
-            api.transferResult(offer.transferId, false, error = (outcome as? GdDirectOutcome.Failed)?.reason ?: "incomplete")
-            Timber.i("GateDrop: direct receive failed, the server delivers")
+            val reason = (outcome as? GdDirectOutcome.Failed)?.reason ?: "incomplete"
+            // Reported at once: the sender stops waiting and takes the server path.
+            api.transferResult(offer.transferId, false, error = reason)
+            Timber.i("GateDrop: direct receive of %s failed (%s), the server delivers", offer.transferId, reason)
             return@withLock false
         }
         val files = offer.items.mapIndexed { i, item ->
