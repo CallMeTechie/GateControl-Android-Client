@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.64.0] - 2026-10-24
+
+### Features
+- WLAN in der Nähe beim WLAN-Eintrag (#118)
+
+---
+
 ## [1.63.0] - 2026-10-23
 
 ### Features
