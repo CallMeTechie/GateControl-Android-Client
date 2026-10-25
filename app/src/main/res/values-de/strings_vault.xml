@@ -407,5 +407,8 @@
     <string name="vault_wifi_share_err_limit">Es laufen schon 4 Freigaben auf diesem Ziel. Beende zuerst eine.</string>
     <string name="vault_wifi_share_err_trashed">Der Eintrag liegt im Papierkorb.</string>
     <string name="vault_wifi_share_err_forbidden">Freigeben und Beenden darf nur, wer in diesem Tresor schreiben darf.</string>
+    <string name="vault_field_hidden">Verstecktes Netz</string>
+    <string name="vault_field_hidden_hint">Der Netzname wird nicht ausgestrahlt; der QR-Code sagt es dem Handy (H:true).</string>
+    <string name="vault_field_on">Ja</string>
 
 </resources>

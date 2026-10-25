@@ -407,5 +407,8 @@
     <string name="vault_wifi_share_err_limit">4 shares are already running on this target. End one first.</string>
     <string name="vault_wifi_share_err_trashed">The entry is in the trash.</string>
     <string name="vault_wifi_share_err_forbidden">Only people who may write in this vault can share or end.</string>
+    <string name="vault_field_hidden">Hidden network</string>
+    <string name="vault_field_hidden_hint">The network name is not broadcast; the QR code tells the phone (H:true).</string>
+    <string name="vault_field_on">Yes</string>
 
 </resources>
