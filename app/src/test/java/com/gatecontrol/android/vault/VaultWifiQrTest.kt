@@ -38,6 +38,18 @@ class VaultWifiQrTest {
     }
 
     @Test
+    fun `the editor's hidden network switch is stored as true and dropped when off`() {
+        assertTrue(listOf("true", "TRUE", "1", "ja", "yes", " yes ").all(VaultWifiQr::hiddenOn))
+        assertFalse(listOf("", "false", "0", "nein").any(VaultWifiQr::hiddenOn))
+        val on = wifi("ssid" to "Keller-AP", "password" to "geheim", "hidden" to VaultWifiQr.hiddenValue(true))
+        assertEquals("WIFI:T:WPA;S:Keller-AP;P:geheim;H:true;;", VaultWifiQr.text(on))
+        val off = on.copy(fields = on.fields + ("hidden" to VaultWifiQr.hiddenValue(false)))
+        assertFalse(JsonParser.parseString(off.toJson()).asJsonObject.getAsJsonObject("fields").has("hidden"), "an empty field is not saved")
+        assertEquals("true", JsonParser.parseString(on.toJson()).asJsonObject.getAsJsonObject("fields").get("hidden").asString)
+        assertEquals("WIFI:T:WPA;S:Keller-AP;P:geheim;;", VaultWifiQr.text(off))
+    }
+
+    @Test
     fun `the text escapes backslash, semicolon, comma, colon and quote`() {
         assertEquals("WIFI:T:WPA;S:Gäste${bs};WLAN;P:Korrekt${bs}:Pferd;;", VaultWifiQr.text(wifi("ssid" to "Gäste;WLAN", "password" to "Korrekt:Pferd", "security" to "WPA2")))
         assertEquals(

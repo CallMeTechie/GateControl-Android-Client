@@ -70,13 +70,14 @@ import com.gatecontrol.android.vault.EntryData
 import com.gatecontrol.android.vault.VaultGenerator
 import com.gatecontrol.android.vault.VaultRepository
 import com.gatecontrol.android.vault.VaultTotp
+import com.gatecontrol.android.vault.VaultWifiQr
 
 /** The fields an entry type edits, in order (key → label). */
 private fun fieldsOf(type: String): List<Pair<String, Int>> = when (type) {
     "login" -> listOf("username" to R.string.vault_field_username, "password" to R.string.vault_field_password, "totp" to R.string.vault_field_totp_secret)
     "totp" -> listOf("totp" to R.string.vault_field_totp_secret)
     "card" -> listOf("holder" to R.string.vault_field_holder, "number" to R.string.vault_field_number, "expiry" to R.string.vault_field_expiry, "cvc" to R.string.vault_field_cvc, "pin" to R.string.vault_field_pin)
-    "wifi" -> listOf("ssid" to R.string.vault_field_ssid, "password" to R.string.vault_field_password, "security" to R.string.vault_field_security)
+    "wifi" -> listOf("ssid" to R.string.vault_field_ssid, "password" to R.string.vault_field_password, "security" to R.string.vault_field_security, "hidden" to R.string.vault_field_hidden)
     "identity" -> listOf("name" to R.string.vault_field_name, "email" to R.string.vault_field_email, "phone" to R.string.vault_field_phone, "address" to R.string.vault_field_address, "birthday" to R.string.vault_field_birthday)
     else -> emptyList()
 }
@@ -245,6 +246,14 @@ fun VaultEditScreen(
                             if (hasWifi) GcSecondaryButton(stringResource(R.string.vault_wifi_nearby), onClick = { wifiNearby = true }, icon = GcIcons.Wifi, fillWidth = false)
                         }
                         key == "address" -> GcTextField(v, update, stringResource(label), singleLine = false)
+                        // „Verstecktes Netz“: fields.hidden "true" (gone when off) — the QR code and a share get H:true
+                        key == "hidden" -> VaultRowsCard {
+                            GcSwitchRow(
+                                label = stringResource(label), description = stringResource(R.string.vault_field_hidden_hint),
+                                checked = VaultWifiQr.hiddenOn(v), onCheckedChange = { update(VaultWifiQr.hiddenValue(it)) },
+                                icon = GcIcons.Wifi,
+                            )
+                        }
                         else -> GcTextField(
                             v, update, stringResource(label),
                             keyboardOptions = when (key) {

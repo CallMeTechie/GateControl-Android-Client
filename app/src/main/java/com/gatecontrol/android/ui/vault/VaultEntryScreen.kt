@@ -138,6 +138,7 @@ fun VaultEntryFields(data: EntryData, clipboardSeconds: Int, onCopied: (String) 
             rows += { plain("ssid", R.string.vault_field_ssid) }
             rows += { secret("password", R.string.vault_field_password) }
             rows += { plain("security", R.string.vault_field_security) }
+            if (VaultWifiQr.hiddenOn(data.field("hidden"))) rows += { VaultFieldRow(stringResource(R.string.vault_field_hidden), stringResource(R.string.vault_field_on)) }
         }
         "identity" -> {
             rows += { plain("name", R.string.vault_field_name) }

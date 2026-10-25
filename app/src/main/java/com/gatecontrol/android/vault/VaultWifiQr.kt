@@ -14,6 +14,12 @@ object VaultWifiQr {
     private val HIDDEN = Regex("^(true|1|ja|yes)$", RegexOption.IGNORE_CASE)
     private val ESCAPE = Regex("""([\\;,:"])""")
 
+    /** Is the field `hidden` („Verstecktes Netz“) on: true / 1 / ja / yes. */
+    fun hiddenOn(v: String): Boolean = HIDDEN.matches(v.trim())
+
+    /** The editor's „Verstecktes Netz“: "true" when on, "" (the field goes) when off. */
+    fun hiddenValue(on: Boolean): String = if (on) "true" else ""
+
     /** The Wi-Fi of [data], or null without a network name. */
     fun of(data: EntryData): Wifi? {
         val ssid = data.field("ssid")
@@ -26,7 +32,7 @@ object VaultWifiQr {
             SAE.containsMatchIn(sec) && "WPA2" !in sec -> "SAE"
             else -> "WPA"
         }
-        return Wifi(ssid, type, if (type == "nopass") "" else pw, HIDDEN.matches(data.field("hidden").trim()))
+        return Wifi(ssid, type, if (type == "nopass") "" else pw, hiddenOn(data.field("hidden")))
     }
 
     private fun esc(s: String) = ESCAPE.replace(s) { "\\" + it.value }
