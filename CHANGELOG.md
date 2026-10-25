@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.0] - 2026-10-25
+
+### Features
+- „Verstecktes Netz“ im WLAN-Editor (#122)
+
+---
+
 ## [1.66.0] - 2026-10-24
 
 ### Features
