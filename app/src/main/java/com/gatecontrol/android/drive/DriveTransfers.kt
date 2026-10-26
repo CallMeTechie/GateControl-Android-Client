@@ -53,7 +53,22 @@ class DriveTransfers @Inject constructor(
         val code: String? = null,
     )
 
-    private class Job(val id: Long, val uri: Uri, val folderId: Long, var file: File? = null, var name: String = "", var mime: String? = null, var mtime: Long? = null)
+    /**
+     * One upload: a picked [uri] (copied first) or a [file] written through the Files app. [onExists] answers a taken
+     * name without asking (`version` | `rename`); [onDone] hears the new file (null: failed or skipped).
+     */
+    private class Job(
+        val id: Long,
+        val uri: Uri?,
+        val folderId: Long,
+        var file: File? = null,
+        var name: String = "",
+        var mime: String? = null,
+        var mtime: Long? = null,
+        var sha: String? = null,
+        val onExists: String? = null,
+        val onDone: ((DNode?) -> Unit)? = null,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
@@ -89,6 +104,24 @@ class DriveTransfers @Inject constructor(
         }
     }
 
+    /**
+     * A [file] written through the Files app (it is taken over and deleted afterwards): goes up as [name] into
+     * [folderId]. The same content is skipped; a taken name becomes [onExists] (`version` | `rename`) without asking.
+     */
+    fun uploadWritten(file: File, name: String, mime: String?, folderId: Long, onExists: String, onDone: (DNode?) -> Unit = {}) {
+        scope.launch {
+            val sha = runCatching { sha256(file) }.getOrNull()
+            mutex.withLock {
+                val id = ids.incrementAndGet()
+                queue.addLast(
+                    Job(id, null, folderId, file = file, name = name, mime = mime, mtime = System.currentTimeMillis(), sha = sha, onExists = onExists, onDone = onDone),
+                )
+                _uploads.update { it + Upload(id, name, folderId, file.length()) }
+            }
+            pump()
+        }
+    }
+
     /** The person's answer to a taken name: `version`, `rename` (keep both) or null (skip). */
     fun resolve(id: Long, onConflict: String?) {
         scope.launch {
@@ -118,6 +151,7 @@ class DriveTransfers @Inject constructor(
                     Timber.d("Drive: upload failed (%s)", e.javaClass.simpleName)
                     job.file?.delete()
                     set(job.id) { it.copy(state = State.FAILED, code = "failed") }
+                    job.onDone?.invoke(null)
                 }
             }
         } finally {
@@ -128,7 +162,7 @@ class DriveTransfers @Inject constructor(
     private suspend fun run(job: Job) {
         set(job.id) { it.copy(state = State.RUNNING) }
         // 1. copy (once; a conflict keeps the copy)
-        var sha: String? = null
+        var sha: String? = job.sha
         if (job.file == null) {
             val copied = copy(job) ?: run {
                 set(job.id) { it.copy(state = State.FAILED, code = "read") }
@@ -139,7 +173,7 @@ class DriveTransfers @Inject constructor(
             set(job.id) { it.copy(total = copied.first.length()) }
         }
         val file = job.file!!
-        val choice = conflictChoice.remove(job.id)
+        var choice = conflictChoice.remove(job.id)
         // 2. check, unless the person already chose
         if (choice == null) {
             when (val check = api.uploadCheck(job.folderId, job.name, sha, file.length())) {
@@ -147,9 +181,12 @@ class DriveTransfers @Inject constructor(
                     if (check.value.same) {
                         file.delete()
                         set(job.id) { it.copy(state = State.SAME, sent = it.total) }
+                        job.onDone?.invoke(check.value.node)
                         return
                     }
-                    if (check.value.exists) {
+                    if (check.value.exists && job.onExists != null) {
+                        choice = job.onExists
+                    } else if (check.value.exists) {
                         mutex.withLock { waiting[job.id] = job }
                         set(job.id) { it.copy(state = State.CONFLICT) }
                         return
@@ -169,6 +206,7 @@ class DriveTransfers @Inject constructor(
                 file.delete()
                 set(job.id) { it.copy(state = State.DONE, sent = it.total) }
                 _changed.tryEmit(job.folderId)
+                job.onDone?.invoke(r.value.first)
             }
             is DResult.Failed -> fail(job, r.code)
             else -> fail(job, "offline")
@@ -178,6 +216,20 @@ class DriveTransfers @Inject constructor(
     private fun fail(job: Job, code: String) {
         job.file?.delete()
         set(job.id) { it.copy(state = State.FAILED, code = code) }
+        job.onDone?.invoke(null)
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { inp ->
+            val buf = ByteArray(256 * 1024)
+            while (true) {
+                val n = inp.read(buf)
+                if (n < 0) break
+                digest.update(buf, 0, n)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /** Display name and size of a picked file (0 when unknown). */
@@ -200,10 +252,11 @@ class DriveTransfers @Inject constructor(
         val dir = File(context.cacheDir, "drive-up").apply { mkdirs() }
         val target = File(dir, "${job.id}.part")
         try {
-            job.mime = runCatching { context.contentResolver.getType(job.uri) }.getOrNull()
-            job.mtime = lastModified(job.uri)
+            val uri = job.uri ?: return@withContext null
+            job.mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+            job.mtime = lastModified(uri)
             val digest = MessageDigest.getInstance("SHA-256")
-            val input = context.contentResolver.openInputStream(job.uri) ?: return@withContext null
+            val input = context.contentResolver.openInputStream(uri) ?: return@withContext null
             input.use { inp ->
                 target.outputStream().use { out ->
                     val buf = ByteArray(256 * 1024)

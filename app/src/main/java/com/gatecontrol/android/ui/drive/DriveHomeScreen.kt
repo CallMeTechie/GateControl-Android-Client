@@ -113,6 +113,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                     }
                                 }
                             }
+                            FilesHint()
                         }
                     }
                 }
@@ -149,6 +150,17 @@ internal fun AreaIcon(a: DArea, size: Int = 40) {
     }
     GcIconSquare(size = size.dp, background = bg) {
         Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size((size / 2).dp))
+    }
+}
+
+/** Drive is also in the Files app (DriveDocumentsProvider). */
+@Composable
+private fun FilesHint() {
+    GcCard {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(GcIcons.Alert, contentDescription = null, tint = GateControlTheme.extraColors.accentText, modifier = Modifier.size(18.dp).padding(top = 1.dp))
+            Text(stringResource(R.string.drive_files_hint), style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 

@@ -111,4 +111,6 @@
     <string name="drive_open_none">No app on this device can open this file.</string>
     <string name="drive_loading_file">Loading the file…</string>
     <string name="drive_folder_files">%1$s · %2$s</string>
+    <string name="drive_files_root">GateControl Drive</string>
+    <string name="drive_files_hint">Drive is also in the Files app and in every “open file” dialog, e.g. in WhatsApp or Gmail.</string>
 </resources>

@@ -375,6 +375,20 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- Drive in the Files app and in "open file" / "save as" dialogs.
+             Only the system's documents UI may call it (MANAGE_DOCUMENTS);
+             apps get the single files the person picks. -->
+        <provider
+            android:name=".drive.DriveDocumentsProvider"
+            android:authorities="${applicationId}.drive.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
