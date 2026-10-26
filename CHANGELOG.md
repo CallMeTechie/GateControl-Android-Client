@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.4] - 2026-10-26
+
+### Changes
+- Foto-Sicherung (#128)
+
+---
+
 ## [1.67.3] - 2026-10-26
 
 ### Changes
