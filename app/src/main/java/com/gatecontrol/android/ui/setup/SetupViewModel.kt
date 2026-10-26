@@ -421,6 +421,8 @@ class SetupViewModel @Inject constructor(
         "user_disabled" -> UiText.Res(R.string.signin_error_user_disabled)
         "limit_reached" -> UiText.Res(R.string.signin_error_limit_reached)
         "not_linked" -> UiText.Res(R.string.signin_error_not_linked)
+        "password_change_required" -> UiText.Res(R.string.signin_error_password_change_required)
+        "directory_unavailable" -> UiText.Res(R.string.signin_error_directory_unavailable)
         "access_denied" -> UiText.Res(R.string.signin_error_cancelled)
         "invalid_or_expired" -> UiText.Res(R.string.signin_error_expired)
         "rate_limited", "locked" -> when {

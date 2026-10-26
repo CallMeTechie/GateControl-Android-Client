@@ -185,6 +185,8 @@
     <string name="signin_error_locked_one">Too many attempts. Please wait one minute.</string>
     <string name="signin_error_user_disabled">Your account is disabled.</string>
     <string name="signin_error_not_linked">This Microsoft account is not linked to a GateControl account.</string>
+    <string name="signin_error_password_change_required">You must change your password once in the browser first. Sign in to the portal to do so.</string>
+    <string name="signin_error_directory_unavailable">Your company sign-in service cannot be reached right now. Please try again later.</string>
     <string name="signin_error_cancelled">The sign-in was cancelled.</string>
     <string name="signin_error_expired">The sign-in has expired. Please sign in again.</string>
     <string name="signin_error_state">This sign-in was not started in this app. Please start it again.</string>

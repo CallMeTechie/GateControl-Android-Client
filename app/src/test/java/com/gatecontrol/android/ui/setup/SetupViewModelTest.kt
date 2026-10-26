@@ -762,6 +762,16 @@ class SetupViewModelTest {
             UiText.Res(R.string.signin_error_locked_one),
             attempt(httpError(429, "{\"ok\":false,\"error\":\"rate_limited\",\"retryAfter\":42}")),
         )
+        assertEquals(
+            UiText.Res(R.string.signin_error_password_change_required),
+            attempt(httpError(403, "{\"ok\":false,\"error\":\"password_change_required\"}")),
+        )
+        assertEquals(
+            UiText.Res(R.string.signin_error_directory_unavailable),
+            attempt(httpError(503, "{\"ok\":false,\"error\":\"directory_unavailable\"}")),
+        )
+        // Not a wrong password: the typed password stays for the next try.
+        assertEquals("geheim", viewModel.uiState.value.signin.password)
         assertEquals(UiText.Res(R.string.setup_enroll_rate_limited), attempt(httpError(429, "")))
         assertEquals(UiText.Res(R.string.signin_error_failed), attempt(httpError(500, "oops")))
         assertEquals(
@@ -870,6 +880,20 @@ class SetupViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(UiText.Res(R.string.signin_error_expired), message())
+        coVerify(exactly = 0) { apiClient.enroll(any()) }
+    }
+
+    @Test
+    fun `handoff for an account with a temporary password shows the change text`() = runTest {
+        loadMethods()
+        viewModel.startMicrosoftSignin(7)
+        val state = savedStateHandle.get<String>("company_signin_state")!!
+        coEvery { apiClient.signinHandoff(any()) } throws httpError(403, "{\"ok\":false,\"error\":\"password_change_required\"}")
+
+        viewModel.onSigninRedirect("gatecontrol://signin?handoff=h0ff-1234567890&state=$state")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(UiText.Res(R.string.signin_error_password_change_required), message())
         coVerify(exactly = 0) { apiClient.enroll(any()) }
     }
 

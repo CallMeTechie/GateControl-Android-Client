@@ -185,6 +185,8 @@
     <string name="signin_error_locked_one">Zu viele Versuche. Bitte warte eine Minute.</string>
     <string name="signin_error_user_disabled">Dein Konto ist gesperrt.</string>
     <string name="signin_error_not_linked">Dieses Microsoft-Konto ist mit keinem GateControl-Konto verknüpft.</string>
+    <string name="signin_error_password_change_required">Du musst dein Passwort zuerst einmal im Browser ändern. Melde dich dafür im Portal an.</string>
+    <string name="signin_error_directory_unavailable">Der Anmeldedienst deiner Firma ist gerade nicht erreichbar. Bitte versuch es später noch einmal.</string>
     <string name="signin_error_cancelled">Die Anmeldung wurde abgebrochen.</string>
     <string name="signin_error_expired">Die Anmeldung ist abgelaufen. Bitte melde dich noch einmal an.</string>
     <string name="signin_error_state">Diese Anmeldung wurde nicht in dieser App gestartet. Bitte starte sie noch einmal.</string>
