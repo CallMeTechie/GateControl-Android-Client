@@ -37,6 +37,21 @@ interface ApiClient {
     @POST("api/v1/client/enroll")
     suspend fun enroll(@Body request: EnrollRequest): EnrollResponse
 
+    /**
+     * Public (GateControl ≥ 1.201.0): company sign-in methods. 404 on older
+     * servers — the app then offers only the setup code.
+     */
+    @GET("api/v1/client/signin")
+    suspend fun signinMethods(): SigninMethodsResponse
+
+    /** Public: account password (+ TOTP) → one-shot setup code. */
+    @POST("api/v1/client/signin/password")
+    suspend fun signinPassword(@Body request: SigninPasswordRequest): SigninCodeResponse
+
+    /** Public: browser handoff of "Mit Microsoft anmelden" + PKCE verifier → one-shot setup code. */
+    @POST("api/v1/client/signin/handoff")
+    suspend fun signinHandoff(@Body request: SigninHandoffRequest): SigninCodeResponse
+
     @GET("api/v1/client/config")
     suspend fun getConfig(@Query("peerId") peerId: Int): ConfigResponse
 

@@ -123,5 +123,9 @@ class MainActivity : FragmentActivity() {
     private fun captureSetupLink(intent: Intent?) {
         val raw = intent?.dataString ?: return
         if (EnrollmentLink.parse(raw) != null) pendingSetupLink = raw
+        // Answer of "Mit Microsoft anmelden" (via SigninRedirectActivity): for the setup screen.
+        if (com.gatecontrol.android.common.SigninRedirect.isSigninLink(raw)) {
+            com.gatecontrol.android.ui.setup.SigninRedirects.offer(raw)
+        }
     }
 }

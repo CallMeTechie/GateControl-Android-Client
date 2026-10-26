@@ -93,6 +93,22 @@ fun SetupScreen(
     }
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    // "Mit Microsoft anmelden": open the sign-in page once …
+    val browserUrl = uiState.signin.browserUrl
+    LaunchedEffect(browserUrl) {
+        if (browserUrl != null) {
+            if (openSigninBrowser(context, browserUrl)) viewModel.onSigninBrowserOpened() else viewModel.onSigninBrowserUnavailable()
+        }
+    }
+    // … and take its answer (gatecontrol://signin, via MainActivity).
+    val signinRedirect by SigninRedirects.pending.collectAsState()
+    LaunchedEffect(signinRedirect) {
+        signinRedirect?.let { raw ->
+            SigninRedirects.consume(raw)
+            viewModel.onSigninRedirect(raw)
+        }
+    }
+
     // Handle QR scan result
     LaunchedEffect(qrResult) {
         if (qrResult != null && qrResult.isNotEmpty()) {
@@ -236,6 +252,23 @@ fun SetupScreen(
                 )
             }
 
+            // Company sign-in: only once the typed server offers it (GateControl ≥ 1.201.0).
+            AnimatedVisibility(
+                visible = uiState.isManualExpanded && uiState.signin.available,
+                enter = expandVertically(),
+                exit = shrinkVertically(),
+            ) {
+                CompanySigninSection(
+                    signin = uiState.signin,
+                    isLoading = uiState.isLoading,
+                    onMicrosoft = viewModel::startMicrosoftSignin,
+                    onUsernameChanged = viewModel::onSigninUsernameChanged,
+                    onPasswordChanged = viewModel::onSigninPasswordChanged,
+                    onTotpChanged = viewModel::onSigninTotpChanged,
+                    onSubmit = viewModel::submitCompanyPassword,
+                )
+            }
+
             uiState.statusMessage?.let { message ->
                 SetupStatusMessage(
                     message = message.asString(),
@@ -257,6 +290,15 @@ fun SetupScreen(
                 enabled = !uiState.isLoading,
                 icon = GcIcons.Key,
             )
+            // Hidden once the server turned out to have no company sign-in.
+            if (uiState.signin.unavailableFor == null && !(uiState.isManualExpanded && uiState.signin.available)) {
+                GcOutlineButton(
+                    text = stringResource(R.string.signin_title),
+                    onClick = viewModel::openCompanySignin,
+                    enabled = !uiState.isLoading,
+                    icon = GcIcons.User,
+                )
+            }
             GcSecondaryButton(
                 text = stringResource(R.string.setup_import),
                 onClick = { configFileLauncher.launch("*/*") },

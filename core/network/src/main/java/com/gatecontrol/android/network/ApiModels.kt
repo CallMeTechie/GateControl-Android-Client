@@ -251,6 +251,62 @@ data class EnrollResponse(
     val error: String? = null,
 )
 
+/**
+ * `GET /api/v1/client/signin` (public, GateControl ≥ 1.201.0): the ways a
+ * person may set up this device with their own account. 404 on older servers.
+ */
+data class SigninMethodsResponse(
+    val ok: Boolean,
+    val version: Int? = null,
+    val password: SigninPasswordMethod? = null,
+    val microsoft: List<SigninMicrosoftMethod>? = null,
+)
+
+data class SigninPasswordMethod(
+    val enabled: Boolean,
+    val hint: String? = null,
+)
+
+/** One Entra directory with "Mit Microsoft anmelden". */
+data class SigninMicrosoftMethod(
+    val id: Int? = null,
+    val label: String? = null,
+)
+
+/** `POST /api/v1/client/signin/password`. Never logged: [toString] hides the secrets. */
+data class SigninPasswordRequest(
+    val username: String,
+    val password: String,
+    val totp: String? = null,
+    val hostname: String? = null,
+    val platform: String? = null,
+) {
+    override fun toString(): String =
+        "SigninPasswordRequest(username=***, password=***, totp=${if (totp != null) "***" else "null"}, " +
+            "hostname=$hostname, platform=$platform)"
+}
+
+/** `POST /api/v1/client/signin/handoff`. Never logged: [toString] hides the values. */
+data class SigninHandoffRequest(
+    val handoff: String,
+    val verifier: String,
+) {
+    override fun toString(): String = "SigninHandoffRequest(handoff=***, verifier=***)"
+}
+
+/** Answer of both sign-in calls: a one-shot setup code for `POST /api/v1/client/enroll`. */
+data class SigninCodeResponse(
+    val ok: Boolean,
+    val code: String? = null,
+    val expiresAt: String? = null,
+    val error: String? = null,
+    val retryAfter: Long? = null,
+) {
+    override fun toString(): String =
+        "SigninCodeResponse(ok=$ok, code=${if (code != null) "***" else "null"}, expiresAt=$expiresAt, " +
+            "error=$error, retryAfter=$retryAfter)"
+}
+
 data class HeartbeatRequest(
     val peerId: Int,
     val connected: Boolean,

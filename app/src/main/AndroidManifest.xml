@@ -87,6 +87,24 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- Browser answer of "Mit Microsoft anmelden" (gatecontrol://signin):
+             forwarded to the running MainActivity, closing the Custom Tab. -->
+        <activity
+            android:name=".SigninRedirectActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.GateControl.TileAction">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="gatecontrol"
+                    android:host="signin" />
+            </intent-filter>
+        </activity>
+
         <!-- Performs Quick Settings tile actions (connect incl. VPN consent,
              disconnect). NOT exported: other apps must not be able to
              toggle the VPN. -->
