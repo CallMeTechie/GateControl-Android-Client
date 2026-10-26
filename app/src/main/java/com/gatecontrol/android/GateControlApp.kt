@@ -71,6 +71,13 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start the trusted-network monitor")
         }
 
+        // Drive photo backup: its work is scheduled while it is on (it may have been lost).
+        try {
+            com.gatecontrol.android.drive.backup.DriveBackupWork.ensure(this)
+        } catch (e: Throwable) {
+            Timber.w(e, "Drive backup: not ensured")
+        }
+
         // Home-screen widget: redraw on VPN, inbox and policy changes.
         try {
             EntryPointAccessors.fromApplication(this, com.gatecontrol.android.widget.VpnWidget.WidgetEntryPoint::class.java)

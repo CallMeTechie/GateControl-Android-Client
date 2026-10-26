@@ -214,10 +214,10 @@ internal object DriveJson {
 
     // ─── bodies ─────────────────────────────────────────────────────
 
-    fun mkdirBody(parentId: Long, name: String) = JsonObject().apply {
+    fun mkdirBody(parentId: Long, name: String, rename: Boolean = true) = JsonObject().apply {
         addProperty("parentId", parentId)
         addProperty("name", name)
-        addProperty("rename", true)
+        if (rename) addProperty("rename", true)
     }
 
     fun patchBody(name: String?, parentId: Long?) = JsonObject().apply {

@@ -113,4 +113,54 @@
     <string name="drive_folder_files">%1$s · %2$s</string>
     <string name="drive_files_root">GateControl Drive</string>
     <string name="drive_files_hint">Drive is also in the Files app and in every “open file” dialog, e.g. in WhatsApp or Gmail.</string>
+    <string name="drive_backup_title">Photo backup</string>
+    <string name="drive_backup_channel">Photo backup</string>
+    <string name="drive_backup_progress_short">%1$d of %2$d</string>
+    <string name="drive_backup_photos">Photos</string>
+    <string name="drive_backup_on">On</string>
+    <string name="drive_backup_off">Off</string>
+    <string name="drive_backup_off_text">Back up your photos to Drive automatically</string>
+    <string name="drive_backup_wifi_short">Wi-Fi only</string>
+    <string name="drive_backup_mobile_short">also on mobile data</string>
+    <string name="drive_backup_running_to">Uploading %1$d of %2$d new photos · to %3$s</string>
+    <string name="drive_backup_running">Uploading %1$d of %2$d new photos</string>
+    <string name="drive_backup_target">To %1$s</string>
+    <string name="drive_backup_switch">Back up photos</string>
+    <string name="drive_backup_switch_text">New photos go up as originals, also when the app is closed.</string>
+    <string name="drive_backup_folder">Folder</string>
+    <string name="drive_backup_folder_default">Family › Photos › your name (made automatically)</string>
+    <string name="drive_backup_folder_here">Back up here</string>
+    <string name="drive_backup_wifi">Only on Wi-Fi</string>
+    <string name="drive_backup_wifi_text">Uses no mobile data.</string>
+    <string name="drive_backup_charging">Only while charging</string>
+    <string name="drive_backup_videos">Videos too</string>
+    <string name="drive_backup_videos_text">Videos can be large.</string>
+    <string name="drive_backup_camera">Camera only</string>
+    <string name="drive_backup_camera_text">Without screenshots and pictures saved by other apps.</string>
+    <string name="drive_backup_note">The originals are uploaded. A photo that is already in the folder is not uploaded again. Deleting a photo on the phone does not delete it in Drive.</string>
+    <string name="drive_backup_which_title">Which photos?</string>
+    <string name="drive_backup_which_text">Back up the photos on this phone as well, or only the ones you take from now on?</string>
+    <string name="drive_backup_which_all">All photos</string>
+    <string name="drive_backup_which_new">Only new ones</string>
+    <string name="drive_backup_error_permission">GateControl may not read your photos. Allow it in the app settings.</string>
+    <string name="drive_backup_error_folder">The backup folder is gone. Choose a new one.</string>
+    <string name="drive_backup_settings">Settings</string>
+    <string name="drive_backup_partial">Only the photos you selected are shared with GateControl.</string>
+    <string name="drive_backup_allow_all">Allow all</string>
+    <string name="drive_backup_uptodate">Everything is backed up.</string>
+    <string name="drive_backup_last">Last backup: %1$s</string>
+    <string name="drive_backup_now">Back up now</string>
+    <string name="drive_backup_dismiss">OK</string>
+    <plurals name="drive_backup_saved">
+        <item quantity="one">%1$d photo backed up</item>
+        <item quantity="other">%1$d photos backed up</item>
+    </plurals>
+    <plurals name="drive_backup_waiting">
+        <item quantity="one">%1$d new photo waits</item>
+        <item quantity="other">%1$d new photos wait</item>
+    </plurals>
+    <plurals name="drive_backup_waiting_wifi">
+        <item quantity="one">%1$d new photo waits for Wi-Fi</item>
+        <item quantity="other">%1$d new photos wait for Wi-Fi</item>
+    </plurals>
 </resources>

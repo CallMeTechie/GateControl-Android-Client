@@ -72,13 +72,13 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | **Standort → Ungefährer Standort** | optional | Familie: Anwesenheit „zuhause/unterwegs“ (Heimnetz-Erkennung, kein GPS) und „angekommen/verlassen“ bei Orten für Regeln (ohne Position) |
 | **Standort → Genauer Standort** | optional | Standortfreigabe auf Tipp (ab 1.26), Standort-Nachricht im Chat (einmalig), Familie: Kind orten auf Anfrage der Eltern, SOS. Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
 | **Nachrichten → Sonstige In-App-Nachrichten** | optional | Chats (ab 1.42): Texte, Antworten, Reaktionen |
-| **Fotos und Videos → Fotos** | optional | Chat-Bilder, eigenes Profilbild (ab 1.33) |
-| **Fotos und Videos → Videos** | optional | Chats: Videos, die als Datei gesendet oder aus anderen Apps geteilt werden |
+| **Fotos und Videos → Fotos** | optional | Chat-Bilder, eigenes Profilbild (ab 1.33), Drive: Foto-Sicherung (nur eingeschaltet, in den eigenen Drive des Servers) |
+| **Fotos und Videos → Videos** | optional | Chats: Videos, die als Datei gesendet oder aus anderen Apps geteilt werden; Drive: Foto-Sicherung mit „Auch Videos“ |
 | **Audiodateien → Sprach- oder Tonaufnahmen** | optional | Chats: Sprachnachrichten (Mikrofon nur, solange die Taste gehalten wird) |
 | **Gesundheit und Fitness → Gesundheitsinformationen** | optional | Familie: Notfall-Karte (Allergien, Medikamente, Vorerkrankungen, Blutgruppe …) |
 | **App-Info und -Leistung → Absturzprotokolle** | Pflicht (automatisch) | Absturzbericht als geschwärztes Support-Paket an den eigenen Server |
 | **App-Info und -Leistung → Diagnose** | optional | Support-Paket, „Problem melden“ |
-| **Dateien und Dokumente** | optional | Chats: gesendete Dateien |
+| **Dateien und Dokumente** | optional | Chats: gesendete Dateien; Drive: hochgeladene und in der Dateien-App gespeicherte Dateien |
 | **App-Aktivitäten → In-App-Suchverlauf** | optional | Chats: Suche im Chat läuft auf dem Server |
 | **App-Aktivitäten → Sonstige von Nutzern erstellte Inhalte** | optional | Familie: Einkaufslisten, Aufgaben, Termine, Fahrten, Pinnwand, Wunschlisten, Essensplan |
 | **Geräte- oder andere IDs** | Pflicht | Gerätename/Modell im Status an den eigenen Server |
@@ -97,6 +97,11 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 **Dienste im Vordergrund** (Formular „Berechtigungen für Dienste im Vordergrund“, Typ *specialUse*):
 - *Benachrichtigungsdienst:* „Hält die Verbindung zur eigenen Benachrichtigungszentrale des selbst gehosteten Servers offen (Server-Sent Events), da keine Google-Push-Dienste genutzt werden. Wird nur gestartet, wenn der Nutzer ‚Benachrichtigungen – immer, auch ohne VPN‘ wählt; der Nutzer sieht dauerhaft eine Benachrichtigung und kann es jederzeit abschalten.“
 - *Remote-Desktop-Sitzung:* „Hält eine vom Nutzer gestartete RDP-Sitzung aufrecht, solange sie läuft.“
+
+**Foto- und Videoberechtigungen** (Formular „Berechtigungen für Fotos und Videos“, Pflicht für `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` ab der Drive-Foto-Sicherung; ohne das Formular nimmt Play neue Versionen nicht an):
+- *Kernfunktion:* „Foto-Sicherung (Drive): Die App sichert auf Wunsch die Fotos und Videos der Kamera automatisch als Original in den Drive auf dem eigenen, selbst gehosteten GateControl-Server des Nutzers – wie eine Cloud-Foto-Sicherung, nur ohne fremden Anbieter. Dafür braucht sie dauerhaften Zugriff auf die Mediathek, auch im Hintergrund, wenn neue Fotos entstehen. Die Fotoauswahl des Systems reicht nicht, weil sie keine laufende Sicherung neuer Fotos erlaubt.“
+- *Nutzung:* nur nach Einschalten durch den Nutzer (Drive › Foto-Sicherung), Ziel nur der eigene Server, keine Weitergabe an Dritte, jederzeit abschaltbar. Teilzugriff (Android 14 „Ausgewählte Fotos“) wird unterstützt.
+- *Video (optional):* Drive-Tab → Foto-Sicherung → einschalten → Berechtigung erlauben → „Alle Fotos“ → Fortschritt auf der Karte → Foto im Ordner Familie › Fotos › Name.
 
 **Akku-Optimierung ausnehmen** (keine eigene Erklärung, Prüfer fragen ggf. nach): Die App fragt nur, wenn der Nutzer Benachrichtigungen „immer“ empfangen will; ohne Ausnahme beendet Doze die Verbindung zur Benachrichtigungszentrale.
 

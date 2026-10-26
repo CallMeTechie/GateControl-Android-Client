@@ -51,6 +51,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DFolder
 import com.gatecontrol.android.drive.DLink
 import com.gatecontrol.android.drive.DNode
@@ -455,18 +456,43 @@ private fun shareText(context: Context, text: String) {
 /** Where to move an item: the writable areas, then their folders. */
 @Composable
 private fun MovePicker(p: DriveFolderViewModel.Picker, onBrowse: (Long?) -> Unit, onMove: () -> Unit, onDismiss: () -> Unit) {
+    FolderPickerDialog(
+        title = stringResource(R.string.drive_move_title, p.node.name),
+        areas = p.areas,
+        folder = p.folder,
+        confirm = stringResource(R.string.drive_move_here),
+        canPick = { it.writable && it.node.id != p.node.parentId && it.node.id != p.node.id },
+        hide = p.node.id,
+        onBrowse = onBrowse,
+        onPick = onMove,
+        onDismiss = onDismiss,
+    )
+}
+
+/** Choosing a folder: the areas first, then the folders below; [hide] leaves one out (the folder being moved). */
+@Composable
+internal fun FolderPickerDialog(
+    title: String,
+    areas: List<DArea>,
+    folder: DriveLoad<DFolder>?,
+    confirm: String,
+    canPick: (DFolder) -> Boolean,
+    onBrowse: (Long?) -> Unit,
+    onPick: () -> Unit,
+    onDismiss: () -> Unit,
+    hide: Long? = null,
+) {
     val x = GateControlTheme.extraColors
-    val folder = (p.folder as? DriveLoad.Ready)?.value
-    val canHere = folder != null && folder.writable && folder.node.id != p.node.parentId && folder.node.id != p.node.id
+    val ready = (folder as? DriveLoad.Ready)?.value
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.drive_move_title, p.node.name)) },
+        title = { Text(title) },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                when (val f = p.folder) {
+                when (val f = folder) {
                     null -> {
                         GcSectionLabel(stringResource(R.string.drive_move_areas))
-                        p.areas.forEach { a ->
+                        areas.forEach { a ->
                             GcListRow(title = a.label, onClick = { onBrowse(a.rootId) }, leading = { AreaIcon(a, 32) }, trailing = { GcChevron() })
                         }
                     }
@@ -479,14 +505,14 @@ private fun MovePicker(p: DriveFolderViewModel.Picker, onBrowse: (Long?) -> Unit
                             onClick = { onBrowse(up) },
                             titleColor = x.accentText,
                         )
-                        f.value.items.filter { it.isDir && it.id != p.node.id }.forEach { d ->
+                        f.value.items.filter { it.isDir && it.id != hide }.forEach { d ->
                             GcListRow(title = d.name, onClick = { onBrowse(d.id) }, leading = { NodeIcon(d, 32) }, trailing = { GcChevron() })
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onMove, enabled = canHere) { Text(stringResource(R.string.drive_move_here)) } },
+        confirmButton = { TextButton(onClick = onPick, enabled = ready != null && canPick(ready)) { Text(confirm) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
     )
 }
