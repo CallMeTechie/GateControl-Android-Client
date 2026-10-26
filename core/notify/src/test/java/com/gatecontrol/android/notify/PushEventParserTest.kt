@@ -280,4 +280,58 @@ class PushEventParserTest {
         val m = assertInstanceOf(PushEvent.Notification::class.java, e).message
         assertEquals("Der Elroq hat nur 32 %.\nLadestand: 32 % · Termin: Mo 07:30", m.body)
     }
+
+    private fun factsBody(body: String, facts: String): String {
+        val e = PushEventParser.parse(
+            "notification", "8",
+            """{"seq":8,"id":5,"topic":"plugin:gatecontrol-smarthome:battery","title":"Batterie schwach","body":"$body",
+                "data":{"facts":$facts}}""",
+        )
+        return assertInstanceOf(PushEvent.Notification::class.java, e).message.body
+    }
+
+    @Test
+    fun `battery facts already named in the body add no second line`() {
+        val body = "Bewegungsmelder Wintergarten 14 %, Fenster Bad 9 % · Phoscon-Gateway"
+        assertEquals(
+            body,
+            factsBody(
+                body,
+                """[{"label":"Bewegungsmelder Wintergarten","value":"14 %"},{"label":"Fenster Bad","value":"9\u00A0%"}]""",
+            ),
+        )
+    }
+
+    @Test
+    fun `only the facts that add something stay`() {
+        assertEquals(
+            "Bewegungsmelder Wintergarten 14 % · Phoscon-Gateway\nRauchmelder Flur: 11 %",
+            factsBody(
+                "Bewegungsmelder Wintergarten 14 % · Phoscon-Gateway",
+                """[{"label":"bewegungsmelder  wintergarten","value":"14 %"},{"label":"Rauchmelder Flur","value":"11 %"},
+                    {"value":"Phoscon-Gateway"}]""",
+            ),
+        )
+    }
+
+    @Test
+    fun `repeated facts are shown once`() {
+        assertEquals(
+            "Bitte laden.\nLadestand: 32 % · Termin: Mo 07:30",
+            factsBody(
+                "Bitte laden.",
+                """[{"label":"Ladestand","value":"32 %"},{"label":"Ladestand","value":"32 %"},
+                    {"label":"Termin","value":"Mo 07:30"},{"label":"Termin","value":"Mo 07:30"}]""",
+            ),
+        )
+    }
+
+    @Test
+    fun `facts with new information keep their line`() {
+        assertEquals(
+            "Der Elroq hat nur 32 %.\nLadestand: 32 %",
+            factsBody("Der Elroq hat nur 32 %.", """[{"label":"Ladestand","value":"32 %"}]"""),
+        )
+        assertEquals("Ladestand: 32 %", factsBody("", """[{"label":"Ladestand","value":"32 %"}]"""))
+    }
 }

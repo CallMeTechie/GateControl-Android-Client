@@ -16,8 +16,18 @@ import com.gatecontrol.android.network.RegisterRequest
 import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.WgConfigValidator
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
+import com.gatecontrol.android.common.CompanySignin
+import com.gatecontrol.android.common.SigninRedirect
+import com.gatecontrol.android.network.SigninCodeResponse
+import com.gatecontrol.android.network.SigninHandoffRequest
+import com.gatecontrol.android.network.SigninPasswordRequest
+import com.google.gson.JsonParser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,7 +56,43 @@ data class SetupUiState(
     val completedNow: Boolean = false,
     /** Legacy gatecontrol://setup?url&token link waiting for the user's confirmation. */
     val pendingTokenSetup: TokenSetupLink? = null,
+    /** "Mit Firmenkonto anmelden" for the typed server (GateControl ≥ 1.201.0). */
+    val signin: CompanySigninUi = CompanySigninUi(),
 )
+
+/** One Entra directory with "Mit Microsoft anmelden". */
+data class MicrosoftSignin(val id: Int, val label: String)
+
+/**
+ * Company sign-in of the setup screen: the methods the server offers
+ * (`GET /api/v1/client/signin`) and the password form. Both ways end with a
+ * one-shot setup code that goes through the normal enroll path.
+ * [toString] never shows the password or the verification code.
+ */
+data class CompanySigninUi(
+    /** Normalized https server the methods belong to; null while none are known. */
+    val serverUrl: String? = null,
+    val passwordEnabled: Boolean = false,
+    /** Server hint below the password field, e.g. "mit dem Windows-Passwort anmelden". */
+    val hint: String? = null,
+    val microsoft: List<MicrosoftSignin> = emptyList(),
+    val username: String = "",
+    val password: String = "",
+    val totp: String = "",
+    /** The account has 2FA: the next attempt carries the 6-digit code. */
+    val totpRequired: Boolean = false,
+    val busy: Boolean = false,
+    /** Server checked without company sign-in (older server): the offer stays hidden. */
+    val unavailableFor: String? = null,
+    /** "Mit Microsoft anmelden": browser URL the screen opens once. */
+    val browserUrl: String? = null,
+) {
+    val available: Boolean get() = serverUrl != null && (passwordEnabled || microsoft.isNotEmpty())
+
+    override fun toString(): String =
+        "CompanySigninUi(serverUrl=$serverUrl, passwordEnabled=$passwordEnabled, microsoft=${microsoft.size}, " +
+            "totpRequired=$totpRequired, busy=$busy, unavailableFor=$unavailableFor)"
+}
 
 /** Server URL (https only) + API token from a legacy `gatecontrol://setup` link. */
 data class TokenSetupLink(val serverUrl: String, val token: String) {
@@ -64,6 +110,8 @@ class SetupViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val clientPolicyManager: ClientPolicyManager,
     private val machineFingerprint: MachineFingerprint,
+    /** Keeps a started Microsoft sign-in (PKCE verifier, state) across process death. */
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val appVersion: String by lazy {
@@ -83,6 +131,7 @@ class SetupViewModel @Inject constructor(
 
     fun onServerUrlChanged(value: String) {
         _uiState.update { it.copy(serverUrl = value, statusMessage = null) }
+        scheduleSigninMethods(value, SIGNIN_METHODS_DEBOUNCE_MS)
     }
 
     fun onApiTokenChanged(value: String) {
@@ -91,6 +140,298 @@ class SetupViewModel @Inject constructor(
 
     fun toggleManualExpanded() {
         _uiState.update { it.copy(isManualExpanded = !it.isManualExpanded) }
+        if (_uiState.value.isManualExpanded) scheduleSigninMethods(_uiState.value.serverUrl, 0)
+    }
+
+    // -------------------------------------------------------------------------
+    // Company sign-in ("Mit Firmenkonto anmelden", GateControl ≥ 1.201.0)
+    // -------------------------------------------------------------------------
+
+    private var methodsJob: Job? = null
+
+    /** Bottom button: opens the server entry; the sign-in appears once the server answered. */
+    fun openCompanySignin() {
+        _uiState.update { it.copy(isManualExpanded = true) }
+        scheduleSigninMethods(_uiState.value.serverUrl, 0)
+    }
+
+    /**
+     * Asks the typed server which company sign-in it offers. Only https
+     * servers (as for a setup code); an older server (404) hides the offer.
+     */
+    private fun scheduleSigninMethods(rawUrl: String, delayMs: Long) {
+        val server = EnrollmentLink.normalizeServerUrl(ensureHttps(rawUrl.trim()))
+        val current = _uiState.value.signin
+        if (server != null && (server == current.serverUrl || server == current.unavailableFor)) return
+        methodsJob?.cancel()
+        if (current.serverUrl != null || current.unavailableFor != null || current.totpRequired) {
+            // Methods (and a typed password) of another server must not stay.
+            _uiState.update {
+                it.copy(signin = CompanySigninUi(username = it.signin.username, busy = it.signin.busy, browserUrl = it.signin.browserUrl))
+            }
+        }
+        if (server == null) return
+        methodsJob = viewModelScope.launch {
+            if (delayMs > 0) delay(delayMs)
+            loadSigninMethods(server)
+        }
+    }
+
+    private suspend fun loadSigninMethods(server: String) {
+        try {
+            val response = apiClientProvider.getClient(server).signinMethods()
+            val microsoft = response.microsoft.orEmpty().mapNotNull { m ->
+                val id = m.id?.takeIf { it > 0 } ?: return@mapNotNull null
+                MicrosoftSignin(id, plainText(m.label, MAX_LABEL))
+            }.distinctBy { it.id }.take(MAX_MICROSOFT)
+            val password = response.password?.enabled == true
+            if (!response.ok || (!password && microsoft.isEmpty())) {
+                _uiState.update { it.copy(signin = it.signin.copy(unavailableFor = server)) }
+                return
+            }
+            _uiState.update {
+                it.copy(
+                    signin = it.signin.copy(
+                        serverUrl = server,
+                        passwordEnabled = password,
+                        hint = response.password?.hint?.let { h -> plainText(h, MAX_HINT) }?.ifBlank { null },
+                        microsoft = microsoft,
+                        unavailableFor = null,
+                    ),
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: HttpException) {
+            Timber.i("Company sign-in not offered (HTTP %d)", e.code())
+            if (e.code() == 404) _uiState.update { it.copy(signin = it.signin.copy(unavailableFor = server)) }
+        } catch (e: Exception) {
+            // Network trouble: nothing is shown, the next server entry asks again.
+            Timber.i("Company sign-in methods not loaded: %s", e.javaClass.simpleName)
+        }
+    }
+
+    fun onSigninUsernameChanged(value: String) {
+        _uiState.update { it.copy(signin = it.signin.copy(username = value.take(MAX_USERNAME)), statusMessage = null) }
+    }
+
+    fun onSigninPasswordChanged(value: String) {
+        _uiState.update { it.copy(signin = it.signin.copy(password = value.take(MAX_PASSWORD)), statusMessage = null) }
+    }
+
+    fun onSigninTotpChanged(value: String) {
+        _uiState.update { it.copy(signin = it.signin.copy(totp = value.filter(Char::isDigit).take(6)), statusMessage = null) }
+    }
+
+    /** „Anmelden“: account password (+ 2FA code) → setup code → enroll. */
+    fun submitCompanyPassword() {
+        val state = _uiState.value
+        val signin = state.signin
+        val server = signin.serverUrl ?: return
+        if (!signin.passwordEnabled || signin.busy || state.isLoading) return
+        val username = signin.username.trim()
+        val password = signin.password
+        if (username.isEmpty() || password.isEmpty()) {
+            showError(UiText.Res(R.string.signin_error_fields))
+            return
+        }
+        val totp = if (signin.totpRequired) signin.totp else null
+        if (totp != null && !TOTP_RE.matches(totp)) {
+            showError(UiText.Res(R.string.signin_error_totp_format))
+            return
+        }
+        viewModelScope.launch {
+            setSigninBusy()
+            try {
+                val response = apiClientProvider.getClient(server).signinPassword(
+                    SigninPasswordRequest(
+                        username = username,
+                        password = password,
+                        totp = totp,
+                        hostname = android.os.Build.MODEL ?: "android",
+                        platform = "android",
+                    ),
+                )
+                val code = setupCodeOf(response) ?: throw SigninFailure(response.error ?: "failed", response.retryAfter)
+                _uiState.update {
+                    it.copy(signin = it.signin.copy(password = "", totp = "", totpRequired = false, busy = false))
+                }
+                enroll(server, code)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val (code, retryAfter) = signinError(e)
+                Timber.w("Company sign-in failed: %s", code)
+                when (code) {
+                    "totp_required" -> _uiState.update {
+                        it.copy(
+                            signin = it.signin.copy(totpRequired = true, totp = "", busy = false),
+                            statusMessage = UiText.Res(R.string.signin_totp_required),
+                            statusType = StatusType.INFO,
+                        )
+                    }
+                    "totp_invalid" -> showError(signinErrorMessage(code, retryAfter, e)) { it.copy(totp = "") }
+                    "invalid_credentials" -> showError(signinErrorMessage(code, retryAfter, e)) {
+                        it.copy(password = "", totp = "", totpRequired = false)
+                    }
+                    else -> showError(signinErrorMessage(code, retryAfter, e))
+                }
+            }
+        }
+    }
+
+    /**
+     * „Mit Microsoft anmelden“: a fresh PKCE verifier + state (kept in the
+     * SavedStateHandle) and the browser URL for the screen to open.
+     */
+    fun startMicrosoftSignin(directoryId: Int) {
+        val state = _uiState.value
+        val server = state.signin.serverUrl ?: return
+        if (state.signin.busy || state.isLoading || state.signin.microsoft.none { it.id == directoryId }) return
+        val verifier = CompanySignin.newVerifier()
+        val nonce = CompanySignin.newState()
+        savedStateHandle[KEY_VERIFIER] = verifier
+        savedStateHandle[KEY_STATE] = nonce
+        savedStateHandle[KEY_SERVER] = server
+        _uiState.update {
+            it.copy(
+                statusMessage = null,
+                signin = it.signin.copy(browserUrl = CompanySignin.startUrl(server, directoryId, nonce, CompanySignin.challenge(verifier))),
+            )
+        }
+    }
+
+    /** The screen opened [CompanySigninUi.browserUrl]. */
+    fun onSigninBrowserOpened() {
+        _uiState.update { it.copy(signin = it.signin.copy(browserUrl = null)) }
+    }
+
+    /** No browser could open the sign-in page. */
+    fun onSigninBrowserUnavailable() {
+        clearPendingMicrosoft()
+        _uiState.update { it.copy(signin = it.signin.copy(browserUrl = null)) }
+        showError(UiText.Res(R.string.signin_error_no_browser))
+    }
+
+    /**
+     * `gatecontrol://signin?handoff=…&state=…` (or `?error=…`) from the
+     * browser. Only accepted for the sign-in this app started (same state);
+     * the handoff is then traded with the verifier for a setup code.
+     */
+    fun onSigninRedirect(raw: String) {
+        val redirect = SigninRedirect.parse(raw)
+        val expected: String? = savedStateHandle[KEY_STATE]
+        val verifier: String? = savedStateHandle[KEY_VERIFIER]
+        val server: String? = savedStateHandle[KEY_SERVER]
+        if (redirect == null || expected == null || verifier == null || server == null ||
+            !java.security.MessageDigest.isEqual(redirect.state.toByteArray(), expected.toByteArray())
+        ) {
+            // Not the sign-in started here (or a stale / forged link): a
+            // running sign-in stays valid for its real answer.
+            Timber.w("Company sign-in redirect rejected")
+            showError(UiText.Res(R.string.signin_error_state))
+            return
+        }
+        clearPendingMicrosoft()
+        redirect.error?.let { error ->
+            Timber.w("Company sign-in (Microsoft) failed: %s", error)
+            showError(signinErrorMessage(error, null, null))
+            return
+        }
+        val handoff = redirect.handoff ?: return
+        viewModelScope.launch {
+            setSigninBusy()
+            try {
+                val response = apiClientProvider.getClient(server).signinHandoff(SigninHandoffRequest(handoff, verifier))
+                val code = setupCodeOf(response) ?: throw SigninFailure(response.error ?: "failed", response.retryAfter)
+                _uiState.update { it.copy(signin = it.signin.copy(busy = false)) }
+                enroll(server, code)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val (code, retryAfter) = signinError(e)
+                Timber.w("Company sign-in (handoff) failed: %s", code)
+                showError(signinErrorMessage(code, retryAfter, e))
+            }
+        }
+    }
+
+    private fun clearPendingMicrosoft() {
+        savedStateHandle.remove<String>(KEY_VERIFIER)
+        savedStateHandle.remove<String>(KEY_STATE)
+        savedStateHandle.remove<String>(KEY_SERVER)
+    }
+
+    private fun setSigninBusy() {
+        _uiState.update {
+            it.copy(
+                signin = it.signin.copy(busy = true),
+                statusMessage = UiText.Res(R.string.signin_running),
+                statusType = StatusType.INFO,
+            )
+        }
+    }
+
+    private fun showError(message: UiText, signin: (CompanySigninUi) -> CompanySigninUi = { it }) {
+        _uiState.update {
+            it.copy(
+                signin = signin(it.signin).copy(busy = false),
+                statusMessage = message,
+                statusType = StatusType.ERROR,
+            )
+        }
+    }
+
+    /** The setup code of a successful answer, in the form the enroll path expects. */
+    private fun setupCodeOf(response: SigninCodeResponse): String? {
+        val raw = response.code?.trim()?.takeIf { response.ok && it.isNotEmpty() } ?: return null
+        return EnrollmentLink.normalizeCode(raw) ?: raw.takeIf { SETUP_CODE_RE.matches(it) }
+    }
+
+    private class SigninFailure(val code: String, val retryAfter: Long?) : Exception(code)
+
+    /** Error code and wait time of a failed sign-in call ("network" when the server was not reached). */
+    private fun signinError(e: Exception): Pair<String, Long?> = when (e) {
+        is SigninFailure -> e.code to e.retryAfter
+        is HttpException -> {
+            val body = try {
+                e.response()?.errorBody()?.string().orEmpty()
+            } catch (_: Exception) {
+                ""
+            }
+            val json = try {
+                JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+            } catch (_: Exception) {
+                null
+            }
+            val code = json?.get("error")?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { ERROR_RE.matches(it) }
+                ?: if (e.code() == 429) "rate_limited" else "failed"
+            val retryAfter = json?.get("retryAfter")?.takeIf { it.isJsonPrimitive }?.asString?.toDoubleOrNull()?.toLong()
+                ?: e.response()?.headers()?.get("Retry-After")?.trim()?.toLongOrNull()
+            code to retryAfter
+        }
+        else -> "network" to null
+    }
+
+    private fun signinErrorMessage(code: String, retryAfter: Long?, e: Exception?): UiText = when (code) {
+        "invalid_credentials" -> UiText.Res(R.string.signin_error_invalid_credentials)
+        "totp_invalid" -> UiText.Res(R.string.signin_error_totp_invalid)
+        "totp_required" -> UiText.Res(R.string.signin_totp_required)
+        "enroll_not_allowed" -> UiText.Res(R.string.signin_error_enroll_not_allowed)
+        "user_disabled" -> UiText.Res(R.string.signin_error_user_disabled)
+        "limit_reached" -> UiText.Res(R.string.signin_error_limit_reached)
+        "not_linked" -> UiText.Res(R.string.signin_error_not_linked)
+        "password_change_required" -> UiText.Res(R.string.signin_error_password_change_required)
+        "directory_unavailable" -> UiText.Res(R.string.signin_error_directory_unavailable)
+        "access_denied" -> UiText.Res(R.string.signin_error_cancelled)
+        "invalid_or_expired" -> UiText.Res(R.string.signin_error_expired)
+        "rate_limited", "locked" -> when {
+            retryAfter == null || retryAfter <= 0 -> UiText.Res(R.string.setup_enroll_rate_limited)
+            retryAfter <= 60 -> UiText.Res(R.string.signin_error_locked_one)
+            else -> UiText.Res(R.string.signin_error_locked, ((retryAfter + 59) / 60).toInt())
+        }
+        "network" -> UiText.Res(R.string.signin_error_network, e?.localizedMessage ?: e?.javaClass?.simpleName.orEmpty())
+        else -> UiText.Res(R.string.signin_error_failed)
     }
 
     fun testConnection() {
@@ -476,5 +817,25 @@ class SetupViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private companion object {
+        const val SIGNIN_METHODS_DEBOUNCE_MS = 700L
+        const val KEY_VERIFIER = "company_signin_verifier"
+        const val KEY_STATE = "company_signin_state"
+        const val KEY_SERVER = "company_signin_server"
+        const val MAX_LABEL = 60
+        const val MAX_HINT = 200
+        const val MAX_MICROSOFT = 6
+        const val MAX_USERNAME = 256
+        const val MAX_PASSWORD = 1024
+        val TOTP_RE = Regex("^[0-9]{6}$")
+        val SETUP_CODE_RE = Regex("^[A-Za-z0-9-]{4,128}$")
+        val ERROR_RE = Regex("^[a-z_]{1,40}$")
+        val CONTROL_RE = Regex("[\\u0000-\\u001F\\u007F]")
+
+        /** Server text shown as plain text: control characters removed, length capped. */
+        fun plainText(value: String?, max: Int): String =
+            CONTROL_RE.replace(value.orEmpty(), " ").trim().take(max)
     }
 }

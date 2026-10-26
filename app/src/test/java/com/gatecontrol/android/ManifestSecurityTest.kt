@@ -69,6 +69,20 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `company sign-in redirect is only gatecontrol signin and stays out of recents`() {
+        val activity = components("activity").firstOrNull { it.androidAttr("name").endsWith("SigninRedirectActivity") }
+        assertNotNull(activity, "SigninRedirectActivity must be declared")
+        assertEquals("true", activity!!.androidAttr("excludeFromRecents"))
+        val data = activity.getElementsByTagName("data")
+        assertEquals(1, data.length)
+        val d = data.item(0) as Element
+        assertEquals("gatecontrol", d.androidAttr("scheme"))
+        assertEquals("signin", d.androidAttr("host"))
+        val source = moduleFile("src/main/java/com/gatecontrol/android/SigninRedirectActivity.kt").readText()
+        assertFalse(source.contains("getStringExtra"), "the redirect must not act on intent extras")
+    }
+
+    @Test
     fun `unused install permission is not requested`() {
         val permissions = components("uses-permission").map { it.androidAttr("name") }
         assertFalse("android.permission.REQUEST_INSTALL_PACKAGES" in permissions)

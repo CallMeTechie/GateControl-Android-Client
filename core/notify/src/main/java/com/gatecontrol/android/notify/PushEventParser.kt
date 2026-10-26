@@ -278,19 +278,36 @@ object PushEventParser {
     /**
      * `data.facts: [{ label, value }]` (e.g. a Familie reminder: "Ladestand
      * 32 %", "Termin Mo 07:30") as a last line of the text, at most four.
+     *
+     * A fact that adds nothing is left out: one whose value and label both
+     * already appear in the body (e.g. Smart Home "Batterie schwach", whose
+     * body already names "Bewegungsmelder Wintergarten 14 %"), and repeats
+     * of the same fact. When nothing new remains, no extra line is added.
      */
     internal fun withFacts(body: String, data: JsonObject?): String {
         val arr = data?.get("facts")?.takeIf { it.isJsonArray }?.asJsonArray ?: return body
+        val bodyKey = factKey(body)
+        val seen = HashSet<String>()
         val facts = arr.mapNotNull { e ->
             val o = e.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
             val label = clean(o.get("label")?.takeIf { it.isJsonPrimitive }?.asString, 30)
             val value = clean(o.get("value")?.takeIf { it.isJsonPrimitive }?.asString, 40)
-            if (value.isEmpty()) null else if (label.isEmpty()) value else "$label: $value"
+            if (value.isEmpty()) return@mapNotNull null
+            val labelKey = factKey(label)
+            val valueKey = factKey(value)
+            if (!seen.add("$labelKey\u0000$valueKey")) return@mapNotNull null
+            if (bodyKey.contains(valueKey) && (labelKey.isEmpty() || bodyKey.contains(labelKey))) return@mapNotNull null
+            if (label.isEmpty()) value else "$label: $value"
         }.take(4)
         if (facts.isEmpty()) return body
         val line = facts.joinToString(" · ")
         return (if (body.isEmpty()) line else "$body\n$line").take(MAX_BODY)
     }
+
+    private val FACT_SPACE_RE = Regex("[\\s\\u00A0\\u2007\\u202F]+")
+
+    /** Text as compared for redundant facts: lower case, any run of spaces as one. */
+    private fun factKey(text: String): String = FACT_SPACE_RE.replace(text, " ").trim().lowercase()
 
     private fun actions(data: JsonObject?): List<PushAction> {
         val arr = data?.get("actions")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
