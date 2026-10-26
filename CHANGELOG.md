@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.1] - 2026-10-26
+
+### Changes
+- Firmenkonto-Anmeldung in der Einrichtung; Benachrichtigung ohne doppelte Fakten (#123)
+
+---
+
 ## [1.67.0] - 2026-10-25
 
 ### Features
