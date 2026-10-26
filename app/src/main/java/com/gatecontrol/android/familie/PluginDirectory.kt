@@ -64,6 +64,11 @@ data class PluginAvailability(
      * this user: the tab "Vault" and the autofill service.
      */
     val vault: Boolean = false,
+    /**
+     * The Drive plugin (files of the person, the family and the team) is
+     * listed for this user: the tab "Drive".
+     */
+    val drive: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -82,6 +87,7 @@ data class PluginAvailability(
                 schule = plugins.any { it.id == com.gatecontrol.android.familie.school.SCHULE_PLUGIN },
                 gatedrop = plugins.any { it.id == com.gatecontrol.android.gatedrop.GATEDROP_PLUGIN },
                 vault = plugins.any { it.id == com.gatecontrol.android.vault.VAULT_PLUGIN },
+                drive = plugins.any { it.id == com.gatecontrol.android.drive.DRIVE_PLUGIN },
             )
         }
 

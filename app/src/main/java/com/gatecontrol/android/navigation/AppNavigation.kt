@@ -190,6 +190,7 @@ fun AppNavigation(
             Screen.Familie.route -> TabItem(route, Screen.Familie.create(), R.string.nav_familie, familieIcon)
             Screen.Chats.route -> TabItem(route, Screen.Chats.create(), R.string.nav_chats, Icons.AutoMirrored.Outlined.Chat, chatBadge)
             Screen.Vault.route -> TabItem(route, Screen.Vault.route, R.string.vault_tab, GcIcons.Vault)
+            Screen.Drive.route -> TabItem(route, Screen.Drive.route, R.string.drive_tab, GcIcons.Cloud)
             else -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
         }
     }
@@ -1014,6 +1015,7 @@ fun AppNavigation(
             }
 
             vaultRoutes(navController, navigateToTab)
+            driveRoutes(navController, navigateToTab)
         }
 
         // A tapped push message (PushOpenActivity) — only once the app is set up.
@@ -1193,11 +1195,14 @@ private fun GcTabBar(
                 .fillMaxWidth()
                 .padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
         ) {
+            // Six tabs (all plugins) share a phone's width: a narrower pill.
+            val pill = if (tabs.size > 5) 52.dp else 60.dp
             tabs.forEach { tab ->
                 val selected = isSelected(tab)
                 TabItemContent(
                     tab = tab,
                     selected = selected,
+                    pillWidth = pill,
                     modifier = Modifier
                         .weight(1f)
                         .height(72.dp)
@@ -1211,7 +1216,7 @@ private fun GcTabBar(
 
 /** Icon with pill indicator, badge and label: one entry of the tab bar or the rail. */
 @Composable
-private fun TabItemContent(tab: TabItem, selected: Boolean, modifier: Modifier) {
+private fun TabItemContent(tab: TabItem, selected: Boolean, modifier: Modifier, pillWidth: Dp = 60.dp) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     Column(
@@ -1221,7 +1226,7 @@ private fun TabItemContent(tab: TabItem, selected: Boolean, modifier: Modifier) 
     ) {
         Box(
             Modifier
-                .width(60.dp)
+                .width(pillWidth)
                 .height(32.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(if (selected) extra.accentBg else Color.Transparent),
@@ -1456,5 +1461,35 @@ private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, naviga
     }
     composable(Screen.VaultSettings.route) {
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultSettingsScreen(onBack = back, onForgot = recover) }
+    }
+}
+
+/**
+ * Drive (plugin gatecontrol-drive): the tab, a folder, the trash and the search, each a route of its own so the tab
+ * bar shows on the tab only and back works as everywhere else.
+ */
+private fun NavGraphBuilder.driveRoutes(navController: NavHostController, navigateToTab: (String) -> Unit) {
+    val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Drive.route) }
+    val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
+    val folder: (Long) -> Unit = { go(Screen.DriveFolder.create(it)) }
+    composable(Screen.Drive.route) {
+        GcContentWidth {
+            com.gatecontrol.android.ui.drive.DriveHomeScreen(
+                com.gatecontrol.android.ui.drive.DriveNav(
+                    folder = folder,
+                    search = { go(Screen.DriveSearch.route) },
+                    trash = { go(Screen.DriveTrash.route) },
+                ),
+            )
+        }
+    }
+    composable(Screen.DriveFolder.route, arguments = listOf(navArgument(Screen.DriveFolder.ARG_ID) { type = NavType.StringType })) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderScreen(onBack = back, onFolder = folder) }
+    }
+    composable(Screen.DriveTrash.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveTrashScreen(onBack = back) }
+    }
+    composable(Screen.DriveSearch.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveSearchScreen(onBack = back, onFolder = folder) }
     }
 }

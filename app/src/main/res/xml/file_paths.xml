@@ -15,4 +15,8 @@
          (cacheDir/school/<message>_<attachment>/<name>, removed after a
          week without use). -->
     <cache-path name="school" path="school/" />
+    <!-- Drive: a downloaded file the person opens or sends
+         (cacheDir/drive-open/<node>-r<rev>/<name>, pruned after a day). The
+         upload copies in cacheDir/drive-up stay private. -->
+    <cache-path name="drive_open" path="drive-open/" />
 </paths>
