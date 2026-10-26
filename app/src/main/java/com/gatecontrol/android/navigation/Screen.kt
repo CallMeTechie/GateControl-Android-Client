@@ -129,6 +129,18 @@ sealed class Screen(val route: String) {
     data object VaultImport : Screen("vault/import")
     data object VaultSettings : Screen("vault/settings")
     /**
+     * Tab "Drive" (plugin gatecontrol-drive, only when the server lists it):
+     * the areas and the newest files. A folder, the trash and the search are
+     * routes of their own (no tab bar).
+     */
+    data object Drive : Screen("drive")
+    data object DriveFolder : Screen("drive/folder/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "drive/folder/$id"
+    }
+    data object DriveTrash : Screen("drive/trash")
+    data object DriveSearch : Screen("drive/search")
+    /**
      * Tab "Chats" of the messenger plugin (only when the server lists it
      * with an app tab). `conv` is shown beside the list on wide windows;
      * `share` = pick a chat for what was shared from another app.
