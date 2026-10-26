@@ -29,9 +29,9 @@ reorderable = "3.1.0"
 hilt = "2.60.1"
 hilt-navigation-compose = "1.4.0"
 retrofit = "3.0.0"
-okhttp = "5.5.0"
+okhttp = "5.5.1"
 wireguard-tunnel = "1.0.20260102"
-datastore = "1.2.1"
+datastore = "1.3.0"
 security-crypto = "1.1.0"
 camerax = "1.6.0"
 mlkit-barcode = "17.3.0"
@@ -43,9 +43,9 @@ turbine = "1.2.1"
 robolectric = "4.17"
 org-json = "20260814"
 # Vault: Argon2id, XChaCha20-Poly1305, X25519, BLAKE2b in pure Java (no native code, runs in unit tests).
-bouncycastle = "1.85"
+bouncycastle = "1.86"
 # Vault: the recovery key as a QR code.
-zxing = "3.5.3"
+zxing = "3.5.4"
 
 [libraries]
 glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
