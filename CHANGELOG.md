@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.3] - 2026-10-26
+
+### Changes
+- Drive in der Dateien-App und in jedem „Datei öffnen“-Dialog (#127)
+
+---
+
 ## [1.67.2] - 2026-10-26
 
 ### Changes
