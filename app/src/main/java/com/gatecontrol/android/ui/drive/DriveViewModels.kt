@@ -50,6 +50,7 @@ internal fun DResult<*>.errorCode(): String? = when (this) {
 class DriveHomeViewModel @Inject constructor(
     private val api: DriveApi,
     val transfers: DriveTransfers,
+    val backup: com.gatecontrol.android.drive.backup.DriveBackup,
 ) : ViewModel() {
 
     data class Home(val me: DMe, val areas: List<DArea>, val recent: List<DNode>)

@@ -1479,6 +1479,7 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
                     folder = folder,
                     search = { go(Screen.DriveSearch.route) },
                     trash = { go(Screen.DriveTrash.route) },
+                    backup = { go(Screen.DriveBackup.route) },
                 ),
             )
         }
@@ -1491,5 +1492,8 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
     }
     composable(Screen.DriveSearch.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveSearchScreen(onBack = back, onFolder = folder) }
+    }
+    composable(Screen.DriveBackup.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveBackupScreen(onBack = back) }
     }
 }

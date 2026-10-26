@@ -140,6 +140,7 @@ sealed class Screen(val route: String) {
     }
     data object DriveTrash : Screen("drive/trash")
     data object DriveSearch : Screen("drive/search")
+    data object DriveBackup : Screen("drive/backup")
     /**
      * Tab "Chats" of the messenger plugin (only when the server lists it
      * with an app tab). `conv` is shown beside the list on wide windows;

@@ -53,6 +53,7 @@ data class DriveNav(
     val folder: (Long) -> Unit,
     val search: () -> Unit,
     val trash: () -> Unit,
+    val backup: () -> Unit,
 )
 
 /** The Drive tab (mockup "Android – Drive"): the areas, the uploads of this session, the newest files. */
@@ -60,6 +61,9 @@ data class DriveNav(
 fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val uploads by viewModel.transfers.uploads.collectAsStateWithLifecycle()
+    val backupConfig by viewModel.backup.config.collectAsStateWithLifecycle()
+    val backupStats by viewModel.backup.stats.collectAsStateWithLifecycle()
+    val backupStatus by viewModel.backup.status.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var conflict by remember { mutableStateOf<DriveTransfers.Upload?>(null) }
@@ -94,6 +98,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                         home.me.seat == null -> DriveErrorBox("no_seat", null)
                         home.areas.isEmpty() -> Text(stringResource(R.string.drive_no_areas), color = GateControlTheme.extraColors.muted)
                         else -> {
+                            BackupCard(backupConfig, backupStats, backupStatus, onClick = nav.backup)
                             AreasCard(home.areas, onOpen = { nav.folder(it.rootId) })
                             if (home.recent.isNotEmpty()) {
                                 GcSectionLabel(stringResource(R.string.drive_recent), modifier = Modifier.padding(top = 4.dp, start = 4.dp))

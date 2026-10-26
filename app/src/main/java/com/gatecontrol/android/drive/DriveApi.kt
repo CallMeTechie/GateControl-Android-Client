@@ -20,8 +20,6 @@ import retrofit2.Response
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
-import java.io.RandomAccessFile
-import java.nio.channels.Channels
 import java.security.SecureRandom
 import java.util.Base64
 import javax.inject.Inject
@@ -125,7 +123,9 @@ class DriveApi @Inject constructor(
         return get("nodes/$id/children", q) { DriveJson.folder(head.value, it) }
     }
 
-    suspend fun createFolder(parentId: Long, name: String): DResult<DNode> = post("nodes", DriveJson.mkdirBody(parentId, name), DriveJson::nodeAnswer)
+    /** A new folder; a taken name gets a free one ([rename]) or `409 exists`. */
+    suspend fun createFolder(parentId: Long, name: String, rename: Boolean = true): DResult<DNode> =
+        post("nodes", DriveJson.mkdirBody(parentId, name, rename), DriveJson::nodeAnswer)
 
     suspend fun rename(id: Long, name: String): DResult<DNode> = patch("nodes/$id", DriveJson.patchBody(name, null), DriveJson::nodeAnswer)
 
@@ -218,11 +218,15 @@ class DriveApi @Inject constructor(
      * `PUT …/media?uploadId&offset` with `Content-Range`; after an interruption or a 409 the upload continues at the
      * server's offset. [onProgress] gets the bytes sent so far.
      */
-    suspend fun upload(file: File, mime: String?, onProgress: (Long) -> Unit = {}): DResult<String> {
+    suspend fun upload(file: File, mime: String?, onProgress: (Long) -> Unit = {}): DResult<String> =
+        upload(DriveSource.of(file), mime, onProgress)
+
+    /** Uploads [source] (a file, or a photo straight from the media store) as [mime] → its media id. */
+    suspend fun upload(source: DriveSource, mime: String?, onProgress: (Long) -> Unit = {}): DResult<String> {
         val type = mime?.toMediaTypeOrNull() ?: DEFAULT_MIME.toMediaTypeOrNull()!!
-        val length = file.length()
+        val length = source.length
         if (length <= RESUMABLE_FROM) {
-            return call(PLAIN_TIMEOUT_MS, media = true, request = { pluginMediaUpload(DRIVE_PLUGIN, body(file, type, 0, length, onProgress)) }, parse = DriveJson::uploadedMediaId)
+            return call(PLAIN_TIMEOUT_MS, media = true, request = { pluginMediaUpload(DRIVE_PLUGIN, body(source, type, 0, length, onProgress)) }, parse = DriveJson::uploadedMediaId)
         }
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
@@ -237,7 +241,7 @@ class DriveApi @Inject constructor(
             val query = mapOf("uploadId" to uploadId, "offset" to offset.toString())
             val response = try {
                 withTimeoutOrNull(PART_TIMEOUT_MS) {
-                    client.pluginMediaUploadPart(DRIVE_PLUGIN, query, "bytes $offset-$end/$length", body(file, type, offset, part, onProgress))
+                    client.pluginMediaUploadPart(DRIVE_PLUGIN, query, "bytes $offset-$end/$length", body(source, type, offset, part, onProgress))
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -296,15 +300,14 @@ class DriveApi @Inject constructor(
         }
     }
 
-    /** [length] bytes of [file] from [offset], streamed; [onProgress] gets the position in the file. */
-    private fun body(file: File, type: MediaType, offset: Long, length: Long, onProgress: (Long) -> Unit): RequestBody =
+    /** [length] bytes of [source] from [offset], streamed; [onProgress] gets the position in the file. */
+    private fun body(source: DriveSource, type: MediaType, offset: Long, length: Long, onProgress: (Long) -> Unit): RequestBody =
         object : RequestBody() {
             override fun contentType() = type
             override fun contentLength(): Long = length
             override fun writeTo(sink: BufferedSink) {
-                RandomAccessFile(file, "r").use { raf ->
-                    raf.seek(offset)
-                    Channels.newInputStream(raf.channel).source().use { src ->
+                source.open(offset).use { input ->
+                    input.source().use { src ->
                         var sent = 0L
                         val buffer = okio.Buffer()
                         while (sent < length) {
