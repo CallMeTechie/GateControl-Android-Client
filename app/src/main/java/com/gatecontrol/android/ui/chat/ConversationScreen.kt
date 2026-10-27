@@ -44,6 +44,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Delete
@@ -193,6 +194,8 @@ fun ConversationScreen(
     var confirmCancelEvent by remember { mutableStateOf<ChatMessage?>(null) }
     var confirmRun by remember { mutableStateOf<Pair<ChatMessage, com.gatecontrol.android.chat.ChatCardButton?>?>(null) }
     var remindFor by remember { mutableStateOf<ChatMessage?>(null) }
+    /** "In Drive speichern": the message whose file goes into a Drive folder being picked. */
+    var driveFor by remember { mutableStateOf<ChatMessage?>(null) }
     var pinnedIndex by remember { mutableStateOf(0) }
     var dismissedEvent by rememberSaveable { mutableStateOf<Long?>(null) }
     val features14 = state.profile?.features
@@ -1005,6 +1008,13 @@ fun ConversationScreen(
                 actionsFor = null
                 viewModel.startEdit(m)
             },
+            // Messenger 1.10: pictures, voice messages and files into the person's Drive (a folder they pick).
+            onToDrive = if (state.profile?.drive == true && m.media != null && !m.deleted && m.kind in DRIVE_KINDS) {
+                {
+                    actionsFor = null
+                    driveFor = m
+                }
+            } else null,
             onShareFile = if (m.media != null) {
                 {
                     actionsFor = null
@@ -1024,6 +1034,16 @@ fun ConversationScreen(
                 confirmDeleteAll = m
             },
             onDismiss = { actionsFor = null },
+        )
+    }
+
+    driveFor?.let { m ->
+        com.gatecontrol.android.ui.drive.DriveFolderChooser(
+            onPicked = { folderId ->
+                driveFor = null
+                viewModel.toDrive(m, folderId)
+            },
+            onDismiss = { driveFor = null },
         )
     }
 
@@ -1323,6 +1343,7 @@ private fun MessageActionsSheet(
     onReply: () -> Unit,
     onCopy: () -> Unit,
     onEdit: () -> Unit,
+    onToDrive: (() -> Unit)?,
     onShareFile: (() -> Unit)?,
     onDeleteForMe: () -> Unit,
     onDeleteForAll: () -> Unit,
@@ -1360,6 +1381,7 @@ private fun MessageActionsSheet(
             if (tools) SheetRow(Icons.Outlined.Alarm, stringResource(R.string.chat_remind_me), onClick = onRemind)
             if (canEdit) SheetRow(Icons.Outlined.Edit, stringResource(R.string.chat_edit), onClick = onEdit)
             onShareFile?.let { SheetRow(Icons.Outlined.Share, stringResource(R.string.chat_share_file), onClick = it) }
+            onToDrive?.let { SheetRow(Icons.Outlined.CloudUpload, stringResource(R.string.chat_to_drive), onClick = it) }
             SheetRow(Icons.Outlined.Delete, stringResource(R.string.chat_delete_me), onClick = onDeleteForMe)
             if (canDeleteForAll) SheetRow(Icons.Outlined.Delete, stringResource(R.string.chat_delete_all), danger = true, onClick = onDeleteForAll)
             if (suggestion != null && !suggestion.isEmpty) {
@@ -1500,3 +1522,6 @@ internal fun openLocation(context: Context, lat: Double, lon: Double, label: Str
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, web).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 }
+
+/** Message kinds whose file can go into Drive (Messenger 1.10 `to-drive`). */
+private val DRIVE_KINDS = setOf("image", "voice", "file")

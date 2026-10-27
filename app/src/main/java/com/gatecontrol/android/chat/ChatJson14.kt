@@ -855,6 +855,9 @@ object ChatJson14 {
         return ChatFamilie(lists = f.flag("lists") == true, calendar = f.flag("calendar") == true, places = f.flag("places") == true)
     }
 
+    /** Answer of `POST messages/:id/to-drive` (Messenger 1.10) → where the file went ("Meine Dateien › Messenger › Foto.jpg"). */
+    fun driveSaved(o: JsonObject): String? = o.obj("saved")?.let { s -> s.str("where")?.take(300) ?: s.str("name")?.take(200) ?: "" }
+
     /** Answer of `POST messages/:id/action/run|approve|deny` → `{ message, result }`. */
     fun runResult(o: JsonObject): ChatRunResult {
         val r = o.obj("result")

@@ -181,6 +181,7 @@ class SchoolRepository @Inject constructor(
                     absences = SchoolJson.absences(stored.absences),
                     savedAt = stored.savedAt,
                     owner = owner,
+                    drive = SchoolJson.drive(stored.messages),
                 )
             }
             inboxLoaded = true
@@ -221,6 +222,7 @@ class SchoolRepository @Inject constructor(
                 absencesError = a.error,
                 savedAt = if (answered) now else current?.savedAt ?: 0L,
                 owner = owner,
+                drive = SchoolJson.drive(m.raw ?: inboxRaw.messages),
             )
             _inbox.value = inbox
             if (answered) {

@@ -359,6 +359,10 @@ class ChatApi @Inject constructor(
             unit,
         )
 
+    /** Messenger 1.10: the message's file into the person's Drive ([folderId] or Meine Dateien › Messenger) → where it went. */
+    suspend fun toDrive(messageId: Long, folderId: Long?): ChatResult<String> =
+        post("messages/$messageId/to-drive", JsonObject().apply { folderId?.let { addProperty("folderId", it) } }, ChatJson14::driveSaved)
+
     suspend fun places(): ChatResult<List<ChatPlace>> = get("familie/places", parse = ChatJson14::places)
 
     // ─── Messenger 1.4: polls, events, arrival, actions ─────────────

@@ -135,4 +135,12 @@
     <string name="school_confirmed">Read confirmed</string>
     <string name="school_confirm_error_not_required">The school no longer asks for a confirmation of this message.</string>
     <string name="school_confirm_error_failed">The confirmation could not be sent. Please try again later.</string>
+    <!-- Schule 1.7: attachments into Drive -->
+    <string name="school_drive_all">Save all %1$d attachments to Drive</string>
+    <plurals name="school_drive_done">
+        <item quantity="one">%d attachment saved to Drive</item>
+        <item quantity="other">%d attachments saved to Drive</item>
+    </plurals>
+    <string name="school_drive_partly">%1$d saved, then: %2$s</string>
+    <string name="school_drive_failed">Not saved to Drive. Please try again later.</string>
 </resources>

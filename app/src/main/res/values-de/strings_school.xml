@@ -135,4 +135,12 @@
     <string name="school_confirmed">Lesen bestätigt</string>
     <string name="school_confirm_error_not_required">Die Schule bittet für diese Nachricht nicht mehr um eine Bestätigung.</string>
     <string name="school_confirm_error_failed">Die Bestätigung konnte nicht gesendet werden. Versuch es später noch einmal.</string>
+    <!-- Schule 1.7: Anhänge in Drive -->
+    <string name="school_drive_all">Alle %1$d Anhänge in Drive speichern</string>
+    <plurals name="school_drive_done">
+        <item quantity="one">%d Anhang in Drive gespeichert</item>
+        <item quantity="other">%d Anhänge in Drive gespeichert</item>
+    </plurals>
+    <string name="school_drive_partly">%1$d gespeichert, dann: %2$s</string>
+    <string name="school_drive_failed">Nicht in Drive gespeichert. Bitte später noch einmal versuchen.</string>
 </resources>

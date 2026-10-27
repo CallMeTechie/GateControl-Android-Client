@@ -32,6 +32,10 @@ class SchoolFiles @Inject constructor(
 ) {
     private val root: File get() = File(context.cacheDir, DIR).apply { mkdirs() }
 
+    /** Schule 1.7: [attachment] of message [messageId] into the Drive folder [folderId] → where it went. */
+    suspend fun toDrive(messageId: String, attachment: SchoolAttachment, folderId: Long): FamilieResult<String> =
+        api.schoolAttachmentToDrive(messageId, attachment.id, folderId)
+
     /** The file of [attachment] of message [messageId]; a failure carries the code to tell. */
     suspend fun load(messageId: String, attachment: SchoolAttachment): FamilieResult<SchoolLocalFile> = withContext(Dispatchers.IO) {
         prune()

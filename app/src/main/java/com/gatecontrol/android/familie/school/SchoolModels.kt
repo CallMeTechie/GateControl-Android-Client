@@ -288,6 +288,8 @@ data class SchoolInbox(
     val savedAt: Long = 0L,
     /** Login the data belongs to. */
     val owner: String = "",
+    /** Attachments can go into Drive (Schule 1.7 with Drive). */
+    val drive: Boolean = false,
 ) {
     /** The "Nachrichten" tab shows: a list, or an error to tell (offline, server trouble). */
     val hasMessages: Boolean get() = messages != null || messagesError != null

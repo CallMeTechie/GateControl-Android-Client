@@ -184,6 +184,7 @@ class ChatShareActivity : ComponentActivity() {
                     onTogglePerson = gateDrop::togglePerson,
                     onToggleDevice = gateDrop::toggleDevice,
                     onToggleNas = gateDrop::toggleNas,
+                    onToggleDrive = gateDrop::toggleDrive,
                     onNote = gateDrop::setNote,
                     onOpenLink = gateDrop::openLinkOptions,
                     onLinkDraft = gateDrop::setLinkDraft,

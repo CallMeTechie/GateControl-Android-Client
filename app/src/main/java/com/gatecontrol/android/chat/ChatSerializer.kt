@@ -187,6 +187,7 @@ object ChatSerializer {
                 addProperty("calendar", p.familie.calendar)
                 addProperty("places", p.familie.places)
             })
+            addProperty("drive", p.drive)
         })
         p.licensed?.let { l -> add("license", JsonObject().apply { addProperty("licensed", l) }) }
         add("features", JsonObject().apply {

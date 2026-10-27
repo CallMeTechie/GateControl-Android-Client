@@ -297,6 +297,7 @@ private fun statusText(status: String?): String? = when (status) {
 private fun deliveryName(d: GdDelivery): String = d.targetName ?: when (d.kind) {
     "link" -> stringResource(R.string.gatedrop_link_name)
     "nas" -> stringResource(R.string.gatedrop_nas)
+    "drive" -> stringResource(R.string.gatedrop_drive)
     "person" -> if (d.target == "family") stringResource(R.string.gatedrop_family) else stringResource(R.string.gatedrop_people)
     else -> stringResource(R.string.gatedrop_devices)
 }

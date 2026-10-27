@@ -662,6 +662,14 @@ class ConversationViewModel @Inject constructor(
     fun toCalendar(m: ChatMessage, date: com.gatecontrol.android.chat.ChatSuggestedDate) =
         viewModelScope.launch { after(extras.toCalendar(m.id, date, m.text?.lineSequence()?.firstOrNull()?.take(60) ?: ""), com.gatecontrol.android.R.string.chat_suggest_calendar_done) }
 
+    /** Messenger 1.10: the file of [m] into the person's Drive folder [folderId]; the notice names where it went. */
+    fun toDrive(m: ChatMessage, folderId: Long) = viewModelScope.launch {
+        when (val r = extras.toDrive(m.id, folderId)) {
+            is ChatResult.Ok -> notices.trySend(ConversationNotice.Done(com.gatecontrol.android.R.string.chat_drive_done, r.value))
+            else -> notices.trySend(ConversationNotice.Error(codeOf(r)))
+        }
+    }
+
     /** Whether the device is on WLAN now (automatic downloads). */
     fun unmetered(): Boolean = device.unmetered()
 

@@ -283,6 +283,12 @@ object SchoolJson {
     }
 
     /** `POST app/messages/<id>/attachments/<attId>` → `{ ok, file: { mediaId, name, mime, bytes } }`; null without a valid media id. */
+    /** `GET app/messages` → `drive`: attachments can go into Drive (Schule 1.7). */
+    fun drive(raw: String?): Boolean = parse(raw)?.let { it.get("drive")?.takeIf { e -> e.isJsonPrimitive && e.asJsonPrimitive.isBoolean }?.asBoolean } == true
+
+    /** Answer of `POST app/messages/<id>/attachments/<att>/drive` → where the file went. */
+    fun driveSaved(o: JsonObject): String? = o.obj("saved")?.let { s -> s.str("where")?.take(300) ?: s.str("name")?.take(200) ?: "" }
+
     fun attachmentFile(o: JsonObject): SchoolAttachmentFile? {
         val f = o.obj("file") ?: return null
         val mediaId = f.str("mediaId")?.trim()?.takeIf { MEDIA_ID_RE.matches(it) } ?: return null

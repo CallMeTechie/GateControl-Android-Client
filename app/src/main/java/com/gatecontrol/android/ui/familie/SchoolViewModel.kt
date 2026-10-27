@@ -6,6 +6,7 @@ import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.errorCode
 import com.gatecontrol.android.familie.school.SchoolAttachment
+import com.gatecontrol.android.familie.school.SchoolMessage
 import com.gatecontrol.android.familie.school.SchoolChange
 import com.gatecontrol.android.familie.school.SchoolFiles
 import com.gatecontrol.android.familie.school.SchoolInbox
@@ -119,6 +120,41 @@ class SchoolViewModel @Inject constructor(
     private val _files = MutableSharedFlow<SchoolLocalFile>(extraBufferCapacity = 1)
     /** An attachment is on the device: the screen opens it with another app. */
     val files: SharedFlow<SchoolLocalFile> = _files.asSharedFlow()
+
+    /** The message whose attachments are going into Drive (Schule 1.7). */
+    private val _driveSaving = MutableStateFlow<String?>(null)
+    val driveSaving: StateFlow<String?> = _driveSaving.asStateFlow()
+
+    /** How saving into Drive went: how many, where the last one went, or the error code. */
+    data class DriveNotice(val saved: Int, val where: String?, val code: String?)
+
+    private val _driveNotices = MutableSharedFlow<DriveNotice>(extraBufferCapacity = 2)
+    val driveNotices: SharedFlow<DriveNotice> = _driveNotices.asSharedFlow()
+
+    /** Every attachment of [m] into the Drive folder [folderId], one after the other; stops at the first error. */
+    fun saveToDrive(m: SchoolMessage, folderId: Long) {
+        if (_driveSaving.value != null || m.attachments.isEmpty()) return
+        _driveSaving.value = m.id
+        viewModelScope.launch {
+            var saved = 0
+            var where: String? = null
+            var code: String? = null
+            for (a in m.attachments) {
+                when (val r = schoolFiles.toDrive(m.id, a, folderId)) {
+                    is FamilieResult.Ok -> {
+                        saved++
+                        where = r.value.ifBlank { null }
+                    }
+                    else -> {
+                        code = r.errorCode() ?: FamilieApi.CODE_INVALID
+                        break
+                    }
+                }
+            }
+            _driveSaving.value = null
+            _driveNotices.tryEmit(DriveNotice(saved, where, code))
+        }
+    }
 
     /** The message `read` was sent for since it was opened (once per opening). */
     private var readSentFor: String? = null

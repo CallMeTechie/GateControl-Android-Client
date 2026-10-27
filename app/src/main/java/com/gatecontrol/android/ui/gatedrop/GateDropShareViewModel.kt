@@ -96,6 +96,7 @@ class GateDropShareViewModel @Inject constructor(
     fun togglePerson(id: String) = _ui.update { it.copy(selection = it.selection.togglePerson(id)) }
     fun toggleDevice(id: String) = _ui.update { it.copy(selection = it.selection.toggleDevice(id)) }
     fun toggleNas(id: String) = _ui.update { it.copy(selection = it.selection.toggleNas(id)) }
+    fun toggleDrive() = _ui.update { it.copy(selection = it.selection.toggleDrive()) }
     fun setNote(value: String) = _ui.update { it.copy(note = value.take(GateDropJson.NOTE_MAX)) }
 
     fun openLinkOptions() = _ui.update { it.copy(stage = GdShareStage.LINK_OPTIONS, linkDraft = it.selection.link ?: it.linkDraft) }
@@ -131,7 +132,7 @@ class GateDropShareViewModel @Inject constructor(
             )
             repository.store.saveJob(job)
             repository.setJobState(jobId, GdJobState.Preparing)
-            val names = GateDropLogic.chosenNames(s.selection, targets).joinToString(", ").ifBlank { null }
+            val names = GateDropLogic.chosenNames(s.selection, targets, getApplication<Application>().getString(com.gatecontrol.android.R.string.gatedrop_drive)).joinToString(", ").ifBlank { null }
             GateDropSendWorker.enqueue(getApplication(), jobId, names)
             if (to.link == null) {
                 _ui.update { it.copy(stage = GdShareStage.DONE) }
