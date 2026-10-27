@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.12] - 2026-10-27
+
+### Changes
+- Langdruck-Menü mit Symbolzeile oben (wie Windows-11-Kontextmenü) (#136)
+
+---
+
 ## [1.67.11] - 2026-10-27
 
 ### Changes
