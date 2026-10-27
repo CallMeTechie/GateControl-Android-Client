@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.7] - 2026-10-27
+
+### Changes
+- WLAN statt Mobilfunk, kein Fehler nach abgebrochenem Verbinden, Protokolle teilen (#131)
+
+---
+
 ## [1.67.6] - 2026-10-27
 
 ### Changes
