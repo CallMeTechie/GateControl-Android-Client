@@ -24,6 +24,23 @@ enum class Transport(val key: String) { WIFI("wifi"), CELLULAR("cellular"), ETHE
 /** The device's network (the one under the VPN when the VPN is up). */
 data class InternetState(val connected: Boolean, val validated: Boolean, val transport: Transport)
 
+/**
+ * Which of the networks under the VPN carries the traffic: a validated one first, then the one Android itself
+ * prefers as default — Ethernet over Wi-Fi over mobile data (phones keep mobile data up next to Wi-Fi).
+ * Returns the index in [candidates], or -1 when there are none.
+ */
+fun preferredUnderlying(candidates: List<Pair<Transport, Boolean>>): Int =
+    candidates.indices.minByOrNull { i ->
+        val (transport, validated) = candidates[i]
+        val rank = when (transport) {
+            Transport.ETHERNET -> 0
+            Transport.WIFI -> 1
+            Transport.CELLULAR -> 2
+            Transport.OTHER -> 3
+        }
+        (if (validated) 0 else 10) + rank
+    } ?: -1
+
 internal fun transportName(t: Transport): DiagText = DiagText(
     when (t) {
         Transport.WIFI -> R.string.diag_transport_wifi

@@ -200,17 +200,9 @@ class VpnViewModel @Inject constructor(
      * tile, boot auto-connect and Always-on VPN (config refresh from the
      * server, admin split-tunnel preset, DNS pre-resolve, hostname report).
      */
-    fun connect() {
-        viewModelScope.launch {
-            try {
-                if (!tunnelConnector.connectWithUserSettings()) {
-                    Timber.w("VpnViewModel: connect not possible")
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "VpnViewModel: connect failed")
-            }
-        }
-    }
+    fun connect(): Job =
+        // Not in viewModelScope: rebuilding the screen must not abort a connect half-way.
+        tunnelConnector.connectDetached()
 
     fun disconnect() {
         viewModelScope.launch {

@@ -13,6 +13,7 @@ import com.wireguard.config.Interface
 import com.wireguard.config.InetAddresses
 import com.wireguard.config.InetNetwork
 import com.wireguard.config.Peer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -159,11 +160,23 @@ class TunnelManager @Inject constructor(private val context: Context) {
                     Timber.w("Tunnel up, but no handshake within ${HANDSHAKE_WAIT_MS / 1000} s")
                 }
                 _state.value = TunnelState.Connected()
+            } catch (e: CancellationException) {
+                // The caller went away (its screen was rebuilt, e.g. after an app update) — not a
+                // failure of the tunnel. Show what the backend really has: the interface may already be up.
+                _state.value = if (isBackendUp()) TunnelState.Connected() else TunnelState.Disconnected
+                Timber.i("Tunnel connect cancelled by the caller (tunnel %s)", if (_state.value is TunnelState.Connected) "up" else "down")
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "Failed to connect tunnel")
                 _state.value = TunnelState.Error(e.message ?: "Unknown error")
             }
         }
+    }
+
+    private fun isBackendUp(): Boolean {
+        val b = backend ?: return false
+        val t = tunnel ?: return false
+        return runCatching { b.getState(t) == Tunnel.State.UP }.getOrDefault(false)
     }
 
     private suspend fun awaitHandshake(backend: Backend, tunnel: Tunnel): Boolean {

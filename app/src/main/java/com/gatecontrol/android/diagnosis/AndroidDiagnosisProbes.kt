@@ -38,31 +38,38 @@ class AndroidNetworkProbe @Inject constructor(
     private fun networks(cm: ConnectivityManager): List<Pair<Network, NetworkCapabilities>> =
         cm.allNetworks.mapNotNull { n -> cm.getNetworkCapabilities(n)?.let { n to it } }
 
+    private fun transportOf(caps: NetworkCapabilities): Transport = when {
+        caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Transport.WIFI
+        caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Transport.CELLULAR
+        caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> Transport.ETHERNET
+        else -> Transport.OTHER
+    }
+
+    /** The network under the VPN that carries its traffic ([preferredUnderlying]), or null. */
+    private fun underlying(cm: ConnectivityManager): Pair<Network, NetworkCapabilities>? {
+        val candidates = networks(cm).filter {
+            !it.second.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                it.second.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        }
+        val i = preferredUnderlying(
+            candidates.map { transportOf(it.second) to it.second.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) },
+        )
+        return candidates.getOrNull(i)
+    }
+
     override fun internet(): InternetState? {
         val cm = cm ?: return null
         val activeCaps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
         // With the VPN up the default network is the VPN: judge the network underneath.
-        val candidates = if (activeCaps == null || activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
-            networks(cm).map { it.second }.filter {
-                !it.hasTransport(NetworkCapabilities.TRANSPORT_VPN) && it.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            }
+        val caps = if (activeCaps == null || activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+            underlying(cm)?.second ?: activeCaps
         } else {
-            listOf(activeCaps)
-        }
-        val caps = candidates.firstOrNull { it.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) }
-            ?: candidates.firstOrNull()
-            ?: activeCaps
-            ?: return InternetState(connected = false, validated = false, transport = Transport.OTHER)
-        val transport = when {
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Transport.WIFI
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Transport.CELLULAR
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> Transport.ETHERNET
-            else -> Transport.OTHER
-        }
+            activeCaps
+        } ?: return InternetState(connected = false, validated = false, transport = Transport.OTHER)
         return InternetState(
             connected = true,
             validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
-            transport = transport,
+            transport = transportOf(caps),
         )
     }
 
@@ -72,10 +79,7 @@ class AndroidNetworkProbe @Inject constructor(
         val active = cm.activeNetwork
         val vpn = all.firstOrNull { it.first == active && it.second.hasTransport(NetworkCapabilities.TRANSPORT_VPN) }?.first
             ?: all.firstOrNull { it.second.hasTransport(NetworkCapabilities.TRANSPORT_VPN) }?.first
-        val underlying = all.firstOrNull {
-            !it.second.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
-                it.second.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        }?.first
+        val underlying = underlying(cm)?.first
         val vpnLp: LinkProperties? = vpn?.let { cm.getLinkProperties(it) }
         val baseLp: LinkProperties? = underlying?.let { cm.getLinkProperties(it) }
         return VpnDnsState(
