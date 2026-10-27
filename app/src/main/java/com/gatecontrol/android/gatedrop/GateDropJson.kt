@@ -229,6 +229,7 @@ object GateDropJson {
             peopleDevices = peopleDevices,
             nas = nas,
             linksEnabled = links?.flag("enabled") ?: (root.flag("linksEnabled") == true),
+            drive = root.flag("drive") == true,
         )
     }
 
@@ -576,6 +577,7 @@ object GateDropJson {
                     })
                 }
             })
+            if (to.drive) addProperty("drive", true)
             to.link?.let { l ->
                 add("link", JsonObject().apply {
                     addProperty("expires", l.expiry.wire)

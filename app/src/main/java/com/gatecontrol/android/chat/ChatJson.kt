@@ -190,6 +190,7 @@ object ChatJson {
             prefs14 = ChatJson14.prefs14(o.obj("prefs")),
             status = ChatJson14.status(o.obj("status")),
             familie = ChatJson14.familie(o.obj("integrations")),
+            drive = o.obj("integrations")?.flag("drive") == true,
             home = ChatHomeJson.home(o),
         )
     }

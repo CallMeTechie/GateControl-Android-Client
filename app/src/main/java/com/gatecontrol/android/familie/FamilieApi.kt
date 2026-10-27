@@ -337,6 +337,16 @@ class FamilieApi @Inject constructor(
         )
 
     /**
+     * Schule 1.7: an attachment into the person's Drive folder [folderId] (the plugin hands it over on the server; it
+     * may first fetch it from WebUntis) → where it went ("Familie › Schule › Lena › Elternbrief.pdf").
+     */
+    suspend fun schoolAttachmentToDrive(messageId: String, attachmentId: String, folderId: Long): FamilieResult<String> {
+        val p = path("app", "messages", messageId, "attachments", attachmentId, "drive") ?: return FamilieResult.Failed(CODE_INVALID, 0)
+        val body = JsonObject().apply { addProperty("folderId", folderId) }
+        return call(SCHULE_PLUGIN, { pluginPost(SCHULE_PLUGIN, p, body) }, SchoolJson::driveSaved, ATTACHMENT_TIMEOUT_MS, true)
+    }
+
+    /**
      * A file of the Schule plugin's media store (`GET …/plugins/gatecontrol-schule/media/<mediaId>`,
      * with the device token like every client call); the caller closes the body.
      * Null when the server cannot be reached.

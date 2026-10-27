@@ -258,4 +258,12 @@
     <string name="chat_gap_load">Load more messages</string>
     <!-- Messenger 1.6: a notice channel (GateControl's notifications of one source) -->
     <string name="chat_notice_tag">Notifications</string>
+    <!-- Messenger 1.10: save to Drive -->
+    <string name="chat_to_drive">Save to Drive</string>
+    <string name="chat_drive_done">Saved in %1$s</string>
+    <string name="chat_err_drive_unavailable">Drive cannot be reached right now.</string>
+    <string name="chat_err_drive_no_seat">Drive is not switched on for you.</string>
+    <string name="chat_err_drive_not_licensed">Drive has no valid licence.</string>
+    <string name="chat_err_drive_quota">There is no space left in Drive.</string>
+    <string name="chat_err_drive_forbidden">You are not allowed to do that.</string>
 </resources>

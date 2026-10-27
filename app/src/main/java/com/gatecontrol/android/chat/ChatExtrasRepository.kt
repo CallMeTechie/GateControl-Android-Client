@@ -310,6 +310,8 @@ class ChatExtrasRepository @Inject constructor(
     suspend fun toCalendar(messageId: Long, date: ChatSuggestedDate, fallbackTitle: String): ChatResult<Unit> =
         api.toCalendar(messageId, date.title ?: fallbackTitle, date.startsAt, null)
 
+    suspend fun toDrive(messageId: Long, folderId: Long?): ChatResult<String> = api.toDrive(messageId, folderId)
+
     suspend fun refreshPlaces(): ChatResult<List<ChatPlace>> {
         val r = api.places()
         if (r is ChatResult.Ok) _places.value = r.value

@@ -92,6 +92,7 @@ fun SchoolScreen(
     val changes by viewModel.changes.collectAsStateWithLifecycle()
     val changesError by viewModel.changesError.collectAsStateWithLifecycle()
     val inbox by viewModel.inbox.collectAsStateWithLifecycle()
+    val driveSaving by viewModel.driveSaving.collectAsStateWithLifecycle()
     val tab by viewModel.tab.collectAsStateWithLifecycle()
     val messageId by viewModel.messageId.collectAsStateWithLifecycle()
     val confirming by viewModel.confirming.collectAsStateWithLifecycle()
@@ -165,6 +166,10 @@ fun SchoolScreen(
                                 attachmentError = attachmentError,
                                 onAttachment = viewModel::openAttachment,
                                 files = viewModel.files,
+                                drive = box?.drive == true,
+                                driveSaving = driveSaving,
+                                onDrive = viewModel::saveToDrive,
+                                driveNotices = viewModel.driveNotices,
                             ),
                         )
                         SchoolTab.ABSENCES -> SchoolAbsencesTab(box, student, onRetry = viewModel::refresh)

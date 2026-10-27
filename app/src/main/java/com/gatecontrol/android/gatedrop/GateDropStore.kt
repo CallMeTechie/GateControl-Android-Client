@@ -298,6 +298,7 @@ object GateDropStoreJson {
                     GdNasRef(GateDropJson.idOf(n.get("id")) ?: return@mapNotNull null, n.s("path"))
                 }.orEmpty(),
                 link = link,
+                drive = to.get("drive")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean == true,
             ),
             directDevices = o.get("directDevices")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { GateDropJson.idOf(it) }.orEmpty(),
             createdAt = o.l("createdAt") ?: 0L,

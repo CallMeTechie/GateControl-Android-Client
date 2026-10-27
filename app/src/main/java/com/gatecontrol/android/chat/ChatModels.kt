@@ -353,6 +353,8 @@ data class ChatProfile(
     val status: ChatStatus? = null,
     /** Messenger 1.4: what the Familie plugin offers (lists, calendar, places). */
     val familie: ChatFamilie = ChatFamilie(),
+    /** Messenger 1.10: a file can go into the person's Drive (`integrations.drive`). */
+    val drive: Boolean = false,
     /** Messenger C4: limits and defaults of door requests and shared devices, the doorbell. */
     val home: ChatHomeInfo = ChatHomeInfo(),
 )

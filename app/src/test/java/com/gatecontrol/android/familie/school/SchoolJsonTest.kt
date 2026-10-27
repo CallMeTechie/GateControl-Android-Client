@@ -260,4 +260,13 @@ class SchoolJsonTest {
         assertNull(s.avatarUrl)
         assertEquals("#22C55E", s.colorHex)
     }
+
+    @Test
+    fun `drive flag and the answer of saving an attachment into Drive`() {
+        assertTrue(SchoolJson.drive("""{"ok":true,"messages":[],"drive":true}"""))
+        assertFalse(SchoolJson.drive("""{"ok":true,"messages":[]}"""))
+        assertFalse(SchoolJson.drive(null))
+        val o = com.google.gson.JsonParser.parseString("""{"ok":true,"saved":{"nodeId":8,"name":"Brief.pdf","where":"Familie › Schule › Lena › Brief.pdf"}}""").asJsonObject
+        assertEquals("Familie › Schule › Lena › Brief.pdf", SchoolJson.driveSaved(o))
+    }
 }

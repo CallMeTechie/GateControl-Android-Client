@@ -148,4 +148,8 @@
     <string name="gatedrop_link_end">End</string>
     <string name="gatedrop_link_end_title">End the link?</string>
     <string name="gatedrop_link_end_text">The link stops working right away.</string>
+    <!-- GateDrop 1.3: My Drive -->
+    <string name="gatedrop_drive_section">Drive</string>
+    <string name="gatedrop_drive">My Drive</string>
+    <string name="gatedrop_drive_desc">Into your files under “GateDrop”</string>
 </resources>

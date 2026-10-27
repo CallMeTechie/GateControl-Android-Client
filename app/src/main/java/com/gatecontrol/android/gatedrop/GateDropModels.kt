@@ -67,6 +67,8 @@ data class GdTargets(
     val peopleDevices: List<GdDevice> = emptyList(),
     val nas: List<GdNas> = emptyList(),
     val linksEnabled: Boolean = false,
+    /** "Mein Drive" is offered: Drive is there and the caller has a seat (GateDrop 1.3, `targets.drive`). */
+    val drive: Boolean = false,
 ) {
     /** Own devices and other people's open ones — both go into `to.devices`. */
     val allDevices: List<GdDevice> get() = devices + peopleDevices
@@ -99,8 +101,10 @@ data class GdRecipients(
     val devices: List<String> = emptyList(),
     val nas: List<GdNasRef> = emptyList(),
     val link: GdLinkRequest? = null,
+    /** Into the sender's own Drive (Meine Dateien › GateDrop). */
+    val drive: Boolean = false,
 ) {
-    val isEmpty: Boolean get() = people.isEmpty() && devices.isEmpty() && nas.isEmpty() && link == null
+    val isEmpty: Boolean get() = people.isEmpty() && devices.isEmpty() && nas.isEmpty() && link == null && !drive
 }
 
 /**

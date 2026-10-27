@@ -1,5 +1,8 @@
 package com.gatecontrol.android.ui.familie
 
+import com.gatecontrol.android.ui.components.GcListRow
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.Icons
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
@@ -211,6 +214,11 @@ internal class SchoolMessageActions(
     val onAttachment: (messageId: String, attachment: SchoolAttachment) -> Unit,
     /** Attachments loaded and ready to open. */
     val files: Flow<SchoolLocalFile>,
+    /** Schule 1.7: attachments can go into Drive; the message being saved; how it went. */
+    val drive: Boolean = false,
+    val driveSaving: String? = null,
+    val onDrive: (SchoolMessage, folderId: Long) -> Unit = { _, _ -> },
+    val driveNotices: Flow<SchoolViewModel.DriveNotice> = kotlinx.coroutines.flow.emptyFlow(),
 )
 
 @Composable
@@ -434,8 +442,59 @@ private fun SchoolAttachmentsCard(m: SchoolMessage, actions: SchoolMessageAction
                 onClick = { actions.onAttachment(m.id, a) },
             )
         }
+        if (actions.drive) {
+            GcRowDivider()
+            SchoolDriveRow(m, actions)
+        }
     }
 }
+
+/** "In Drive speichern" (Schule 1.7): every attachment into a Drive folder the person picks; how it went as a toast. */
+@Composable
+private fun SchoolDriveRow(m: SchoolMessage, actions: SchoolMessageActions) {
+    val context = LocalContext.current
+    var choose by remember { mutableStateOf(false) }
+    val saving = actions.driveSaving == m.id
+    LaunchedEffect(actions.driveNotices) {
+        actions.driveNotices.collect { n ->
+            val text = when {
+                n.code != null && n.saved == 0 -> schoolDriveErrorText(context, n.code)
+                n.code != null -> context.getString(R.string.school_drive_partly, n.saved, schoolDriveErrorText(context, n.code))
+                n.saved == 1 && n.where != null -> context.getString(R.string.chat_drive_done, n.where)
+                else -> context.resources.getQuantityString(R.plurals.school_drive_done, n.saved, n.saved)
+            }
+            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+        }
+    }
+    GcListRow(
+        title = if (m.attachments.size > 1) stringResource(R.string.school_drive_all, m.attachments.size) else stringResource(R.string.chat_to_drive),
+        onClick = if (saving) null else ({ choose = true }),
+        leading = { Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = GateControlTheme.extraColors.accentText) },
+        trailing = { if (saving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) },
+    )
+    if (choose) {
+        com.gatecontrol.android.ui.drive.DriveFolderChooser(
+            onPicked = { folderId ->
+                choose = false
+                actions.onDrive(m, folderId)
+            },
+            onDismiss = { choose = false },
+        )
+    }
+}
+
+/** A Drive refusal in words (Drive's codes, passed on by the Schule plugin). */
+private fun schoolDriveErrorText(context: android.content.Context, code: String): String = context.getString(
+    when (code.lowercase()) {
+        "no_seat" -> R.string.chat_err_drive_no_seat
+        "not_licensed" -> R.string.chat_err_drive_not_licensed
+        "quota" -> R.string.chat_err_drive_quota
+        "forbidden" -> R.string.chat_err_drive_forbidden
+        "drive_unavailable" -> R.string.chat_err_drive_unavailable
+        "offline" -> R.string.chat_err_offline
+        else -> R.string.school_drive_failed
+    },
+)
 
 @Composable
 private fun SchoolAttachmentRow(a: SchoolAttachment, loading: Boolean, error: String?, onClick: () -> Unit) {

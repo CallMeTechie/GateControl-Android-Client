@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -99,6 +100,7 @@ fun GateDropShareSheet(
     onTogglePerson: (String) -> Unit,
     onToggleDevice: (String) -> Unit,
     onToggleNas: (String) -> Unit,
+    onToggleDrive: () -> Unit,
     onNote: (String) -> Unit,
     onOpenLink: () -> Unit,
     onLinkDraft: (GdLinkRequest) -> Unit,
@@ -125,7 +127,7 @@ fun GateDropShareSheet(
                 GdShareStage.PREPARING, GdShareStage.WAITING -> Progress(ui)
                 GdShareStage.RESULT -> LinkResult(ui, onDismiss)
                 GdShareStage.FAILED -> Failed(onDismiss)
-                else -> Main(ui, serverUrl, onShareInChat, onTogglePerson, onToggleDevice, onToggleNas, onNote, onOpenLink, onRetry, onSend)
+                else -> Main(ui, serverUrl, onShareInChat, onTogglePerson, onToggleDevice, onToggleNas, onToggleDrive, onNote, onOpenLink, onRetry, onSend)
             }
         }
     }
@@ -160,6 +162,7 @@ private fun Main(
     onTogglePerson: (String) -> Unit,
     onToggleDevice: (String) -> Unit,
     onToggleNas: (String) -> Unit,
+    onToggleDrive: () -> Unit,
     onNote: (String) -> Unit,
     onOpenLink: () -> Unit,
     onRetry: () -> Unit,
@@ -209,6 +212,19 @@ private fun Main(
                     }
                 }
             }
+            // ─── Mein Drive (GateDrop 1.3): files only ───
+            if (targets.drive && ui.sources.isNotEmpty()) {
+                GcSectionLabel(stringResource(R.string.gatedrop_drive_section))
+                GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+                    CheckRow(
+                        title = stringResource(R.string.gatedrop_drive),
+                        description = stringResource(R.string.gatedrop_drive_desc),
+                        icon = Icons.Outlined.CloudUpload,
+                        checked = ui.selection.drive,
+                        onClick = onToggleDrive,
+                    )
+                }
+            }
             // ─── Ablegen (NAS) ───
             if (targets.nasOffered) {
                 GcSectionLabel(stringResource(R.string.gatedrop_nas))
@@ -252,7 +268,7 @@ private fun Main(
         label = stringResource(R.string.gatedrop_note),
         placeholder = stringResource(R.string.gatedrop_note_hint),
     )
-    val names = targets?.let { GateDropLogic.chosenNames(ui.selection, it) }.orEmpty() +
+    val names = targets?.let { GateDropLogic.chosenNames(ui.selection, it, stringResource(R.string.gatedrop_drive)) }.orEmpty() +
         listOfNotNull(ui.selection.link?.takeIf { targets?.linkOffered == true }?.let { stringResource(R.string.gatedrop_link_name) })
     GcPrimaryButton(
         text = if (names.isEmpty()) stringResource(R.string.gatedrop_send) else stringResource(R.string.gatedrop_send_to, joinNames(names)),

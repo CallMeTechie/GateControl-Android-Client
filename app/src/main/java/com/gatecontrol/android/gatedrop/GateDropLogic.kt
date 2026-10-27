@@ -6,12 +6,15 @@ data class GdSelection(
     val devices: Set<String> = emptySet(),
     val nas: Set<String> = emptySet(),
     val link: GdLinkRequest? = null,
+    /** "Mein Drive" (GateDrop 1.3): the files into the sender's own Drive. */
+    val drive: Boolean = false,
 ) {
-    val isEmpty: Boolean get() = people.isEmpty() && devices.isEmpty() && nas.isEmpty() && link == null
+    val isEmpty: Boolean get() = people.isEmpty() && devices.isEmpty() && nas.isEmpty() && link == null && !drive
 
     fun togglePerson(id: String) = copy(people = people.toggle(id))
     fun toggleDevice(id: String) = copy(devices = devices.toggle(id))
     fun toggleNas(id: String) = copy(nas = nas.toggle(id))
+    fun toggleDrive() = copy(drive = !drive)
 
     private fun Set<String>.toggle(id: String) = if (id in this) this - id else this + id
 }
@@ -72,13 +75,14 @@ object GateDropLogic {
         val devices = targets.allDevices.filter { it.id in selection.devices }.map { it.id }
         val nas = if (targets.nasOffered) targets.nas.filter { it.id in selection.nas }.map { GdNasRef(it.id, it.path) } else emptyList()
         val link = selection.link?.takeIf { targets.linkOffered }
-        return GdRecipients(people = people.distinct(), devices = devices, nas = nas, link = link)
+        return GdRecipients(people = people.distinct(), devices = devices, nas = nas, link = link, drive = selection.drive && targets.drive)
     }
 
-    /** Names of the chosen targets in sheet order (people, devices, NAS); the link is named by the caller. */
-    fun chosenNames(selection: GdSelection, targets: GdTargets): List<String> =
+    /** Names of the chosen targets in sheet order (people, devices, Drive, NAS); the link is named by the caller. */
+    fun chosenNames(selection: GdSelection, targets: GdTargets, driveName: String = "Mein Drive"): List<String> =
         targets.people.filter { it.id in selection.people }.map { it.name } +
             targets.allDevices.filter { it.id in selection.devices }.map { deviceLabel(it) } +
+            listOfNotNull(driveName.takeIf { selection.drive && targets.drive }) +
             (if (targets.nasOffered) targets.nas.filter { it.id in selection.nas }.map { it.label } else emptyList())
 
     /** "Büro-PC", or another person's device with its owner: "Surface · Marc". */
@@ -90,8 +94,8 @@ object GateDropLogic {
         if (fileCount > GateDropJson.MAX_ITEMS) return false
         val to = recipients(selection, targets)
         if (to.isEmpty) return false
-        // A link for externals carries files only.
-        if (to.link != null && fileCount == 0 && to.people.isEmpty() && to.devices.isEmpty() && to.nas.isEmpty()) return false
+        // A link for externals, NAS and Drive carry files only.
+        if (fileCount == 0 && to.people.isEmpty() && to.devices.isEmpty()) return false
         return true
     }
 
@@ -102,7 +106,7 @@ object GateDropLogic {
      */
     fun plan(fileCount: Int, to: GdRecipients, devices: List<GdDevice>): GdSendPlan {
         if (fileCount == 0) return GdSendPlan(uploadFirst = false, localItems = false)
-        val onlyDevices = to.people.isEmpty() && to.nas.isEmpty() && to.link == null && to.devices.isNotEmpty()
+        val onlyDevices = to.people.isEmpty() && to.nas.isEmpty() && to.link == null && !to.drive && to.devices.isNotEmpty()
         val allDirect = onlyDevices && to.devices.all { id -> devices.firstOrNull { it.id == id }?.let { it.online && it.direct } == true }
         return if (allDirect) GdSendPlan(uploadFirst = false, localItems = true) else GdSendPlan(uploadFirst = true, localItems = false)
     }

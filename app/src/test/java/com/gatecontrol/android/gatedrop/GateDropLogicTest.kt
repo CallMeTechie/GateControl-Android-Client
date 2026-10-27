@@ -238,4 +238,20 @@ class GateDropLogicTest {
         // Offline: what this device knows.
         assertEquals(listOf("t:tr1", "s:5", "t:tr2"), GateDropLogic.mergeReceived(null, local).map { it.key })
     }
+
+    @Test
+    fun `my Drive - only when offered, files only, always via the server`() {
+        val sel = GdSelection().toggleDrive()
+        assertFalse(GateDropLogic.recipients(sel, targets).drive, "not offered: dropped")
+        assertTrue(GateDropLogic.recipients(sel, targets).isEmpty)
+        val withDrive = targets.copy(drive = true)
+        val to = GateDropLogic.recipients(sel, withDrive)
+        assertTrue(to.drive)
+        assertEquals(listOf("Mein Drive"), GateDropLogic.chosenNames(sel, withDrive))
+        assertTrue(GateDropLogic.canSend(sel, withDrive, fileCount = 1, hasText = false))
+        assertFalse(GateDropLogic.canSend(sel, withDrive, fileCount = 0, hasText = true), "a text does not go into Drive")
+        assertTrue(GateDropLogic.plan(1, to.copy(devices = listOf("pc")), listOf(pc)).uploadFirst, "Drive needs the files on the server")
+        assertTrue(GateDropJson.sendBody(emptyList(), null, null, null, to).getAsJsonObject("to").get("drive").asBoolean)
+        assertNull(GateDropJson.sendBody(emptyList(), null, null, null, to.copy(drive = false)).getAsJsonObject("to").get("drive"))
+    }
 }
