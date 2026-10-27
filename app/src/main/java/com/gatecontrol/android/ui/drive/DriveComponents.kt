@@ -241,11 +241,19 @@ internal fun DriveLoading() {
 }
 
 /**
- * Uploads in progress: a ring bottom right with the progress of all of them (red with failures). A tap opens
- * [UploadsSheet] with each file. Finished uploads are cleared by themselves; nothing shows when none run.
+ * The round button bottom right: a plus (new folder, upload, … – [onAdd]) while nothing uploads; while uploads run,
+ * a ring with the progress of all of them (yellow on a taken name, red with failures) that opens [UploadsSheet].
+ * Finished uploads are cleared by themselves, then the plus comes back. Nothing shows when the folder is read only
+ * and nothing uploads.
  */
 @Composable
-internal fun UploadsFab(uploads: List<DriveTransfers.Upload>, onOpen: () -> Unit, onAllDone: () -> Unit, modifier: Modifier = Modifier) {
+internal fun DriveFab(
+    uploads: List<DriveTransfers.Upload>,
+    onAdd: (() -> Unit)?,
+    onOpenUploads: () -> Unit,
+    onAllDone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val active = uploads.any { it.state == DriveTransfers.State.QUEUED || it.state == DriveTransfers.State.RUNNING || it.state == DriveTransfers.State.CONFLICT }
     val failed = uploads.any { it.state == DriveTransfers.State.FAILED }
     LaunchedEffect(active, failed, uploads.size) {
@@ -254,11 +262,27 @@ internal fun UploadsFab(uploads: List<DriveTransfers.Upload>, onOpen: () -> Unit
             onAllDone()
         }
     }
-    if (!active && !failed) return
+    val x = GateControlTheme.extraColors
+    if (!active && !failed) {
+        if (onAdd == null) return
+        val label = stringResource(R.string.drive_add)
+        Box(
+            modifier
+                .size(56.dp)
+                .shadow(6.dp, CircleShape)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable(role = Role.Button, onClickLabel = label, onClick = onAdd)
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(GcIcons.Plus, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(26.dp))
+        }
+        return
+    }
     val total = uploads.sumOf { it.total.coerceAtLeast(0) }
     val sent = uploads.sumOf { u -> if (u.state == DriveTransfers.State.RUNNING || u.state == DriveTransfers.State.QUEUED) u.sent else u.total }
     val progress = if (total > 0) (sent.toFloat() / total).coerceIn(0f, 1f) else 0f
-    val x = GateControlTheme.extraColors
     val color = when {
         uploads.any { it.state == DriveTransfers.State.CONFLICT } -> x.warn
         failed && !active -> MaterialTheme.colorScheme.error
@@ -271,7 +295,7 @@ internal fun UploadsFab(uploads: List<DriveTransfers.Upload>, onOpen: () -> Unit
             .shadow(6.dp, CircleShape)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onOpen)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onOpenUploads)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {

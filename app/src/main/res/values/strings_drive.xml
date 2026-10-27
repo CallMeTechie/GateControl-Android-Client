@@ -179,4 +179,5 @@
         <item quantity="one">%1$d file was deleted everywhere on another device and is still in this phone\'s gallery.</item>
         <item quantity="other">%1$d files were deleted everywhere on another device and are still in this phone\'s gallery.</item>
     </plurals>
+    <string name="drive_add">New</string>
 </resources>
