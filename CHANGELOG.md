@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.8] - 2026-10-27
+
+### Changes
+- Vorschaubilder vom Server, eigene Vorschau für HEIC und Videos (#132)
+
+---
+
 ## [1.67.7] - 2026-10-27
 
 ### Changes
