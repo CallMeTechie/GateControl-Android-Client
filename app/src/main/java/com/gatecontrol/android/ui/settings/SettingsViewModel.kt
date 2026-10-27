@@ -35,7 +35,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.io.File
 import javax.inject.Inject
 
 enum class ConnectionTestStatus {
@@ -524,29 +523,4 @@ class SettingsViewModel @Inject constructor(
         "splitTunnelAdminLocked" to state.splitTunnelAdminLocked,
         "isPro" to state.isPro,
     )
-
-    fun exportLogs(cacheDir: File): File? {
-        return try {
-            val logFile = File(File(cacheDir, "export").apply { mkdirs() }, "gatecontrol-logs.txt")
-            val logDir = File(cacheDir, "logs")
-            if (logDir.exists()) {
-                val logs = logDir.listFiles()
-                    ?.sortedByDescending { it.lastModified() }
-                    ?.firstOrNull()
-                if (logs != null) {
-                    logs.copyTo(logFile, overwrite = true)
-                    logFile
-                } else {
-                    logFile.writeText("No logs available")
-                    logFile
-                }
-            } else {
-                logFile.writeText("No log directory found")
-                logFile
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to export logs")
-            null
-        }
-    }
 }

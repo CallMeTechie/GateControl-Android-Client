@@ -13,7 +13,13 @@ import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tunnel.WgConfigValidator
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,6 +39,14 @@ class TunnelConnector @Inject constructor(
     private val tunnelManager: TunnelManager,
     private val clientPolicyManager: ClientPolicyManager,
 ) {
+
+    /** Connects started from a screen; they outlive it (rotation, folding, an activity rebuilt after an update). */
+    private val detached = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** [connectWithUserSettings] outside the caller's lifetime: a screen that goes away does not abort it half-way. */
+    fun connectDetached(): Job = detached.launch {
+        if (!connectWithUserSettings()) Timber.w("TunnelConnector: connect not possible")
+    }
 
     suspend fun connectWithUserSettings(): Boolean {
         var config = setupRepository.getWireGuardConfig()
@@ -70,6 +84,8 @@ class TunnelConnector @Inject constructor(
             )
             reportDeviceHostname(serverUrl)
             true
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.e(e, "TunnelConnector: connect failed")
             false

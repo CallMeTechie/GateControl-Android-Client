@@ -113,8 +113,7 @@ class VpnViewModelTest {
     fun `connect calls tunnelManager with config`() = runTest {
         every { setupRepository.getWireGuardConfig() } returns "[Interface]\nPrivateKey=abc\nAddress=10.0.0.1/32\n\n[Peer]\nPublicKey=xyz\nEndpoint=1.2.3.4:51820\nAllowedIPs=0.0.0.0/0"
 
-        viewModel.connect()
-        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.connect().join()
 
         coVerify { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
     }
@@ -123,8 +122,7 @@ class VpnViewModelTest {
     fun `connect does nothing when config is empty`() = runTest {
         every { setupRepository.getWireGuardConfig() } returns ""
 
-        viewModel.connect()
-        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.connect().join()
 
         coVerify(exactly = 0) { tunnelManager.connect(any(), any<com.gatecontrol.android.tunnel.SplitTunnelConfig>()) }
     }

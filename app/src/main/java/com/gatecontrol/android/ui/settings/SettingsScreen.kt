@@ -104,6 +104,7 @@ fun SettingsScreen(
     val locationEnabled by locationViewModel.enabled.collectAsStateWithLifecycle()
     val locationServer by locationViewModel.server.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val logsExportTitle = stringResource(R.string.settings_logs_export)
     val extra = GateControlTheme.extraColors
 
     val versionName = runCatching {
@@ -375,7 +376,7 @@ fun SettingsScreen(
             )
             GcListRow(
                 title = stringResource(R.string.settings_logs_export),
-                onClick = { viewModel.exportLogs(context.cacheDir) },
+                onClick = { LogExport.share(context, logsExportTitle) },
                 trailing = { Icon(GcIcons.Share, contentDescription = null, tint = extra.faint, modifier = Modifier.size(20.dp)) },
             )
             // "Diagnose & Problem melden": checks + report with description (ui/diagnosis)

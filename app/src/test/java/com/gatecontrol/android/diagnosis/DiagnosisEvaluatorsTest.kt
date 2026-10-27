@@ -23,6 +23,19 @@ class DiagnosisEvaluatorsTest {
 
     private fun http(code: Int) = HttpException(Response.error<Any>(code, "{}".toResponseBody(null)))
 
+    // ─── network under the VPN ───────────────────────────────────────────
+
+    @Test
+    fun `underlying network - Wi-Fi wins over mobile data, validated over not validated`() {
+        // A phone keeps mobile data up next to Wi-Fi; the order of the list is the system's, not a preference.
+        assertEquals(1, preferredUnderlying(listOf(Transport.CELLULAR to true, Transport.WIFI to true)))
+        assertEquals(0, preferredUnderlying(listOf(Transport.ETHERNET to true, Transport.WIFI to true)))
+        // Wi-Fi without internet (captive portal): mobile data carries the traffic.
+        assertEquals(0, preferredUnderlying(listOf(Transport.CELLULAR to true, Transport.WIFI to false)))
+        assertEquals(0, preferredUnderlying(listOf(Transport.OTHER to false)))
+        assertEquals(-1, preferredUnderlying(emptyList()))
+    }
+
     // ─── summary ─────────────────────────────────────────────────────────
 
     @Test

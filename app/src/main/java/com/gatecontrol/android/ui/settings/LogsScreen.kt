@@ -1,6 +1,5 @@
 package com.gatecontrol.android.ui.settings
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +27,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.components.GcDot
 import com.gatecontrol.android.ui.components.GcFilterChip
@@ -126,25 +124,7 @@ fun LogsScreen(
     val exportChooserTitle = stringResource(R.string.logs_export)
 
     fun exportLogs() {
-        try {
-            // Only cacheDir/export/ is exposed through the FileProvider.
-            val exportDir = File(context.cacheDir, "export").apply { mkdirs() }
-            val logFile = File(exportDir, "gatecontrol-export.log")
-            logFile.writeText(rawContent)
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.provider",
-                logFile
-            )
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(intent, exportChooserTitle))
-        } catch (e: Exception) {
-            // Silently ignore export errors — log to Timber in production
-        }
+        LogExport.share(context, exportChooserTitle, rawContent)
     }
 
     val visible = remember(entries, selectedLevel) {
