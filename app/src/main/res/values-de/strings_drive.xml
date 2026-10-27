@@ -167,7 +167,7 @@
     <string name="drive_delete_checking">Suche Kopien auf diesem Gerät …</string>
     <string name="drive_delete_nothing">Du kannst diese Datei nur lesen, und auf diesem Gerät liegt keine Kopie.</string>
     <string name="drive_delete_device">Nur auf diesem Gerät</string>
-    <string name="drive_delete_device_desc">Entfernt die Kopie auf diesem Handy (z. B. das Foto in der Galerie). Die Datei bleibt in Drive. Android fragt noch einmal nach.</string>
+    <string name="drive_delete_device_desc">Entfernt die Kopie auf diesem Handy – die Datei, die du von hier hochgeladen hast, oder das Foto in der Galerie. Die Datei bleibt in Drive. Bei Fotos aus der Galerie fragt Android noch einmal nach.</string>
     <string name="drive_delete_server">Nur auf dem Server</string>
     <string name="drive_delete_server_desc">Kommt in den Papierkorb von Drive.</string>
     <string name="drive_delete_server_desc_local">Kommt in den Papierkorb von Drive, die Kopie auf diesem Handy bleibt.</string>

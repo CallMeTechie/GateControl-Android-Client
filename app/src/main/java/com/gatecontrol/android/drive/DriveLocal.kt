@@ -3,10 +3,13 @@ package com.gatecontrol.android.drive
 import android.Manifest
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -18,8 +21,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * The copies of a Drive file on this phone: the original in the gallery (a photo the backup sent, found by size and
- * SHA-256) and an opened download in the cache. "Delete only on this device" removes them; "everywhere" also asks the
+ * The copies of a Drive file on this phone: the file it was uploaded from (picked in the Drive tab: remembered with a
+ * lasting permission, any type), the original in the gallery (a photo the backup sent, found by size and SHA-256) and
+ * an opened download in the cache. "Delete only on this device" removes them; "everywhere" also asks the
  * user's other devices to remove theirs ([DWipe]), which this class processes on this side.
  */
 @Singleton
@@ -27,13 +31,86 @@ class DriveLocal @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: DriveApi,
 ) {
-    /** What this phone has of a file: gallery entries (content URIs) and cache copies. */
-    data class Copies(val gallery: List<Uri> = emptyList(), val cache: List<File> = emptyList())
+    /**
+     * What this phone has of a file: picked files it was uploaded from ([docs], deleted directly), gallery entries
+     * ([gallery], Android asks first) and cache copies.
+     */
+    data class Copies(val gallery: List<Uri> = emptyList(), val cache: List<File> = emptyList(), val docs: List<Uri> = emptyList()) {
+        val any: Boolean get() = gallery.isNotEmpty() || docs.isNotEmpty()
+    }
+
+    private val uploads = context.getSharedPreferences("drive_local", Context.MODE_PRIVATE)
 
     /** The phone's copies of [node] (nothing for folders). */
     suspend fun copies(node: DNode): Copies = withContext(Dispatchers.IO) {
         if (node.isDir) return@withContext Copies()
-        Copies(gallery(node.sha256, node.size, node.mime, node.name), cache(node.id))
+        val docs = uploaded(node.id, node.sha256)
+        // A picked file that is a photo is in the gallery as well: one copy, deleted through the picked one.
+        val gallery = if (docs.isEmpty()) gallery(node.sha256, node.size, node.mime, node.name) else emptyList()
+        Copies(gallery, cache(node.id), docs)
+    }
+
+    /** Keeps the right to read and delete a picked file later (called when it is picked, while the grant holds). */
+    fun hold(uri: Uri) {
+        val r = context.contentResolver
+        runCatching { r.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            .onFailure { runCatching { r.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
+    }
+
+    /** The picked [uri] went up as [nodeId]: "only on this device" and "everywhere" can delete it later. */
+    fun remember(nodeId: Long, sha256: String?, uri: Uri) {
+        uploads.edit().putString("n$nodeId", "${System.currentTimeMillis()}|${sha256.orEmpty()}|$uri").apply()
+        trim()
+    }
+
+    /** Deletes picked files directly (the lasting permission allows it); the ones that could not go come back. */
+    suspend fun deleteDocs(uris: List<Uri>): List<Uri> = withContext(Dispatchers.IO) {
+        uris.filterNot { uri ->
+            val gone = runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }.getOrDefault(false)
+            if (gone) forget(uri)
+            gone
+        }
+    }
+
+    /** A picked file that would not go directly as its media store entry, for [trashRequest]; null if it has none. */
+    fun mediaUri(uri: Uri): Uri? = runCatching { MediaStore.getMediaUri(context, uri) }.getOrNull()
+
+    private fun uploaded(nodeId: Long, sha256: String?): List<Uri> {
+        val hits = uploads.all.entries.mapNotNull { (key, value) ->
+            val parts = (value as? String)?.split('|', limit = 3) ?: return@mapNotNull null
+            if (parts.size < 3) return@mapNotNull null
+            val match = key == "n$nodeId" || (sha256 != null && parts[1] == sha256)
+            if (match) Uri.parse(parts[2]) else null
+        }.distinct()
+        return hits.filter { uri ->
+            val there = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { it.moveToFirst() } == true
+            }.getOrDefault(false)
+            if (!there) forget(uri)
+            there
+        }
+    }
+
+    private fun forget(uri: Uri) {
+        val s = uri.toString()
+        val keys = uploads.all.filter { (_, v) -> (v as? String)?.endsWith("|$s") == true }.keys
+        if (keys.isEmpty()) return
+        uploads.edit().apply { keys.forEach { remove(it) } }.apply()
+        release(uri)
+    }
+
+    /** Only the newest [MAX_REMEMBERED]: Android limits lasting permissions per app. */
+    private fun trim() {
+        val all = uploads.all.mapNotNull { (k, v) -> (v as? String)?.split('|', limit = 3)?.takeIf { it.size == 3 }?.let { Triple(k, it[0].toLongOrNull() ?: 0L, it[2]) } }
+        if (all.size <= MAX_REMEMBERED) return
+        val old = all.sortedBy { it.second }.take(all.size - MAX_REMEMBERED)
+        uploads.edit().apply { old.forEach { remove(it.first) } }.apply()
+        old.forEach { o -> if (all.none { it.third == o.third && it !in old }) release(Uri.parse(o.third)) }
+    }
+
+    private fun release(uri: Uri) {
+        runCatching { context.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            .onFailure { runCatching { context.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
     }
 
     /** Removes the cache copies at once; the gallery needs the user's yes ([trashRequest]). */
@@ -61,7 +138,10 @@ class DriveLocal @Inject constructor(
         withContext(Dispatchers.IO) {
             for (w in wipes) {
                 w.nodeId?.let { cache(it) }?.forEach { it.parentFile?.deleteRecursively() }
-                val found = if (w.size >= 0) gallery(w.sha256, w.size, w.mime, w.name) else emptyList()
+                // Picked files it was uploaded from go at once; what would not go is asked like a gallery copy.
+                val docs = uploaded(w.nodeId ?: -1L, w.sha256)
+                val left = deleteDocs(docs).mapNotNull { mediaUri(it) }
+                val found = left + if (docs.isEmpty() && w.size >= 0) gallery(w.sha256, w.size, w.mime, w.name) else emptyList()
                 if (found.isEmpty()) {
                     quiet += w.id
                 } else {
@@ -142,5 +222,6 @@ class DriveLocal @Inject constructor(
 
     private companion object {
         const val MAX_CANDIDATES = 8
+        const val MAX_REMEMBERED = 400
     }
 }

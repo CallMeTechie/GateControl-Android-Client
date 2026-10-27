@@ -41,6 +41,7 @@ class DriveTransfers @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: DriveApi,
     private val previews: DrivePreviews,
+    private val local: DriveLocal,
 ) {
     enum class State { QUEUED, RUNNING, CONFLICT, DONE, SAME, SKIPPED, FAILED }
 
@@ -95,6 +96,8 @@ class DriveTransfers @Inject constructor(
         scope.launch {
             mutex.withLock {
                 for (uri in uris) {
+                    // Now, while the picker's grant holds: "delete on this device" needs the file later.
+                    local.hold(uri)
                     val id = ids.incrementAndGet()
                     val (name, size) = describe(uri)
                     queue.addLast(Job(id, uri, folderId, name = name))
@@ -171,6 +174,7 @@ class DriveTransfers @Inject constructor(
             }
             job.file = copied.first
             sha = copied.second
+            job.sha = sha
             set(job.id) { it.copy(total = copied.first.length()) }
         }
         val file = job.file!!
@@ -180,6 +184,7 @@ class DriveTransfers @Inject constructor(
             when (val check = api.uploadCheck(job.folderId, job.name, sha, file.length())) {
                 is DResult.Ok -> {
                     if (check.value.same) {
+                        check.value.node?.let { n -> job.uri?.let { local.remember(n.id, sha, it) } }
                         file.delete()
                         set(job.id) { it.copy(state = State.SAME, sent = it.total) }
                         job.onDone?.invoke(check.value.node)
@@ -206,6 +211,7 @@ class DriveTransfers @Inject constructor(
         val onConflict = choice ?: DriveLogic.ON_CONFLICT_RENAME
         when (val r = api.commit(media.value, job.folderId, job.name, job.mtime, onConflict)) {
             is DResult.Ok -> {
+                job.uri?.let { local.remember(r.value.first.id, sha, it) }
                 file.delete()
                 set(job.id) { it.copy(state = State.DONE, sent = it.total) }
                 _changed.tryEmit(job.folderId)

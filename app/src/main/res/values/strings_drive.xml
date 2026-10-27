@@ -167,7 +167,7 @@
     <string name="drive_delete_checking">Looking for copies on this device …</string>
     <string name="drive_delete_nothing">You can only read this file, and this device has no copy of it.</string>
     <string name="drive_delete_device">Only on this device</string>
-    <string name="drive_delete_device_desc">Removes the copy on this phone (e.g. the photo in the gallery). The file stays in Drive. Android asks once more.</string>
+    <string name="drive_delete_device_desc">Removes the copy on this phone – the file you uploaded from here or the photo in the gallery. The file stays in Drive. For gallery photos Android asks once more.</string>
     <string name="drive_delete_server">Only on the server</string>
     <string name="drive_delete_server_desc">Moves it to Drive\'s trash.</string>
     <string name="drive_delete_server_desc_local">Moves it to Drive\'s trash; the copy on this phone stays.</string>
