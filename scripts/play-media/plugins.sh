@@ -47,6 +47,18 @@ api() { # METHOD PATH [JSON] – the admin API with the session
     "${body[@]}" "$B/api/v1/$2"
 }
 
+# ── Anna: an account with an app token ──────────────────────────────
+# Before the plugins start: the messenger knows the people as they were
+# when it last looked (a cache of a few seconds).
+ANNA=$(timeout 90 docker exec gc node -e "
+  const users = require('/app/src/services/users');
+  const tokens = require('/app/src/services/tokens');
+  const u = users.createClientUser({ username: 'anna', displayName: 'Anna' });
+  const t = tokens.create({ name: 'Anna – Pixel 8', scopes: ['client'], userId: u.id });
+  process.stdout.write('\\nANNATOKEN=' + t.rawToken + '\\n');
+" | sed -n 's/^ANNATOKEN=\(gc_[0-9a-f]*\)$/\1/p' | tail -1)
+[ -n "$ANNA" ] || fail "no account for Anna"
+
 # ── Install from the catalogue ──────────────────────────────────────
 CAT=""
 for _ in 1 2 3; do
@@ -79,19 +91,16 @@ SEAT=$(api PUT plugins/gatecontrol-drive/api/admin/seats/1 '{"kind":"family"}')
 api PUT plugins/gatecontrol-drive/api/admin/backup-hint '{"on":false}' >/dev/null
 
 # ── Messenger: Anna writes the admin ────────────────────────────────
-ANNA=$(timeout 90 docker exec gc node -e "
-  const users = require('/app/src/services/users');
-  const tokens = require('/app/src/services/tokens');
-  const u = users.createClientUser({ username: 'anna', displayName: 'Anna' });
-  const t = tokens.create({ name: 'Anna – Pixel 8', scopes: ['client'], userId: u.id });
-  process.stdout.write('\\nANNATOKEN=' + t.rawToken + '\\n');
-" | sed -n 's/^ANNATOKEN=\(gc_[0-9a-f]*\)$/\1/p' | tail -1)
-[ -n "$ANNA" ] || fail "no account for Anna"
 M="$B/api/v1/client/plugins/gatecontrol-messenger/api"
 anna() { curl -sS --max-time 60 --cacert "$APP_CA_DIR/ca.pem" --resolve 10.0.2.2:8443:127.0.0.1 \
   -H "Authorization: Bearer $ANNA" -H 'Accept: application/json' -H 'Content-Type: application/json' "$@"; }
-CHAT=$(anna --data '{"kind":"direct","userIds":[1]}' "$M/conversations")
-CONV=$(val "$CHAT" '.conversation.id')
+CHAT="" CONV=""
+for _ in 1 2 3 4; do
+  CHAT=$(anna --data '{"kind":"direct","userIds":[1]}' "$M/conversations")
+  CONV=$(val "$CHAT" '.conversation.id')
+  [ -n "$CONV" ] && break
+  sleep 6
+done
 [ -n "$CONV" ] || fail "no chat Anna → admin ($(short "$CHAT"))"
 MSG=$(anna --data '{"clientId":"rec-anna-0001","text":"Are you on your way? School is out at 4."}' "$M/conversations/$CONV/messages")
 [ "$(val "$MSG" '.ok')" = true ] || fail "Anna's message: $(short "$MSG")"
