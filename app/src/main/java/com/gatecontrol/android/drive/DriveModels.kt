@@ -39,6 +39,8 @@ data class DMe(
     val trashDays: Int?,
     val maxBytes: Long?,
     val people: Map<Int, String>,
+    /** Files deleted "everywhere" on another device that this one still has to remove (Drive 1.2+). */
+    val wipes: Int = 0,
 )
 
 /** A storage location of an area (`GET areas`). */
@@ -84,7 +86,12 @@ data class DNode(
     val deletedAt: String? = null,
     /** The server has (or makes) a preview picture of the file (Drive 1.1 on core 1.208+). */
     val preview: Boolean = false,
+    /** SHA-256 of the content (hex), when the server knows it: finds the same file on the phone. */
+    val sha256: String? = null,
 )
+
+/** A file deleted "everywhere" on another device: this device removes its own copy, then reports it done. */
+data class DWipe(val id: Long, val nodeId: Long?, val name: String, val sha256: String?, val size: Long, val mime: String?)
 
 data class DCrumb(val id: Long, val name: String)
 

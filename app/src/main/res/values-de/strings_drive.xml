@@ -9,7 +9,6 @@
     <string name="drive_search_empty">Nichts gefunden.</string>
     <string name="drive_search_min">Mindestens 2 Zeichen eingeben.</string>
     <string name="drive_trash">Papierkorb</string>
-    <string name="drive_recent">Zuletzt</string>
     <string name="drive_photo">FOTO</string>
     <string name="drive_more">Mehr</string>
     <string name="drive_retry">Erneut versuchen</string>
@@ -53,8 +52,6 @@
     <string name="drive_rename">Umbenennen</string>
     <string name="drive_move">Verschieben</string>
     <string name="drive_versions">Ältere Versionen</string>
-    <string name="drive_delete">In den Papierkorb</string>
-    <string name="drive_delete_confirm">„%1$s“ in den Papierkorb verschieben?</string>
     <string name="drive_done_folder">Ordner angelegt</string>
     <string name="drive_done_rename">Umbenannt</string>
     <string name="drive_done_move">Verschoben</string>
@@ -109,7 +106,6 @@
     <string name="drive_trash_from">aus %1$s</string>
     <string name="drive_trash_info">Gelöschtes bleibt %1$d Tage hier und ist danach endgültig weg.</string>
     <string name="drive_open_none">Keine App auf diesem Gerät kann diese Datei öffnen.</string>
-    <string name="drive_loading_file">Die Datei wird geladen …</string>
     <string name="drive_folder_files">%1$s · %2$s</string>
     <string name="drive_files_root">GateControl Drive</string>
     <string name="drive_backup_title">Foto-Sicherung</string>
@@ -163,4 +159,24 @@
         <item quantity="other">%1$d neue Fotos warten auf WLAN</item>
     </plurals>
     <string name="drive_menu">Bereiche öffnen</string>
+    <string name="drive_view_grid">Als Kacheln zeigen</string>
+    <string name="drive_view_list">Als Liste zeigen</string>
+    <string name="drive_uploads_running">%1$d von %2$d hochgeladen</string>
+    <string name="drive_delete_menu">Löschen</string>
+    <string name="drive_delete_title">„%1$s“ löschen</string>
+    <string name="drive_delete_checking">Suche Kopien auf diesem Gerät …</string>
+    <string name="drive_delete_nothing">Du kannst diese Datei nur lesen, und auf diesem Gerät liegt keine Kopie.</string>
+    <string name="drive_delete_device">Nur auf diesem Gerät</string>
+    <string name="drive_delete_device_desc">Entfernt die Kopie auf diesem Handy (z. B. das Foto in der Galerie). Die Datei bleibt in Drive. Android fragt noch einmal nach.</string>
+    <string name="drive_delete_server">Nur auf dem Server</string>
+    <string name="drive_delete_server_desc">Kommt in den Papierkorb von Drive.</string>
+    <string name="drive_delete_server_desc_local">Kommt in den Papierkorb von Drive, die Kopie auf diesem Handy bleibt.</string>
+    <string name="drive_delete_everywhere">Überall</string>
+    <string name="drive_delete_everywhere_desc">Papierkorb von Drive, und deine Geräte entfernen ihre Kopien, sobald sie online sind.</string>
+    <string name="drive_done_local">Auf diesem Gerät gelöscht</string>
+    <string name="drive_wipes_action">Hier auch löschen</string>
+    <plurals name="drive_wipes_banner">
+        <item quantity="one">%1$d Datei wurde auf einem anderen Gerät überall gelöscht und liegt noch in der Galerie dieses Handys.</item>
+        <item quantity="other">%1$d Dateien wurden auf einem anderen Gerät überall gelöscht und liegen noch in der Galerie dieses Handys.</item>
+    </plurals>
 </resources>

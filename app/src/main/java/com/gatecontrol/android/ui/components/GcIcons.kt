@@ -206,6 +206,8 @@ object GcIcons {
     val FolderPlus = icon("FolderPlus", 2f, "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M12 10v6M9 13h6")
     val Film = icon("Film", 2f, rect(3f, 4f, 18f, 16f, 2f), "M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4")
     val Play = icon("Play", 2.4f, "M8 5.5v13l10-6.5z")
+    val ViewGrid = icon("ViewGrid", 2f, rect(3f, 3f, 7f, 7f, 1.5f), rect(14f, 3f, 7f, 7f, 1.5f), rect(3f, 14f, 7f, 7f, 1.5f), rect(14f, 14f, 7f, 7f, 1.5f))
+    val ViewList = icon("ViewList", 2f, "M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01")
     val Music = icon("Music", 2f, "M9 18V5l12-2v13", circle(6f, 18f, 3f), circle(18f, 16f, 3f))
     val Archive = icon("Archive", 2f, rect(3f, 3f, 18f, 5f, 1f), "M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4")
     val MoreVertical = icon("MoreVertical", 2.6f, "M12 5h.01M12 12h.01M12 19h.01")

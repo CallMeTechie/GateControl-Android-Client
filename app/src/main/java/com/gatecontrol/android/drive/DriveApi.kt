@@ -100,8 +100,8 @@ class DriveApi @Inject constructor(
     private suspend fun <T> patch(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
         call(request = { pluginPatch(DRIVE_PLUGIN, path, body, lang()) }, parse = parse)
 
-    private suspend fun <T> del(path: String, parse: (JsonObject) -> T?) =
-        call(request = { pluginDelete(DRIVE_PLUGIN, path, lang()) }, parse = parse)
+    private suspend fun <T> del(path: String, parse: (JsonObject) -> T?, query: Map<String, String> = emptyMap()) =
+        call(request = { pluginDelete(DRIVE_PLUGIN, path, query + lang()) }, parse = parse)
 
     private fun bad(): DResult<Nothing> = DResult.Failed(CODE_INVALID, 0)
 
@@ -132,7 +132,18 @@ class DriveApi @Inject constructor(
     suspend fun move(id: Long, parentId: Long): DResult<DNode> = patch("nodes/$id", DriveJson.patchBody(null, parentId), DriveJson::nodeAnswer)
 
     /** Into the trash. */
-    suspend fun delete(id: Long): DResult<Unit> = del("nodes/$id", unit)
+    /**
+     * To the trash. [everywhere]: the user's other devices also remove their copies when next online (Drive 1.2+;
+     * an older Drive ignores it and just trashes).
+     */
+    suspend fun delete(id: Long, everywhere: Boolean = false): DResult<Unit> =
+        del("nodes/$id", unit, if (everywhere) mapOf("everywhere" to "1") else emptyMap())
+
+    /** Files deleted "everywhere" on another device that this one still has to remove (Drive 1.2+). */
+    suspend fun wipes(): DResult<List<DWipe>> = get("wipes", parse = DriveJson::wipes)
+
+    /** This device has removed (or never had) these files. */
+    suspend fun wipesDone(ids: List<Long>): DResult<Unit> = post("wipes/done", DriveJson.wipesDoneBody(ids), unit)
 
     suspend fun search(q: String, area: String? = null): DResult<List<DNode>> {
         val query = buildMap {

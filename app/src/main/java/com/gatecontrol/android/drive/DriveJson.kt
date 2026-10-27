@@ -11,6 +11,7 @@ import com.google.gson.JsonObject
  */
 internal object DriveJson {
 
+    private val SHA256 = Regex("^[0-9a-f]{64}$")
     private val MEDIA_ID = Regex("^[A-Za-z0-9_-]{6,100}$")
     private val AREA_ID = Regex("^[A-Za-z0-9:_-]{1,80}$")
     private val TOKEN = Regex("^[A-Za-z0-9_-]{6,200}$")
@@ -43,6 +44,7 @@ internal object DriveJson {
                 val id = po.int("id") ?: return@mapNotNull null
                 id to (po.str("name")?.take(200) ?: return@mapNotNull null)
             }?.toMap().orEmpty(),
+            wipes = o.int("wipes")?.coerceAtLeast(0) ?: 0,
         )
     }
 
@@ -102,10 +104,30 @@ internal object DriveJson {
             files = o.int("files"),
             deletedAt = o.str("deletedAt")?.take(40),
             preview = o.obj("preview") != null,
+            sha256 = sha256(o.str("sha256")),
         )
     }
 
     fun nodeAnswer(o: JsonObject): DNode? = node(o.obj("node"))
+
+    fun sha256(v: String?): String? = v?.lowercase()?.takeIf { SHA256.matches(it) }
+
+    /** `GET wipes` → the files this device still has to remove. */
+    fun wipes(o: JsonObject): List<DWipe>? = o.arr("wipes")?.mapNotNull { e ->
+        val w = e as? JsonObject ?: return@mapNotNull null
+        DWipe(
+            id = w.long("id") ?: return@mapNotNull null,
+            nodeId = w.long("nodeId"),
+            name = w.str("name")?.take(255) ?: "",
+            sha256 = sha256(w.str("sha256")),
+            size = w.long("size") ?: -1L,
+            mime = w.str("mime")?.take(100),
+        )
+    }
+
+    fun wipesDoneBody(ids: List<Long>) = JsonObject().apply {
+        add("ids", com.google.gson.JsonArray().apply { ids.forEach { add(it) } })
+    }
 
     /** `GET nodes/<id>` + `GET nodes/<id>/children` → the folder. */
     fun folder(nodeAnswer: JsonObject, childrenAnswer: JsonObject): DFolder? {

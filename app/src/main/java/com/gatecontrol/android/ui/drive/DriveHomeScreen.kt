@@ -4,6 +4,13 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.components.GcBanner
+import androidx.compose.ui.res.pluralStringResource
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.app.Activity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,13 +69,17 @@ data class DriveNav(
 )
 
 /**
- * The Drive tab: the chosen area's files ("Zuletzt" above them), the areas and the trash in the menu top left. The
+ * The Drive tab: the chosen area's files, the areas and the trash in the menu top left. The
  * photo backup is in the settings.
  */
 @Composable
 fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
+    val wipes by viewModel.wipes.collectAsStateWithLifecycle()
+    val wipeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) wipes?.let(viewModel::wipesDone)
+    }
     val folderViewModel: DriveFolderViewModel = hiltViewModel(key = "drive-tab")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -107,11 +118,14 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                 onFolder = nav.folder,
                 topBar = { _, actions -> TabBar(current.label, onMenu = openMenu, onSearch = nav.search, actions = actions) },
                 header = {
-                    RecentRow(home.recent) { n ->
-                        Toast.makeText(context, R.string.drive_loading_file, Toast.LENGTH_SHORT).show()
-                        scope.launch {
-                            fetchThen(context, n, viewModel::fetch, then = { f -> openFile(context, n, f) }) { code ->
-                                Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+                    wipes?.let { w ->
+                        GcBanner(tone = GcTone.Warn, icon = GcIcons.Trash) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(pluralStringResource(R.plurals.drive_wipes_banner, w.names.size, w.names.size), style = MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick = {
+                                    val sender = viewModel.trashRequest(w)
+                                    if (sender == null) viewModel.wipesDone(w) else wipeLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                                }) { Text(stringResource(R.string.drive_wipes_action)) }
                             }
                         }
                     }
@@ -184,16 +198,6 @@ private fun DriveDrawer(areas: List<DArea>, current: DArea?, onArea: (DArea) -> 
                 }
             },
         )
-    }
-}
-
-/** "Zuletzt": the newest files as tiles. */
-@Composable
-private fun RecentRow(recent: List<DNode>, onOpen: (DNode) -> Unit) {
-    if (recent.isEmpty()) return
-    GcSectionLabel(stringResource(R.string.drive_recent), modifier = Modifier.padding(top = 4.dp, start = 4.dp))
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        recent.forEach { n -> RecentTile(n, modifier = Modifier.width(112.dp), onClick = { onOpen(n) }) }
     }
 }
 
