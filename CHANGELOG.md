@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.13] - 2026-10-27
+
+### Changes
+- Scannen im Plus-Menü, Teilen-Ziel „In Drive speichern“ (#137)
+
+---
+
 ## [1.67.12] - 2026-10-27
 
 ### Changes
