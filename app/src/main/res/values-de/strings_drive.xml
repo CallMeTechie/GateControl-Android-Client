@@ -47,7 +47,7 @@
     <string name="drive_sort_date">Datum</string>
     <string name="drive_sort_size">Größe</string>
     <string name="drive_open">Öffnen</string>
-    <string name="drive_send">Senden …</string>
+    <string name="drive_send">Senden</string>
     <string name="drive_share_link">Link teilen</string>
     <string name="drive_rename">Umbenennen</string>
     <string name="drive_move">Verschieben</string>
