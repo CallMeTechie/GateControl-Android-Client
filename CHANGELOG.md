@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.9] - 2026-10-27
+
+### Changes
+- Liste oder Kacheln, Menü per langem Drücken, Upload-Kreis, Löschen auf Gerät/Server/überall (#133)
+
+---
+
 ## [1.67.8] - 2026-10-27
 
 ### Changes
