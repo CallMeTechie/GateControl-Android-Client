@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.5] - 2026-10-27
+
+### Changes
+- Bereiche im Menü, Foto-Sicherung in den Einstellungen (#129)
+
+---
+
 ## [1.67.4] - 2026-10-26
 
 ### Changes
