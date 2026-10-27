@@ -146,4 +146,20 @@ class DriveJsonTest {
         )
         assertEquals(json("""{"nodeId":1,"mode":"view","expires":"7d"}"""), DriveJson.linkBody(1, "view", "7d", " "))
     }
+
+    @Test
+    fun `scans - text in the commit, the format in me, snippets of text hits`() {
+        assertEquals(
+            json("""{"mediaId":"m","parentId":3,"name":"Scan.pdf","onConflict":"rename","text":"Reisepass"}"""),
+            DriveJson.commitBody("m", 3, "Scan.pdf", null, DriveLogic.ON_CONFLICT_RENAME, "Reisepass"),
+        )
+        assertEquals(DriveJson.TEXT_MAX, DriveJson.commitBody("m", 3, "a", null, "rename", "x".repeat(DriveJson.TEXT_MAX + 5)).get("text").asString.length)
+        assertNull(DriveJson.commitBody("m", 3, "a", null, "rename", "  ").get("text"), "blank text is left out")
+        assertEquals("image", DriveJson.me(json("""{"me":{"id":1},"settings":{"scanFormat":"image"}}"""))!!.scanFormat)
+        assertEquals("pdf", DriveJson.me(json("""{"me":{"id":1},"settings":{"scanFormat":"tiff"}}"""))!!.scanFormat)
+        assertEquals("pdf", DriveJson.me(json("""{"me":{"id":1}}"""))!!.scanFormat, "older Drive: PDF")
+        val hit = DriveJson.node(json("""{"id":1,"areaId":"u:7","name":"a.pdf","match":"text","snippet":"…Bundesrepublik…"}"""))!!
+        assertEquals("…Bundesrepublik…", hit.snippet)
+        assertNull(DriveJson.node(json("""{"id":1,"areaId":"u:7","name":"a.pdf","match":"name","snippet":"x"}"""))!!.snippet)
+    }
 }

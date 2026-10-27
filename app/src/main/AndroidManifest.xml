@@ -70,6 +70,11 @@
         android:theme="@style/Theme.GateControl"
         tools:replace="android:theme">
 
+        <!-- Drive "Scannen": Play services fetch the text recognition model with the app, not on the first scan. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -325,6 +330,27 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Share target "In Drive speichern" (any file, or a text as .txt): the
+             Drive folder sheet over the sharing app. Exported for the system's
+             share sheet, but disabled until the server offers Drive
+             (DriveShareActivity.setEnabled). Reads only content:// URIs of other
+             apps (ChatShareRules), never file:// or the app's own providers. -->
+        <activity
+            android:name=".ui.drive.DriveShareActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:label="@string/drive_share_target_label"
+            android:theme="@style/Theme.GateControl.TileAction">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />

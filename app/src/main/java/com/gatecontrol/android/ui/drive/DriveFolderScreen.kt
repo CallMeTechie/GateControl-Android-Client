@@ -117,6 +117,7 @@ internal fun DriveFolderContent(
     val versions by viewModel.versions.collectAsStateWithLifecycle()
     val linkSheet by viewModel.linkSheet.collectAsStateWithLifecycle()
     val picker by viewModel.picker.collectAsStateWithLifecycle()
+    val scanDraft by viewModel.scan.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -153,6 +154,7 @@ internal fun DriveFolderContent(
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.upload(uris)
     }
+    val startScan = rememberDriveScan(viewModel.scanner, viewModel::scanned)
 
     val folder = (state as? DriveLoad.Ready)?.value
     val title = when {
@@ -250,6 +252,12 @@ internal fun DriveFolderContent(
                     title = stringResource(R.string.drive_upload),
                     onClick = { addOpen = false; pick.launch(arrayOf("*/*")) },
                     leading = { Icon(GcIcons.Upload, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                )
+                GcListRow(
+                    title = stringResource(R.string.drive_scan),
+                    description = stringResource(R.string.drive_scan_desc),
+                    onClick = { addOpen = false; startScan() },
+                    leading = { Icon(GcIcons.Scan, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                 )
             }
         }
@@ -392,6 +400,17 @@ internal fun DriveFolderContent(
             LinkSheetContent(sheet, onCreate = viewModel::createLink, onEnd = viewModel::endLink)
         }
     }
+    scanDraft?.let { d ->
+        ScanSaveDialog(
+            draft = d,
+            onPdf = viewModel::setScanPdf,
+            onPickFolder = viewModel::pickScanFolder,
+            onRescan = { viewModel.closeScan(); startScan() },
+            onSave = viewModel::saveScan,
+            onClose = viewModel::closeScan,
+        )
+    }
+    // after the scan dialog: its folder choice opens on top of it
     picker?.let { p -> MovePicker(p, onBrowse = viewModel::browse, onMove = viewModel::moveHere, onDismiss = viewModel::closePicker) }
 }
 
@@ -607,13 +626,14 @@ private fun shareText(context: Context, text: String) {
 /** Where to move an item: the writable areas, then their folders. */
 @Composable
 private fun MovePicker(p: DriveFolderViewModel.Picker, onBrowse: (Long?) -> Unit, onMove: () -> Unit, onDismiss: () -> Unit) {
+    val node = p.node
     FolderPickerDialog(
-        title = stringResource(R.string.drive_move_title, p.node.name),
+        title = if (node == null) stringResource(R.string.drive_scan_folder_title) else stringResource(R.string.drive_move_title, node.name),
         areas = p.areas,
         folder = p.folder,
-        confirm = stringResource(R.string.drive_move_here),
-        canPick = { it.writable && it.node.id != p.node.parentId && it.node.id != p.node.id },
-        hide = p.node.id,
+        confirm = stringResource(if (node == null) R.string.drive_scan_folder_here else R.string.drive_move_here),
+        canPick = { it.writable && (node == null || (it.node.id != node.parentId && it.node.id != node.id)) },
+        hide = node?.id,
         onBrowse = onBrowse,
         onPick = onMove,
         onDismiss = onDismiss,

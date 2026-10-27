@@ -180,4 +180,45 @@
         <item quantity="other">%1$d Dateien wurden auf einem anderen Gerät überall gelöscht und liegen noch in der Galerie dieses Handys.</item>
     </plurals>
     <string name="drive_add">Neu</string>
+    <!-- Scannen (A4) -->
+    <string name="drive_scan">Scannen</string>
+    <string name="drive_scan_desc">Dokument mit der Kamera erfassen</string>
+    <string name="drive_scan_unavailable">Der Dokumentenscanner ist auf diesem Gerät nicht verfügbar (Google Play-Dienste fehlen oder sind zu alt).</string>
+    <string name="drive_scan_close">Schließen</string>
+    <string name="drive_scan_title">Scan speichern</string>
+    <plurals name="drive_scan_pages">
+        <item quantity="one">%d Seite</item>
+        <item quantity="other">%d Seiten</item>
+    </plurals>
+    <string name="drive_scan_name">Name</string>
+    <string name="drive_scan_folder">Ordner</string>
+    <string name="drive_scan_format">Format</string>
+    <string name="drive_scan_format_image">Bild</string>
+    <string name="drive_scan_text">Text durchsuchbar</string>
+    <string name="drive_scan_text_running">wird erkannt …</string>
+    <string name="drive_scan_text_yes">ja, erkannt</string>
+    <string name="drive_scan_text_no">kein Text erkannt</string>
+    <string name="drive_scan_note">Die Texterkennung läuft immer auf dem Handy. Mit dem erkannten Text findet die Drive-Suche den Scan.</string>
+    <string name="drive_scan_again">Neu scannen</string>
+    <string name="drive_scan_save">Im Drive speichern</string>
+    <string name="drive_scan_folder_title">Speichern in</string>
+    <string name="drive_scan_folder_here">Hier speichern</string>
+    <string name="drive_scan_read_failed">Der Scan konnte nicht gelesen werden. Bitte noch einmal scannen.</string>
+    <!-- In Drive speichern (Teilen-Ziel) -->
+    <string name="drive_share_target_label">In Drive speichern</string>
+    <string name="drive_share_title">In Drive speichern</string>
+    <string name="drive_share_unavailable">Drive ist auf diesem Server nicht verfügbar.</string>
+    <string name="drive_share_nothing">Hier ist nichts zum Speichern dabei.</string>
+    <string name="drive_share_file">Datei</string>
+    <string name="drive_share_save">Speichern</string>
+    <string name="drive_share_read_failed">Die Datei konnte nicht gelesen werden.</string>
+    <plurals name="drive_share_more">
+        <item quantity="one">und %d weitere Datei</item>
+        <item quantity="other">und %d weitere Dateien</item>
+    </plurals>
+    <plurals name="drive_share_queued">
+        <item quantity="one">%d Datei wird in Drive gespeichert</item>
+        <item quantity="other">%d Dateien werden in Drive gespeichert</item>
+    </plurals>
+    <string name="drive_share_note_name">Notiz %1$s</string>
 </resources>

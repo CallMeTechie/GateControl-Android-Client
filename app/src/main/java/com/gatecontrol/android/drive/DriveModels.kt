@@ -41,6 +41,8 @@ data class DMe(
     val people: Map<Int, String>,
     /** Files deleted "everywhere" on another device that this one still has to remove (Drive 1.2+). */
     val wipes: Int = 0,
+    /** How scans are saved by default: `pdf` | `image` (setting "Scans speichern als", Drive 1.3+). */
+    val scanFormat: String = "pdf",
 )
 
 /** A storage location of an area (`GET areas`). */
@@ -88,6 +90,8 @@ data class DNode(
     val preview: Boolean = false,
     /** SHA-256 of the content (hex), when the server knows it: finds the same file on the phone. */
     val sha256: String? = null,
+    /** Search hit in the recognised text of a scan (Drive 1.3+): the words around it. */
+    val snippet: String? = null,
 )
 
 /** A file deleted "everywhere" on another device: this device removes its own copy, then reports it done. */

@@ -215,6 +215,8 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "links_disabled" -> context.getString(R.string.drive_code_links_disabled)
     "no_unlimited" -> context.getString(R.string.drive_code_no_unlimited)
     "no_public_url" -> context.getString(R.string.drive_code_no_public_url)
+    "scan_read" -> context.getString(R.string.drive_scan_read_failed)
+    "read" -> context.getString(R.string.drive_share_read_failed)
     else -> context.getString(R.string.drive_error_generic, code)
 }
 

@@ -129,4 +129,27 @@ class DriveLogicTest {
         assertFalse(DArea("t:1", "team", "x", "read", "member", 1, false).writable)
         assertFalse(DArea("f:1", "family", "x", "write", "member", 1, true).writable)
     }
+
+    @Test
+    fun `scan names - typed, without own extension, or the fallback`() {
+        assertEquals("Reisepass Tim", DriveLogic.scanBase(" Reisepass Tim ", "Scan"))
+        assertEquals("Reisepass Tim", DriveLogic.scanBase("Reisepass Tim.PDF", "Scan"))
+        assertEquals("Brief_Schule", DriveLogic.scanBase("Brief/Schule.jpeg", "Scan"))
+        assertEquals("Scan 2026-10-27", DriveLogic.scanBase("  ", "Scan 2026-10-27"))
+        assertEquals("Scan 2026-10-27", DriveLogic.scanBase("...", "Scan 2026-10-27"))
+        assertEquals(200, DriveLogic.scanBase("x".repeat(300), "Scan").length)
+    }
+
+    @Test
+    fun `scan files - one pdf or one picture per page`() {
+        assertEquals(listOf("A.pdf"), DriveLogic.scanFiles("A", pdf = true, pages = 3))
+        assertEquals(listOf("A.jpg"), DriveLogic.scanFiles("A", pdf = false, pages = 1))
+        assertEquals(listOf("A 1.jpg", "A 2.jpg"), DriveLogic.scanFiles("A", pdf = false, pages = 2))
+    }
+
+    @Test
+    fun `scan text - pages joined, blank ones left out`() {
+        assertEquals("eins\n\nzwei", DriveLogic.scanText(listOf(" eins ", null, "  ", "zwei")))
+        assertNull(DriveLogic.scanText(listOf(null, " ")))
+    }
 }

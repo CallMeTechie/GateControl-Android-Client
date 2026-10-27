@@ -24,6 +24,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Deferred
+import com.gatecontrol.android.drive.DriveScanner
 import java.io.File
 import javax.inject.Inject
 
@@ -130,6 +134,7 @@ class DriveFolderViewModel @Inject constructor(
     private val api: DriveApi,
     val transfers: DriveTransfers,
     val local: DriveLocal,
+    val scanner: DriveScanner,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -314,7 +319,8 @@ class DriveFolderViewModel @Inject constructor(
 
     // ─── move: a folder picker ──────────────────────────────────────
 
-    data class Picker(val node: DNode, val areas: List<DArea>, val folder: DriveLoad<DFolder>?)
+    /** Choosing a folder: to move [node] there, or (null) where a scan goes. */
+    data class Picker(val node: DNode?, val areas: List<DArea>, val folder: DriveLoad<DFolder>?)
 
     private val _picker = MutableStateFlow<Picker?>(null)
     val picker: StateFlow<Picker?> = _picker.asStateFlow()
@@ -343,10 +349,84 @@ class DriveFolderViewModel @Inject constructor(
 
     fun moveHere() {
         val p = _picker.value ?: return
-        val target = ((p.folder as? DriveLoad.Ready)?.value?.node?.id) ?: return
+        val folder = (p.folder as? DriveLoad.Ready)?.value ?: return
         _picker.value = null
-        move(p.node, target)
+        if (p.node == null) {
+            val area = p.areas.firstOrNull { it.id == folder.node.areaId }?.label
+            _scan.update { it?.copy(folderId = folder.node.id, folderLabel = label(folder, area)) }
+        } else {
+            move(p.node, folder.node.id)
+        }
     }
+
+    // ─── scanning ───────────────────────────────────────────────────
+
+    /**
+     * A scan waiting to be saved: its pages, their recognised text (null while that runs), PDF or pictures (the
+     * server's "Scans speichern als" until the person picks), and the folder it goes to (this one at first).
+     */
+    data class ScanDraft(
+        val scan: DriveScanner.Pages,
+        val texts: List<String?>? = null,
+        val pdf: Boolean = true,
+        val formatPicked: Boolean = false,
+        val folderId: Long,
+        val folderLabel: String,
+    )
+
+    private val _scan = MutableStateFlow<ScanDraft?>(null)
+    val scan: StateFlow<ScanDraft?> = _scan.asStateFlow()
+    private var recognizing: Deferred<List<String?>>? = null
+
+    /** The scanner is back with [pages]: the save sheet opens, the text is recognised meanwhile. */
+    fun scanned(pages: DriveScanner.Pages) {
+        val here = (_state.value as? DriveLoad.Ready)?.value ?: return
+        if (pages.pages.isEmpty()) return
+        _scan.value = ScanDraft(pages, folderId = here.node.id, folderLabel = label(here, _area.value?.label))
+        viewModelScope.launch {
+            val format = api.me().valueOrNull()?.scanFormat
+            _scan.update { d -> if (d != null && d.scan == pages && !d.formatPicked && format != null) d.copy(pdf = format != "image") else d }
+        }
+        val job = viewModelScope.async { scanner.recognize(pages.pages) }
+        recognizing = job
+        viewModelScope.launch {
+            val texts = job.await()
+            _scan.update { d -> if (d?.scan == pages) d.copy(texts = texts) else d }
+        }
+    }
+
+    fun setScanPdf(pdf: Boolean) = _scan.update { it?.copy(pdf = pdf, formatPicked = true) }
+
+    /** Another folder for the scan: the folder picker, starting here. */
+    fun pickScanFolder() {
+        val d = _scan.value ?: return
+        viewModelScope.launch {
+            val areas = api.areas().valueOrNull().orEmpty().filter { it.writable }
+            _picker.value = Picker(null, DriveLogic.sortAreas(areas), null)
+            browse(d.folderId)
+        }
+    }
+
+    fun closeScan() {
+        _scan.value = null
+    }
+
+    /** Saves the scan as [typedName] ([fallback] when empty), with its text (waits for it if still running). */
+    fun saveScan(typedName: String, fallback: String) {
+        val d = _scan.value ?: return
+        val job = recognizing
+        _scan.value = null
+        viewModelScope.launch {
+            val texts = d.texts ?: job?.await().orEmpty()
+            val ok = scanner.save(d.scan, texts, DriveLogic.scanBase(typedName, fallback), d.pdf, d.folderId)
+            if (!ok) _message.value = "scan_read"
+        }
+    }
+
+    /** "Familie › Dokumente › Ausweise": the area, then the folders down to [f]. */
+    private fun label(f: DFolder, area: String?): String =
+        (listOf(area ?: "…") + f.crumbs.drop(1).map { it.name } + listOfNotNull(f.node.name.takeIf { f.node.parentId != null && it.isNotEmpty() }))
+            .joinToString(" › ")
 }
 
 /** The trash of the areas the person writes to. */
