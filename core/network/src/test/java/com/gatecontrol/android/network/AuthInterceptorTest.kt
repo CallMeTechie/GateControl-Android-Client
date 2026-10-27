@@ -30,9 +30,11 @@ class AuthInterceptorTest {
         token: String = "test-token",
         version: String = "1.0.0",
         platform: String = "android",
+        storedServer: () -> String = { server.url("/").toString() },
     ): OkHttpClient {
         val interceptor = AuthInterceptor(
             tokenProvider = { token },
+            serverUrlProvider = storedServer,
             versionProvider = { version },
             platformProvider = { platform },
         )
@@ -97,5 +99,46 @@ class AuthInterceptorTest {
         assertNull(recorded.getHeader("X-API-Token"))
         assertEquals("1.0.0", recorded.getHeader("X-Client-Version"))
         assertEquals("android", recorded.getHeader("X-Client-Platform"))
+    }
+
+    @Test
+    fun `stored token is not sent to another server`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val other = MockWebServer().apply { start() }
+        try {
+            // Setting up a new server while the old one is still stored.
+            val httpClient = buildClient(token = "old-server-token", storedServer = { other.url("/").toString() })
+
+            httpClient.newCall(Request.Builder().url(server.url("/api/v1/client/enroll")).build()).execute().use { }
+
+            val recorded = server.takeRequest()
+            assertNull(recorded.getHeader("X-API-Token"))
+            assertEquals("android", recorded.getHeader("X-Client-Platform"))
+        } finally {
+            other.shutdown()
+        }
+    }
+
+    @Test
+    fun `stored token is not sent without a stored server`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+
+        val httpClient = buildClient(token = "orphan-token", storedServer = { "" })
+
+        httpClient.newCall(Request.Builder().url(server.url("/test")).build()).execute().use { }
+
+        assertNull(server.takeRequest().getHeader("X-API-Token"))
+    }
+
+    @Test
+    fun `stored server matches regardless of path and host case`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val stored = server.url("/").toString().replace(server.hostName, server.hostName.uppercase()) + "gatecontrol/"
+
+        val httpClient = buildClient(token = "stored-token", storedServer = { stored })
+
+        httpClient.newCall(Request.Builder().url(server.url("/api/v1/ping")).build()).execute().use { }
+
+        assertEquals("stored-token", server.takeRequest().getHeader("X-API-Token"))
     }
 }
