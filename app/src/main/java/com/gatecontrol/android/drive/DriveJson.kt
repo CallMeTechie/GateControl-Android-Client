@@ -153,8 +153,18 @@ internal object DriveJson {
 
     fun items(o: JsonObject): List<DNode>? = o.arr("items")?.mapNotNull { (it as? JsonObject)?.let(::node) }
 
-    /** `GET nodes/<id>/content` → the media id to download (the call also tells a child that a parent looked). */
-    fun contentMediaId(o: JsonObject): String? = mediaId(o.str("mediaId"))
+    /**
+     * `GET nodes/<id>/content` → the media id to download (the call also tells a child that a parent looked), or
+     * [EMPTY_CONTENT] for an empty file: Drive 1.5 keeps those without media (`empty: true`, `size: 0`).
+     */
+    fun contentMediaId(o: JsonObject): String? {
+        mediaId(o.str("mediaId"))?.let { return it }
+        val empty = o.get("empty")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean == true
+        return if (empty || o.long("size") == 0L) EMPTY_CONTENT else null
+    }
+
+    /** Stands for "no media, the file is empty" in [contentMediaId]; never a real media id. */
+    const val EMPTY_CONTENT = ""
 
     fun versions(o: JsonObject): DVersions? {
         val current = node(o.obj("current")) ?: return null

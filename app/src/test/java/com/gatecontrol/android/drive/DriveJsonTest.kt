@@ -13,6 +13,16 @@ class DriveJsonTest {
     private fun json(s: String): JsonObject = JsonParser.parseString(s).asJsonObject
 
     @Test
+    fun `content answer names the media, or empty for a file without media`() {
+        val id = "a".repeat(32)
+        assertEquals(id, DriveJson.contentMediaId(json("""{"url":"/plugin-media/x","mediaId":"$id","size":12}""")))
+        assertEquals(DriveJson.EMPTY_CONTENT, DriveJson.contentMediaId(json("""{"url":"data:text/plain;base64,","size":0,"mediaId":null,"empty":true}""")))
+        assertEquals(DriveJson.EMPTY_CONTENT, DriveJson.contentMediaId(json("""{"size":0,"mediaId":null}""")))
+        assertNull(DriveJson.contentMediaId(json("""{"size":12,"mediaId":null}""")))
+        assertNull(DriveJson.contentMediaId(json("""{"mediaId":"../etc"}""")))
+    }
+
+    @Test
     fun `me with licence, seat and areas`() {
         val me = DriveJson.me(
             json(

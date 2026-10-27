@@ -14,6 +14,7 @@ import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.BufferedSink
 import okio.source
 import retrofit2.Response
@@ -205,6 +206,8 @@ class DriveApi @Inject constructor(
         val path = if (versionId == null) "nodes/$nodeId/content" else "nodes/$nodeId/versions/$versionId/content"
         val media = get(path, parse = DriveJson::contentMediaId)
         if (media !is DResult.Ok) return media.notOk()
+        // An empty file has no media to fetch: hand back an empty body.
+        if (media.value == DriveJson.EMPTY_CONTENT) return DResult.Ok(Response.success(ByteArray(0).toResponseBody(null)))
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
         return try {
