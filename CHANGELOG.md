@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.15] - 2026-10-27
+
+### Changes
+- gespeicherten Token nur an den eigenen Server senden (#139)
+
+---
+
 ## [1.67.14] - 2026-10-27
 
 ### Changes
