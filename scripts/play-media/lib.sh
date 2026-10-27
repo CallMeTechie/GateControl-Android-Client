@@ -46,6 +46,8 @@ open_settings() {
   nav "Home"
   $UI tap "– profile" --contains --timeout 4 >/dev/null 2>&1 || $UI tap "Profile and settings" --optional --timeout 4
   sleep 1
+  # With the Messenger the avatar opens the status sheet first; its "Edit profile" leads on.
+  $UI tap "Edit profile" --optional --timeout 2; sleep 1
   $UI tap "Settings" --optional --timeout 6; sleep 1
 }
 # VPN state from the system: waits until it is up / down (max S seconds).

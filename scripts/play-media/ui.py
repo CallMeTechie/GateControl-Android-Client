@@ -5,6 +5,8 @@
   ui.py wait TEXT [--timeout S] [--contains]
   ui.py field INDEX [--timeout S]   (taps the INDEX-th text field, 0-based)
   ui.py fill INDEX TEXT [--secret]  (types TEXT into that field; checks it unless secret)
+  ui.py drag TEXT DY [--timeout S] [--contains]  (swipes DY px down from that node, e.g. to
+                                     expand a notification in the shade)
   ui.py dump
 
 Finds a node whose text or content-desc equals (or contains) TEXT and taps
@@ -118,6 +120,17 @@ def main(argv):
                 return 0
         print(f"ui.py: could not fill field {index}", file=sys.stderr)
         return 1
+    if cmd == "drag":
+        text, dy = argv[1], int(argv[2])
+        timeout = float(argv[argv.index("--timeout") + 1]) if "--timeout" in argv else 10.0
+        pos = wait_for(text, timeout, "--contains" in argv)
+        if pos is None:
+            print(f"ui.py: '{text}' not found", file=sys.stderr)
+            return 1
+        x, y = str(pos[0]), str(pos[1])
+        adb("shell", "input", "swipe", x, y, x, str(pos[1] + dy), "400")
+        time.sleep(0.8)
+        return 0
     if cmd == "field":
         index = int(argv[1])
         timeout = float(argv[argv.index("--timeout") + 1]) if "--timeout" in argv else 20.0

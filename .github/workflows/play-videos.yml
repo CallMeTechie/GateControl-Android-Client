@@ -1,13 +1,16 @@
 name: Play review videos
 
 # Records the videos Google Play asks for in "App-Inhalte" (VPN service,
-# background location, foreground service) plus store screenshots: a
-# throwaway GateControl server in Docker, the debug build on an emulator,
-# captions burned in with ffmpeg. Nothing is published — download the
-# artifact and upload the MP4s to YouTube as "unlisted".
+# background location, foreground services: notifications, live arrival
+# (location), photo backup (dataSync)) plus store screenshots: a throwaway
+# GateControl server in Docker, the debug build on an emulator, captions
+# burned in with ffmpeg. Nothing is published — download the artifact and
+# upload the MP4s to YouTube as "unlisted".
 #
 # The debug build used here trusts one extra CA (generated per run, only in
 # this job) so it can reach the test server over https://10.0.2.2:8443.
+# The paid plugins of the last two videos get a simulated licence inside that
+# throwaway container only (scripts/play-media/server.sh).
 on:
   workflow_dispatch:
   # Also when the recording itself changes, so a change is seen working.
@@ -28,7 +31,7 @@ jobs:
   record:
     name: Record review videos
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -80,6 +83,19 @@ jobs:
       - name: Start a throwaway GateControl server
         run: scripts/play-media/server.sh "$RUNNER_TEMP/media"
 
+      # Something to back up in the photo backup video: 40 camera-sized JPEGs
+      # (~7 MB each, so the progress notification can be seen).
+      - name: Test photos
+        continue-on-error: true
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg fonts-dejavu-core; }
+          P="$RUNNER_TEMP/photos"; mkdir -p "$P"
+          for i in $(seq 10 49); do
+            ffmpeg -loglevel error -y -f lavfi -i "gradients=s=4032x3024:n=5:seed=$i,noise=alls=2:allf=u" \
+              -frames:v 1 -pix_fmt yuvj420p -q:v 4 "$P/PXL_20261027_0915$i.jpg"
+          done
+          ls "$P" | wc -l; du -sh "$P"
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -94,7 +110,7 @@ jobs:
           target: google_apis
           profile: pixel_7
           disable-animations: true
-          script: scripts/play-media/record.sh "$RUNNER_TEMP/app.apk" "$RUNNER_TEMP/media/enroll-link.txt" "$RUNNER_TEMP/media"
+          script: scripts/play-media/record.sh "$RUNNER_TEMP/app.apk" "$RUNNER_TEMP/media/enroll-link.txt" "$RUNNER_TEMP/media" "$RUNNER_TEMP/photos"
 
       - name: Captions and final videos
         if: always()
@@ -114,7 +130,7 @@ jobs:
         run: |
           M="$RUNNER_TEMP/media"; P="$RUNNER_TEMP/publish"
           # A failed run must not replace good videos with nothing.
-          [ "$(ls "$M"/*.mp4 2>/dev/null | wc -l)" -eq 3 ] || { echo "::warning::not all three videos – play-review-media left as it is"; exit 0; }
+          [ "$(ls "$M"/*.mp4 2>/dev/null | wc -l)" -eq 5 ] || { echo "::warning::not all five videos – play-review-media left as it is"; exit 0; }
           mkdir -p "$P/screenshots" && cd "$P"
           cp "$M"/*.mp4 . 2>/dev/null || true
           cp "$M"/screenshots/*.png screenshots/ 2>/dev/null || true
