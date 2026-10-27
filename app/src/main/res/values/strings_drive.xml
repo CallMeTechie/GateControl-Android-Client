@@ -9,7 +9,6 @@
     <string name="drive_search_empty">Nothing found.</string>
     <string name="drive_search_min">Type at least 2 characters.</string>
     <string name="drive_trash">Trash</string>
-    <string name="drive_recent">Recent</string>
     <string name="drive_photo">PHOTO</string>
     <string name="drive_more">More</string>
     <string name="drive_retry">Try again</string>
@@ -53,8 +52,6 @@
     <string name="drive_rename">Rename</string>
     <string name="drive_move">Move</string>
     <string name="drive_versions">Older versions</string>
-    <string name="drive_delete">Move to trash</string>
-    <string name="drive_delete_confirm">Move “%1$s” to the trash?</string>
     <string name="drive_done_folder">Folder created</string>
     <string name="drive_done_rename">Renamed</string>
     <string name="drive_done_move">Moved</string>
@@ -109,7 +106,6 @@
     <string name="drive_trash_from">from %1$s</string>
     <string name="drive_trash_info">Deleted files stay here for %1$d days, then they are gone for good.</string>
     <string name="drive_open_none">No app on this device can open this file.</string>
-    <string name="drive_loading_file">Loading the file…</string>
     <string name="drive_folder_files">%1$s · %2$s</string>
     <string name="drive_files_root">GateControl Drive</string>
     <string name="drive_backup_title">Photo backup</string>
@@ -163,4 +159,24 @@
         <item quantity="other">%1$d new photos wait for Wi-Fi</item>
     </plurals>
     <string name="drive_menu">Open areas</string>
+    <string name="drive_view_grid">Show as tiles</string>
+    <string name="drive_view_list">Show as list</string>
+    <string name="drive_uploads_running">%1$d of %2$d uploaded</string>
+    <string name="drive_delete_menu">Delete</string>
+    <string name="drive_delete_title">Delete “%1$s”</string>
+    <string name="drive_delete_checking">Looking for copies on this device …</string>
+    <string name="drive_delete_nothing">You can only read this file, and this device has no copy of it.</string>
+    <string name="drive_delete_device">Only on this device</string>
+    <string name="drive_delete_device_desc">Removes the copy on this phone (e.g. the photo in the gallery). The file stays in Drive. Android asks once more.</string>
+    <string name="drive_delete_server">Only on the server</string>
+    <string name="drive_delete_server_desc">Moves it to Drive\'s trash.</string>
+    <string name="drive_delete_server_desc_local">Moves it to Drive\'s trash; the copy on this phone stays.</string>
+    <string name="drive_delete_everywhere">Everywhere</string>
+    <string name="drive_delete_everywhere_desc">Drive\'s trash, and your devices remove their copies as soon as they are online.</string>
+    <string name="drive_done_local">Deleted on this device</string>
+    <string name="drive_wipes_action">Delete here too</string>
+    <plurals name="drive_wipes_banner">
+        <item quantity="one">%1$d file was deleted everywhere on another device and is still in this phone\'s gallery.</item>
+        <item quantity="other">%1$d files were deleted everywhere on another device and are still in this phone\'s gallery.</item>
+    </plurals>
 </resources>

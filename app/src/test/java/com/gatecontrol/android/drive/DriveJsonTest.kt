@@ -74,6 +74,25 @@ class DriveJsonTest {
     }
 
     @Test
+    fun `wipes, their count in me and the sha256 of a node`() {
+        val sha = "a".repeat(64)
+        val w = DriveJson.wipes(json("""{"ok":true,"wipes":[
+            {"id":4,"wipeId":2,"nodeId":9,"name":"IMG_1.jpg","sha256":"${sha.uppercase()}","size":1200,"mime":"image/jpeg"},
+            {"id":5,"name":"x","sha256":"nothex","size":3},
+            {"name":"no id"}],"more":false}"""))!!
+        assertEquals(listOf(4L, 5L), w.map { it.id })
+        assertEquals(sha, w[0].sha256, "upper case is folded")
+        assertNull(w[1].sha256, "a hash of the wrong shape is dropped")
+        assertNull(w[1].nodeId)
+        assertEquals("""{"ids":[4,5]}""", DriveJson.wipesDoneBody(listOf(4L, 5L)).toString())
+        val node = DriveJson.node(json("""{"id":1,"areaId":"u:7","name":"a","sha256":"$sha"}"""))!!
+        assertEquals(sha, node.sha256)
+        val me = DriveJson.me(json("""{"me":{"id":1,"seat":"family"},"licence":{"valid":true},"wipes":3}"""))!!
+        assertEquals(3, me.wipes)
+        assertEquals(0, DriveJson.me(json("""{"me":{"id":1}}"""))!!.wipes, "older Drive: none")
+    }
+
+    @Test
     fun `upload check, commit and changes`() {
         val check = DriveJson.uploadCheck(json("""{"exists":true,"same":false,"node":{"id":9,"areaId":"u:7","name":"a.pdf"}}"""))!!
         assertTrue(check.exists)

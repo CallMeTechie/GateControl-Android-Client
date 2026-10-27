@@ -13,6 +13,7 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DVersions
 import com.gatecontrol.android.drive.DriveApi
+import com.gatecontrol.android.drive.DriveLocal
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,9 +54,22 @@ class DriveHomeViewModel @Inject constructor(
     @ApplicationContext context: Context,
     private val api: DriveApi,
     val transfers: DriveTransfers,
+    private val local: DriveLocal,
 ) : ViewModel() {
 
-    data class Home(val me: DMe, val areas: List<DArea>, val recent: List<DNode>)
+    data class Home(val me: DMe, val areas: List<DArea>)
+
+    /** Files deleted "everywhere" on another device that are still in this phone's gallery (the user confirms). */
+    private val _wipes = MutableStateFlow<DriveLocal.PendingWipes?>(null)
+    val wipes: StateFlow<DriveLocal.PendingWipes?> = _wipes.asStateFlow()
+
+    fun trashRequest(w: DriveLocal.PendingWipes) = local.trashRequest(w.gallery)
+
+    /** The system moved the gallery copies to the trash (or there was nothing to ask): done on this device. */
+    fun wipesDone(w: DriveLocal.PendingWipes) {
+        _wipes.value = null
+        viewModelScope.launch { local.wipesDone(w.ids) }
+    }
 
     private val _state = MutableStateFlow<DriveLoad<Home>>(DriveLoad.Loading)
     val state: StateFlow<DriveLoad<Home>> = _state.asStateFlow()
@@ -93,18 +107,16 @@ class DriveHomeViewModel @Inject constructor(
             }
             val m = me.value
             if (!m.licenceValid || m.seat == null) {
-                _state.value = DriveLoad.Ready(Home(m, emptyList(), emptyList()))
+                _state.value = DriveLoad.Ready(Home(m, emptyList()))
                 return@launch
             }
             // The storage of each area comes with GET areas; without it the list of GET me is enough.
             val areas = api.areas().valueOrNull() ?: m.areas
-            val recent = api.changes(maxOf(0L, m.latest - 300)).valueOrNull()?.let { DriveLogic.recent(it.changes) }.orEmpty()
-            _state.value = DriveLoad.Ready(Home(m, DriveLogic.sortAreas(areas), recent))
+            _state.value = DriveLoad.Ready(Home(m, DriveLogic.sortAreas(areas)))
+            // Deleted everywhere on another device: copies only in the cache go at once, gallery ones ask.
+            if (m.wipes > 0) _wipes.value = local.pendingWipes()
         }
     }
-
-    /** Opening a recent file: its file in the cache. */
-    suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
 
     private companion object {
         const val KEY_AREA = "area"
@@ -117,6 +129,7 @@ class DriveFolderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val api: DriveApi,
     val transfers: DriveTransfers,
+    val local: DriveLocal,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -195,7 +208,18 @@ class DriveFolderViewModel @Inject constructor(
 
     fun move(node: DNode, target: Long) = act("done_move") { api.move(node.id, target) }
 
-    fun delete(node: DNode) = act("done_trash") { api.delete(node.id) }
+    /** In Drive's trash; [everywhere]: the user's other devices remove their copies too, this phone's go at once. */
+    fun delete(node: DNode, everywhere: Boolean = false, copies: DriveLocal.Copies? = null) = act("done_trash") {
+        val r = api.delete(node.id, everywhere)
+        if (r is DResult.Ok && copies != null) local.dropCache(copies)
+        r
+    }
+
+    /** After the gallery copies went to the phone's trash (the system asked): only on this device. */
+    fun deletedLocally(copies: DriveLocal.Copies) {
+        local.dropCache(copies)
+        _message.value = "done_local"
+    }
 
     suspend fun fetch(node: DNode, versionId: Long? = null): DResult<File> = transfers.fetch(node, versionId)
 

@@ -23,6 +23,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import android.app.Activity
+import androidx.activity.result.IntentSenderRequest
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.gatecontrol.android.drive.DriveLocal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -117,6 +122,16 @@ internal fun DriveFolderContent(
     var newFolder by remember { mutableStateOf(false) }
     var sortOpen by remember { mutableStateOf(false) }
     var conflict by remember { mutableStateOf<DriveTransfers.Upload?>(null) }
+    var grid by remember { mutableStateOf(DriveViewPref.grid(context)) }
+    var uploadsOpen by remember { mutableStateOf(false) }
+    /** The node being deleted and what this phone has of it (null while it looks). */
+    var deleteCopies by remember { mutableStateOf<DriveLocal.Copies?>(null) }
+    var localDelete by remember { mutableStateOf<DriveLocal.Copies?>(null) }
+    val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val c = localDelete
+        localDelete = null
+        if (result.resultCode == Activity.RESULT_OK && c != null) viewModel.deletedLocally(c)
+    }
     var firstResume by remember { mutableStateOf(true) }
 
     LifecycleResumeEffect(Unit) {
@@ -148,8 +163,15 @@ internal fun DriveFolderContent(
         }
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         topBar(title) {
+            GcIconButton(
+                if (grid) GcIcons.ViewList else GcIcons.ViewGrid,
+                contentDescription = stringResource(if (grid) R.string.drive_view_list else R.string.drive_view_grid),
+                onClick = { grid = !grid; DriveViewPref.setGrid(context, grid) },
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
             Box {
                 GcIconButton(GcIcons.Sliders, contentDescription = stringResource(R.string.drive_sort), onClick = { sortOpen = true }, tint = MaterialTheme.colorScheme.onBackground)
                 DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }) {
@@ -171,7 +193,6 @@ internal fun DriveFolderContent(
             if (area?.via == "parent") {
                 GcBanner(tone = GcTone.Warn, icon = GcIcons.Eye) { Text(stringResource(R.string.drive_child_note), style = MaterialTheme.typography.bodyMedium) }
             }
-            UploadsCard(uploads.filter { it.folderId == viewModel.folderId }, onConflict = { conflict = it }, onClear = viewModel.transfers::clearFinished)
             header()
             when (val s = state) {
                 DriveLoad.Loading -> DriveLoading()
@@ -180,17 +201,21 @@ internal fun DriveFolderContent(
                     if (s.value.items.isEmpty()) {
                         Text(stringResource(R.string.drive_empty_folder), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(vertical = 24.dp, horizontal = 4.dp))
                     } else {
-                        GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                            s.value.items.forEachIndexed { i, n ->
-                                if (i > 0) GcRowDivider()
-                                NodeRow(
-                                    node = n,
-                                    onClick = { if (n.isDir) onFolder(n.id) else open(n, false) },
-                                    progress = downloading[n.id],
-                                    trailing = {
-                                        GcIconButton(GcIcons.MoreVertical, contentDescription = stringResource(R.string.drive_more), onClick = { menuFor = n }, size = 40.dp, iconSize = 20.dp)
-                                    },
-                                )
+                        val onItem: (DNode) -> Unit = { n -> if (n.isDir) onFolder(n.id) else open(n, false) }
+                        if (grid) {
+                            NodeGrid(s.value.items, onClick = onItem, onLongClick = { menuFor = it }, progress = { downloading[it.id] })
+                        } else {
+                            val haptic = LocalHapticFeedback.current
+                            GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                s.value.items.forEachIndexed { i, n ->
+                                    if (i > 0) GcRowDivider()
+                                    NodeRow(
+                                        node = n,
+                                        onClick = { onItem(n) },
+                                        progress = downloading[n.id],
+                                        onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuFor = n },
+                                    )
+                                }
                             }
                         }
                     }
@@ -205,6 +230,20 @@ internal fun DriveFolderContent(
                 GcOutlineButton(stringResource(R.string.drive_new_folder), onClick = { newFolder = true }, icon = GcIcons.FolderPlus, modifier = Modifier.weight(1f))
                 GcPrimaryButton(stringResource(R.string.drive_upload), onClick = { pick.launch(arrayOf("*/*")) }, icon = GcIcons.Upload, modifier = Modifier.weight(1f))
             }
+        }
+    }
+    UploadsFab(
+        uploads,
+        onOpen = { uploadsOpen = true },
+        onAllDone = viewModel.transfers::clearFinished,
+        modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding()
+            .padding(end = 16.dp, bottom = if (folder?.writable == true) 84.dp else 16.dp),
+    )
+    }
+
+    if (uploadsOpen && uploads.isNotEmpty()) {
+        ModalBottomSheet(onDismissRequest = { uploadsOpen = false }) {
+            UploadsSheet(uploads, onConflict = { uploadsOpen = false; conflict = it }, onClear = viewModel.transfers::clearFinished)
         }
     }
 
@@ -231,8 +270,9 @@ internal fun DriveFolderContent(
                 if (writable) {
                     item(GcIcons.Edit, R.string.drive_rename) { renaming = n }
                     item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n) }
-                    item(GcIcons.Trash, R.string.drive_delete) { deleting = n }
                 }
+                // Read only: a file can still go from this phone (its gallery copy), the sheet offers what applies.
+                if (writable || !n.isDir) item(GcIcons.Trash, R.string.drive_delete_menu) { deleting = n }
             }
         }
     }
@@ -256,12 +296,53 @@ internal fun DriveFolderContent(
         )
     }
     deleting?.let { n ->
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            text = { Text(stringResource(R.string.drive_delete_confirm, n.name)) },
-            confirmButton = { TextButton(onClick = { deleting = null; viewModel.delete(n) }) { Text(stringResource(R.string.drive_delete)) } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.drive_cancel)) } },
-        )
+        LaunchedEffect(n.id) { deleteCopies = null; deleteCopies = viewModel.local.copies(n) }
+        val copies = deleteCopies
+        val hasLocal = copies?.gallery?.isNotEmpty() == true
+        val writable = folder?.writable == true
+        val close = { deleting = null; deleteCopies = null }
+        ModalBottomSheet(onDismissRequest = close) {
+            Column(Modifier.padding(bottom = 24.dp)) {
+                Text(stringResource(R.string.drive_delete_title, n.name), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                if (copies != null && !hasLocal && !writable) {
+                    Text(stringResource(R.string.drive_delete_nothing), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                }
+                if (copies == null) {
+                    Text(stringResource(R.string.drive_delete_checking), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                }
+                val option: @Composable (ImageVector, Int, Int, () -> Unit) -> Unit = { icon, label, desc, action ->
+                    GcListRow(
+                        title = stringResource(label),
+                        description = stringResource(desc),
+                        onClick = { close(); action() },
+                        leading = { Icon(icon, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                    )
+                }
+                if (hasLocal) {
+                    option(GcIcons.Phone, R.string.drive_delete_device, R.string.drive_delete_device_desc) {
+                        val sender = viewModel.local.trashRequest(copies!!.gallery)
+                        if (sender != null) {
+                            localDelete = copies
+                            trashLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                        }
+                    }
+                }
+                if (writable) {
+                    option(GcIcons.Cloud, R.string.drive_delete_server, if (hasLocal) R.string.drive_delete_server_desc_local else R.string.drive_delete_server_desc) {
+                        viewModel.delete(n, everywhere = false, copies = copies)
+                    }
+                    option(GcIcons.Trash, R.string.drive_delete_everywhere, R.string.drive_delete_everywhere_desc) {
+                        viewModel.delete(n, everywhere = true, copies = copies)
+                        // This phone's gallery copy goes now (Android asks); the other devices follow when online.
+                        val sender = copies?.gallery?.takeIf { it.isNotEmpty() }?.let { viewModel.local.trashRequest(it) }
+                        if (sender != null) {
+                            localDelete = copies
+                            trashLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                        }
+                    }
+                }
+            }
+        }
     }
     conflict?.let { u -> ConflictDialog(u, onChoice = { viewModel.transfers.resolve(u.id, it); conflict = null }, onDismiss = { conflict = null }) }
 
