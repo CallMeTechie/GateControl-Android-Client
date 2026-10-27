@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.14] - 2026-10-27
+
+### Changes
+- In Drive speichern in Chat, Schule und GateDrop (#138)
+
+---
+
 ## [1.67.13] - 2026-10-27
 
 ### Changes
