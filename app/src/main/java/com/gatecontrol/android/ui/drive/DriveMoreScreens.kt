@@ -123,7 +123,8 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                             if (i > 0) GcRowDivider()
                             NodeRow(
                                 node = n,
-                                description = nodeLine(n, n.path?.substringBeforeLast('/', "")?.takeIf { it.isNotEmpty() }),
+                                // a hit in a scan's recognised text shows the words around it
+                                description = n.snippet?.let { "„$it“" } ?: nodeLine(n, n.path?.substringBeforeLast('/', "")?.takeIf { it.isNotEmpty() }),
                                 onClick = {
                                     if (n.isDir) {
                                         onFolder(n.id)

@@ -180,4 +180,45 @@
         <item quantity="other">%1$d files were deleted everywhere on another device and are still in this phone\'s gallery.</item>
     </plurals>
     <string name="drive_add">New</string>
+    <!-- Scan (A4) -->
+    <string name="drive_scan">Scan</string>
+    <string name="drive_scan_desc">Capture a document with the camera</string>
+    <string name="drive_scan_unavailable">The document scanner is not available on this device (Google Play services missing or too old).</string>
+    <string name="drive_scan_close">Close</string>
+    <string name="drive_scan_title">Save scan</string>
+    <plurals name="drive_scan_pages">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+    <string name="drive_scan_name">Name</string>
+    <string name="drive_scan_folder">Folder</string>
+    <string name="drive_scan_format">Format</string>
+    <string name="drive_scan_format_image">Picture</string>
+    <string name="drive_scan_text">Text searchable</string>
+    <string name="drive_scan_text_running">recognising …</string>
+    <string name="drive_scan_text_yes">yes, recognised</string>
+    <string name="drive_scan_text_no">no text recognised</string>
+    <string name="drive_scan_note">Text recognition always runs on the phone. With the recognised text, Drive\'s search finds the scan.</string>
+    <string name="drive_scan_again">Scan again</string>
+    <string name="drive_scan_save">Save to Drive</string>
+    <string name="drive_scan_folder_title">Save in</string>
+    <string name="drive_scan_folder_here">Save here</string>
+    <string name="drive_scan_read_failed">The scan could not be read. Please scan again.</string>
+    <!-- Save to Drive (share target) -->
+    <string name="drive_share_target_label">Save to Drive</string>
+    <string name="drive_share_title">Save to Drive</string>
+    <string name="drive_share_unavailable">Drive is not available on this server.</string>
+    <string name="drive_share_nothing">There is nothing to save here.</string>
+    <string name="drive_share_file">File</string>
+    <string name="drive_share_save">Save</string>
+    <string name="drive_share_read_failed">The file could not be read.</string>
+    <plurals name="drive_share_more">
+        <item quantity="one">and %d more file</item>
+        <item quantity="other">and %d more files</item>
+    </plurals>
+    <plurals name="drive_share_queued">
+        <item quantity="one">%d file is being saved to Drive</item>
+        <item quantity="other">%d files are being saved to Drive</item>
+    </plurals>
+    <string name="drive_share_note_name">Note %1$s</string>
 </resources>

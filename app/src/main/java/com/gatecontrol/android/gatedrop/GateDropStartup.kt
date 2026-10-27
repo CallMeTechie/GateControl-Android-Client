@@ -30,8 +30,8 @@ import javax.inject.Singleton
 
 /**
  * GateDrop's background duties, started with the app:
- * * the share target "Teilen → GateControl" is on while the server offers
- *   the chats or GateDrop;
+ * * the share targets: "Teilen → GateControl" is on while the server offers
+ *   the chats or GateDrop, "In Drive speichern" while it offers Drive;
  * * presence: this device's LAN addresses go to the plugin on every
  *   network change and every ~5 minutes while the app is in the
  *   foreground (`listening` false: Android only listens while a transfer
@@ -63,6 +63,12 @@ class GateDropStartup @Inject constructor(
         scope.launch {
             pluginDirectory.state.map { it.messengerTab || it.gatedrop }.distinctUntilChanged().collect { on ->
                 ChatShareActivity.setEnabled(context, on)
+            }
+        }
+        // "In Drive speichern" in the share sheet: on while the server offers Drive.
+        scope.launch {
+            pluginDirectory.state.map { it.drive }.distinctUntilChanged().collect { on ->
+                com.gatecontrol.android.ui.drive.DriveShareActivity.setEnabled(context, on)
             }
         }
         scope.launch {

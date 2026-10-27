@@ -199,6 +199,9 @@ dependencies {
 
     // ML Kit
     implementation(libs.mlkit.barcode)
+    // Drive: "Scannen" (Google's document scanner and text recognition, both through Play services: no models in the APK)
+    implementation(libs.mlkit.document.scanner)
+    implementation(libs.mlkit.text.recognition)
 
     // Vault: end-to-end encryption (README "Kryptoformat" of gatecontrol-vault) and the recovery key's QR
     implementation(libs.bouncycastle.prov)

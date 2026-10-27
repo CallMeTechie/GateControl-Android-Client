@@ -110,6 +110,25 @@ internal object DriveLogic {
     }
 
     /** Where a picked file goes when the name is taken: a new version when it is the same file kind, else a free name. */
+    /**
+     * The name a scan is saved under, without extension: what the person typed (a `.pdf`/`.jpg` of their own taken
+     * off, forbidden characters replaced), or [fallback] when nothing is left.
+     */
+    fun scanBase(typed: String, fallback: String): String =
+        safeName(typed.trim().replace(SCAN_EXT, ""))?.take(200)?.trimEnd('.', ' ')?.ifEmpty { null } ?: fallback
+
+    /** The files of a scan: one PDF, or one picture per page ("Name.jpg"; several pages: "Name 1.jpg", "Name 2.jpg" …). */
+    fun scanFiles(base: String, pdf: Boolean, pages: Int): List<String> = when {
+        pdf -> listOf("$base.pdf")
+        pages <= 1 -> listOf("$base.jpg")
+        else -> (1..pages).map { "$base $it.jpg" }
+    }
+
+    /** The text of a whole scan for the server: the pages' texts, blank ones left out; null when there is none. */
+    fun scanText(pages: List<String?>): String? = pages.mapNotNull { it?.trim()?.ifEmpty { null } }.joinToString("\n\n").ifEmpty { null }
+
+    private val SCAN_EXT = Regex("\\.(pdf|jpe?g)$", RegexOption.IGNORE_CASE)
+
     const val ON_CONFLICT_RENAME = "rename"
     const val ON_CONFLICT_VERSION = "version"
 }

@@ -70,6 +70,8 @@ class DriveTransfers @Inject constructor(
         var sha: String? = null,
         val onExists: String? = null,
         val onDone: ((DNode?) -> Unit)? = null,
+        /** Recognised text of a scan, sent with the commit (searchable). */
+        val text: String? = null,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
@@ -109,16 +111,17 @@ class DriveTransfers @Inject constructor(
     }
 
     /**
-     * A [file] written through the Files app (it is taken over and deleted afterwards): goes up as [name] into
-     * [folderId]. The same content is skipped; a taken name becomes [onExists] (`version` | `rename`) without asking.
+     * A [file] written here (through the Files app, a scan, a share; it is taken over and deleted afterwards): goes up
+     * as [name] into [folderId], with a scan's recognised [text]. The same content is skipped; a taken name becomes
+     * [onExists] (`version` | `rename`) without asking.
      */
-    fun uploadWritten(file: File, name: String, mime: String?, folderId: Long, onExists: String, onDone: (DNode?) -> Unit = {}) {
+    fun uploadWritten(file: File, name: String, mime: String?, folderId: Long, onExists: String, text: String? = null, onDone: (DNode?) -> Unit = {}) {
         scope.launch {
             val sha = runCatching { sha256(file) }.getOrNull()
             mutex.withLock {
                 val id = ids.incrementAndGet()
                 queue.addLast(
-                    Job(id, null, folderId, file = file, name = name, mime = mime, mtime = System.currentTimeMillis(), sha = sha, onExists = onExists, onDone = onDone),
+                    Job(id, null, folderId, file = file, name = name, mime = mime, mtime = System.currentTimeMillis(), sha = sha, onExists = onExists, onDone = onDone, text = text),
                 )
                 _uploads.update { it + Upload(id, name, folderId, file.length()) }
             }
@@ -209,7 +212,7 @@ class DriveTransfers @Inject constructor(
         // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
         job.uri?.let { previews.uploadOwn(media.value, it, job.mime) }
         val onConflict = choice ?: DriveLogic.ON_CONFLICT_RENAME
-        when (val r = api.commit(media.value, job.folderId, job.name, job.mtime, onConflict)) {
+        when (val r = api.commit(media.value, job.folderId, job.name, job.mtime, onConflict, job.text)) {
             is DResult.Ok -> {
                 job.uri?.let { local.remember(r.value.first.id, sha, it) }
                 file.delete()

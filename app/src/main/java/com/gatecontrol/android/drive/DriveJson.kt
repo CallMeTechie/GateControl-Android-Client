@@ -12,6 +12,8 @@ import com.google.gson.JsonObject
 internal object DriveJson {
 
     private val SHA256 = Regex("^[0-9a-f]{64}$")
+    /** The server keeps at most this much recognised text of a file. */
+    const val TEXT_MAX = 100_000
     private val MEDIA_ID = Regex("^[A-Za-z0-9_-]{6,100}$")
     private val AREA_ID = Regex("^[A-Za-z0-9:_-]{1,80}$")
     private val TOKEN = Regex("^[A-Za-z0-9_-]{6,200}$")
@@ -45,6 +47,7 @@ internal object DriveJson {
                 id to (po.str("name")?.take(200) ?: return@mapNotNull null)
             }?.toMap().orEmpty(),
             wipes = o.int("wipes")?.coerceAtLeast(0) ?: 0,
+            scanFormat = if (o.obj("settings")?.str("scanFormat") == "image") "image" else "pdf",
         )
     }
 
@@ -105,6 +108,7 @@ internal object DriveJson {
             deletedAt = o.str("deletedAt")?.take(40),
             preview = o.obj("preview") != null,
             sha256 = sha256(o.str("sha256")),
+            snippet = o.str("snippet")?.takeIf { o.str("match") == "text" }?.take(300),
         )
     }
 
@@ -255,12 +259,14 @@ internal object DriveJson {
         if (size != null) addProperty("size", size)
     }
 
-    fun commitBody(mediaId: String, parentId: Long, name: String, mtimeMs: Long?, onConflict: String) = JsonObject().apply {
+    fun commitBody(mediaId: String, parentId: Long, name: String, mtimeMs: Long?, onConflict: String, text: String? = null) = JsonObject().apply {
         addProperty("mediaId", mediaId)
         addProperty("parentId", parentId)
         addProperty("name", name)
         if (mtimeMs != null && mtimeMs > 0) addProperty("mtime", mtimeMs)
         addProperty("onConflict", onConflict)
+        // The recognised text of a scan (Drive 1.3+ makes it searchable; older ones ignore it).
+        if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
     }
 
     fun linkBody(nodeId: Long, mode: String, expires: String, pin: String?) = JsonObject().apply {

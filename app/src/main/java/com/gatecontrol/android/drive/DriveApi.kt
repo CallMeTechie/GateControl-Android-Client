@@ -194,8 +194,8 @@ class DriveApi @Inject constructor(
         post("uploads/check", DriveJson.checkBody(parentId, name, sha256, size), DriveJson::uploadCheck)
 
     /** Makes the uploaded [mediaId] a file `name` in folder [parentId]; [onConflict] `rename` | `version`. */
-    suspend fun commit(mediaId: String, parentId: Long, name: String, mtimeMs: Long?, onConflict: String): DResult<Pair<DNode, Boolean>> =
-        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict), DriveJson::commit)
+    suspend fun commit(mediaId: String, parentId: Long, name: String, mtimeMs: Long?, onConflict: String, text: String? = null): DResult<Pair<DNode, Boolean>> =
+        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text), DriveJson::commit)
 
     /**
      * The file [nodeId] (or one of its [versionId]s) as a stream. `GET …/content` comes first: it names the media and
