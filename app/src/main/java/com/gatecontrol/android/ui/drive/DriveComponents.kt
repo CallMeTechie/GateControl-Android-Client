@@ -7,6 +7,21 @@ import android.net.Uri
 import android.text.format.DateUtils
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
+import com.gatecontrol.android.drive.DrivePreviews
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,11 +88,48 @@ internal fun kindLook(kind: DriveLogic.Kind): KindLook {
     }
 }
 
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface DrivePreviewsEntryPoint {
+    fun drivePreviews(): DrivePreviews
+}
+
+/** The server's preview picture of [node] ([DrivePreviews]); null for none, while loading and offline. */
+@Composable
+internal fun rememberDrivePreview(node: DNode, large: Boolean = false): ImageBitmap? {
+    if (!node.preview || node.isDir || node.mediaId == null || LocalInspectionMode.current) return null
+    val context = LocalContext.current.applicationContext
+    val previews = remember(context) {
+        runCatching { EntryPointAccessors.fromApplication(context, DrivePreviewsEntryPoint::class.java).drivePreviews() }.getOrNull()
+    } ?: return null
+    val bitmap by produceState(previews.peek(node, large)?.asImageBitmap(), node.mediaId, large) {
+        if (value == null) value = previews.load(node, large)?.asImageBitmap()
+    }
+    return bitmap
+}
+
 @Composable
 internal fun NodeIcon(node: DNode, size: Int = 44) {
     val look = kindLook(DriveLogic.kind(node))
+    val picture = rememberDrivePreview(node)
     GcIconSquare(size = size.dp, background = look.bg) {
-        Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size((size / 2).dp))
+        if (picture != null) {
+            Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size.dp))
+            if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(size / 3)
+        } else {
+            Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size((size / 2).dp))
+        }
+    }
+}
+
+/** A small play mark on the picture of a video. */
+@Composable
+private fun VideoMark(size: Int) {
+    Box(
+        Modifier.size(size.coerceAtLeast(16).dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(GcIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size((size.coerceAtLeast(16) * 0.6f).dp))
     }
 }
 
@@ -274,10 +326,16 @@ internal fun RecentTile(node: DNode, onClick: () -> Unit, modifier: Modifier = M
             .background(MaterialTheme.colorScheme.surface)
             .clickable(role = Role.Button, onClick = onClick),
     ) {
+        val picture = rememberDrivePreview(node)
         Box(Modifier.fillMaxWidth().height(76.dp).background(look.bg), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size(22.dp))
-                Text(DriveLogic.badge(node, stringResource(R.string.drive_photo)), style = MaterialTheme.typography.labelSmall, color = look.fg)
+            if (picture != null) {
+                Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(28)
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size(22.dp))
+                    Text(DriveLogic.badge(node, stringResource(R.string.drive_photo)), style = MaterialTheme.typography.labelSmall, color = look.fg)
+                }
             }
         }
         Text(

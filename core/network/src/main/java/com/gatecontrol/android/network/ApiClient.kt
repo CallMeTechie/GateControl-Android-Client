@@ -233,6 +233,26 @@ interface ApiClient {
         @Header("Range") range: String? = null,
     ): Response<ResponseBody>
 
+    /**
+     * The preview of a plugin file (plugin.json `media.previews`, core 1.208+): `image/jpeg`, [size] `small`
+     * (≤ 320 px, default) or `large` (≤ 1280 px), same access as the file; 404 none, 503 `preview_pending`.
+     */
+    @Streaming
+    @GET("api/v1/client/plugins/{id}/media/{mediaId}/preview")
+    suspend fun pluginMediaPreview(
+        @Path("id") plugin: String,
+        @Path("mediaId") mediaId: String,
+        @Query("size") size: String? = null,
+    ): Response<ResponseBody>
+
+    /** The uploader's own preview of a file the server cannot read (HEIC, video): raw `image/jpeg`, ≤ 512 KB. */
+    @PUT("api/v1/client/plugins/{id}/media/{mediaId}/preview")
+    suspend fun pluginMediaPreviewPut(
+        @Path("id") plugin: String,
+        @Path("mediaId") mediaId: String,
+        @Body image: RequestBody,
+    ): Response<JsonObject>
+
     // ─── Own profile: picture and favourite colour (core 1.168+, 404 before) ──
     // Raw JSON: the app parses it (ProfileJson). Tokens without a user → 403 NO_USER.
 

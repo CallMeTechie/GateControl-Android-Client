@@ -40,6 +40,7 @@ import javax.inject.Singleton
 class DriveTransfers @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: DriveApi,
+    private val previews: DrivePreviews,
 ) {
     enum class State { QUEUED, RUNNING, CONFLICT, DONE, SAME, SKIPPED, FAILED }
 
@@ -200,6 +201,8 @@ class DriveTransfers @Inject constructor(
         // 3. upload and commit
         val media = api.upload(file, job.mime) { sent -> set(job.id) { it.copy(sent = sent) } }
         if (media !is DResult.Ok) return fail(job, (media as? DResult.Failed)?.code ?: "offline")
+        // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
+        job.uri?.let { previews.uploadOwn(media.value, it, job.mime) }
         val onConflict = choice ?: DriveLogic.ON_CONFLICT_RENAME
         when (val r = api.commit(media.value, job.folderId, job.name, job.mtime, onConflict)) {
             is DResult.Ok -> {

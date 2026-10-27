@@ -13,6 +13,7 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DrivePreviews
 import com.gatecontrol.android.drive.DriveSource
 import com.gatecontrol.android.familie.PluginDirectory
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -43,6 +44,7 @@ class DriveBackup @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: DriveApi,
     private val setup: SetupRepository,
+    private val previews: DrivePreviews,
 ) {
     /** The run in progress: [done] of [total] photos, [current] the one going up. */
     data class Status(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val current: String? = null)
@@ -271,6 +273,8 @@ class DriveBackup @Inject constructor(
         }
         val media = api.upload(DriveSource.of(context, item.uri, length), item.mime)
         if (media !is DResult.Ok) return code(media)
+        // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
+        previews.uploadOwn(media.value, item.uri, item.mime)
         return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME)) {
             is DResult.Ok -> null
             else -> code(r)

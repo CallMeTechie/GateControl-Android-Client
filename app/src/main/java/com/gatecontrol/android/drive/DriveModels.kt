@@ -82,6 +82,8 @@ data class DNode(
     val from: String? = null,
     val files: Int? = null,
     val deletedAt: String? = null,
+    /** The server has (or makes) a preview picture of the file (Drive 1.1 on core 1.208+). */
+    val preview: Boolean = false,
 )
 
 data class DCrumb(val id: Long, val name: String)

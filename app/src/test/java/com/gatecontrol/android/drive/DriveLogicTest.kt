@@ -18,6 +18,18 @@ class DriveLogicTest {
     private fun change(seq: Long, op: String, n: DNode?, id: Long? = n?.id) = DChange(seq, op, "u:1", id, null, n)
 
     @Test
+    fun `own previews only for what the server cannot read`() {
+        assertTrue(DriveLogic.needsOwnPreview("image/heic"))
+        assertTrue(DriveLogic.needsOwnPreview("IMAGE/HEIF"))
+        assertTrue(DriveLogic.needsOwnPreview("video/mp4"))
+        assertTrue(DriveLogic.needsOwnPreview("video/quicktime; codecs=x"))
+        assertFalse(DriveLogic.needsOwnPreview("image/jpeg"))
+        assertFalse(DriveLogic.needsOwnPreview("image/avif"))
+        assertFalse(DriveLogic.needsOwnPreview("application/pdf"))
+        assertFalse(DriveLogic.needsOwnPreview(null))
+    }
+
+    @Test
     fun `names Drive refuses are made safe`() {
         assertEquals("a_b_c", DriveLogic.safeName("a/b\\c"))
         assertEquals("Bericht_ Q1_", DriveLogic.safeName("Bericht: Q1?"))
