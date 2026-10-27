@@ -90,7 +90,8 @@ rec_stop
 
 rec_start vpn 06 "The user disconnects at any time. No ads, no tracking, no data collection, nothing goes to third parties."
 nav "Home"; sleep 1
-tap "Disconnect"; sleep 3
+# The connected chip reads "Protected"; "Disconnect" is only its click label.
+$UI tap "Disconnect" --timeout 3 >/dev/null 2>&1 || tap "Protected"; sleep 3
 rec_stop
 
 # ── Video 2: background location (trusted Wi-Fi) ────────────────────
@@ -279,6 +280,7 @@ datasync_video() {
   # A slower link (about LTE upload) so the progress can be seen; undone below.
   adb emu network speed 40000:100000 >/dev/null 2>&1
 
+  app_restart                                       # out of the chat of the arrival video
   rec_start datasync 01 "Photo backup (optional, Drive plugin): the user's photos go to their own GateControl server, not to a cloud."
   nav "Settings"
   tap "Photo backup" --scroll || return 1
