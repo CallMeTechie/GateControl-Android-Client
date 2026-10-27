@@ -457,13 +457,7 @@ private fun SchoolDriveRow(m: SchoolMessage, actions: SchoolMessageActions) {
     val saving = actions.driveSaving == m.id
     LaunchedEffect(actions.driveNotices) {
         actions.driveNotices.collect { n ->
-            val text = when {
-                n.code != null && n.saved == 0 -> schoolDriveErrorText(context, n.code)
-                n.code != null -> context.getString(R.string.school_drive_partly, n.saved, schoolDriveErrorText(context, n.code))
-                n.saved == 1 && n.where != null -> context.getString(R.string.chat_drive_done, n.where)
-                else -> context.resources.getQuantityString(R.plurals.school_drive_done, n.saved, n.saved)
-            }
-            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+            Toast.makeText(context, schoolDriveNoticeText(context, n), Toast.LENGTH_LONG).show()
         }
     }
     GcListRow(
@@ -484,6 +478,13 @@ private fun SchoolDriveRow(m: SchoolMessage, actions: SchoolMessageActions) {
 }
 
 /** A Drive refusal in words (Drive's codes, passed on by the Schule plugin). */
+private fun schoolDriveNoticeText(context: android.content.Context, n: SchoolViewModel.DriveNotice): String = when {
+    n.code != null && n.saved == 0 -> schoolDriveErrorText(context, n.code)
+    n.code != null -> context.getString(R.string.school_drive_partly, n.saved, schoolDriveErrorText(context, n.code))
+    n.saved == 1 && n.where != null -> context.getString(R.string.chat_drive_done, n.where)
+    else -> context.resources.getQuantityString(R.plurals.school_drive_done, n.saved, n.saved)
+}
+
 private fun schoolDriveErrorText(context: android.content.Context, code: String): String = context.getString(
     when (code.lowercase()) {
         "no_seat" -> R.string.chat_err_drive_no_seat
