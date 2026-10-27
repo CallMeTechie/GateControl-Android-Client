@@ -36,6 +36,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -261,9 +265,26 @@ internal fun DriveFolderContent(
 
     menuFor?.let { n ->
         val writable = folder?.writable == true
-        ModalBottomSheet(onDismissRequest = { menuFor = null }) {
+        // Fully open at once: nothing of the menu hides below the edge.
+        ModalBottomSheet(onDismissRequest = { menuFor = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.padding(bottom = 24.dp)) {
-                Text(n.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                Text(n.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                // The everyday actions as one row of icons on top (like the Windows 11 context menu), the rest below.
+                val quick = buildList<Triple<ImageVector, Int, () -> Unit>> {
+                    if (!n.isDir) add(Triple(GcIcons.Share, R.string.drive_send) { open(n, true) })
+                    if (writable) add(Triple(GcIcons.Link, R.string.drive_share_link) { viewModel.openLinks(n) })
+                    if (writable) add(Triple(GcIcons.Edit, R.string.drive_rename) { renaming = n })
+                    // Read only: a file can still go from this phone (its own copy), the sheet offers what applies.
+                    if (writable || !n.isDir) add(Triple(GcIcons.Trash, R.string.drive_delete_menu) { deleting = n })
+                }
+                if (quick.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                        quick.forEach { (icon, label, action) ->
+                            QuickAction(icon, stringResource(label), onClick = { menuFor = null; action() }, modifier = Modifier.weight(1f))
+                        }
+                    }
+                    GcRowDivider(Modifier.padding(vertical = 4.dp))
+                }
                 val item: @Composable (ImageVector, Int, () -> Unit) -> Unit = { icon, label, action ->
                     GcListRow(
                         title = stringResource(label),
@@ -271,18 +292,9 @@ internal fun DriveFolderContent(
                         leading = { Icon(icon, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                     )
                 }
-                if (!n.isDir) {
-                    item(GcIcons.External, R.string.drive_open) { open(n, false) }
-                    item(GcIcons.Share, R.string.drive_send) { open(n, true) }
-                }
-                if (writable) item(GcIcons.Link, R.string.drive_share_link) { viewModel.openLinks(n) }
+                if (!n.isDir) item(GcIcons.External, R.string.drive_open) { open(n, false) }
+                if (writable) item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n) }
                 if (!n.isDir) item(GcIcons.History, R.string.drive_versions) { viewModel.openVersions(n) }
-                if (writable) {
-                    item(GcIcons.Edit, R.string.drive_rename) { renaming = n }
-                    item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n) }
-                }
-                // Read only: a file can still go from this phone (its gallery copy), the sheet offers what applies.
-                if (writable || !n.isDir) item(GcIcons.Trash, R.string.drive_delete_menu) { deleting = n }
             }
         }
     }
@@ -311,7 +323,7 @@ internal fun DriveFolderContent(
         val hasLocal = copies?.any == true
         val writable = folder?.writable == true
         val close = { deleting = null; deleteCopies = null }
-        ModalBottomSheet(onDismissRequest = close) {
+        ModalBottomSheet(onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.padding(bottom = 24.dp)) {
                 Text(stringResource(R.string.drive_delete_title, n.name), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 if (copies != null && !hasLocal && !writable) {
@@ -381,6 +393,27 @@ internal fun DriveFolderContent(
         }
     }
     picker?.let { p -> MovePicker(p, onBrowse = viewModel::browse, onMove = viewModel::moveHere, onDismiss = viewModel::closePicker) }
+}
+
+/** One action in the icon row on top of the long-press menu: icon over a short label. */
+@Composable
+private fun QuickAction(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
 }
 
 /** Area › Folder › Folder: tap to go up. */
