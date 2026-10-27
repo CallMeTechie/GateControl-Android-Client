@@ -24,6 +24,7 @@ object NetworkModule {
         @ApplicationContext context: Context
     ): AuthInterceptor = AuthInterceptor(
         tokenProvider = { setupRepository.getApiToken() },
+        serverUrlProvider = { setupRepository.getServerUrl() },
         versionProvider = {
             try {
                 context.packageManager

@@ -36,7 +36,7 @@ class MachineFingerprintRequestTest {
             every { applicationInfo } returns mockk<ApplicationInfo>(relaxed = true)
         }
         val machineFingerprint = mockk<MachineFingerprint> { every { get() } returns fingerprint }
-        val auth = AuthInterceptor({ "gc_token" }, { "1.0.0" }, { "android" })
+        val auth = AuthInterceptor({ "gc_token" }, { server.url("/").toString() }, { "1.0.0" }, { "android" })
         provider = ApiClientProvider(auth, context, machineFingerprint, monitor)
     }
 
