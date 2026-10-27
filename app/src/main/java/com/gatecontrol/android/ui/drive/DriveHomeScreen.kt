@@ -1,11 +1,13 @@
 package com.gatecontrol.android.ui.drive
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,11 +16,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,10 +41,9 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
+import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
-import com.gatecontrol.android.ui.components.GcCard
-import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
@@ -53,94 +59,141 @@ data class DriveNav(
     val folder: (Long) -> Unit,
     val search: () -> Unit,
     val trash: () -> Unit,
-    val backup: () -> Unit,
 )
 
-/** The Drive tab (mockup "Android – Drive"): the areas, the uploads of this session, the newest files. */
+/**
+ * The Drive tab: the chosen area's files ("Zuletzt" above them), the areas and the trash in the menu top left. The
+ * photo backup is in the settings.
+ */
 @Composable
 fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val uploads by viewModel.transfers.uploads.collectAsStateWithLifecycle()
-    val backupConfig by viewModel.backup.config.collectAsStateWithLifecycle()
-    val backupStats by viewModel.backup.stats.collectAsStateWithLifecycle()
-    val backupStatus by viewModel.backup.status.collectAsStateWithLifecycle()
+    val selected by viewModel.selected.collectAsStateWithLifecycle()
+    val folderViewModel: DriveFolderViewModel = hiltViewModel(key = "drive-tab")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var conflict by remember { mutableStateOf<DriveTransfers.Upload?>(null) }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
     var firstResume by remember { mutableStateOf(true) }
     LifecycleResumeEffect(Unit) {
         if (!firstResume) viewModel.refresh(quiet = true)
         firstResume = false
         onPauseOrDispose { }
     }
+    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
 
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            GcScreenTitle(stringResource(R.string.drive_title), modifier = Modifier.weight(1f))
-            GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.drive_search), onClick = nav.search, tint = MaterialTheme.colorScheme.onBackground)
-            GcIconButton(GcIcons.Trash, contentDescription = stringResource(R.string.drive_trash), onClick = nav.trash, tint = MaterialTheme.colorScheme.onBackground)
-        }
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            UploadsCard(uploads, onConflict = { conflict = it }, onClear = viewModel.transfers::clearFinished)
-            when (val s = state) {
-                DriveLoad.Loading -> DriveLoading()
-                is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })
-                is DriveLoad.Ready -> {
-                    val home = s.value
-                    when {
-                        !home.me.licenceValid -> DriveErrorBox("not_licensed", null)
-                        home.me.seat == null -> DriveErrorBox("no_seat", null)
-                        home.areas.isEmpty() -> Text(stringResource(R.string.drive_no_areas), color = GateControlTheme.extraColors.muted)
-                        else -> {
-                            BackupCard(backupConfig, backupStats, backupStatus, onClick = nav.backup)
-                            AreasCard(home.areas, onOpen = { nav.folder(it.rootId) })
-                            if (home.recent.isNotEmpty()) {
-                                GcSectionLabel(stringResource(R.string.drive_recent), modifier = Modifier.padding(top = 4.dp, start = 4.dp))
-                                home.recent.chunked(3).forEach { row ->
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        row.forEach { n ->
-                                            RecentTile(n, modifier = Modifier.weight(1f), onClick = {
-                                                Toast.makeText(context, R.string.drive_loading_file, Toast.LENGTH_SHORT).show()
-                                                scope.launch {
-                                                    fetchThen(context, n, viewModel::fetch, then = { f -> openFile(context, n, f) }) { code ->
-                                                        Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
-                                                    }
-                                                }
-                                            })
-                                        }
-                                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                                    }
-                                }
+    val home = (state as? DriveLoad.Ready)?.value
+    val usable = home != null && home.me.licenceValid && home.me.seat != null && home.areas.isNotEmpty()
+    val current = if (usable) home?.let { h -> h.areas.firstOrNull { it.id == selected } ?: viewModel.current(h.areas) } else null
+    LaunchedEffect(current?.rootId) { current?.let { folderViewModel.open(it.rootId) } }
+    val openMenu: () -> Unit = { scope.launch { drawer.open() } }
+
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        gesturesEnabled = drawer.isOpen,
+        drawerContent = {
+            ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
+                DriveDrawer(
+                    areas = home?.areas.orEmpty().takeIf { usable }.orEmpty(),
+                    current = current,
+                    onArea = { a -> viewModel.select(a); scope.launch { drawer.close() } },
+                    onTrash = { scope.launch { drawer.close() }; nav.trash() },
+                )
+            }
+        },
+    ) {
+        if (home != null && current != null) {
+            DriveFolderContent(
+                viewModel = folderViewModel,
+                onFolder = nav.folder,
+                topBar = { _, actions -> TabBar(current.label, onMenu = openMenu, onSearch = nav.search, actions = actions) },
+                header = {
+                    RecentRow(home.recent) { n ->
+                        Toast.makeText(context, R.string.drive_loading_file, Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            fetchThen(context, n, viewModel::fetch, then = { f -> openFile(context, n, f) }) { code ->
+                                Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
                             }
-                            FilesHint()
+                        }
+                    }
+                },
+            )
+        } else {
+            Column(Modifier.fillMaxSize()) {
+                TabBar(stringResource(R.string.drive_title), onMenu = null, onSearch = null)
+                Column(
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    when (val s = state) {
+                        DriveLoad.Loading -> DriveLoading()
+                        is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })
+                        is DriveLoad.Ready -> when {
+                            !s.value.me.licenceValid -> DriveErrorBox("not_licensed", null)
+                            s.value.me.seat == null -> DriveErrorBox("no_seat", null)
+                            else -> Text(stringResource(R.string.drive_no_areas), color = GateControlTheme.extraColors.muted)
                         }
                     }
                 }
             }
         }
     }
-    conflict?.let { u -> ConflictDialog(u, onChoice = { viewModel.transfers.resolve(u.id, it); conflict = null }, onDismiss = { conflict = null }) }
 }
 
+/** Menu, title (the area), sort, search. */
 @Composable
-private fun AreasCard(areas: List<DArea>, onOpen: (DArea) -> Unit) {
-    GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        areas.forEachIndexed { i, a ->
-            if (i > 0) GcRowDivider()
-            GcListRow(
-                title = a.label,
-                description = areaLine(a),
-                onClick = { onOpen(a) },
-                leading = { AreaIcon(a) },
-                trailing = { GcChevron() },
-            )
+private fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (onMenu != null) {
+            GcIconButton(GcIcons.Menu, contentDescription = stringResource(R.string.drive_menu), onClick = onMenu, tint = MaterialTheme.colorScheme.onBackground)
+        } else {
+            Spacer(Modifier.width(12.dp))
         }
+        GcScreenTitle(title, modifier = Modifier.weight(1f).padding(start = 4.dp))
+        actions()
+        if (onSearch != null) GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.drive_search), onClick = onSearch, tint = MaterialTheme.colorScheme.onBackground)
+    }
+}
+
+/** The menu: the areas (with their storage) and the trash. */
+@Composable
+private fun DriveDrawer(areas: List<DArea>, current: DArea?, onArea: (DArea) -> Unit, onTrash: () -> Unit) {
+    Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
+        GcScreenTitle(stringResource(R.string.drive_title), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        if (areas.isNotEmpty()) {
+            GcSectionLabel(stringResource(R.string.drive_move_areas), modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp))
+            areas.forEach { a ->
+                GcListRow(
+                    title = a.label,
+                    description = areaLine(a),
+                    onClick = { onArea(a) },
+                    leading = { AreaIcon(a) },
+                    selected = a.id == current?.id,
+                )
+            }
+            GcRowDivider(modifier = Modifier.padding(vertical = 8.dp))
+        }
+        GcListRow(
+            title = stringResource(R.string.drive_trash),
+            onClick = onTrash,
+            leading = {
+                GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
+                    Icon(GcIcons.Trash, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                }
+            },
+        )
+    }
+}
+
+/** "Zuletzt": the newest files as tiles. */
+@Composable
+private fun RecentRow(recent: List<DNode>, onOpen: (DNode) -> Unit) {
+    if (recent.isEmpty()) return
+    GcSectionLabel(stringResource(R.string.drive_recent), modifier = Modifier.padding(top = 4.dp, start = 4.dp))
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        recent.forEach { n -> RecentTile(n, modifier = Modifier.width(112.dp), onClick = { onOpen(n) }) }
     }
 }
 
@@ -158,16 +211,6 @@ internal fun AreaIcon(a: DArea, size: Int = 40) {
     }
 }
 
-/** Drive is also in the Files app (DriveDocumentsProvider). */
-@Composable
-private fun FilesHint() {
-    GcCard {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(GcIcons.Alert, contentDescription = null, tint = GateControlTheme.extraColors.accentText, modifier = Modifier.size(18.dp).padding(top = 1.dp))
-            Text(stringResource(R.string.drive_files_hint), style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
 
 /** "38 GB · nur für dich" — what an area is and how full it is. */
 @Composable

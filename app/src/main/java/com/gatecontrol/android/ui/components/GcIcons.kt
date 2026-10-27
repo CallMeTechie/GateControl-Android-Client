@@ -199,6 +199,7 @@ object GcIcons {
         "M5.5 15.5A10 10 0 0 0 6 13v-2.5a6 6 0 0 1 9.5-4.9", "M18 9.2c.3.7.5 1.5.5 2.3V13c0 1.2-.1 2.4-.4 3.5", "M3.5 12V10.5A8.5 8.5 0 0 1 17 3.6",
     )
     val Users = icon("Users", 1.8f, circle(9f, 8f, 3.5f), "M2.5 20a6.5 6.5 0 0 1 13 0", "M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5")
+    val Menu = icon("Menu", 2f, "M4 6h16M4 12h16M4 18h16")
     val Upload = icon("Upload", 2f, "M12 15V3M7 8l5-5 5 5M5 21h14")
     val Cloud = icon("Cloud", 2f, "M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z")
     val Folder = icon("Folder", 2f, "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z")

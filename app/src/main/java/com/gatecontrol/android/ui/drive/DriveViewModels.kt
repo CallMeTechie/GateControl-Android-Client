@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.drive
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -15,6 +16,7 @@ import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,15 +50,30 @@ internal fun DResult<*>.errorCode(): String? = when (this) {
 /** The Drive tab: my areas (with their storage) and the newest files. */
 @HiltViewModel
 class DriveHomeViewModel @Inject constructor(
+    @ApplicationContext context: Context,
     private val api: DriveApi,
     val transfers: DriveTransfers,
-    val backup: com.gatecontrol.android.drive.backup.DriveBackup,
 ) : ViewModel() {
 
     data class Home(val me: DMe, val areas: List<DArea>, val recent: List<DNode>)
 
     private val _state = MutableStateFlow<DriveLoad<Home>>(DriveLoad.Loading)
     val state: StateFlow<DriveLoad<Home>> = _state.asStateFlow()
+
+    private val prefs = context.getSharedPreferences("drive_ui", Context.MODE_PRIVATE)
+    private val _selected = MutableStateFlow(prefs.getString(KEY_AREA, null))
+
+    /** The area shown on the tab (menu top left): the last one chosen, else Meine Dateien. */
+    val selected: StateFlow<String?> = _selected.asStateFlow()
+
+    fun select(area: DArea) {
+        _selected.value = area.id
+        prefs.edit().putString(KEY_AREA, area.id).apply()
+    }
+
+    /** The area to show of [areas]: the chosen one while it exists, else Meine Dateien, else the first. */
+    fun current(areas: List<DArea>): DArea? =
+        areas.firstOrNull { it.id == _selected.value } ?: areas.firstOrNull { it.kind == "mine" } ?: areas.firstOrNull()
 
     private var job: Job? = null
 
@@ -88,6 +105,10 @@ class DriveHomeViewModel @Inject constructor(
 
     /** Opening a recent file: its file in the cache. */
     suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
+
+    private companion object {
+        const val KEY_AREA = "area"
+    }
 }
 
 /** A folder: its content and what can be done with it and with each item. */
@@ -98,8 +119,9 @@ class DriveFolderViewModel @Inject constructor(
     val transfers: DriveTransfers,
 ) : ViewModel() {
 
-    /** The route's `id` (a string argument, see Screen.DriveFolder). */
-    val folderId: Long = savedStateHandle.get<String>("id")?.toLongOrNull() ?: 0L
+    /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
+    var folderId: Long = savedStateHandle.get<String>("id")?.toLongOrNull() ?: 0L
+        private set
 
     private val _state = MutableStateFlow<DriveLoad<DFolder>>(DriveLoad.Loading)
     val state: StateFlow<DriveLoad<DFolder>> = _state.asStateFlow()
@@ -116,8 +138,16 @@ class DriveFolderViewModel @Inject constructor(
     private var job: Job? = null
 
     init {
-        refresh()
+        if (folderId > 0) refresh()
         viewModelScope.launch { transfers.changed.collect { if (it == folderId) refresh(quiet = true) } }
+    }
+
+    /** Shows the folder [id] (the Drive tab when another area is chosen). */
+    fun open(id: Long) {
+        if (id == folderId && _state.value !is DriveLoad.Error) return
+        folderId = id
+        _area.value = null
+        refresh()
     }
 
     fun clearMessage() { _message.value = null }
@@ -133,6 +163,7 @@ class DriveFolderViewModel @Inject constructor(
     val area: StateFlow<DArea?> = _area.asStateFlow()
 
     fun refresh(quiet: Boolean = false) {
+        if (folderId <= 0) return
         job?.cancel()
         job = viewModelScope.launch {
             if (!quiet || _state.value !is DriveLoad.Ready) _state.value = DriveLoad.Loading
