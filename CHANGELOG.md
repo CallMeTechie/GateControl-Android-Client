@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.10] - 2026-10-27
+
+### Changes
+- Plus-Knopf unten rechts statt „Neuer Ordner“ / „Hochladen“ (#134)
+
+---
+
 ## [1.67.9] - 2026-10-27
 
 ### Changes
