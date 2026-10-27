@@ -215,6 +215,17 @@ class DriveFolderViewModel @Inject constructor(
         r
     }
 
+    /**
+     * This phone's copies of a file: picked files go directly; returns the gallery entries (and picked ones that would
+     * not go) for the system's "move to trash" dialog. Nothing left: done.
+     */
+    suspend fun deleteLocal(copies: DriveLocal.Copies): List<Uri> {
+        val left = local.deleteDocs(copies.docs).mapNotNull { local.mediaUri(it) }
+        val ask = copies.gallery + left
+        if (ask.isEmpty()) deletedLocally(copies)
+        return ask
+    }
+
     /** After the gallery copies went to the phone's trash (the system asked): only on this device. */
     fun deletedLocally(copies: DriveLocal.Copies) {
         local.dropCache(copies)

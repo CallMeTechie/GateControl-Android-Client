@@ -308,7 +308,7 @@ internal fun DriveFolderContent(
     deleting?.let { n ->
         LaunchedEffect(n.id) { deleteCopies = null; deleteCopies = viewModel.local.copies(n) }
         val copies = deleteCopies
-        val hasLocal = copies?.gallery?.isNotEmpty() == true
+        val hasLocal = copies?.any == true
         val writable = folder?.writable == true
         val close = { deleting = null; deleteCopies = null }
         ModalBottomSheet(onDismissRequest = close) {
@@ -330,10 +330,13 @@ internal fun DriveFolderContent(
                 }
                 if (hasLocal) {
                     option(GcIcons.Phone, R.string.drive_delete_device, R.string.drive_delete_device_desc) {
-                        val sender = viewModel.local.trashRequest(copies!!.gallery)
-                        if (sender != null) {
-                            localDelete = copies
-                            trashLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                        val c = copies!!
+                        scope.launch {
+                            val sender = viewModel.deleteLocal(c).takeIf { it.isNotEmpty() }?.let { viewModel.local.trashRequest(it) }
+                            if (sender != null) {
+                                localDelete = c
+                                trashLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                            }
                         }
                     }
                 }
@@ -343,11 +346,16 @@ internal fun DriveFolderContent(
                     }
                     option(GcIcons.Trash, R.string.drive_delete_everywhere, R.string.drive_delete_everywhere_desc) {
                         viewModel.delete(n, everywhere = true, copies = copies)
-                        // This phone's gallery copy goes now (Android asks); the other devices follow when online.
-                        val sender = copies?.gallery?.takeIf { it.isNotEmpty() }?.let { viewModel.local.trashRequest(it) }
-                        if (sender != null) {
-                            localDelete = copies
-                            trashLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                        // This phone's copy goes now (a gallery one after Android asks); the other devices follow when online.
+                        val c = copies
+                        if (c != null && c.any) {
+                            scope.launch {
+                                val sender = viewModel.deleteLocal(c).takeIf { it.isNotEmpty() }?.let { viewModel.local.trashRequest(it) }
+                                if (sender != null) {
+                                    localDelete = c
+                                    trashLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                                }
+                            }
                         }
                     }
                 }
