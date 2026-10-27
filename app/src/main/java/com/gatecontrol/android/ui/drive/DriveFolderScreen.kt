@@ -124,6 +124,7 @@ internal fun DriveFolderContent(
     var conflict by remember { mutableStateOf<DriveTransfers.Upload?>(null) }
     var grid by remember { mutableStateOf(DriveViewPref.grid(context)) }
     var uploadsOpen by remember { mutableStateOf(false) }
+    var addOpen by remember { mutableStateOf(false) }
     /** The node being deleted and what this phone has of it (null while it looks). */
     var deleteCopies by remember { mutableStateOf<DriveLocal.Copies?>(null) }
     var localDelete by remember { mutableStateOf<DriveLocal.Copies?>(null) }
@@ -187,7 +188,8 @@ internal fun DriveFolderContent(
         }
         if (folder != null && folder.crumbs.isNotEmpty()) Crumbs(folder, area?.label, onFolder)
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp),
+            // bottom: room for the round button over the last item
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (area?.via == "parent") {
@@ -222,23 +224,31 @@ internal fun DriveFolderContent(
                 }
             }
         }
-        if (folder?.writable == true) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).navigationBarsPadding(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                GcOutlineButton(stringResource(R.string.drive_new_folder), onClick = { newFolder = true }, icon = GcIcons.FolderPlus, modifier = Modifier.weight(1f))
-                GcPrimaryButton(stringResource(R.string.drive_upload), onClick = { pick.launch(arrayOf("*/*")) }, icon = GcIcons.Upload, modifier = Modifier.weight(1f))
+    }
+    DriveFab(
+        uploads,
+        onAdd = if (folder?.writable == true) ({ addOpen = true }) else null,
+        onOpenUploads = { uploadsOpen = true },
+        onAllDone = viewModel.transfers::clearFinished,
+        modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
+    )
+    }
+
+    if (addOpen) {
+        ModalBottomSheet(onDismissRequest = { addOpen = false }) {
+            Column(Modifier.padding(bottom = 24.dp)) {
+                GcListRow(
+                    title = stringResource(R.string.drive_new_folder),
+                    onClick = { addOpen = false; newFolder = true },
+                    leading = { Icon(GcIcons.FolderPlus, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                )
+                GcListRow(
+                    title = stringResource(R.string.drive_upload),
+                    onClick = { addOpen = false; pick.launch(arrayOf("*/*")) },
+                    leading = { Icon(GcIcons.Upload, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                )
             }
         }
-    }
-    UploadsFab(
-        uploads,
-        onOpen = { uploadsOpen = true },
-        onAllDone = viewModel.transfers::clearFinished,
-        modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding()
-            .padding(end = 16.dp, bottom = if (folder?.writable == true) 84.dp else 16.dp),
-    )
     }
 
     if (uploadsOpen && uploads.isNotEmpty()) {

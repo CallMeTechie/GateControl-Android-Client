@@ -179,4 +179,5 @@
         <item quantity="one">%1$d Datei wurde auf einem anderen Gerät überall gelöscht und liegt noch in der Galerie dieses Handys.</item>
         <item quantity="other">%1$d Dateien wurden auf einem anderen Gerät überall gelöscht und liegen noch in der Galerie dieses Handys.</item>
     </plurals>
+    <string name="drive_add">Neu</string>
 </resources>
