@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.16] - 2026-10-27
+
+### Changes
+- leere Dateien (Drive 1.5) ohne Download öffnen (#140)
+
+---
+
 ## [1.67.15] - 2026-10-27
 
 ### Changes
