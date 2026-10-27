@@ -407,47 +407,9 @@ private fun BackupStatusCard(config: DriveBackupConfig, stats: DriveBackup.Stats
     }
 }
 
-/** The card at the top of the Drive tab (mockup "Android – Drive"). */
-@Composable
-internal fun BackupCard(config: DriveBackupConfig, stats: DriveBackup.Stats, status: DriveBackup.Status, onClick: () -> Unit) {
-    val context = LocalContext.current
-    val x = GateControlTheme.extraColors
-    GcCard(modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GcIconSquare(size = 40.dp, background = x.accentBg) {
-                Icon(GcIcons.Camera, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.drive_backup_title), style = MaterialTheme.typography.titleSmall)
-                val line = if (config.enabled) {
-                    pluralStringResource(R.plurals.drive_backup_saved, stats.saved, stats.saved) + " · " +
-                        stringResource(if (config.wifiOnly) R.string.drive_backup_wifi_short else R.string.drive_backup_mobile_short)
-                } else {
-                    stringResource(R.string.drive_backup_off_text)
-                }
-                Text(line, color = x.muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Text(
-                stringResource(if (config.enabled) R.string.drive_backup_on else R.string.drive_backup_off),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (config.enabled) x.accentText else x.muted,
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (config.enabled) x.accentBg else x.panel2).padding(horizontal = 10.dp, vertical = 4.dp),
-            )
-        }
-        if (config.enabled && status.running && status.total > 0) {
-            LinearProgressIndicator(
-                progress = { status.done.toFloat() / status.total },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-            )
-            Text(
-                stringResource(R.string.drive_backup_running_to, status.done + 1, status.total, config.folderLabel.orEmpty()),
-                color = x.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        } else if (config.enabled && stats.error != null) {
-            Text(backupText(context, stats.error), color = x.warn, style = MaterialTheme.typography.bodySmall)
-        } else if (config.enabled && config.folderLabel != null) {
-            Text(stringResource(R.string.drive_backup_target, config.folderLabel), color = x.muted, style = MaterialTheme.typography.bodySmall)
-        }
-    }
+/** The photo backup's state for its row in the settings. */
+@HiltViewModel
+class DriveBackupSettingsViewModel @Inject constructor(backup: DriveBackup) : ViewModel() {
+    val config: StateFlow<DriveBackupConfig> = backup.config
+    val stats: StateFlow<DriveBackup.Stats> = backup.stats
 }

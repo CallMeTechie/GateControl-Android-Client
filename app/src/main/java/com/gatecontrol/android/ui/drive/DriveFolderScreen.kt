@@ -78,10 +78,28 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** One folder of an area: its content, upload, new folder, and per item open, send, link, rename, move, versions, trash. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** One folder of an area as a page of its own (with back). */
 @Composable
 fun DriveFolderScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: DriveFolderViewModel = hiltViewModel()) {
+    DriveFolderContent(
+        viewModel = viewModel,
+        onFolder = onFolder,
+        topBar = { title, actions -> GcSubpageBar(title, onBack = onBack, backDescription = stringResource(R.string.drive_back)) { actions() } },
+    )
+}
+
+/**
+ * A folder: its content, upload, new folder, and per item open, send, link, rename, move, versions, trash. [topBar]
+ * gets the title and the sort button; [header] goes above the items (the Drive tab: "Zuletzt").
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DriveFolderContent(
+    viewModel: DriveFolderViewModel,
+    onFolder: (Long) -> Unit,
+    topBar: @Composable (title: String, actions: @Composable () -> Unit) -> Unit,
+    header: @Composable () -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val area by viewModel.area.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -131,7 +149,7 @@ fun DriveFolderScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     }
 
     Column(Modifier.fillMaxSize()) {
-        GcSubpageBar(title, onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
+        topBar(title) {
             Box {
                 GcIconButton(GcIcons.Sliders, contentDescription = stringResource(R.string.drive_sort), onClick = { sortOpen = true }, tint = MaterialTheme.colorScheme.onBackground)
                 DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }) {
@@ -154,6 +172,7 @@ fun DriveFolderScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                 GcBanner(tone = GcTone.Warn, icon = GcIcons.Eye) { Text(stringResource(R.string.drive_child_note), style = MaterialTheme.typography.bodyMedium) }
             }
             UploadsCard(uploads.filter { it.folderId == viewModel.folderId }, onConflict = { conflict = it }, onClear = viewModel.transfers::clearFinished)
+            header()
             when (val s = state) {
                 DriveLoad.Loading -> DriveLoading()
                 is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })

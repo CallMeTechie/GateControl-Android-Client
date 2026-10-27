@@ -112,7 +112,6 @@
     <string name="drive_loading_file">Loading the file…</string>
     <string name="drive_folder_files">%1$s · %2$s</string>
     <string name="drive_files_root">GateControl Drive</string>
-    <string name="drive_files_hint">Drive is also in the Files app and in every “open file” dialog, e.g. in WhatsApp or Gmail.</string>
     <string name="drive_backup_title">Photo backup</string>
     <string name="drive_backup_channel">Photo backup</string>
     <string name="drive_backup_progress_short">%1$d of %2$d</string>
@@ -163,4 +162,5 @@
         <item quantity="one">%1$d new photo waits for Wi-Fi</item>
         <item quantity="other">%1$d new photos wait for Wi-Fi</item>
     </plurals>
+    <string name="drive_menu">Open areas</string>
 </resources>

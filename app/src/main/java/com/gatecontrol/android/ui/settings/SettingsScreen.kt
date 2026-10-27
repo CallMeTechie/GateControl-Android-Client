@@ -17,6 +17,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.pluralStringResource
+import com.gatecontrol.android.ui.drive.DriveBackupSettingsViewModel
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -81,6 +83,8 @@ fun SettingsScreen(
     onNavigateToConnection: () -> Unit = {},
     /** GateDrop "Geteilt"; null hides the row (no GateDrop on the server). */
     onNavigateToShared: (() -> Unit)? = null,
+    /** Drive photo backup; null hides the row (no Drive on the server). */
+    onNavigateToDriveBackup: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
     selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -90,6 +94,7 @@ fun SettingsScreen(
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
     presenceViewModel: ProfilePresenceViewModel = hiltViewModel(),
     connectionViewModel: ConnectionDetailsViewModel = hiltViewModel(),
+    driveBackupViewModel: DriveBackupSettingsViewModel = hiltViewModel(),
 ) {
     val myAvatar by avatarViewModel.ui.collectAsStateWithLifecycle()
     val presenceVisible by presenceViewModel.visible.collectAsStateWithLifecycle()
@@ -289,6 +294,32 @@ fun SettingsScreen(
                     leading = { Icon(GcIcons.Share, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
                     trailing = { GcChevron() },
                     selected = selectedPane == SettingsPane.Shared,
+                )
+            }
+        }
+
+        // --- Drive (photo backup) ------------------------------------------
+        if (onNavigateToDriveBackup != null) {
+            val backup by driveBackupViewModel.config.collectAsStateWithLifecycle()
+            val backupStats by driveBackupViewModel.stats.collectAsStateWithLifecycle()
+            SettingsGroup(stringResource(R.string.drive_title)) {
+                GcListRow(
+                    title = stringResource(R.string.drive_backup_title),
+                    description = if (backup.enabled) {
+                        pluralStringResource(R.plurals.drive_backup_saved, backupStats.saved, backupStats.saved) + " · " +
+                            stringResource(if (backup.wifiOnly) R.string.drive_backup_wifi_short else R.string.drive_backup_mobile_short)
+                    } else {
+                        stringResource(R.string.drive_backup_off_text)
+                    },
+                    onClick = onNavigateToDriveBackup,
+                    leading = { Icon(GcIcons.Camera, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                    trailing = {
+                        Text(
+                            stringResource(if (backup.enabled) R.string.drive_backup_on else R.string.drive_backup_off),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (backup.enabled) extra.accentText else extra.muted,
+                        )
+                    },
                 )
             }
         }
