@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.6] - 2026-10-27
+
+### Changes
+- Live-Ankunft (Standort) und Foto-Sicherung (Datenabgleich) (#130)
+
+---
+
 ## [1.67.5] - 2026-10-27
 
 ### Changes
