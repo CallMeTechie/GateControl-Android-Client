@@ -14,11 +14,14 @@ import textwrap
 FONT = os.environ.get("CAPTION_FONT", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
 STILL_SECONDS = 3.5
-LIMITS = {"vpn": 88.0, "location": 29.5, "fgs": 29.5}
+LIMITS = {"vpn": 88.0, "location": 29.5, "fgs": 29.5, "arrival": 45.0, "datasync": 45.0}
 NAMES = {
     "vpn": "gatecontrol-vpn-service.mp4",
     "location": "gatecontrol-background-location.mp4",
     "fgs": "gatecontrol-foreground-service.mp4",
+    # Foreground service types of the plugins: location (Messenger live arrival), dataSync (Drive photo backup).
+    "arrival": "gatecontrol-location-sharing.mp4",
+    "datasync": "gatecontrol-data-sync.mp4",
 }
 
 
