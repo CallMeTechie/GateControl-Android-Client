@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.11] - 2026-10-27
+
+### Changes
+- „Nur auf diesem Gerät“ auch für hochgeladene Dateien jeder Art (#135)
+
+---
+
 ## [1.67.10] - 2026-10-27
 
 ### Changes
