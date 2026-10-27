@@ -27,6 +27,15 @@ internal object DriveLogic {
         }
     }
 
+    /**
+     * Files the server cannot make a preview of (HEIC/HEIF photos, videos): the uploader sends its own picture.
+     * JPEG, PNG, WebP, GIF and AVIF the server makes itself (it refuses one sent for them).
+     */
+    fun needsOwnPreview(mime: String?): Boolean {
+        val m = mime.orEmpty().lowercase(Locale.ROOT).substringBefore(';').trim()
+        return m == "image/heic" || m == "image/heif" || m.startsWith("video/")
+    }
+
     /** Short label of a tile ("PDF", "FOTO" …): the extension, else the kind. */
     fun badge(node: DNode, photo: String): String {
         val ext = node.name.substringAfterLast('.', "").uppercase(Locale.ROOT).take(4)

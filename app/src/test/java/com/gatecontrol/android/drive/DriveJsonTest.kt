@@ -56,8 +56,8 @@ class DriveJsonTest {
             json("""{"node":{"id":5,"areaId":"u:7","parentId":3,"name":"Fotos","isDir":true,"crumbs":[{"id":3,"name":""},{"id":5,"name":"Fotos"}]}}"""),
             json(
                 """{"role":"write","total":3,"next":2,"items":[
-                {"id":6,"areaId":"u:7","parentId":5,"name":"a.jpg","size":10,"mime":"image/jpeg","mediaId":"0123456789abcdef0123456789abcdef","rev":2},
-                {"id":7,"areaId":"u:7","parentId":5,"name":"b.jpg","mediaId":"../etc"},
+                {"id":6,"areaId":"u:7","parentId":5,"name":"a.jpg","size":10,"mime":"image/jpeg","mediaId":"0123456789abcdef0123456789abcdef","rev":2,"preview":{"url":"/x","largeUrl":"/x?size=large"}},
+                {"id":7,"areaId":"u:7","parentId":5,"name":"b.jpg","mediaId":"../etc","preview":null},
                 {"areaId":"u:7","name":"no id"}]}""",
             ),
         )!!
@@ -65,6 +65,8 @@ class DriveJsonTest {
         assertEquals(listOf(3L, 5L), f.crumbs.map { it.id })
         assertEquals(listOf(6L, 7L), f.items.map { it.id })
         assertNull(f.items[1].mediaId, "a media id of the wrong shape is dropped")
+        assertTrue(f.items[0].preview)
+        assertFalse(f.items[1].preview, "preview null (or an older Drive without the field): none")
         assertEquals(3, f.total)
         assertEquals(2, f.next)
         assertTrue(f.writable)

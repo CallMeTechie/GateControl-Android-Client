@@ -101,6 +101,7 @@ internal object DriveJson {
             from = o.str("from")?.take(2000),
             files = o.int("files"),
             deletedAt = o.str("deletedAt")?.take(40),
+            preview = o.obj("preview") != null,
         )
     }
 
