@@ -225,6 +225,12 @@ internal object DriveLogic {
         return out
     }
 
+    /**
+     * Whether the Photos tab asks for the camera uploads only (`camera=1`): the person chose "Nur Kamera-Uploads" ([on])
+     * and Drive knows them (1.10, feature `photosFolder`) — without it the choice is kept, but not sent.
+     */
+    fun cameraFilter(on: Boolean, me: DMe?): Boolean = on && me?.has(DMe.FEATURE_PHOTOS_FOLDER) == true
+
     /** Pages of a photo list put together: each node once (a page boundary may repeat one). */
     fun appendPage(have: List<DNode>, page: List<DNode>): List<DNode> {
         val seen = have.mapTo(HashSet()) { it.id }

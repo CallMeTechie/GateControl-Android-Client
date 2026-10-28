@@ -80,6 +80,8 @@ data class DMe(
         const val FEATURE_VAULT = "vault"
         /** Drive 1.9: office documents in the browser (only while an office server is set up). */
         const val FEATURE_OFFICE = "office"
+        /** Drive 1.10: the camera uploads' folder (`photos/camera`) and the Photos tab's filter `camera=1`. */
+        const val FEATURE_PHOTOS_FOLDER = "photosFolder"
     }
 }
 
@@ -247,6 +249,9 @@ data class DPhotos(val items: List<DNode>, val next: String?)
 data class DMonth(val month: String, val count: Int)
 
 /** `GET photos/memories`: the photos of this day [yearsAgo] years ago. */
+/** `photos/camera` (Drive 1.10, feature `photosFolder`): the camera uploads' folder ("Meine Dateien › Bilder › Kamera-Uploads"). */
+data class DCameraFolder(val id: Long, val path: String?, val areaId: String)
+
 data class DMemories(val yearsAgo: Int, val date: String?, val items: List<DNode>)
 
 /** An album: points to files, copies nothing. [frame]: it feeds the photo frame of the wall tablet. */

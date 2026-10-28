@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive: Fotos wie Dateien, Foto-Sicherung nach Kamera-Uploads, Filter im Fotos-Tab -->
+    <string name="drive_backup_camera_target">Meine Dateien › Bilder › Kamera-Uploads, nach Jahr und Monat (z. B. 2026 › 10)</string>
+    <string name="drive_backup_moved">Neue Fotos werden jetzt unter Bilder/Kamera-Uploads gesichert. Bereits gesicherte Fotos bleiben, wo sie sind.</string>
+    <string name="drive_backup_error_camera">Der Ordner Bilder › Kamera-Uploads in „Meine Dateien“ ist nicht erreichbar. Die Sicherung versucht es später erneut.</string>
+    <string name="drive_photos_camera_only">Nur Kamera-Uploads</string>
+</resources>

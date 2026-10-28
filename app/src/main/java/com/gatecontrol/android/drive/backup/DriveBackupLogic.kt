@@ -1,14 +1,20 @@
 package com.gatecontrol.android.drive.backup
 
 import android.provider.MediaStore
+import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DriveLogic
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.Locale
 
-/** What the photo backup does (Drive tab › Foto-Sicherung). */
+/**
+ * What the photo backup does (Drive tab › Foto-Sicherung). Where the photos go is fixed: "Meine Dateien › Bilder ›
+ * Kamera-Uploads › <Jahr> › <Monat>" ([DriveBackupLogic.cameraPath]).
+ */
 data class DriveBackupConfig(
     val enabled: Boolean = false,
-    /** The Drive folder the photos go to, and how it reads ("Familie › Fotos › Marc"). */
-    val folderId: Long? = null,
-    val folderLabel: String? = null,
     val wifiOnly: Boolean = true,
     val chargingOnly: Boolean = false,
     val videos: Boolean = false,
@@ -89,9 +95,45 @@ internal object DriveBackupLogic {
     )
     private val SKIP_CODES = setOf("too_large", "unsupported_type", "empty", "invalid", "read")
 
-    /** The default target: Familie › Fotos › <name> when the person writes to a family area, else Meine Dateien › Fotos. */
-    fun defaultPath(name: String?, family: Boolean, photos: String): List<String> {
-        val own = DriveLogic.safeName(name)
-        return if (family && own != null) listOf(photos, own) else listOf(photos)
+    // ─── Kamera-Uploads ─────────────────────────────────────────────
+
+    /** The camera uploads' folder in "Meine Dateien" (the names as the server's `photos/camera` makes them). */
+    val CAMERA_BASE = listOf("Bilder", "Kamera-Uploads")
+
+    /** The area the camera uploads go to without `photos/camera`: the person's own "Meine Dateien" (`mine:<ich>`). */
+    fun cameraArea(areas: List<DArea>, userId: Int?): DArea? {
+        val mine = areas.filter { it.kind == "mine" && it.writable }
+        return mine.firstOrNull { userId != null && it.id == "mine:$userId" } ?: mine.firstOrNull { it.via == null || it.via == "owner" }
     }
+
+    /**
+     * The folders below Kamera-Uploads a photo goes to: its year and month (`["2026", "10"]`) by when it was taken —
+     * the file's own date ([takenAt], EXIF or the video's container) as it was where it was taken, a time in UTC in
+     * [zone]; else the media store's date taken ([takenMs]), else when it was changed ([modifiedMs]), else [fallbackMs]
+     * (when it came onto the phone), each in [zone] (the phone's). The same photo always lands in the same folder.
+     */
+    fun cameraPath(takenAt: String?, takenMs: Long?, modifiedMs: Long?, fallbackMs: Long, zone: ZoneId): List<String> {
+        val own = takenAt?.let { s ->
+            runCatching { OffsetDateTime.parse(s) }.getOrNull()?.let { if (it.offset == ZoneOffset.UTC) it.atZoneSameInstant(zone).toLocalDate() else it.toLocalDate() }
+        }?.takeIf { it.year in YEARS }
+        val date = own ?: listOf(takenMs, modifiedMs, fallbackMs).firstNotNullOfOrNull { ms ->
+            ms?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }?.takeIf { it.year in YEARS }
+        } ?: Instant.ofEpochMilli(fallbackMs.coerceAtLeast(0)).atZone(zone).toLocalDate()
+        return listOf("%04d".format(Locale.ROOT, date.year), "%02d".format(Locale.ROOT, date.monthValue))
+    }
+
+    private val YEARS = 1900..9999
+
+    /**
+     * Where a backup that is switched on starts: where it got to ([have]) — the photos before are in Drive already
+     * (wherever they went then), so they are never sent again, also not into a new folder — else all photos or only
+     * the new ones ([now]).
+     */
+    fun startMark(have: DriveBackupMark?, all: Boolean, now: DriveBackupMark): DriveBackupMark = have ?: if (all) DriveBackupMark.ALL else now
+
+    /**
+     * A login that backed up into a folder of its own choosing before Kamera-Uploads ([legacyFolder], what the app
+     * kept then): it is told once that new photos go to Kamera-Uploads now.
+     */
+    fun targetNotice(legacyFolder: Long): Boolean = legacyFolder > 0
 }

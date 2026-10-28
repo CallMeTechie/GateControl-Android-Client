@@ -224,24 +224,25 @@ class DriveApi @Inject constructor(
 
     // ─── photos and albums (Drive 1.7, features `photos`, `albums`, `frame`) ──
 
-    /** Photos and videos, newest first; [before] is the cursor of the page before. Without [area]: all I can read. */
-    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120): DResult<DPhotos> {
-        val q = buildMap {
-            if (area != null) put("area", DriveJson.areaId(area) ?: return bad())
-            if (before != null) put("before", before)
-            put("limit", limit.coerceIn(1, 200).toString())
-        }
-        return get("photos", q, DriveJson::photos)
-    }
+    /**
+     * Photos and videos, newest first; [before] is the cursor of the page before. Without [area]: all I can read.
+     * [camera]: only the camera uploads (Drive 1.10, feature `photosFolder`).
+     */
+    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false): DResult<DPhotos> =
+        get("photos", DriveJson.photosQuery(area, before, limit, camera) ?: return bad(), DriveJson::photos)
 
-    suspend fun photoMonths(area: String? = null): DResult<List<DMonth>> {
-        val q = if (area == null) emptyMap() else mapOf("area" to (DriveJson.areaId(area) ?: return bad()))
-        return get("photos/months", q, DriveJson::months)
-    }
+    suspend fun photoMonths(area: String? = null, camera: Boolean = false): DResult<List<DMonth>> =
+        get("photos/months", DriveJson.photosQuery(area, camera = camera) ?: return bad(), DriveJson::months)
 
     /** Photos of this calendar day ([date] `YYYY-MM-DD`, else the server's today) in earlier years. */
-    suspend fun memories(date: String? = null): DResult<List<DMemories>> =
-        get("photos/memories", if (date == null) emptyMap() else mapOf("date" to date), DriveJson::memories)
+    suspend fun memories(date: String? = null, camera: Boolean = false): DResult<List<DMemories>> =
+        get("photos/memories", DriveJson.photosQuery(camera = camera, date = date) ?: return bad(), DriveJson::memories)
+
+    /**
+     * The camera uploads' folder ("Meine Dateien › Bilder › Kamera-Uploads"), made when it is missing (`POST photos/camera`,
+     * Drive 1.10, feature `photosFolder`).
+     */
+    suspend fun cameraFolder(): DResult<DCameraFolder> = post("photos/camera", JsonObject(), DriveJson::cameraFolder)
 
     suspend fun albums(): DResult<List<DAlbum>> = get("albums", parse = DriveJson::albums)
 
