@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive: Fotos nur im Fotos-Tab, Wischen, Sortieren nach Dateityp, Tresore im Menü, Tresor-Schlüssel -->
+    <plurals name="drive_photos_hidden">
+        <item quantity="one">%d Foto in diesem Ordner – im Fotos-Tab ansehen</item>
+        <item quantity="other">%d Fotos in diesem Ordner – im Fotos-Tab ansehen</item>
+    </plurals>
+    <plurals name="drive_search_photos_hidden">
+        <item quantity="one">%d Foto passt zur Suche – anzeigen</item>
+        <item quantity="other">%d Fotos passen zur Suche – anzeigen</item>
+    </plurals>
+    <plurals name="drive_delete_photos">
+        <item quantity="one">Darin liegt auch %d Foto oder Video (im Fotos-Tab). Es wird mitgelöscht.</item>
+        <item quantity="other">Darin liegen auch %d Fotos und Videos (im Fotos-Tab). Sie werden mitgelöscht.</item>
+    </plurals>
+    <plurals name="drive_delete_photos_more">
+        <item quantity="one">Darin liegt auch mindestens %d Foto oder Video (im Fotos-Tab). Es wird mitgelöscht.</item>
+        <item quantity="other">Darin liegen auch mindestens %d Fotos und Videos (im Fotos-Tab). Sie werden mitgelöscht.</item>
+    </plurals>
+    <string name="drive_sort_type">Dateityp</string>
+    <string name="drive_sort_asc">Aufsteigend</string>
+    <string name="drive_sort_desc">Absteigend</string>
+    <string name="drive_search_photos">Fotos durchsuchen</string>
+    <string name="drive_search_all_files">Alle anderen Dateien zeigen</string>
+    <string name="drive_area_doc_ai">KI für Dokumente</string>
+    <string name="drive_area_doc_ai_desc">Erkennt in „%1$s“ Rechnungen, Verträge und Fristen</string>
+    <string name="drive_vaults">Tresore</string>
+    <string name="drive_vault_menu_locked_title">Gesperrter Tresor</string>
+    <string name="drive_vault_menu_locked">Freigabe anfragen oder Wiederherstellungsschlüssel</string>
+    <string name="drive_vault_menu_pending">Freigabe angefragt</string>
+    <string name="drive_vault_keys">Schlüssel</string>
+    <string name="drive_vault_rotate">Tresor-Schlüssel wechseln</string>
+    <string name="drive_vault_rotate_title">Neuen Tresor-Schlüssel anlegen?</string>
+    <string name="drive_vault_rotate_text">Neue Dateien werden mit einem neuen Schlüssel verschlüsselt, den nur die jetzt freigegebenen Geräte und der Wiederherstellungsschlüssel erhalten. Ältere Dateien bleiben lesbar.</string>
+    <string name="drive_vault_rotation_now">Jemand hat keinen Zugriff mehr auf diesen Tresor. Lege einen neuen Schlüssel an, damit neue Dateien vor dieser Person geschützt sind.</string>
+    <string name="drive_vault_rotation_read">Jemand hat keinen Zugriff mehr auf diesen Tresor. Eine Person mit Schreibrecht sollte einen neuen Schlüssel anlegen.</string>
+    <string name="drive_vault_new_recovery">Neuer Wiederherstellungsschlüssel</string>
+    <string name="drive_vault_new_recovery_text">Es wird ein neuer Wiederherstellungsschlüssel erzeugt und einmal angezeigt. Der bisherige öffnet den Tresor danach nicht mehr.</string>
+    <string name="drive_vault_new_recovery_go">Erzeugen</string>
+    <string name="drive_vault_recovery_replaced">Der bisherige Wiederherstellungsschlüssel gilt nicht mehr.</string>
+    <string name="drive_vault_new_version">Neue Version hochladen</string>
+    <string name="drive_done_rotated">Neuer Tresor-Schlüssel angelegt.</string>
+    <string name="drive_code_old_keys">Diesem Gerät fehlen ältere Schlüssel des Tresors. Öffne ihn einmal mit dem Wiederherstellungsschlüssel und versuche es erneut.</string>
+</resources>

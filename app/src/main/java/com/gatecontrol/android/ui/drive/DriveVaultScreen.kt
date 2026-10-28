@@ -17,6 +17,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import com.gatecontrol.android.ui.components.GcChevron
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -81,6 +86,7 @@ import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -230,21 +236,137 @@ class DriveVaultViewModel @Inject constructor(
 
     private fun here(): Ui.Ready? = _ui.value as? Ui.Ready
 
-    /** Encrypts and uploads the picked files one after the other. */
+    /** A picked file whose (decrypted) name is taken in the folder: new version, keep both or skip. */
+    data class Conflict(val name: String, val existing: DNode, val answer: CompletableDeferred<String?>)
+
+    private val _conflict = MutableStateFlow<Conflict?>(null)
+    val conflict: StateFlow<Conflict?> = _conflict.asStateFlow()
+
+    /** The person chose for [conflict]: `version`, `rename` or null (skip). */
+    fun resolve(conflict: Conflict, choice: String?) {
+        _conflict.value = null
+        conflict.answer.complete(choice)
+    }
+
+    /**
+     * Encrypts and uploads the picked files one after the other. A name already in the folder asks first (the server
+     * cannot tell: it only sees opaque names): a new version of that file, both (a free name), or skip.
+     */
     fun upload(uris: List<Uri>, names: (Uri) -> String) {
         val r = here() ?: return
         viewModelScope.launch {
             var last: DResult<*> = DResult.Ok(Unit)
+            val taken = r.items.map { it.second }.toMutableList()
             for (uri in uris) {
-                val name = names(uri)
+                var name = DriveLogic.safeName(names(uri)) ?: "file"
+                var version: DNode? = null
+                val existing = r.items.firstOrNull { (_, have) -> have.equals(name, ignoreCase = true) }
+                if (existing != null) {
+                    if (existing.first.isDir) {
+                        name = DriveLogic.freeName(name, taken)
+                    } else {
+                        val c = Conflict(name, existing.first, CompletableDeferred())
+                        _conflict.value = c
+                        when (c.answer.await()) {
+                            DriveLogic.ON_CONFLICT_VERSION -> { version = existing.first; name = existing.second }
+                            DriveLogic.ON_CONFLICT_RENAME -> name = DriveLogic.freeName(name, taken)
+                            else -> continue
+                        }
+                    }
+                }
+                taken += name
                 _upload.value = name to 0f
-                last = session.upload(vaultId, r.folder.node.id, uri) { p -> _upload.value = name to p }
+                last = session.upload(vaultId, r.folder.node.id, uri, name = name, version = version) { p -> _upload.value = name to p }
                 if (last !is DResult.Ok) break
             }
             _upload.value = null
             _message.value = last.errorCode() ?: "done_upload"
             refresh(quiet = true)
         }
+    }
+
+    /** "Neue Version hochladen": the picked file becomes the new content of [node] (its name stays). */
+    fun uploadVersion(node: DNode, name: String, uri: Uri) {
+        val r = here() ?: return
+        if (node.isDir) return
+        viewModelScope.launch {
+            _upload.value = name to 0f
+            val res = session.upload(vaultId, r.folder.node.id, uri, name = name, version = node) { p -> _upload.value = name to p }
+            _upload.value = null
+            _message.value = res.errorCode() ?: "done_version"
+            refresh(quiet = true)
+        }
+    }
+
+    // ─── a new key, a new recovery key ──────────────────────────────
+
+    private val _recoveryKey = MutableStateFlow<String?>(null)
+    /** A new recovery key to write down (shown once). */
+    val recoveryKey: StateFlow<String?> = _recoveryKey.asStateFlow()
+
+    fun recoveryKeyNoted() { _recoveryKey.value = null }
+
+    /** "Tresor-Schlüssel wechseln": a new key for the devices approved now (and, if needed, a new recovery key). */
+    fun rotate() = act("done_rotated") {
+        session.rotate(vaultId).also { r ->
+            if (r is DResult.Ok) {
+                r.value.recoveryKey?.let { _recoveryKey.value = it }
+                refresh(quiet = true)
+            }
+        }
+    }
+
+    /** "Neuen Wiederherstellungsschlüssel erzeugen": the old one stops working. */
+    fun newRecovery() = act {
+        session.newRecovery(vaultId).also { r -> if (r is DResult.Ok) _recoveryKey.value = r.value }
+    }
+
+    // ─── moving inside the vault ────────────────────────────────────
+
+    /** Where to move [node] ([name]): folders of this vault only. */
+    data class MovePicker(val node: DNode, val name: String, val folder: DriveLoad<MoveFolder>)
+
+    /** A folder of the vault while choosing: its decrypted name, its folders, whether it is the vault's own folder. */
+    data class MoveFolder(val folder: DFolder, val title: String, val dirs: List<Pair<DNode, String>>, val root: Boolean)
+
+    private val _move = MutableStateFlow<MovePicker?>(null)
+    val move: StateFlow<MovePicker?> = _move.asStateFlow()
+
+    fun startMove(node: DNode, name: String) {
+        val r = here() ?: return
+        _move.value = MovePicker(node, name, DriveLoad.Loading)
+        browseMove(r.folder.node.id)
+    }
+
+    /** Shows the folder [id] of the vault in the picker (the node being moved never: nothing goes into itself). */
+    fun browseMove(id: Long) {
+        val p = _move.value ?: return
+        val vault = here()?.vault ?: return
+        _move.value = p.copy(folder = DriveLoad.Loading)
+        viewModelScope.launch {
+            val f = api.folder(id)
+            _move.value = _move.value?.copy(
+                folder = f.toLoad { folder ->
+                    val root = folder.node.id == vault.nodeId
+                    val title = (if (root) session.nameOf(vault) else session.nameOf(folder.node)) ?: "…"
+                    val dirs = DriveLogic.sortVault(
+                        folder.items.filter { it.isDir && it.vaultId == vaultId && it.id != p.node.id }.map { it to (session.nameOf(it) ?: "…") },
+                    )
+                    MoveFolder(folder, title, dirs, root)
+                },
+            )
+        }
+    }
+
+    fun closeMove() { _move.value = null }
+
+    /** Moves the node into the folder shown: only within the vault; its encrypted name stays as it is (the server keeps it). */
+    fun moveHere() {
+        val p = _move.value ?: return
+        val target = (p.folder as? DriveLoad.Ready)?.value?.folder?.node ?: return
+        if (target.vaultId != vaultId || target.id == p.node.parentId || target.id == p.node.id) return
+        _move.value = null
+        act("done_move") { api.move(p.node.id, target.id).also { if (it is DResult.Ok) refresh(quiet = true) } }
     }
 
     fun createFolder(name: String) {
@@ -279,6 +401,13 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val upload by viewModel.upload.collectAsStateWithLifecycle()
     val requests by viewModel.requests.collectAsStateWithLifecycle()
+    val conflict by viewModel.conflict.collectAsStateWithLifecycle()
+    val move by viewModel.move.collectAsStateWithLifecycle()
+    val recoveryKey by viewModel.recoveryKey.collectAsStateWithLifecycle()
+    var keysOpen by remember { mutableStateOf(false) }
+    var confirmRotate by remember { mutableStateOf(false) }
+    var confirmRecovery by remember { mutableStateOf(false) }
+    var versionFor by remember { mutableStateOf<Pair<DNode, String>?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var menuFor by remember { mutableStateOf<Pair<DNode, String>?>(null) }
@@ -302,6 +431,11 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.upload(uris) { u -> displayName(context, u) }
     }
+    val pickVersion = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val target = versionFor
+        versionFor = null
+        if (uri != null && target != null) viewModel.uploadVersion(target.first, target.second, uri)
+    }
     val open: (DNode, String) -> Unit = { n, name ->
         scope.launch {
             when (val r = viewModel.fetch(n, name)) {
@@ -316,6 +450,26 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             GcSubpageBar(ready?.title ?: stringResource(R.string.drive_vault), onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
                 if (ready != null) {
                     GcIconButton(GcIcons.Users, contentDescription = stringResource(R.string.drive_vault_requests), onClick = viewModel::openRequests, tint = MaterialTheme.colorScheme.onBackground)
+                    // a new key and a new recovery key: the write right (the server's rule)
+                    if (ready.folder.writable) {
+                        Box {
+                            GcIconButton(GcIcons.Key, contentDescription = stringResource(R.string.drive_vault_keys), onClick = { keysOpen = true }, tint = MaterialTheme.colorScheme.onBackground)
+                            DropdownMenu(expanded = keysOpen, onDismissRequest = { keysOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.drive_vault_rotate)) },
+                                    leadingIcon = { Icon(GcIcons.Refresh, contentDescription = null) },
+                                    onClick = { keysOpen = false; confirmRotate = true },
+                                    enabled = !busy,
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.drive_vault_new_recovery)) },
+                                    leadingIcon = { Icon(GcIcons.Lifebuoy, contentDescription = null) },
+                                    onClick = { keysOpen = false; confirmRecovery = true },
+                                    enabled = !busy,
+                                )
+                            }
+                        }
+                    }
                 }
             }
             Column(
@@ -336,7 +490,21 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             }
                         }
                         if (s.vault.needsRotation) {
-                            GcBanner(tone = GcTone.Warn, icon = GcIcons.Key) { Text(stringResource(R.string.drive_vault_rotation), style = MaterialTheme.typography.bodyMedium) }
+                            GcBanner(tone = GcTone.Warn, icon = GcIcons.Key) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        stringResource(if (s.folder.writable) R.string.drive_vault_rotation_now else R.string.drive_vault_rotation_read),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    if (s.folder.writable) {
+                                        if (busy) {
+                                            LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                                        } else {
+                                            TextButton(onClick = { confirmRotate = true }) { Text(stringResource(R.string.drive_vault_rotate)) }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
                             Icon(GcIcons.Lock, contentDescription = null, tint = GateControlTheme.extraColors.muted, modifier = Modifier.padding(end = 8.dp))
@@ -408,6 +576,10 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 }
                 if (!n.isDir) item(GcIcons.External, R.string.drive_open) { open(n, name) }
                 if (writable) item(GcIcons.Edit, R.string.drive_rename) { renaming = n to name }
+                if (writable) item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n, name) }
+                if (writable && !n.isDir && upload == null) {
+                    item(GcIcons.Upload, R.string.drive_vault_new_version) { versionFor = n to name; pickVersion.launch(arrayOf("*/*")) }
+                }
                 if (writable) item(GcIcons.Trash, R.string.drive_delete_menu) { deleting = n to name }
             }
         }
@@ -444,6 +616,40 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             RequestsSheet(r, busy, onApprove = { approving = it }, onDecline = viewModel::decline)
         }
     }
+    conflict?.let { c ->
+        AlertDialog(
+            onDismissRequest = { viewModel.resolve(c, null) },
+            title = { Text(stringResource(R.string.drive_conflict_title, c.name)) },
+            text = { Text(stringResource(R.string.drive_conflict_text)) },
+            confirmButton = {
+                Row {
+                    TextButton(onClick = { viewModel.resolve(c, null) }) { Text(stringResource(R.string.drive_conflict_skip)) }
+                    TextButton(onClick = { viewModel.resolve(c, DriveLogic.ON_CONFLICT_RENAME) }) { Text(stringResource(R.string.drive_conflict_keep)) }
+                    TextButton(onClick = { viewModel.resolve(c, DriveLogic.ON_CONFLICT_VERSION) }) { Text(stringResource(R.string.drive_conflict_version)) }
+                }
+            },
+        )
+    }
+    move?.let { p -> VaultMovePicker(p, onBrowse = viewModel::browseMove, onMove = viewModel::moveHere, onDismiss = viewModel::closeMove) }
+    if (confirmRotate) {
+        AlertDialog(
+            onDismissRequest = { confirmRotate = false },
+            title = { Text(stringResource(R.string.drive_vault_rotate_title)) },
+            text = { Text(stringResource(R.string.drive_vault_rotate_text)) },
+            confirmButton = { TextButton(onClick = { confirmRotate = false; viewModel.rotate() }) { Text(stringResource(R.string.drive_vault_rotate)) } },
+            dismissButton = { TextButton(onClick = { confirmRotate = false }) { Text(stringResource(R.string.drive_cancel)) } },
+        )
+    }
+    if (confirmRecovery) {
+        AlertDialog(
+            onDismissRequest = { confirmRecovery = false },
+            title = { Text(stringResource(R.string.drive_vault_new_recovery)) },
+            text = { Text(stringResource(R.string.drive_vault_new_recovery_text)) },
+            confirmButton = { TextButton(onClick = { confirmRecovery = false; viewModel.newRecovery() }) { Text(stringResource(R.string.drive_vault_new_recovery_go)) } },
+            dismissButton = { TextButton(onClick = { confirmRecovery = false }) { Text(stringResource(R.string.drive_cancel)) } },
+        )
+    }
+    recoveryKey?.let { key -> RecoveryKeyDialog(key, onDone = viewModel::recoveryKeyNoted, replaced = true) }
     approving?.let { d ->
         val safety = remember(d.publicKey) { runCatching { DriveVaultCrypto.safetyNumber(DriveVaultCrypto.unb64u(d.publicKey)) }.getOrNull() }
         AlertDialog(
@@ -456,6 +662,47 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             dismissButton = { TextButton(onClick = { approving = null }) { Text(stringResource(R.string.drive_cancel)) } },
         )
     }
+}
+
+/** Where to move a node of the vault: its folders only (the names decrypted here), never into itself. */
+@Composable
+private fun VaultMovePicker(p: DriveVaultViewModel.MovePicker, onBrowse: (Long) -> Unit, onMove: () -> Unit, onDismiss: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val ready = (p.folder as? DriveLoad.Ready)?.value
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.drive_move_title, p.name)) },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                when (val f = p.folder) {
+                    DriveLoad.Loading -> DriveLoading()
+                    is DriveLoad.Error -> DriveErrorBox(f.code, null)
+                    is DriveLoad.Ready -> {
+                        val here = f.value
+                        GcListRow(
+                            title = here.title,
+                            leading = { Icon(GcIcons.Vault, contentDescription = null, tint = x.warn, modifier = Modifier.size(22.dp)) },
+                        )
+                        // up: never above the vault's own folder
+                        val up = here.folder.node.parentId
+                        if (!here.root && up != null) {
+                            GcListRow(title = "‹ " + stringResource(R.string.drive_back), onClick = { onBrowse(up) }, titleColor = x.accentText)
+                        }
+                        here.dirs.forEach { (d, name) ->
+                            GcListRow(title = name, onClick = { onBrowse(d.id) }, leading = { NodeIcon(d, 32) }, trailing = { GcChevron() })
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            val target = ready?.folder?.node
+            TextButton(onClick = onMove, enabled = target != null && target.id != p.node.parentId && target.id != p.node.id) {
+                Text(stringResource(R.string.drive_move_here))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
+    )
 }
 
 /** This device holds no keys: ask (then the safety number), or the recovery key. */
@@ -562,7 +809,7 @@ private fun RequestsSheet(load: DriveLoad<List<DVaultDevice>>, busy: Boolean, on
 
 /** The recovery key of a new vault: shown once, copy / share, and only "Fertig" after "notiert". */
 @Composable
-internal fun RecoveryKeyDialog(key: String, onDone: () -> Unit) {
+internal fun RecoveryKeyDialog(key: String, onDone: () -> Unit, replaced: Boolean = false) {
     val context = LocalContext.current
     var noted by remember { mutableStateOf(false) }
     AlertDialog(
@@ -571,6 +818,8 @@ internal fun RecoveryKeyDialog(key: String, onDone: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.drive_vault_recovery_text), style = MaterialTheme.typography.bodyMedium)
+                // a new key of an existing vault: the one written down before no longer opens it
+                if (replaced) Text(stringResource(R.string.drive_vault_recovery_replaced), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 GcCard {
                     Text(key.replace("-", " "), style = MaterialTheme.typography.titleMedium.copy(fontFamily = MonoFontFamily), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }

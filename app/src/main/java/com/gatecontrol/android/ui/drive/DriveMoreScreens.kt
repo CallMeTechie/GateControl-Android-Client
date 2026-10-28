@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.gatecontrol.android.drive.DriveLogic
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -93,15 +94,26 @@ fun DriveTrashScreen(onBack: () -> Unit, viewModel: DriveTrashViewModel = hiltVi
     }
 }
 
-/** Search by name across the areas; a folder opens, a file opens in an app. */
+/**
+ * Search by name across the areas; a folder opens, a file opens in an app. With the Photos tab (Drive 1.7) photos and
+ * videos belong to it: the search of the Files tab leaves them out (a line says how many matched and shows them), the
+ * one of the Photos tab ([photos]) finds only them.
+ */
 @Composable
-fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: DriveSearchViewModel = hiltViewModel()) {
+fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, photos: Boolean = false, viewModel: DriveSearchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val me by viewModel.live.me.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var q by rememberSaveable { mutableStateOf("") }
+    var photosOnly by rememberSaveable { mutableStateOf(photos) }
+    val split = DriveLogic.hidesPhotos(me, null)
     Column(Modifier.fillMaxSize()) {
-        GcSubpageBar(stringResource(R.string.drive_search), onBack = onBack, backDescription = stringResource(R.string.drive_back))
+        GcSubpageBar(
+            stringResource(if (split && photosOnly) R.string.drive_search_photos else R.string.drive_search),
+            onBack = onBack,
+            backDescription = stringResource(R.string.drive_back),
+        )
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -115,11 +127,20 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                 null -> if (q.isNotBlank()) Text(stringResource(R.string.drive_search_min), color = GateControlTheme.extraColors.muted)
                 DriveLoad.Loading -> DriveLoading()
                 is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = { viewModel.search(q) })
-                is DriveLoad.Ready -> if (s.value.isEmpty()) {
+                is DriveLoad.Ready -> {
+                    val view = DriveLogic.filesView(s.value, split)
+                    val hits = if (split && photosOnly) s.value.filter(DriveLogic::isPhoto) else view.items
+                    if (split && !photosOnly && view.photos > 0) {
+                        PhotosHint(view.photos, onClick = { photosOnly = true }, search = true)
+                    }
+                    if (split && photosOnly) {
+                        TextButton(onClick = { photosOnly = false }) { Text(stringResource(R.string.drive_search_all_files)) }
+                    }
+                    if (hits.isEmpty()) {
                     Text(stringResource(R.string.drive_search_empty), color = GateControlTheme.extraColors.muted)
                 } else {
                     GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                        s.value.forEachIndexed { i, n ->
+                        hits.forEachIndexed { i, n ->
                             if (i > 0) GcRowDivider()
                             NodeRow(
                                 node = n,
@@ -139,6 +160,7 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                             )
                         }
                     }
+                }
                 }
             }
         }

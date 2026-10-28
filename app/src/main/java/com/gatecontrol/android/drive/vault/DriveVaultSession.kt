@@ -201,6 +201,102 @@ class DriveVaultSession @Inject constructor(
         r
     }
 
+    // ─── a new key, a new recovery key ──────────────────────────────
+
+    /** The keys of [vault] are in memory, the current version among them (loaded when not). */
+    private suspend fun ensureKeys(vault: DVault): Boolean {
+        current[vault.id] = vault.keyVersion
+        if (tk(vault.id, vault.keyVersion) == null) {
+            keys.remove(vault.id)?.values?.forEach { it.fill(0) }
+            if (open(vault).valueOrNull() != Access.Open) return false
+        }
+        return tk(vault.id, vault.keyVersion) != null
+    }
+
+    /** A new vault key is in place; [recoveryKey]: a new recovery key had to be made (shown once). */
+    data class Rotated(val vault: DVault, val recoveryKey: String?)
+
+    /**
+     * A new vault key (`POST vaults/<id>/rotate`, the write right): version n+1 for exactly every approved device and
+     * for the recovery key. `409 { devices }` (the list changed) loads it again and tries once more; `409
+     * recovery_required` (the holder of the recovery key no longer reads the area) makes a new recovery key with the
+     * wraps of every version — this device must hold them all (else `old_keys`).
+     */
+    suspend fun rotate(vaultId: String): DResult<Rotated> = withContext(Dispatchers.IO) {
+        var newRecovery = false
+        var last: DResult<Rotated> = DResult.Failed("conflict", 409)
+        for (attempt in 0 until ROTATE_TRIES) {
+            val v = api.vault(vaultId)
+            if (v !is DResult.Ok) return@withContext v.notOk()
+            val vault = v.value
+            if (!ensureKeys(vault)) return@withContext DResult.Failed("locked", 0)
+            val devices = api.vaultDevices(vaultId)
+            if (devices !is DResult.Ok) return@withContext devices.notOk()
+            val next = vault.keyVersion + 1
+            val tk = DriveVaultCrypto.newVaultKey()
+            val recoveryKey = if (newRecovery || vault.recoveryPub == null) DriveVaultCrypto.randomBytes(32) else null
+            var kept = false
+            try {
+                val body = try {
+                    val recovery = recoveryKey?.let { key ->
+                        DriveVaultRotation.recovery(key, vaultId, keys[vaultId]?.toMap().orEmpty() + (next to tk), next)
+                    }
+                    DriveVaultRotation.rotateBody(tk, vaultId, next, devices.value, vault.recoveryPub, recovery)
+                } catch (e: DriveVaultException) {
+                    return@withContext DResult.Failed(if (e.code == "old_keys") "old_keys" else "invalid", 0)
+                }
+                when (val r = api.vaultRotate(vaultId, body)) {
+                    is DResult.Ok -> {
+                        keep(vaultId, next, tk)
+                        kept = true
+                        current[vaultId] = r.value.keyVersion
+                        return@withContext DResult.Ok(Rotated(r.value, recoveryKey?.let(DriveVaultCrypto::formatRecoveryKey)))
+                    }
+                    is DResult.Failed -> {
+                        last = r
+                        if (r.http != 409) return@withContext r
+                        when {
+                            DriveJson.recoveryRequired(r.body) -> newRecovery = true
+                            // another device list, or another device made a new key meanwhile: load it again
+                            DriveJson.rotateDevices(r.body) != null -> Unit
+                            DriveJson.staleKeyVersion(r.body) != null -> reload(vaultId)
+                            else -> return@withContext r
+                        }
+                    }
+                    else -> return@withContext r.notOk()
+                }
+            } finally {
+                if (!kept) tk.fill(0)
+                recoveryKey?.fill(0)
+            }
+        }
+        last
+    }
+
+    /**
+     * A new recovery key (`PUT vaults/<id>/recovery`, the write right): every key version wrapped for it, the old one
+     * stops working. → the key to write down (shown once). This device must hold every version (else `old_keys`).
+     */
+    suspend fun newRecovery(vaultId: String): DResult<String> = withContext(Dispatchers.IO) {
+        val v = api.vault(vaultId)
+        if (v !is DResult.Ok) return@withContext v.notOk()
+        if (!ensureKeys(v.value)) return@withContext DResult.Failed("locked", 0)
+        val key = DriveVaultCrypto.randomBytes(32)
+        try {
+            val part = try {
+                DriveVaultRotation.recovery(key, vaultId, keys[vaultId]?.toMap().orEmpty(), v.value.keyVersion)
+            } catch (e: DriveVaultException) {
+                return@withContext DResult.Failed(if (e.code == "old_keys") "old_keys" else "invalid", 0)
+            }
+            when (val r = api.vaultSetRecovery(vaultId, DriveJson.recoveryBody(part))) {
+                is DResult.Ok -> DResult.Ok(DriveVaultCrypto.formatRecoveryKey(key))
+                else -> r.notOk()
+            }
+        } finally {
+            key.fill(0)
+        }
+    }
+
     // ─── a new vault ────────────────────────────────────────────────
 
     /** A new vault and the recovery key the person writes down (shown once). */
@@ -305,8 +401,20 @@ class DriveVaultSession @Inject constructor(
      * Encrypts the picked [uri] (streamed, 1 MiB chunks) into a ciphertext file of the cache, uploads it and makes it a
      * file of folder [parentId] of the vault. [onProgress] gets 0..1.
      */
-    suspend fun upload(vaultId: String, parentId: Long, uri: Uri, onProgress: (Float) -> Unit = {}): DResult<DNode> = withContext(Dispatchers.IO) {
-        val (name, size) = describe(uri) ?: return@withContext DResult.Failed("read", 0)
+    suspend fun upload(
+        vaultId: String,
+        parentId: Long,
+        uri: Uri,
+        /** The name in the vault (else the picked file's own). */
+        name: String? = null,
+        /** A new version of this file of the vault (its opaque name and `onConflict: version`). */
+        version: DNode? = null,
+        onProgress: (Float) -> Unit = {},
+    ): DResult<DNode> = withContext(Dispatchers.IO) {
+        val (picked, size) = describe(uri) ?: return@withContext DResult.Failed("read", 0)
+        val name = name?.let { DriveLogic.safeName(it) } ?: picked
+        val opaque = version?.takeIf { it.vaultId == vaultId && !it.isDir }?.name?.takeIf { OPAQUE.matches(it) }
+        if (version != null && opaque == null) return@withContext DResult.Failed("invalid", 0)
         fresh(vaultId) {
             val v = keyVersion(vaultId) ?: return@fresh DResult.Failed("locked", 0)
             val tk = tk(vaultId, v) ?: return@fresh DResult.Failed("locked", 0)
@@ -331,7 +439,7 @@ class DriveVaultSession @Inject constructor(
                 val media = api.upload(tmp, "application/octet-stream") { sent -> onProgress(0.5f + 0.5f * sent / total) }
                 if (media !is DResult.Ok) return@fresh media.notOk()
                 val cipher = DriveVaultCrypto.encryptName(tk, vaultId, v, name)
-                api.commitVault(media.value, parentId, cipher, v, null).let { r -> if (r is DResult.Ok) DResult.Ok(r.value.first) else r.notOk() }
+                api.commitVault(media.value, parentId, cipher, v, null, opaqueName = opaque).let { r -> if (r is DResult.Ok) DResult.Ok(r.value.first) else r.notOk() }
             } finally {
                 tmp.delete()
             }
@@ -396,5 +504,8 @@ class DriveVaultSession @Inject constructor(
 
     private companion object {
         const val PLATFORM = "android"
+        const val ROTATE_TRIES = 3
+        /** The opaque name of a vault node (32 hex characters, plugin `vault.js` OPAQUE_RE). */
+        val OPAQUE = Regex("^[0-9a-f]{32}$")
     }
 }

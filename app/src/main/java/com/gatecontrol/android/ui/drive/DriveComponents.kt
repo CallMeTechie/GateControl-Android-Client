@@ -311,6 +311,8 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "decrypt" -> context.getString(R.string.drive_code_decrypt)
     "stale_key" -> context.getString(R.string.drive_code_stale_key)
     "recovery_key" -> context.getString(R.string.drive_code_recovery_key)
+    "done_rotated" -> context.getString(R.string.drive_done_rotated)
+    "old_keys" -> context.getString(R.string.drive_code_old_keys)
     else -> context.getString(R.string.drive_error_generic, code)
 }
 
@@ -480,6 +482,54 @@ internal object DriveViewPref {
 
     fun setPhotos(context: Context, photos: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_PHOTOS, photos).apply()
+    }
+
+    /** "im Fotos-Tab ansehen" from another page: the Drive tab shows its photos when it is back. */
+    fun showPhotos(context: Context) = setPhotos(context, true)
+
+    private const val KEY_SORT = "sort"
+    private const val KEY_SORT_DESC = "sort_desc"
+
+    /** How folders are sorted (name, date, size, type; up or down) — one choice for all folders. */
+    fun sort(context: Context): DriveLogic.FolderSort {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return DriveLogic.sortOf(p.getString(KEY_SORT, null), if (p.contains(KEY_SORT_DESC)) p.getBoolean(KEY_SORT_DESC, false) else null)
+    }
+
+    fun setSort(context: Context, sort: DriveLogic.FolderSort) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SORT, sort.key).putBoolean(KEY_SORT_DESC, sort.desc).apply()
+    }
+}
+
+/** List or tiles, the same for every Drive screen ([DriveViewPref.grid]). */
+@Composable
+internal fun rememberDriveGrid(): androidx.compose.runtime.MutableState<Boolean> {
+    val context = LocalContext.current
+    return remember { androidx.compose.runtime.mutableStateOf(DriveViewPref.grid(context)) }
+}
+
+/** "12 Fotos in diesem Ordner – im Fotos-Tab ansehen": the photos the Files tab leaves out; a tap opens the Photos tab. */
+@Composable
+internal fun PhotosHint(count: Int, onClick: (() -> Unit)?, search: Boolean = false) {
+    val x = GateControlTheme.extraColors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(x.panel2)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(GcIcons.Photo, contentDescription = null, tint = x.blue, modifier = Modifier.size(20.dp))
+        Text(
+            androidx.compose.ui.res.pluralStringResource(if (search) R.plurals.drive_search_photos_hidden else R.plurals.drive_photos_hidden, count, count),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (onClick != null) x.accentText else x.muted,
+            modifier = Modifier.weight(1f).padding(start = 12.dp),
+        )
+        if (onClick != null) Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.muted, modifier = Modifier.size(18.dp))
     }
 }
 
