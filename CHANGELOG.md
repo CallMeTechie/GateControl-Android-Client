@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.20] - 2026-10-28
+
+### Changes
+- Tresore im Menü, Fotos nur im Fotos-Tab, Wischen zwischen Tabs, Sortieren nach Dateityp, Tresor-Schlüssel (#144)
+
+---
+
 ## [1.67.19] - 2026-10-28
 
 ### Changes
