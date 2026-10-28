@@ -152,4 +152,63 @@ class DriveLogicTest {
         assertEquals("eins\n\nzwei", DriveLogic.scanText(listOf(" eins ", null, "  ", "zwei")))
         assertNull(DriveLogic.scanText(listOf(null, " ")))
     }
+
+    // ─── Drive 1.6 ──────────────────────────────────────────────────
+
+    private fun me(features: Set<String>, links: DPortalLinks? = null, guard: DGuard? = null, incidents: List<DIncident> = emptyList()) = DMe(
+        userId = 1, name = "Ma", seat = "family", licenceValid = true, tier = null, areas = emptyList(), latest = 0, trashDays = null,
+        maxBytes = null, people = emptyMap(), features = features, links = links, guard = guard, incidents = incidents,
+    )
+
+    private fun incident(id: String, at: String? = null, state: String? = null) =
+        DIncident(id = id, at = at, device = null, deviceName = "Laptop", files = 1, sample = emptyList(), state = state)
+
+    @Test
+    fun `portal link of a node only with the feature`() {
+        val links = DPortalLinks("https://p/portal#drive/{id}", "https://p/portal#drive")
+        assertEquals("https://p/portal#drive/42", DriveLogic.portalNodeUrl(me(setOf("links"), links), 42))
+        assertEquals("https://p/portal#drive", DriveLogic.portalDriveUrl(me(setOf("links"), links)))
+        assertNull(DriveLogic.portalNodeUrl(me(emptySet(), links), 42))
+        assertNull(DriveLogic.portalDriveUrl(me(emptySet(), links)))
+        assertNull(DriveLogic.portalNodeUrl(me(setOf("links"), null), 42))
+        assertNull(DriveLogic.portalNodeUrl(null, 42))
+    }
+
+    @Test
+    fun `banner shows the open incidents once, newest first`() {
+        val stop = incident("1", at = "2026-10-28T09:00:00Z")
+        val m = me(
+            setOf("guard"),
+            guard = DGuard(locked = true, incident = stop),
+            incidents = listOf(stop, incident("2", at = "2026-10-28T10:00:00Z"), incident("3", state = "released")),
+        )
+        assertEquals(listOf("2", "1"), DriveLogic.openIncidents(m).map { it.id })
+        assertTrue(DriveLogic.locked(m))
+        // released / undone: no banner, writes go on
+        val after = me(setOf("guard"), guard = DGuard(locked = false, incident = null), incidents = listOf(incident("1", state = "undone")))
+        assertTrue(DriveLogic.openIncidents(after).isEmpty())
+        assertFalse(DriveLogic.locked(after))
+        // without the feature: nothing
+        val old = m.copy(features = emptySet())
+        assertTrue(DriveLogic.openIncidents(old).isEmpty())
+        assertFalse(DriveLogic.locked(old))
+        assertTrue(DriveLogic.openIncidents(null).isEmpty())
+    }
+
+    @Test
+    fun `changed events reload the folders of their areas`() {
+        assertTrue(DriveLogic.affects(DChanged(emptySet(), 1), "u:1"))
+        assertTrue(DriveLogic.affects(DChanged(setOf("u:1", "f:2"), 2), "u:1"))
+        assertFalse(DriveLogic.affects(DChanged(setOf("f:2"), 3), "u:1"))
+        assertTrue(DriveLogic.affects(DChanged(setOf("f:2"), 3), null))
+    }
+
+    @Test
+    fun `live reloads at most every two seconds`() {
+        assertEquals(0L, DriveLogic.liveDelay(0L, 10_000L))
+        assertEquals(1_500L, DriveLogic.liveDelay(10_000L, 10_500L))
+        assertEquals(0L, DriveLogic.liveDelay(10_000L, 13_000L))
+        // a clock that went back never waits longer than one gap
+        assertEquals(DriveLogic.LIVE_GAP_MS, DriveLogic.liveDelay(10_000L, 1_000L))
+    }
 }

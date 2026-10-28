@@ -172,4 +172,99 @@ class DriveJsonTest {
         assertEquals("…Bundesrepublik…", hit.snippet)
         assertNull(DriveJson.node(json("""{"id":1,"areaId":"u:7","name":"a.pdf","match":"name","snippet":"x"}"""))!!.snippet)
     }
+
+    // ─── Drive 1.6: features, portal links, ransomware protection ───
+
+    private val base = """"ok":true,"me":{"id":7,"name":"Ma","seat":"family"},"licence":{"valid":true},"areas":[]"""
+
+    @Test
+    fun `me with links and guard when the features say so`() {
+        val me = DriveJson.me(
+            json(
+                """{$base,"features":["devices","emptyFiles","links","guard"],
+                "links":{"node":"https://portal.example/portal#drive/{id}","drive":"https://portal.example/portal#drive"},
+                "guard":{"locked":true,"incident":{"id":12,"at":"2026-10-28T10:00:00Z","device":"d1","deviceName":"Laptop","files":250,"sample":["a.docx","b.xlsx",""]}},
+                "incidents":[{"id":"12","deviceName":"Laptop","files":250},{"id":"13","deviceName":"PC","files":3,"state":"released"},{"id":"../x"}]}""",
+            ),
+        )!!
+        assertEquals(setOf("devices", "emptyFiles", "links", "guard"), me.features)
+        assertTrue(me.has(DMe.FEATURE_EMPTY_FILES))
+        assertEquals("https://portal.example/portal#drive/{id}", me.links?.node)
+        assertEquals("https://portal.example/portal#drive", me.links?.drive)
+        val guard = me.guard!!
+        assertTrue(guard.locked)
+        assertEquals("12", guard.incident?.id)
+        assertEquals("Laptop", guard.incident?.deviceName)
+        assertEquals(250, guard.incident?.files)
+        assertEquals(listOf("a.docx", "b.xlsx"), guard.incident?.sample)
+        assertTrue(guard.incident!!.open)
+        assertEquals(listOf("12", "13"), me.incidents.map { it.id })
+        assertFalse(me.incidents[1].open)
+    }
+
+    @Test
+    fun `without the features links and guard stay unused`() {
+        val me = DriveJson.me(
+            json("""{$base,"features":["devices"],"links":{"node":"https://p/{id}"},"guard":{"locked":true},"incidents":[{"id":"1"}]}"""),
+        )!!
+        assertNull(me.links)
+        assertNull(me.guard)
+        assertTrue(me.incidents.isEmpty())
+        val old = DriveJson.me(json("""{$base}"""))!!
+        assertTrue(old.features.isEmpty())
+        assertNull(old.links)
+    }
+
+    @Test
+    fun `features may come as an object of flags`() {
+        assertEquals(setOf("links", "guard"), DriveJson.features(json("""{"links":true,"guard":true,"devices":false,"x y":true}""")))
+        assertTrue(DriveJson.features(null).isEmpty())
+    }
+
+    @Test
+    fun `portal links must be web addresses, the node one with a place for the id`() {
+        assertNull(DriveJson.portalLinks(json("""{"node":"https://p/portal","drive":"javascript:alert(1)"}""")))
+        assertEquals(DPortalLinks(null, "https://p/drive"), DriveJson.portalLinks(json("""{"node":"ftp://p/{id}","drive":"https://p/drive"}""")))
+        assertNull(DriveJson.portalLinks(null))
+    }
+
+    @Test
+    fun `undo and release answers`() {
+        val r = DriveJson.guardResult(json("""{"ok":true,"incident":{"id":"12","state":"undone"},"restored":240,"trashed":10}"""))
+        assertEquals("12", r.incident?.id)
+        assertFalse(r.incident!!.open)
+        assertEquals(240, r.restored)
+        assertEquals(10, r.trashed)
+        assertEquals(0, DriveJson.guardResult(json("""{"ok":true}""")).restored)
+    }
+
+    @Test
+    fun `changed event names areas and a sequence`() {
+        val e = DriveJson.changedEvent(json("""{"areas":["u:7","fam:1","bad area"],"seq":99}"""))
+        assertEquals(setOf("u:7", "fam:1"), e.areas)
+        assertEquals(99L, e.seq)
+        val none = DriveJson.changedEvent(null)
+        assertTrue(none.areas.isEmpty())
+        assertNull(none.seq)
+    }
+
+    @Test
+    fun `423 is the stopped device`() {
+        assertEquals(DriveJson.DEVICE_LOCKED, DriveJson.failureCode(423, json("""{"code":"device_locked","incident":{"id":"1"}}""")))
+        assertEquals(DriveJson.DEVICE_LOCKED, DriveJson.failureCode(423, null))
+        assertEquals("http_500", DriveJson.failureCode(500, null))
+        assertEquals("quota", DriveJson.failureCode(507, json("""{"code":"quota"}""")))
+    }
+
+    @Test
+    fun `an empty file is committed without media`() {
+        val b = DriveJson.emptyCommitBody(5, "leer.txt", "text/plain", "rename")
+        assertFalse(b.has("mediaId"))
+        assertEquals(5L, b.get("parentId").asLong)
+        assertEquals("leer.txt", b.get("name").asString)
+        assertEquals(0, b.get("size").asInt)
+        assertEquals("text/plain", b.get("mime").asString)
+        assertEquals("rename", b.get("onConflict").asString)
+        assertFalse(DriveJson.emptyCommitBody(5, "x", null, "version").has("mime"))
+    }
 }

@@ -491,6 +491,7 @@ private fun schoolDriveErrorText(context: android.content.Context, code: String)
         "not_licensed" -> R.string.chat_err_drive_not_licensed
         "quota" -> R.string.chat_err_drive_quota
         "forbidden" -> R.string.chat_err_drive_forbidden
+        "device_locked" -> R.string.drive_code_device_locked
         "drive_unavailable" -> R.string.chat_err_drive_unavailable
         "offline" -> R.string.chat_err_offline
         else -> R.string.school_drive_failed

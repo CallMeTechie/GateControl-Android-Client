@@ -12,6 +12,8 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DFolder
+import com.gatecontrol.android.drive.DNode
+import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLogic
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,7 +27,8 @@ import javax.inject.Inject
 /**
  * "In Drive speichern" from other parts of the app (a chat attachment, a school letter, GateDrop): the person picks a
  * Drive folder they may write to — the areas first, then the folders below, starting in the folder used last — and
- * the caller saves there (its plugin hands the file to Drive on the server, nothing goes through the phone).
+ * the caller saves there (its plugin hands the file to Drive on the server, nothing goes through the phone). A new
+ * folder can be made on the way ("Neuer Ordner"); it is then the one shown and picked.
  */
 @Composable
 internal fun DriveFolderChooser(
@@ -47,6 +50,7 @@ internal fun DriveFolderChooser(
             onPicked(id)
         },
         onDismiss = onDismiss,
+        onNewFolder = viewModel::createFolderIn,
     )
 }
 
@@ -88,6 +92,9 @@ class DriveFolderChooserViewModel @Inject constructor(
             _state.value = _state.value.copy(folder = if (gone) null else load)
         }
     }
+
+    /** "Neuer Ordner" in the folder shown. */
+    suspend fun createFolderIn(parentId: Long, name: String): DResult<DNode> = api.createFolder(parentId, name.trim())
 
     /** The folder shown, remembered for the next time; null when none is (the areas are shown). */
     fun picked(): Long? {

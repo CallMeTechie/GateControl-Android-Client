@@ -217,6 +217,8 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "no_public_url" -> context.getString(R.string.drive_code_no_public_url)
     "scan_read" -> context.getString(R.string.drive_scan_read_failed)
     "read" -> context.getString(R.string.drive_share_read_failed)
+    "device_locked" -> context.getString(R.string.drive_code_device_locked)
+    "guard_released" -> context.getString(R.string.drive_guard_released)
     else -> context.getString(R.string.drive_error_generic, code)
 }
 
@@ -286,7 +288,7 @@ internal fun DriveFab(
     val sent = uploads.sumOf { u -> if (u.state == DriveTransfers.State.RUNNING || u.state == DriveTransfers.State.QUEUED) u.sent else u.total }
     val progress = if (total > 0) (sent.toFloat() / total).coerceIn(0f, 1f) else 0f
     val color = when {
-        uploads.any { it.state == DriveTransfers.State.CONFLICT } -> x.warn
+        uploads.any { it.state == DriveTransfers.State.CONFLICT || (it.state == DriveTransfers.State.QUEUED && it.code == "device_locked") } -> x.warn
         failed && !active -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.primary
     }
@@ -329,7 +331,8 @@ internal fun UploadsSheet(
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
             uploads.takeLast(50).forEach { u ->
                 val line = when (u.state) {
-                    DriveTransfers.State.QUEUED -> stringResource(R.string.drive_upload_waiting)
+                    DriveTransfers.State.QUEUED ->
+                        if (u.code == "device_locked") stringResource(R.string.drive_upload_paused_locked) else stringResource(R.string.drive_upload_waiting)
                     DriveTransfers.State.RUNNING -> if (u.total > 0) "${DriveLogic.size(u.sent)} / ${DriveLogic.size(u.total)}" else DriveLogic.size(u.sent)
                     DriveTransfers.State.CONFLICT -> stringResource(R.string.drive_upload_conflict)
                     DriveTransfers.State.DONE -> stringResource(R.string.drive_upload_done)
@@ -337,9 +340,9 @@ internal fun UploadsSheet(
                     DriveTransfers.State.SKIPPED -> stringResource(R.string.drive_upload_skipped)
                     DriveTransfers.State.FAILED -> stringResource(R.string.drive_upload_failed, driveMessage(u.code).orEmpty())
                 }
-                val tint = when (u.state) {
-                    DriveTransfers.State.FAILED -> MaterialTheme.colorScheme.error
-                    DriveTransfers.State.CONFLICT -> x.warn
+                val tint = when {
+                    u.state == DriveTransfers.State.FAILED -> MaterialTheme.colorScheme.error
+                    u.state == DriveTransfers.State.CONFLICT || u.code == "device_locked" -> x.warn
                     else -> x.muted
                 }
                 Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {

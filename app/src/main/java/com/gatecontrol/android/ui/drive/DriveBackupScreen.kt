@@ -51,6 +51,7 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DFolder
+import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLogic
@@ -168,6 +169,9 @@ class DriveBackupViewModel @Inject constructor(
     }
 
     // ─── choosing the folder ────────────────────────────────────────
+
+    /** "Neuer Ordner" in the folder shown by the picker. */
+    suspend fun createFolderIn(parentId: Long, name: String): DResult<DNode> = api.createFolder(parentId, name.trim())
 
     fun openPicker() {
         viewModelScope.launch {
@@ -370,6 +374,7 @@ fun DriveBackupScreen(onBack: () -> Unit, viewModel: DriveBackupViewModel = hilt
             onBrowse = viewModel::browse,
             onPick = viewModel::pick,
             onDismiss = viewModel::closePicker,
+            onNewFolder = viewModel::createFolderIn,
         )
     }
 }

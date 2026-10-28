@@ -198,6 +198,8 @@ object ChatText {
     fun actionError(ctx: Context, code: String?): String = ctx.getString(
         when (code) {
             "offline" -> R.string.chat_err_offline
+            // Drive's ransomware protection stopped this device ("In Drive speichern").
+            "device_locked" -> R.string.drive_code_device_locked
             "edit_window" -> R.string.chat_err_window
             "not_sender" -> R.string.chat_err_not_sender
             "not_admin" -> R.string.chat_err_not_admin

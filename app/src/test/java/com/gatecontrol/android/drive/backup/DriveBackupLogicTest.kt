@@ -38,7 +38,7 @@ class DriveBackupLogicTest {
     @Test
     fun `what a failure means for the run`() {
         listOf("offline", "busy", "http_503", "http_429", "timeout").forEach { assertEquals(Next.RETRY, DriveBackupLogic.next(it), it) }
-        listOf("not_licensed", "no_seat", "forbidden", "not_found", "quota", "no_permission", "no_folder").forEach { assertEquals(Next.STOP, DriveBackupLogic.next(it), it) }
+        listOf("not_licensed", "no_seat", "forbidden", "not_found", "quota", "no_permission", "no_folder", "device_locked").forEach { assertEquals(Next.STOP, DriveBackupLogic.next(it), it) }
         listOf("too_large", "read", "empty").forEach { assertEquals(Next.SKIP, DriveBackupLogic.next(it), it) }
         assertEquals(Next.TRY, DriveBackupLogic.next("invalid_answer"))
         assertEquals(Next.TRY, DriveBackupLogic.next("something_new"))

@@ -6,6 +6,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.drive.DArea
+import com.gatecontrol.android.drive.DChanged
+import com.gatecontrol.android.drive.DIncident
+import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DFolder
 import com.gatecontrol.android.drive.DLink
 import com.gatecontrol.android.drive.DMe
@@ -59,6 +62,7 @@ class DriveHomeViewModel @Inject constructor(
     private val api: DriveApi,
     val transfers: DriveTransfers,
     private val local: DriveLocal,
+    val live: DriveLive,
 ) : ViewModel() {
 
     data class Home(val me: DMe, val areas: List<DArea>)
@@ -100,11 +104,19 @@ class DriveHomeViewModel @Inject constructor(
         viewModelScope.launch { transfers.changed.collect { refresh(quiet = true) } }
     }
 
+    private var shown = false
+
+    /** The tab is shown again (back from another tab or from the background): load quietly. */
+    fun onResume() {
+        if (shown) refresh(quiet = true)
+        shown = true
+    }
+
     fun refresh(quiet: Boolean = false) {
         job?.cancel()
         job = viewModelScope.launch {
             if (!quiet || _state.value !is DriveLoad.Ready) _state.value = DriveLoad.Loading
-            val me = api.me()
+            val me = live.refresh()
             if (me !is DResult.Ok) {
                 _state.value = me.toLoad { error("unreachable") }
                 return@launch
@@ -122,6 +134,39 @@ class DriveHomeViewModel @Inject constructor(
         }
     }
 
+    // ─── ransomware protection (feature `guard`) ────────────────────
+
+    /** A short message after undo / release: a Drive code, `guard_released`, or `guard_undone:<restored>`. */
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    private val _guardBusy = MutableStateFlow<String?>(null)
+    /** The incident an action runs for. */
+    val guardBusy: StateFlow<String?> = _guardBusy.asStateFlow()
+
+    fun clearMessage() { _message.value = null }
+
+    /** Puts back what [incident] changed. */
+    fun guardUndo(incident: DIncident) = guard(incident, undo = true)
+
+    /** "That was me": the device may write again. */
+    fun guardRelease(incident: DIncident) = guard(incident, undo = false)
+
+    private fun guard(incident: DIncident, undo: Boolean) {
+        if (_guardBusy.value != null) return
+        _guardBusy.value = incident.id
+        viewModelScope.launch {
+            val r = if (undo) api.guardUndo(incident.id) else api.guardRelease(incident.id)
+            _message.value = when (r) {
+                is DResult.Ok -> if (undo) "guard_undone:${r.value.restored}" else "guard_released"
+                else -> r.errorCode()
+            }
+            // The protection's state now (a lifted stop lets the uploads and the photo backup go on).
+            live.refresh()
+            _guardBusy.value = null
+        }
+    }
+
     private companion object {
         const val KEY_AREA = "area"
     }
@@ -135,6 +180,7 @@ class DriveFolderViewModel @Inject constructor(
     val transfers: DriveTransfers,
     val local: DriveLocal,
     val scanner: DriveScanner,
+    val live: DriveLive,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -158,7 +204,46 @@ class DriveFolderViewModel @Inject constructor(
     init {
         if (folderId > 0) refresh()
         viewModelScope.launch { transfers.changed.collect { if (it == folderId) refresh(quiet = true) } }
+        viewModelScope.launch { live.changed.collect(::onChanged) }
+        // Portal links and features for the menu (usually known from the Drive tab already).
+        if (live.me.value == null) viewModelScope.launch { live.current() }
     }
+
+    private var shown = false
+    private var visible = false
+    private var lastLive = 0L
+    private var liveJob: Job? = null
+
+    /** On screen again (back from another tab, a page on top or the background): load quietly. */
+    fun onResume() {
+        visible = true
+        if (shown) refresh(quiet = true)
+        shown = true
+    }
+
+    fun onPause() {
+        visible = false
+    }
+
+    /**
+     * Something changed on the server: the folder loads again while it is on screen — at most every
+     * [DriveLogic.LIVE_GAP_MS], keeping its place (the list stays while it loads). Hidden, [onResume] loads it.
+     */
+    private fun onChanged(e: DChanged) {
+        if (!visible || folderId <= 0) return
+        val here = (_state.value as? DriveLoad.Ready)?.value ?: return
+        if (!DriveLogic.affects(e, here.node.areaId)) return
+        if (liveJob?.isActive == true) return
+        liveJob = viewModelScope.launch {
+            val wait = DriveLogic.liveDelay(lastLive, android.os.SystemClock.elapsedRealtime())
+            if (wait > 0) delay(wait)
+            lastLive = android.os.SystemClock.elapsedRealtime()
+            if (visible) refresh(quiet = true)
+        }
+    }
+
+    /** A new folder in a folder picker ([FolderPickerDialog]). */
+    suspend fun createFolderIn(parentId: Long, name: String): DResult<DNode> = api.createFolder(parentId, name.trim())
 
     /** Shows the folder [id] (the Drive tab when another area is chosen). */
     fun open(id: Long) {

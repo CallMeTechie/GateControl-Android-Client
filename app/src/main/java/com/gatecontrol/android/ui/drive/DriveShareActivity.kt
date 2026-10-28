@@ -48,6 +48,7 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DFolder
+import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLogic
@@ -157,6 +158,7 @@ class DriveShareActivity : ComponentActivity() {
                         onBrowse = share::browse,
                         onPick = share::pickHere,
                         onDismiss = share::closePicker,
+                        onNewFolder = share::createFolderIn,
                     )
                 }
             }
@@ -326,6 +328,9 @@ class DriveShareViewModel @Inject constructor(
     }
 
     fun closePicker() { _picker.value = null }
+
+    /** "Neuer Ordner" in the folder shown by the picker. */
+    suspend fun createFolderIn(parentId: Long, name: String): DResult<DNode> = api.createFolder(parentId, name.trim())
 
     private fun choose(f: DFolder, areas: List<DArea>) {
         val area = areas.firstOrNull { it.id == f.node.areaId }?.label ?: "…"

@@ -1,6 +1,10 @@
 package com.gatecontrol.android.ui.drive
 
+import android.content.Context
 import android.widget.Toast
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.text.font.FontWeight
+import com.gatecontrol.android.drive.DIncident
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -84,11 +88,19 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
-    var firstResume by remember { mutableStateOf(true) }
-    LifecycleResumeEffect(Unit) {
-        if (!firstResume) viewModel.refresh(quiet = true)
-        firstResume = false
+    val me by viewModel.live.me.collectAsStateWithLifecycle()
+    val guardBusy by viewModel.guardBusy.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
+    var guardAsk by remember { mutableStateOf<Pair<DIncident, Boolean>?>(null) }
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
         onPauseOrDispose { }
+    }
+    LaunchedEffect(message) {
+        message?.let {
+            Toast.makeText(context, guardText(context, it), Toast.LENGTH_LONG).show()
+            viewModel.clearMessage()
+        }
     }
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
 
@@ -118,6 +130,17 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                 onFolder = nav.folder,
                 topBar = { _, actions -> TabBar(current.label, onMenu = openMenu, onSearch = nav.search, actions = actions) },
                 header = {
+                    // Drive 1.6 (feature `guard`): unusual changes stopped — undo, release or look in the portal.
+                    val portal = DriveLogic.portalDriveUrl(me)
+                    DriveLogic.openIncidents(me).take(3).forEach { incident ->
+                        GuardBanner(
+                            incident = incident,
+                            busy = guardBusy == incident.id,
+                            onUndo = { guardAsk = incident to true },
+                            onRelease = { guardAsk = incident to false },
+                            onPortal = portal?.let { url -> { openPortal(context, url) } },
+                        )
+                    }
                     wipes?.let { w ->
                         GcBanner(tone = GcTone.Warn, icon = GcIcons.Trash) {
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -151,6 +174,66 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
             }
         }
     }
+    guardAsk?.let { (incident, undo) ->
+        GuardConfirm(
+            incident = incident,
+            undo = undo,
+            onConfirm = {
+                guardAsk = null
+                if (undo) viewModel.guardUndo(incident) else viewModel.guardRelease(incident)
+            },
+            onDismiss = { guardAsk = null },
+        )
+    }
+}
+
+/** Asks before undo (files are put back) or release (the device may write again). */
+@Composable
+private fun GuardConfirm(incident: DIncident, undo: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val device = incident.deviceName ?: stringResource(R.string.drive_guard_device_unknown)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(if (undo) R.string.drive_guard_undo_title else R.string.drive_guard_release_title)) },
+        text = { Text(stringResource(if (undo) R.string.drive_guard_undo_text else R.string.drive_guard_release_text, device)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(if (undo) R.string.drive_guard_undo else R.string.drive_guard_release)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
+    )
+}
+
+/** "Drive hat ungewöhnliche Änderungen von <Gerät> gestoppt": how many files, some names, and what to do. */
+@Composable
+private fun GuardBanner(incident: DIncident, busy: Boolean, onUndo: () -> Unit, onRelease: () -> Unit, onPortal: (() -> Unit)?) {
+    val device = incident.deviceName ?: stringResource(R.string.drive_guard_device_unknown)
+    GcBanner(tone = GcTone.Error, icon = GcIcons.ShieldX) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.drive_guard_title, device), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            val details = listOfNotNull(
+                incident.files.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.drive_guard_files, it, it) },
+                incident.sample.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.drive_guard_sample, it.take(3).joinToString(", ")) },
+            )
+            if (details.isNotEmpty()) Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+            if (busy) {
+                LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+            } else {
+                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    TextButton(onClick = onUndo) { Text(stringResource(R.string.drive_guard_undo)) }
+                    TextButton(onClick = onRelease) { Text(stringResource(R.string.drive_guard_release)) }
+                    if (onPortal != null) TextButton(onClick = onPortal) { Text(stringResource(R.string.drive_guard_portal)) }
+                }
+            }
+        }
+    }
+}
+
+/** A message of the Drive tab as a sentence (outside of composition): undo / release, else a Drive code. */
+internal fun guardText(context: Context, message: String): String = when {
+    message.startsWith("guard_undone:") -> {
+        val n = message.substringAfter(':').toIntOrNull() ?: 0
+        context.resources.getQuantityString(R.plurals.drive_guard_undone, n, n)
+    }
+    else -> driveText(context, message)
 }
 
 /** Menu, title (the area), sort, search. */

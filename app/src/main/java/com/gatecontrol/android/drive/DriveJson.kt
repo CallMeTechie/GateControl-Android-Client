@@ -48,8 +48,83 @@ internal object DriveJson {
             }?.toMap().orEmpty(),
             wipes = o.int("wipes")?.coerceAtLeast(0) ?: 0,
             scanFormat = if (o.obj("settings")?.str("scanFormat") == "image") "image" else "pdf",
+        ).let { base ->
+            val features = features(o.get("features") ?: me.get("features"))
+            base.copy(
+                features = features,
+                links = if (DMe.FEATURE_LINKS in features) portalLinks(o.obj("links") ?: me.obj("links")) else null,
+                guard = if (DMe.FEATURE_GUARD in features) guard(o.obj("guard") ?: me.obj("guard")) else null,
+                incidents = if (DMe.FEATURE_GUARD in features) {
+                    (o.arr("incidents") ?: me.arr("incidents"))?.mapNotNull { incident(it as? JsonObject) }?.take(20).orEmpty()
+                } else {
+                    emptyList()
+                },
+            )
+        }
+    }
+
+    private val FEATURE = Regex("^[A-Za-z][A-Za-z0-9_.-]{0,39}$")
+    private val INCIDENT_ID = Regex("^[A-Za-z0-9_-]{1,80}$")
+
+    /** `features`: a list of names (`["links","guard"]`) or an object of flags (`{ links: true }`). */
+    fun features(e: JsonElement?): Set<String> = when {
+        e == null -> emptySet()
+        e.isJsonArray -> e.asJsonArray.mapNotNull { f -> f.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asString }.getOrNull() } }
+        e.isJsonObject -> e.asJsonObject.entrySet().filter { (_, v) -> v.isJsonPrimitive && runCatching { v.asBoolean }.getOrDefault(false) }.map { it.key }
+        else -> emptyList()
+    }.filter { FEATURE.matches(it) }.take(64).toSet()
+
+    /** A portal address as the server gives it: https (http only for a local test server), bounded. */
+    private fun webUrl(v: String?): String? =
+        v?.trim()?.takeIf { (it.startsWith("https://") || it.startsWith("http://")) && it.length <= 2000 && it.none(Char::isWhitespace) }
+
+    fun portalLinks(o: JsonObject?): DPortalLinks? {
+        if (o == null) return null
+        val node = webUrl(o.str("node"))?.takeIf { it.contains("{id}") }
+        val drive = webUrl(o.str("drive"))
+        return if (node == null && drive == null) null else DPortalLinks(node, drive)
+    }
+
+    /** An id the server may send as a number or a string. */
+    private fun JsonObject.idString(key: String): String? = prim(key)?.let { p ->
+        runCatching { if (p.asJsonPrimitive.isNumber) p.asNumber.toLong().toString() else p.asString }.getOrNull()
+    }
+
+    fun incident(o: JsonObject?): DIncident? {
+        if (o == null) return null
+        val id = o.idString("id")?.takeIf { INCIDENT_ID.matches(it) } ?: return null
+        return DIncident(
+            id = id,
+            at = o.str("at")?.take(40),
+            device = o.idString("device")?.take(100),
+            deviceName = o.str("deviceName")?.trim()?.take(100)?.ifEmpty { null },
+            files = o.int("files")?.coerceAtLeast(0) ?: 0,
+            sample = o.arr("sample")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asString }.getOrNull() }?.take(255) }
+                ?.filter { it.isNotBlank() }?.take(5).orEmpty(),
+            state = (o.str("state") ?: o.str("status"))?.take(20),
         )
     }
+
+    fun guard(o: JsonObject?): DGuard? = o?.let { DGuard(locked = it.bool("locked") ?: false, incident = incident(it.obj("incident"))) }
+
+    /** `POST guard/incidents/<id>/undo|release` → `{ incident, restored, trashed }`. */
+    fun guardResult(o: JsonObject): DGuardResult =
+        DGuardResult(incident(o.obj("incident")), restored = o.int("restored")?.coerceAtLeast(0) ?: 0, trashed = o.int("trashed")?.coerceAtLeast(0) ?: 0)
+
+    /** Push event `changed { areas, seq }`; without areas it stands for all of them. */
+    fun changedEvent(data: JsonElement?): DChanged {
+        val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return DChanged(emptySet(), null)
+        val areas = o.arr("areas")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.let { areaId(runCatching { it.asString }.getOrNull()) } }
+        return DChanged(areas?.take(100)?.toSet().orEmpty(), o.long("seq"))
+    }
+
+    /**
+     * The code of a refused call: the body's `code`, else from the status — `423` is Drive's ransomware protection
+     * (this device's writes are stopped).
+     */
+    fun failureCode(http: Int, body: JsonObject?): String = errorCode(body) ?: if (http == 423) DEVICE_LOCKED else "http_$http"
+
+    const val DEVICE_LOCKED = "device_locked"
 
     fun areas(o: JsonObject): List<DArea>? = o.arr("areas")?.mapNotNull { (it as? JsonObject)?.let(::area) }
 
@@ -277,6 +352,15 @@ internal object DriveJson {
         addProperty("onConflict", onConflict)
         // The recognised text of a scan (Drive 1.3+ makes it searchable; older ones ignore it).
         if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
+    }
+
+    /** An empty file (feature `emptyFiles`): no media, just its place, name and size 0. */
+    fun emptyCommitBody(parentId: Long, name: String, mime: String?, onConflict: String) = JsonObject().apply {
+        addProperty("parentId", parentId)
+        addProperty("name", name)
+        addProperty("size", 0)
+        mime?.takeIf { it.isNotBlank() && it.length <= 100 }?.let { addProperty("mime", it) }
+        addProperty("onConflict", onConflict)
     }
 
     fun linkBody(nodeId: Long, mode: String, expires: String, pin: String?) = JsonObject().apply {
