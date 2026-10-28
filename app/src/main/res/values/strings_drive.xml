@@ -221,4 +221,28 @@
         <item quantity="other">%d files are being saved to Drive</item>
     </plurals>
     <string name="drive_share_note_name">Note %1$s</string>
+    <!-- Drive 1.6: direct portal links, ransomware protection -->
+    <string name="drive_open_portal">Open in the portal</string>
+    <string name="drive_portal_unavailable">The portal cannot be opened.</string>
+    <string name="drive_code_device_locked">Drive has stopped changes from this device for now (ransomware protection). See the notice in the Drive tab.</string>
+    <string name="drive_upload_paused_locked">paused – Drive has stopped this device</string>
+    <string name="drive_guard_title">Drive stopped unusual changes from %1$s</string>
+    <string name="drive_guard_device_unknown">a device</string>
+    <plurals name="drive_guard_files">
+        <item quantity="one">%1$d file affected</item>
+        <item quantity="other">%1$d files affected</item>
+    </plurals>
+    <string name="drive_guard_sample">e.g. %1$s</string>
+    <string name="drive_guard_undo">Undo</string>
+    <string name="drive_guard_release">That was me – release</string>
+    <string name="drive_guard_portal">Check in the portal</string>
+    <string name="drive_guard_undo_title">Undo the changes?</string>
+    <string name="drive_guard_undo_text">Drive restores the files as they were before the changes from %1$s. Files that were created by them go to the trash.</string>
+    <string name="drive_guard_release_title">Release the device?</string>
+    <string name="drive_guard_release_text">Only if you made the changes yourself: %1$s may write to Drive again, the changes stay.</string>
+    <plurals name="drive_guard_undone">
+        <item quantity="one">Undone: %1$d file restored.</item>
+        <item quantity="other">Undone: %1$d files restored.</item>
+    </plurals>
+    <string name="drive_guard_released">Released – the device may write again.</string>
 </resources>

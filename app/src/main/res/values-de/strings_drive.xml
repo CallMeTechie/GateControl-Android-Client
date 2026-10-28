@@ -221,4 +221,28 @@
         <item quantity="other">%d Dateien werden in Drive gespeichert</item>
     </plurals>
     <string name="drive_share_note_name">Notiz %1$s</string>
+    <!-- Drive 1.6: Portal-Direktlinks, Schutz vor Erpressungstrojanern -->
+    <string name="drive_open_portal">Im Portal öffnen</string>
+    <string name="drive_portal_unavailable">Das Portal lässt sich nicht öffnen.</string>
+    <string name="drive_code_device_locked">Drive hat Änderungen von diesem Gerät vorübergehend gestoppt (Schutz vor Erpressungstrojanern). Sieh dir den Hinweis im Drive-Tab an.</string>
+    <string name="drive_upload_paused_locked">angehalten – Drive hat dieses Gerät gestoppt</string>
+    <string name="drive_guard_title">Drive hat ungewöhnliche Änderungen von %1$s gestoppt</string>
+    <string name="drive_guard_device_unknown">einem Gerät</string>
+    <plurals name="drive_guard_files">
+        <item quantity="one">%1$d Datei betroffen</item>
+        <item quantity="other">%1$d Dateien betroffen</item>
+    </plurals>
+    <string name="drive_guard_sample">z. B. %1$s</string>
+    <string name="drive_guard_undo">Rückgängig machen</string>
+    <string name="drive_guard_release">War ich – freigeben</string>
+    <string name="drive_guard_portal">Im Portal prüfen</string>
+    <string name="drive_guard_undo_title">Änderungen rückgängig machen?</string>
+    <string name="drive_guard_undo_text">Drive stellt die Dateien wieder her, wie sie vor den Änderungen von %1$s waren. Dateien, die dabei neu entstanden sind, kommen in den Papierkorb.</string>
+    <string name="drive_guard_release_title">Gerät freigeben?</string>
+    <string name="drive_guard_release_text">Nur, wenn du die Änderungen selbst gemacht hast: %1$s darf dann wieder in Drive schreiben, die Änderungen bleiben.</string>
+    <plurals name="drive_guard_undone">
+        <item quantity="one">Rückgängig gemacht: %1$d Datei wiederhergestellt.</item>
+        <item quantity="other">Rückgängig gemacht: %1$d Dateien wiederhergestellt.</item>
+    </plurals>
+    <string name="drive_guard_released">Freigegeben – das Gerät darf wieder schreiben.</string>
 </resources>

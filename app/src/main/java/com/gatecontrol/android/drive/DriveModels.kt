@@ -43,7 +43,52 @@ data class DMe(
     val wipes: Int = 0,
     /** How scans are saved by default: `pdf` | `image` (setting "Scans speichern als", Drive 1.3+). */
     val scanFormat: String = "pdf",
-)
+    /** What this Drive can do beyond the basics (`devices`, `deleteAfter`, `emptyFiles`, `links`, `guard` …, Drive 1.5+). */
+    val features: Set<String> = emptySet(),
+    /** Direct links into the portal (feature `links`); null when the server has none. */
+    val links: DPortalLinks? = null,
+    /** Protection against ransomware (feature `guard`): is this device stopped, and why. */
+    val guard: DGuard? = null,
+    /** Open incidents of the person's devices (feature `guard`). */
+    val incidents: List<DIncident> = emptyList(),
+) {
+    fun has(feature: String): Boolean = feature in features
+
+    companion object {
+        const val FEATURE_EMPTY_FILES = "emptyFiles"
+        const val FEATURE_LINKS = "links"
+        const val FEATURE_GUARD = "guard"
+    }
+}
+
+/** `me.links`: the portal page of a file or folder (template with `{id}`) and of Drive itself. */
+data class DPortalLinks(val node: String?, val drive: String?)
+
+/**
+ * A ransomware incident (Drive 1.6, feature `guard`): Drive saw unusual changes from a device ([deviceName]) and
+ * stopped its writes; [files] were touched, [sample] names some of them.
+ */
+data class DIncident(
+    val id: String,
+    val at: String?,
+    val device: String?,
+    val deviceName: String?,
+    val files: Int,
+    val sample: List<String>,
+    /** `open` (or missing) while it waits for the person; anything else is settled. */
+    val state: String? = null,
+) {
+    val open: Boolean get() = state == null || state == "open"
+}
+
+/** `me.guard`: whether this device's writes are stopped, and the incident behind it. */
+data class DGuard(val locked: Boolean, val incident: DIncident?)
+
+/** `POST guard/incidents/<id>/undo|release` → the incident now, files restored and files moved to the trash. */
+data class DGuardResult(val incident: DIncident?, val restored: Int, val trashed: Int)
+
+/** Push event `changed` of the Drive plugin: something changed in [areas] (empty: unknown, all). */
+data class DChanged(val areas: Set<String>, val seq: Long?)
 
 /** A storage location of an area (`GET areas`). */
 data class DStorage(val bytes: Long?, val quota: Long?, val form: String?, val target: String?, val state: String?)

@@ -7,7 +7,11 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType
@@ -69,11 +73,11 @@ class DriveApi @Inject constructor(
             val response = withTimeoutOrNull(timeoutMs) { client.request() } ?: return DResult.Offline
             if (response.isSuccessful) {
                 val body = response.body() ?: JsonObject()
-                if (DriveJson.isRefusal(body)) return DResult.Failed(DriveJson.errorCode(body) ?: "failed", response.code(), body)
+                if (DriveJson.isRefusal(body)) return DResult.Failed(DriveJson.errorCode(body) ?: "failed", response.code(), body).also(::seen)
                 parse(body)?.let { DResult.Ok(it) } ?: DResult.Failed(CODE_INVALID, response.code())
             } else {
                 val err = errorJson(response)
-                DResult.Failed(DriveJson.errorCode(err) ?: "http_${response.code()}", response.code(), err)
+                DResult.Failed(DriveJson.failureCode(response.code(), err), response.code(), err).also(::seen)
             }
         } catch (e: CancellationException) {
             throw e
@@ -83,6 +87,15 @@ class DriveApi @Inject constructor(
             Timber.d("Drive: call failed (%s)", e.javaClass.simpleName)
             DResult.Failed(CODE_INVALID, 0)
         }
+    }
+
+    private val _locked = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** A write was refused with `423 device_locked`: Drive stopped this device (ransomware protection, Drive 1.6). */
+    val locked: SharedFlow<Unit> = _locked.asSharedFlow()
+
+    private fun seen(f: DResult.Failed) {
+        if (f.code == DriveJson.DEVICE_LOCKED) _locked.tryEmit(Unit)
     }
 
     private fun errorJson(response: Response<*>): JsonObject? = runCatching {
@@ -175,6 +188,19 @@ class DriveApi @Inject constructor(
     /** Gone for good. */
     suspend fun purge(id: Long): DResult<Unit> = del("trash/$id", unit)
 
+    // ─── ransomware protection (Drive 1.6, feature `guard`) ─────────
+
+    /** Puts back what the incident changed (restores the files, the new ones go to the trash). */
+    suspend fun guardUndo(incidentId: String): DResult<DGuardResult> = guardAction(incidentId, "undo")
+
+    /** "That was me": the device may write again, the changes stay. */
+    suspend fun guardRelease(incidentId: String): DResult<DGuardResult> = guardAction(incidentId, "release")
+
+    private suspend fun guardAction(incidentId: String, action: String): DResult<DGuardResult> {
+        if (!Regex("^[A-Za-z0-9_-]{1,80}$").matches(incidentId)) return bad()
+        return post("guard/incidents/$incidentId/$action", JsonObject(), DriveJson::guardResult)
+    }
+
     // ─── links ──────────────────────────────────────────────────────
 
     /** [mode] `view` | `download` | `upload` (folders), [expires] `1d` | `7d` | `30d` | `never`. */
@@ -197,6 +223,10 @@ class DriveApi @Inject constructor(
     /** Makes the uploaded [mediaId] a file `name` in folder [parentId]; [onConflict] `rename` | `version`. */
     suspend fun commit(mediaId: String, parentId: Long, name: String, mtimeMs: Long?, onConflict: String, text: String? = null): DResult<Pair<DNode, Boolean>> =
         post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text), DriveJson::commit)
+
+    /** An empty file `name` in [parentId] without media (feature `emptyFiles`, Drive 1.5+). */
+    suspend fun commitEmpty(parentId: Long, name: String, mime: String?, onConflict: String): DResult<Pair<DNode, Boolean>> =
+        post("uploads/commit", DriveJson.emptyCommitBody(parentId, name, mime, onConflict), DriveJson::commit)
 
     /**
      * The file [nodeId] (or one of its [versionId]s) as a stream. `GET …/content` comes first: it names the media and
@@ -287,7 +317,7 @@ class DriveApi @Inject constructor(
                     delay(minOf(30_000L, 1_000L shl failures))
                     offset = uploadOffset(uploadId)?.takeIf { it in 0..length } ?: offset
                 }
-                else -> return DResult.Failed(answer.code ?: "http_${response.code()}", response.code())
+                else -> return DResult.Failed(answer.code ?: DriveJson.failureCode(response.code(), null), response.code()).also(::seen)
             }
         }
     }

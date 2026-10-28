@@ -64,6 +64,7 @@ import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DFolder
 import com.gatecontrol.android.drive.DLink
 import com.gatecontrol.android.drive.DNode
+import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.ui.components.GcBanner
@@ -138,12 +139,11 @@ internal fun DriveFolderContent(
         localDelete = null
         if (result.resultCode == Activity.RESULT_OK && c != null) viewModel.deletedLocally(c)
     }
-    var firstResume by remember { mutableStateOf(true) }
+    val me by viewModel.live.me.collectAsStateWithLifecycle()
 
-    LifecycleResumeEffect(Unit) {
-        if (!firstResume) viewModel.refresh(quiet = true)
-        firstResume = false
-        onPauseOrDispose { }
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
+        onPauseOrDispose { viewModel.onPause() }
     }
     LaunchedEffect(message) {
         message?.let {
@@ -303,6 +303,8 @@ internal fun DriveFolderContent(
                 if (!n.isDir) item(GcIcons.External, R.string.drive_open) { open(n, false) }
                 if (writable) item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n) }
                 if (!n.isDir) item(GcIcons.History, R.string.drive_versions) { viewModel.openVersions(n) }
+                // Drive 1.6 (feature `links`): the file or folder in the portal.
+                DriveLogic.portalNodeUrl(me, n.id)?.let { url -> item(GcIcons.Globe, R.string.drive_open_portal) { openPortal(context, url) } }
             }
         }
     }
@@ -411,7 +413,17 @@ internal fun DriveFolderContent(
         )
     }
     // after the scan dialog: its folder choice opens on top of it
-    picker?.let { p -> MovePicker(p, onBrowse = viewModel::browse, onMove = viewModel::moveHere, onDismiss = viewModel::closePicker) }
+    picker?.let { p ->
+        MovePicker(p, onBrowse = viewModel::browse, onMove = viewModel::moveHere, onDismiss = viewModel::closePicker, onNewFolder = viewModel::createFolderIn)
+    }
+}
+
+/** A portal page (a direct link of Drive) in the browser. */
+internal fun openPortal(context: Context, url: String) {
+    val ok = runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.isSuccess
+    if (!ok) Toast.makeText(context, R.string.drive_portal_unavailable, Toast.LENGTH_LONG).show()
 }
 
 /** One action in the icon row on top of the long-press menu: icon over a short label. */
@@ -625,7 +637,13 @@ private fun shareText(context: Context, text: String) {
 
 /** Where to move an item: the writable areas, then their folders. */
 @Composable
-private fun MovePicker(p: DriveFolderViewModel.Picker, onBrowse: (Long?) -> Unit, onMove: () -> Unit, onDismiss: () -> Unit) {
+private fun MovePicker(
+    p: DriveFolderViewModel.Picker,
+    onBrowse: (Long?) -> Unit,
+    onMove: () -> Unit,
+    onDismiss: () -> Unit,
+    onNewFolder: suspend (Long, String) -> DResult<DNode>,
+) {
     val node = p.node
     FolderPickerDialog(
         title = if (node == null) stringResource(R.string.drive_scan_folder_title) else stringResource(R.string.drive_move_title, node.name),
@@ -637,10 +655,14 @@ private fun MovePicker(p: DriveFolderViewModel.Picker, onBrowse: (Long?) -> Unit
         onBrowse = onBrowse,
         onPick = onMove,
         onDismiss = onDismiss,
+        onNewFolder = onNewFolder,
     )
 }
 
-/** Choosing a folder: the areas first, then the folders below; [hide] leaves one out (the folder being moved). */
+/**
+ * Choosing a folder: the areas first, then the folders below; [hide] leaves one out (the folder being moved). With
+ * [onNewFolder] a writable folder offers "Neuer Ordner": it is made there and shown at once, so it is the one picked.
+ */
 @Composable
 internal fun FolderPickerDialog(
     title: String,
@@ -652,9 +674,36 @@ internal fun FolderPickerDialog(
     onPick: () -> Unit,
     onDismiss: () -> Unit,
     hide: Long? = null,
+    onNewFolder: (suspend (parentId: Long, name: String) -> DResult<DNode>)? = null,
 ) {
     val x = GateControlTheme.extraColors
     val ready = (folder as? DriveLoad.Ready)?.value
+    val scope = rememberCoroutineScope()
+    var naming by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
+    var newError by remember { mutableStateOf<String?>(null) }
+    if (naming && ready != null && onNewFolder != null) {
+        NameDialog(
+            title = stringResource(R.string.drive_new_folder),
+            initial = "",
+            confirm = stringResource(R.string.drive_create),
+            onConfirm = { name ->
+                naming = false
+                creating = true
+                newError = null
+                val parent = ready.node.id
+                scope.launch {
+                    when (val r = onNewFolder(parent, name)) {
+                        is DResult.Ok -> onBrowse(r.value.id)
+                        else -> newError = r.errorCode()
+                    }
+                    creating = false
+                }
+            },
+            onDismiss = { naming = false },
+        )
+        return
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -676,6 +725,16 @@ internal fun FolderPickerDialog(
                             onClick = { onBrowse(up) },
                             titleColor = x.accentText,
                         )
+                        if (onNewFolder != null && f.value.writable) {
+                            GcListRow(
+                                title = stringResource(R.string.drive_new_folder),
+                                onClick = if (creating) null else ({ newError = null; naming = true }),
+                                leading = { Icon(GcIcons.FolderPlus, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
+                                titleColor = x.accentText,
+                            )
+                            if (creating) DriveLoading()
+                            newError?.let { Text(driveMessage(it).orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+                        }
                         f.value.items.filter { it.isDir && it.id != hide }.forEach { d ->
                             GcListRow(title = d.name, onClick = { onBrowse(d.id) }, leading = { NodeIcon(d, 32) }, trailing = { GcChevron() })
                         }

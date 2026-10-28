@@ -127,6 +127,40 @@ internal object DriveLogic {
     /** The text of a whole scan for the server: the pages' texts, blank ones left out; null when there is none. */
     fun scanText(pages: List<String?>): String? = pages.mapNotNull { it?.trim()?.ifEmpty { null } }.joinToString("\n\n").ifEmpty { null }
 
+    // ─── portal links, live updates, ransomware protection ──────────
+
+    /** The portal page of the file or folder [nodeId] (feature `links`); null when the server offers none. */
+    fun portalNodeUrl(me: DMe?, nodeId: Long): String? {
+        if (me == null || !me.has(DMe.FEATURE_LINKS) || nodeId <= 0) return null
+        return me.links?.node?.takeIf { it.contains("{id}") }?.replace("{id}", nodeId.toString())
+    }
+
+    /** The portal's Drive page (feature `links`), e.g. to look at an incident there. */
+    fun portalDriveUrl(me: DMe?): String? = me?.takeIf { it.has(DMe.FEATURE_LINKS) }?.links?.drive
+
+    /**
+     * The incidents the Drive tab shows (feature `guard`): the open ones of `incidents` and the one that stops this
+     * device, each once, the newest first.
+     */
+    fun openIncidents(me: DMe?): List<DIncident> {
+        if (me == null || !me.has(DMe.FEATURE_GUARD)) return emptyList()
+        val all = listOfNotNull(me.guard?.incident) + me.incidents
+        return all.filter { it.open }.distinctBy { it.id }.sortedByDescending { it.at.orEmpty() }
+    }
+
+    /** Whether this device's writes are stopped right now (feature `guard`). */
+    fun locked(me: DMe?): Boolean = me != null && me.has(DMe.FEATURE_GUARD) && me.guard?.locked == true
+
+    /** Whether a `changed` event concerns a folder of the area [areaId] (no areas named, or unknown area: yes). */
+    fun affects(event: DChanged, areaId: String?): Boolean = event.areas.isEmpty() || areaId == null || areaId in event.areas
+
+    /** How long a reload waits so there is at most one every [gapMs] (0: now). */
+    fun liveDelay(lastAtMs: Long, nowMs: Long, gapMs: Long = LIVE_GAP_MS): Long =
+        if (lastAtMs <= 0L) 0L else (lastAtMs + gapMs - nowMs).coerceIn(0L, gapMs)
+
+    /** At most one live reload of a folder this often. */
+    const val LIVE_GAP_MS = 2_000L
+
     private val SCAN_EXT = Regex("\\.(pdf|jpe?g)$", RegexOption.IGNORE_CASE)
 
     const val ON_CONFLICT_RENAME = "rename"

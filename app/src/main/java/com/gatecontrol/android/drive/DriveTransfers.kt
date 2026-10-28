@@ -42,6 +42,7 @@ class DriveTransfers @Inject constructor(
     private val api: DriveApi,
     private val previews: DrivePreviews,
     private val local: DriveLocal,
+    private val live: DriveLive,
 ) {
     enum class State { QUEUED, RUNNING, CONFLICT, DONE, SAME, SKIPPED, FAILED }
 
@@ -72,6 +73,8 @@ class DriveTransfers @Inject constructor(
         val onDone: ((DNode?) -> Unit)? = null,
         /** Recognised text of a scan, sent with the commit (searchable). */
         val text: String? = null,
+        /** An empty file is dropped unless the server takes empty files (a "save as" closed without content). */
+        val dropEmpty: Boolean = false,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
@@ -85,6 +88,24 @@ class DriveTransfers @Inject constructor(
 
     private val _uploads = MutableStateFlow<List<Upload>>(emptyList())
     val uploads: StateFlow<List<Upload>> = _uploads.asStateFlow()
+
+    private val _paused = MutableStateFlow(false)
+    /**
+     * Drive stopped this device's writes (`423 device_locked`, ransomware protection): the uploads wait — the one that
+     * was refused first in the queue — until the stop is lifted.
+     */
+    val paused: StateFlow<Boolean> = _paused.asStateFlow()
+
+    init {
+        scope.launch {
+            live.locked.collect { locked ->
+                if (!locked && _paused.value) {
+                    _paused.value = false
+                    pump()
+                }
+            }
+        }
+    }
 
     /** A folder whose content changed through an upload here (reload it). */
     private val _changed = MutableSharedFlow<Long>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -115,13 +136,25 @@ class DriveTransfers @Inject constructor(
      * as [name] into [folderId], with a scan's recognised [text]. The same content is skipped; a taken name becomes
      * [onExists] (`version` | `rename`) without asking.
      */
-    fun uploadWritten(file: File, name: String, mime: String?, folderId: Long, onExists: String, text: String? = null, onDone: (DNode?) -> Unit = {}) {
+    fun uploadWritten(
+        file: File,
+        name: String,
+        mime: String?,
+        folderId: Long,
+        onExists: String,
+        text: String? = null,
+        dropEmpty: Boolean = false,
+        onDone: (DNode?) -> Unit = {},
+    ) {
         scope.launch {
             val sha = runCatching { sha256(file) }.getOrNull()
             mutex.withLock {
                 val id = ids.incrementAndGet()
                 queue.addLast(
-                    Job(id, null, folderId, file = file, name = name, mime = mime, mtime = System.currentTimeMillis(), sha = sha, onExists = onExists, onDone = onDone, text = text),
+                    Job(
+                        id, null, folderId, file = file, name = name, mime = mime, mtime = System.currentTimeMillis(), sha = sha,
+                        onExists = onExists, onDone = onDone, text = text, dropEmpty = dropEmpty,
+                    ),
                 )
                 _uploads.update { it + Upload(id, name, folderId, file.length()) }
             }
@@ -152,6 +185,7 @@ class DriveTransfers @Inject constructor(
         if (mutex.withLock { if (running) true else { running = true; false } }) return
         try {
             while (true) {
+                if (_paused.value) break
                 val job = mutex.withLock { queue.removeFirstOrNull() } ?: break
                 runCatching { run(job) }.onFailure { e ->
                     if (e is CancellationException) throw e
@@ -167,7 +201,7 @@ class DriveTransfers @Inject constructor(
     }
 
     private suspend fun run(job: Job) {
-        set(job.id) { it.copy(state = State.RUNNING) }
+        set(job.id) { it.copy(state = State.RUNNING, code = null) }
         // 1. copy (once; a conflict keeps the copy)
         var sha: String? = job.sha
         if (job.file == null) {
@@ -181,6 +215,14 @@ class DriveTransfers @Inject constructor(
             set(job.id) { it.copy(total = copied.first.length()) }
         }
         val file = job.file!!
+        // An empty file: Drive 1.5+ keeps it without media; else a "save as" without content is dropped as before.
+        val empty = file.length() == 0L && live.supports(DMe.FEATURE_EMPTY_FILES)
+        if (file.length() == 0L && !empty && job.dropEmpty) {
+            file.delete()
+            set(job.id) { it.copy(state = State.SKIPPED) }
+            job.onDone?.invoke(null)
+            return
+        }
         var choice = conflictChoice.remove(job.id)
         // 2. check, unless the person already chose
         if (choice == null) {
@@ -201,18 +243,26 @@ class DriveTransfers @Inject constructor(
                         return
                     }
                 }
-                is DResult.Failed -> return fail(job, check.code)
+                is DResult.Failed -> return if (check.code == DriveJson.DEVICE_LOCKED) pause(job, choice) else fail(job, check.code)
                 DResult.Offline -> return fail(job, "offline")
                 DResult.NotConfigured -> return fail(job, "not_configured")
             }
         }
-        // 3. upload and commit
-        val media = api.upload(file, job.mime) { sent -> set(job.id) { it.copy(sent = sent) } }
-        if (media !is DResult.Ok) return fail(job, (media as? DResult.Failed)?.code ?: "offline")
-        // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
-        job.uri?.let { previews.uploadOwn(media.value, it, job.mime) }
+        // 3. upload and commit (an empty file: the commit alone)
         val onConflict = choice ?: DriveLogic.ON_CONFLICT_RENAME
-        when (val r = api.commit(media.value, job.folderId, job.name, job.mtime, onConflict, job.text)) {
+        val committed = if (empty) {
+            api.commitEmpty(job.folderId, job.name, job.mime, onConflict)
+        } else {
+            val media = api.upload(file, job.mime) { sent -> set(job.id) { it.copy(sent = sent) } }
+            if (media !is DResult.Ok) {
+                val code = (media as? DResult.Failed)?.code ?: "offline"
+                return if (code == DriveJson.DEVICE_LOCKED) pause(job, choice) else fail(job, code)
+            }
+            // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
+            job.uri?.let { previews.uploadOwn(media.value, it, job.mime) }
+            api.commit(media.value, job.folderId, job.name, job.mtime, onConflict, job.text)
+        }
+        when (val r = committed) {
             is DResult.Ok -> {
                 job.uri?.let { local.remember(r.value.first.id, sha, it) }
                 file.delete()
@@ -220,9 +270,25 @@ class DriveTransfers @Inject constructor(
                 _changed.tryEmit(job.folderId)
                 job.onDone?.invoke(r.value.first)
             }
-            is DResult.Failed -> fail(job, r.code)
+            is DResult.Failed -> if (r.code == DriveJson.DEVICE_LOCKED) pause(job, choice) else fail(job, r.code)
             else -> fail(job, "offline")
         }
+    }
+
+    /**
+     * Drive stopped this device: [job] goes back to the front of the queue (its copy and the person's [choice] kept)
+     * and the queue waits until [DriveLive.locked] is lifted.
+     */
+    private suspend fun pause(job: Job, choice: String?) {
+        Timber.i("Drive: uploads wait, this device is stopped (ransomware protection)")
+        if (choice != null) conflictChoice[job.id] = choice
+        set(job.id) { it.copy(state = State.QUEUED, sent = 0) }
+        // Every waiting upload says why it waits.
+        _uploads.update { list -> list.map { if (it.state == State.QUEUED) it.copy(code = DriveJson.DEVICE_LOCKED) else it } }
+        mutex.withLock { queue.addFirst(job) }
+        // Locked first, then paused: the lift (locked → false) is what resumes the queue.
+        live.stopped()
+        _paused.value = true
     }
 
     private fun fail(job: Job, code: String) {

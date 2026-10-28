@@ -30,6 +30,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -59,6 +60,7 @@ class DriveDocumentsProvider : DocumentsProvider() {
     interface Deps {
         fun driveApi(): DriveApi
         fun driveTransfers(): DriveTransfers
+        fun driveLive(): DriveLive
         fun pluginDirectory(): PluginDirectory
         fun setupRepository(): SetupRepository
     }
@@ -123,6 +125,36 @@ class DriveDocumentsProvider : DocumentsProvider() {
                 }
         }
         scope.launch { transfers.changed.collect { stale(DriveDocs.node(it)) } }
+        // Drive 1.6: changes on the server (another device, the portal) — the folders of those areas load again.
+        scope.launch { deps.driveLive().changed.collect(::changedOnServer) }
+    }
+
+    private val changedAreas = HashSet<String>()
+    private var changedAll = false
+    @Volatile private var flushing = false
+
+    /** Collects `changed` events for a moment, then tells the Files app which listings are out of date. */
+    private fun changedOnServer(e: DChanged) {
+        synchronized(changedAreas) {
+            if (e.areas.isEmpty()) changedAll = true else changedAreas += e.areas
+            if (flushing) return
+            flushing = true
+        }
+        scope.launch {
+            delay(CHANGED_DELAY_MS)
+            val (all, areas) = synchronized(changedAreas) {
+                flushing = false
+                (changedAll to changedAreas.toSet()).also {
+                    changedAll = false
+                    changedAreas.clear()
+                }
+            }
+            for (key in listings.keys.toList()) {
+                val id = DriveDocs.parse(key) as? DriveDocs.Id.Node ?: continue
+                val area = nodes[id.id]?.areaId
+                if (all || area == null || area in areas) stale(key)
+            }
+        }
     }
 
     private fun forget() {
@@ -271,8 +303,9 @@ class DriveDocumentsProvider : DocumentsProvider() {
                 // Written before: from now on it is that file.
                 p.nodeId?.let { return openDocument(DriveDocs.node(it), mode, signal) }
                 if (!write) throw FileNotFoundException("not written yet")
-                writable(tempFile(), bits) {
-                    transfers.uploadWritten(it, p.name, p.mime, p.parentId, DriveLogic.ON_CONFLICT_RENAME) { done ->
+                // A new file may stay empty: Drive 1.5+ keeps it (feature `emptyFiles`), else it is dropped as before.
+                writable(tempFile(), bits, keepEmpty = true) {
+                    transfers.uploadWritten(it, p.name, p.mime, p.parentId, DriveLogic.ON_CONFLICT_RENAME, dropEmpty = true) { done ->
                         if (done != null) {
                             p.nodeId = done.id
                             nodes[done.id] = done
@@ -285,10 +318,13 @@ class DriveDocumentsProvider : DocumentsProvider() {
         }
     }
 
-    /** [temp] opened for the caller; when it is closed without error and not empty, [upload] takes it over. */
-    private fun writable(temp: File, bits: Int, upload: (File) -> Unit): ParcelFileDescriptor =
+    /**
+     * [temp] opened for the caller; when it is closed without error and not empty ([keepEmpty]: also empty), [upload]
+     * takes it over.
+     */
+    private fun writable(temp: File, bits: Int, keepEmpty: Boolean = false, upload: (File) -> Unit): ParcelFileDescriptor =
         ParcelFileDescriptor.open(temp, bits, handler) { e ->
-            if (e != null || temp.length() == 0L) {
+            if (e != null || (temp.length() == 0L && !keepEmpty)) {
                 temp.delete()
             } else {
                 upload(temp)
@@ -431,6 +467,8 @@ class DriveDocumentsProvider : DocumentsProvider() {
         /** A listing this young is shown without asking the server again. */
         private const val FRESH_MS = 15_000L
         private const val AREAS_MS = 60_000L
+        /** `changed` events that come within this time are one reload. */
+        private const val CHANGED_DELAY_MS = 1_000L
         private const val PAGE = 500
         private const val MAX_PAGES = 20
 

@@ -84,6 +84,8 @@ internal object DriveBackupLogic {
 
     private val STOP_CODES = setOf(
         "not_licensed", "no_seat", "forbidden", "login_required", "not_found", "quota", "not_configured", "no_permission", "no_folder",
+        // Drive stopped this device (ransomware protection): the backup waits until the stop is lifted, then goes on.
+        "device_locked",
     )
     private val SKIP_CODES = setOf("too_large", "unsupported_type", "empty", "invalid", "read")
 

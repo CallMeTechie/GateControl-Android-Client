@@ -21,7 +21,7 @@ abstract class PushModule {
     @Binds
     abstract fun bindServerControl(impl: ServerControlHandler): ServerControlSink
 
-    /** Plugins' realtime events of the push stream: the messenger's go to the chats, GateDrop's to GateDrop. */
+    /** Plugins' realtime events of the push stream: the messenger's go to the chats, GateDrop's to GateDrop, Drive's to Drive. */
     @Binds
     abstract fun bindPluginEvents(impl: AppPluginEventSink): PluginEventSink
 }

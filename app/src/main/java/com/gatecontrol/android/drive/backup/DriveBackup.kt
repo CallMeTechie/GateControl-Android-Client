@@ -12,6 +12,7 @@ import androidx.core.content.edit
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
+import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DrivePreviews
 import com.gatecontrol.android.drive.DriveSource
@@ -45,6 +46,7 @@ class DriveBackup @Inject constructor(
     private val api: DriveApi,
     private val setup: SetupRepository,
     private val previews: DrivePreviews,
+    private val live: DriveLive,
 ) {
     /** The run in progress: [done] of [total] photos, [current] the one going up. */
     data class Status(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val current: String? = null)
@@ -185,6 +187,8 @@ class DriveBackup @Inject constructor(
         if (!cfg.enabled) return Outcome.DONE.also { DriveBackupWork.apply(context, cfg) }
         val folder = cfg.folderId ?: return stop("no_folder")
         if (!canRead(cfg.videos)) return stop("no_permission")
+        // Stopped by Drive's ransomware protection: no photo is tried until it is lifted (that starts a pass).
+        if (live.locked.value) return stop("device_locked")
         var done = 0
         while (true) {
             val mark = mark() ?: DriveBackupMark.ALL

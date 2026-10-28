@@ -129,16 +129,21 @@ class GateDropPushHandler @Inject constructor(
     }
 }
 
-/** Realtime events of the push stream for the chats and GateDrop. */
+/** Realtime events of the push stream for the chats, GateDrop and Drive. */
 @Singleton
 class AppPluginEventSink @Inject constructor(
     private val chats: com.gatecontrol.android.chat.ChatEventSink,
     private val gatedrop: dagger.Lazy<GateDropPushHandler>,
     private val gatedropRepository: dagger.Lazy<GateDropRepository>,
+    private val drive: dagger.Lazy<com.gatecontrol.android.drive.DriveLive>,
 ) : PluginEventSink {
     override fun onPluginEvent(plugin: String, type: String, data: JsonElement?) {
         if (plugin == GATEDROP_PLUGIN) {
             runCatching { gatedrop.get().onPluginEvent(type, data) }
+            return
+        }
+        if (plugin == com.gatecontrol.android.drive.DRIVE_PLUGIN) {
+            runCatching { drive.get().onPluginEvent(type, data) }
             return
         }
         chats.onPluginEvent(plugin, type, data)
@@ -148,6 +153,8 @@ class AppPluginEventSink @Inject constructor(
         chats.onStreamOpen()
         // (Re)connected: what was sent to this device while it was offline.
         runCatching { gatedropRepository.get().pollPendingSoon() }
+        // Drive's changes of that time: whatever is open loads again.
+        runCatching { drive.get().onStreamOpen() }
     }
 }
 
