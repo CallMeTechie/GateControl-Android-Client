@@ -82,8 +82,9 @@ object DriveBackupWork {
     private const val CHANNEL = "drive_backup"
     private const val NOTIFICATION_ID = 0x6E000001
 
-    private fun constraints(cfg: DriveBackupConfig) = Constraints.Builder()
-        .setRequiredNetworkType(if (cfg.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
+    // its own "Nur im WLAN" and Drive's "Hochladen nur im WLAN" (Drive-Einstellungen, for every upload)
+    private fun constraints(context: Context, cfg: DriveBackupConfig) = Constraints.Builder()
+        .setRequiredNetworkType(if (cfg.wifiOnly || com.gatecontrol.android.drive.DriveSettings.wifiOnly(context)) NetworkType.UNMETERED else NetworkType.CONNECTED)
         .setRequiresCharging(cfg.chargingOnly)
         .setRequiresBatteryNotLow(true)
         .build()
@@ -99,7 +100,7 @@ object DriveBackupWork {
                 return
             }
             val periodic = PeriodicWorkRequestBuilder<DriveBackupWorker>(1, TimeUnit.HOURS)
-                .setConstraints(constraints(cfg))
+                .setConstraints(constraints(context, cfg))
                 .build()
             wm.enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, periodic)
             watch(context, again = false)
@@ -118,7 +119,7 @@ object DriveBackupWork {
 
     private fun enqueueRun(context: Context, cfg: DriveBackupConfig, policy: ExistingWorkPolicy) {
         val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
-            .setConstraints(constraints(cfg))
+            .setConstraints(constraints(context, cfg))
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(RUN, policy, request)
@@ -150,7 +151,7 @@ object DriveBackupWork {
         val cfg = backup(context).config.value
         if (!cfg.enabled) return
         runCatching {
-            val periodic = PeriodicWorkRequestBuilder<DriveBackupWorker>(1, TimeUnit.HOURS).setConstraints(constraints(cfg)).build()
+            val periodic = PeriodicWorkRequestBuilder<DriveBackupWorker>(1, TimeUnit.HOURS).setConstraints(constraints(context, cfg)).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, periodic)
             watch(context, again = false)
         }

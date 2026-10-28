@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive 1.11: menu with folder tree, vaults only in the menu, vault lock, Drive settings -->
+    <string name="drive_menu_personal">Personal</string>
+    <string name="drive_menu_shared">Shared</string>
+    <string name="drive_seat_family">Family seat</string>
+    <string name="drive_seat_business">Business seat</string>
+    <string name="drive_tree_expand">Expand: %1$s</string>
+    <string name="drive_tree_collapse">Collapse: %1$s</string>
+    <string name="drive_vault_whose_mine">Private</string>
+    <string name="drive_vault_whose_family">Shared with the family</string>
+    <string name="drive_vault_whose_team">Team “%1$s”</string>
+    <string name="drive_vault_state_open">open</string>
+    <string name="drive_vault_state_locked">locked</string>
+    <string name="drive_vault_state_new">not approved</string>
+
+    <string name="drive_vault_new_menu_hint">Appears in the menu under “Vaults”, not here</string>
+    <string name="drive_vault_who">Who may open it?</string>
+    <string name="drive_vault_who_me">Only me</string>
+    <string name="drive_vault_who_me_desc">Private, kept in “My files”</string>
+    <string name="drive_vault_who_family">Share with the family</string>
+    <string name="drive_vault_who_family_desc">Every family member needs your approval for their device</string>
+    <string name="drive_vault_who_team">Team folder “%1$s”</string>
+    <string name="drive_vault_who_team_desc">Everyone with access to the team folder, each device after approval</string>
+    <string name="drive_vault_no_area">There is no area where you may create a vault.</string>
+    <plurals name="drive_vault_new_hint">
+        <item quantity="one">Opens only with your fingerprint or PIN. The vault locks after %d minute without use. You find it in the menu under “Vaults”.</item>
+        <item quantity="other">Opens only with your fingerprint or PIN. The vault locks after %d minutes without use. You find it in the menu under “Vaults”.</item>
+    </plurals>
+
+    <string name="drive_vault_gate_title">Vault locked</string>
+    <string name="drive_vault_gate_text">Confirm with your fingerprint, face or your phone’s PIN to open the vault.</string>
+    <string name="drive_vault_gate_prompt">Open vault</string>
+    <string name="drive_vault_gate_unlock">Unlock</string>
+    <string name="drive_vault_gate_failed">Not confirmed. Please try again.</string>
+    <string name="drive_vault_lock_now">Lock vault</string>
+    <string name="drive_vault_no_lock">Vaults open only on a phone with a screen lock (PIN, pattern or password). Set one up in your phone’s settings.</string>
+    <string name="drive_vault_no_lock_settings">Set up screen lock</string>
+
+    <string name="drive_settings_title">Drive settings</string>
+    <string name="drive_settings_row_desc">Backup, vaults, AI, view and data on this device</string>
+    <string name="drive_settings_row_backup_on">Backup on</string>
+    <string name="drive_settings_backup">Backup</string>
+    <string name="drive_settings_vault_biometric">Open with fingerprint</string>
+    <string name="drive_settings_vault_biometric_desc">Or with your face or the phone’s PIN</string>
+    <string name="drive_settings_vault_biometric_off_title">Open vaults without confirmation?</string>
+    <string name="drive_settings_vault_biometric_off">Then only this device’s approval protects your vaults: anyone holding your unlocked phone can open them.</string>
+    <string name="drive_settings_vault_biometric_off_go">Turn off anyway</string>
+    <string name="drive_settings_vault_key_failed">The device key could not be switched. The setting stays as it was.</string>
+    <string name="drive_settings_vault_auto_lock">Lock automatically</string>
+    <string name="drive_settings_vault_auto_lock_desc">When the vault is not in use</string>
+    <plurals name="drive_settings_vault_after">
+        <item quantity="one">after %d minute</item>
+        <item quantity="other">after %d minutes</item>
+    </plurals>
+    <string name="drive_settings_vault_leave">Lock when leaving the app</string>
+    <string name="drive_settings_vault_leave_desc">As soon as GateControl goes to the background</string>
+    <string name="drive_settings_vault_safety">This device’s safety number</string>
+    <string name="drive_settings_vault_safety_desc">To compare when another device approves this one</string>
+    <string name="drive_settings_vault_approved">Approved for</string>
+    <string name="drive_settings_vault_approved_none">No vault yet</string>
+    <plurals name="drive_settings_vault_count">
+        <item quantity="one">%d vault</item>
+        <item quantity="other">%d vaults</item>
+    </plurals>
+    <string name="drive_settings_ai_vaults">Vaults are never read by the AI.</string>
+    <string name="drive_settings_view">View</string>
+    <string name="drive_settings_view_layout">Layout</string>
+    <string name="drive_settings_view_list">List</string>
+    <string name="drive_settings_view_grid">Tiles</string>
+    <string name="drive_settings_view_camera">Photos tab starts with “Camera uploads only”</string>
+    <string name="drive_settings_device">Data on this device</string>
+    <string name="drive_settings_cache">Cache</string>
+    <string name="drive_settings_cache_desc">%1$s for previews and opened files</string>
+    <string name="drive_settings_cache_clear">Clear</string>
+    <string name="drive_settings_cache_cleared">Cache cleared.</string>
+    <string name="drive_settings_wifi">Upload on Wi-Fi only</string>
+    <string name="drive_settings_wifi_desc">Applies to all uploads, not just the photo backup</string>
+    <string name="drive_upload_wifi_wait">Waiting for Wi-Fi</string>
+    <string name="drive_settings_notify">Notifications</string>
+    <string name="drive_settings_notify_deadlines">Deadline reminders</string>
+    <string name="drive_settings_notify_vault">Vault approval requests</string>
+    <string name="drive_settings_notify_vault_desc">When a new device wants to open a vault</string>
+</resources>

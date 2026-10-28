@@ -140,7 +140,22 @@ class DriveApi @Inject constructor(
         val head = call(request = { pluginGet(DRIVE_PLUGIN, "nodes/$id", lang()) }, parse = { it })
         if (head !is DResult.Ok) return head.notOk()
         val q = mapOf("sort" to sort, "order" to order, "offset" to offset.toString(), "limit" to limit.toString())
-        return get("nodes/$id/children", q) { DriveJson.folder(head.value, it) }
+        // Drive 1.11: a vault folder is opened from the menu only, never from a list (an older Drive still lists them)
+        return get("nodes/$id/children", q) { DriveJson.folder(head.value, it)?.let(DriveLogic::withoutVaults) }
+    }
+
+    /**
+     * The subfolders of [id] for the menu's tree, by name, never a vault folder. With [apart] (Drive 1.11
+     * `vaultsApart`) the server sends folders only, each with `hasDirs`; else the folders of the usual list.
+     */
+    suspend fun dirs(id: Long, apart: Boolean, limit: Int = 500): DResult<List<DTreeDir>> {
+        val q = buildMap {
+            put("sort", "name")
+            put("order", "asc")
+            put("limit", limit.toString())
+            if (apart) put("dirs", "1")
+        }
+        return get("nodes/$id/children", q, DriveJson::treeDirs)
     }
 
     /** A new folder; a taken name gets a free one ([rename]) or `409 exists`. */
@@ -188,7 +203,7 @@ class DriveApi @Inject constructor(
             put("q", q)
             if (area != null) put("area", DriveJson.areaId(area) ?: return bad())
         }
-        return get("search", query, DriveJson::items)
+        return get("search", query) { o -> DriveJson.items(o)?.let(DriveLogic::withoutVaults) }
     }
 
     suspend fun changes(since: Long, limit: Int = 500): DResult<DChanges> =
@@ -229,14 +244,16 @@ class DriveApi @Inject constructor(
      * [camera]: only the camera uploads (Drive 1.10, feature `photosFolder`).
      */
     suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false): DResult<DPhotos> =
-        get("photos", DriveJson.photosQuery(area, before, limit, camera) ?: return bad(), DriveJson::photos)
+        get("photos", DriveJson.photosQuery(area, before, limit, camera) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
 
     suspend fun photoMonths(area: String? = null, camera: Boolean = false): DResult<List<DMonth>> =
         get("photos/months", DriveJson.photosQuery(area, camera = camera) ?: return bad(), DriveJson::months)
 
     /** Photos of this calendar day ([date] `YYYY-MM-DD`, else the server's today) in earlier years. */
     suspend fun memories(date: String? = null, camera: Boolean = false): DResult<List<DMemories>> =
-        get("photos/memories", DriveJson.photosQuery(camera = camera, date = date) ?: return bad(), DriveJson::memories)
+        get("photos/memories", DriveJson.photosQuery(camera = camera, date = date) ?: return bad()) { o ->
+            DriveJson.memories(o)?.map { it.copy(items = DriveLogic.withoutVaults(it.items)) }
+        }
 
     /**
      * The camera uploads' folder ("Meine Dateien › Bilder › Kamera-Uploads"), made when it is missing (`POST photos/camera`,
@@ -255,7 +272,7 @@ class DriveApi @Inject constructor(
             if (before != null) put("before", before)
             put("limit", limit.coerceIn(1, 200).toString())
         }
-        return get("albums/$album", q, DriveJson::albumPage)
+        return get("albums/$album", q) { o -> DriveJson.albumPage(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
     }
 
     suspend fun updateAlbum(id: String, name: String? = null, coverId: Long? = null, frame: Boolean? = null): DResult<DAlbum> {

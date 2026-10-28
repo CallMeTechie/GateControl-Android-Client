@@ -62,6 +62,7 @@ class PushNotifier @Inject constructor(
     private val chats: dagger.Lazy<com.gatecontrol.android.chat.ChatNotifier>,
     private val gatedrop: dagger.Lazy<com.gatecontrol.android.gatedrop.GateDropPushHandler>,
     private val vault: dagger.Lazy<com.gatecontrol.android.vault.VaultRepository>,
+    private val driveSettings: dagger.Lazy<com.gatecontrol.android.drive.DriveSettings>,
 ) : PushPresenter {
 
     companion object {
@@ -141,6 +142,8 @@ class PushNotifier @Inject constructor(
     override suspend fun show(message: PushMessage, notificationId: Int, channel: ChannelSpec, quiet: Boolean) {
         // GateDrop deliveries: its own notification with Öffnen / Speichern / Kopieren.
         if (runCatching { gatedrop.get().show(message, notificationId, quiet) }.getOrDefault(false)) return
+        // Drive-Einstellungen › Benachrichtigungen: deadlines and vault requests can stay off this phone (still in the inbox)
+        if (!com.gatecontrol.android.drive.DrivePush.shown(message, driveSettings.get().current)) return
         val ctx = localized()
         if (nm.getNotificationChannel(channel.id) == null) createChannels(ctx, listOf(channel))
 

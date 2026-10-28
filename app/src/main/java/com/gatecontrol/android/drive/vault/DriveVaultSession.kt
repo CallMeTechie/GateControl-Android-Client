@@ -18,6 +18,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
@@ -36,6 +40,7 @@ class DriveVaultSession @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: DriveApi,
     private val deviceKey: DriveVaultDeviceKey,
+    private val vaultNames: DriveVaultNames,
 ) {
     /** vault id → key version → TK. Never written anywhere. */
     private val keys = ConcurrentHashMap<String, ConcurrentHashMap<Int, ByteArray>>()
@@ -66,11 +71,46 @@ class DriveVaultSession @Inject constructor(
 
     private fun tk(vaultId: String, version: Int): ByteArray? = keys[vaultId]?.get(version)
 
-    /** Forgets the keys of [vaultId] (or of all vaults). */
-    fun lock(vaultId: String? = null) {
-        val gone = if (vaultId == null) keys.values.toList().also { keys.clear() } else listOfNotNull(keys.remove(vaultId))
+    private val _locks = MutableSharedFlow<Unit>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** The vaults were locked ([lock]): an open vault page closes its content and asks again. */
+    val locks: SharedFlow<Unit> = _locks.asSharedFlow()
+
+    /** Some vault's keys are in memory. */
+    fun anyUnlocked(): Boolean = keys.values.any { it.isNotEmpty() }
+
+    /**
+     * Locks every vault (Drive 1.11: after a while without use, when the app goes to the background, or by hand): the
+     * keys in memory are overwritten and forgotten, the decrypted names forgotten, the decrypted copies deleted.
+     */
+    fun lock() {
+        val gone = keys.values.toList().also { keys.clear() }
         gone.forEach { m -> m.values.forEach { it.fill(0) } }
         synchronized(names) { names.clear() }
+        wipeOpened()
+        _locks.tryEmit(Unit)
+    }
+
+    /** Whether this device is approved for [vault] (the vault's own list; opening still asks for the confirmation). */
+    fun approved(vault: DVault): Boolean {
+        val me = runCatching { deviceId() }.getOrNull() ?: return false
+        return vault.myDevices.any { it.deviceId == me && it.state == "approved" }
+    }
+
+    /** The vault's name for the menu: decrypted while it is open, else the one this phone remembers. */
+    fun label(vault: DVault): String? = nameOf(vault) ?: vaultNames.get(vault.id)
+
+    /** Only these vaults are still there (the remembered names of others go). */
+    fun keepNames(vaultIds: Set<String>) = vaultNames.keep(vaultIds)
+
+    /**
+     * The device key under the protection the setting wants (Drive 1.11: behind the confirmation; the switch
+     * "Mit Fingerabdruck öffnen"). Called right after the person confirmed; failure leaves the key as it was.
+     */
+    suspend fun protectDeviceKey(withAuth: Boolean): Boolean = withContext(Dispatchers.IO) {
+        runCatching { deviceKey.protect(withAuth) }
+            .onFailure { Timber.w("Drive vault: device key not moved (%s)", it.javaClass.simpleName) }
+            .isSuccess
     }
 
     private fun keep(vaultId: String, version: Int, tk: ByteArray) {
@@ -104,7 +144,16 @@ class DriveVaultSession @Inject constructor(
                 if (k.state != "approved") {
                     return@withContext DResult.Ok(if (k.state == "pending") Access.Pending(safetyNumber()) else Access.Unknown(revoked = k.state == "revoked"))
                 }
-                unwrapAll(vault.id, k.keys)
+                try {
+                    unwrapAll(vault.id, k.keys)
+                } catch (e: DriveVaultDeviceKey.AuthRequired) {
+                    // the device key waits for the person's confirmation (Drive 1.11)
+                    return@withContext DResult.Failed(CODE_AUTH, 0)
+                } catch (e: DriveVaultDeviceKey.NoScreenLock) {
+                    return@withContext DResult.Failed(CODE_NO_LOCK, 0)
+                } catch (e: DriveVaultDeviceKey.Unavailable) {
+                    return@withContext DResult.Failed("decrypt", 0)
+                }
                 if (unlocked(vault.id)) DResult.Ok(Access.Open) else DResult.Failed("decrypt", 0)
             }
             is DResult.Failed -> if (r.code == "not_found") DResult.Ok(Access.Unknown(revoked = false)) else r
@@ -322,6 +371,7 @@ class DriveVaultSession @Inject constructor(
                 is DResult.Ok -> {
                     keep(id, 1, tk)
                     current[id] = r.value.vault.keyVersion
+                    vaultNames.put(r.value.vault.id, name.trim())
                     DResult.Ok(Created(r.value.vault, r.value.node, DriveVaultCrypto.formatRecoveryKey(recovery)))
                 }
                 else -> {
@@ -350,13 +400,16 @@ class DriveVaultSession @Inject constructor(
         }
     }
 
-    /** The name of the vault itself (its folder's nameCipher). */
+    /** The name of the vault itself (its folder's nameCipher); remembered for the menu ([label]). */
     fun nameOf(vault: DVault): String? {
         val cipher = vault.nameCipher ?: return null
         synchronized(names) { names[cipher] }?.let { return it }
         if (!unlocked(vault.id)) return null
         return runCatching { DriveVaultCrypto.decryptName({ tk(vault.id, it) }, vault.id, cipher) }.getOrNull()
-            ?.also { n -> synchronized(names) { names[cipher] = n } }
+            ?.also { n ->
+                synchronized(names) { names[cipher] = n }
+                vaultNames.put(vault.id, n)
+            }
     }
 
     private fun encryptName(vaultId: String, name: String): Pair<String, Int>? {
@@ -502,10 +555,14 @@ class DriveVaultSession @Inject constructor(
         runCatching { openDir().deleteRecursively() }
     }
 
-    private companion object {
-        const val PLATFORM = "android"
-        const val ROTATE_TRIES = 3
+    companion object {
+        /** `open`: the device key needs the person's confirmation first. */
+        const val CODE_AUTH = "auth_required"
+        /** `open`: the phone has no screen lock, the vault cannot be opened. */
+        const val CODE_NO_LOCK = "no_screen_lock"
+        private const val PLATFORM = "android"
+        private const val ROTATE_TRIES = 3
         /** The opaque name of a vault node (32 hex characters, plugin `vault.js` OPAQUE_RE). */
-        val OPAQUE = Regex("^[0-9a-f]{32}$")
+        private val OPAQUE = Regex("^[0-9a-f]{32}$")
     }
 }

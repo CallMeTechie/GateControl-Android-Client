@@ -7,8 +7,6 @@
     <string name="drive_area_doc_ai">AI for documents</string>
     <string name="drive_area_doc_ai_desc">Recognises invoices, contracts and deadlines in “%1$s”</string>
     <string name="drive_vaults">Vaults</string>
-    <string name="drive_vault_menu_locked_title">Locked vault</string>
-    <string name="drive_vault_menu_locked">Request access or use the recovery key</string>
     <string name="drive_vault_menu_pending">Access requested</string>
     <string name="drive_vault_keys">Keys</string>
     <string name="drive_vault_rotate">Change vault key</string>

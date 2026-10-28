@@ -376,4 +376,33 @@ internal object DriveLogic {
     /** A vault's nodes with their names: folders first, then by name. */
     fun sortVault(items: List<Pair<DNode, String>>): List<Pair<DNode, String>> =
         items.sortedWith(compareBy<Pair<DNode, String>>({ !it.first.isDir }, { it.second.lowercase(Locale.ROOT) }))
+
+    // ─── Drive 1.11: vaults only in the menu ───────────────────────
+
+    /**
+     * A folder's content without its vault folders (Drive 1.11: vaults are opened from the menu only). Inside a vault
+     * nothing is left out. A Drive with `vaultsApart` leaves them out itself; an older one lists them.
+     */
+    fun withoutVaults(folder: DFolder): DFolder {
+        if (folder.node.encrypted) return folder
+        val items = folder.items.filter { !it.encrypted }
+        if (items.size == folder.items.size) return folder
+        return folder.copy(items = items, total = (folder.total - (folder.items.size - items.size)).coerceAtLeast(items.size))
+    }
+
+    /** Search, photos, albums: nothing of a vault. */
+    fun withoutVaults(items: List<DNode>): List<DNode> = items.filter { !it.encrypted }
+
+    /**
+     * The areas a new vault can go to ("Wer darf ihn öffnen?"): Meine Dateien ("Nur ich"), the family (with a family
+     * seat) and, with a business seat, each team folder with the write right. The vault lies in the area's top folder.
+     */
+    fun vaultAreas(areas: List<DArea>, seat: String?): List<DArea> = areas.filter { a ->
+        a.writable && when (a.kind) {
+            "mine" -> true
+            "family" -> seat == "family"
+            "team" -> seat == "business"
+            else -> false
+        }
+    }.sortedBy { listOf("mine", "family", "team").indexOf(it.kind) }
 }

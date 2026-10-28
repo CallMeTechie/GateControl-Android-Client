@@ -83,9 +83,8 @@ fun SettingsScreen(
     onNavigateToConnection: () -> Unit = {},
     /** GateDrop "Geteilt"; null hides the row (no GateDrop on the server). */
     onNavigateToShared: (() -> Unit)? = null,
-    /** Drive photo backup; null hides the row (no Drive on the server). */
-    onNavigateToDriveBackup: (() -> Unit)? = null,
-    onNavigateToDriveFolders: (() -> Unit)? = null,
+    /** "Drive-Einstellungen" (backup, vaults, data on this phone …); null hides the row (no Drive on the server). */
+    onNavigateToDrive: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
     selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -300,50 +299,29 @@ fun SettingsScreen(
             }
         }
 
-        // --- Drive (photo backup) ------------------------------------------
-        if (onNavigateToDriveBackup != null) {
+        // --- Drive: everything of Drive is in its own settings (Drive 1.11) ---
+        if (onNavigateToDrive != null) {
             val backup by driveBackupViewModel.config.collectAsStateWithLifecycle()
-            val backupStats by driveBackupViewModel.stats.collectAsStateWithLifecycle()
             SettingsGroup(stringResource(R.string.drive_title)) {
                 GcListRow(
-                    title = stringResource(R.string.drive_backup_title),
-                    description = if (backup.enabled) {
-                        pluralStringResource(R.plurals.drive_backup_saved, backupStats.saved, backupStats.saved) + " · " +
-                            stringResource(if (backup.wifiOnly) R.string.drive_backup_wifi_short else R.string.drive_backup_mobile_short)
-                    } else {
-                        stringResource(R.string.drive_backup_off_text)
-                    },
-                    onClick = onNavigateToDriveBackup,
-                    leading = { Icon(GcIcons.Camera, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                    title = stringResource(R.string.drive_settings_title),
+                    description = stringResource(R.string.drive_settings_row_desc),
+                    onClick = onNavigateToDrive,
+                    leading = { Icon(GcIcons.Cloud, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
                     trailing = {
-                        Text(
-                            stringResource(if (backup.enabled) R.string.drive_backup_on else R.string.drive_backup_off),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (backup.enabled) extra.accentText else extra.muted,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (backup.enabled) {
+                                Text(
+                                    stringResource(R.string.drive_settings_row_backup_on),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = extra.accentText,
+                                    modifier = Modifier.padding(end = 6.dp),
+                                )
+                            }
+                            GcChevron()
+                        }
                     },
                 )
-                if (onNavigateToDriveFolders != null) {
-                    val driveFolders by driveBackupViewModel.folders.collectAsStateWithLifecycle()
-                    val activeFolders = driveFolders.count { !it.paused }
-                    GcListRow(
-                        title = stringResource(R.string.drive_folders_title),
-                        description = if (driveFolders.isEmpty()) {
-                            stringResource(R.string.drive_folders_off_text)
-                        } else {
-                            pluralStringResource(R.plurals.drive_folders_count, driveFolders.size, driveFolders.size)
-                        },
-                        onClick = onNavigateToDriveFolders,
-                        leading = { Icon(GcIcons.Folder, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
-                        trailing = {
-                            Text(
-                                stringResource(if (activeFolders > 0) R.string.drive_backup_on else R.string.drive_backup_off),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (activeFolders > 0) extra.accentText else extra.muted,
-                            )
-                        },
-                    )
-                }
             }
         }
 

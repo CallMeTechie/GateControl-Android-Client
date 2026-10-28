@@ -43,6 +43,9 @@ class DrivePreviews @Inject constructor(
     private val inFlight = ConcurrentHashMap<String, CompletableDeferred<Bitmap?>>()
     private val dir: File get() = File(context.cacheDir, "drive-previews").apply { mkdirs() }
 
+    /** "Zwischenspeicher leeren": the pictures in memory go too (the disk is emptied by [DriveCache]). */
+    fun clearMemory() = memory.evictAll()
+
     /** Already in memory (no I/O): for the first frame. */
     fun peek(node: DNode, large: Boolean = false): Bitmap? = key(node, large)?.let { memory.get(it) }
 

@@ -82,6 +82,11 @@ data class DMe(
         const val FEATURE_OFFICE = "office"
         /** Drive 1.10: the camera uploads' folder (`photos/camera`) and the Photos tab's filter `camera=1`. */
         const val FEATURE_PHOTOS_FOLDER = "photosFolder"
+        /**
+         * Drive 1.11: vault folders stay out of the lists (`children`), `children?dirs=1` gives the menu's tree with
+         * `hasDirs`, a new vault always lies in its area's top folder.
+         */
+        const val FEATURE_VAULTS_APART = "vaultsApart"
     }
 }
 

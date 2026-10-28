@@ -19,6 +19,8 @@ import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLocal
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
+import com.gatecontrol.android.drive.DriveTree
+import com.gatecontrol.android.drive.DTreeDir
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -180,19 +182,76 @@ class DriveHomeViewModel @Inject constructor(
         }
     }
 
-    // ─── vaults in the menu (Drive 1.9, feature `vault`) ────────────
+    // ─── the menu's folder tree (Drive 1.11) ────────────────────────
 
-    /** A vault of the menu: its decrypted name (null while this device holds no keys) and where this device stands. */
+    private val _expanded = MutableStateFlow(DriveTree.decode(prefs.getStringSet(KEY_TREE, null)))
+    /** The opened folders of the menu's tree (kept on the device). */
+    val expanded: StateFlow<Set<Long>> = _expanded.asStateFlow()
+
+    private val _children = MutableStateFlow<Map<Long, List<DTreeDir>>>(emptyMap())
+    /** The loaded subfolders by folder. */
+    val children: StateFlow<Map<Long, List<DTreeDir>>> = _children.asStateFlow()
+    private val loadingDirs = java.util.Collections.synchronizedSet(HashSet<Long>())
+
+    /** The arrow of [id]: opened or closed; opening loads its subfolders (once). */
+    fun toggle(id: Long) {
+        val next = DriveTree.toggle(_expanded.value, id)
+        _expanded.value = next
+        prefs.edit().putStringSet(KEY_TREE, DriveTree.encode(next)).apply()
+        if (id in next) loadDirs(id)
+    }
+
+    /** The subfolders of [id] (again: [force]). A folder that is gone closes. */
+    fun loadDirs(id: Long, force: Boolean = false) {
+        if (!force && _children.value.containsKey(id)) return
+        if (!loadingDirs.add(id)) return
+        viewModelScope.launch {
+            try {
+                val apart = live.me.value?.has(DMe.FEATURE_VAULTS_APART) == true
+                when (val r = api.dirs(id, apart)) {
+                    is DResult.Ok -> _children.update { it + (id to r.value) }
+                    // gone or no longer readable: closed for good
+                    is DResult.Failed -> if (r.http == 404 || r.http == 403) {
+                        _children.update { it + (id to emptyList()) }
+                        _expanded.update { it - id }
+                        prefs.edit().putStringSet(KEY_TREE, DriveTree.encode(_expanded.value)).apply()
+                    } else {
+                        _expanded.update { it - id }
+                    }
+                    // offline: closed for now (the arrow opens it again)
+                    else -> if (!_children.value.containsKey(id)) _expanded.update { it - id }
+                }
+            } finally {
+                loadingDirs.remove(id)
+            }
+        }
+    }
+
+    /** The menu opens: the opened folders load again quietly (the tree stays as it is meanwhile). */
+    fun refreshTree() {
+        val open = _expanded.value
+        _children.value.keys.filter { it in open }.forEach { loadDirs(it, force = true) }
+    }
+
+    // ─── vaults in the menu (Drive 1.9, feature `vault`; Drive 1.11: only there) ─
+
+    /** A vault of the menu: its name (decrypted while open, else remembered on this phone) and where this device stands. */
     data class VaultEntry(val vault: com.gatecontrol.android.drive.DVault, val name: String?, val state: VaultState)
 
-    enum class VaultState { OPEN, PENDING, LOCKED }
+    /** [OPEN]: its keys are in memory; [LOCKED]: approved, opens after the confirmation; [PENDING]: asked; [NEW]: not yet. */
+    enum class VaultState { OPEN, LOCKED, PENDING, NEW }
 
     private val _vaults = MutableStateFlow<List<VaultEntry>>(emptyList())
     /** Every vault the person may use (their areas), for the menu. */
     val vaults: StateFlow<List<VaultEntry>> = _vaults.asStateFlow()
     private var vaultJob: Job? = null
 
-    /** Loads the vaults (the menu opens): the names of those this device is approved for are decrypted here. */
+    init {
+        // locked (time without use, the app in the background): the menu says so
+        viewModelScope.launch { vaultSession.locks.collect { loadVaults() } }
+    }
+
+    /** Loads the vaults (the menu opens). Nothing is opened here: that asks for the person's confirmation first. */
     fun loadVaults() {
         if (live.me.value?.has(DMe.FEATURE_VAULT) != true) {
             _vaults.value = emptyList()
@@ -201,37 +260,17 @@ class DriveHomeViewModel @Inject constructor(
         if (vaultJob?.isActive == true) return
         vaultJob = viewModelScope.launch {
             val list = api.vaults().valueOrNull() ?: return@launch
-            val me = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { vaultSession.deviceId() }.getOrNull() }
-            _vaults.value = list.map { v ->
-                val mine = v.myDevices.firstOrNull { it.deviceId == me }
-                val state = when (mine?.state) {
-                    "approved" -> if (vaultSession.open(v).valueOrNull() == com.gatecontrol.android.drive.vault.DriveVaultSession.Access.Open) VaultState.OPEN else VaultState.LOCKED
-                    "pending" -> VaultState.PENDING
-                    else -> VaultState.LOCKED
-                }
-                VaultEntry(v, if (state == VaultState.OPEN) vaultSession.nameOf(v) else null, state)
-            }
-        }
-    }
-
-    // ─── AI for documents per area (Drive 1.8, feature `docAi`) ─────
-
-    /** "KI für Dokumente" of [area] on or off (the write right); the menu shows the new setting at once. */
-    fun setDocAi(area: DArea, on: Boolean) {
-        val home = (_state.value as? DriveLoad.Ready)?.value ?: return
-        if (home.areas.none { it.id == area.id }) return
-        val before = area.docAi
-        fun put(value: Boolean?) = _state.update { s ->
-            val h = (s as? DriveLoad.Ready)?.value ?: return@update s
-            DriveLoad.Ready(h.copy(areas = h.areas.map { if (it.id == area.id) it.copy(docAi = value) else it }))
-        }
-        put(on)
-        viewModelScope.launch {
-            when (val r = api.setAreaDocAi(area.id, on)) {
-                is DResult.Ok -> put(r.value)
-                else -> {
-                    put(before)
-                    _message.value = r.errorCode()
+            _vaults.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                vaultSession.keepNames(list.map { it.id }.toSet())
+                val me = runCatching { vaultSession.deviceId() }.getOrNull()
+                list.map { v ->
+                    val state = when {
+                        vaultSession.unlocked(v.id) -> VaultState.OPEN
+                        vaultSession.approved(v) -> VaultState.LOCKED
+                        v.myDevices.any { it.deviceId == me && it.state == "pending" } -> VaultState.PENDING
+                        else -> VaultState.NEW
+                    }
+                    VaultEntry(v, vaultSession.label(v), state)
                 }
             }
         }
@@ -239,6 +278,7 @@ class DriveHomeViewModel @Inject constructor(
 
     private companion object {
         const val KEY_AREA = "area"
+        const val KEY_TREE = "tree_open"
     }
 }
 
@@ -253,6 +293,8 @@ class DriveFolderViewModel @Inject constructor(
     val scanner: DriveScanner,
     val live: DriveLive,
     private val vaults: com.gatecontrol.android.drive.vault.DriveVaultSession,
+    private val vaultLock: com.gatecontrol.android.drive.vault.DriveVaultLock,
+    private val settings: com.gatecontrol.android.drive.DriveSettings,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -290,6 +332,9 @@ class DriveFolderViewModel @Inject constructor(
     /** On screen again (back from another tab, a page on top or the background): load quietly. */
     fun onResume() {
         visible = true
+        // the sort may have changed in the Drive settings meanwhile
+        val pref = DriveViewPref.sort(context)
+        if (pref != _sort.value) _sort.value = pref
         if (shown) refresh(quiet = true)
         shown = true
     }
@@ -650,25 +695,52 @@ class DriveFolderViewModel @Inject constructor(
     /** The office's address of [node] ("Im Browser bearbeiten / ansehen"). */
     suspend fun office(node: DNode): DResult<com.gatecontrol.android.drive.DOffice> = api.office(node.id)
 
-    /** "Neuer Tresor": busy while it is made, then the recovery key to show once. */
-    data class NewVault(val busy: Boolean = false, val recoveryKey: String? = null, val vaultId: String? = null, val nodeId: Long? = null)
+    /**
+     * "Neuer Tresor" (Drive 1.11: only from the plus menu): the areas it can go to ([DriveLogic.vaultAreas], null while
+     * they load), busy while it is made, then the recovery key to show once.
+     */
+    data class NewVault(
+        val areas: List<DArea>? = null,
+        val busy: Boolean = false,
+        val recoveryKey: String? = null,
+        val vaultId: String? = null,
+        val nodeId: Long? = null,
+        /** Minutes until an open vault locks (the hint of the dialog). */
+        val lockMinutes: Int = com.gatecontrol.android.drive.DriveSettingsLogic.DEFAULT_AUTO_LOCK,
+    )
 
     private val _newVault = MutableStateFlow<NewVault?>(null)
     val newVault: StateFlow<NewVault?> = _newVault.asStateFlow()
 
-    fun startVault() { _newVault.value = NewVault() }
+    fun startVault() {
+        val start = NewVault(lockMinutes = settings.current.autoLockMinutes)
+        _newVault.value = start
+        viewModelScope.launch {
+            val seat = live.me.value?.seat ?: api.me().valueOrNull()?.seat
+            val areas = api.areas().valueOrNull()
+            _newVault.update { v -> if (v === start) v.copy(areas = DriveLogic.vaultAreas(DriveLogic.sortAreas(areas.orEmpty()), seat)) else v }
+            if (areas == null) {
+                _newVault.value = null
+                _message.value = "offline"
+            }
+        }
+    }
 
     fun closeVault() { _newVault.value = null }
 
-    /** A new vault [name] in this folder: encrypted here, the recovery key comes back to be written down. */
-    fun createVault(name: String) {
-        val here = (_state.value as? DriveLoad.Ready)?.value ?: return
-        if (here.node.encrypted) return
-        _newVault.value = NewVault(busy = true)
+    /**
+     * A new vault [name] for [area]: it always lies in the area's top folder (wherever the plus was pressed; the
+     * server of Drive 1.11 puts it there too). Encrypted here, the recovery key comes back to be written down.
+     */
+    fun createVault(name: String, area: DArea) {
+        val v = _newVault.value ?: return
+        if (v.busy) return
+        _newVault.value = v.copy(busy = true)
         viewModelScope.launch {
-            when (val r = vaults.create(here.node.id, name)) {
+            when (val r = vaults.create(area.rootId, name)) {
                 is DResult.Ok -> {
-                    _newVault.value = NewVault(recoveryKey = r.value.recoveryKey, vaultId = r.value.vault.id, nodeId = r.value.vault.nodeId)
+                    vaultLock.touch()
+                    _newVault.value = v.copy(busy = false, recoveryKey = r.value.recoveryKey, vaultId = r.value.vault.id, nodeId = r.value.vault.nodeId)
                     refresh(quiet = true)
                 }
                 else -> {
