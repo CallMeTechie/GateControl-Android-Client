@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.17] - 2026-10-28
+
+### Changes
+- Portal-Direktlinks, Live-Aktualisierung, neuer Ordner in der Ordnerwahl, leere Dateien, Schutz-Hinweise (#141)
+
+---
+
 ## [1.67.16] - 2026-10-27
 
 ### Changes
