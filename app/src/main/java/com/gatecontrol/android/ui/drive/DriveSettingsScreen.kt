@@ -252,12 +252,7 @@ fun DriveSettingsScreen(
     }
     LaunchedEffect(message) {
         message?.let {
-            val text = when (it) {
-                "cache_cleared" -> context.getString(R.string.drive_settings_cache_cleared)
-                "device_key" -> context.getString(R.string.drive_settings_vault_key_failed)
-                else -> driveText(context, it)
-            }
-            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, settingsText(context, it), Toast.LENGTH_SHORT).show()
             viewModel.clearMessage()
         }
     }
@@ -371,12 +366,13 @@ fun DriveSettingsScreen(
                     }
                     GcRowDivider()
                     val approved = vaultInfo.approved
+                    val unnamed = stringResource(R.string.drive_vault)
                     GcListRow(
                         title = stringResource(R.string.drive_settings_vault_approved),
                         description = if (approved.isEmpty()) {
                             stringResource(R.string.drive_settings_vault_approved_none)
                         } else {
-                            approved.map { it.ifEmpty { context.getString(R.string.drive_vault) } }.joinToString(", ")
+                            approved.map { it.ifEmpty { unnamed } }.joinToString(", ")
                         },
                         leading = { Icon(GcIcons.Vault, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
                         trailing = if (approved.isNotEmpty()) ({
@@ -509,6 +505,13 @@ fun DriveSettingsScreen(
             onDismiss = { pickSort = false },
         )
     }
+}
+
+/** A message of the settings as a sentence (outside of composition). */
+private fun settingsText(context: Context, code: String): String = when (code) {
+    "cache_cleared" -> context.getString(R.string.drive_settings_cache_cleared)
+    "device_key" -> context.getString(R.string.drive_settings_vault_key_failed)
+    else -> driveText(context, code)
 }
 
 /** "Name, aufsteigend" and so on. */
