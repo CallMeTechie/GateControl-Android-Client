@@ -52,6 +52,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
+import com.gatecontrol.android.drive.DMe
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
@@ -70,6 +72,12 @@ data class DriveNav(
     val folder: (Long) -> Unit,
     val search: () -> Unit,
     val trash: () -> Unit,
+    /** The storage overview (Drive 1.7). */
+    val storage: () -> Unit = {},
+    /** "Ordner sichern". */
+    val folders: () -> Unit = {},
+    /** An album of the photos (Drive 1.7). */
+    val album: (String) -> Unit = {},
 )
 
 /**
@@ -85,6 +93,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         if (result.resultCode == Activity.RESULT_OK) wipes?.let(viewModel::wipesDone)
     }
     val folderViewModel: DriveFolderViewModel = hiltViewModel(key = "drive-tab")
+    val photosViewModel: DrivePhotosViewModel = hiltViewModel(key = "drive-photos")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -109,6 +118,11 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     val current = if (usable) home?.let { h -> h.areas.firstOrNull { it.id == selected } ?: viewModel.current(h.areas) } else null
     LaunchedEffect(current?.rootId) { current?.let { folderViewModel.open(it.rootId) } }
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }
+    // Drive 1.7 (feature `photos`): the tab shows the files or the photos.
+    val hasPhotos = me?.has(DMe.FEATURE_PHOTOS) == true
+    var photos by rememberSaveable { mutableStateOf(DriveViewPref.photos(context)) }
+    val showPhotos = photos && hasPhotos
+    val setPhotos: (Boolean) -> Unit = { photos = it; DriveViewPref.setPhotos(context, it) }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -118,17 +132,33 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                 DriveDrawer(
                     areas = home?.areas.orEmpty().takeIf { usable }.orEmpty(),
                     current = current,
-                    onArea = { a -> viewModel.select(a); scope.launch { drawer.close() } },
+                    onArea = { a -> viewModel.select(a); if (showPhotos) setPhotos(false); scope.launch { drawer.close() } },
                     onTrash = { scope.launch { drawer.close() }; nav.trash() },
+                    onFolders = { scope.launch { drawer.close() }; nav.folders() },
+                    onStorage = if (me?.has(DMe.FEATURE_STORAGE) == true) ({ scope.launch { drawer.close() }; nav.storage() }) else null,
                 )
             }
         },
     ) {
-        if (home != null && current != null) {
+        if (home != null && current != null && showPhotos) {
+            DrivePhotosContent(
+                viewModel = photosViewModel,
+                topBar = {
+                    TabBar(stringResource(R.string.drive_mode_photos), onMenu = openMenu, onSearch = nav.search)
+                    DriveModeSwitch(photos = true, onPhotos = setPhotos)
+                },
+                onAlbum = nav.album,
+            )
+        } else if (home != null && current != null) {
             DriveFolderContent(
                 viewModel = folderViewModel,
                 onFolder = nav.folder,
-                topBar = { _, actions -> TabBar(current.label, onMenu = openMenu, onSearch = nav.search, actions = actions) },
+                topBar = { _, actions ->
+                    Column {
+                        TabBar(current.label, onMenu = openMenu, onSearch = nav.search, actions = actions)
+                        if (hasPhotos) DriveModeSwitch(photos = false, onPhotos = setPhotos)
+                    }
+                },
                 header = {
                     // Drive 1.6 (feature `guard`): unusual changes stopped — undo, release or look in the portal.
                     val portal = DriveLogic.portalDriveUrl(me)
@@ -254,9 +284,16 @@ private fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)?
     }
 }
 
-/** The menu: the areas (with their storage) and the trash. */
+/** The menu: the areas (with their storage), the trash, "Ordner sichern" and (Drive 1.7) the storage overview. */
 @Composable
-private fun DriveDrawer(areas: List<DArea>, current: DArea?, onArea: (DArea) -> Unit, onTrash: () -> Unit) {
+private fun DriveDrawer(
+    areas: List<DArea>,
+    current: DArea?,
+    onArea: (DArea) -> Unit,
+    onTrash: () -> Unit,
+    onFolders: () -> Unit,
+    onStorage: (() -> Unit)?,
+) {
     Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
         GcScreenTitle(stringResource(R.string.drive_title), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         if (areas.isNotEmpty()) {
@@ -278,6 +315,26 @@ private fun DriveDrawer(areas: List<DArea>, current: DArea?, onArea: (DArea) -> 
             leading = {
                 GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
                     Icon(GcIcons.Trash, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                }
+            },
+        )
+        if (onStorage != null) {
+            GcListRow(
+                title = stringResource(R.string.drive_storage_title),
+                onClick = onStorage,
+                leading = {
+                    GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
+                        Icon(GcIcons.Activity, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                    }
+                },
+            )
+        }
+        GcListRow(
+            title = stringResource(R.string.drive_folders_title),
+            onClick = onFolders,
+            leading = {
+                GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
+                    Icon(GcIcons.Upload, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                 }
             },
         )

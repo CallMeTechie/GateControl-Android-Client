@@ -1,0 +1,667 @@
+package com.gatecontrol.android.ui.drive
+
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gatecontrol.android.R
+import com.gatecontrol.android.drive.DAlbum
+import com.gatecontrol.android.drive.DArea
+import com.gatecontrol.android.drive.DMe
+import com.gatecontrol.android.drive.DMemories
+import com.gatecontrol.android.drive.DNode
+import com.gatecontrol.android.drive.DResult
+import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcFilterChip
+import com.gatecontrol.android.ui.components.GcIconButton
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcListRow
+import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcSectionLabel
+import com.gatecontrol.android.ui.components.GcSegmented
+import com.gatecontrol.android.ui.components.GcTextField
+import com.gatecontrol.android.ui.theme.GateControlTheme
+import kotlinx.coroutines.launch
+import java.io.File
+import java.time.Instant
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+
+/** A message of the photo pages as a sentence (outside of composition): albums, else a Drive code. */
+internal fun photosText(context: Context, code: String): String {
+    val n = code.substringAfter(':', "").toIntOrNull() ?: 0
+    return when {
+        code.startsWith("photos_added:") -> context.resources.getQuantityString(R.plurals.drive_photos_added, n, n)
+        code.startsWith("photos_removed:") -> context.resources.getQuantityString(R.plurals.drive_photos_removed, n, n)
+        code == "album_created" -> context.getString(R.string.drive_album_created)
+        code == "album_renamed" -> context.getString(R.string.drive_album_renamed)
+        code == "album_deleted" -> context.getString(R.string.drive_album_deleted)
+        code == "album_cover" -> context.getString(R.string.drive_album_cover_done)
+        code == "album_frame_on" -> context.getString(R.string.drive_album_frame_on)
+        code == "album_frame_off" -> context.getString(R.string.drive_album_frame_off)
+        else -> driveText(context, code)
+    }
+}
+
+/** "Oktober 2026" of "2026-10". */
+private fun monthTitle(month: String?): String? = month?.let {
+    runCatching { YearMonth.parse(it).format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())) }.getOrNull()
+}
+
+/** When a photo was taken, as the phone writes a date. */
+internal fun photoDate(node: DNode): String? = (node.takenAt ?: node.mtime)?.let { iso ->
+    runCatching {
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withZone(ZoneId.systemDefault()).format(Instant.parse(iso))
+    }.getOrNull()
+}
+
+/** "Dateien" | "Fotos" on top of the Drive tab (only when Drive has photos). */
+@Composable
+internal fun DriveModeSwitch(photos: Boolean, onPhotos: (Boolean) -> Unit) {
+    GcSegmented(
+        options = listOf(false to stringResource(R.string.drive_mode_files), true to stringResource(R.string.drive_mode_photos)),
+        selected = photos,
+        onSelect = onPhotos,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    )
+}
+
+/**
+ * The photos of Drive (Drive 1.7): the timeline by month with "Vor einem Jahr" on top, loading on while scrolling, and
+ * the albums. Long press ticks photos for an album; a tap shows them full screen.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Composable () -> Unit, onAlbum: (String) -> Unit) {
+    val context = LocalContext.current
+    val me by viewModel.live.me.collectAsStateWithLifecycle()
+    val timeline by viewModel.timeline.collectAsStateWithLifecycle()
+    val months by viewModel.months.collectAsStateWithLifecycle()
+    val memories by viewModel.memories.collectAsStateWithLifecycle()
+    val albums by viewModel.albums.collectAsStateWithLifecycle()
+    val selected by viewModel.selected.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
+    val hasAlbums = me?.has(DMe.FEATURE_ALBUMS) == true
+    var tab by rememberSaveable { mutableStateOf("timeline") }
+    /** Full screen: the timeline (null) or the memories of so many years ago, from that photo on. */
+    var viewing by remember { mutableStateOf<Pair<Int?, Int>?>(null) }
+    var choosing by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf<Boolean?>(null) }
+
+    LaunchedEffect(Unit) { viewModel.start() }
+    LaunchedEffect(tab) { if (tab == "albums" && albums == null) viewModel.loadAlbums() }
+    LaunchedEffect(message) {
+        message?.let {
+            Toast.makeText(context, photosText(context, it), Toast.LENGTH_SHORT).show()
+            viewModel.clearMessage()
+        }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        topBar()
+        if (hasAlbums) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GcFilterChip(stringResource(R.string.drive_photos_timeline), selected = tab == "timeline", onClick = { tab = "timeline" })
+                GcFilterChip(stringResource(R.string.drive_photos_albums), selected = tab == "albums", onClick = { tab = "albums" })
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            if (tab == "albums" && hasAlbums) {
+                AlbumGrid(albums, onAlbum = { onAlbum(it.id) }, onNew = { creating = false }, onRetry = viewModel::loadAlbums)
+            } else {
+                PhotoGrid(
+                    pages = timeline,
+                    selected = selected,
+                    months = months,
+                    onOpen = { i -> viewing = null to i },
+                    onToggle = viewModel::toggle,
+                    onMore = viewModel::more,
+                    onRetry = viewModel::refresh,
+                    empty = stringResource(R.string.drive_photos_empty),
+                    header = if (memories.isEmpty()) null else ({
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            MemoriesRow(memories, onOpen = { m -> viewing = m.yearsAgo to 0 })
+                        }
+                    }),
+                )
+            }
+            if (selected.isNotEmpty()) {
+                SelectionBar(
+                    count = selected.size,
+                    onClear = viewModel::clearSelection,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                ) {
+                    if (hasAlbums) {
+                        TextButton(onClick = { viewModel.loadAlbums(); choosing = true }) { Text(stringResource(R.string.drive_photos_add_to_album)) }
+                    }
+                }
+            }
+        }
+    }
+
+    viewing?.let { (years, start) ->
+        PhotoViewer(
+            items = if (years == null) timeline.items else memories.firstOrNull { it.yearsAgo == years }?.items.orEmpty(),
+            start = start,
+            fetch = viewModel::fetch,
+            onMore = if (years == null) viewModel::more else null,
+            onClose = { viewing = null },
+        )
+    }
+    if (choosing) {
+        ModalBottomSheet(onDismissRequest = { choosing = false }) {
+            AlbumChooser(
+                albums = (albums as? DriveLoad.Ready)?.value?.filter { it.canEdit },
+                onAlbum = { a -> choosing = false; viewModel.addSelectedTo(a) },
+                onNew = { choosing = false; creating = true },
+            )
+        }
+    }
+    creating?.let { withSelected ->
+        AlbumNameDialog(
+            title = stringResource(R.string.drive_album_new),
+            initial = "",
+            confirm = stringResource(R.string.drive_create),
+            areas = viewModel.albumAreas(),
+            onConfirm = { name, area -> creating = null; viewModel.createAlbum(name, area, withSelected) },
+            onDismiss = { creating = null },
+        )
+    }
+}
+
+/** "Vor einem Jahr", "Vor 3 Jahren": a card per year with the day's photos. */
+@Composable
+private fun MemoriesRow(memories: List<DMemories>, onOpen: (DMemories) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(memories, key = { it.yearsAgo }) { m ->
+                val cover = m.items.first()
+                val picture = rememberDrivePreview(cover, large = true) ?: rememberDrivePreview(cover)
+                Box(
+                    Modifier
+                        .width(220.dp)
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(GateControlTheme.extraColors.blueBg)
+                        .clickable(role = Role.Button) { onOpen(m) },
+                ) {
+                    if (picture != null) Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
+                    Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+                        Text(
+                            if (m.yearsAgo <= 0) stringResource(R.string.drive_photos_memories) else pluralStringResource(R.plurals.drive_photos_years_ago, m.yearsAgo, m.yearsAgo),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                        )
+                        Text(pluralStringResource(R.plurals.drive_photos_count, m.items.size, m.items.size), style = MaterialTheme.typography.bodySmall, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Photos as tiles, by month when [months] is given, loading the next page near the end. A tap opens one ([onOpen]
+ * with its index), a long press — or a tap while some are ticked — ticks it.
+ */
+@Composable
+internal fun PhotoGrid(
+    pages: PhotoPages,
+    selected: Set<Long>,
+    onOpen: (Int) -> Unit,
+    onToggle: (DNode) -> Unit,
+    onMore: () -> Unit,
+    onRetry: () -> Unit,
+    empty: String,
+    months: Map<String, Int>? = null,
+    header: (LazyGridScope.() -> Unit)? = null,
+) {
+    val state = rememberLazyGridState()
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = state.layoutInfo
+            (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 24
+        }
+    }
+    LaunchedEffect(nearEnd, pages.items.size, pages.next) { if (nearEnd && !pages.end) onMore() }
+    val index = remember(pages.items) { pages.items.withIndex().associate { it.value.id to it.index } }
+    val x = GateControlTheme.extraColors
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 96.dp),
+        state = state,
+        // bottom: room for the selection bar
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        header?.invoke(this)
+        val groups = if (months != null) DriveLogic.byMonth(pages.items) else listOf(null to pages.items)
+        groups.forEachIndexed { g, (month, list) ->
+            if (months != null) {
+                item(key = "m-$g-$month", span = { GridItemSpan(maxLineSpan) }) {
+                    val count = month?.let { months[it] }
+                    val title = monthTitle(month) ?: stringResource(R.string.drive_photos_undated)
+                    Text(
+                        if (count != null && count > 0) "$title · ${pluralStringResource(R.plurals.drive_photos_count, count, count)}" else title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp, start = 4.dp),
+                    )
+                }
+            }
+            items(list, key = { "p-${it.id}" }) { n ->
+                PhotoTile(
+                    node = n,
+                    ticked = n.id in selected,
+                    onClick = { if (selected.isNotEmpty()) onToggle(n) else onOpen(index[n.id] ?: 0) },
+                    onLongClick = { onToggle(n) },
+                )
+            }
+        }
+        item(key = "footer", span = { GridItemSpan(maxLineSpan) }) {
+            when {
+                pages.loading -> DriveLoading()
+                pages.error != null && !pages.loaded -> DriveErrorBox(pages.error, onRetry = onRetry)
+                pages.error != null -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(stringResource(R.string.drive_photos_more_error), color = x.muted)
+                    TextButton(onClick = onMore) { Text(stringResource(R.string.drive_retry)) }
+                }
+                pages.loaded && pages.items.isEmpty() -> Text(empty, color = x.muted, modifier = Modifier.padding(vertical = 24.dp, horizontal = 4.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PhotoTile(node: DNode, ticked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val look = kindLook(DriveLogic.kind(node))
+    val picture = rememberDrivePreview(node)
+    val haptic = LocalHapticFeedback.current
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(6.dp))
+            .background(look.bg)
+            .then(if (ticked) Modifier.border(3.dp, accent, RoundedCornerShape(6.dp)) else Modifier)
+            .combinedClickable(
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() },
+                onLongClickLabel = stringResource(R.string.drive_photos_select),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (picture != null) {
+            Image(picture, contentDescription = node.name, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        } else {
+            Icon(look.icon, contentDescription = node.name, tint = look.fg, modifier = Modifier.size(24.dp))
+        }
+        if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(24)
+        if (ticked) {
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(CircleShape).background(accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(GcIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+/** "3 ausgewählt" with the actions for them, at the bottom. */
+@Composable
+internal fun SelectionBar(count: Int, onClear: () -> Unit, modifier: Modifier = Modifier, actions: @Composable () -> Unit) {
+    Row(
+        modifier
+            .navigationBarsPadding()
+            .padding(16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, GateControlTheme.extraColors.border, RoundedCornerShape(18.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GcIconButton(GcIcons.Close, contentDescription = stringResource(R.string.drive_photos_clear_selection), onClick = onClear, tint = MaterialTheme.colorScheme.onSurface)
+        Text(pluralStringResource(R.plurals.drive_photos_selected, count, count), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        actions()
+    }
+}
+
+/** The albums as cards (cover, name, count, photo frame); the first card makes a new one. */
+@Composable
+private fun AlbumGrid(albums: DriveLoad<List<DAlbum>>?, onAlbum: (DAlbum) -> Unit, onNew: () -> Unit, onRetry: () -> Unit) {
+    when (albums) {
+        null, DriveLoad.Loading -> DriveLoading()
+        is DriveLoad.Error -> DriveErrorBox(albums.code, onRetry = onRetry)
+        is DriveLoad.Ready -> LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 150.dp),
+            contentPadding = PaddingValues(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = "new") { NewAlbumCard(onNew) }
+            items(albums.value, key = { it.id }) { a -> AlbumCard(a, onClick = { onAlbum(a) }) }
+            if (albums.value.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(stringResource(R.string.drive_albums_empty), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(8.dp))
+                }
+            }
+        }
+    }
+}
+
+/** A stand-in node for an album's cover: its preview is fetched through the node ([rememberDrivePreview]). */
+internal fun coverNode(a: DAlbum): DNode? = a.coverId?.let {
+    DNode(
+        id = it, areaId = a.areaId ?: "cover", parentId = null, name = a.name, isDir = false, size = 0, mime = "image/jpeg", mediaId = null,
+        rev = 0, mtime = null, updatedAt = null, updatedBy = null, preview = true,
+    )
+}
+
+@Composable
+private fun AlbumCard(a: DAlbum, onClick: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val cover = coverNode(a)?.let { rememberDrivePreview(it) }
+    Column(Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).clickable(role = Role.Button, onClick = onClick)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f).background(x.blueBg), contentAlignment = Alignment.Center) {
+            if (cover != null) {
+                Image(cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            } else {
+                Icon(GcIcons.Photo, contentDescription = null, tint = x.blue, modifier = Modifier.size(32.dp))
+            }
+            if (a.frame) {
+                Text(
+                    stringResource(R.string.drive_album_frame),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.5f)).padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text(a.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(pluralStringResource(R.plurals.drive_photos_count, a.count, a.count), style = MaterialTheme.typography.bodySmall, color = x.muted)
+        }
+    }
+}
+
+@Composable
+private fun NewAlbumCard(onClick: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    Column(
+        Modifier.clip(RoundedCornerShape(16.dp)).border(1.dp, x.border2, RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick),
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f), contentAlignment = Alignment.Center) {
+            Icon(GcIcons.Plus, contentDescription = null, tint = x.accentText, modifier = Modifier.size(32.dp))
+        }
+        Text(stringResource(R.string.drive_album_new), style = MaterialTheme.typography.titleSmall, color = x.accentText, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
+    }
+}
+
+/** Which album the ticked photos go to (those the person may change), or a new one. */
+@Composable
+private fun AlbumChooser(albums: List<DAlbum>?, onAlbum: (DAlbum) -> Unit, onNew: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Text(stringResource(R.string.drive_album_choose), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        GcListRow(
+            title = stringResource(R.string.drive_album_new),
+            onClick = onNew,
+            leading = { Icon(GcIcons.Plus, contentDescription = null, tint = GateControlTheme.extraColors.accentText) },
+            titleColor = GateControlTheme.extraColors.accentText,
+        )
+        if (albums == null) DriveLoading()
+        albums?.forEach { a ->
+            GcListRow(
+                title = a.name,
+                description = pluralStringResource(R.plurals.drive_photos_count, a.count, a.count),
+                onClick = { onAlbum(a) },
+                leading = { Icon(GcIcons.Photo, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+            )
+        }
+    }
+}
+
+/** Name of a new album (and, when there are several, the area it belongs to) or of a rename. */
+@Composable
+internal fun AlbumNameDialog(
+    title: String,
+    initial: String,
+    confirm: String,
+    areas: List<DArea>,
+    onConfirm: (name: String, areaId: String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var value by remember { mutableStateOf(initial) }
+    var area by remember { mutableStateOf(areas.firstOrNull { it.kind == "mine" }?.id ?: areas.firstOrNull()?.id) }
+    val valid = value.isNotBlank() && value.trim().length <= DrivePhotosViewModel.NAME_MAX
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                GcTextField(value = value, onValueChange = { value = it.take(DrivePhotosViewModel.NAME_MAX) }, label = stringResource(R.string.drive_album_name))
+                if (areas.size > 1) {
+                    GcSectionLabel(stringResource(R.string.drive_album_area))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        areas.forEach { a -> GcFilterChip(a.label, selected = area == a.id, onClick = { area = a.id }) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(value.trim(), area.takeIf { areas.size > 1 }) }, enabled = valid) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
+    )
+}
+
+/**
+ * Photos full screen, one after the other by swiping: the large preview (the small one meanwhile), name and date,
+ * "Öffnen" and "Senden" as for any file of Drive. Near the end of [items] the next page loads ([onMore]).
+ */
+@Composable
+internal fun PhotoViewer(
+    items: List<DNode>,
+    start: Int,
+    fetch: suspend (DNode) -> DResult<File>,
+    onMore: (() -> Unit)?,
+    onClose: () -> Unit,
+) {
+    if (items.isEmpty()) return
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val pager = rememberPagerState(initialPage = start.coerceIn(0, items.size - 1)) { items.size }
+    var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(pager.currentPage, items.size) { if (onMore != null && pager.currentPage >= items.size - 5) onMore() }
+    val act: (DNode, Boolean) -> Unit = { n, send ->
+        if (!busy) {
+            busy = true
+            scope.launch {
+                fetchThen(context, n, fetch, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
+                    Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+                }
+                busy = false
+            }
+        }
+    }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), key = { items.getOrNull(it)?.id ?: it }) { page ->
+                val n = items[page]
+                val large = rememberDrivePreview(n, large = true)
+                val small = rememberDrivePreview(n)
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    val picture = large ?: small
+                    if (picture != null) {
+                        Image(picture, contentDescription = n.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                    } else if (n.preview) {
+                        CircularProgressIndicator(color = Color.White)
+                    } else {
+                        Icon(kindLook(DriveLogic.kind(n)).icon, contentDescription = n.name, tint = Color.White, modifier = Modifier.size(56.dp))
+                    }
+                    if (DriveLogic.kind(n) == DriveLogic.Kind.VIDEO) {
+                        Box(
+                            Modifier.size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.5f)).clickable(role = Role.Button) { act(n, false) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(GcIcons.Play, contentDescription = stringResource(R.string.drive_open), tint = Color.White, modifier = Modifier.size(40.dp))
+                        }
+                    }
+                }
+            }
+            val current = items.getOrNull(pager.currentPage)
+            Row(
+                Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GcIconButton(GcIcons.Close, contentDescription = stringResource(R.string.drive_viewer_close), onClick = onClose, tint = Color.White)
+                Column(Modifier.weight(1f)) {
+                    Text(current?.name.orEmpty(), color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    current?.let { photoDate(it) }?.let { Text(it, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall) }
+                }
+                Text("${pager.currentPage + 1} / ${items.size}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 12.dp))
+            }
+            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).navigationBarsPadding()) {
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    current?.let { n ->
+                        TextButton(onClick = { act(n, false) }) {
+                            Icon(GcIcons.External, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.drive_open), color = Color.White)
+                        }
+                        TextButton(onClick = { act(n, true) }) {
+                            Icon(GcIcons.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.drive_send), color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Choosing photos to add to an album: the timeline, ticked by a tap, then "Hinzufügen". */
+@Composable
+internal fun PhotoPickerDialog(
+    pages: PhotoPages,
+    picked: Set<Long>,
+    onPick: (DNode) -> Unit,
+    onMore: () -> Unit,
+    onRetry: () -> Unit,
+    onAdd: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                GcIconButton(GcIcons.Close, contentDescription = stringResource(R.string.drive_cancel), onClick = onDismiss, tint = MaterialTheme.colorScheme.onBackground)
+                Text(stringResource(R.string.drive_album_add), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            }
+            Box(Modifier.weight(1f)) {
+                PhotoGrid(
+                    pages = pages,
+                    selected = picked,
+                    // a tap ticks: here every tap chooses
+                    onOpen = { i -> pages.items.getOrNull(i)?.let(onPick) },
+                    onToggle = onPick,
+                    onMore = onMore,
+                    onRetry = onRetry,
+                    empty = stringResource(R.string.drive_photos_empty),
+                )
+            }
+            Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
+                GcPrimaryButton(pluralStringResource(R.plurals.drive_album_add_confirm, picked.size, picked.size), onClick = onAdd, enabled = picked.isNotEmpty())
+            }
+        }
+    }
+}
+
+/** The album page's card about the photo frame (feature `frame`, only with the right to switch it, `canFrame`). */
+@Composable
+internal fun FrameCard(album: DAlbum, onFrame: (Boolean) -> Unit) {
+    GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        com.gatecontrol.android.ui.components.GcSwitchRow(
+            label = stringResource(R.string.drive_album_frame),
+            description = stringResource(R.string.drive_album_frame_desc),
+            checked = album.frame,
+            onCheckedChange = onFrame,
+        )
+    }
+}

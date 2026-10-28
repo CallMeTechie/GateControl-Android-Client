@@ -17,6 +17,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.BufferedSink
@@ -44,6 +45,8 @@ class DriveApi @Inject constructor(
 ) {
     companion object {
         const val CODE_INVALID = "invalid_answer"
+        /** At most this many ids per album call (plugin README). */
+        private const val ALBUM_IDS_MAX = 500
         private const val TIMEOUT_MS = 25_000L
         /** Small files go in one piece. */
         private const val RESUMABLE_FROM = 8L * 1024 * 1024
@@ -117,6 +120,9 @@ class DriveApi @Inject constructor(
     private suspend fun <T> del(path: String, parse: (JsonObject) -> T?, query: Map<String, String> = emptyMap()) =
         call(request = { pluginDelete(DRIVE_PLUGIN, path, query + lang()) }, parse = parse)
 
+    private suspend fun <T> delWithBody(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
+        call(request = { pluginDeleteWithBody(DRIVE_PLUGIN, path, body, lang()) }, parse = parse)
+
     private fun bad(): DResult<Nothing> = DResult.Failed(CODE_INVALID, 0)
 
     // ─── who, where ─────────────────────────────────────────────────
@@ -153,6 +159,24 @@ class DriveApi @Inject constructor(
     suspend fun delete(id: Long, everywhere: Boolean = false): DResult<Unit> =
         del("nodes/$id", unit, if (everywhere) mapOf("everywhere" to "1") else emptyMap())
 
+    /**
+     * "Deleted on this device" (Drive 1.5 `deleteAfter`): the file goes into the trash in [seconds], unless it comes
+     * back before ([unmark]). A node marked already keeps its earlier time. [device] names the asking device.
+     */
+    suspend fun deleteAfter(id: Long, seconds: Long, device: String?): DResult<DMark> {
+        val q = buildMap {
+            put("after", seconds.coerceIn(1, 365L * 86_400).toString())
+            device?.takeIf { DriveJson.DEVICE_ID.matches(it) }?.let { put("device", it) }
+        }
+        return del("nodes/$id", DriveJson::mark, q)
+    }
+
+    /** Ends the mark of [deleteAfter]: the file stays (`PATCH nodes/<id> { deleteAt: null }`). */
+    suspend fun unmark(id: Long): DResult<Unit> {
+        val body = DriveJson.UNMARK_BODY.toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+        return call(request = { pluginPatchRaw(DRIVE_PLUGIN, "nodes/$id", body, lang()) }, parse = unit)
+    }
+
     /** Files deleted "everywhere" on another device that this one still has to remove (Drive 1.2+). */
     suspend fun wipes(): DResult<List<DWipe>> = get("wipes", parse = DriveJson::wipes)
 
@@ -188,6 +212,85 @@ class DriveApi @Inject constructor(
     /** Gone for good. */
     suspend fun purge(id: Long): DResult<Unit> = del("trash/$id", unit)
 
+    // ─── time travel (Drive 1.7, feature `timeTravel`) ──────────────
+
+    /** What the folder [folderId] back at [at] (ISO 8601) would mean; changes nothing. */
+    suspend fun timeTravelPreview(folderId: Long, at: String): DResult<DTimeTravelPreview> =
+        get("nodes/$folderId/timetravel", mapOf("at" to at), DriveJson::timeTravelPreview)
+
+    /** The folder [folderId] back at [at]: nothing is deleted for good, new files go into the trash. */
+    suspend fun timeTravel(folderId: Long, at: String): DResult<DTimeTravelResult> =
+        post("nodes/$folderId/timetravel", DriveJson.timeTravelBody(at), DriveJson::timeTravelResult)
+
+    // ─── photos and albums (Drive 1.7, features `photos`, `albums`, `frame`) ──
+
+    /** Photos and videos, newest first; [before] is the cursor of the page before. Without [area]: all I can read. */
+    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120): DResult<DPhotos> {
+        val q = buildMap {
+            if (area != null) put("area", DriveJson.areaId(area) ?: return bad())
+            if (before != null) put("before", before)
+            put("limit", limit.coerceIn(1, 200).toString())
+        }
+        return get("photos", q, DriveJson::photos)
+    }
+
+    suspend fun photoMonths(area: String? = null): DResult<List<DMonth>> {
+        val q = if (area == null) emptyMap() else mapOf("area" to (DriveJson.areaId(area) ?: return bad()))
+        return get("photos/months", q, DriveJson::months)
+    }
+
+    /** Photos of this calendar day ([date] `YYYY-MM-DD`, else the server's today) in earlier years. */
+    suspend fun memories(date: String? = null): DResult<List<DMemories>> =
+        get("photos/memories", if (date == null) emptyMap() else mapOf("date" to date), DriveJson::memories)
+
+    suspend fun albums(): DResult<List<DAlbum>> = get("albums", parse = DriveJson::albums)
+
+    suspend fun createAlbum(name: String, areaId: String? = null): DResult<DAlbum> =
+        post("albums", DriveJson.albumBody(name, areaId?.let { DriveJson.areaId(it) ?: return bad() }), DriveJson::albumAnswer)
+
+    suspend fun album(id: String, before: String? = null, limit: Int = 120): DResult<DAlbumPage> {
+        val album = DriveJson.albumId(id) ?: return bad()
+        val q = buildMap {
+            if (before != null) put("before", before)
+            put("limit", limit.coerceIn(1, 200).toString())
+        }
+        return get("albums/$album", q, DriveJson::albumPage)
+    }
+
+    suspend fun updateAlbum(id: String, name: String? = null, coverId: Long? = null, frame: Boolean? = null): DResult<DAlbum> {
+        val album = DriveJson.albumId(id) ?: return bad()
+        return patch("albums/$album", DriveJson.albumPatchBody(name, coverId, frame), DriveJson::albumAnswer)
+    }
+
+    /** The album goes, its photos stay. */
+    suspend fun deleteAlbum(id: String): DResult<Unit> {
+        val album = DriveJson.albumId(id) ?: return bad()
+        return del("albums/$album", unit)
+    }
+
+    /** Puts [ids] into the album (at most 500 a call, so in parts). */
+    suspend fun addToAlbum(id: String, ids: List<Long>): DResult<DAlbum> = albumItems(id, ids, add = true)
+
+    suspend fun removeFromAlbum(id: String, ids: List<Long>): DResult<DAlbum> = albumItems(id, ids, add = false)
+
+    private suspend fun albumItems(id: String, ids: List<Long>, add: Boolean): DResult<DAlbum> {
+        val album = DriveJson.albumId(id) ?: return bad()
+        if (ids.isEmpty()) return bad()
+        var last: DResult<DAlbum> = bad()
+        for (part in ids.distinct().chunked(ALBUM_IDS_MAX)) {
+            val body = DriveJson.idsBody(part)
+            last = if (add) post("albums/$album/items", body, DriveJson::albumAnswer) else delWithBody("albums/$album/items", body, DriveJson::albumAnswer)
+            if (last !is DResult.Ok) return last
+        }
+        return last
+    }
+
+    // ─── storage (Drive 1.7, feature `storage`) ─────────────────────
+
+    /** How much is used and by what; [all] (administrators): everything, not only the areas I can read. */
+    suspend fun storage(all: Boolean = false): DResult<DStorageReport> =
+        get("storage", if (all) mapOf("all" to "1") else emptyMap(), DriveJson::storage)
+
     // ─── ransomware protection (Drive 1.6, feature `guard`) ─────────
 
     /** Puts back what the incident changed (restores the files, the new ones go to the trash). */
@@ -220,9 +323,20 @@ class DriveApi @Inject constructor(
     suspend fun uploadCheck(parentId: Long, name: String, sha256: String?, size: Long?): DResult<DUploadCheck> =
         post("uploads/check", DriveJson.checkBody(parentId, name, sha256, size), DriveJson::uploadCheck)
 
-    /** Makes the uploaded [mediaId] a file `name` in folder [parentId]; [onConflict] `rename` | `version`. */
-    suspend fun commit(mediaId: String, parentId: Long, name: String, mtimeMs: Long?, onConflict: String, text: String? = null): DResult<Pair<DNode, Boolean>> =
-        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text), DriveJson::commit)
+    /**
+     * Makes the uploaded [mediaId] a file `name` in folder [parentId]; [onConflict] `rename` | `version`; [takenAt] when
+     * a photo was taken (ISO 8601, only for a Drive with `takenAt`).
+     */
+    suspend fun commit(
+        mediaId: String,
+        parentId: Long,
+        name: String,
+        mtimeMs: Long?,
+        onConflict: String,
+        text: String? = null,
+        takenAt: String? = null,
+    ): DResult<Pair<DNode, Boolean>> =
+        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text, takenAt), DriveJson::commit)
 
     /** An empty file `name` in [parentId] without media (feature `emptyFiles`, Drive 1.5+). */
     suspend fun commitEmpty(parentId: Long, name: String, mime: String?, onConflict: String): DResult<Pair<DNode, Boolean>> =

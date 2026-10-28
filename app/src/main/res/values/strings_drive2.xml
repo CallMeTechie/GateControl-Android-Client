@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive 1.7: folder backup, photos and albums, time travel, storage overview -->
+
+    <!-- Folder backup -->
+    <string name="drive_folders_title">Back up folders</string>
+    <string name="drive_folders_intro">Folders of the phone – like WhatsApp media, downloads or documents – go to Drive. New and changed files are uploaded, sub folders are kept. What you delete on the phone stays in Drive for 30 more days, then goes to the trash.</string>
+    <string name="drive_folders_intro_keep">Folders of the phone – like WhatsApp media, downloads or documents – go to Drive. New and changed files are uploaded, sub folders are kept. What you delete on the phone stays in Drive.</string>
+    <string name="drive_folders_note">One way only: changes in Drive do not come to the phone. Hidden files (names starting with a dot) and temporary files are left out.</string>
+    <string name="drive_folders_empty">No folder yet. Add one.</string>
+    <string name="drive_folders_add">Add folder</string>
+    <string name="drive_folders_added">Folder added – the backup starts.</string>
+    <string name="drive_folders_suggest_title">Which folder?</string>
+    <string name="drive_folders_suggest_whatsapp">WhatsApp media</string>
+    <string name="drive_folders_suggest_whatsapp_desc">Photos, videos, voice messages and documents from WhatsApp</string>
+    <string name="drive_folders_suggest_download">Download</string>
+    <string name="drive_folders_suggest_download_desc">Downloaded files</string>
+    <string name="drive_folders_suggest_download_note">Android does not allow the Download folder itself – pick a folder inside it.</string>
+    <string name="drive_folders_suggest_documents">Documents</string>
+    <string name="drive_folders_suggest_documents_desc">The phone\'s “Documents” folder</string>
+    <string name="drive_folders_suggest_other">Choose another folder</string>
+    <string name="drive_folders_target_title">Back up “%1$s” to</string>
+    <string name="drive_folders_target_here">Back up here</string>
+    <string name="drive_folders_to">To %1$s</string>
+    <string name="drive_folders_retarget">Change target</string>
+    <string name="drive_folders_remove">Remove</string>
+    <string name="drive_folders_remove_confirm">Stop backing up “%1$s”? The files stay in Drive; deletes still pending are called off.</string>
+    <string name="drive_folders_pause">Pause</string>
+    <string name="drive_folders_resume">Resume</string>
+    <string name="drive_folders_paused">Paused</string>
+    <string name="drive_folders_waiting">Waiting for the first backup</string>
+    <string name="drive_folders_last">last %1$s</string>
+    <string name="drive_folders_running">%1$s: %2$d of %3$d</string>
+    <string name="drive_folders_notification_folder">Backing up folder: %1$s</string>
+    <string name="drive_folders_confirm_delete">Delete in Drive too</string>
+    <string name="drive_folders_confirm_keep">Keep in Drive</string>
+    <string name="drive_folders_error_access">No access to the folder any more. Remove it and add it again.</string>
+    <string name="drive_folders_error_overlap">This folder, or one containing it, is backed up already.</string>
+    <string name="drive_folders_error_too_many">The folder has too many files (more than 200,000).</string>
+    <string name="drive_folders_off_text">Back up folders of the phone to Drive</string>
+    <plurals name="drive_folders_count">
+        <item quantity="one">%1$d folder</item>
+        <item quantity="other">%1$d folders</item>
+    </plurals>
+    <plurals name="drive_folders_files">
+        <item quantity="one">%1$d file backed up</item>
+        <item quantity="other">%1$d files backed up</item>
+    </plurals>
+    <plurals name="drive_folders_pending">
+        <item quantity="one">%1$d file deleted on the phone stays in Drive for up to 30 more days.</item>
+        <item quantity="other">%1$d files deleted on the phone stay in Drive for up to 30 more days.</item>
+    </plurals>
+    <plurals name="drive_folders_skipped">
+        <item quantity="one">%1$d file left out (too large, unreadable or still being written)</item>
+        <item quantity="other">%1$d files left out (too large, unreadable or still being written)</item>
+    </plurals>
+    <plurals name="drive_folders_confirm">
+        <item quantity="one">%1$d file was deleted on the phone. Delete it in Drive too (to the trash after 30 days)?</item>
+        <item quantity="other">%1$d files were deleted on the phone at once. Delete them in Drive too (to the trash after 30 days)?</item>
+    </plurals>
+
+    <!-- Photos and albums -->
+    <string name="drive_mode_files">Files</string>
+    <string name="drive_mode_photos">Photos</string>
+    <string name="drive_photos_timeline">Timeline</string>
+    <string name="drive_photos_albums">Albums</string>
+    <string name="drive_photos_empty">No photos in Drive yet. The photo backup uploads the phone\'s photos.</string>
+    <string name="drive_photos_memories">On this day</string>
+    <string name="drive_photos_undated">No date</string>
+    <string name="drive_photos_more_error">More photos could not be loaded.</string>
+    <string name="drive_photos_select">Select</string>
+    <string name="drive_photos_clear_selection">Clear selection</string>
+    <string name="drive_photos_add_to_album">Add to album</string>
+    <string name="drive_viewer_close">Close</string>
+    <plurals name="drive_photos_years_ago">
+        <item quantity="one">One year ago</item>
+        <item quantity="other">%1$d years ago</item>
+    </plurals>
+    <plurals name="drive_photos_count">
+        <item quantity="one">%1$d photo</item>
+        <item quantity="other">%1$d photos</item>
+    </plurals>
+    <plurals name="drive_photos_selected">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="drive_photos_added">
+        <item quantity="one">%1$d photo added to the album</item>
+        <item quantity="other">%1$d photos added to the album</item>
+    </plurals>
+    <plurals name="drive_photos_removed">
+        <item quantity="one">%1$d photo removed from the album</item>
+        <item quantity="other">%1$d photos removed from the album</item>
+    </plurals>
+    <string name="drive_album_new">New album</string>
+    <string name="drive_album_name">Album name</string>
+    <string name="drive_album_area">Belongs to</string>
+    <string name="drive_album_choose">Which album?</string>
+    <string name="drive_album_created">Album created</string>
+    <string name="drive_album_rename">Rename</string>
+    <string name="drive_album_renamed">Album renamed</string>
+    <string name="drive_album_delete">Delete album</string>
+    <string name="drive_album_delete_confirm">Delete the album “%1$s”? The photos stay in Drive.</string>
+    <string name="drive_album_deleted">Album deleted</string>
+    <string name="drive_album_add">Add photos</string>
+    <string name="drive_album_remove">Remove from album</string>
+    <string name="drive_album_cover">Make cover</string>
+    <string name="drive_album_cover_done">Cover changed</string>
+    <string name="drive_album_empty">This album is still empty.</string>
+    <string name="drive_albums_empty">No albums yet.</string>
+    <string name="drive_album_frame">Photo frame</string>
+    <string name="drive_album_frame_desc">The wall tablet shows the photos of this album as a slide show.</string>
+    <string name="drive_album_frame_on">The album now runs in the photo frame.</string>
+    <string name="drive_album_frame_off">The album is no longer in the photo frame.</string>
+    <plurals name="drive_album_add_confirm">
+        <item quantity="one">Add %1$d photo</item>
+        <item quantity="other">Add %1$d photos</item>
+    </plurals>
+
+    <!-- Time travel -->
+    <string name="drive_tt_menu">Restore an earlier state…</string>
+    <string name="drive_tt_title">Restore “%1$s”</string>
+    <string name="drive_tt_to">Back to how it was on %1$s:</string>
+    <string name="drive_tt_nothing">Nothing to do – the folder was like this back then.</string>
+    <string name="drive_tt_examples">For example:</string>
+    <string name="drive_tt_op_restore">comes back</string>
+    <string name="drive_tt_op_revert">version of then</string>
+    <string name="drive_tt_op_trash">to the trash</string>
+    <string name="drive_tt_op_move">name or place as then</string>
+    <string name="drive_tt_safe">Nothing is deleted for good: new files go to the trash, the current version stays as an older version.</string>
+    <string name="drive_tt_limited">Drive cannot turn back renames and moves before %1$s.</string>
+    <string name="drive_tt_limited_unknown">Drive cannot turn back older renames and moves.</string>
+    <string name="drive_tt_run">Restore</string>
+    <string name="drive_tt_other_time">Other time</string>
+    <string name="drive_tt_previewing">Drive checks what changed since then…</string>
+    <string name="drive_tt_running">Restoring the folder…</string>
+    <string name="drive_tt_undoing">Undoing…</string>
+    <string name="drive_tt_done_title">Folder restored</string>
+    <string name="drive_tt_undone_title">Undone</string>
+    <string name="drive_tt_done">Done</string>
+    <string name="drive_tt_undo">Undo</string>
+    <string name="drive_tt_nothing_done">There was nothing to change.</string>
+    <string name="drive_tt_restored">Restored: %1$d</string>
+    <string name="drive_tt_reverted">Old version back: %1$d</string>
+    <string name="drive_tt_trashed">To the trash: %1$d</string>
+    <string name="drive_tt_moved">Renamed or moved: %1$d</string>
+    <string name="drive_tt_failed">Did not work: %1$d</string>
+    <string name="drive_tt_future">Please pick a time in the past.</string>
+    <plurals name="drive_tt_restore">
+        <item quantity="one">%1$d deleted file comes back</item>
+        <item quantity="other">%1$d deleted files come back</item>
+    </plurals>
+    <plurals name="drive_tt_revert">
+        <item quantity="one">%1$d file gets the version of then</item>
+        <item quantity="other">%1$d files get the version of then</item>
+    </plurals>
+    <plurals name="drive_tt_trash">
+        <item quantity="one">%1$d file new since then goes to the trash</item>
+        <item quantity="other">%1$d files new since then go to the trash</item>
+    </plurals>
+    <plurals name="drive_tt_move">
+        <item quantity="one">%1$d file gets its name or place of then</item>
+        <item quantity="other">%1$d files get their name or place of then</item>
+    </plurals>
+
+    <string name="drive_tt_too_many">Too much changed since then (more than %1$d steps). Please pick a later time.</string>
+    <plurals name="drive_tt_lost">
+        <item quantity="one">%1$d file stays as it is: its version of then is gone.</item>
+        <item quantity="other">%1$d files stay as they are: their version of then is gone.</item>
+    </plurals>
+
+    <!-- Storage overview -->
+    <string name="drive_storage_title">Storage</string>
+    <string name="drive_storage_mine">My areas</string>
+    <string name="drive_storage_all">All</string>
+    <string name="drive_storage_used">%1$s used</string>
+    <string name="drive_storage_of_limit">%1$s of %2$s</string>
+    <string name="drive_storage_versions">Older versions %1$s</string>
+    <string name="drive_storage_trash">Trash %1$s</string>
+    <string name="drive_storage_areas">Areas</string>
+    <string name="drive_storage_people">People</string>
+    <string name="drive_storage_largest">Largest files</string>
+    <string name="drive_storage_duplicates">Duplicates</string>
+    <string name="drive_storage_no_duplicates">No duplicate files found.</string>
+    <string name="drive_storage_wasted">%1$s are taken twice.</string>
+    <string name="drive_storage_all_but_one">Select all copies but one</string>
+    <string name="drive_storage_dup_group">%1$d identical files · %2$s each</string>
+    <string name="drive_storage_delete_selected">Move to trash</string>
+    <plurals name="drive_storage_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="drive_storage_delete_confirm">
+        <item quantity="one">Move %1$d copy (%2$s) to the trash? The space is free once the trash is emptied.</item>
+        <item quantity="other">Move %1$d copies (%2$s) to the trash? The space is free once the trash is emptied.</item>
+    </plurals>
+    <plurals name="drive_storage_deleted">
+        <item quantity="one">%1$d copy moved to the trash</item>
+        <item quantity="other">%1$d copies moved to the trash</item>
+    </plurals>
+</resources>

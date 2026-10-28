@@ -3,6 +3,7 @@ package com.gatecontrol.android.drive
 import android.content.Context
 import android.os.SystemClock
 import com.gatecontrol.android.drive.backup.DriveBackupWork
+import com.gatecontrol.android.drive.backup.DriveFolderBackupWork
 import com.gatecontrol.android.support.CrashReports
 import com.google.gson.JsonElement
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -93,8 +94,9 @@ class DriveLive @Inject constructor(
         _locked.value = value
         if (was && !value) {
             Timber.i("Drive: this device may write again")
-            // The photo backup stopped at the lock: it goes on now.
+            // The photo backup and the folder backup stopped at the lock: they go on now.
             runCatching { DriveBackupWork.runNow(context) }
+            runCatching { DriveFolderBackupWork.runNow(context) }
         }
     }
 

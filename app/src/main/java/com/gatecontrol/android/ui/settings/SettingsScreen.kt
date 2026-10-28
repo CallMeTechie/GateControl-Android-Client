@@ -85,6 +85,7 @@ fun SettingsScreen(
     onNavigateToShared: (() -> Unit)? = null,
     /** Drive photo backup; null hides the row (no Drive on the server). */
     onNavigateToDriveBackup: (() -> Unit)? = null,
+    onNavigateToDriveFolders: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
     selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -322,6 +323,27 @@ fun SettingsScreen(
                         )
                     },
                 )
+                if (onNavigateToDriveFolders != null) {
+                    val driveFolders by driveBackupViewModel.folders.collectAsStateWithLifecycle()
+                    val activeFolders = driveFolders.count { !it.paused }
+                    GcListRow(
+                        title = stringResource(R.string.drive_folders_title),
+                        description = if (driveFolders.isEmpty()) {
+                            stringResource(R.string.drive_folders_off_text)
+                        } else {
+                            pluralStringResource(R.plurals.drive_folders_count, driveFolders.size, driveFolders.size)
+                        },
+                        onClick = onNavigateToDriveFolders,
+                        leading = { Icon(GcIcons.Folder, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                        trailing = {
+                            Text(
+                                stringResource(if (activeFolders > 0) R.string.drive_backup_on else R.string.drive_backup_off),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (activeFolders > 0) extra.accentText else extra.muted,
+                            )
+                        },
+                    )
+                }
             }
         }
 

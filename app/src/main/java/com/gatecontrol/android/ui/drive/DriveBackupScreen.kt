@@ -414,7 +414,9 @@ private fun BackupStatusCard(config: DriveBackupConfig, stats: DriveBackup.Stats
 
 /** The photo backup's state for its row in the settings. */
 @HiltViewModel
-class DriveBackupSettingsViewModel @Inject constructor(backup: DriveBackup) : ViewModel() {
+class DriveBackupSettingsViewModel @Inject constructor(backup: DriveBackup, folderBackup: com.gatecontrol.android.drive.backup.DriveFolderBackup) : ViewModel() {
     val config: StateFlow<DriveBackupConfig> = backup.config
     val stats: StateFlow<DriveBackup.Stats> = backup.stats
+    /** The phone folders backed up ("Ordner sichern"), for their row. */
+    val folders: StateFlow<List<com.gatecontrol.android.drive.backup.DriveBackupFolder>> = folderBackup.folders
 }

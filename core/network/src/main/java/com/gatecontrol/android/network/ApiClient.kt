@@ -172,6 +172,27 @@ interface ApiClient {
         @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
 
+    /** A DELETE with a JSON body (e.g. Drive's `DELETE albums/<id>/items { ids }`). */
+    @HTTP(method = "DELETE", path = "api/v1/client/plugins/{id}/api/{path}", hasBody = true)
+    suspend fun pluginDeleteWithBody(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: JsonObject,
+        @QueryMap query: Map<String, String> = emptyMap(),
+    ): Response<JsonObject>
+
+    /**
+     * A PATCH with a body as it is (JSON the app wrote itself): Gson leaves out `null` members, which some plugin
+     * routes need (Drive's `PATCH nodes/<id> { deleteAt: null }`).
+     */
+    @PATCH("api/v1/client/plugins/{id}/api/{path}")
+    suspend fun pluginPatchRaw(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: RequestBody,
+        @QueryMap query: Map<String, String> = emptyMap(),
+    ): Response<JsonObject>
+
     // ─── Plugin media (core 1.177+, plugin.json `media`; 404 before) ──
     // Raw files, never JSON: the upload's Content-Type must be one of the
     // plugin's types and the body must know its length (no chunked upload).

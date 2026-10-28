@@ -421,6 +421,7 @@ fun AppNavigation(
                                 onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
                                 onNavigateToShared = if (plugins.gatedrop) { { paneKey = SettingsPane.Shared.key } } else null,
                                 onNavigateToDriveBackup = if (plugins.drive) { { navController.navigate(Screen.DriveBackup.route) { launchSingleTop = true } } } else null,
+                                onNavigateToDriveFolders = if (plugins.drive) { { navController.navigate(Screen.DriveFolders.route) { launchSingleTop = true } } } else null,
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
                             )
@@ -451,6 +452,7 @@ fun AppNavigation(
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                         onNavigateToShared = if (plugins.gatedrop) { { navController.navigate(Screen.Shared.create()) { launchSingleTop = true } } } else null,
                         onNavigateToDriveBackup = if (plugins.drive) { { navController.navigate(Screen.DriveBackup.route) { launchSingleTop = true } } } else null,
+                        onNavigateToDriveFolders = if (plugins.drive) { { navController.navigate(Screen.DriveFolders.route) { launchSingleTop = true } } } else null,
                     )
                 }
             }
@@ -1481,6 +1483,9 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
                     folder = folder,
                     search = { go(Screen.DriveSearch.route) },
                     trash = { go(Screen.DriveTrash.route) },
+                    storage = { go(Screen.DriveStorage.route) },
+                    folders = { go(Screen.DriveFolders.route) },
+                    album = { go(Screen.DriveAlbum.create(it)) },
                 ),
             )
         }
@@ -1496,5 +1501,14 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
     }
     composable(Screen.DriveBackup.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveBackupScreen(onBack = back) }
+    }
+    composable(Screen.DriveFolders.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderBackupScreen(onBack = back) }
+    }
+    composable(Screen.DriveStorage.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveStorageScreen(onBack = back, onFolder = folder) }
+    }
+    composable(Screen.DriveAlbum.route, arguments = listOf(navArgument(Screen.DriveAlbum.ARG_ID) { type = NavType.StringType })) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveAlbumScreen(onBack = back) }
     }
 }

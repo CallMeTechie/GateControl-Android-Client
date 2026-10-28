@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive 1.7: Ordner sichern, Fotos und Alben, Zeitreise, Speicher-Übersicht -->
+
+    <!-- Ordner sichern -->
+    <string name="drive_folders_title">Ordner sichern</string>
+    <string name="drive_folders_intro">Ordner des Handys – etwa WhatsApp-Medien, Downloads oder Dokumente – gehen nach Drive. Neue und geänderte Dateien werden hochgeladen, Unterordner übernommen. Was du auf dem Handy löschst, bleibt noch 30 Tage in Drive und kommt dann in den Papierkorb.</string>
+    <string name="drive_folders_intro_keep">Ordner des Handys – etwa WhatsApp-Medien, Downloads oder Dokumente – gehen nach Drive. Neue und geänderte Dateien werden hochgeladen, Unterordner übernommen. Was du auf dem Handy löschst, bleibt in Drive.</string>
+    <string name="drive_folders_note">Nur in eine Richtung: Was sich in Drive ändert, kommt nicht aufs Handy. Versteckte Dateien (Name mit Punkt am Anfang) und temporäre Dateien werden ausgelassen.</string>
+    <string name="drive_folders_empty">Noch kein Ordner. Füge einen hinzu.</string>
+    <string name="drive_folders_add">Ordner hinzufügen</string>
+    <string name="drive_folders_added">Ordner hinzugefügt – die Sicherung beginnt.</string>
+    <string name="drive_folders_suggest_title">Welchen Ordner sichern?</string>
+    <string name="drive_folders_suggest_whatsapp">WhatsApp-Medien</string>
+    <string name="drive_folders_suggest_whatsapp_desc">Fotos, Videos, Sprachnachrichten und Dokumente aus WhatsApp</string>
+    <string name="drive_folders_suggest_download">Download</string>
+    <string name="drive_folders_suggest_download_desc">Heruntergeladene Dateien</string>
+    <string name="drive_folders_suggest_download_note">Android erlaubt den Download-Ordner selbst nicht – wähle darin einen Unterordner.</string>
+    <string name="drive_folders_suggest_documents">Dokumente</string>
+    <string name="drive_folders_suggest_documents_desc">Der Ordner „Documents“ des Handys</string>
+    <string name="drive_folders_suggest_other">Anderen Ordner wählen</string>
+    <string name="drive_folders_target_title">„%1$s“ sichern nach</string>
+    <string name="drive_folders_target_here">Hierhin sichern</string>
+    <string name="drive_folders_to">Nach %1$s</string>
+    <string name="drive_folders_retarget">Zielordner ändern</string>
+    <string name="drive_folders_remove">Entfernen</string>
+    <string name="drive_folders_remove_confirm">„%1$s“ nicht mehr sichern? Die Dateien bleiben in Drive; Löschungen, die noch ausstehen, werden abgebrochen.</string>
+    <string name="drive_folders_pause">Pausieren</string>
+    <string name="drive_folders_resume">Fortsetzen</string>
+    <string name="drive_folders_paused">Pausiert</string>
+    <string name="drive_folders_waiting">Wartet auf die erste Sicherung</string>
+    <string name="drive_folders_last">zuletzt %1$s</string>
+    <string name="drive_folders_running">%1$s: %2$d von %3$d</string>
+    <string name="drive_folders_notification_folder">Ordner sichern: %1$s</string>
+    <string name="drive_folders_confirm_delete">Löschen übertragen</string>
+    <string name="drive_folders_confirm_keep">In Drive behalten</string>
+    <string name="drive_folders_error_access">Kein Zugriff mehr auf den Ordner. Entferne ihn und füge ihn neu hinzu.</string>
+    <string name="drive_folders_error_overlap">Dieser Ordner oder einer, der ihn enthält, wird schon gesichert.</string>
+    <string name="drive_folders_error_too_many">Der Ordner hat zu viele Dateien (mehr als 200.000).</string>
+    <string name="drive_folders_off_text">Ordner des Handys nach Drive sichern</string>
+    <plurals name="drive_folders_count">
+        <item quantity="one">%1$d Ordner</item>
+        <item quantity="other">%1$d Ordner</item>
+    </plurals>
+    <plurals name="drive_folders_files">
+        <item quantity="one">%1$d Datei gesichert</item>
+        <item quantity="other">%1$d Dateien gesichert</item>
+    </plurals>
+    <plurals name="drive_folders_pending">
+        <item quantity="one">%1$d auf dem Handy gelöschte Datei bleibt noch bis zu 30 Tage in Drive.</item>
+        <item quantity="other">%1$d auf dem Handy gelöschte Dateien bleiben noch bis zu 30 Tage in Drive.</item>
+    </plurals>
+    <plurals name="drive_folders_skipped">
+        <item quantity="one">%1$d Datei ausgelassen (zu groß, nicht lesbar oder gerade in Arbeit)</item>
+        <item quantity="other">%1$d Dateien ausgelassen (zu groß, nicht lesbar oder gerade in Arbeit)</item>
+    </plurals>
+    <plurals name="drive_folders_confirm">
+        <item quantity="one">%1$d Datei wurde auf dem Handy gelöscht. Auch in Drive löschen (nach 30 Tagen in den Papierkorb)?</item>
+        <item quantity="other">%1$d Dateien wurden auf dem Handy auf einmal gelöscht. Auch in Drive löschen (nach 30 Tagen in den Papierkorb)?</item>
+    </plurals>
+
+    <!-- Fotos und Alben -->
+    <string name="drive_mode_files">Dateien</string>
+    <string name="drive_mode_photos">Fotos</string>
+    <string name="drive_photos_timeline">Zeitleiste</string>
+    <string name="drive_photos_albums">Alben</string>
+    <string name="drive_photos_empty">Noch keine Fotos in Drive. Die Foto-Sicherung lädt die Fotos des Handys hoch.</string>
+    <string name="drive_photos_memories">An diesem Tag</string>
+    <string name="drive_photos_undated">Ohne Datum</string>
+    <string name="drive_photos_more_error">Weitere Fotos konnten nicht geladen werden.</string>
+    <string name="drive_photos_select">Auswählen</string>
+    <string name="drive_photos_clear_selection">Auswahl aufheben</string>
+    <string name="drive_photos_add_to_album">Zum Album</string>
+    <string name="drive_viewer_close">Schließen</string>
+    <plurals name="drive_photos_years_ago">
+        <item quantity="one">Vor einem Jahr</item>
+        <item quantity="other">Vor %1$d Jahren</item>
+    </plurals>
+    <plurals name="drive_photos_count">
+        <item quantity="one">%1$d Foto</item>
+        <item quantity="other">%1$d Fotos</item>
+    </plurals>
+    <plurals name="drive_photos_selected">
+        <item quantity="one">%1$d ausgewählt</item>
+        <item quantity="other">%1$d ausgewählt</item>
+    </plurals>
+    <plurals name="drive_photos_added">
+        <item quantity="one">%1$d Foto zum Album hinzugefügt</item>
+        <item quantity="other">%1$d Fotos zum Album hinzugefügt</item>
+    </plurals>
+    <plurals name="drive_photos_removed">
+        <item quantity="one">%1$d Foto aus dem Album entfernt</item>
+        <item quantity="other">%1$d Fotos aus dem Album entfernt</item>
+    </plurals>
+    <string name="drive_album_new">Neues Album</string>
+    <string name="drive_album_name">Name des Albums</string>
+    <string name="drive_album_area">Gehört zu</string>
+    <string name="drive_album_choose">Zu welchem Album?</string>
+    <string name="drive_album_created">Album angelegt</string>
+    <string name="drive_album_rename">Umbenennen</string>
+    <string name="drive_album_renamed">Album umbenannt</string>
+    <string name="drive_album_delete">Album löschen</string>
+    <string name="drive_album_delete_confirm">Album „%1$s“ löschen? Die Fotos bleiben in Drive.</string>
+    <string name="drive_album_deleted">Album gelöscht</string>
+    <string name="drive_album_add">Fotos hinzufügen</string>
+    <string name="drive_album_remove">Aus Album entfernen</string>
+    <string name="drive_album_cover">Als Titelbild</string>
+    <string name="drive_album_cover_done">Titelbild geändert</string>
+    <string name="drive_album_empty">Dieses Album ist noch leer.</string>
+    <string name="drive_albums_empty">Noch keine Alben.</string>
+    <string name="drive_album_frame">Fotorahmen</string>
+    <string name="drive_album_frame_desc">Das Wandtablet zeigt die Fotos dieses Albums als Diashow.</string>
+    <string name="drive_album_frame_on">Das Album läuft jetzt im Fotorahmen.</string>
+    <string name="drive_album_frame_off">Das Album ist nicht mehr im Fotorahmen.</string>
+    <plurals name="drive_album_add_confirm">
+        <item quantity="one">%1$d Foto hinzufügen</item>
+        <item quantity="other">%1$d Fotos hinzufügen</item>
+    </plurals>
+
+    <!-- Zeitreise -->
+    <string name="drive_tt_menu">Auf früheren Stand zurücksetzen…</string>
+    <string name="drive_tt_title">„%1$s“ zurücksetzen</string>
+    <string name="drive_tt_to">Auf den Stand vom %1$s:</string>
+    <string name="drive_tt_nothing">Nichts zu tun – der Ordner war damals schon so.</string>
+    <string name="drive_tt_examples">Zum Beispiel:</string>
+    <string name="drive_tt_op_restore">kommt zurück</string>
+    <string name="drive_tt_op_revert">Fassung von damals</string>
+    <string name="drive_tt_op_trash">in den Papierkorb</string>
+    <string name="drive_tt_op_move">Name oder Ort wie damals</string>
+    <string name="drive_tt_safe">Nichts wird endgültig gelöscht: Neue Dateien gehen in den Papierkorb, die aktuelle Fassung bleibt als ältere Version.</string>
+    <string name="drive_tt_limited">Umbenennungen und Verschiebungen vor dem %1$s kann Drive nicht zurückdrehen.</string>
+    <string name="drive_tt_limited_unknown">Ältere Umbenennungen und Verschiebungen kann Drive nicht zurückdrehen.</string>
+    <string name="drive_tt_run">Zurücksetzen</string>
+    <string name="drive_tt_other_time">Andere Zeit</string>
+    <string name="drive_tt_previewing">Drive prüft, was sich seitdem geändert hat …</string>
+    <string name="drive_tt_running">Der Ordner wird zurückgesetzt …</string>
+    <string name="drive_tt_undoing">Wird rückgängig gemacht …</string>
+    <string name="drive_tt_done_title">Ordner zurückgesetzt</string>
+    <string name="drive_tt_undone_title">Rückgängig gemacht</string>
+    <string name="drive_tt_done">Fertig</string>
+    <string name="drive_tt_undo">Rückgängig</string>
+    <string name="drive_tt_nothing_done">Es war nichts zu ändern.</string>
+    <string name="drive_tt_restored">Wiederhergestellt: %1$d</string>
+    <string name="drive_tt_reverted">Alte Fassung zurück: %1$d</string>
+    <string name="drive_tt_trashed">In den Papierkorb: %1$d</string>
+    <string name="drive_tt_moved">Umbenannt oder verschoben: %1$d</string>
+    <string name="drive_tt_failed">Nicht geklappt: %1$d</string>
+    <string name="drive_tt_future">Bitte einen Zeitpunkt in der Vergangenheit wählen.</string>
+    <plurals name="drive_tt_restore">
+        <item quantity="one">%1$d gelöschte Datei kommt zurück</item>
+        <item quantity="other">%1$d gelöschte Dateien kommen zurück</item>
+    </plurals>
+    <plurals name="drive_tt_revert">
+        <item quantity="one">%1$d Datei bekommt die Fassung von damals</item>
+        <item quantity="other">%1$d Dateien bekommen die Fassung von damals</item>
+    </plurals>
+    <plurals name="drive_tt_trash">
+        <item quantity="one">%1$d seither neue Datei geht in den Papierkorb</item>
+        <item quantity="other">%1$d seither neue Dateien gehen in den Papierkorb</item>
+    </plurals>
+    <plurals name="drive_tt_move">
+        <item quantity="one">%1$d Datei bekommt Name oder Ort von damals</item>
+        <item quantity="other">%1$d Dateien bekommen Name oder Ort von damals</item>
+    </plurals>
+
+    <string name="drive_tt_too_many">Seit damals hat sich zu viel geändert (mehr als %1$d Schritte). Bitte einen späteren Zeitpunkt wählen.</string>
+    <plurals name="drive_tt_lost">
+        <item quantity="one">%1$d Datei bleibt, wie sie ist: Ihre Fassung von damals gibt es nicht mehr.</item>
+        <item quantity="other">%1$d Dateien bleiben, wie sie sind: Ihre Fassung von damals gibt es nicht mehr.</item>
+    </plurals>
+
+    <!-- Speicher-Übersicht -->
+    <string name="drive_storage_title">Speicher</string>
+    <string name="drive_storage_mine">Meine Bereiche</string>
+    <string name="drive_storage_all">Alle</string>
+    <string name="drive_storage_used">%1$s belegt</string>
+    <string name="drive_storage_of_limit">%1$s von %2$s</string>
+    <string name="drive_storage_versions">Ältere Versionen %1$s</string>
+    <string name="drive_storage_trash">Papierkorb %1$s</string>
+    <string name="drive_storage_areas">Bereiche</string>
+    <string name="drive_storage_people">Personen</string>
+    <string name="drive_storage_largest">Größte Dateien</string>
+    <string name="drive_storage_duplicates">Duplikate</string>
+    <string name="drive_storage_no_duplicates">Keine doppelten Dateien gefunden.</string>
+    <string name="drive_storage_wasted">%1$s sind doppelt belegt.</string>
+    <string name="drive_storage_all_but_one">Alle Kopien bis auf eine auswählen</string>
+    <string name="drive_storage_dup_group">%1$d gleiche Dateien · je %2$s</string>
+    <string name="drive_storage_delete_selected">In den Papierkorb</string>
+    <plurals name="drive_storage_files">
+        <item quantity="one">%1$d Datei</item>
+        <item quantity="other">%1$d Dateien</item>
+    </plurals>
+    <plurals name="drive_storage_delete_confirm">
+        <item quantity="one">%1$d Kopie (%2$s) in den Papierkorb verschieben? Der Platz wird frei, sobald der Papierkorb geleert ist.</item>
+        <item quantity="other">%1$d Kopien (%2$s) in den Papierkorb verschieben? Der Platz wird frei, sobald der Papierkorb geleert ist.</item>
+    </plurals>
+    <plurals name="drive_storage_deleted">
+        <item quantity="one">%1$d Kopie in den Papierkorb verschoben</item>
+        <item quantity="other">%1$d Kopien in den Papierkorb verschoben</item>
+    </plurals>
+</resources>
