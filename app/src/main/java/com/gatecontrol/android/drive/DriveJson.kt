@@ -48,6 +48,8 @@ internal object DriveJson {
             }?.toMap().orEmpty(),
             wipes = o.int("wipes")?.coerceAtLeast(0) ?: 0,
             scanFormat = if (o.obj("settings")?.str("scanFormat") == "image") "image" else "pdf",
+            admin = me.bool("admin") ?: false,
+            deviceId = me.str("deviceId")?.takeIf { DEVICE_ID.matches(it) },
         ).let { base ->
             val features = features(o.get("features") ?: me.get("features"))
             base.copy(
@@ -64,6 +66,8 @@ internal object DriveJson {
     }
 
     private val FEATURE = Regex("^[A-Za-z][A-Za-z0-9_.-]{0,39}$")
+    /** A device id as Drive takes it (`device=` of a delete later). */
+    val DEVICE_ID = Regex("^[A-Za-z0-9_.:-]{1,64}$")
     private val INCIDENT_ID = Regex("^[A-Za-z0-9_-]{1,80}$")
 
     /** `features`: a list of names (`["links","guard"]`) or an object of flags (`{ links: true }`). */
@@ -181,9 +185,12 @@ internal object DriveJson {
             from = o.str("from")?.take(2000),
             files = o.int("files"),
             deletedAt = o.str("deletedAt")?.take(40),
-            preview = o.obj("preview") != null,
+            // an object `{ url, largeUrl }` in node answers, a plain `true` in the photo lists (Drive 1.7)
+            preview = o.obj("preview") != null || o.bool("preview") == true,
             sha256 = sha256(o.str("sha256")),
             snippet = o.str("snippet")?.takeIf { o.str("match") == "text" }?.take(300),
+            takenAt = o.str("takenAt")?.take(40),
+            deleteAt = o.str("deleteAt")?.take(40),
         )
     }
 
@@ -344,7 +351,15 @@ internal object DriveJson {
         if (size != null) addProperty("size", size)
     }
 
-    fun commitBody(mediaId: String, parentId: Long, name: String, mtimeMs: Long?, onConflict: String, text: String? = null) = JsonObject().apply {
+    fun commitBody(
+        mediaId: String,
+        parentId: Long,
+        name: String,
+        mtimeMs: Long?,
+        onConflict: String,
+        text: String? = null,
+        takenAt: String? = null,
+    ) = JsonObject().apply {
         addProperty("mediaId", mediaId)
         addProperty("parentId", parentId)
         addProperty("name", name)
@@ -352,6 +367,8 @@ internal object DriveJson {
         addProperty("onConflict", onConflict)
         // The recognised text of a scan (Drive 1.3+ makes it searchable; older ones ignore it).
         if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
+        // When a photo was taken (only sent when the server has `takenAt`).
+        if (!takenAt.isNullOrBlank()) addProperty("takenAt", takenAt.take(40))
     }
 
     /** An empty file (feature `emptyFiles`): no media, just its place, name and size 0. */
@@ -369,6 +386,186 @@ internal object DriveJson {
         addProperty("expires", expires)
         if (!pin.isNullOrBlank()) addProperty("pin", pin)
     }
+
+    // ─── Drive 1.7: photos, albums, time travel, storage ────────────
+
+    private val ALBUM_ID = Regex("^[A-Za-z0-9_-]{1,80}$")
+    private val MONTH = Regex("^[0-9]{4}-[0-9]{2}$")
+
+    fun albumId(v: String?): String? = v?.takeIf { ALBUM_ID.matches(it) }
+
+    /** A cursor of a photo list (an ISO time or a number); null at the end. */
+    private fun JsonObject.cursor(key: String): String? = idString(key)?.trim()?.takeIf { it.isNotEmpty() && it.length <= 100 }
+
+    private fun nodes(o: JsonObject, key: String = "items"): List<DNode> = o.arr(key)?.mapNotNull { node(it as? JsonObject) }.orEmpty()
+
+    /** `GET photos` → `{ items, next }`. */
+    fun photos(o: JsonObject): DPhotos? {
+        if (o.arr("items") == null) return null
+        return DPhotos(nodes(o), o.cursor("next"))
+    }
+
+    /** `GET photos/months` → `{ months: [{ month, count }] }`. */
+    fun months(o: JsonObject): List<DMonth>? = o.arr("months")?.mapNotNull { e ->
+        val m = e as? JsonObject ?: return@mapNotNull null
+        val month = m.str("month")?.takeIf { MONTH.matches(it) } ?: return@mapNotNull null
+        DMonth(month, m.int("count")?.coerceAtLeast(0) ?: 0)
+    }
+
+    /** `GET photos/memories` → `{ groups: [{ yearsAgo, date, items }] }`; groups without photos are left out. */
+    fun memories(o: JsonObject): List<DMemories>? = o.arr("groups")?.mapNotNull { e ->
+        val g = e as? JsonObject ?: return@mapNotNull null
+        val items = nodes(g).take(MEMORIES_MAX)
+        if (items.isEmpty()) return@mapNotNull null
+        DMemories(g.int("yearsAgo")?.coerceAtLeast(0) ?: 0, g.str("date")?.take(40), items)
+    }?.sortedBy { it.yearsAgo }
+
+    private const val MEMORIES_MAX = 30
+
+    fun album(o: JsonObject?): DAlbum? {
+        if (o == null) return null
+        val id = albumId(o.idString("id")) ?: return null
+        return DAlbum(
+            id = id,
+            name = o.str("name")?.take(200) ?: return null,
+            areaId = areaId(o.str("areaId")),
+            count = o.int("count")?.coerceAtLeast(0) ?: 0,
+            coverId = o.long("coverId"),
+            frame = o.bool("frame") ?: false,
+            updatedAt = o.str("updatedAt")?.take(40),
+            canEdit = o.bool("canEdit") ?: false,
+            canFrame = o.bool("canFrame") ?: false,
+        )
+    }
+
+    fun albums(o: JsonObject): List<DAlbum>? = o.arr("albums")?.mapNotNull { album(it as? JsonObject) }
+
+    fun albumAnswer(o: JsonObject): DAlbum? = album(o.obj("album"))
+
+    /** `GET albums/<id>` → `{ album, items, next }`. */
+    fun albumPage(o: JsonObject): DAlbumPage? {
+        val album = album(o.obj("album")) ?: return null
+        return DAlbumPage(album, nodes(o), o.cursor("next"))
+    }
+
+    fun albumBody(name: String?, areaId: String?) = JsonObject().apply {
+        if (name != null) addProperty("name", name)
+        if (areaId != null) addProperty("areaId", areaId)
+    }
+
+    fun albumPatchBody(name: String? = null, coverId: Long? = null, frame: Boolean? = null) = JsonObject().apply {
+        if (name != null) addProperty("name", name)
+        if (coverId != null) addProperty("coverId", coverId)
+        if (frame != null) addProperty("frame", frame)
+    }
+
+    fun idsBody(ids: List<Long>) = JsonObject().apply {
+        add("ids", JsonArray().apply { ids.forEach { add(it) } })
+    }
+
+    private fun JsonObject.count(key: String): Int = when (val e = get(key)) {
+        null -> 0
+        else -> when {
+            e.isJsonArray -> e.asJsonArray.size()
+            e.isJsonPrimitive -> runCatching { e.asNumber.toInt() }.getOrDefault(0)
+            else -> 0
+        }
+    }.coerceAtLeast(0)
+
+    /** `GET nodes/<id>/timetravel?at=` → what it would do. */
+    fun timeTravelPreview(o: JsonObject): DTimeTravelPreview? {
+        if (!o.has("restore") && !o.has("revert") && !o.has("trash") && !o.has("move")) return null
+        return DTimeTravelPreview(
+            at = o.str("at")?.take(40),
+            historySince = o.str("historySince")?.take(40),
+            restore = o.count("restore"),
+            revert = o.count("revert"),
+            trash = o.count("trash"),
+            move = o.count("move"),
+            sample = o.arr("sample")?.mapNotNull { e ->
+                val s = e as? JsonObject ?: return@mapNotNull null
+                DTimeTravelSample(s.str("op")?.take(20) ?: return@mapNotNull null, s.str("name")?.take(255) ?: return@mapNotNull null, s.str("path")?.take(2000))
+            }?.take(20).orEmpty(),
+            limited = o.bool("limited") ?: false,
+            lost = o.count("lost"),
+        )
+    }
+
+    /** `POST nodes/<id>/timetravel` → what it did. */
+    fun timeTravelResult(o: JsonObject): DTimeTravelResult? {
+        if (!o.has("restored") && !o.has("reverted") && !o.has("trashed") && !o.has("moved") && !o.has("before")) return null
+        return DTimeTravelResult(
+            at = o.str("at")?.take(40),
+            before = o.str("before")?.take(40),
+            restored = o.count("restored"),
+            reverted = o.count("reverted"),
+            trashed = o.count("trashed"),
+            moved = o.count("moved"),
+            failed = o.count("failed"),
+            lost = o.count("lost"),
+        )
+    }
+
+    fun timeTravelBody(at: String) = JsonObject().apply { addProperty("at", at) }
+
+    private fun use(o: JsonObject) = DStorageUse(
+        bytes = o.long("bytes")?.coerceAtLeast(0) ?: 0L,
+        files = o.int("files")?.coerceAtLeast(0) ?: 0,
+        versionsBytes = o.long("versionsBytes")?.coerceAtLeast(0) ?: 0L,
+        trashBytes = o.long("trashBytes")?.coerceAtLeast(0) ?: 0L,
+    )
+
+    private fun storageFile(o: JsonObject?): DStorageFile? {
+        if (o == null) return null
+        return DStorageFile(
+            id = o.long("id") ?: return null,
+            name = o.str("name")?.take(255) ?: return null,
+            size = o.long("size")?.coerceAtLeast(0) ?: 0L,
+            areaId = areaId(o.str("areaId")),
+            parentId = o.long("parentId"),
+            path = o.str("path")?.take(2000),
+            updatedAt = o.str("updatedAt")?.take(40),
+            // the largest files have no `canDelete`: the delete itself checks the right
+            canDelete = o.bool("canDelete") ?: true,
+        )
+    }
+
+    /** `GET storage[?all=1]` → the overview. */
+    fun storage(o: JsonObject): DStorageReport? {
+        val total = o.obj("total") ?: return null
+        return DStorageReport(
+            total = use(total),
+            maxBytes = o.obj("limit")?.long("maxBytes")?.takeIf { it > 0 },
+            areas = o.arr("areas")?.mapNotNull { e ->
+                val a = e as? JsonObject ?: return@mapNotNull null
+                val id = areaId(a.str("id")) ?: return@mapNotNull null
+                DStorageArea(id, a.str("label")?.take(200) ?: id, a.str("kind")?.take(20) ?: "mine", use(a), a.long("quota")?.takeIf { it > 0 })
+            }.orEmpty(),
+            people = o.arr("people")?.mapNotNull { e ->
+                val p = e as? JsonObject ?: return@mapNotNull null
+                DStoragePerson(p.int("user"), p.str("name")?.take(200) ?: return@mapNotNull null, p.long("bytes")?.coerceAtLeast(0) ?: 0L, p.int("files")?.coerceAtLeast(0) ?: 0)
+            }.orEmpty(),
+            largest = o.arr("largest")?.mapNotNull { storageFile(it as? JsonObject) }?.take(100).orEmpty(),
+            duplicates = o.arr("duplicates")?.mapNotNull { e ->
+                val d = e as? JsonObject ?: return@mapNotNull null
+                val items = d.arr("items")?.mapNotNull { storageFile(it as? JsonObject) }.orEmpty()
+                if (items.size < 2) return@mapNotNull null
+                DDuplicates(
+                    sha256 = sha256(d.str("sha256")) ?: return@mapNotNull null,
+                    size = d.long("size")?.coerceAtLeast(0) ?: 0L,
+                    count = d.int("count") ?: items.size,
+                    wasted = d.long("wasted")?.coerceAtLeast(0) ?: 0L,
+                    items = items,
+                )
+            }?.take(100).orEmpty(),
+        )
+    }
+
+    /** `DELETE nodes/<id>?after=` → `{ marked, deleteAt }`. */
+    fun mark(o: JsonObject): DMark = DMark(o.str("deleteAt")?.take(40) ?: node(o.obj("node"))?.deleteAt)
+
+    /** `PATCH nodes/<id> { deleteAt: null }`: the mark of a delete later ends (the null must be sent). */
+    const val UNMARK_BODY = "{\"deleteAt\":null}"
 
     // ─── helpers ────────────────────────────────────────────────────
 

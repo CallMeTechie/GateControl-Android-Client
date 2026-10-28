@@ -43,6 +43,7 @@ class DriveTransfers @Inject constructor(
     private val previews: DrivePreviews,
     private val local: DriveLocal,
     private val live: DriveLive,
+    private val dates: DriveTakenAt,
 ) {
     enum class State { QUEUED, RUNNING, CONFLICT, DONE, SAME, SKIPPED, FAILED }
 
@@ -260,7 +261,9 @@ class DriveTransfers @Inject constructor(
             }
             // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
             job.uri?.let { previews.uploadOwn(media.value, it, job.mime) }
-            api.commit(media.value, job.folderId, job.name, job.mtime, onConflict, job.text)
+            // Drive 1.7: when a photo or video was taken (EXIF / the video's own date), for the photo timeline
+            val takenAt = if (live.supports(DMe.FEATURE_TAKEN_AT)) dates.of(file, job.mime, job.name) else null
+            api.commit(media.value, job.folderId, job.name, job.mtime, onConflict, job.text, takenAt)
         }
         when (val r = committed) {
             is DResult.Ok -> {

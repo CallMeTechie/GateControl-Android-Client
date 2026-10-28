@@ -63,6 +63,7 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DFolder
 import com.gatecontrol.android.drive.DLink
+import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
@@ -119,6 +120,7 @@ internal fun DriveFolderContent(
     val linkSheet by viewModel.linkSheet.collectAsStateWithLifecycle()
     val picker by viewModel.picker.collectAsStateWithLifecycle()
     val scanDraft by viewModel.scan.collectAsStateWithLifecycle()
+    val timeTravel by viewModel.timeTravel.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -303,6 +305,8 @@ internal fun DriveFolderContent(
                 if (!n.isDir) item(GcIcons.External, R.string.drive_open) { open(n, false) }
                 if (writable) item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n) }
                 if (!n.isDir) item(GcIcons.History, R.string.drive_versions) { viewModel.openVersions(n) }
+                // Drive 1.7 (feature `timeTravel`): the folder back to an earlier state.
+                if (n.isDir && writable && me?.has(DMe.FEATURE_TIME_TRAVEL) == true) item(GcIcons.History, R.string.drive_tt_menu) { viewModel.startTimeTravel(n) }
                 // Drive 1.6 (feature `links`): the file or folder in the portal.
                 DriveLogic.portalNodeUrl(me, n.id)?.let { url -> item(GcIcons.Globe, R.string.drive_open_portal) { openPortal(context, url) } }
             }
@@ -410,6 +414,16 @@ internal fun DriveFolderContent(
             onRescan = { viewModel.closeScan(); startScan() },
             onSave = viewModel::saveScan,
             onClose = viewModel::closeScan,
+        )
+    }
+    timeTravel?.let { t ->
+        TimeTravelDialogs(
+            t,
+            onPick = viewModel::timeTravelAt,
+            onRepick = viewModel::timeTravelRepick,
+            onRun = viewModel::timeTravelRun,
+            onUndo = viewModel::timeTravelUndo,
+            onClose = viewModel::closeTimeTravel,
         )
     }
     // after the scan dialog: its folder choice opens on top of it

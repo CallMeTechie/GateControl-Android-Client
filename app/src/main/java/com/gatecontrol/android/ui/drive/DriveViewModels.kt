@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Deferred
 import com.gatecontrol.android.drive.DriveScanner
+import com.gatecontrol.android.drive.DriveTimeTravel
 import java.io.File
 import javax.inject.Inject
 
@@ -505,6 +506,58 @@ class DriveFolderViewModel @Inject constructor(
             val texts = d.texts ?: job?.await().orEmpty()
             val ok = scanner.save(d.scan, texts, DriveLogic.scanBase(typedName, fallback), d.pdf, d.folderId)
             if (!ok) _message.value = "scan_read"
+        }
+    }
+
+    // ─── time travel (Drive 1.7, feature `timeTravel`) ──────────────
+
+    private val _timeTravel = MutableStateFlow<DriveTimeTravel?>(null)
+    /** "Auf früheren Stand zurücksetzen…" of a folder, while it is open. */
+    val timeTravel: StateFlow<DriveTimeTravel?> = _timeTravel.asStateFlow()
+
+    fun startTimeTravel(folder: DNode) {
+        if (folder.isDir) _timeTravel.value = DriveTimeTravel(folder)
+    }
+
+    fun closeTimeTravel() {
+        _timeTravel.value = null
+    }
+
+    /** Back to choosing the time (from the preview). */
+    fun timeTravelRepick() = _timeTravel.update { it?.copy(step = DriveTimeTravel.Step.PICK, error = null) }
+
+    /** The time is chosen: the preview is fetched. */
+    fun timeTravelAt(ms: Long) {
+        val t = _timeTravel.value?.pick(ms, System.currentTimeMillis()) ?: return
+        _timeTravel.value = t
+        val at = t.atIso ?: return
+        if (t.step != DriveTimeTravel.Step.PREVIEWING) return
+        viewModelScope.launch {
+            val r = api.timeTravelPreview(t.folder.id, at)
+            _timeTravel.update { cur -> if (cur != null && cur.atMs == t.atMs) cur.previewed(r) else cur }
+        }
+    }
+
+    fun timeTravelRun() {
+        val t = _timeTravel.value?.takeIf { it.canRun } ?: return
+        val at = t.atIso ?: return
+        _timeTravel.value = t.running()
+        viewModelScope.launch {
+            val r = api.timeTravel(t.folder.id, at)
+            _timeTravel.update { it?.ran(r) }
+            if (r is DResult.Ok) refresh(quiet = true)
+        }
+    }
+
+    /** "Rückgängig": a time travel to the moment just before the last one. */
+    fun timeTravelUndo() {
+        val t = _timeTravel.value?.takeIf { it.canUndo } ?: return
+        val before = t.result?.before ?: return
+        _timeTravel.value = t.undoing()
+        viewModelScope.launch {
+            val r = api.timeTravel(t.folder.id, before)
+            _timeTravel.update { it?.undid(r) }
+            refresh(quiet = true)
         }
     }
 

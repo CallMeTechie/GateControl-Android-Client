@@ -160,6 +160,8 @@ dependencies {
 
     // Services open in a Custom Tab (in-app browser)
     implementation(libs.browser)
+    // Drive: the date a photo was taken (EXIF) goes with the upload
+    implementation(libs.exifinterface)
 
     // Google Play in-app updates (Play distribution, see BuildConfig.DISTRIBUTION)
     implementation(libs.play.app.update)

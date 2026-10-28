@@ -1,5 +1,11 @@
 package com.gatecontrol.android.drive
 
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /** Pure helpers of the Drive tab (unit-tested). */
@@ -162,6 +168,92 @@ internal object DriveLogic {
     const val LIVE_GAP_MS = 2_000L
 
     private val SCAN_EXT = Regex("\\.(pdf|jpe?g)$", RegexOption.IGNORE_CASE)
+
+    // ─── when a photo was taken (Drive 1.7, feature `takenAt`) ──────
+
+    private val EXIF_TIME = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss", Locale.ROOT)
+    private val VIDEO_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss", Locale.ROOT)
+
+    /**
+     * EXIF `DateTimeOriginal` ("2026:10:27 14:05:00") with its `OffsetTimeOriginal` ("+02:00") as ISO 8601; without an
+     * offset the time counts in [zone] (the phone's). Null for a missing, empty ("0000:00:00 …") or broken value.
+     */
+    fun exifTakenAt(dateTime: String?, offset: String?, zone: ZoneId = ZoneId.systemDefault()): String? {
+        val raw = dateTime?.trim()?.take(19)?.takeIf { it.length == 19 } ?: return null
+        // some cameras write dashes in the date
+        val fixed = raw.replaceRange(4, 5, ":").replaceRange(7, 8, ":")
+        val local = runCatching { LocalDateTime.parse(fixed, EXIF_TIME) }.getOrNull() ?: return null
+        if (local.year < 1900) return null
+        val off = offset?.trim()?.takeIf { it.isNotEmpty() }?.let { runCatching { ZoneOffset.of(it) }.getOrNull() }
+        val at = if (off != null) local.atOffset(off) else local.atZone(zone).toOffsetDateTime()
+        return at.truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+    }
+
+    /**
+     * A video's recording date as the container has it ("20261027T140500.000Z", UTC) as ISO 8601. Null when there is
+     * none — or the container's empty value (1904, 1970).
+     */
+    fun videoTakenAt(raw: String?): String? {
+        val s = raw?.trim()?.takeIf { it.length >= 15 } ?: return null
+        val local = runCatching { LocalDateTime.parse(s.take(15), VIDEO_TIME) }.getOrNull() ?: return null
+        if (local.year <= 1970) return null
+        return local.atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+    }
+
+    /** The media store's `DATE_TAKEN` (ms) as ISO 8601; null when unknown. */
+    fun msTakenAt(ms: Long?): String? = ms?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it).truncatedTo(ChronoUnit.SECONDS).toString() }
+
+    // ─── photos (Drive 1.7) ──────────────────────────────────────────
+
+    /** The month a photo belongs to ("2026-10", in [zone]) by when it was taken, else its file time; null when unknown. */
+    fun monthOf(node: DNode, zone: ZoneId = ZoneId.systemDefault()): String? {
+        val iso = node.takenAt ?: node.mtime ?: node.updatedAt ?: return null
+        val at = runCatching { Instant.parse(iso) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }.getOrNull()
+            ?: return null
+        val d = at.atZone(zone)
+        return "%04d-%02d".format(Locale.ROOT, d.year, d.monthValue)
+    }
+
+    /** The photos in runs of one month each, in their order (newest first as the server sends them). */
+    fun byMonth(items: List<DNode>, zone: ZoneId = ZoneId.systemDefault()): List<Pair<String?, List<DNode>>> {
+        val out = ArrayList<Pair<String?, MutableList<DNode>>>()
+        for (n in items) {
+            val m = monthOf(n, zone)
+            if (out.isNotEmpty() && out.last().first == m) out.last().second += n else out += m to mutableListOf(n)
+        }
+        return out
+    }
+
+    /** Pages of a photo list put together: each node once (a page boundary may repeat one). */
+    fun appendPage(have: List<DNode>, page: List<DNode>): List<DNode> {
+        val seen = have.mapTo(HashSet()) { it.id }
+        return have + page.filter { seen.add(it.id) }
+    }
+
+    // ─── storage overview (Drive 1.7) ────────────────────────────────
+
+    /**
+     * Ticks [id] of a duplicate [group] on or off. One copy of each group always stays: the last one cannot be ticked,
+     * nor one the person may not delete.
+     */
+    fun toggleDuplicate(selected: Set<Long>, group: DDuplicates, id: Long): Set<Long> {
+        if (id in selected) return selected - id
+        val item = group.items.firstOrNull { it.id == id } ?: return selected
+        if (!item.canDelete) return selected
+        val ticked = group.items.count { it.id in selected } + 1
+        return if (ticked >= group.items.size) selected else selected + id
+    }
+
+    /** "Alle Kopien bis auf eine": in each group every copy that may go, except the oldest one kept. */
+    fun allButOne(groups: List<DDuplicates>): Set<Long> = groups.flatMap { g ->
+        val keep = g.items.firstOrNull { !it.canDelete } ?: g.items.minByOrNull { it.updatedAt ?: "" } ?: return@flatMap emptyList()
+        g.items.filter { it.id != keep.id && it.canDelete }.map { it.id }
+    }.toSet()
+
+    /** The bytes the [selected] copies take. */
+    fun freed(selected: Set<Long>, groups: List<DDuplicates>): Long =
+        groups.flatMap { it.items }.distinctBy { it.id }.filter { it.id in selected }.sumOf { it.size }
 
     const val ON_CONFLICT_RENAME = "rename"
     const val ON_CONFLICT_VERSION = "version"

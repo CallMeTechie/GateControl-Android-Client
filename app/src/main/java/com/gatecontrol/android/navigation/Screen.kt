@@ -141,6 +141,15 @@ sealed class Screen(val route: String) {
     data object DriveTrash : Screen("drive/trash")
     data object DriveSearch : Screen("drive/search")
     data object DriveBackup : Screen("drive/backup")
+    /** "Ordner sichern": phone folders backed up into Drive. */
+    data object DriveFolders : Screen("drive/folders")
+    /** The storage overview (Drive 1.7). */
+    data object DriveStorage : Screen("drive/storage")
+    /** One photo album (Drive 1.7). */
+    data object DriveAlbum : Screen("drive/album/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: String) = "drive/album/$id"
+    }
     /**
      * Tab "Chats" of the messenger plugin (only when the server lists it
      * with an app tab). `conv` is shown beside the list on wide windows;

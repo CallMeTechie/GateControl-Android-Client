@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import com.gatecontrol.android.drive.DriveNodeResolver
 import com.gatecontrol.android.drive.DrivePreviews
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -107,18 +108,26 @@ internal fun kindLook(kind: DriveLogic.Kind): KindLook {
 @InstallIn(SingletonComponent::class)
 interface DrivePreviewsEntryPoint {
     fun drivePreviews(): DrivePreviews
+    fun driveNodeResolver(): DriveNodeResolver
 }
 
-/** The server's preview picture of [node] ([DrivePreviews]); null for none, while loading and offline. */
+/**
+ * The server's preview picture of [node] ([DrivePreviews]); null for none, while loading and offline. A short entry
+ * without its media id (a photo of the timeline, Drive 1.7) is fetched in full first ([DriveNodeResolver]).
+ */
 @Composable
 internal fun rememberDrivePreview(node: DNode, large: Boolean = false): ImageBitmap? {
-    if (!node.preview || node.isDir || node.mediaId == null || LocalInspectionMode.current) return null
+    if (!node.preview || node.isDir || LocalInspectionMode.current) return null
     val context = LocalContext.current.applicationContext
-    val previews = remember(context) {
-        runCatching { EntryPointAccessors.fromApplication(context, DrivePreviewsEntryPoint::class.java).drivePreviews() }.getOrNull()
+    val entry = remember(context) {
+        runCatching { EntryPointAccessors.fromApplication(context, DrivePreviewsEntryPoint::class.java) }.getOrNull()
     } ?: return null
-    val bitmap by produceState(previews.peek(node, large)?.asImageBitmap(), node.mediaId, large) {
-        if (value == null) value = previews.load(node, large)?.asImageBitmap()
+    val previews = remember(entry) { entry.drivePreviews() }
+    val bitmap by produceState(previews.peek(node, large)?.asImageBitmap(), node.id, node.mediaId, large) {
+        if (value == null) {
+            val full = if (node.mediaId != null) node else entry.driveNodeResolver().resolve(node.id) ?: return@produceState
+            value = previews.load(full, large)?.asImageBitmap()
+        }
     }
     return bitmap
 }
@@ -139,7 +148,7 @@ internal fun NodeIcon(node: DNode, size: Int = 44) {
 
 /** A small play mark on the picture of a video. */
 @Composable
-private fun VideoMark(size: Int) {
+internal fun VideoMark(size: Int) {
     Box(
         Modifier.size(size.coerceAtLeast(16).dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
         contentAlignment = Alignment.Center,
@@ -375,11 +384,19 @@ internal fun UploadsSheet(
 internal object DriveViewPref {
     private const val PREFS = "drive_ui"
     private const val KEY = "grid"
+    private const val KEY_PHOTOS = "photos"
 
     fun grid(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY, false)
 
     fun setGrid(context: Context, grid: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY, grid).apply()
+    }
+
+    /** The Drive tab shows the photos (Drive 1.7), not the files. */
+    fun photos(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_PHOTOS, false)
+
+    fun setPhotos(context: Context, photos: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_PHOTOS, photos).apply()
     }
 }
 

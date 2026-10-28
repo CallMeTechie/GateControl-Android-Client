@@ -16,6 +16,8 @@ import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DrivePreviews
 import com.gatecontrol.android.drive.DriveSource
+import com.gatecontrol.android.drive.DriveTakenAt
+import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.familie.PluginDirectory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -47,6 +49,7 @@ class DriveBackup @Inject constructor(
     private val setup: SetupRepository,
     private val previews: DrivePreviews,
     private val live: DriveLive,
+    private val dates: DriveTakenAt,
 ) {
     /** The run in progress: [done] of [total] photos, [current] the one going up. */
     data class Status(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val current: String? = null)
@@ -168,7 +171,17 @@ class DriveBackup @Inject constructor(
 
     // ─── run ────────────────────────────────────────────────────────
 
-    private data class Item(val id: Long, val uri: Uri, val name: String, val mime: String?, val mtime: Long?, val added: Long, val video: Boolean)
+    private data class Item(
+        val id: Long,
+        val uri: Uri,
+        val name: String,
+        val mime: String?,
+        val mtime: Long?,
+        val added: Long,
+        val video: Boolean,
+        /** The media store's DATE_TAKEN (ms), when it has one. */
+        val taken: Long? = null,
+    )
 
     /** One pass over what is new; [onProgress] hears each photo. */
     suspend fun run(onProgress: (Status) -> Unit = {}): Outcome = runLock.withLock {
@@ -254,6 +267,7 @@ class DriveBackup @Inject constructor(
                     mtime = DriveBackupLogic.mtime(if (c.isNull(4)) null else c.getLong(4), if (c.isNull(5)) null else c.getLong(5)),
                     added = c.getLong(3),
                     video = video,
+                    taken = if (c.isNull(4)) null else c.getLong(4),
                 )
             }
             out to c.count
@@ -279,7 +293,13 @@ class DriveBackup @Inject constructor(
         if (media !is DResult.Ok) return code(media)
         // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
         previews.uploadOwn(media.value, item.uri, item.mime)
-        return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME)) {
+        // Drive 1.7: when it was taken — EXIF (with its time zone), else the media store's date
+        val takenAt = if (live.supports(DMe.FEATURE_TAKEN_AT)) {
+            dates.of(item.uri, item.mime, item.name) ?: DriveLogic.msTakenAt(item.taken)
+        } else {
+            null
+        }
+        return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME, takenAt = takenAt)) {
             is DResult.Ok -> null
             else -> code(r)
         }

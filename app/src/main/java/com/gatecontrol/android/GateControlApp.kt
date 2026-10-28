@@ -77,6 +77,12 @@ class GateControlApp : Application() {
         } catch (e: Throwable) {
             Timber.w(e, "Drive backup: not ensured")
         }
+        // Drive folder backup: the same for the phone folders backed up.
+        try {
+            com.gatecontrol.android.drive.backup.DriveFolderBackupWork.ensure(this)
+        } catch (e: Throwable) {
+            Timber.w(e, "Drive folders: not ensured")
+        }
 
         // Home-screen widget: redraw on VPN, inbox and policy changes.
         try {

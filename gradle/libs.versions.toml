@@ -19,6 +19,8 @@ work = "2.12.0"
 # Chats (messenger plugin): local cache of conversations, messages and the outbox.
 room = "2.8.5"
 browser = "1.10.0"
+# Drive: when a photo was taken (EXIF DateTimeOriginal + OffsetTimeOriginal) for the upload.
+exifinterface = "1.4.2"
 play-app-update = "2.1.0"
 # Familie: geofences for place reminders (GeofencingClient).
 play-services-location = "21.4.0"
@@ -57,6 +59,7 @@ room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 play-app-update = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "play-app-update" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "play-services-location" }
 osmdroid = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
