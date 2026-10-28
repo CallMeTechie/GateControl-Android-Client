@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.21] - 2026-10-28
+
+### Changes
+- Fotos wie Dateien (OneDrive-Modell), Foto-Sicherung nach Kamera-Uploads, Filter im Fotos-Tab (#145)
+
+---
+
 ## [1.67.20] - 2026-10-28
 
 ### Changes
