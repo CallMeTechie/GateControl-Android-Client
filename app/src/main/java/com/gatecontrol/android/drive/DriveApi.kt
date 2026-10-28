@@ -143,10 +143,6 @@ class DriveApi @Inject constructor(
         return get("nodes/$id/children", q) { DriveJson.folder(head.value, it) }
     }
 
-    /** One page of the content of folder [id] (no crumbs): counting what lies below a folder. */
-    suspend fun children(id: Long, offset: Int = 0, limit: Int = 1000): DResult<List<DNode>> =
-        get("nodes/$id/children", mapOf("sort" to "name", "order" to "asc", "offset" to offset.toString(), "limit" to limit.toString()), DriveJson::items)
-
     /** A new folder; a taken name gets a free one ([rename]) or `409 exists`. */
     suspend fun createFolder(parentId: Long, name: String, rename: Boolean = true): DResult<DNode> =
         post("nodes", DriveJson.mkdirBody(parentId, name, rename), DriveJson::nodeAnswer)

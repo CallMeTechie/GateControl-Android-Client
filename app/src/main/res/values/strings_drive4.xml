@@ -1,27 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Drive: photos only in the Photos tab, swiping, sort by file type, vaults in the menu, vault keys -->
-    <plurals name="drive_photos_hidden">
-        <item quantity="one">%d photo in this folder – view in the Photos tab</item>
-        <item quantity="other">%d photos in this folder – view in the Photos tab</item>
-    </plurals>
-    <plurals name="drive_search_photos_hidden">
-        <item quantity="one">%d photo matches – show</item>
-        <item quantity="other">%d photos match – show</item>
-    </plurals>
-    <plurals name="drive_delete_photos">
-        <item quantity="one">It also holds %d photo or video (in the Photos tab). It is deleted too.</item>
-        <item quantity="other">It also holds %d photos and videos (in the Photos tab). They are deleted too.</item>
-    </plurals>
-    <plurals name="drive_delete_photos_more">
-        <item quantity="one">It also holds at least %d photo or video (in the Photos tab). It is deleted too.</item>
-        <item quantity="other">It also holds at least %d photos and videos (in the Photos tab). They are deleted too.</item>
-    </plurals>
+    <!-- Drive: swiping, sort by file type, vaults in the menu, vault keys -->
     <string name="drive_sort_type">File type</string>
     <string name="drive_sort_asc">Ascending</string>
     <string name="drive_sort_desc">Descending</string>
-    <string name="drive_search_photos">Search photos</string>
-    <string name="drive_search_all_files">Show all other files</string>
     <string name="drive_area_doc_ai">AI for documents</string>
     <string name="drive_area_doc_ai_desc">Recognises invoices, contracts and deadlines in “%1$s”</string>
     <string name="drive_vaults">Vaults</string>

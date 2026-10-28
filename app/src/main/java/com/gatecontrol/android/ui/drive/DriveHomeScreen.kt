@@ -74,8 +74,6 @@ import kotlinx.coroutines.launch
 data class DriveNav(
     val folder: (Long) -> Unit,
     val search: () -> Unit,
-    /** The search of the Photos tab: photos and videos only. */
-    val searchPhotos: () -> Unit = search,
     val trash: () -> Unit,
     /** The storage overview (Drive 1.7). */
     val storage: () -> Unit = {},
@@ -135,7 +133,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     val pager = rememberPagerState(initialPage = DriveLogic.tabOf(DriveViewPref.photos(context), hasPhotos)) { DriveLogic.tabCount(hasPhotos) }
     val onPhotosPage = DriveLogic.isPhotosTab(pager.currentPage, hasPhotos)
     val showPage: (Boolean) -> Unit = { photos -> scope.launch { pager.animateScrollToPage(DriveLogic.tabOf(photos, hasPhotos)) } }
-    // the page the person ends on is kept; back on the tab (another page asked for the photos) it is shown again
+    // the page the person ends on is kept, and shown again when the person comes back to the tab
     var synced by remember { mutableStateOf(false) }
     LaunchedEffect(hasPhotos) {
         if (!hasPhotos) return@LaunchedEffect
@@ -193,7 +191,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                 TabBar(
                     if (onPhotosPage) stringResource(R.string.drive_mode_photos) else current.label,
                     onMenu = openMenu,
-                    onSearch = if (onPhotosPage) nav.searchPhotos else nav.search,
+                    onSearch = nav.search,
                     actions = { if (!onPhotosPage) FolderViewActions(folderViewModel, grid) },
                 )
                 if (hasPhotos) DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage)
@@ -211,7 +209,6 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                             folderViewModel = folderViewModel,
                             nav = nav,
                             grid = grid,
-                            onPhotos = if (hasPhotos) ({ showPage(true) }) else null,
                             header = {
                                 // Drive 1.6 (feature `guard`): unusual changes stopped — undo, release or look in the portal.
                                 val portal = DriveLogic.portalDriveUrl(me)
@@ -279,7 +276,6 @@ private fun DriveFilesPage(
     folderViewModel: DriveFolderViewModel,
     nav: DriveNav,
     grid: androidx.compose.runtime.MutableState<Boolean>,
-    onPhotos: (() -> Unit)?,
     header: @Composable () -> Unit,
 ) {
     DriveFolderContent(
@@ -287,7 +283,6 @@ private fun DriveFilesPage(
         onFolder = nav.folder,
         onFile = nav.file,
         onVault = nav.vault,
-        onPhotos = onPhotos,
         gridState = grid,
         topBar = { _, _ -> },
         header = header,

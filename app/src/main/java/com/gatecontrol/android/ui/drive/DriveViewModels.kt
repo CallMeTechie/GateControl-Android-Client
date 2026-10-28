@@ -409,32 +409,6 @@ class DriveFolderViewModel @Inject constructor(
 
     suspend fun fetch(node: DNode, versionId: Long? = null): DResult<File> = transfers.fetch(node, versionId)
 
-    /**
-     * The photos and videos below [folder] (the Photos tab's rule), for "they go too" when it is deleted: at most
-     * [PHOTO_WALK_MAX] folders are looked at (second: there may be more). Null when it could not be counted.
-     */
-    suspend fun photosInside(folder: DNode): Pair<Int, Boolean>? {
-        if (!folder.isDir || folder.encrypted) return 0 to false
-        var count = 0
-        val queue = ArrayDeque(listOf(folder.id))
-        var seen = 0
-        while (queue.isNotEmpty()) {
-            if (seen >= PHOTO_WALK_MAX) return count to true
-            val id = queue.removeFirst()
-            seen++
-            var offset = 0
-            while (true) {
-                val page = api.children(id, offset, PHOTO_WALK_PAGE).valueOrNull() ?: return null
-                count += page.count(DriveLogic::isPhoto)
-                // a vault holds no photos (its files are never the Photos tab's)
-                page.filter { it.isDir && !it.encrypted }.forEach { queue.addLast(it.id) }
-                if (page.size < PHOTO_WALK_PAGE) break
-                offset += page.size
-            }
-        }
-        return count to false
-    }
-
     // ─── versions ───────────────────────────────────────────────────
 
     private val _versions = MutableStateFlow<DriveLoad<DVersions>?>(null)
@@ -705,11 +679,6 @@ class DriveFolderViewModel @Inject constructor(
         }
     }
 
-    private companion object {
-        const val PHOTO_WALK_MAX = 200
-        const val PHOTO_WALK_PAGE = 1000
-    }
-
     /** "Familie › Dokumente › Ausweise": the area, then the folders down to [f]. */
     private fun label(f: DFolder, area: String?): String =
         (listOf(area ?: "…") + f.crumbs.drop(1).map { it.name } + listOfNotNull(f.node.name.takeIf { f.node.parentId != null && it.isNotEmpty() }))
@@ -754,14 +723,7 @@ class DriveTrashViewModel @Inject constructor(private val api: DriveApi) : ViewM
 class DriveSearchViewModel @Inject constructor(
     private val api: DriveApi,
     private val transfers: DriveTransfers,
-    val live: DriveLive,
 ) : ViewModel() {
-
-    init {
-        // the features (does Drive have the Photos tab) — usually known from the Drive tab already
-        if (live.me.value == null) viewModelScope.launch { live.current() }
-    }
-
     private val _state = MutableStateFlow<DriveLoad<List<DNode>>?>(null)
     val state: StateFlow<DriveLoad<List<DNode>>?> = _state.asStateFlow()
     private var job: Job? = null
