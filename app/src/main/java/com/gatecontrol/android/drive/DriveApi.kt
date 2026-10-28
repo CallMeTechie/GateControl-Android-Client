@@ -143,6 +143,10 @@ class DriveApi @Inject constructor(
         return get("nodes/$id/children", q) { DriveJson.folder(head.value, it) }
     }
 
+    /** One page of the content of folder [id] (no crumbs): counting what lies below a folder. */
+    suspend fun children(id: Long, offset: Int = 0, limit: Int = 1000): DResult<List<DNode>> =
+        get("nodes/$id/children", mapOf("sort" to "name", "order" to "asc", "offset" to offset.toString(), "limit" to limit.toString()), DriveJson::items)
+
     /** A new folder; a taken name gets a free one ([rename]) or `409 exists`. */
     suspend fun createFolder(parentId: Long, name: String, rename: Boolean = true): DResult<DNode> =
         post("nodes", DriveJson.mkdirBody(parentId, name, rename), DriveJson::nodeAnswer)
@@ -330,6 +334,12 @@ class DriveApi @Inject constructor(
 
     suspend fun unremind(id: Long): DResult<DDeadline> = del("deadlines/$id/remind", DriveJson::deadlineAnswer)
 
+    /** AI for documents in area [id] on or off (`PATCH areas/<id> { docAi }`, the write right) → the setting now. */
+    suspend fun setAreaDocAi(id: String, on: Boolean): DResult<Boolean> {
+        val area = DriveJson.areaId(id) ?: return bad()
+        return patch("areas/$area", DriveJson.docAiBody(on), DriveJson::areaDocAi)
+    }
+
     // ─── office in the browser (Drive 1.9, feature `office`) ────────
 
     /** The address of file [id] in the office (edit with the write right, else view). */
@@ -374,6 +384,18 @@ class DriveApi @Inject constructor(
     /** The uploaded ciphertext [mediaId] becomes a file of the vault (a new version of [opaqueName] when given). */
     suspend fun commitVault(mediaId: String, parentId: Long, nameCipher: String?, keyVersion: Int, mtimeMs: Long?, opaqueName: String? = null): DResult<Pair<DNode, Boolean>> =
         post("uploads/commit", DriveJson.vaultCommitBody(mediaId, parentId, nameCipher, keyVersion, mtimeMs, opaqueName), DriveJson::commit)
+
+    /**
+     * A new vault key (`POST vaults/<id>/rotate`, [DriveJson.rotateBody]); `409 { devices }` names the approved devices,
+     * `409 { reason: recovery_required }` asks for a new recovery key.
+     */
+    suspend fun vaultRotate(id: String, body: JsonObject): DResult<DVault> = post((vaultPath(id) ?: return bad()) + "/rotate", body, DriveJson::vaultAnswer)
+
+    /** A new recovery key (`PUT vaults/<id>/recovery`, [DriveJson.recoveryBody]). */
+    suspend fun vaultSetRecovery(id: String, body: JsonObject): DResult<DVault> {
+        val path = (vaultPath(id) ?: return bad()) + "/recovery"
+        return call(request = { pluginPut(DRIVE_PLUGIN, path, body, lang()) }, parse = DriveJson::vaultAnswer)
+    }
 
     /** A vault node's new encrypted name. */
     suspend fun renameVault(id: Long, nameCipher: String): DResult<DNode> = patch("nodes/$id", DriveJson.nameCipherPatchBody(nameCipher), DriveJson::nodeAnswer)

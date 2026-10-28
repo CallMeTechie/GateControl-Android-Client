@@ -128,6 +128,8 @@ data class DArea(
     val rootId: Long,
     val archived: Boolean,
     val storage: DStorage? = null,
+    /** AI for documents in this area (Drive 1.8, `PATCH areas/<id> { docAi }`); null while the feature is off. */
+    val docAi: Boolean? = null,
 ) {
     val writable: Boolean get() = !archived && (role == "write" || role == "manage")
 }

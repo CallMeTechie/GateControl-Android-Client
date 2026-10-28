@@ -144,6 +144,7 @@ internal object DriveJson {
             via = o.str("via")?.take(20),
             rootId = root,
             archived = o.bool("archived") ?: false,
+            docAi = o.bool("docAi"),
             storage = st?.let {
                 DStorage(
                     bytes = it.long("bytes"), quota = it.long("quota"), form = it.str("form")?.take(20),
@@ -779,6 +780,53 @@ internal object DriveJson {
     }
 
     fun nameCipherPatchBody(nameCipher: String) = JsonObject().apply { addProperty("nameCipher", nameCipher) }
+
+    /** A new recovery key: its public key, its proof and the wraps of every key version (`recovery` of a rotation, `PUT …/recovery`). */
+    data class RecoveryPart(val pub: String, val auth: String, val wraps: List<DVaultWrap>)
+
+    private fun wrapsArray(wraps: List<DVaultWrap>) = JsonArray().apply {
+        wraps.sortedBy { it.keyVersion }.forEach { w -> add(JsonObject().apply { addProperty("keyVersion", w.keyVersion); addProperty("wrap", w.wrap) }) }
+    }
+
+    /**
+     * `POST vaults/<id>/rotate`: the new [keyVersion], its wraps for exactly every approved device (`deviceId` → wrap),
+     * and either the wrap for the recovery key there is ([recoveryWrap]) or a new recovery key ([recovery]).
+     */
+    fun rotateBody(keyVersion: Int, wraps: List<Pair<String, String>>, recoveryWrap: String?, recovery: RecoveryPart?) = JsonObject().apply {
+        addProperty("keyVersion", keyVersion)
+        add("wraps", JsonArray().apply {
+            wraps.forEach { (device, wrap) -> add(JsonObject().apply { addProperty("deviceId", device); addProperty("wrap", wrap) }) }
+        })
+        if (recovery != null) {
+            add("recovery", JsonObject().apply {
+                addProperty("pub", recovery.pub)
+                addProperty("auth", recovery.auth)
+                add("wraps", wrapsArray(recovery.wraps))
+            })
+        } else if (recoveryWrap != null) {
+            addProperty("recoveryWrap", recoveryWrap)
+        }
+    }
+
+    /** `PUT vaults/<id>/recovery { pub, auth, wraps }`. */
+    fun recoveryBody(recovery: RecoveryPart) = JsonObject().apply {
+        addProperty("pub", recovery.pub)
+        addProperty("auth", recovery.auth)
+        add("wraps", wrapsArray(recovery.wraps))
+    }
+
+    /** A rotation refused with `409 { devices }`: the devices the server wants a wrap for (else null). */
+    fun rotateDevices(body: JsonObject?): List<String>? =
+        body?.arr("devices")?.mapNotNull { e -> runCatching { e.asString }.getOrNull()?.let(::vaultId) }
+
+    /** A rotation refused with `409 { reason: 'recovery_required' }`: a new recovery key is needed. */
+    fun recoveryRequired(body: JsonObject?): Boolean = body?.str("reason") == "recovery_required"
+
+    /** `PATCH areas/<id> { docAi }`. */
+    fun docAiBody(on: Boolean) = JsonObject().apply { addProperty("docAi", on) }
+
+    /** `PATCH areas/<id>` → `{ area: { id, docAi } }`: the area's setting now. */
+    fun areaDocAi(o: JsonObject): Boolean? = o.obj("area")?.bool("docAi")
 
     fun vaultEvent(data: JsonElement?): DVaultEvent? {
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null

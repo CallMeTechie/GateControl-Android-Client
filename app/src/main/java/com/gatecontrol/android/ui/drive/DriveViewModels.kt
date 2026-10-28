@@ -66,6 +66,7 @@ class DriveHomeViewModel @Inject constructor(
     val live: DriveLive,
     private val portalLinks: com.gatecontrol.android.push.PortalLinkResolver,
     private val setup: com.gatecontrol.android.data.SetupRepository,
+    private val vaultSession: com.gatecontrol.android.drive.vault.DriveVaultSession,
 ) : ViewModel() {
 
     /**
@@ -179,6 +180,63 @@ class DriveHomeViewModel @Inject constructor(
         }
     }
 
+    // ─── vaults in the menu (Drive 1.9, feature `vault`) ────────────
+
+    /** A vault of the menu: its decrypted name (null while this device holds no keys) and where this device stands. */
+    data class VaultEntry(val vault: com.gatecontrol.android.drive.DVault, val name: String?, val state: VaultState)
+
+    enum class VaultState { OPEN, PENDING, LOCKED }
+
+    private val _vaults = MutableStateFlow<List<VaultEntry>>(emptyList())
+    /** Every vault the person may use (their areas), for the menu. */
+    val vaults: StateFlow<List<VaultEntry>> = _vaults.asStateFlow()
+    private var vaultJob: Job? = null
+
+    /** Loads the vaults (the menu opens): the names of those this device is approved for are decrypted here. */
+    fun loadVaults() {
+        if (live.me.value?.has(DMe.FEATURE_VAULT) != true) {
+            _vaults.value = emptyList()
+            return
+        }
+        if (vaultJob?.isActive == true) return
+        vaultJob = viewModelScope.launch {
+            val list = api.vaults().valueOrNull() ?: return@launch
+            val me = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { vaultSession.deviceId() }.getOrNull() }
+            _vaults.value = list.map { v ->
+                val mine = v.myDevices.firstOrNull { it.deviceId == me }
+                val state = when (mine?.state) {
+                    "approved" -> if (vaultSession.open(v).valueOrNull() == com.gatecontrol.android.drive.vault.DriveVaultSession.Access.Open) VaultState.OPEN else VaultState.LOCKED
+                    "pending" -> VaultState.PENDING
+                    else -> VaultState.LOCKED
+                }
+                VaultEntry(v, if (state == VaultState.OPEN) vaultSession.nameOf(v) else null, state)
+            }
+        }
+    }
+
+    // ─── AI for documents per area (Drive 1.8, feature `docAi`) ─────
+
+    /** "KI für Dokumente" of [area] on or off (the write right); the menu shows the new setting at once. */
+    fun setDocAi(area: DArea, on: Boolean) {
+        val home = (_state.value as? DriveLoad.Ready)?.value ?: return
+        if (home.areas.none { it.id == area.id }) return
+        val before = area.docAi
+        fun put(value: Boolean?) = _state.update { s ->
+            val h = (s as? DriveLoad.Ready)?.value ?: return@update s
+            DriveLoad.Ready(h.copy(areas = h.areas.map { if (it.id == area.id) it.copy(docAi = value) else it }))
+        }
+        put(on)
+        viewModelScope.launch {
+            when (val r = api.setAreaDocAi(area.id, on)) {
+                is DResult.Ok -> put(r.value)
+                else -> {
+                    put(before)
+                    _message.value = r.errorCode()
+                }
+            }
+        }
+    }
+
     private companion object {
         const val KEY_AREA = "area"
     }
@@ -187,6 +245,7 @@ class DriveHomeViewModel @Inject constructor(
 /** A folder: its content and what can be done with it and with each item. */
 @HiltViewModel
 class DriveFolderViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
     private val api: DriveApi,
     val transfers: DriveTransfers,
@@ -210,8 +269,9 @@ class DriveFolderViewModel @Inject constructor(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
-    var sort: String = "name"
-        private set
+    private val _sort = MutableStateFlow(DriveViewPref.sort(context))
+    /** How the folder is sorted (kept on the device, the same for every folder). */
+    val sort: StateFlow<DriveLogic.FolderSort> = _sort.asStateFlow()
     private var job: Job? = null
 
     init {
@@ -268,9 +328,21 @@ class DriveFolderViewModel @Inject constructor(
 
     fun clearMessage() { _message.value = null }
 
-    fun setSort(value: String) {
-        if (value == sort) return
-        sort = value
+    /** Sorts by [key] (`name`, `mtime`, `size`, `type`) in its usual direction. */
+    fun setSort(key: String) {
+        if (key == _sort.value.key) return
+        applySort(DriveLogic.sortOf(key, null))
+    }
+
+    /** Up (A–Z, oldest, smallest) or down. */
+    fun setSortDesc(desc: Boolean) {
+        if (desc == _sort.value.desc) return
+        applySort(_sort.value.copy(desc = desc))
+    }
+
+    private fun applySort(value: DriveLogic.FolderSort) {
+        _sort.value = value
+        DriveViewPref.setSort(context, value)
         refresh(quiet = true)
     }
 
@@ -283,9 +355,9 @@ class DriveFolderViewModel @Inject constructor(
         job?.cancel()
         job = viewModelScope.launch {
             if (!quiet || _state.value !is DriveLoad.Ready) _state.value = DriveLoad.Loading
-            val order = if (sort == "name") "asc" else "desc"
-            val r = api.folder(folderId, sort = sort, order = order)
-            _state.value = r.toLoad { it }
+            val sort = _sort.value
+            val r = api.folder(folderId, sort = DriveLogic.serverSort(sort.key), order = if (sort.desc) "desc" else "asc")
+            _state.value = r.toLoad { it.copy(items = DriveLogic.ordered(it.items, sort)) }
             val areaId = (r as? DResult.Ok)?.value?.node?.areaId
             if (areaId != null && _area.value?.id != areaId) {
                 _area.value = api.areas().valueOrNull()?.firstOrNull { it.id == areaId }
@@ -336,6 +408,32 @@ class DriveFolderViewModel @Inject constructor(
     }
 
     suspend fun fetch(node: DNode, versionId: Long? = null): DResult<File> = transfers.fetch(node, versionId)
+
+    /**
+     * The photos and videos below [folder] (the Photos tab's rule), for "they go too" when it is deleted: at most
+     * [PHOTO_WALK_MAX] folders are looked at (second: there may be more). Null when it could not be counted.
+     */
+    suspend fun photosInside(folder: DNode): Pair<Int, Boolean>? {
+        if (!folder.isDir || folder.encrypted) return 0 to false
+        var count = 0
+        val queue = ArrayDeque(listOf(folder.id))
+        var seen = 0
+        while (queue.isNotEmpty()) {
+            if (seen >= PHOTO_WALK_MAX) return count to true
+            val id = queue.removeFirst()
+            seen++
+            var offset = 0
+            while (true) {
+                val page = api.children(id, offset, PHOTO_WALK_PAGE).valueOrNull() ?: return null
+                count += page.count(DriveLogic::isPhoto)
+                // a vault holds no photos (its files are never the Photos tab's)
+                page.filter { it.isDir && !it.encrypted }.forEach { queue.addLast(it.id) }
+                if (page.size < PHOTO_WALK_PAGE) break
+                offset += page.size
+            }
+        }
+        return count to false
+    }
 
     // ─── versions ───────────────────────────────────────────────────
 
@@ -605,6 +703,11 @@ class DriveFolderViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private companion object {
+        const val PHOTO_WALK_MAX = 200
+        const val PHOTO_WALK_PAGE = 1000
     }
 
     /** "Familie › Dokumente › Ausweise": the area, then the folders down to [f]. */
