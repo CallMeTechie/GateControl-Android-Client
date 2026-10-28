@@ -225,6 +225,12 @@ internal object DriveLogic {
         return out
     }
 
+    /**
+     * Whether the Photos tab asks for the camera uploads only (`camera=1`): the person chose "Nur Kamera-Uploads" ([on])
+     * and Drive knows them (1.10, feature `photosFolder`) — without it the choice is kept, but not sent.
+     */
+    fun cameraFilter(on: Boolean, me: DMe?): Boolean = on && me?.has(DMe.FEATURE_PHOTOS_FOLDER) == true
+
     /** Pages of a photo list put together: each node once (a page boundary may repeat one). */
     fun appendPage(have: List<DNode>, page: List<DNode>): List<DNode> {
         val seen = have.mapTo(HashSet()) { it.id }
@@ -286,31 +292,6 @@ internal object DriveLogic {
 
     // ─── the Files and Photos tabs ───────────────────────────────────
 
-    /**
-     * A file the Photos tab shows — exactly the rule of `GET photos` (plugin `photos.js` MEDIA): a file, not in a vault,
-     * not deleted, its type `image/…` or `video/…` (SQLite's LIKE: ASCII case does not count). The Files tab leaves it out.
-     */
-    fun isPhoto(node: DNode): Boolean {
-        if (node.isDir || node.vaultId != null || node.deletedAt != null) return false
-        val m = node.mime?.lowercase(Locale.ROOT) ?: return false
-        return m.startsWith("image/") || m.startsWith("video/")
-    }
-
-    /** Whether the Files tab hides the photos: only while Drive has the Photos tab, never in a vault (no Photos tab there). */
-    fun hidesPhotos(me: DMe?, folder: DNode?): Boolean = me?.has(DMe.FEATURE_PHOTOS) == true && folder?.encrypted != true
-
-    /** What the Files tab lists of [items], and how many photos it left out (they are in the Photos tab). */
-    data class FilesView(val items: List<DNode>, val photos: Int) {
-        /** Nothing at all in the folder: not even photos. */
-        val empty: Boolean get() = items.isEmpty() && photos == 0
-    }
-
-    fun filesView(items: List<DNode>, hidePhotos: Boolean): FilesView {
-        if (!hidePhotos) return FilesView(items, 0)
-        val (photos, rest) = items.partition(::isPhoto)
-        return FilesView(rest, photos.size)
-    }
-
     /** The Drive tab's pages: the files, then (feature `photos`) the photos; swiping goes from one to the other. */
     const val TAB_FILES = 0
     const val TAB_PHOTOS = 1
@@ -346,19 +327,19 @@ internal object DriveLogic {
     fun serverSort(key: String): String = if (key == "type") "name" else key
 
     /**
-     * The groups of "Dateityp": documents, spreadsheets, presentations, PDF, text, archives, audio — then pictures and
-     * videos (only listed without the Photos tab) — and everything else.
+     * The groups of "Dateityp" (after the folders): documents, spreadsheets, presentations, PDF, pictures, videos, text,
+     * archives, audio — and everything else.
      */
     fun typeGroup(node: DNode): Int = when (kind(node)) {
         Kind.DOC -> 0
         Kind.SHEET -> 1
         Kind.SLIDES -> 2
         Kind.PDF -> 3
-        Kind.TEXT -> 4
-        Kind.ARCHIVE -> 5
-        Kind.AUDIO -> 6
-        Kind.IMAGE -> 7
-        Kind.VIDEO -> 8
+        Kind.IMAGE -> 4
+        Kind.VIDEO -> 5
+        Kind.TEXT -> 6
+        Kind.ARCHIVE -> 7
+        Kind.AUDIO -> 8
         Kind.OTHER, Kind.FOLDER -> 9
     }
 

@@ -34,7 +34,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -98,8 +97,6 @@ fun DriveFolderScreen(
     onFolder: (Long) -> Unit,
     onFile: (Long) -> Unit = {},
     onVault: (String, Long) -> Unit = { _, _ -> },
-    /** "im Fotos-Tab ansehen": the Drive tab with its photos. */
-    onPhotos: (() -> Unit)? = null,
     viewModel: DriveFolderViewModel = hiltViewModel(),
 ) {
     DriveFolderContent(
@@ -107,7 +104,6 @@ fun DriveFolderScreen(
         onFolder = onFolder,
         onFile = onFile,
         onVault = onVault,
-        onPhotos = onPhotos,
         topBar = { title, actions -> GcSubpageBar(title, onBack = onBack, backDescription = stringResource(R.string.drive_back)) { actions() } },
     )
 }
@@ -127,11 +123,6 @@ internal fun DriveFolderContent(
     onFile: (Long) -> Unit = {},
     /** A vault folder (Drive 1.9): its own pages, the names decrypted there. */
     onVault: (vaultId: String, folderId: Long) -> Unit = { _, _ -> },
-    /**
-     * The Photos tab: photos and videos are listed there only (the Files tab leaves them out while Drive has it); the
-     * folder shows how many it holds with this link.
-     */
-    onPhotos: (() -> Unit)? = null,
     /** List or tiles (shared with the Drive tab's own bar, [FolderViewActions]). */
     gridState: androidx.compose.runtime.MutableState<Boolean> = rememberDriveGrid(),
 ) {
@@ -160,8 +151,6 @@ internal fun DriveFolderContent(
     /** The node being deleted and what this phone has of it (null while it looks). */
     var deleteCopies by remember { mutableStateOf<DriveLocal.Copies?>(null) }
     var localDelete by remember { mutableStateOf<DriveLocal.Copies?>(null) }
-    /** The photos below the folder being deleted (they go too; null while counting or when unknown). */
-    var deletePhotos by remember { mutableStateOf<Pair<Int, Boolean>?>(null) }
     val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         val c = localDelete
         localDelete = null
@@ -215,12 +204,9 @@ internal fun DriveFolderContent(
                 DriveLoad.Loading -> DriveLoading()
                 is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })
                 is DriveLoad.Ready -> {
-                    // photos and videos are the Photos tab's (Drive 1.7): here only how many there are
-                    val view = DriveLogic.filesView(s.value.items, DriveLogic.hidesPhotos(me, s.value.node))
-                    if (view.photos > 0) PhotosHint(view.photos, onPhotos)
-                    if (view.empty) {
+                    if (s.value.items.isEmpty()) {
                         Text(stringResource(R.string.drive_empty_folder), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(vertical = 24.dp, horizontal = 4.dp))
-                    } else if (view.items.isNotEmpty()) {
+                    } else {
                         val onItem: (DNode) -> Unit = { n ->
                             val vault = n.vaultId?.takeIf { it != com.gatecontrol.android.drive.DriveJson.INVALID_VAULT }
                             when {
@@ -232,11 +218,11 @@ internal fun DriveFolderContent(
                             }
                         }
                         if (grid) {
-                            NodeGrid(view.items, onClick = onItem, onLongClick = { menuFor = it }, progress = { downloading[it.id] })
+                            NodeGrid(s.value.items, onClick = onItem, onLongClick = { menuFor = it }, progress = { downloading[it.id] })
                         } else {
                             val haptic = LocalHapticFeedback.current
                             GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                                view.items.forEachIndexed { i, n ->
+                                s.value.items.forEachIndexed { i, n ->
                                     if (i > 0) GcRowDivider()
                                     NodeRow(
                                         node = n,
@@ -385,26 +371,13 @@ internal fun DriveFolderContent(
     }
     deleting?.let { n ->
         LaunchedEffect(n.id) { deleteCopies = null; deleteCopies = viewModel.local.copies(n) }
-        LaunchedEffect(n.id) {
-            deletePhotos = null
-            if (n.isDir && DriveLogic.hidesPhotos(me, n)) deletePhotos = viewModel.photosInside(n)
-        }
         val copies = deleteCopies
         val hasLocal = copies?.any == true
         val writable = folder?.writable == true
-        val close = { deleting = null; deleteCopies = null; deletePhotos = null }
+        val close = { deleting = null; deleteCopies = null }
         ModalBottomSheet(onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.padding(bottom = 24.dp)) {
                 Text(stringResource(R.string.drive_delete_title, nodeTitle(n)), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                // a folder with photos: they are not listed here (the Photos tab's), so the sheet names them
-                deletePhotos?.takeIf { writable && it.first > 0 }?.let { (count, more) ->
-                    Text(
-                        pluralStringResource(if (more) R.plurals.drive_delete_photos_more else R.plurals.drive_delete_photos, count, count),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                    )
-                }
                 if (copies != null && !hasLocal && !writable) {
                     Text(stringResource(R.string.drive_delete_nothing), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 }

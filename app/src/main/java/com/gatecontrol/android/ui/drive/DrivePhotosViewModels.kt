@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.drive
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,7 @@ import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,12 +80,20 @@ internal class PhotoPager(private val scope: kotlinx.coroutines.CoroutineScope, 
 /** The Drive tab's photos (Drive 1.7): the timeline by month, "Vor einem Jahr", the albums. */
 @HiltViewModel
 class DrivePhotosViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val api: DriveApi,
     private val transfers: DriveTransfers,
     val live: DriveLive,
 ) : ViewModel() {
 
-    private val pager = PhotoPager(viewModelScope) { before -> api.photos(before = before) }
+    private val _cameraOnly = MutableStateFlow(DriveViewPref.cameraOnly(context))
+    /** "Nur Kamera-Uploads" (Drive 1.10, feature `photosFolder`); kept on the device. */
+    val cameraOnly: StateFlow<Boolean> = _cameraOnly.asStateFlow()
+
+    /** The filter as it is sent: only while Drive knows the camera uploads. */
+    private fun camera(): Boolean = DriveLogic.cameraFilter(_cameraOnly.value, live.me.value)
+
+    private val pager = PhotoPager(viewModelScope) { before -> api.photos(before = before, camera = camera()) }
     val timeline: StateFlow<PhotoPages> = pager.state
 
     private val _months = MutableStateFlow<Map<String, Int>>(emptyMap())
@@ -113,11 +123,35 @@ class DrivePhotosViewModel @Inject constructor(
         refresh()
     }
 
-    fun refresh() {
-        pager.reload(quiet = true)
-        viewModelScope.launch { _months.value = api.photoMonths().valueOrNull()?.associate { it.month to it.count }.orEmpty() }
-        viewModelScope.launch { _memories.value = api.memories(LocalDate.now().toString()).valueOrNull().orEmpty() }
+    fun refresh() = load(quiet = true)
+
+    /** The filter of what is shown (null: nothing loaded yet). */
+    private var loadedCamera: Boolean? = null
+
+    /** Drive's features came or changed: the filter as sent may be another now (`photosFolder`). */
+    fun featuresChanged() {
+        val was = loadedCamera ?: return
+        if (camera() != was) load(quiet = false)
+    }
+
+    private fun load(quiet: Boolean) {
+        val camera = camera()
+        loadedCamera = camera
+        pager.reload(quiet = quiet)
+        viewModelScope.launch { _months.value = api.photoMonths(camera = camera).valueOrNull()?.associate { it.month to it.count }.orEmpty() }
+        viewModelScope.launch { _memories.value = api.memories(LocalDate.now().toString(), camera = camera).valueOrNull().orEmpty() }
         if (_albums.value != null) loadAlbums()
+    }
+
+    /** "Nur Kamera-Uploads" on or off: the timeline, its months and the memories again. */
+    fun setCameraOnly(on: Boolean) {
+        if (on == _cameraOnly.value) return
+        _cameraOnly.value = on
+        DriveViewPref.setCameraOnly(context, on)
+        _selected.value = emptySet()
+        _months.value = emptyMap()
+        _memories.value = emptyList()
+        load(quiet = false)
     }
 
     fun more() = pager.more()

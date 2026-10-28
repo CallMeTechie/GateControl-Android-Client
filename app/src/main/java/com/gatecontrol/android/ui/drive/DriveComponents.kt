@@ -484,8 +484,14 @@ internal object DriveViewPref {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_PHOTOS, photos).apply()
     }
 
-    /** "im Fotos-Tab ansehen" from another page: the Drive tab shows its photos when it is back. */
-    fun showPhotos(context: Context) = setPhotos(context, true)
+    private const val KEY_CAMERA = "photos_camera"
+
+    /** The Photos tab shows only the camera uploads (Drive 1.10, feature `photosFolder`). */
+    fun cameraOnly(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CAMERA, false)
+
+    fun setCameraOnly(context: Context, on: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_CAMERA, on).apply()
+    }
 
     private const val KEY_SORT = "sort"
     private const val KEY_SORT_DESC = "sort_desc"
@@ -506,31 +512,6 @@ internal object DriveViewPref {
 internal fun rememberDriveGrid(): androidx.compose.runtime.MutableState<Boolean> {
     val context = LocalContext.current
     return remember { androidx.compose.runtime.mutableStateOf(DriveViewPref.grid(context)) }
-}
-
-/** "12 Fotos in diesem Ordner – im Fotos-Tab ansehen": the photos the Files tab leaves out; a tap opens the Photos tab. */
-@Composable
-internal fun PhotosHint(count: Int, onClick: (() -> Unit)?, search: Boolean = false) {
-    val x = GateControlTheme.extraColors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(x.panel2)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .heightIn(min = 48.dp)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(GcIcons.Photo, contentDescription = null, tint = x.blue, modifier = Modifier.size(20.dp))
-        Text(
-            androidx.compose.ui.res.pluralStringResource(if (search) R.plurals.drive_search_photos_hidden else R.plurals.drive_photos_hidden, count, count),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (onClick != null) x.accentText else x.muted,
-            modifier = Modifier.weight(1f).padding(start = 12.dp),
-        )
-        if (onClick != null) Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.muted, modifier = Modifier.size(18.dp))
-    }
 }
 
 /** The files as tiles: the preview (or the kind's symbol), the name below; long press for the menu. */

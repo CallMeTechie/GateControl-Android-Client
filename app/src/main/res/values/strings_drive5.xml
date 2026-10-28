@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive: photos as files, photo backup into Kamera-Uploads, filter of the Photos tab -->
+    <string name="drive_backup_camera_target">My Files › Bilder › Kamera-Uploads, by year and month (e.g. 2026 › 10)</string>
+    <string name="drive_backup_moved">New photos are now backed up to Bilder/Kamera-Uploads. Photos backed up before stay where they are.</string>
+    <string name="drive_backup_error_camera">The folder Bilder › Kamera-Uploads in My Files cannot be reached. The backup tries again later.</string>
+    <string name="drive_photos_camera_only">Camera uploads only</string>
+</resources>

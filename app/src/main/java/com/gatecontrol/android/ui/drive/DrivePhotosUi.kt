@@ -153,6 +153,9 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
     val selected by viewModel.selected.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val hasAlbums = me?.has(DMe.FEATURE_ALBUMS) == true
+    // Drive 1.10 (`photosFolder`): the timeline of the camera uploads only
+    val hasCamera = me?.has(DMe.FEATURE_PHOTOS_FOLDER) == true
+    val cameraOnly by viewModel.cameraOnly.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf("timeline") }
     /** Full screen: the timeline (null) or the memories of so many years ago, from that photo on. */
     var viewing by remember { mutableStateOf<Pair<Int?, Int>?>(null) }
@@ -160,6 +163,7 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
     var creating by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(Unit) { viewModel.start() }
+    LaunchedEffect(me?.features) { viewModel.featuresChanged() }
     LaunchedEffect(tab) { if (tab == "albums" && albums == null) viewModel.loadAlbums() }
     LaunchedEffect(message) {
         message?.let {
@@ -170,10 +174,20 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
 
     Column(Modifier.fillMaxSize()) {
         topBar()
-        if (hasAlbums) {
+        if (hasAlbums || hasCamera) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GcFilterChip(stringResource(R.string.drive_photos_timeline), selected = tab == "timeline", onClick = { tab = "timeline" })
-                GcFilterChip(stringResource(R.string.drive_photos_albums), selected = tab == "albums", onClick = { tab = "albums" })
+                if (hasAlbums) {
+                    GcFilterChip(stringResource(R.string.drive_photos_timeline), selected = tab == "timeline", onClick = { tab = "timeline" })
+                    GcFilterChip(stringResource(R.string.drive_photos_albums), selected = tab == "albums", onClick = { tab = "albums" })
+                }
+                // a filter of the timeline (the albums are the albums)
+                if (hasCamera && (tab == "timeline" || !hasAlbums)) {
+                    GcFilterChip(
+                        stringResource(R.string.drive_photos_camera_only),
+                        selected = cameraOnly,
+                        onClick = { viewModel.setCameraOnly(!cameraOnly) },
+                    )
+                }
             }
         }
         Box(Modifier.weight(1f)) {

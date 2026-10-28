@@ -111,7 +111,6 @@
     <string name="drive_backup_title">Foto-Sicherung</string>
     <string name="drive_backup_channel">Foto-Sicherung</string>
     <string name="drive_backup_progress_short">%1$d von %2$d</string>
-    <string name="drive_backup_photos">Fotos</string>
     <string name="drive_backup_on">An</string>
     <string name="drive_backup_off">Aus</string>
     <string name="drive_backup_off_text">Fotos automatisch im Drive sichern</string>
@@ -123,8 +122,6 @@
     <string name="drive_backup_switch">Fotos sichern</string>
     <string name="drive_backup_switch_text">Neue Fotos gehen im Original hoch, auch wenn die App zu ist.</string>
     <string name="drive_backup_folder">Zielordner</string>
-    <string name="drive_backup_folder_default">Familie › Fotos › dein Name (wird angelegt)</string>
-    <string name="drive_backup_folder_here">Hier sichern</string>
     <string name="drive_backup_wifi">Nur im WLAN</string>
     <string name="drive_backup_wifi_text">Verbraucht kein mobiles Datenvolumen.</string>
     <string name="drive_backup_charging">Nur beim Laden</string>
@@ -138,7 +135,6 @@
     <string name="drive_backup_which_all">Alle Fotos</string>
     <string name="drive_backup_which_new">Nur neue</string>
     <string name="drive_backup_error_permission">GateControl darf deine Fotos nicht lesen. Erlaube es in den App-Einstellungen.</string>
-    <string name="drive_backup_error_folder">Der Zielordner ist weg. Wähle einen neuen.</string>
     <string name="drive_backup_settings">Einstellungen</string>
     <string name="drive_backup_partial">Nur die ausgewählten Fotos sind für GateControl freigegeben.</string>
     <string name="drive_backup_allow_all">Alle erlauben</string>

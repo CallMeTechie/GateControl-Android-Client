@@ -33,14 +33,16 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.FileNotFoundException
 import java.security.MessageDigest
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Photo backup (concept Teil D): the camera's photos (and videos, if wanted) go up as originals into one Drive
- * folder, oldest first. A mark (date added, id) remembers how far it got, so a run that stops (no WLAN, the app is
- * killed) goes on where it was; a photo already in the folder with the same content is not sent again. Runs come
- * from [DriveBackupWork] (new photos, every hour, "Jetzt sichern").
+ * Photo backup (concept Teil D): the camera's photos (and videos, if wanted) go up as originals, oldest first, into
+ * "Meine Dateien › Bilder › Kamera-Uploads › <Jahr> › <Monat>" ([DriveCameraUploads]). A mark (date added, id)
+ * remembers how far it got, so a run that stops (no WLAN, the app is killed) goes on where it was — and a photo before
+ * the mark is never sent again, wherever it went then; a photo already in its month's folder with the same content is
+ * not sent again either. Runs come from [DriveBackupWork] (new photos, every hour, "Jetzt sichern").
  */
 @Singleton
 class DriveBackup @Inject constructor(
@@ -50,6 +52,7 @@ class DriveBackup @Inject constructor(
     private val previews: DrivePreviews,
     private val live: DriveLive,
     private val dates: DriveTakenAt,
+    private val camera: DriveCameraUploads,
 ) {
     /** The run in progress: [done] of [total] photos, [current] the one going up. */
     data class Status(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val current: String? = null)
@@ -77,8 +80,6 @@ class DriveBackup @Inject constructor(
         if (prefs.getString(KEY_OWNER, null) != owner()) return DriveBackupConfig()
         return DriveBackupConfig(
             enabled = prefs.getBoolean(KEY_ENABLED, false),
-            folderId = prefs.getLong(KEY_FOLDER, 0L).takeIf { it > 0 },
-            folderLabel = prefs.getString(KEY_LABEL, null),
             wifiOnly = prefs.getBoolean(KEY_WIFI, true),
             chargingOnly = prefs.getBoolean(KEY_CHARGING, false),
             videos = prefs.getBoolean(KEY_VIDEOS, false),
@@ -107,21 +108,19 @@ class DriveBackup @Inject constructor(
                 putString(KEY_OWNER, owner())
             }
             putBoolean(KEY_ENABLED, next.enabled)
-            putLong(KEY_FOLDER, next.folderId ?: 0L)
-            putString(KEY_LABEL, next.folderLabel)
             putBoolean(KEY_WIFI, next.wifiOnly)
             putBoolean(KEY_CHARGING, next.chargingOnly)
             putBoolean(KEY_VIDEOS, next.videos)
             putBoolean(KEY_CAMERA, next.cameraOnly)
-            if (next.folderId != _config.value.folderId || next.enabled != _config.value.enabled) remove(KEY_ERROR)
+            if (next.enabled != _config.value.enabled) remove(KEY_ERROR)
         }
         _config.value = next
         _stats.value = readStats()
         DriveBackupWork.apply(context, next)
     }
 
-    /** Switches it on: into [folderId], from [mark] on (all photos, or only those from now on). */
-    fun enable(folderId: Long, label: String, mark: DriveBackupMark) {
+    /** Switches it on, from [mark] on (all photos, or only those from now on — [DriveBackupLogic.startMark]). */
+    fun enable(mark: DriveBackupMark) {
         // The mark first: switching on schedules a pass at once, which must not start from "all photos".
         prefs.edit {
             if (prefs.getString(KEY_OWNER, null) != owner()) {
@@ -131,8 +130,19 @@ class DriveBackup @Inject constructor(
             putLong(KEY_MARK_ADDED, mark.dateAdded)
             putLong(KEY_MARK_ID, mark.id)
         }
-        update { it.copy(enabled = true, folderId = folderId, folderLabel = label) }
+        update { it.copy(enabled = true) }
         DriveBackupWork.runNow(context)
+    }
+
+    /**
+     * Once for a login that backed up into a folder of its own choosing before Kamera-Uploads: true the first time it
+     * is asked (the settings are opened), then never again. The photos backed up then stay where they are.
+     */
+    fun takeTargetNotice(): Boolean {
+        if (prefs.getString(KEY_OWNER, null) != owner()) return false
+        val show = DriveBackupLogic.targetNotice(prefs.getLong(KEY_FOLDER, 0L))
+        if (show) prefs.edit { remove(KEY_FOLDER); remove(KEY_LABEL) }
+        return show
     }
 
     /** "Only new photos": the mark at the newest photo there is now. */
@@ -181,6 +191,8 @@ class DriveBackup @Inject constructor(
         val video: Boolean,
         /** The media store's DATE_TAKEN (ms), when it has one. */
         val taken: Long? = null,
+        /** The media store's DATE_MODIFIED (ms), when it has one. */
+        val modified: Long? = null,
     )
 
     /** One pass over what is new; [onProgress] hears each photo. */
@@ -198,7 +210,6 @@ class DriveBackup @Inject constructor(
         val cfg = readConfig().also { _config.value = it }
         // Off, or another login since: no more work.
         if (!cfg.enabled) return Outcome.DONE.also { DriveBackupWork.apply(context, cfg) }
-        val folder = cfg.folderId ?: return stop("no_folder")
         if (!canRead(cfg.videos)) return stop("no_permission")
         // Stopped by Drive's ransomware protection: no photo is tried until it is lifted (that starts a pass).
         if (live.locked.value) return stop("device_locked")
@@ -210,7 +221,7 @@ class DriveBackup @Inject constructor(
             for (item in items) {
                 currentCoroutineContext().ensureActive()
                 _status.value = Status(true, done, done + total, item.name).also(onProgress)
-                val code = one(item, folder)
+                val code = one(item)
                 if (code == null) {
                     advance(item, saved = true)
                 } else {
@@ -268,6 +279,7 @@ class DriveBackup @Inject constructor(
                     added = c.getLong(3),
                     video = video,
                     taken = if (c.isNull(4)) null else c.getLong(4),
+                    modified = if (c.isNull(5)) null else c.getLong(5) * 1000,
                 )
             }
             out to c.count
@@ -275,7 +287,7 @@ class DriveBackup @Inject constructor(
     }
 
     /** Backs up one photo; null when it is in Drive now (sent, or there already), else a code. */
-    private suspend fun one(item: Item, folder: Long): String? {
+    private suspend fun one(item: Item): String? {
         val (sha, length) = try {
             hash(item.uri)
         } catch (e: CancellationException) {
@@ -285,7 +297,24 @@ class DriveBackup @Inject constructor(
             return "read"
         }
         if (length == 0L) return "empty"
-        when (val check = api.uploadCheck(folder, item.name, sha, length)) {
+        // when it was taken — EXIF (with its time zone), else the media store's date: its year and month are its folder
+        val own = dates.of(item.uri, item.mime, item.name)
+        val path = DriveBackupLogic.cameraPath(own, item.taken, item.modified, item.added * 1000, ZoneId.systemDefault())
+        var folder = when (val f = camera.folder(path)) {
+            is DResult.Ok -> f.value
+            else -> return code(f)
+        }
+        var check = api.uploadCheck(folder, item.name, sha, length)
+        if (check is DResult.Failed && check.code == "not_found") {
+            // the month's folder (or Kamera-Uploads) went away since: made again
+            camera.forget()
+            folder = when (val f = camera.folder(path)) {
+                is DResult.Ok -> f.value
+                else -> return code(f)
+            }
+            check = api.uploadCheck(folder, item.name, sha, length)
+        }
+        when (check) {
             is DResult.Ok -> if (check.value.same) return null
             else -> return code(check)
         }
@@ -293,15 +322,14 @@ class DriveBackup @Inject constructor(
         if (media !is DResult.Ok) return code(media)
         // HEIC / video: the server cannot make a preview — send the phone's own before the commit (best effort)
         previews.uploadOwn(media.value, item.uri, item.mime)
-        // Drive 1.7: when it was taken — EXIF (with its time zone), else the media store's date
-        val takenAt = if (live.supports(DMe.FEATURE_TAKEN_AT)) {
-            dates.of(item.uri, item.mime, item.name) ?: DriveLogic.msTakenAt(item.taken)
-        } else {
-            null
-        }
+        // Drive 1.7: the commit takes when it was taken
+        val takenAt = if (live.supports(DMe.FEATURE_TAKEN_AT)) own ?: DriveLogic.msTakenAt(item.taken) else null
         return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME, takenAt = takenAt)) {
             is DResult.Ok -> null
-            else -> code(r)
+            else -> {
+                if (r is DResult.Failed && r.code == "not_found") camera.forget()
+                code(r)
+            }
         }
     }
 
@@ -356,6 +384,7 @@ class DriveBackup @Inject constructor(
         private const val PREFS = "drive_backup"
         private const val KEY_OWNER = "owner"
         private const val KEY_ENABLED = "enabled"
+        /** The folder chosen before Kamera-Uploads (only read: [takeTargetNotice]). */
         private const val KEY_FOLDER = "folder"
         private const val KEY_LABEL = "label"
         private const val KEY_WIFI = "wifi"

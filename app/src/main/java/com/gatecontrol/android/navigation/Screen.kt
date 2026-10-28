@@ -139,11 +139,7 @@ sealed class Screen(val route: String) {
         fun create(id: Long) = "drive/folder/$id"
     }
     data object DriveTrash : Screen("drive/trash")
-    /** `photos=1`: the search of the Photos tab (photos and videos only). */
-    data object DriveSearch : Screen("drive/search?photos={photos}") {
-        const val ARG_PHOTOS = "photos"
-        fun create(photos: Boolean = false) = "drive/search" + if (photos) "?photos=1" else ""
-    }
+    data object DriveSearch : Screen("drive/search")
     data object DriveBackup : Screen("drive/backup")
     /** "Ordner sichern": phone folders backed up into Drive. */
     data object DriveFolders : Screen("drive/folders")

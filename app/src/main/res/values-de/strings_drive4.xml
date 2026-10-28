@@ -1,27 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Drive: Fotos nur im Fotos-Tab, Wischen, Sortieren nach Dateityp, Tresore im Menü, Tresor-Schlüssel -->
-    <plurals name="drive_photos_hidden">
-        <item quantity="one">%d Foto in diesem Ordner – im Fotos-Tab ansehen</item>
-        <item quantity="other">%d Fotos in diesem Ordner – im Fotos-Tab ansehen</item>
-    </plurals>
-    <plurals name="drive_search_photos_hidden">
-        <item quantity="one">%d Foto passt zur Suche – anzeigen</item>
-        <item quantity="other">%d Fotos passen zur Suche – anzeigen</item>
-    </plurals>
-    <plurals name="drive_delete_photos">
-        <item quantity="one">Darin liegt auch %d Foto oder Video (im Fotos-Tab). Es wird mitgelöscht.</item>
-        <item quantity="other">Darin liegen auch %d Fotos und Videos (im Fotos-Tab). Sie werden mitgelöscht.</item>
-    </plurals>
-    <plurals name="drive_delete_photos_more">
-        <item quantity="one">Darin liegt auch mindestens %d Foto oder Video (im Fotos-Tab). Es wird mitgelöscht.</item>
-        <item quantity="other">Darin liegen auch mindestens %d Fotos und Videos (im Fotos-Tab). Sie werden mitgelöscht.</item>
-    </plurals>
+    <!-- Drive: Wischen, Sortieren nach Dateityp, Tresore im Menü, Tresor-Schlüssel -->
     <string name="drive_sort_type">Dateityp</string>
     <string name="drive_sort_asc">Aufsteigend</string>
     <string name="drive_sort_desc">Absteigend</string>
-    <string name="drive_search_photos">Fotos durchsuchen</string>
-    <string name="drive_search_all_files">Alle anderen Dateien zeigen</string>
     <string name="drive_area_doc_ai">KI für Dokumente</string>
     <string name="drive_area_doc_ai_desc">Erkennt in „%1$s“ Rechnungen, Verträge und Fristen</string>
     <string name="drive_vaults">Tresore</string>

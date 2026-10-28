@@ -419,6 +419,27 @@ internal object DriveJson {
         DMonth(month, m.int("count")?.coerceAtLeast(0) ?: 0)
     }
 
+    /** `GET|POST photos/camera` → `{ folder: { id, path, areaId } }` (Drive 1.10); null without a valid folder. */
+    fun cameraFolder(o: JsonObject): DCameraFolder? {
+        val f = o.obj("folder") ?: return null
+        val id = f.long("id")?.takeIf { it > 0 } ?: return null
+        return DCameraFolder(id, f.str("path")?.take(1000), areaId(f.str("areaId")) ?: return null)
+    }
+
+    /**
+     * The query of `GET photos`, `photos/months` and `photos/memories`: [area] (else every area), the page's [before],
+     * [limit] (1–200), the day of the memories ([date]) — and `camera=1` for only the camera uploads (Drive 1.10,
+     * feature `photosFolder`). Null for an invalid area.
+     */
+    fun photosQuery(area: String? = null, before: String? = null, limit: Int? = null, camera: Boolean = false, date: String? = null): Map<String, String>? =
+        buildMap {
+            if (area != null) put("area", areaId(area) ?: return null)
+            if (before != null) put("before", before)
+            if (limit != null) put("limit", limit.coerceIn(1, 200).toString())
+            if (date != null) put("date", date)
+            if (camera) put("camera", "1")
+        }
+
     /** `GET photos/memories` → `{ groups: [{ yearsAgo, date, items }] }`; groups without photos are left out. */
     fun memories(o: JsonObject): List<DMemories>? = o.arr("groups")?.mapNotNull { e ->
         val g = e as? JsonObject ?: return@mapNotNull null

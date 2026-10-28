@@ -1496,18 +1496,12 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
     val folder: (Long) -> Unit = { go(Screen.DriveFolder.create(it)) }
     val file: (Long) -> Unit = { go(Screen.DriveFile.create(it)) }
     val vault: (String, Long) -> Unit = { v, f -> navController.navigate(Screen.DriveVault.create(v, f)) }
-    // "im Fotos-Tab ansehen" of a folder page: back to the Drive tab, on its photos
-    val photos: () -> Unit = {
-        com.gatecontrol.android.ui.drive.DriveViewPref.showPhotos(navController.context)
-        if (!navController.popBackStack(Screen.Drive.route, inclusive = false)) navigateToTab(Screen.Drive.route)
-    }
     composable(Screen.Drive.route) {
         GcContentWidth {
             com.gatecontrol.android.ui.drive.DriveHomeScreen(
                 com.gatecontrol.android.ui.drive.DriveNav(
                     folder = folder,
-                    search = { go(Screen.DriveSearch.create()) },
-                    searchPhotos = { go(Screen.DriveSearch.create(photos = true)) },
+                    search = { go(Screen.DriveSearch.route) },
                     trash = { go(Screen.DriveTrash.route) },
                     storage = { go(Screen.DriveStorage.route) },
                     folders = { go(Screen.DriveFolders.route) },
@@ -1520,7 +1514,7 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
         }
     }
     composable(Screen.DriveFolder.route, arguments = listOf(navArgument(Screen.DriveFolder.ARG_ID) { type = NavType.StringType })) {
-        GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderScreen(onBack = back, onFolder = folder, onFile = file, onVault = vault, onPhotos = photos) }
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderScreen(onBack = back, onFolder = folder, onFile = file, onVault = vault) }
     }
     composable(Screen.DriveFile.route, arguments = listOf(navArgument(Screen.DriveFile.ARG_ID) { type = NavType.StringType })) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveFileScreen(onBack = back, onFolder = folder) }
@@ -1541,12 +1535,8 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
     composable(Screen.DriveTrash.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveTrashScreen(onBack = back) }
     }
-    composable(
-        Screen.DriveSearch.route,
-        arguments = listOf(navArgument(Screen.DriveSearch.ARG_PHOTOS) { type = NavType.StringType; nullable = true; defaultValue = null }),
-    ) { entry ->
-        val photosOnly = entry.arguments?.getString(Screen.DriveSearch.ARG_PHOTOS) == "1"
-        GcContentWidth { com.gatecontrol.android.ui.drive.DriveSearchScreen(onBack = back, onFolder = folder, photos = photosOnly) }
+    composable(Screen.DriveSearch.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveSearchScreen(onBack = back, onFolder = folder) }
     }
     composable(Screen.DriveBackup.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveBackupScreen(onBack = back) }
