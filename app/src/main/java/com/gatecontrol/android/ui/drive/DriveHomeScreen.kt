@@ -60,11 +60,9 @@ import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcScreenTitle
 import com.gatecontrol.android.ui.components.GcSectionLabel
-import com.gatecontrol.android.ui.components.GcSwitchRow
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import com.gatecontrol.android.ui.theme.GateControlTheme

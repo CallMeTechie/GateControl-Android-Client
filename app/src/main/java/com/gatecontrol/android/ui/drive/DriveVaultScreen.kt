@@ -229,7 +229,8 @@ class DriveVaultViewModel @Inject constructor(
             }
             val vault = v.value
             // Drive 1.11: an approved device opens the vault only after the person confirmed (no screen lock: never)
-            if (!session.unlocked(vault.id) && session.approved(vault)) {
+            // (a vault answer without this person's devices counts as approved: never opened without the confirmation)
+            if (!session.unlocked(vault.id) && (vault.myDevices.isEmpty() || session.approved(vault))) {
                 val secure = deviceSecure()
                 if (!secure || (settings.current.vaultBiometric && !confirmed)) {
                     _ui.value = Ui.Gate(vault, session.label(vault), noScreenLock = !secure)
