@@ -271,7 +271,7 @@ class DriveFolderViewModel @Inject constructor(
 
     private val _sort = MutableStateFlow(DriveViewPref.sort(context))
     /** How the folder is sorted (kept on the device, the same for every folder). */
-    val sort: StateFlow<DriveLogic.FolderSort> = _sort.asStateFlow()
+    internal val sort: StateFlow<DriveLogic.FolderSort> = _sort.asStateFlow()
     private var job: Job? = null
 
     init {
