@@ -64,6 +64,9 @@ import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcScreenTitle
 import com.gatecontrol.android.ui.components.GcSectionLabel
+import com.gatecontrol.android.ui.components.GcSwitchRow
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.launch
 
@@ -71,6 +74,8 @@ import kotlinx.coroutines.launch
 data class DriveNav(
     val folder: (Long) -> Unit,
     val search: () -> Unit,
+    /** The search of the Photos tab: photos and videos only. */
+    val searchPhotos: () -> Unit = search,
     val trash: () -> Unit,
     /** The storage overview (Drive 1.7). */
     val storage: () -> Unit = {},
@@ -124,81 +129,117 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     val current = if (usable) home?.let { h -> h.areas.firstOrNull { it.id == selected } ?: viewModel.current(h.areas) } else null
     LaunchedEffect(current?.rootId) { current?.let { folderViewModel.open(it.rootId) } }
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }
-    // Drive 1.7 (feature `photos`): the tab shows the files or the photos.
+    // Drive 1.7 (feature `photos`): the tab has two pages, the files and the photos; a swipe goes from one to the other.
     val hasPhotos = me?.has(DMe.FEATURE_PHOTOS) == true
-    var photos by rememberSaveable { mutableStateOf(DriveViewPref.photos(context)) }
-    val showPhotos = photos && hasPhotos
-    val setPhotos: (Boolean) -> Unit = { photos = it; DriveViewPref.setPhotos(context, it) }
+    val ticked by photosViewModel.selected.collectAsStateWithLifecycle()
+    val pager = rememberPagerState(initialPage = DriveLogic.tabOf(DriveViewPref.photos(context), hasPhotos)) { DriveLogic.tabCount(hasPhotos) }
+    val onPhotosPage = DriveLogic.isPhotosTab(pager.currentPage, hasPhotos)
+    val showPage: (Boolean) -> Unit = { photos -> scope.launch { pager.animateScrollToPage(DriveLogic.tabOf(photos, hasPhotos)) } }
+    // the page the person ends on is kept; back on the tab (another page asked for the photos) it is shown again
+    var synced by remember { mutableStateOf(false) }
+    LaunchedEffect(hasPhotos) {
+        if (!hasPhotos) return@LaunchedEffect
+        val want = DriveLogic.tabOf(DriveViewPref.photos(context), true)
+        if (pager.currentPage != want) pager.scrollToPage(want)
+        synced = true
+    }
+    LaunchedEffect(pager.settledPage, synced) { if (synced && hasPhotos) DriveViewPref.setPhotos(context, DriveLogic.isPhotosTab(pager.settledPage, true)) }
+    LifecycleResumeEffect(pager, hasPhotos, synced) {
+        val want = DriveLogic.tabOf(DriveViewPref.photos(context), hasPhotos)
+        if (synced && pager.currentPage != want && !pager.isScrollInProgress) scope.launch { pager.scrollToPage(want) }
+        onPauseOrDispose { }
+    }
+    val vaults by viewModel.vaults.collectAsStateWithLifecycle()
+    LaunchedEffect(drawer.isOpen, me?.features) { if (drawer.isOpen) viewModel.loadVaults() }
+    val grid = rememberDriveGrid()
 
     ModalNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
             ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
+                val close: () -> Unit = { scope.launch { drawer.close() } }
                 DriveDrawer(
                     areas = home?.areas.orEmpty().takeIf { usable }.orEmpty(),
                     current = current,
-                    onArea = { a -> viewModel.select(a); if (showPhotos) setPhotos(false); scope.launch { drawer.close() } },
-                    onTrash = { scope.launch { drawer.close() }; nav.trash() },
-                    onFolders = { scope.launch { drawer.close() }; nav.folders() },
-                    onStorage = if (me?.has(DMe.FEATURE_STORAGE) == true) ({ scope.launch { drawer.close() }; nav.storage() }) else null,
-                    onDeadlines = if (me?.has(DMe.FEATURE_DOC_AI) == true) ({ scope.launch { drawer.close() }; nav.deadlines() }) else null,
+                    onArea = { a -> viewModel.select(a); if (onPhotosPage) showPage(false); close() },
+                    onTrash = { close(); nav.trash() },
+                    onFolders = { close(); nav.folders() },
+                    onStorage = if (me?.has(DMe.FEATURE_STORAGE) == true) ({ close(); nav.storage() }) else null,
+                    onDeadlines = if (me?.has(DMe.FEATURE_DOC_AI) == true) ({ close(); nav.deadlines() }) else null,
                     onImport = if (me?.has(DMe.FEATURE_CLOUD_IMPORT) == true) ({
                         scope.launch {
                             drawer.close()
                             viewModel.importUrl()?.let { openPortal(context, it) } ?: Toast.makeText(context, R.string.drive_portal_unavailable, Toast.LENGTH_LONG).show()
                         }
                     }) else null,
+                    // Drive 1.8 (`docAi`): the AI per area, with the write right
+                    docAi = current?.takeIf { me?.has(DMe.FEATURE_DOC_AI) == true && it.writable && it.docAi != null },
+                    onDocAi = viewModel::setDocAi,
+                    // Drive 1.9 (`vault`): every vault, opened from here
+                    vaults = if (me?.has(DMe.FEATURE_VAULT) == true) vaults else null,
+                    onVault = { e -> close(); nav.vault(e.vault.id, e.vault.nodeId) },
+                    onNewVault = if (me?.has(DMe.FEATURE_VAULT) == true && current?.writable == true) ({
+                        close()
+                        showPage(false)
+                        folderViewModel.startVault()
+                    }) else null,
                 )
             }
         },
     ) {
-        if (home != null && current != null && showPhotos) {
-            DrivePhotosContent(
-                viewModel = photosViewModel,
-                topBar = {
-                    TabBar(stringResource(R.string.drive_mode_photos), onMenu = openMenu, onSearch = nav.search)
-                    DriveModeSwitch(photos = true, onPhotos = setPhotos)
-                },
-                onAlbum = nav.album,
-            )
-        } else if (home != null && current != null) {
-            DriveFolderContent(
-                viewModel = folderViewModel,
-                onFolder = nav.folder,
-                onFile = nav.file,
-                onVault = nav.vault,
-                topBar = { _, actions ->
-                    Column {
-                        TabBar(current.label, onMenu = openMenu, onSearch = nav.search, actions = actions)
-                        if (hasPhotos) DriveModeSwitch(photos = false, onPhotos = setPhotos)
-                    }
-                },
-                header = {
-                    // Drive 1.6 (feature `guard`): unusual changes stopped — undo, release or look in the portal.
-                    val portal = DriveLogic.portalDriveUrl(me)
-                    DriveLogic.openIncidents(me).take(3).forEach { incident ->
-                        GuardBanner(
-                            incident = incident,
-                            busy = guardBusy == incident.id,
-                            onUndo = { guardAsk = incident to true },
-                            onRelease = { guardAsk = incident to false },
-                            onPortal = portal?.let { url -> { openPortal(context, url) } },
+        if (home != null && current != null) {
+            Column(Modifier.fillMaxSize()) {
+                TabBar(
+                    if (onPhotosPage) stringResource(R.string.drive_mode_photos) else current.label,
+                    onMenu = openMenu,
+                    onSearch = if (onPhotosPage) nav.searchPhotos else nav.search,
+                    actions = { if (!onPhotosPage) FolderViewActions(folderViewModel, grid) },
+                )
+                if (hasPhotos) DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage)
+                HorizontalPager(
+                    state = pager,
+                    modifier = Modifier.weight(1f),
+                    // ticked photos keep their page (the selection bar belongs to it)
+                    userScrollEnabled = DriveLogic.tabSwipe(hasPhotos, ticked.isNotEmpty()),
+                    key = { it },
+                ) { page ->
+                    if (DriveLogic.isPhotosTab(page, hasPhotos)) {
+                        DrivePhotosContent(viewModel = photosViewModel, topBar = {}, onAlbum = nav.album)
+                    } else {
+                        DriveFilesPage(
+                            folderViewModel = folderViewModel,
+                            nav = nav,
+                            grid = grid,
+                            onPhotos = if (hasPhotos) ({ showPage(true) }) else null,
+                            header = {
+                                // Drive 1.6 (feature `guard`): unusual changes stopped — undo, release or look in the portal.
+                                val portal = DriveLogic.portalDriveUrl(me)
+                                DriveLogic.openIncidents(me).take(3).forEach { incident ->
+                                    GuardBanner(
+                                        incident = incident,
+                                        busy = guardBusy == incident.id,
+                                        onUndo = { guardAsk = incident to true },
+                                        onRelease = { guardAsk = incident to false },
+                                        onPortal = portal?.let { url -> { openPortal(context, url) } },
+                                    )
+                                }
+                                wipes?.let { w ->
+                                    GcBanner(tone = GcTone.Warn, icon = GcIcons.Trash) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(pluralStringResource(R.plurals.drive_wipes_banner, w.names.size, w.names.size), style = MaterialTheme.typography.bodyMedium)
+                                            TextButton(onClick = {
+                                                val sender = viewModel.trashRequest(w)
+                                                if (sender == null) viewModel.wipesDone(w) else wipeLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                                            }) { Text(stringResource(R.string.drive_wipes_action)) }
+                                        }
+                                    }
+                                }
+                            },
                         )
                     }
-                    wipes?.let { w ->
-                        GcBanner(tone = GcTone.Warn, icon = GcIcons.Trash) {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(pluralStringResource(R.plurals.drive_wipes_banner, w.names.size, w.names.size), style = MaterialTheme.typography.bodyMedium)
-                                TextButton(onClick = {
-                                    val sender = viewModel.trashRequest(w)
-                                    if (sender == null) viewModel.wipesDone(w) else wipeLauncher.launch(IntentSenderRequest.Builder(sender).build())
-                                }) { Text(stringResource(R.string.drive_wipes_action)) }
-                            }
-                        }
-                    }
-                },
-            )
+                }
+            }
         } else {
             Column(Modifier.fillMaxSize()) {
                 TabBar(stringResource(R.string.drive_title), onMenu = null, onSearch = null)
@@ -230,6 +271,27 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
             onDismiss = { guardAsk = null },
         )
     }
+}
+
+/** The Files page of the Drive tab: the chosen area's top folder (its bar is the tab's own, above the pages). */
+@Composable
+private fun DriveFilesPage(
+    folderViewModel: DriveFolderViewModel,
+    nav: DriveNav,
+    grid: androidx.compose.runtime.MutableState<Boolean>,
+    onPhotos: (() -> Unit)?,
+    header: @Composable () -> Unit,
+) {
+    DriveFolderContent(
+        viewModel = folderViewModel,
+        onFolder = nav.folder,
+        onFile = nav.file,
+        onVault = nav.vault,
+        onPhotos = onPhotos,
+        gridState = grid,
+        topBar = { _, _ -> },
+        header = header,
+    )
 }
 
 /** Asks before undo (files are put back) or release (the device may write again). */
@@ -310,6 +372,13 @@ private fun DriveDrawer(
     onStorage: (() -> Unit)?,
     onDeadlines: (() -> Unit)? = null,
     onImport: (() -> Unit)? = null,
+    /** The area whose "KI für Dokumente" can be switched here (null: none). */
+    docAi: DArea? = null,
+    onDocAi: (DArea, Boolean) -> Unit = { _, _ -> },
+    /** The vaults (null: Drive has none). */
+    vaults: List<DriveHomeViewModel.VaultEntry>? = null,
+    onVault: (DriveHomeViewModel.VaultEntry) -> Unit = {},
+    onNewVault: (() -> Unit)? = null,
 ) {
     Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
         GcScreenTitle(stringResource(R.string.drive_title), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
@@ -322,6 +391,51 @@ private fun DriveDrawer(
                     onClick = { onArea(a) },
                     leading = { AreaIcon(a) },
                     selected = a.id == current?.id,
+                )
+            }
+            if (docAi != null) {
+                GcSwitchRow(
+                    label = stringResource(R.string.drive_area_doc_ai),
+                    description = stringResource(R.string.drive_area_doc_ai_desc, docAi.label),
+                    checked = docAi.docAi == true,
+                    onCheckedChange = { onDocAi(docAi, it) },
+                    icon = GcIcons.Receipt,
+                )
+            }
+            GcRowDivider(modifier = Modifier.padding(vertical = 8.dp))
+        }
+        // Drive 1.9 (`vault`): the vaults are opened from here (their folders also stay in the lists)
+        if (vaults != null && (vaults.isNotEmpty() || onNewVault != null)) {
+            GcSectionLabel(stringResource(R.string.drive_vaults), modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 4.dp))
+            vaults.forEach { e ->
+                val area = areas.firstOrNull { it.id == e.vault.areaId }?.label
+                val status = when (e.state) {
+                    DriveHomeViewModel.VaultState.OPEN -> if (e.vault.pending > 0) pluralStringResource(R.plurals.drive_vault_requests_banner, e.vault.pending, e.vault.pending) else null
+                    DriveHomeViewModel.VaultState.PENDING -> stringResource(R.string.drive_vault_menu_pending)
+                    DriveHomeViewModel.VaultState.LOCKED -> stringResource(R.string.drive_vault_menu_locked)
+                }
+                val x = GateControlTheme.extraColors
+                GcListRow(
+                    title = e.name ?: stringResource(R.string.drive_vault_menu_locked_title),
+                    description = listOfNotNull(area, status).joinToString(" · ").ifEmpty { null },
+                    onClick = { onVault(e) },
+                    leading = {
+                        GcIconSquare(size = 40.dp, background = x.warnBg) {
+                            Icon(if (e.state == DriveHomeViewModel.VaultState.OPEN) GcIcons.Vault else GcIcons.Lock, contentDescription = null, tint = x.warn, modifier = Modifier.size(20.dp))
+                        }
+                    },
+                )
+            }
+            if (onNewVault != null) {
+                GcListRow(
+                    title = stringResource(R.string.drive_vault_new),
+                    description = stringResource(R.string.drive_vault_new_desc),
+                    onClick = onNewVault,
+                    leading = {
+                        GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
+                            Icon(GcIcons.Plus, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                        }
+                    },
                 )
             }
             GcRowDivider(modifier = Modifier.padding(vertical = 8.dp))

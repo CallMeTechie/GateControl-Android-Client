@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive: photos only in the Photos tab, swiping, sort by file type, vaults in the menu, vault keys -->
+    <plurals name="drive_photos_hidden">
+        <item quantity="one">%d photo in this folder – view in the Photos tab</item>
+        <item quantity="other">%d photos in this folder – view in the Photos tab</item>
+    </plurals>
+    <plurals name="drive_search_photos_hidden">
+        <item quantity="one">%d photo matches – show</item>
+        <item quantity="other">%d photos match – show</item>
+    </plurals>
+    <plurals name="drive_delete_photos">
+        <item quantity="one">It also holds %d photo or video (in the Photos tab). It is deleted too.</item>
+        <item quantity="other">It also holds %d photos and videos (in the Photos tab). They are deleted too.</item>
+    </plurals>
+    <plurals name="drive_delete_photos_more">
+        <item quantity="one">It also holds at least %d photo or video (in the Photos tab). It is deleted too.</item>
+        <item quantity="other">It also holds at least %d photos and videos (in the Photos tab). They are deleted too.</item>
+    </plurals>
+    <string name="drive_sort_type">File type</string>
+    <string name="drive_sort_asc">Ascending</string>
+    <string name="drive_sort_desc">Descending</string>
+    <string name="drive_search_photos">Search photos</string>
+    <string name="drive_search_all_files">Show all other files</string>
+    <string name="drive_area_doc_ai">AI for documents</string>
+    <string name="drive_area_doc_ai_desc">Recognises invoices, contracts and deadlines in “%1$s”</string>
+    <string name="drive_vaults">Vaults</string>
+    <string name="drive_vault_menu_locked_title">Locked vault</string>
+    <string name="drive_vault_menu_locked">Request access or use the recovery key</string>
+    <string name="drive_vault_menu_pending">Access requested</string>
+    <string name="drive_vault_keys">Keys</string>
+    <string name="drive_vault_rotate">Change vault key</string>
+    <string name="drive_vault_rotate_title">Create a new vault key?</string>
+    <string name="drive_vault_rotate_text">New files are encrypted with a new key that only the devices approved now and the recovery key receive. Older files stay readable.</string>
+    <string name="drive_vault_rotation_now">Someone no longer has access to this vault. Create a new key so new files are protected from this person.</string>
+    <string name="drive_vault_rotation_read">Someone no longer has access to this vault. A person with write access should create a new key.</string>
+    <string name="drive_vault_new_recovery">New recovery key</string>
+    <string name="drive_vault_new_recovery_text">A new recovery key is created and shown once. The previous one no longer opens the vault afterwards.</string>
+    <string name="drive_vault_new_recovery_go">Create</string>
+    <string name="drive_vault_recovery_replaced">The previous recovery key is no longer valid.</string>
+    <string name="drive_vault_new_version">Upload new version</string>
+    <string name="drive_done_rotated">New vault key created.</string>
+    <string name="drive_code_old_keys">This device lacks older keys of the vault. Open it once with the recovery key and try again.</string>
+</resources>

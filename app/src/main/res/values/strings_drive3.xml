@@ -95,7 +95,6 @@
     <string name="drive_done_approved">Device approved.</string>
     <string name="drive_done_declined">Request declined.</string>
     <string name="drive_vault_unnamed_device">Unnamed device</string>
-    <string name="drive_vault_rotation">Someone no longer has access to this vault. Make a new key in the portal so new files are safe from them.</string>
     <string name="drive_vault_uploading">Encrypting and uploading %1$s …</string>
     <string name="drive_done_upload">Uploaded.</string>
     <plurals name="drive_deadline_remind_days">

@@ -95,7 +95,6 @@
     <string name="drive_done_approved">Gerät freigegeben.</string>
     <string name="drive_done_declined">Anfrage abgelehnt.</string>
     <string name="drive_vault_unnamed_device">Unbenanntes Gerät</string>
-    <string name="drive_vault_rotation">Jemand hat keinen Zugriff mehr auf diesen Tresor. Lege im Portal einen neuen Schlüssel an, damit neue Dateien vor dieser Person geschützt sind.</string>
     <string name="drive_vault_uploading">%1$s wird verschlüsselt und hochgeladen …</string>
     <string name="drive_done_upload">Hochgeladen.</string>
     <plurals name="drive_deadline_remind_days">

@@ -754,7 +754,14 @@ class DriveTrashViewModel @Inject constructor(private val api: DriveApi) : ViewM
 class DriveSearchViewModel @Inject constructor(
     private val api: DriveApi,
     private val transfers: DriveTransfers,
+    val live: DriveLive,
 ) : ViewModel() {
+
+    init {
+        // the features (does Drive have the Photos tab) — usually known from the Drive tab already
+        if (live.me.value == null) viewModelScope.launch { live.current() }
+    }
+
     private val _state = MutableStateFlow<DriveLoad<List<DNode>>?>(null)
     val state: StateFlow<DriveLoad<List<DNode>>?> = _state.asStateFlow()
     private var job: Job? = null

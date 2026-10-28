@@ -311,6 +311,8 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "decrypt" -> context.getString(R.string.drive_code_decrypt)
     "stale_key" -> context.getString(R.string.drive_code_stale_key)
     "recovery_key" -> context.getString(R.string.drive_code_recovery_key)
+    "done_rotated" -> context.getString(R.string.drive_done_rotated)
+    "old_keys" -> context.getString(R.string.drive_code_old_keys)
     else -> context.getString(R.string.drive_error_generic, code)
 }
 
@@ -482,6 +484,9 @@ internal object DriveViewPref {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_PHOTOS, photos).apply()
     }
 
+    /** "im Fotos-Tab ansehen" from another page: the Drive tab shows its photos when it is back. */
+    fun showPhotos(context: Context) = setPhotos(context, true)
+
     private const val KEY_SORT = "sort"
     private const val KEY_SORT_DESC = "sort_desc"
 
@@ -505,7 +510,7 @@ internal fun rememberDriveGrid(): androidx.compose.runtime.MutableState<Boolean>
 
 /** "12 Fotos in diesem Ordner – im Fotos-Tab ansehen": the photos the Files tab leaves out; a tap opens the Photos tab. */
 @Composable
-internal fun PhotosHint(count: Int, onClick: (() -> Unit)?) {
+internal fun PhotosHint(count: Int, onClick: (() -> Unit)?, search: Boolean = false) {
     val x = GateControlTheme.extraColors
     Row(
         Modifier
@@ -519,7 +524,7 @@ internal fun PhotosHint(count: Int, onClick: (() -> Unit)?) {
     ) {
         Icon(GcIcons.Photo, contentDescription = null, tint = x.blue, modifier = Modifier.size(20.dp))
         Text(
-            androidx.compose.ui.res.pluralStringResource(R.plurals.drive_photos_hidden, count, count),
+            androidx.compose.ui.res.pluralStringResource(if (search) R.plurals.drive_search_photos_hidden else R.plurals.drive_photos_hidden, count, count),
             style = MaterialTheme.typography.bodyMedium,
             color = if (onClick != null) x.accentText else x.muted,
             modifier = Modifier.weight(1f).padding(start = 12.dp),
