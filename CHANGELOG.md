@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.18] - 2026-10-28
+
+### Changes
+- Ordner sichern, Fotos und Alben, Zeitreise, Speicher-Übersicht, Aufnahmedatum (#142)
+
+---
+
 ## [1.67.17] - 2026-10-28
 
 ### Changes
