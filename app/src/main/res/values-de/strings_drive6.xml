@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive 1.11: Menü mit Ordnerbaum, Tresore nur im Menü, Tresor-Sperre, Drive-Einstellungen -->
+    <string name="drive_menu_personal">Persönlich</string>
+    <string name="drive_menu_shared">Gemeinsam</string>
+    <string name="drive_seat_family">Familien-Platz</string>
+    <string name="drive_seat_business">Business-Platz</string>
+    <string name="drive_tree_expand">Aufklappen: %1$s</string>
+    <string name="drive_tree_collapse">Zuklappen: %1$s</string>
+    <string name="drive_vault_whose_mine">Privat</string>
+    <string name="drive_vault_whose_family">Mit Familie geteilt</string>
+    <string name="drive_vault_whose_team">Team „%1$s“</string>
+    <string name="drive_vault_state_open">geöffnet</string>
+    <string name="drive_vault_state_locked">gesperrt</string>
+    <string name="drive_vault_state_new">nicht freigegeben</string>
+
+    <string name="drive_vault_new_menu_hint">Erscheint im Menü unter „Tresore“, nicht hier</string>
+    <string name="drive_vault_who">Wer darf ihn öffnen?</string>
+    <string name="drive_vault_who_me">Nur ich</string>
+    <string name="drive_vault_who_me_desc">Privat, liegt in „Meine Dateien“</string>
+    <string name="drive_vault_who_family">Mit der Familie teilen</string>
+    <string name="drive_vault_who_family_desc">Jedes Familienmitglied braucht deine Freigabe für sein Gerät</string>
+    <string name="drive_vault_who_team">Team-Ordner „%1$s“</string>
+    <string name="drive_vault_who_team_desc">Alle mit Zugriff auf den Team-Ordner, jedes Gerät nach Freigabe</string>
+    <string name="drive_vault_no_area">Du hast keinen Bereich, in dem du einen Tresor anlegen darfst.</string>
+    <plurals name="drive_vault_new_hint">
+        <item quantity="one">Öffnen nur mit Fingerabdruck oder PIN. Der Tresor schließt sich nach %d Minute ohne Nutzung. Du findest ihn im Menü unter „Tresore“.</item>
+        <item quantity="other">Öffnen nur mit Fingerabdruck oder PIN. Der Tresor schließt sich nach %d Minuten ohne Nutzung. Du findest ihn im Menü unter „Tresore“.</item>
+    </plurals>
+
+    <string name="drive_vault_gate_title">Tresor gesperrt</string>
+    <string name="drive_vault_gate_text">Bestätige mit Fingerabdruck, Gesicht oder der PIN deines Handys, um den Tresor zu öffnen.</string>
+    <string name="drive_vault_gate_prompt">Tresor öffnen</string>
+    <string name="drive_vault_gate_unlock">Entsperren</string>
+    <string name="drive_vault_gate_failed">Nicht bestätigt. Versuch es noch einmal.</string>
+    <string name="drive_vault_lock_now">Tresor sperren</string>
+    <string name="drive_vault_no_lock">Tresore lassen sich nur auf einem Handy mit Displaysperre öffnen (PIN, Muster oder Passwort). Richte sie in den Einstellungen des Handys ein.</string>
+    <string name="drive_vault_no_lock_settings">Displaysperre einrichten</string>
+
+    <string name="drive_settings_title">Drive-Einstellungen</string>
+    <string name="drive_settings_row_desc">Sicherung, Tresore, KI, Ansicht und Daten auf diesem Gerät</string>
+    <string name="drive_settings_row_backup_on">Sicherung an</string>
+    <string name="drive_settings_backup">Sicherung</string>
+    <string name="drive_settings_vault_biometric">Mit Fingerabdruck öffnen</string>
+    <string name="drive_settings_vault_biometric_desc">Oder mit Gesicht oder der PIN des Handys</string>
+    <string name="drive_settings_vault_biometric_off_title">Tresore ohne Bestätigung öffnen?</string>
+    <string name="drive_settings_vault_biometric_off">Dann schützt nur noch die Freigabe dieses Geräts deine Tresore: Wer dein entsperrtes Handy in der Hand hat, kann sie öffnen.</string>
+    <string name="drive_settings_vault_biometric_off_go">Trotzdem ausschalten</string>
+    <string name="drive_settings_vault_key_failed">Der Geräteschlüssel konnte nicht umgestellt werden. Die Einstellung bleibt, wie sie war.</string>
+    <string name="drive_settings_vault_auto_lock">Automatisch sperren</string>
+    <string name="drive_settings_vault_auto_lock_desc">Wenn der Tresor nicht benutzt wird</string>
+    <plurals name="drive_settings_vault_after">
+        <item quantity="one">nach %d Minute</item>
+        <item quantity="other">nach %d Minuten</item>
+    </plurals>
+    <string name="drive_settings_vault_leave">Beim Verlassen der App sperren</string>
+    <string name="drive_settings_vault_leave_desc">Sobald GateControl in den Hintergrund geht</string>
+    <string name="drive_settings_vault_safety">Sicherheitszahl dieses Geräts</string>
+    <string name="drive_settings_vault_safety_desc">Zum Vergleichen, wenn ein anderes Gerät dieses freigibt</string>
+    <string name="drive_settings_vault_approved">Freigegeben für</string>
+    <string name="drive_settings_vault_approved_none">Noch für keinen Tresor</string>
+    <plurals name="drive_settings_vault_count">
+        <item quantity="one">%d Tresor</item>
+        <item quantity="other">%d Tresore</item>
+    </plurals>
+    <string name="drive_settings_ai_vaults">Tresore werden nie von der KI gelesen.</string>
+    <string name="drive_settings_view">Ansicht</string>
+    <string name="drive_settings_view_layout">Darstellung</string>
+    <string name="drive_settings_view_list">Liste</string>
+    <string name="drive_settings_view_grid">Kacheln</string>
+    <string name="drive_settings_view_camera">Fotos-Tab startet mit „Nur Kamera-Uploads“</string>
+    <string name="drive_settings_device">Daten auf diesem Gerät</string>
+    <string name="drive_settings_cache">Zwischenspeicher</string>
+    <string name="drive_settings_cache_desc">%1$s für Vorschaubilder und geöffnete Dateien</string>
+    <string name="drive_settings_cache_clear">Leeren</string>
+    <string name="drive_settings_cache_cleared">Zwischenspeicher geleert.</string>
+    <string name="drive_settings_wifi">Hochladen nur im WLAN</string>
+    <string name="drive_settings_wifi_desc">Gilt für alle Uploads, nicht nur für die Foto-Sicherung</string>
+    <string name="drive_upload_wifi_wait">Wartet auf WLAN</string>
+    <string name="drive_settings_notify">Benachrichtigungen</string>
+    <string name="drive_settings_notify_deadlines">Erinnerungen an Fristen</string>
+    <string name="drive_settings_notify_vault">Anfragen zur Tresor-Freigabe</string>
+    <string name="drive_settings_notify_vault_desc">Wenn ein neues Gerät einen Tresor öffnen möchte</string>
+</resources>

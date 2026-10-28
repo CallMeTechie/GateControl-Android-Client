@@ -49,7 +49,6 @@
     <string name="drive_deadline_today">today</string>
     <string name="drive_deadline_reminder_on">Reminder set</string>
     <string name="drive_import">Import from Google Drive / OneDrive</string>
-    <string name="drive_import_desc">Opens the portal</string>
     <string name="drive_office_edit">Edit in the browser</string>
     <string name="drive_office_view">View in the browser</string>
     <string name="drive_code_office_unavailable">The office is not available right now.</string>
@@ -60,8 +59,6 @@
     <string name="drive_code_stale_key">The vault has a new key. Please try again.</string>
     <string name="drive_vault">Vault</string>
     <string name="drive_vault_new">New vault</string>
-    <string name="drive_vault_new_desc">An end-to-end encrypted folder</string>
-    <string name="drive_vault_create_text">Names and contents are encrypted on this phone. Only your approved devices can read them; the server keeps nothing but ciphertext.</string>
     <string name="drive_vault_create">Create vault</string>
     <string name="drive_vault_recovery_title">Recovery key</string>
     <string name="drive_vault_recovery_text">Write this key down and keep it safe. It opens the vault on a new device when no approved device is at hand. It is shown only now.</string>

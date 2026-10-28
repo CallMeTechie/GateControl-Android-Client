@@ -242,6 +242,20 @@ internal object DriveJson {
 
     fun items(o: JsonObject): List<DNode>? = o.arr("items")?.mapNotNull { (it as? JsonObject)?.let(::node) }
 
+    /** `GET nodes/<id>/children[?dirs=1]` → the folders for the menu's tree (`hasDirs` from Drive 1.11 on). */
+    fun treeDirs(o: JsonObject): List<DTreeDir>? {
+        val arr = o.arr("items") ?: return null
+        val nodes = ArrayList<DNode>()
+        val hasDirs = HashMap<Long, Boolean>()
+        for (e in arr) {
+            val item = e as? JsonObject ?: continue
+            val n = node(item) ?: continue
+            nodes += n
+            item.bool("hasDirs")?.let { hasDirs[n.id] = it }
+        }
+        return DriveTree.dirsOf(nodes, hasDirs)
+    }
+
     /**
      * `GET nodes/<id>/content` → the media id to download (the call also tells a child that a parent looked), or
      * [EMPTY_CONTENT] for an empty file: Drive 1.5 keeps those without media (`empty: true`, `size: 0`).

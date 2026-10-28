@@ -420,8 +420,7 @@ fun AppNavigation(
                                 onNavigateToProfile = { paneKey = SettingsPane.Profile.key },
                                 onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
                                 onNavigateToShared = if (plugins.gatedrop) { { paneKey = SettingsPane.Shared.key } } else null,
-                                onNavigateToDriveBackup = if (plugins.drive) { { navController.navigate(Screen.DriveBackup.route) { launchSingleTop = true } } } else null,
-                                onNavigateToDriveFolders = if (plugins.drive) { { navController.navigate(Screen.DriveFolders.route) { launchSingleTop = true } } } else null,
+                                onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
                             )
@@ -451,8 +450,7 @@ fun AppNavigation(
                         onNavigateToProfile = openProfileFromSettings,
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                         onNavigateToShared = if (plugins.gatedrop) { { navController.navigate(Screen.Shared.create()) { launchSingleTop = true } } } else null,
-                        onNavigateToDriveBackup = if (plugins.drive) { { navController.navigate(Screen.DriveBackup.route) { launchSingleTop = true } } } else null,
-                        onNavigateToDriveFolders = if (plugins.drive) { { navController.navigate(Screen.DriveFolders.route) { launchSingleTop = true } } } else null,
+                        onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
                     )
                 }
             }
@@ -1509,6 +1507,7 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
                     file = file,
                     deadlines = { go(Screen.DriveDeadlines.route) },
                     vault = vault,
+                    settings = { go(Screen.DriveSettings.route) },
                 ),
             )
         }
@@ -1537,6 +1536,15 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
     }
     composable(Screen.DriveSearch.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveSearchScreen(onBack = back, onFolder = folder) }
+    }
+    composable(Screen.DriveSettings.route) {
+        GcContentWidth {
+            com.gatecontrol.android.ui.drive.DriveSettingsScreen(
+                onBack = back,
+                onBackup = { go(Screen.DriveBackup.route) },
+                onFolders = { go(Screen.DriveFolders.route) },
+            )
+        }
     }
     composable(Screen.DriveBackup.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveBackupScreen(onBack = back) }

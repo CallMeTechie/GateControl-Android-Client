@@ -7,8 +7,6 @@
     <string name="drive_area_doc_ai">KI für Dokumente</string>
     <string name="drive_area_doc_ai_desc">Erkennt in „%1$s“ Rechnungen, Verträge und Fristen</string>
     <string name="drive_vaults">Tresore</string>
-    <string name="drive_vault_menu_locked_title">Gesperrter Tresor</string>
-    <string name="drive_vault_menu_locked">Freigabe anfragen oder Wiederherstellungsschlüssel</string>
     <string name="drive_vault_menu_pending">Freigabe angefragt</string>
     <string name="drive_vault_keys">Schlüssel</string>
     <string name="drive_vault_rotate">Tresor-Schlüssel wechseln</string>

@@ -81,8 +81,9 @@ object DriveFolderBackupWork {
     private const val CHANNEL = "drive_backup"
     private const val NOTIFICATION_ID = 0x6E000002
 
-    private fun constraints(s: DriveFolderSettings) = Constraints.Builder()
-        .setRequiredNetworkType(if (s.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
+    // its own "Nur im WLAN" and Drive's "Hochladen nur im WLAN" (Drive-Einstellungen, for every upload)
+    private fun constraints(context: Context, s: DriveFolderSettings) = Constraints.Builder()
+        .setRequiredNetworkType(if (s.wifiOnly || com.gatecontrol.android.drive.DriveSettings.wifiOnly(context)) NetworkType.UNMETERED else NetworkType.CONNECTED)
         .setRequiresCharging(s.chargingOnly)
         .setRequiresBatteryNotLow(true)
         .build()
@@ -97,7 +98,7 @@ object DriveFolderBackupWork {
                 wm.cancelUniqueWork(TRIGGER)
                 return
             }
-            val periodic = PeriodicWorkRequestBuilder<DriveFolderBackupWorker>(1, TimeUnit.HOURS).setConstraints(constraints(settings)).build()
+            val periodic = PeriodicWorkRequestBuilder<DriveFolderBackupWorker>(1, TimeUnit.HOURS).setConstraints(constraints(context, settings)).build()
             wm.enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, periodic)
             watch(context, again = false)
             // A pass waiting under the old conditions (e.g. for WLAN) gets the new ones.
@@ -115,7 +116,7 @@ object DriveFolderBackupWork {
 
     private fun enqueueRun(context: Context, settings: DriveFolderSettings, policy: ExistingWorkPolicy) {
         val request = OneTimeWorkRequestBuilder<DriveFolderBackupWorker>()
-            .setConstraints(constraints(settings))
+            .setConstraints(constraints(context, settings))
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(RUN, policy, request)
@@ -143,7 +144,7 @@ object DriveFolderBackupWork {
         val b = folders(context)
         if (!b.active()) return
         runCatching {
-            val periodic = PeriodicWorkRequestBuilder<DriveFolderBackupWorker>(1, TimeUnit.HOURS).setConstraints(constraints(b.settings.value)).build()
+            val periodic = PeriodicWorkRequestBuilder<DriveFolderBackupWorker>(1, TimeUnit.HOURS).setConstraints(constraints(context, b.settings.value)).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, periodic)
             watch(context, again = false)
         }

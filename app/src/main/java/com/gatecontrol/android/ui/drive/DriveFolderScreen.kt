@@ -74,6 +74,7 @@ import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
+import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcOutlineButton
@@ -125,6 +126,8 @@ internal fun DriveFolderContent(
     onVault: (vaultId: String, folderId: Long) -> Unit = { _, _ -> },
     /** List or tiles (shared with the Drive tab's own bar, [FolderViewActions]). */
     gridState: androidx.compose.runtime.MutableState<Boolean> = rememberDriveGrid(),
+    /** A tap on the path above (the Drive tab: the folder shows in the tab itself); else [onFolder]. */
+    onCrumb: ((Long) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val area by viewModel.area.collectAsStateWithLifecycle()
@@ -190,7 +193,7 @@ internal fun DriveFolderContent(
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         topBar(title) { FolderViewActions(viewModel, gridState) }
-        if (folder != null && folder.crumbs.isNotEmpty()) Crumbs(folder, area?.label, onFolder)
+        if (folder != null && folder.crumbs.isNotEmpty()) Crumbs(folder, area?.label, onCrumb ?: onFolder)
         Column(
             // bottom: room for the round button over the last item
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 88.dp),
@@ -266,13 +269,19 @@ internal fun DriveFolderContent(
                     onClick = { addOpen = false; startScan() },
                     leading = { Icon(GcIcons.Scan, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                 )
-                // Drive 1.9 (feature `vault`): an end-to-end encrypted folder (not inside another vault)
+                // Drive 1.9 (feature `vault`): an end-to-end encrypted folder. Drive 1.11: only here, in the top folder of
+                // the area chosen in the dialog, and it shows in the menu under "Tresore" (never in the lists)
                 if (me?.has(DMe.FEATURE_VAULT) == true && folder?.node?.encrypted == false) {
+                    GcRowDivider(Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
                     GcListRow(
                         title = stringResource(R.string.drive_vault_new),
-                        description = stringResource(R.string.drive_vault_new_desc),
+                        description = stringResource(R.string.drive_vault_new_menu_hint),
                         onClick = { addOpen = false; viewModel.startVault() },
-                        leading = { Icon(GcIcons.Vault, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                        leading = {
+                            GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.warnBg) {
+                                Icon(GcIcons.Lock, contentDescription = null, tint = GateControlTheme.extraColors.warn, modifier = Modifier.size(20.dp))
+                            }
+                        },
                     )
                 }
             }
@@ -457,7 +466,7 @@ internal fun DriveFolderContent(
     newVault?.let { v ->
         val key = v.recoveryKey
         if (key == null) {
-            NewVaultDialog(busy = v.busy, onCreate = viewModel::createVault, onDismiss = viewModel::closeVault)
+            NewVaultDialog(v, onCreate = viewModel::createVault, onDismiss = viewModel::closeVault)
         } else {
             RecoveryKeyDialog(key, onDone = {
                 viewModel.closeVault()

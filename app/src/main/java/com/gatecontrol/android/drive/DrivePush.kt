@@ -14,6 +14,10 @@ object DrivePush {
 
     fun isDriveMessage(message: PushMessage): Boolean = message.topic.startsWith(TOPIC_PREFIX)
 
+    /** Whether [message] is shown as a notification: Drive's deadlines and vault requests can be off ([DriveSettingsValues]). */
+    fun shown(message: PushMessage, settings: DriveSettingsValues): Boolean =
+        !isDriveMessage(message) || DriveSettingsLogic.showPush(message.topic.removePrefix(TOPIC_PREFIX), settings)
+
     /** `file:<node>` | `vault:<vault>:<node>`; null for other messages. */
     fun destination(message: PushMessage): String? {
         if (!isDriveMessage(message)) return null

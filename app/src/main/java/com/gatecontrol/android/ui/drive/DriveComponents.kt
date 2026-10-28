@@ -313,6 +313,9 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "recovery_key" -> context.getString(R.string.drive_code_recovery_key)
     "done_rotated" -> context.getString(R.string.drive_done_rotated)
     "old_keys" -> context.getString(R.string.drive_code_old_keys)
+    "wifi_wait" -> context.getString(R.string.drive_upload_wifi_wait)
+    "auth_required" -> context.getString(R.string.drive_vault_gate_title)
+    "no_screen_lock" -> context.getString(R.string.drive_vault_no_lock)
     else -> context.getString(R.string.drive_error_generic, code)
 }
 
@@ -426,7 +429,11 @@ internal fun UploadsSheet(
             uploads.takeLast(50).forEach { u ->
                 val line = when (u.state) {
                     DriveTransfers.State.QUEUED ->
-                        if (u.code == "device_locked") stringResource(R.string.drive_upload_paused_locked) else stringResource(R.string.drive_upload_waiting)
+                        when (u.code) {
+                            "device_locked" -> stringResource(R.string.drive_upload_paused_locked)
+                            "wifi_wait" -> stringResource(R.string.drive_upload_wifi_wait)
+                            else -> stringResource(R.string.drive_upload_waiting)
+                        }
                     DriveTransfers.State.RUNNING -> if (u.total > 0) "${DriveLogic.size(u.sent)} / ${DriveLogic.size(u.total)}" else DriveLogic.size(u.sent)
                     DriveTransfers.State.CONFLICT -> stringResource(R.string.drive_upload_conflict)
                     DriveTransfers.State.DONE -> stringResource(R.string.drive_upload_done)

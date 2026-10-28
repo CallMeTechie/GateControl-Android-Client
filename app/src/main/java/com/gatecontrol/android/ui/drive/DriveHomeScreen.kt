@@ -69,6 +69,22 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import com.gatecontrol.android.drive.DriveTree
 
 /** Where the Drive tab leads. */
 data class DriveNav(
@@ -87,6 +103,8 @@ data class DriveNav(
     val deadlines: () -> Unit = {},
     /** A vault folder (Drive 1.9). */
     val vault: (String, Long) -> Unit = { _, _ -> },
+    /** "Drive-Einstellungen" (Drive 1.11, the gear of the menu). */
+    val settings: () -> Unit = {},
 )
 
 /**
@@ -120,12 +138,25 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
             viewModel.clearMessage()
         }
     }
-    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
-
     val home = (state as? DriveLoad.Ready)?.value
     val usable = home != null && home.me.licenceValid && home.me.seat != null && home.areas.isNotEmpty()
     val current = if (usable) home?.let { h -> h.areas.firstOrNull { it.id == selected } ?: viewModel.current(h.areas) } else null
-    LaunchedEffect(current?.rootId) { current?.let { folderViewModel.open(it.rootId) } }
+    val folderState by folderViewModel.state.collectAsStateWithLifecycle()
+    /** The folder shown on the Files page (the area's top or, from the menu's tree, one below). */
+    val shown = (folderState as? DriveLoad.Ready)?.value?.node
+    /** A folder picked in the menu's tree of another area: opened once that area is the current one. */
+    var pendingFolder by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(current?.rootId) {
+        val c = current ?: return@LaunchedEffect
+        val target = pendingFolder
+        pendingFolder = null
+        when {
+            target != null -> folderViewModel.open(target)
+            // back on the tab: a folder of this area stays open
+            (folderViewModel.state.value as? DriveLoad.Ready)?.value?.node?.areaId == c.id -> Unit
+            else -> folderViewModel.open(c.rootId)
+        }
+    }
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }
     // Drive 1.7 (feature `photos`): the tab has two pages, the files and the photos; a swipe goes from one to the other.
     val hasPhotos = me?.has(DMe.FEATURE_PHOTOS) == true
@@ -148,8 +179,20 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         onPauseOrDispose { }
     }
     val vaults by viewModel.vaults.collectAsStateWithLifecycle()
-    LaunchedEffect(drawer.isOpen, me?.features) { if (drawer.isOpen) viewModel.loadVaults() }
+    val expanded by viewModel.expanded.collectAsStateWithLifecycle()
+    val children by viewModel.children.collectAsStateWithLifecycle()
+    LaunchedEffect(drawer.isOpen, me?.features) {
+        if (drawer.isOpen) {
+            viewModel.loadVaults()
+            viewModel.refreshTree()
+        }
+    }
     val grid = rememberDriveGrid()
+    // a folder below the area's top (opened from the menu): back goes up a level
+    BackHandler(enabled = !drawer.isOpen && !onPhotosPage && shown != null && shown.parentId != null && shown.areaId == current?.id) {
+        shown?.parentId?.let(folderViewModel::open)
+    }
+    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -157,31 +200,54 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         drawerContent = {
             ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
                 val close: () -> Unit = { scope.launch { drawer.close() } }
+                val areas = home?.areas.orEmpty().takeIf { usable }.orEmpty()
+                val personal = DriveTree.flatten(DriveTree.personal(areas), expanded, children)
+                val shared = DriveTree.flatten(DriveTree.shared(areas), expanded, children)
+                // opened folders of an earlier run: their subfolders load when the menu shows them
+                val needs = DriveTree.needs(personal + shared)
+                LaunchedEffect(needs) { needs.forEach { viewModel.loadDirs(it) } }
                 DriveDrawer(
-                    areas = home?.areas.orEmpty().takeIf { usable }.orEmpty(),
-                    current = current,
-                    onArea = { a -> viewModel.select(a); if (onPhotosPage) showPage(false); close() },
-                    onTrash = { close(); nav.trash() },
-                    onFolders = { close(); nav.folders() },
-                    onStorage = if (me?.has(DMe.FEATURE_STORAGE) == true) ({ close(); nav.storage() }) else null,
-                    onDeadlines = if (me?.has(DMe.FEATURE_DOC_AI) == true) ({ close(); nav.deadlines() }) else null,
-                    onImport = if (me?.has(DMe.FEATURE_CLOUD_IMPORT) == true) ({
-                        scope.launch {
-                            drawer.close()
-                            viewModel.importUrl()?.let { openPortal(context, it) } ?: Toast.makeText(context, R.string.drive_portal_unavailable, Toast.LENGTH_LONG).show()
+                    me = me ?: home?.me,
+                    areas = areas,
+                    personal = personal,
+                    shared = shared,
+                    selected = shown?.id?.takeIf { !onPhotosPage },
+                    onToggle = viewModel::toggle,
+                    onOpen = { row ->
+                        val area = areas.firstOrNull { it.id == row.areaId }
+                        if (area != null) {
+                            if (area.id != current?.id) {
+                                pendingFolder = row.id.takeIf { row.area == null }
+                                viewModel.select(area)
+                            } else {
+                                folderViewModel.open(row.id)
+                            }
                         }
-                    }) else null,
-                    // Drive 1.8 (`docAi`): the AI per area, with the write right
-                    docAi = current?.takeIf { me?.has(DMe.FEATURE_DOC_AI) == true && it.writable && it.docAi != null },
-                    onDocAi = viewModel::setDocAi,
-                    // Drive 1.9 (`vault`): every vault, opened from here
+                        if (onPhotosPage) showPage(false)
+                        close()
+                    },
+                    // Drive 1.9 (`vault`): the vaults are opened from here only (Drive 1.11)
                     vaults = if (me?.has(DMe.FEATURE_VAULT) == true) vaults else null,
                     onVault = { e -> close(); nav.vault(e.vault.id, e.vault.nodeId) },
-                    onNewVault = if (me?.has(DMe.FEATURE_VAULT) == true && current?.writable == true) ({
-                        close()
-                        showPage(false)
-                        folderViewModel.startVault()
-                    }) else null,
+                    icons = buildList {
+                        add(DrawerIcon(GcIcons.Trash, R.string.drive_trash) { close(); nav.trash() })
+                        if (me?.has(DMe.FEATURE_STORAGE) == true) add(DrawerIcon(GcIcons.Activity, R.string.drive_storage_title) { close(); nav.storage() })
+                        add(DrawerIcon(GcIcons.Upload, R.string.drive_folders_title) { close(); nav.folders() })
+                        if (me?.has(DMe.FEATURE_DOC_AI) == true) add(DrawerIcon(GcIcons.Calendar, R.string.drive_deadlines) { close(); nav.deadlines() })
+                        // Drive 1.8 (`cloudImport`): the import runs in the portal only
+                        if (me?.has(DMe.FEATURE_CLOUD_IMPORT) == true) {
+                            add(
+                                DrawerIcon(GcIcons.Download, R.string.drive_import) {
+                                    scope.launch {
+                                        drawer.close()
+                                        viewModel.importUrl()?.let { openPortal(context, it) }
+                                            ?: Toast.makeText(context, R.string.drive_portal_unavailable, Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                            )
+                        }
+                        add(DrawerIcon(GcIcons.Settings, R.string.drive_settings_title) { close(); nav.settings() })
+                    },
                 )
             }
         },
@@ -189,7 +255,11 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         if (home != null && current != null) {
             Column(Modifier.fillMaxSize()) {
                 TabBar(
-                    if (onPhotosPage) stringResource(R.string.drive_mode_photos) else current.label,
+                    when {
+                        onPhotosPage -> stringResource(R.string.drive_mode_photos)
+                        shown != null && shown.parentId != null && shown.areaId == current.id -> shown.name
+                        else -> current.label
+                    },
                     onMenu = openMenu,
                     onSearch = nav.search,
                     actions = { if (!onPhotosPage) FolderViewActions(folderViewModel, grid) },
@@ -209,6 +279,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                             folderViewModel = folderViewModel,
                             nav = nav,
                             grid = grid,
+                            onCrumb = folderViewModel::open,
                             header = {
                                 // Drive 1.6 (feature `guard`): unusual changes stopped — undo, release or look in the portal.
                                 val portal = DriveLogic.portalDriveUrl(me)
@@ -277,6 +348,7 @@ private fun DriveFilesPage(
     nav: DriveNav,
     grid: androidx.compose.runtime.MutableState<Boolean>,
     header: @Composable () -> Unit,
+    onCrumb: (Long) -> Unit,
 ) {
     DriveFolderContent(
         viewModel = folderViewModel,
@@ -286,6 +358,7 @@ private fun DriveFilesPage(
         gridState = grid,
         topBar = { _, _ -> },
         header = header,
+        onCrumb = onCrumb,
     )
 }
 
@@ -356,139 +429,217 @@ private fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)?
     }
 }
 
-/** The menu: the areas (with their storage), the trash, "Ordner sichern" and (Drive 1.7) the storage overview. */
+/** An icon of the menu's bottom bar: [label] is its description (read out, shown on a long press). */
+private data class DrawerIcon(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: Int, val onClick: () -> Unit)
+
+/**
+ * The menu (Drive 1.11): who and which seat, "Persönlich" and "Gemeinsam" with each area's folders as a tree (the arrow
+ * opens, the name shows the folder), the vaults (only here), and a bar of icons below — trash, storage, "Ordner sichern",
+ * deadlines, import (where Drive has them) and the Drive settings.
+ */
 @Composable
 private fun DriveDrawer(
+    me: DMe?,
     areas: List<DArea>,
-    current: DArea?,
-    onArea: (DArea) -> Unit,
-    onTrash: () -> Unit,
-    onFolders: () -> Unit,
-    onStorage: (() -> Unit)?,
-    onDeadlines: (() -> Unit)? = null,
-    onImport: (() -> Unit)? = null,
-    /** The area whose "KI für Dokumente" can be switched here (null: none). */
-    docAi: DArea? = null,
-    onDocAi: (DArea, Boolean) -> Unit = { _, _ -> },
+    personal: List<DriveTree.Row>,
+    shared: List<DriveTree.Row>,
+    selected: Long?,
+    onToggle: (Long) -> Unit,
+    onOpen: (DriveTree.Row) -> Unit,
     /** The vaults (null: Drive has none). */
-    vaults: List<DriveHomeViewModel.VaultEntry>? = null,
-    onVault: (DriveHomeViewModel.VaultEntry) -> Unit = {},
-    onNewVault: (() -> Unit)? = null,
+    vaults: List<DriveHomeViewModel.VaultEntry>?,
+    onVault: (DriveHomeViewModel.VaultEntry) -> Unit,
+    icons: List<DrawerIcon>,
 ) {
-    Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
-        GcScreenTitle(stringResource(R.string.drive_title), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-        if (areas.isNotEmpty()) {
-            GcSectionLabel(stringResource(R.string.drive_move_areas), modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp))
-            areas.forEach { a ->
-                GcListRow(
-                    title = a.label,
-                    description = areaLine(a),
-                    onClick = { onArea(a) },
-                    leading = { AreaIcon(a) },
-                    selected = a.id == current?.id,
-                )
+    Column(Modifier.fillMaxHeight()) {
+        LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp)) {
+            item(key = "head") { DrawerHead(me) }
+            if (personal.isNotEmpty()) {
+                item(key = "l-personal") { DrawerLabel(stringResource(R.string.drive_menu_personal)) }
+                items(personal, key = { "p" + it.id }) { r -> TreeRow(r, selected = r.id == selected, onToggle = onToggle, onOpen = onOpen) }
             }
-            if (docAi != null) {
-                GcSwitchRow(
-                    label = stringResource(R.string.drive_area_doc_ai),
-                    description = stringResource(R.string.drive_area_doc_ai_desc, docAi.label),
-                    checked = docAi.docAi == true,
-                    onCheckedChange = { onDocAi(docAi, it) },
-                    icon = GcIcons.Receipt,
-                )
+            if (shared.isNotEmpty()) {
+                item(key = "l-shared") { DrawerLabel(stringResource(R.string.drive_menu_shared)) }
+                items(shared, key = { "s" + it.id }) { r -> TreeRow(r, selected = r.id == selected, onToggle = onToggle, onOpen = onOpen) }
             }
-            GcRowDivider(modifier = Modifier.padding(vertical = 8.dp))
+            if (!vaults.isNullOrEmpty()) {
+                item(key = "l-vaults") { DrawerLabel(stringResource(R.string.drive_vaults)) }
+                items(vaults, key = { "v" + it.vault.id }) { e -> VaultRow(e, areas.firstOrNull { it.id == e.vault.areaId }, onClick = { onVault(e) }) }
+            }
         }
-        // Drive 1.9 (`vault`): the vaults are opened from here (their folders also stay in the lists)
-        if (vaults != null && (vaults.isNotEmpty() || onNewVault != null)) {
-            GcSectionLabel(stringResource(R.string.drive_vaults), modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 4.dp))
-            vaults.forEach { e ->
-                val area = areas.firstOrNull { it.id == e.vault.areaId }?.label
-                val status = when (e.state) {
-                    DriveHomeViewModel.VaultState.OPEN -> if (e.vault.pending > 0) pluralStringResource(R.plurals.drive_vault_requests_banner, e.vault.pending, e.vault.pending) else null
-                    DriveHomeViewModel.VaultState.PENDING -> stringResource(R.string.drive_vault_menu_pending)
-                    DriveHomeViewModel.VaultState.LOCKED -> stringResource(R.string.drive_vault_menu_locked)
+        GcRowDivider()
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            icons.forEach { DrawerIconButton(it) }
+        }
+    }
+}
+
+@Composable
+private fun DrawerHead(me: DMe?) {
+    val x = GateControlTheme.extraColors
+    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        GcScreenTitle(stringResource(R.string.drive_title))
+        val name = me?.name?.takeIf { it.isNotBlank() }
+        if (name != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(x.accentBg), contentAlignment = Alignment.Center) {
+                    Text(name.trim().take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = x.accentText, fontWeight = FontWeight.Bold)
                 }
-                val x = GateControlTheme.extraColors
-                GcListRow(
-                    title = e.name ?: stringResource(R.string.drive_vault_menu_locked_title),
-                    description = listOfNotNull(area, status).joinToString(" · ").ifEmpty { null },
-                    onClick = { onVault(e) },
-                    leading = {
-                        GcIconSquare(size = 40.dp, background = x.warnBg) {
-                            Icon(if (e.state == DriveHomeViewModel.VaultState.OPEN) GcIcons.Vault else GcIcons.Lock, contentDescription = null, tint = x.warn, modifier = Modifier.size(20.dp))
-                        }
-                    },
-                )
-            }
-            if (onNewVault != null) {
-                GcListRow(
-                    title = stringResource(R.string.drive_vault_new),
-                    description = stringResource(R.string.drive_vault_new_desc),
-                    onClick = onNewVault,
-                    leading = {
-                        GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
-                            Icon(GcIcons.Plus, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
-                        }
-                    },
-                )
-            }
-            GcRowDivider(modifier = Modifier.padding(vertical = 8.dp))
-        }
-        GcListRow(
-            title = stringResource(R.string.drive_trash),
-            onClick = onTrash,
-            leading = {
-                GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
-                    Icon(GcIcons.Trash, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                Column {
+                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    when (me.seat) {
+                        "family" -> stringResource(R.string.drive_seat_family)
+                        "business" -> stringResource(R.string.drive_seat_business)
+                        else -> null
+                    }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = x.muted) }
                 }
-            },
-        )
-        if (onStorage != null) {
-            GcListRow(
-                title = stringResource(R.string.drive_storage_title),
-                onClick = onStorage,
-                leading = {
-                    GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
-                        Icon(GcIcons.Activity, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
-                    }
-                },
-            )
+            }
         }
-        if (onDeadlines != null) {
-            GcListRow(
-                title = stringResource(R.string.drive_deadlines),
-                onClick = onDeadlines,
-                leading = {
-                    GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
-                        Icon(GcIcons.Calendar, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
-                    }
-                },
-            )
-        }
-        GcListRow(
-            title = stringResource(R.string.drive_folders_title),
-            onClick = onFolders,
-            leading = {
-                GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
-                    Icon(GcIcons.Upload, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun DrawerLabel(text: String) {
+    GcSectionLabel(text, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp))
+}
+
+/**
+ * A row of the tree: the arrow (opens or closes, ≥ 44 dp) and the name (shows the folder on the Files page). An area
+ * has its icon and its storage line; the folder shown now is highlighted.
+ */
+@Composable
+private fun TreeRow(r: DriveTree.Row, selected: Boolean, onToggle: (Long) -> Unit, onOpen: (DriveTree.Row) -> Unit) {
+    val x = GateControlTheme.extraColors
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .clip(shape)
+            .then(if (selected) Modifier.background(x.accentBg) else Modifier)
+            .heightIn(min = if (r.area != null) 56.dp else 44.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (r.depth > 0) Spacer(Modifier.width((20 * r.depth).dp))
+        if (r.expandable) {
+            val label = stringResource(if (r.expanded) R.string.drive_tree_collapse else R.string.drive_tree_expand, r.name)
+            Box(
+                Modifier
+                    .size(width = 40.dp, height = 44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(role = Role.Button, onClickLabel = label) { onToggle(r.id) }
+                    .semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (r.loading) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = x.muted)
+                } else {
+                    Icon(if (r.expanded) GcIcons.ChevronDown else GcIcons.ChevronRight, contentDescription = null, tint = x.muted, modifier = Modifier.size(18.dp))
                 }
-            },
-        )
-        // Drive 1.8 (`cloudImport`): the import runs in the portal only
-        if (onImport != null) {
-            GcListRow(
-                title = stringResource(R.string.drive_import),
-                description = stringResource(R.string.drive_import_desc),
-                onClick = onImport,
-                leading = {
-                    GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
-                        Icon(GcIcons.Download, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
-                    }
-                },
-                trailing = { Icon(GcIcons.External, contentDescription = null, tint = GateControlTheme.extraColors.muted, modifier = Modifier.size(18.dp)) },
-            )
+            }
+        } else {
+            Spacer(Modifier.width(40.dp))
         }
+        Row(
+            Modifier
+                .weight(1f)
+                .heightIn(min = 44.dp)
+                .clickable(role = Role.Button) { onOpen(r) }
+                .padding(top = 6.dp, bottom = 6.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (r.area != null) {
+                AreaIcon(r.area, size = 36)
+            } else {
+                Icon(GcIcons.Folder, contentDescription = null, tint = if (selected) x.accentText else x.muted, modifier = Modifier.size(20.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    r.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (r.area != null) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (selected) x.accentText else MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (r.area != null) Text(areaLine(r.area), style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** A vault in the menu: lock icon, its name, whose it is ("Privat", "Mit Familie geteilt", a team) and whether it is locked. */
+@Composable
+private fun VaultRow(e: DriveHomeViewModel.VaultEntry, area: DArea?, onClick: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val whose = when (area?.kind) {
+        "mine" -> stringResource(R.string.drive_vault_whose_mine)
+        "family" -> stringResource(R.string.drive_vault_whose_family)
+        "team" -> stringResource(R.string.drive_vault_whose_team, area.label)
+        null -> null
+        else -> area.label
+    }
+    val state = when (e.state) {
+        DriveHomeViewModel.VaultState.OPEN ->
+            if (e.vault.pending > 0) pluralStringResource(R.plurals.drive_vault_requests_banner, e.vault.pending, e.vault.pending) else stringResource(R.string.drive_vault_state_open)
+        DriveHomeViewModel.VaultState.LOCKED -> stringResource(R.string.drive_vault_state_locked)
+        DriveHomeViewModel.VaultState.PENDING -> stringResource(R.string.drive_vault_menu_pending)
+        DriveHomeViewModel.VaultState.NEW -> stringResource(R.string.drive_vault_state_new)
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .heightIn(min = 56.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 40.dp, top = 6.dp, bottom = 6.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        GcIconSquare(size = 36.dp, background = x.warnBg) {
+            Icon(if (e.state == DriveHomeViewModel.VaultState.OPEN) GcIcons.LockOpen else GcIcons.Lock, contentDescription = null, tint = x.warn, modifier = Modifier.size(18.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                e.name ?: stringResource(R.string.drive_vault),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(listOfNotNull(whose, state).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** A 44 dp icon of the menu's bottom bar, described for TalkBack and on a long press. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun DrawerIconButton(i: DrawerIcon) {
+    val label = stringResource(i.label)
+    val context = LocalContext.current
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(GateControlTheme.extraColors.panel2)
+            .combinedClickable(
+                role = Role.Button,
+                onClickLabel = label,
+                onLongClick = { Toast.makeText(context, label, Toast.LENGTH_SHORT).show() },
+                onClick = i.onClick,
+            )
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(i.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
     }
 }
 

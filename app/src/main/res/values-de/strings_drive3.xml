@@ -49,7 +49,6 @@
     <string name="drive_deadline_today">heute</string>
     <string name="drive_deadline_reminder_on">Erinnerung gesetzt</string>
     <string name="drive_import">Aus Google Drive / OneDrive importieren</string>
-    <string name="drive_import_desc">Öffnet das Portal</string>
     <string name="drive_office_edit">Im Browser bearbeiten</string>
     <string name="drive_office_view">Im Browser ansehen</string>
     <string name="drive_code_office_unavailable">Office ist gerade nicht verfügbar.</string>
@@ -60,8 +59,6 @@
     <string name="drive_code_stale_key">Der Tresor hat einen neuen Schlüssel. Bitte noch einmal versuchen.</string>
     <string name="drive_vault">Tresor</string>
     <string name="drive_vault_new">Neuer Tresor</string>
-    <string name="drive_vault_new_desc">Ein Ende-zu-Ende verschlüsselter Ordner</string>
-    <string name="drive_vault_create_text">Namen und Inhalte werden auf diesem Telefon verschlüsselt. Nur deine freigegebenen Geräte können sie lesen; der Server bewahrt nur verschlüsselte Daten auf.</string>
     <string name="drive_vault_create">Tresor anlegen</string>
     <string name="drive_vault_recovery_title">Wiederherstellungsschlüssel</string>
     <string name="drive_vault_recovery_text">Schreib diesen Schlüssel auf und bewahre ihn sicher auf. Er öffnet den Tresor auf einem neuen Gerät, wenn kein freigegebenes Gerät zur Hand ist. Er wird nur jetzt angezeigt.</string>

@@ -44,6 +44,7 @@ class DriveTransfers @Inject constructor(
     private val local: DriveLocal,
     private val live: DriveLive,
     private val dates: DriveTakenAt,
+    private val network: DriveUploadNetwork,
 ) {
     enum class State { QUEUED, RUNNING, CONFLICT, DONE, SAME, SKIPPED, FAILED }
 
@@ -98,6 +99,12 @@ class DriveTransfers @Inject constructor(
     val paused: StateFlow<Boolean> = _paused.asStateFlow()
 
     init {
+        // "Hochladen nur im WLAN" (Drive 1.11): the queue goes on once WLAN is there (or the setting is off)
+        scope.launch {
+            network.allowed.collect { ok ->
+                if (ok && mutex.withLock { queue.isNotEmpty() }) pump()
+            }
+        }
         scope.launch {
             live.locked.collect { locked ->
                 if (!locked && _paused.value) {
@@ -111,6 +118,11 @@ class DriveTransfers @Inject constructor(
     /** A folder whose content changed through an upload here (reload it). */
     private val _changed = MutableSharedFlow<Long>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val changed: SharedFlow<Long> = _changed.asSharedFlow()
+
+    private companion object {
+        /** An upload waits for WLAN ("Hochladen nur im WLAN"). */
+        const val WAIT_WIFI = "wifi_wait"
+    }
 
     private fun set(id: Long, f: (Upload) -> Upload) = _uploads.update { list -> list.map { if (it.id == id) f(it) else it } }
 
@@ -187,6 +199,11 @@ class DriveTransfers @Inject constructor(
         try {
             while (true) {
                 if (_paused.value) break
+                if (network.waitsForWifi()) {
+                    // every waiting upload says why it waits; the network's change starts the queue again
+                    _uploads.update { list -> list.map { if (it.state == State.QUEUED) it.copy(code = WAIT_WIFI) else it } }
+                    break
+                }
                 val job = mutex.withLock { queue.removeFirstOrNull() } ?: break
                 runCatching { run(job) }.onFailure { e ->
                     if (e is CancellationException) throw e
