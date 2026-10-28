@@ -72,6 +72,14 @@ data class DMe(
         /** Drive 1.7: albums can feed the photo frame of the wall tablet. */
         const val FEATURE_FRAME = "frame"
         const val FEATURE_STORAGE = "storage"
+        /** Drive 1.8: AI for documents (what a file is, a suggested name and folder, its deadlines). */
+        const val FEATURE_DOC_AI = "docAi"
+        /** Drive 1.8: the import from Google Drive and OneDrive (only in the portal). */
+        const val FEATURE_CLOUD_IMPORT = "cloudImport"
+        /** Drive 1.9: vault folders, end to end encrypted. */
+        const val FEATURE_VAULT = "vault"
+        /** Drive 1.9: office documents in the browser (only while an office server is set up). */
+        const val FEATURE_OFFICE = "office"
     }
 }
 
@@ -155,7 +163,19 @@ data class DNode(
     val takenAt: String? = null,
     /** Marked "deleted on a device": goes into the trash then (ISO 8601, Drive 1.5 `deleteAfter`). */
     val deleteAt: String? = null,
-)
+    /** AI for documents (Drive 1.8, feature `docAi`): what the file was recognised as; null when the server says nothing. */
+    val insight: DInsightShort? = null,
+    /**
+     * Drive 1.9 (feature `vault`): the vault this node is (or lies in). Then [name] is opaque (32 hex characters) and
+     * [nameCipher] the encrypted name; a file's content is ciphertext of key version [keyVersion].
+     */
+    val vaultId: String? = null,
+    val nameCipher: String? = null,
+    val keyVersion: Int? = null,
+) {
+    /** In a vault: nothing of it may go to a preview, a link, the office, the AI or a backup. */
+    val encrypted: Boolean get() = vaultId != null
+}
 
 /** `DELETE nodes/<id>?after=`: the file goes into the trash at [deleteAt] (ISO 8601; null when the server did not say). */
 data class DMark(val deleteAt: String?)
@@ -306,3 +326,97 @@ data class DStorageFile(
 
 /** Files with the same content: [wasted] bytes would be free with one copy. */
 data class DDuplicates(val sha256: String, val size: Long, val count: Int, val wasted: Long, val items: List<DStorageFile>)
+
+// ─── Drive 1.8: AI for documents (feature `docAi`) ──────────────────
+
+/** `node.insight`: `none` | `pending` | `ready` | `failed` | `off`; [kind] only when ready. */
+data class DInsightShort(val status: String, val kind: String?)
+
+/** `GET nodes/<id>/insight`: what the AI read in the file, its suggestion and the file's deadlines. */
+data class DInsight(
+    val status: String,
+    /** `invoice` | `contract` | `notice` | `medical` | `certificate` | `statement` | `insurance` | `warranty` | `other`. */
+    val kind: String?,
+    val title: String?,
+    /** The document's date (`YYYY-MM-DD`). */
+    val date: String?,
+    val sender: String?,
+    val amount: Double?,
+    val currency: String?,
+    val error: String?,
+    val at: String?,
+    val suggestion: DSuggestion?,
+    val deadlines: List<DDeadline>,
+)
+
+/** A suggested place: [folderId] (with its path, `''` the top) and / or a [name]; a part is null when it fits already. */
+data class DSuggestion(val folderId: Long?, val folderPath: String?, val name: String?)
+
+/** A payment, cancellation or objection deadline of a file; [reminder] is the asking person's own. */
+data class DDeadline(
+    val id: Long,
+    /** `payment` | `cancellation` | `objection`. */
+    val kind: String,
+    /** `YYYY-MM-DD`. */
+    val date: String,
+    val label: String?,
+    val reminder: DReminder?,
+    /** `GET deadlines`: the file it belongs to. */
+    val node: DNode? = null,
+)
+
+data class DReminder(val at: String?, val daysBefore: Int, val sent: Boolean)
+
+/** `POST nodes/<id>/insight/apply` → the renamed / moved file and its insight now. */
+data class DInsightApplied(val node: DNode, val insight: DInsight?)
+
+// ─── Drive 1.9: office in the browser (feature `office`) ────────────
+
+/** `POST nodes/<id>/office`: the address to open, `edit` or `view`. */
+data class DOffice(val url: String, val mode: String, val expiresAt: String?)
+
+// ─── Drive 1.9: vault folders (feature `vault`) ─────────────────────
+
+/** A vault as the person sees it (`GET vaults`, `GET vaults/<id>`). */
+data class DVault(
+    val id: String,
+    val nodeId: Long,
+    val areaId: String?,
+    val parentId: Long?,
+    val nameCipher: String?,
+    /** The current key version: new names and contents use it. */
+    val keyVersion: Int,
+    val recoveryPub: String?,
+    /** A person lost the area: the portal (or an app) makes a new key. */
+    val needsRotation: Boolean,
+    val myDevices: List<DVaultMyDevice>,
+    /** Requests of new devices that one of my approved devices could answer. */
+    val pending: Int,
+)
+
+data class DVaultMyDevice(val deviceId: String, val state: String, val name: String?)
+
+/** A device of a vault: `pending` | `approved` | `revoked`. */
+data class DVaultDevice(
+    val deviceId: String,
+    val userId: Int?,
+    val name: String?,
+    val platform: String?,
+    val publicKey: String,
+    val state: String,
+    val createdAt: String?,
+)
+
+data class DVaultWrap(val keyVersion: Int, val wrap: String)
+
+/** `GET vaults/<id>/keys?deviceId=`: my device's state and its wrapped keys (only when approved). */
+data class DVaultKeys(val deviceId: String, val state: String, val keyVersion: Int?, val keys: List<DVaultWrap>)
+
+/** `GET vaults/<id>/recovery`: the recovery key's public key and wraps (useless without the written-down key). */
+data class DVaultRecovery(val recoveryPub: String?, val keyVersion: Int?, val keys: List<DVaultWrap>)
+
+/** `POST vaults` → the new vault and its folder. */
+data class DVaultCreated(val vault: DVault, val node: DNode?)
+
+/** Live event `vault { vault, event: request | approved | rotated, device?, keyVersion? }`. */
+data class DVaultEvent(val vault: String, val event: String, val device: String?, val keyVersion: Int?)

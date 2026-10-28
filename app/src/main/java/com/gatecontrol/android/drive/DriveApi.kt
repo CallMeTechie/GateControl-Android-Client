@@ -304,6 +304,80 @@ class DriveApi @Inject constructor(
         return post("guard/incidents/$incidentId/$action", JsonObject(), DriveJson::guardResult)
     }
 
+    // ─── AI for documents (Drive 1.8, feature `docAi`) ──────────────
+
+    /** What the AI read in file [id], its suggestion and the file's deadlines. */
+    suspend fun insight(id: Long): DResult<DInsight> = get("nodes/$id/insight", parse = DriveJson::insight)
+
+    /** Recognise again (write right); nothing readable: `422 unsupported` with `reason` `no_text` | `media_disabled`. */
+    suspend fun insightAgain(id: Long): DResult<DInsight> = post("nodes/$id/insight", JsonObject(), DriveJson::insight)
+
+    /** Takes the suggestion: renamed ([name]) and / or moved ([folder]). */
+    suspend fun insightApply(id: Long, name: Boolean, folder: Boolean): DResult<DInsightApplied> =
+        post("nodes/$id/insight/apply", DriveJson.applyBody(name, folder), DriveJson::insightApplied)
+
+    /** The deadlines of the files I read, [from]..[to] (`YYYY-MM-DD`; default today to a year on). */
+    suspend fun deadlines(from: String? = null, to: String? = null): DResult<List<DDeadline>> {
+        val q = buildMap {
+            from?.let { put("from", it) }
+            to?.let { put("to", it) }
+        }
+        return get("deadlines", q, DriveJson::deadlines)
+    }
+
+    /** My reminder of deadline [id], [daysBefore] (0…90) days before. */
+    suspend fun remind(id: Long, daysBefore: Int): DResult<DDeadline> = post("deadlines/$id/remind", DriveJson.remindBody(daysBefore), DriveJson::deadlineAnswer)
+
+    suspend fun unremind(id: Long): DResult<DDeadline> = del("deadlines/$id/remind", DriveJson::deadlineAnswer)
+
+    // ─── office in the browser (Drive 1.9, feature `office`) ────────
+
+    /** The address of file [id] in the office (edit with the write right, else view). */
+    suspend fun office(id: Long): DResult<DOffice> = post("nodes/$id/office", JsonObject(), DriveJson::office)
+
+    // ─── vault folders (Drive 1.9, feature `vault`) ─────────────────
+
+    private fun vaultPath(id: String): String? = DriveJson.vaultId(id)?.let { "vaults/$it" }
+
+    suspend fun vaults(): DResult<List<DVault>> = get("vaults", parse = DriveJson::vaults)
+
+    suspend fun vault(id: String): DResult<DVault> = get(vaultPath(id) ?: return bad(), parse = DriveJson::vaultAnswer)
+
+    suspend fun createVault(body: JsonObject): DResult<DVaultCreated> = post("vaults", body, DriveJson::vaultCreated)
+
+    /** My device's keys of the vault (only one of my own devices; none while it waits). */
+    suspend fun vaultKeys(id: String, deviceId: String): DResult<DVaultKeys> =
+        get((vaultPath(id) ?: return bad()) + "/keys", mapOf("deviceId" to deviceId), DriveJson::vaultKeys)
+
+    suspend fun vaultRecovery(id: String): DResult<DVaultRecovery> = get((vaultPath(id) ?: return bad()) + "/recovery", parse = DriveJson::vaultRecovery)
+
+    suspend fun vaultDevices(id: String): DResult<List<DVaultDevice>> = get((vaultPath(id) ?: return bad()) + "/devices", parse = DriveJson::vaultDevices)
+
+    /** This device asks for the vault (pending; an approved one stays approved). */
+    suspend fun vaultAsk(id: String, device: JsonObject): DResult<DVaultDevice> =
+        post((vaultPath(id) ?: return bad()) + "/devices", device, DriveJson::vaultDeviceAnswer)
+
+    suspend fun vaultApprove(id: String, deviceId: String, wraps: List<DVaultWrap>, recoveryAuth: String? = null): DResult<DVaultDevice> {
+        val did = DriveJson.vaultId(deviceId) ?: return bad()
+        return post((vaultPath(id) ?: return bad()) + "/devices/$did/approve", DriveJson.approveBody(wraps, recoveryAuth), DriveJson::vaultDeviceAnswer)
+    }
+
+    /** A request declined (or a device removed). */
+    suspend fun vaultRevoke(id: String, deviceId: String): DResult<DVaultDevice> {
+        val did = DriveJson.vaultId(deviceId) ?: return bad()
+        return del((vaultPath(id) ?: return bad()) + "/devices/$did", DriveJson::vaultDeviceAnswer)
+    }
+
+    suspend fun createVaultFolder(parentId: Long, nameCipher: String, keyVersion: Int): DResult<DNode> =
+        post("nodes", DriveJson.vaultFolderBody(parentId, nameCipher, keyVersion), DriveJson::nodeAnswer)
+
+    /** The uploaded ciphertext [mediaId] becomes a file of the vault (a new version of [opaqueName] when given). */
+    suspend fun commitVault(mediaId: String, parentId: Long, nameCipher: String?, keyVersion: Int, mtimeMs: Long?, opaqueName: String? = null): DResult<Pair<DNode, Boolean>> =
+        post("uploads/commit", DriveJson.vaultCommitBody(mediaId, parentId, nameCipher, keyVersion, mtimeMs, opaqueName), DriveJson::commit)
+
+    /** A vault node's new encrypted name. */
+    suspend fun renameVault(id: Long, nameCipher: String): DResult<DNode> = patch("nodes/$id", DriveJson.nameCipherPatchBody(nameCipher), DriveJson::nodeAnswer)
+
     // ─── links ──────────────────────────────────────────────────────
 
     /** [mode] `view` | `download` | `upload` (folders), [expires] `1d` | `7d` | `30d` | `never`. */

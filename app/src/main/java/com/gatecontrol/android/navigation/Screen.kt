@@ -145,6 +145,20 @@ sealed class Screen(val route: String) {
     data object DriveFolders : Screen("drive/folders")
     /** The storage overview (Drive 1.7). */
     data object DriveStorage : Screen("drive/storage")
+    /** One file: details, what the AI recognised, its deadlines (Drive 1.8). */
+    data object DriveFile : Screen("drive/file/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "drive/file/$id"
+    }
+    /** "Fristen": the deadlines of my documents (Drive 1.8). */
+    data object DriveDeadlines : Screen("drive/deadlines")
+    /** A folder of a vault (Drive 1.9); `requests=1` shows the approval requests at once (a request's push). */
+    data object DriveVault : Screen("drive/vault/{vault}/{folder}?requests={requests}") {
+        const val ARG_VAULT = "vault"
+        const val ARG_FOLDER = "folder"
+        const val ARG_REQUESTS = "requests"
+        fun create(vault: String, folder: Long, requests: Boolean = false) = "drive/vault/$vault/$folder" + if (requests) "?requests=1" else ""
+    }
     /** One photo album (Drive 1.7). */
     data object DriveAlbum : Screen("drive/album/{id}") {
         const val ARG_ID = "id"

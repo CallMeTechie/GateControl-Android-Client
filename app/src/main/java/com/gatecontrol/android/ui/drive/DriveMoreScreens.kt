@@ -86,7 +86,7 @@ fun DriveTrashScreen(onBack: () -> Unit, viewModel: DriveTrashViewModel = hiltVi
     purging?.let { n ->
         AlertDialog(
             onDismissRequest = { purging = null },
-            text = { Text(stringResource(R.string.drive_trash_purge_confirm, n.name)) },
+            text = { Text(stringResource(R.string.drive_trash_purge_confirm, nodeTitle(n))) },
             confirmButton = { TextButton(onClick = { purging = null; viewModel.purge(n) }) { Text(stringResource(R.string.drive_trash_purge)) } },
             dismissButton = { TextButton(onClick = { purging = null }) { Text(stringResource(R.string.drive_cancel)) } },
         )

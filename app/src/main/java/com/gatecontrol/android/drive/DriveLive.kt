@@ -50,6 +50,10 @@ class DriveLive @Inject constructor(
     /** Something changed on the server (another device, the portal, an upload here). */
     val changed: SharedFlow<DChanged> = _changed.asSharedFlow()
 
+    private val _vault = MutableSharedFlow<DVaultEvent>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** Drive 1.9 vaults: a device asks, a device was approved, a new key (event `vault`). */
+    val vault: SharedFlow<DVaultEvent> = _vault.asSharedFlow()
+
     @Volatile private var lastSeq = 0L
     private var lockJob: Job? = null
 
@@ -124,6 +128,7 @@ class DriveLive @Inject constructor(
                 _changed.tryEmit(e)
             }
             "guard" -> scope.launch { refresh() }
+            "vault" -> DriveJson.vaultEvent(data)?.let { _vault.tryEmit(it) }
         }
     }
 

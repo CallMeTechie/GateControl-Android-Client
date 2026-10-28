@@ -901,7 +901,7 @@ fun AppNavigation(
                                     onBack = { selected = null },
                                     onNavigate = { target ->
                                         if (target is PushNavTarget.Detail) selected = target.id
-                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault)
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
                                     },
                                     viewModel = detailViewModel,
                                 )
@@ -928,7 +928,7 @@ fun AppNavigation(
                         onBack = {
                             if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
                         },
-                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault) },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive) },
                     )
                 }
             }
@@ -1028,7 +1028,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault)
+            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -1056,8 +1056,26 @@ private fun openPushTarget(
     chats: Boolean = false,
     /** The Vault plugin is listed: its pushes open the tab or "Notfallzugriff". */
     vault: Boolean = false,
+    /** The Drive plugin is listed: a deadline opens its file, a vault request the vault. */
+    drive: Boolean = false,
 ) {
     when (target) {
+        is PushNavTarget.Drive -> {
+            val file = com.gatecontrol.android.drive.DrivePush.fileOf(target.dest)
+            val vaultDest = com.gatecontrol.android.drive.DrivePush.vaultOf(target.dest)
+            when {
+                drive && file != null -> {
+                    navigateToTab(Screen.Drive.route)
+                    navController.navigate(Screen.DriveFile.create(file)) { launchSingleTop = true }
+                }
+                drive && vaultDest != null -> {
+                    navigateToTab(Screen.Drive.route)
+                    navController.navigate(Screen.DriveVault.create(vaultDest.first, vaultDest.second, requests = true)) { launchSingleTop = true }
+                }
+                target.messageId != null -> navController.navigate(Screen.NotificationDetail.create(target.messageId))
+                else -> navigateToTab(Screen.Vpn.route)
+            }
+        }
         is PushNavTarget.Vault -> when {
             !vault -> if (target.messageId != null) navController.navigate(Screen.NotificationDetail.create(target.messageId)) else navigateToTab(Screen.Vpn.route)
             target.dest == "emergency" -> {
@@ -1476,6 +1494,8 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
     val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Drive.route) }
     val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
     val folder: (Long) -> Unit = { go(Screen.DriveFolder.create(it)) }
+    val file: (Long) -> Unit = { go(Screen.DriveFile.create(it)) }
+    val vault: (String, Long) -> Unit = { v, f -> navController.navigate(Screen.DriveVault.create(v, f)) }
     composable(Screen.Drive.route) {
         GcContentWidth {
             com.gatecontrol.android.ui.drive.DriveHomeScreen(
@@ -1486,12 +1506,31 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
                     storage = { go(Screen.DriveStorage.route) },
                     folders = { go(Screen.DriveFolders.route) },
                     album = { go(Screen.DriveAlbum.create(it)) },
+                    file = file,
+                    deadlines = { go(Screen.DriveDeadlines.route) },
+                    vault = vault,
                 ),
             )
         }
     }
     composable(Screen.DriveFolder.route, arguments = listOf(navArgument(Screen.DriveFolder.ARG_ID) { type = NavType.StringType })) {
-        GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderScreen(onBack = back, onFolder = folder) }
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderScreen(onBack = back, onFolder = folder, onFile = file, onVault = vault) }
+    }
+    composable(Screen.DriveFile.route, arguments = listOf(navArgument(Screen.DriveFile.ARG_ID) { type = NavType.StringType })) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveFileScreen(onBack = back, onFolder = folder) }
+    }
+    composable(Screen.DriveDeadlines.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveDeadlinesScreen(onBack = back, onFile = file) }
+    }
+    composable(
+        Screen.DriveVault.route,
+        arguments = listOf(
+            navArgument(Screen.DriveVault.ARG_VAULT) { type = NavType.StringType },
+            navArgument(Screen.DriveVault.ARG_FOLDER) { type = NavType.StringType },
+            navArgument(Screen.DriveVault.ARG_REQUESTS) { type = NavType.StringType; nullable = true; defaultValue = null },
+        ),
+    ) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveVaultScreen(onBack = back, onFolder = vault) }
     }
     composable(Screen.DriveTrash.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveTrashScreen(onBack = back) }

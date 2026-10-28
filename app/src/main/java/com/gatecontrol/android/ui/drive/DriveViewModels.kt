@@ -64,7 +64,18 @@ class DriveHomeViewModel @Inject constructor(
     val transfers: DriveTransfers,
     private val local: DriveLocal,
     val live: DriveLive,
+    private val portalLinks: com.gatecontrol.android.push.PortalLinkResolver,
+    private val setup: com.gatecontrol.android.data.SetupRepository,
 ) : ViewModel() {
+
+    /**
+     * "Aus Google Drive / OneDrive importieren" (Drive 1.8): the portal's direct link `/portal?drive=import#plg-…` on
+     * the portal of Drive's own direct links (else the portal GateControl named at setup); null without a portal.
+     */
+    fun importUrl(): String? {
+        val base = DriveLogic.portalDriveUrl(live.me.value) ?: setup.getPortalUrl()?.takeIf { it.startsWith("https://") } ?: return null
+        return portalLinks.withPath(base, DriveLogic.IMPORT_PORTAL_PATH).takeIf { it.contains("drive=import") }
+    }
 
     data class Home(val me: DMe, val areas: List<DArea>)
 
@@ -182,6 +193,7 @@ class DriveFolderViewModel @Inject constructor(
     val local: DriveLocal,
     val scanner: DriveScanner,
     val live: DriveLive,
+    private val vaults: com.gatecontrol.android.drive.vault.DriveVaultSession,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -558,6 +570,40 @@ class DriveFolderViewModel @Inject constructor(
             val r = api.timeTravel(t.folder.id, before)
             _timeTravel.update { it?.undid(r) }
             refresh(quiet = true)
+        }
+    }
+
+    // ─── office, vaults (Drive 1.9) ─────────────────────────────────
+
+    /** The office's address of [node] ("Im Browser bearbeiten / ansehen"). */
+    suspend fun office(node: DNode): DResult<com.gatecontrol.android.drive.DOffice> = api.office(node.id)
+
+    /** "Neuer Tresor": busy while it is made, then the recovery key to show once. */
+    data class NewVault(val busy: Boolean = false, val recoveryKey: String? = null, val vaultId: String? = null, val nodeId: Long? = null)
+
+    private val _newVault = MutableStateFlow<NewVault?>(null)
+    val newVault: StateFlow<NewVault?> = _newVault.asStateFlow()
+
+    fun startVault() { _newVault.value = NewVault() }
+
+    fun closeVault() { _newVault.value = null }
+
+    /** A new vault [name] in this folder: encrypted here, the recovery key comes back to be written down. */
+    fun createVault(name: String) {
+        val here = (_state.value as? DriveLoad.Ready)?.value ?: return
+        if (here.node.encrypted) return
+        _newVault.value = NewVault(busy = true)
+        viewModelScope.launch {
+            when (val r = vaults.create(here.node.id, name)) {
+                is DResult.Ok -> {
+                    _newVault.value = NewVault(recoveryKey = r.value.recoveryKey, vaultId = r.value.vault.id, nodeId = r.value.vault.nodeId)
+                    refresh(quiet = true)
+                }
+                else -> {
+                    _newVault.value = null
+                    _message.value = r.errorCode()
+                }
+            }
         }
     }
 
