@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.22] - 2026-10-28
+
+### Changes
+- Menü mit Ordnerbaum, Tresore nur im Menü, Tresor-Sperre, Drive-Einstellungen (#146)
+
+---
+
 ## [1.67.21] - 2026-10-28
 
 ### Changes
