@@ -78,6 +78,12 @@ data class DriveNav(
     val folders: () -> Unit = {},
     /** An album of the photos (Drive 1.7). */
     val album: (String) -> Unit = {},
+    /** The page of a file (Drive 1.8: what the AI recognised, its deadlines). */
+    val file: (Long) -> Unit = {},
+    /** "Fristen" (Drive 1.8). */
+    val deadlines: () -> Unit = {},
+    /** A vault folder (Drive 1.9). */
+    val vault: (String, Long) -> Unit = { _, _ -> },
 )
 
 /**
@@ -136,6 +142,13 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     onTrash = { scope.launch { drawer.close() }; nav.trash() },
                     onFolders = { scope.launch { drawer.close() }; nav.folders() },
                     onStorage = if (me?.has(DMe.FEATURE_STORAGE) == true) ({ scope.launch { drawer.close() }; nav.storage() }) else null,
+                    onDeadlines = if (me?.has(DMe.FEATURE_DOC_AI) == true) ({ scope.launch { drawer.close() }; nav.deadlines() }) else null,
+                    onImport = if (me?.has(DMe.FEATURE_CLOUD_IMPORT) == true) ({
+                        scope.launch {
+                            drawer.close()
+                            viewModel.importUrl()?.let { openPortal(context, it) } ?: Toast.makeText(context, R.string.drive_portal_unavailable, Toast.LENGTH_LONG).show()
+                        }
+                    }) else null,
                 )
             }
         },
@@ -153,6 +166,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
             DriveFolderContent(
                 viewModel = folderViewModel,
                 onFolder = nav.folder,
+                onFile = nav.file,
+                onVault = nav.vault,
                 topBar = { _, actions ->
                     Column {
                         TabBar(current.label, onMenu = openMenu, onSearch = nav.search, actions = actions)
@@ -293,6 +308,8 @@ private fun DriveDrawer(
     onTrash: () -> Unit,
     onFolders: () -> Unit,
     onStorage: (() -> Unit)?,
+    onDeadlines: (() -> Unit)? = null,
+    onImport: (() -> Unit)? = null,
 ) {
     Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 16.dp)) {
         GcScreenTitle(stringResource(R.string.drive_title), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
@@ -329,6 +346,17 @@ private fun DriveDrawer(
                 },
             )
         }
+        if (onDeadlines != null) {
+            GcListRow(
+                title = stringResource(R.string.drive_deadlines),
+                onClick = onDeadlines,
+                leading = {
+                    GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
+                        Icon(GcIcons.Calendar, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                    }
+                },
+            )
+        }
         GcListRow(
             title = stringResource(R.string.drive_folders_title),
             onClick = onFolders,
@@ -338,6 +366,20 @@ private fun DriveDrawer(
                 }
             },
         )
+        // Drive 1.8 (`cloudImport`): the import runs in the portal only
+        if (onImport != null) {
+            GcListRow(
+                title = stringResource(R.string.drive_import),
+                description = stringResource(R.string.drive_import_desc),
+                onClick = onImport,
+                leading = {
+                    GcIconSquare(size = 40.dp, background = GateControlTheme.extraColors.panel2) {
+                        Icon(GcIcons.Download, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                    }
+                },
+                trailing = { Icon(GcIcons.External, contentDescription = null, tint = GateControlTheme.extraColors.muted, modifier = Modifier.size(18.dp)) },
+            )
+        }
     }
 }
 

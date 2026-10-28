@@ -191,7 +191,13 @@ internal object DriveJson {
             snippet = o.str("snippet")?.takeIf { o.str("match") == "text" }?.take(300),
             takenAt = o.str("takenAt")?.take(40),
             deleteAt = o.str("deleteAt")?.take(40),
-        )
+            insight = o.obj("insight")?.let(::insightShort),
+        ).let { n ->
+            // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
+            val vault = vaultId(o.str("vaultId"))
+            if (vault == null && o.bool("encrypted") != true) n
+            else n.copy(vaultId = vault ?: INVALID_VAULT, nameCipher = nameCipher(o.str("nameCipher")), keyVersion = o.int("keyVersion")?.takeIf { it > 0 }, preview = false, insight = null)
+        }
     }
 
     fun nodeAnswer(o: JsonObject): DNode? = node(o.obj("node"))
@@ -566,6 +572,227 @@ internal object DriveJson {
 
     /** `PATCH nodes/<id> { deleteAt: null }`: the mark of a delete later ends (the null must be sent). */
     const val UNMARK_BODY = "{\"deleteAt\":null}"
+
+    // ─── Drive 1.8: AI for documents ────────────────────────────────
+
+    private val DATE = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+    private val INSIGHT_STATUS = setOf("none", "pending", "ready", "failed", "off")
+    val DOC_KINDS = setOf("invoice", "contract", "notice", "medical", "certificate", "statement", "insurance", "warranty", "other")
+    val DEADLINE_KINDS = setOf("payment", "cancellation", "objection")
+
+    fun insightShort(o: JsonObject): DInsightShort? {
+        val status = o.str("status")?.takeIf { it in INSIGHT_STATUS } ?: return null
+        return DInsightShort(status, o.str("kind")?.takeIf { status == "ready" && it in DOC_KINDS })
+    }
+
+    /** `GET|POST nodes/<id>/insight` → the flat answer. */
+    fun insight(o: JsonObject): DInsight? {
+        val status = o.str("status")?.takeIf { it in INSIGHT_STATUS } ?: return null
+        val s = o.obj("suggestion")
+        return DInsight(
+            status = status,
+            kind = o.str("kind")?.takeIf { it in DOC_KINDS },
+            title = o.str("title")?.trim()?.take(200)?.ifEmpty { null },
+            date = o.str("date")?.takeIf { DATE.matches(it) },
+            sender = o.str("sender")?.trim()?.take(200)?.ifEmpty { null },
+            amount = o.prim("amount")?.let { runCatching { it.asDouble }.getOrNull() }?.takeIf { it.isFinite() },
+            currency = o.str("currency")?.trim()?.uppercase()?.takeIf { Regex("^[A-Z]{3}$").matches(it) },
+            error = o.str("error")?.take(60),
+            at = o.str("at")?.take(40),
+            suggestion = s?.let {
+                val folderId = it.long("folderId")
+                val name = it.str("name")?.trim()?.take(255)?.ifEmpty { null }
+                if (folderId == null && name == null) null else DSuggestion(folderId, it.str("folderPath")?.take(2000), name)
+            },
+            deadlines = o.arr("deadlines")?.mapNotNull { deadline(it as? JsonObject) }?.take(20).orEmpty(),
+        )
+    }
+
+    fun deadline(o: JsonObject?): DDeadline? {
+        if (o == null) return null
+        val r = o.obj("reminder")
+        return DDeadline(
+            id = o.long("id") ?: return null,
+            kind = o.str("kind")?.takeIf { it in DEADLINE_KINDS } ?: return null,
+            date = o.str("date")?.takeIf { DATE.matches(it) } ?: return null,
+            label = o.str("label")?.trim()?.take(200)?.ifEmpty { null },
+            reminder = r?.let { DReminder(it.str("at")?.take(40), it.int("daysBefore")?.coerceIn(0, 90) ?: 0, it.bool("sent") ?: false) },
+            node = node(o.obj("node")),
+        )
+    }
+
+    /** `POST|DELETE deadlines/<id>/remind` → `{ deadline }`. */
+    fun deadlineAnswer(o: JsonObject): DDeadline? = deadline(o.obj("deadline"))
+
+    /** `GET deadlines` → `{ deadlines }`. */
+    fun deadlines(o: JsonObject): List<DDeadline>? = o.arr("deadlines")?.mapNotNull { deadline(it as? JsonObject) }
+
+    /** `POST nodes/<id>/insight/apply` → `{ node, insight }`. */
+    fun insightApplied(o: JsonObject): DInsightApplied? {
+        val node = node(o.obj("node")) ?: return null
+        return DInsightApplied(node, o.obj("insight")?.let(::insight))
+    }
+
+    fun applyBody(name: Boolean, folder: Boolean) = JsonObject().apply {
+        if (name) addProperty("name", true)
+        if (folder) addProperty("folder", true)
+    }
+
+    fun remindBody(daysBefore: Int) = JsonObject().apply { addProperty("daysBefore", daysBefore.coerceIn(0, 90)) }
+
+    // ─── Drive 1.9: office ──────────────────────────────────────────
+
+    /** `POST nodes/<id>/office` → `{ url, mode, expiresAt }`. */
+    fun office(o: JsonObject): DOffice? {
+        val url = webUrl(o.str("url")) ?: return null
+        return DOffice(url, if (o.str("mode") == "edit") "edit" else "view", o.str("expiresAt")?.take(40))
+    }
+
+    // ─── Drive 1.9: vault folders ───────────────────────────────────
+
+    private val VAULT_ID = Regex("^[A-Za-z0-9_-]{22}$")
+    private val B64URL = Regex("^[A-Za-z0-9_-]+$")
+    /** Stands for "encrypted, but the vault id is not readable" (never a real vault id: too short). */
+    const val INVALID_VAULT = "-"
+
+    fun vaultId(v: String?): String? = v?.takeIf { VAULT_ID.matches(it) }
+
+    fun nameCipher(v: String?): String? = v?.takeIf { it.length in 80..2000 && B64URL.matches(it) }
+
+    private fun pub(v: String?): String? = v?.takeIf { it.length == 43 && B64URL.matches(it) }
+
+    private fun wrap(v: String?): String? = v?.takeIf { it.length == 108 && B64URL.matches(it) }
+
+    fun vault(o: JsonObject?): DVault? {
+        if (o == null) return null
+        return DVault(
+            id = vaultId(o.str("id")) ?: return null,
+            nodeId = o.long("nodeId") ?: return null,
+            areaId = areaId(o.str("areaId")),
+            parentId = o.long("parentId"),
+            nameCipher = nameCipher(o.str("nameCipher")),
+            keyVersion = o.int("keyVersion")?.takeIf { it > 0 } ?: return null,
+            recoveryPub = pub(o.str("recoveryPub")),
+            needsRotation = o.bool("needsRotation") ?: false,
+            myDevices = o.arr("myDevices")?.mapNotNull { e ->
+                val d = e as? JsonObject ?: return@mapNotNull null
+                DVaultMyDevice(vaultId(d.str("deviceId")) ?: return@mapNotNull null, d.str("state")?.take(20) ?: "pending", d.str("name")?.take(80))
+            }.orEmpty(),
+            pending = o.int("pending")?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    fun vaults(o: JsonObject): List<DVault>? = o.arr("vaults")?.mapNotNull { vault(it as? JsonObject) }
+
+    fun vaultAnswer(o: JsonObject): DVault? = vault(o.obj("vault"))
+
+    fun vaultCreated(o: JsonObject): DVaultCreated? = vault(o.obj("vault"))?.let { DVaultCreated(it, node(o.obj("node"))) }
+
+    fun vaultDevice(o: JsonObject?): DVaultDevice? {
+        if (o == null) return null
+        return DVaultDevice(
+            deviceId = vaultId(o.str("deviceId")) ?: return null,
+            userId = o.int("userId"),
+            name = o.str("name")?.trim()?.take(80)?.ifEmpty { null },
+            platform = o.str("platform")?.take(16),
+            publicKey = pub(o.str("publicKey")) ?: return null,
+            state = o.str("state")?.takeIf { it in setOf("pending", "approved", "revoked") } ?: return null,
+            createdAt = o.str("createdAt")?.take(40),
+        )
+    }
+
+    fun vaultDevices(o: JsonObject): List<DVaultDevice>? = o.arr("devices")?.mapNotNull { vaultDevice(it as? JsonObject) }
+
+    fun vaultDeviceAnswer(o: JsonObject): DVaultDevice? = vaultDevice(o.obj("device"))
+
+    private fun wraps(o: JsonObject): List<DVaultWrap> = o.arr("keys")?.mapNotNull { e ->
+        val w = e as? JsonObject ?: return@mapNotNull null
+        DVaultWrap(w.int("keyVersion")?.takeIf { it > 0 } ?: return@mapNotNull null, wrap(w.str("wrap")) ?: return@mapNotNull null)
+    }.orEmpty()
+
+    fun vaultKeys(o: JsonObject): DVaultKeys? = DVaultKeys(
+        deviceId = vaultId(o.str("deviceId")) ?: return null,
+        state = o.str("state")?.take(20) ?: return null,
+        keyVersion = o.int("keyVersion")?.takeIf { it > 0 },
+        keys = wraps(o),
+    )
+
+    fun vaultRecovery(o: JsonObject): DVaultRecovery = DVaultRecovery(pub(o.str("recoveryPub")), o.int("keyVersion")?.takeIf { it > 0 }, wraps(o))
+
+    fun deviceBody(publicKey: String, name: String?, platform: String) = JsonObject().apply {
+        addProperty("publicKey", publicKey)
+        name?.trim()?.take(80)?.ifEmpty { null }?.let { addProperty("name", it) }
+        addProperty("platform", platform)
+    }
+
+    fun vaultBody(
+        id: String,
+        parentId: Long,
+        nameCipher: String,
+        recoveryPub: String,
+        recoveryAuth: String,
+        recoveryWrap: String,
+        device: JsonObject,
+        wrap: String,
+    ) = JsonObject().apply {
+        addProperty("id", id)
+        addProperty("parentId", parentId)
+        addProperty("nameCipher", nameCipher)
+        addProperty("recoveryPub", recoveryPub)
+        addProperty("recoveryAuth", recoveryAuth)
+        addProperty("recoveryWrap", recoveryWrap)
+        add("device", device)
+        addProperty("wrap", wrap)
+    }
+
+    /** `POST vaults/<id>/devices/<did>/approve`: the keys wrapped for that device; [recoveryAuth] for `via: recovery`. */
+    fun approveBody(wraps: List<DVaultWrap>, recoveryAuth: String? = null) = JsonObject().apply {
+        add("wraps", JsonArray().apply {
+            wraps.forEach { w -> add(JsonObject().apply { addProperty("keyVersion", w.keyVersion); addProperty("wrap", w.wrap) }) }
+        })
+        if (recoveryAuth != null) {
+            addProperty("via", "recovery")
+            addProperty("recoveryAuth", recoveryAuth)
+        }
+    }
+
+    /** A folder in a vault: `{ parentId, encrypted, nameCipher, keyVersion }`. */
+    fun vaultFolderBody(parentId: Long, nameCipher: String, keyVersion: Int) = JsonObject().apply {
+        addProperty("parentId", parentId)
+        addProperty("encrypted", true)
+        addProperty("nameCipher", nameCipher)
+        addProperty("keyVersion", keyVersion)
+    }
+
+    /** A file of a vault: its ciphertext [mediaId]; [opaqueName] makes a new version of that file. */
+    fun vaultCommitBody(mediaId: String, parentId: Long, nameCipher: String?, keyVersion: Int, mtimeMs: Long?, opaqueName: String?) = JsonObject().apply {
+        addProperty("mediaId", mediaId)
+        addProperty("parentId", parentId)
+        addProperty("encrypted", true)
+        if (nameCipher != null) addProperty("nameCipher", nameCipher)
+        addProperty("keyVersion", keyVersion)
+        if (mtimeMs != null && mtimeMs > 0) addProperty("mtime", mtimeMs)
+        if (opaqueName != null) {
+            addProperty("name", opaqueName)
+            addProperty("onConflict", "version")
+        }
+    }
+
+    fun nameCipherPatchBody(nameCipher: String) = JsonObject().apply { addProperty("nameCipher", nameCipher) }
+
+    fun vaultEvent(data: JsonElement?): DVaultEvent? {
+        val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        return DVaultEvent(vaultId(o.str("vault")) ?: return null, o.str("event")?.take(20) ?: return null, vaultId(o.str("device")), o.int("keyVersion"))
+    }
+
+    /** `409 { reason: 'stale_key', keyVersion }`: the vault has a newer key. */
+    fun staleKey(body: JsonObject?): Boolean = body?.str("reason") == "stale_key"
+
+    /** The vault's key version of a `stale_key` refusal. */
+    fun staleKeyVersion(body: JsonObject?): Int? = body?.int("keyVersion")?.takeIf { it > 0 }
+
+    /** The `reason` of a refusal (`no_text`, `media_disabled`, `stale_key`, …). */
+    fun reason(body: JsonObject?): String? = body?.str("reason")?.take(40)
 
     // ─── helpers ────────────────────────────────────────────────────
 

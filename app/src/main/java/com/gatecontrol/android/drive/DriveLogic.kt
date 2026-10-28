@@ -257,4 +257,34 @@ internal object DriveLogic {
 
     const val ON_CONFLICT_RENAME = "rename"
     const val ON_CONFLICT_VERSION = "version"
+
+    // ─── Drive 1.8 / 1.9: AI for documents, import, office, vaults ──
+
+    /** The office opens these (Drive 1.9 `office.js`). */
+    private val OFFICE_EXT = setOf("docx", "xlsx", "pptx", "odt", "ods", "odp", "csv")
+
+    /** "Im Browser bearbeiten / ansehen": the office is set up, an office file, not in a vault. */
+    fun officeAllowed(me: DMe?, node: DNode): Boolean =
+        me?.has(DMe.FEATURE_OFFICE) == true && !node.isDir && !node.encrypted && node.name.substringAfterLast('.', "").lowercase() in OFFICE_EXT
+
+    /** The import from Google Drive / OneDrive runs in the portal only: its direct link (Drive 1.8 `cloudImport`). */
+    const val IMPORT_PORTAL_PATH = "/portal?drive=import#plg-gatecontrol-drive"
+
+    /** How many days before a deadline a reminder may come (the server takes 0…90). */
+    val REMIND_DAYS = listOf(0, 1, 2, 3, 7, 14, 30)
+    const val REMIND_DEFAULT = 3
+
+    /** Days from [today] to [date] (`YYYY-MM-DD`); negative when over, null when not a date. */
+    fun daysUntil(date: String, today: java.time.LocalDate): Long? =
+        runCatching { ChronoUnit.DAYS.between(today, java.time.LocalDate.parse(date)) }.getOrNull()
+
+    /** A reminder can still be set (the server refuses one of a day that is over). */
+    fun canRemind(deadline: DDeadline, today: java.time.LocalDate): Boolean = (daysUntil(deadline.date, today) ?: -1) >= 0
+
+    /** The doc kind of a file in a list (a small symbol): only when the AI is done. */
+    fun docKind(node: DNode): String? = node.insight?.takeIf { it.status == "ready" && !node.isDir }?.kind
+
+    /** A vault's nodes with their names: folders first, then by name. */
+    fun sortVault(items: List<Pair<DNode, String>>): List<Pair<DNode, String>> =
+        items.sortedWith(compareBy<Pair<DNode, String>>({ !it.first.isDir }, { it.second.lowercase(Locale.ROOT) }))
 }

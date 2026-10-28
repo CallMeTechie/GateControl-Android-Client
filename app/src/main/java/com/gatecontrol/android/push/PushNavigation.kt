@@ -62,6 +62,12 @@ sealed interface PushNavTarget {
      */
     data class Vault(val dest: String = "home", val messageId: Long? = null) : PushNavTarget
 
+    /**
+     * Drive: a file's page (`file:<node>`, a deadline's reminder) or a vault with its requests (`vault:<vault>:<node>`).
+     * Without the plugin (gone meanwhile) the message [messageId] opens.
+     */
+    data class Drive(val dest: String, val messageId: Long? = null) : PushNavTarget
+
     companion object {
         /** App route of the Familie plugin (`plg-gatecontrol-familie`). */
         const val FAMILIE_ROUTE = "plg-gatecontrol-familie"

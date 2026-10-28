@@ -108,11 +108,13 @@ class PushOpenActivity : ComponentActivity() {
         val familieDest = intent.getStringExtra(EXTRA_FAMILIE_DEST)
         val doorDest = intent.getStringExtra(EXTRA_DOOR_DEST)
         val vaultDest = intent.getStringExtra(EXTRA_VAULT_DEST)
+        val driveDest = intent.getStringExtra(EXTRA_DRIVE_DEST)
         val navTarget = when {
             actionType == PushActionType.OPEN_APP_ROUTE -> PushNavTarget.forRoute(target, id, doorDest)
             familieDest != null && actionType == null -> PushNavTarget.Familie(familieDest, id)
             doorDest != null && actionType == null -> PushNavTarget.Door(doorDest, id)
             vaultDest != null && actionType == null -> PushNavTarget.Vault(vaultDest, id)
+            driveDest != null && actionType == null -> PushNavTarget.Drive(driveDest, id)
             else -> PushNavTarget.Detail(id)
         }
         PushNavigation.request(navTarget)
@@ -131,6 +133,7 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_INBOX = "com.gatecontrol.android.push.extra.INBOX"
         private const val EXTRA_FAMILIE_DEST = "com.gatecontrol.android.push.extra.FAMILIE_DEST"
         private const val EXTRA_VAULT_DEST = "com.gatecontrol.android.push.extra.VAULT_DEST"
+        private const val EXTRA_DRIVE_DEST = "com.gatecontrol.android.push.extra.DRIVE_DEST"
         private const val EXTRA_DOOR_DEST = "com.gatecontrol.android.push.extra.DOOR_DEST"
         private const val EXTRA_CHAT = "com.gatecontrol.android.push.extra.CHAT"
         private const val EXTRA_CHAT_MESSAGE = "com.gatecontrol.android.push.extra.CHAT_MESSAGE"
@@ -164,9 +167,18 @@ class PushOpenActivity : ComponentActivity() {
         private val ackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
         /** Explicit intent to this non-exported activity. */
-        fun intent(context: Context, id: Long, action: PushAction?, familieDest: String? = null, doorDest: String? = null, vaultDest: String? = null): Intent =
+        fun intent(
+            context: Context,
+            id: Long,
+            action: PushAction?,
+            familieDest: String? = null,
+            doorDest: String? = null,
+            vaultDest: String? = null,
+            driveDest: String? = null,
+        ): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_ID, id)
+                .apply { if (driveDest != null) putExtra(EXTRA_DRIVE_DEST, driveDest) }
                 .apply { if (familieDest != null) putExtra(EXTRA_FAMILIE_DEST, familieDest) }
                 .apply { if (doorDest != null) putExtra(EXTRA_DOOR_DEST, doorDest) }
                 .apply { if (vaultDest != null) putExtra(EXTRA_VAULT_DEST, vaultDest) }

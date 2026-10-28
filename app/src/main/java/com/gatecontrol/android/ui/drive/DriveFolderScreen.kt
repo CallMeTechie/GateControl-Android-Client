@@ -91,10 +91,18 @@ import java.time.format.FormatStyle
 
 /** One folder of an area as a page of its own (with back). */
 @Composable
-fun DriveFolderScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: DriveFolderViewModel = hiltViewModel()) {
+fun DriveFolderScreen(
+    onBack: () -> Unit,
+    onFolder: (Long) -> Unit,
+    onFile: (Long) -> Unit = {},
+    onVault: (String, Long) -> Unit = { _, _ -> },
+    viewModel: DriveFolderViewModel = hiltViewModel(),
+) {
     DriveFolderContent(
         viewModel = viewModel,
         onFolder = onFolder,
+        onFile = onFile,
+        onVault = onVault,
         topBar = { title, actions -> GcSubpageBar(title, onBack = onBack, backDescription = stringResource(R.string.drive_back)) { actions() } },
     )
 }
@@ -110,6 +118,10 @@ internal fun DriveFolderContent(
     onFolder: (Long) -> Unit,
     topBar: @Composable (title: String, actions: @Composable () -> Unit) -> Unit,
     header: @Composable () -> Unit = {},
+    /** The page of a file ("Details"). */
+    onFile: (Long) -> Unit = {},
+    /** A vault folder (Drive 1.9): its own pages, the names decrypted there. */
+    onVault: (vaultId: String, folderId: Long) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val area by viewModel.area.collectAsStateWithLifecycle()
@@ -121,6 +133,7 @@ internal fun DriveFolderContent(
     val picker by viewModel.picker.collectAsStateWithLifecycle()
     val scanDraft by viewModel.scan.collectAsStateWithLifecycle()
     val timeTravel by viewModel.timeTravel.collectAsStateWithLifecycle()
+    val newVault by viewModel.newVault.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -211,7 +224,16 @@ internal fun DriveFolderContent(
                     if (s.value.items.isEmpty()) {
                         Text(stringResource(R.string.drive_empty_folder), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(vertical = 24.dp, horizontal = 4.dp))
                     } else {
-                        val onItem: (DNode) -> Unit = { n -> if (n.isDir) onFolder(n.id) else open(n, false) }
+                        val onItem: (DNode) -> Unit = { n ->
+                            val vault = n.vaultId?.takeIf { it != com.gatecontrol.android.drive.DriveJson.INVALID_VAULT }
+                            when {
+                                n.isDir && vault != null -> onVault(vault, n.id)
+                                n.isDir -> onFolder(n.id)
+                                // a vault's file never opens here (its content is ciphertext)
+                                n.encrypted -> Unit
+                                else -> open(n, false)
+                            }
+                        }
                         if (grid) {
                             NodeGrid(s.value.items, onClick = onItem, onLongClick = { menuFor = it }, progress = { downloading[it.id] })
                         } else {
@@ -261,6 +283,15 @@ internal fun DriveFolderContent(
                     onClick = { addOpen = false; startScan() },
                     leading = { Icon(GcIcons.Scan, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                 )
+                // Drive 1.9 (feature `vault`): an end-to-end encrypted folder (not inside another vault)
+                if (me?.has(DMe.FEATURE_VAULT) == true && folder?.node?.encrypted == false) {
+                    GcListRow(
+                        title = stringResource(R.string.drive_vault_new),
+                        description = stringResource(R.string.drive_vault_new_desc),
+                        onClick = { addOpen = false; viewModel.startVault() },
+                        leading = { Icon(GcIcons.Vault, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                    )
+                }
             }
         }
     }
@@ -278,12 +309,14 @@ internal fun DriveFolderContent(
         // Fully open at once: nothing of the menu hides below the edge.
         ModalBottomSheet(onDismissRequest = { menuFor = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.padding(bottom = 24.dp)) {
-                Text(n.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                Text(nodeTitle(n), style = MaterialTheme.typography.titleMedium, maxLines = 2, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 // The everyday actions as one row of icons on top (like the Windows 11 context menu), the rest below.
+                // A vault (Drive 1.9): no sending, no links, no renaming here (its name is encrypted: in the vault itself).
+                val vault = n.encrypted
                 val quick = buildList<Triple<ImageVector, Int, () -> Unit>> {
-                    if (!n.isDir) add(Triple(GcIcons.Share, R.string.drive_send) { open(n, true) })
-                    if (writable) add(Triple(GcIcons.Link, R.string.drive_share_link) { viewModel.openLinks(n) })
-                    if (writable) add(Triple(GcIcons.Edit, R.string.drive_rename) { renaming = n })
+                    if (!n.isDir && !vault) add(Triple(GcIcons.Share, R.string.drive_send) { open(n, true) })
+                    if (writable && !vault) add(Triple(GcIcons.Link, R.string.drive_share_link) { viewModel.openLinks(n) })
+                    if (writable && !vault) add(Triple(GcIcons.Edit, R.string.drive_rename) { renaming = n })
                     // Read only: a file can still go from this phone (its own copy), the sheet offers what applies.
                     if (writable || !n.isDir) add(Triple(GcIcons.Trash, R.string.drive_delete_menu) { deleting = n })
                 }
@@ -302,13 +335,35 @@ internal fun DriveFolderContent(
                         leading = { Icon(icon, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                     )
                 }
+                if (vault) {
+                    n.vaultId?.takeIf { n.isDir && it != com.gatecontrol.android.drive.DriveJson.INVALID_VAULT }?.let { v ->
+                        item(GcIcons.Vault, R.string.drive_open) { onVault(v, n.id) }
+                    }
+                } else {
                 if (!n.isDir) item(GcIcons.External, R.string.drive_open) { open(n, false) }
+                // Drive 1.8 (`docAi`) and more: the file's page with what was recognised and its deadlines
+                if (!n.isDir) {
+                    val kind = DriveLogic.docKind(n)
+                    GcListRow(
+                        title = stringResource(R.string.drive_details),
+                        description = kind?.let { stringResource(R.string.drive_insight_title) + ": " + stringResource(docKindLabel(it)) },
+                        onClick = { menuFor = null; onFile(n.id) },
+                        leading = { Icon(if (kind != null) docKindIcon(kind) else GcIcons.File, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                    )
+                }
+                // Drive 1.9 (`office`): the document in the browser
+                if (DriveLogic.officeAllowed(me, n)) {
+                    item(GcIcons.Globe, if (writable) R.string.drive_office_edit else R.string.drive_office_view) {
+                        scope.launch { openOffice(context, viewModel.office(n)) }
+                    }
+                }
                 if (writable) item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n) }
                 if (!n.isDir) item(GcIcons.History, R.string.drive_versions) { viewModel.openVersions(n) }
                 // Drive 1.7 (feature `timeTravel`): the folder back to an earlier state.
                 if (n.isDir && writable && me?.has(DMe.FEATURE_TIME_TRAVEL) == true) item(GcIcons.History, R.string.drive_tt_menu) { viewModel.startTimeTravel(n) }
                 // Drive 1.6 (feature `links`): the file or folder in the portal.
                 DriveLogic.portalNodeUrl(me, n.id)?.let { url -> item(GcIcons.Globe, R.string.drive_open_portal) { openPortal(context, url) } }
+                }
             }
         }
     }
@@ -339,7 +394,7 @@ internal fun DriveFolderContent(
         val close = { deleting = null; deleteCopies = null }
         ModalBottomSheet(onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.padding(bottom = 24.dp)) {
-                Text(stringResource(R.string.drive_delete_title, n.name), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                Text(stringResource(R.string.drive_delete_title, nodeTitle(n)), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 if (copies != null && !hasLocal && !writable) {
                     Text(stringResource(R.string.drive_delete_nothing), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 }
@@ -415,6 +470,19 @@ internal fun DriveFolderContent(
             onSave = viewModel::saveScan,
             onClose = viewModel::closeScan,
         )
+    }
+    newVault?.let { v ->
+        val key = v.recoveryKey
+        if (key == null) {
+            NewVaultDialog(busy = v.busy, onCreate = viewModel::createVault, onDismiss = viewModel::closeVault)
+        } else {
+            RecoveryKeyDialog(key, onDone = {
+                viewModel.closeVault()
+                val id = v.vaultId
+                val node = v.nodeId
+                if (id != null && node != null) onVault(id, node)
+            })
+        }
     }
     timeTravel?.let { t ->
         TimeTravelDialogs(
@@ -749,7 +817,8 @@ internal fun FolderPickerDialog(
                             if (creating) DriveLoading()
                             newError?.let { Text(driveMessage(it).orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
                         }
-                        f.value.items.filter { it.isDir && it.id != hide }.forEach { d ->
+                        // never into a vault (Drive 1.9): moves, scans and backups stay out of it
+                        f.value.items.filter { it.isDir && it.id != hide && !it.encrypted }.forEach { d ->
                             GcListRow(title = d.name, onClick = { onBrowse(d.id) }, leading = { NodeIcon(d, 32) }, trailing = { GcChevron() })
                         }
                     }

@@ -109,6 +109,65 @@ internal fun kindLook(kind: DriveLogic.Kind): KindLook {
 interface DrivePreviewsEntryPoint {
     fun drivePreviews(): DrivePreviews
     fun driveNodeResolver(): DriveNodeResolver
+    fun driveVaultSession(): com.gatecontrol.android.drive.vault.DriveVaultSession
+}
+
+/** The vault session for names of vault nodes (null in previews). */
+@Composable
+internal fun rememberVaultSession(): com.gatecontrol.android.drive.vault.DriveVaultSession? {
+    if (LocalInspectionMode.current) return null
+    val context = LocalContext.current.applicationContext
+    return remember(context) {
+        runCatching { EntryPointAccessors.fromApplication(context, DrivePreviewsEntryPoint::class.java).driveVaultSession() }.getOrNull()
+    }
+}
+
+/**
+ * The name to show: a vault node's decrypted one (when this device holds the keys), else "Tresor" / "Verschlüsselt" —
+ * never its opaque name.
+ */
+@Composable
+internal fun nodeTitle(node: DNode): String {
+    if (!node.encrypted) return node.name
+    val session = rememberVaultSession()
+    return session?.nameOf(node) ?: stringResource(if (node.isDir) R.string.drive_vault else R.string.drive_vault_locked_item)
+}
+
+/** Symbol of a document kind the AI recognised (Drive 1.8). */
+internal fun docKindIcon(kind: String?): ImageVector = when (kind) {
+    "invoice" -> GcIcons.Receipt
+    "contract" -> GcIcons.Edit
+    "notice" -> GcIcons.Mail
+    "medical" -> GcIcons.Medical
+    "certificate" -> GcIcons.School
+    "statement" -> GcIcons.Wallet
+    "insurance" -> GcIcons.Shield
+    "warranty" -> GcIcons.ShieldCheck
+    else -> GcIcons.File
+}
+
+internal fun docKindLabel(kind: String?): Int = when (kind) {
+    "invoice" -> R.string.drive_kind_invoice
+    "contract" -> R.string.drive_kind_contract
+    "notice" -> R.string.drive_kind_notice
+    "medical" -> R.string.drive_kind_medical
+    "certificate" -> R.string.drive_kind_certificate
+    "statement" -> R.string.drive_kind_statement
+    "insurance" -> R.string.drive_kind_insurance
+    "warranty" -> R.string.drive_kind_warranty
+    else -> R.string.drive_kind_other
+}
+
+/** The small symbol of the recognised document kind, bottom right on a file's icon. */
+@Composable
+private fun DocKindBadge(kind: String, size: Int, modifier: Modifier = Modifier) {
+    val x = GateControlTheme.extraColors
+    Box(
+        modifier.size(size.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface).padding(1.5.dp).clip(CircleShape).background(x.accentBg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(docKindIcon(kind), contentDescription = stringResource(docKindLabel(kind)), tint = x.accentText, modifier = Modifier.size((size * 0.6f).dp))
+    }
 }
 
 /**
@@ -134,15 +193,25 @@ internal fun rememberDrivePreview(node: DNode, large: Boolean = false): ImageBit
 
 @Composable
 internal fun NodeIcon(node: DNode, size: Int = 44) {
-    val look = kindLook(DriveLogic.kind(node))
-    val picture = rememberDrivePreview(node)
-    GcIconSquare(size = size.dp, background = look.bg) {
-        if (picture != null) {
-            Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size.dp))
-            if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(size / 3)
-        } else {
-            Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size((size / 2).dp))
+    val look = if (node.encrypted) {
+        // a vault (Drive 1.9): no preview, the lock instead of the kind
+        val x = GateControlTheme.extraColors
+        KindLook(if (node.isDir) GcIcons.Vault else GcIcons.Lock, x.warn, x.warnBg)
+    } else {
+        kindLook(DriveLogic.kind(node))
+    }
+    val picture = if (node.encrypted) null else rememberDrivePreview(node)
+    val kind = DriveLogic.docKind(node)
+    Box {
+        GcIconSquare(size = size.dp, background = look.bg) {
+            if (picture != null) {
+                Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size.dp))
+                if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(size / 3)
+            } else {
+                Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size((size / 2).dp))
+            }
         }
+        if (kind != null) DocKindBadge(kind, (size * 0.42f).toInt().coerceAtLeast(16), Modifier.align(Alignment.BottomEnd).padding(0.dp))
     }
 }
 
@@ -182,7 +251,7 @@ internal fun NodeRow(
 ) {
     Column {
         GcListRow(
-            title = node.name,
+            title = nodeTitle(node),
             description = description ?: nodeLine(node),
             onClick = onClick,
             leading = { NodeIcon(node) },
@@ -228,6 +297,20 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "read" -> context.getString(R.string.drive_share_read_failed)
     "device_locked" -> context.getString(R.string.drive_code_device_locked)
     "guard_released" -> context.getString(R.string.drive_guard_released)
+    "done_insight" -> context.getString(R.string.drive_done_insight)
+    "done_insight_again" -> context.getString(R.string.drive_done_insight_again)
+    "done_approved" -> context.getString(R.string.drive_done_approved)
+    "done_declined" -> context.getString(R.string.drive_done_declined)
+    "done_upload" -> context.getString(R.string.drive_done_upload)
+    "no_text" -> context.getString(R.string.drive_insight_no_text)
+    "media_disabled" -> context.getString(R.string.drive_insight_media_disabled)
+    "encrypted" -> context.getString(R.string.drive_code_encrypted)
+    "feature_off" -> context.getString(R.string.drive_code_feature_off)
+    "office_unavailable" -> context.getString(R.string.drive_code_office_unavailable)
+    "locked" -> context.getString(R.string.drive_code_locked)
+    "decrypt" -> context.getString(R.string.drive_code_decrypt)
+    "stale_key" -> context.getString(R.string.drive_code_stale_key)
+    "recovery_key" -> context.getString(R.string.drive_code_recovery_key)
     else -> context.getString(R.string.drive_error_generic, code)
 }
 
@@ -425,8 +508,14 @@ internal fun NodeGrid(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NodeTile(node: DNode, onClick: () -> Unit, onLongClick: () -> Unit, progress: Float?, modifier: Modifier = Modifier) {
-    val look = kindLook(DriveLogic.kind(node))
-    val picture = rememberDrivePreview(node)
+    val look = if (node.encrypted) {
+        val x = GateControlTheme.extraColors
+        KindLook(if (node.isDir) GcIcons.Vault else GcIcons.Lock, x.warn, x.warnBg)
+    } else {
+        kindLook(DriveLogic.kind(node))
+    }
+    val picture = if (node.encrypted) null else rememberDrivePreview(node)
+    val kind = DriveLogic.docKind(node)
     val haptic = LocalHapticFeedback.current
     Column(
         modifier
@@ -446,15 +535,16 @@ private fun NodeTile(node: DNode, onClick: () -> Unit, onLongClick: () -> Unit, 
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size(26.dp))
-                    if (!node.isDir) Text(DriveLogic.badge(node, stringResource(R.string.drive_photo)), style = MaterialTheme.typography.labelSmall, color = look.fg)
+                    if (!node.isDir && !node.encrypted) Text(DriveLogic.badge(node, stringResource(R.string.drive_photo)), style = MaterialTheme.typography.labelSmall, color = look.fg)
                 }
             }
+            if (kind != null) DocKindBadge(kind, 22, Modifier.align(Alignment.TopEnd).padding(6.dp))
             if (progress != null) {
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp))
             }
         }
         Text(
-            node.name,
+            nodeTitle(node),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

@@ -19,4 +19,9 @@
          (cacheDir/drive-open/<node>-r<rev>/<name>, pruned after a day). The
          upload copies in cacheDir/drive-up stay private. -->
     <cache-path name="drive_open" path="drive-open/" />
+    <!-- Drive vaults: a file decrypted for opening it with another app
+         (cacheDir/drive-vault-open/<node>/<name>), removed when the vault is
+         left and at the next start. The ciphertext of an upload in
+         cacheDir/drive-vault-up stays private. -->
+    <cache-path name="drive_vault_open" path="drive-vault-open/" />
 </paths>

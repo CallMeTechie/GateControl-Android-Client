@@ -242,7 +242,8 @@ class DriveDocumentsProvider : DocumentsProvider() {
                     val r = api.folder(id.id, offset = offset, limit = PAGE)
                     if (r !is DResult.Ok) return Listing(null, text(code(r)), now())
                     folder = r.value
-                    items += r.value.items
+                    // a vault (Drive 1.9) is not shown in the Files app: its names and contents are ciphertext
+                    items += r.value.items.filter { !it.encrypted }
                     offset = r.value.next?.takeIf { it > offset } ?: break
                 }
                 val f = folder ?: return Listing(null, text("failed"), now())
@@ -265,7 +266,7 @@ class DriveDocumentsProvider : DocumentsProvider() {
         val found = runBlocking(Dispatchers.IO) {
             val all = (areasNow() as? DResult.Ok)?.value.orEmpty()
             when (val r = api.search(q)) {
-                is DResult.Ok -> r.value.map { n ->
+                is DResult.Ok -> r.value.filter { !it.encrypted }.map { n ->
                     nodes[n.id] = n
                     DriveDocs.doc(n, all.firstOrNull { it.id == n.areaId }, ::mimeOf)
                 }
@@ -286,6 +287,7 @@ class DriveDocumentsProvider : DocumentsProvider() {
                 // The current revision (another device may have changed it); the cached one only offline.
                 val node = blocking(signal) { fresh(id.id) }
                 if (node.isDir) throw FileNotFoundException("folder")
+                if (node.encrypted) throw FileNotFoundException("vault")
                 if (!write) return ParcelFileDescriptor.open(blocking(signal) { transfers.fetch(node) }, ParcelFileDescriptor.MODE_READ_ONLY)
                 val parent = node.parentId ?: throw FileNotFoundException("no folder")
                 val temp = tempFile()

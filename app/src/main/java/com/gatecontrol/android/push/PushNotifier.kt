@@ -312,7 +312,9 @@ class PushNotifier @Inject constructor(
         // Door messages: the ring's detail (or the door screen) for the tap and for "Ansehen".
         val doorDest = DoorPush.destination(message)?.key
         val vaultDest = com.gatecontrol.android.vault.VaultPush.destination(message)
-        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest).setData(uri(message, slot))
+        // Drive: a deadline opens its file, a vault request the vault's requests
+        val driveDest = com.gatecontrol.android.drive.DrivePush.destination(message)
+        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
