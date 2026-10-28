@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.19] - 2026-10-28
+
+### Changes
+- KI für Dokumente mit Fristen, Import-Link, Tresor-Ordner und Office im Browser (#143)
+
+---
+
 ## [1.67.18] - 2026-10-28
 
 ### Changes
