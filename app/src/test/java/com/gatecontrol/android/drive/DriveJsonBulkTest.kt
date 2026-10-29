@@ -183,4 +183,28 @@ class DriveJsonBulkTest {
         assertNull(DriveJson.zipFetch("not a url", "/s/tok/zip"))
         assertNull(DriveJson.zipFetch("https://gc.home.lan", "s/tok zip"))
     }
+
+    @Test
+    fun `a job of Drive 1_12_1 with its files one by one`() {
+        val op = DriveJson.opAnswer(
+            json(
+                """{"op":{"id":"${"b".repeat(22)}","kind":"move","state":"running","items":3,"total":3,"done":1,"bytesTotal":30,"bytesDone":10,"filesMore":7,
+                "files":[{"seq":1,"nodeId":5,"name":"a.pdf","size":10,"isDir":false,"state":"done","bytesDone":10},
+                {"seq":2,"nodeId":6,"name":"Fotos","size":20,"isDir":true,"state":"running"},
+                {"seq":3,"nodeId":7,"name":null,"size":0,"isDir":false,"state":"failed","reason":"into_itself","encrypted":true},
+                {"seq":4,"nodeId":8,"name":"x","state":"flying"},{"nodeId":9,"name":"y","state":"done"}]}}""",
+            ),
+        )!!
+        val f = op.files!!
+        assertEquals(listOf(1, 2, 3), f.map { it.seq })
+        assertEquals(10L, f[0].bytesDone)
+        assertTrue(f[1].isDir)
+        assertNull(f[1].bytesDone, "running without a measure")
+        assertEquals("into_itself", f[2].reason)
+        assertTrue(f[2].encrypted)
+        assertNull(f[2].name)
+        assertEquals(7, op.filesMore)
+        // Drive 1.12.0: no files
+        assertNull(DriveJson.op(json("""{"id":"u","kind":"move","state":"running"}"""))!!.files)
+    }
 }

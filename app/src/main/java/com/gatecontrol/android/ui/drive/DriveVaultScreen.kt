@@ -658,7 +658,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             Icon(GcIcons.Lock, contentDescription = null, tint = GateControlTheme.extraColors.muted, modifier = Modifier.padding(end = 8.dp))
                             Text(stringResource(R.string.drive_vault_note), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
                         }
-                        OpCards(running, bulkBusy, onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } }, onCancelBusy = viewModel.bulk::cancelBusy)
+                        BulkBusyCard(bulkBusy, viewModel.bulk::cancelBusy)
                         upload?.let { (name, p) ->
                             GcCard {
                                 Text(stringResource(R.string.drive_vault_uploading, name), style = MaterialTheme.typography.bodyMedium)
@@ -711,11 +711,10 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             }
         }
         if (ready != null && !selecting) {
-            DriveFab(
-                uploads = emptyList(),
+            JobsFab(
+                jobs = running,
+                onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } },
                 onAdd = if (ready.folder.writable && upload == null) ({ addOpen = true }) else null,
-                onOpenUploads = {},
-                onAllDone = {},
                 modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
             )
         }

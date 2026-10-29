@@ -184,4 +184,18 @@
         <item quantity="one">Move %1$d item to the trash?</item>
         <item quantity="other">Move %1$d items to the trash?</item>
     </plurals>
+    <string name="drive_ops_title">Jobs</string>
+    <string name="drive_ops_uploads_title">Uploads and jobs</string>
+    <string name="drive_op_file_running">in progress …</string>
+    <string name="drive_op_file_cancelled">cancelled</string>
+    <string name="drive_op_file_encrypted">Encrypted file</string>
+    <string name="drive_op_folder_encrypted">Encrypted folder</string>
+    <plurals name="drive_ops_running">
+        <item quantity="one">%1$d job running</item>
+        <item quantity="other">%1$d jobs running</item>
+    </plurals>
+    <plurals name="drive_op_files_more">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
 </resources>

@@ -211,4 +211,15 @@ class DriveLogicTest {
         // a clock that went back never waits longer than one gap
         assertEquals(DriveLogic.LIVE_GAP_MS, DriveLogic.liveDelay(10_000L, 1_000L))
     }
+
+    @Test
+    fun `the path of a folder page goes back to the page that shows that folder, else a new page`() {
+        // the Drive tab shows "Meine Dateien" (1), then the pages FEC (7) and Unter (9)
+        assertEquals(DriveLogic.CrumbStep.TAB, DriveLogic.crumbStep(top = 9, id = 1, onStack = false, tab = 1), "Meine Dateien: back to the tab")
+        assertEquals(DriveLogic.CrumbStep.BACK, DriveLogic.crumbStep(top = 9, id = 7, onStack = true, tab = 1))
+        assertEquals(DriveLogic.CrumbStep.STAY, DriveLogic.crumbStep(top = 9, id = 9, onStack = true, tab = 1))
+        // the tab shows another area or the photos: a page of its own
+        assertEquals(DriveLogic.CrumbStep.NEW, DriveLogic.crumbStep(top = 9, id = 1, onStack = false, tab = null))
+        assertEquals(DriveLogic.CrumbStep.NEW, DriveLogic.crumbStep(top = 9, id = 3, onStack = false, tab = 1))
+    }
 }

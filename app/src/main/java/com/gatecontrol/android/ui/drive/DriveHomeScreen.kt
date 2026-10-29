@@ -103,6 +103,8 @@ data class DriveNav(
     val vault: (String, Long) -> Unit = { _, _ -> },
     /** "Drive-Einstellungen" (Drive 1.11, the gear of the menu). */
     val settings: () -> Unit = {},
+    /** The folder the Files page shows now (null: none, or the photos) — a folder page's path goes back to it. */
+    val shown: (Long?) -> Unit = {},
 )
 
 /**
@@ -165,6 +167,9 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     val pager = rememberPagerState(initialPage = DriveLogic.tabOf(DriveViewPref.photos(context), hasPhotos)) { DriveLogic.tabCount(hasPhotos) }
     val onPhotosPage = DriveLogic.isPhotosTab(pager.currentPage, hasPhotos)
     val showPage: (Boolean) -> Unit = { photos -> scope.launch { pager.animateScrollToPage(DriveLogic.tabOf(photos, hasPhotos)) } }
+    // the folder on the Files page: the path of a folder page goes back here when it names this one
+    val shownId = shown?.id?.takeIf { !onPhotosPage }
+    LaunchedEffect(shownId) { nav.shown(shownId) }
     // the page the person ends on is kept, and shown again when the person comes back to the tab
     var synced by remember { mutableStateOf(false) }
     LaunchedEffect(hasPhotos) {

@@ -74,7 +74,10 @@ import androidx.core.content.FileProvider
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
+import com.gatecontrol.android.drive.DriveBulk
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DriveOps
+import androidx.compose.ui.res.pluralStringResource
 import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconSquare
@@ -405,10 +408,10 @@ internal fun DriveLoading() {
 }
 
 /**
- * The round button bottom right: a plus (new folder, upload, … – [onAdd]) while nothing uploads; while uploads run,
- * a ring with the progress of all of them (yellow on a taken name, red with failures) that opens [UploadsSheet].
- * Finished uploads are cleared by themselves, then the plus comes back. Nothing shows when the folder is read only
- * and nothing uploads.
+ * The round button bottom right: a plus (new folder, upload, … – [onAdd]) while nothing uploads and no job runs; while
+ * uploads or jobs on several items ([jobs], Drive 1.12) run, a ring with the progress of all of them together (yellow
+ * on a taken name, red with failed uploads) that opens [UploadsSheet]. Finished uploads are cleared by themselves, an
+ * ended job leaves by itself, then the plus comes back. Nothing shows when the folder is read only and nothing runs.
  */
 @Composable
 internal fun DriveFab(
@@ -417,15 +420,17 @@ internal fun DriveFab(
     onOpenUploads: () -> Unit,
     onAllDone: () -> Unit,
     modifier: Modifier = Modifier,
+    jobs: List<DriveOps.Job> = emptyList(),
 ) {
-    val active = uploads.any { it.state == DriveTransfers.State.QUEUED || it.state == DriveTransfers.State.RUNNING || it.state == DriveTransfers.State.CONFLICT }
+    val uploading = uploads.any { it.state == DriveTransfers.State.QUEUED || it.state == DriveTransfers.State.RUNNING || it.state == DriveTransfers.State.CONFLICT }
     val failed = uploads.any { it.state == DriveTransfers.State.FAILED }
-    LaunchedEffect(active, failed, uploads.size) {
-        if (!active && !failed && uploads.isNotEmpty()) {
+    LaunchedEffect(uploading, failed, uploads.size) {
+        if (!uploading && !failed && uploads.isNotEmpty()) {
             delay(1_200)
             onAllDone()
         }
     }
+    val active = uploading || jobs.isNotEmpty()
     val x = GateControlTheme.extraColors
     if (!active && !failed) {
         if (onAdd == null) return
@@ -444,15 +449,22 @@ internal fun DriveFab(
         }
         return
     }
-    val total = uploads.sumOf { it.total.coerceAtLeast(0) }
-    val sent = uploads.sumOf { u -> if (u.state == DriveTransfers.State.RUNNING || u.state == DriveTransfers.State.QUEUED) u.sent else u.total }
-    val progress = if (total > 0) (sent.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val sending = uploads.map { u -> (if (u.state == DriveTransfers.State.RUNNING || u.state == DriveTransfers.State.QUEUED) u.sent else u.total) to u.total }
+    val progress = DriveBulk.ring(sending, jobs.map { it.op })
     val color = when {
         uploads.any { it.state == DriveTransfers.State.CONFLICT || (it.state == DriveTransfers.State.QUEUED && it.code == "device_locked") } -> x.warn
         failed && !active -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.primary
     }
-    val label = stringResource(R.string.drive_uploads_running, uploads.count { it.state.finished() }, uploads.size)
+    val label = listOfNotNull(
+        if (uploads.isNotEmpty()) stringResource(R.string.drive_uploads_running, uploads.count { it.state.finished() }, uploads.size) else null,
+        if (jobs.isNotEmpty()) pluralStringResource(R.plurals.drive_ops_running, jobs.size, jobs.size) else null,
+    ).joinToString(", ")
+    val icon = when {
+        failed && !active -> GcIcons.Alert
+        uploading || jobs.isEmpty() -> GcIcons.Upload
+        else -> jobIcon(jobs.first().op.kind)
+    }
     Box(
         modifier
             .size(56.dp)
@@ -463,32 +475,51 @@ internal fun DriveFab(
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        if (active && total == 0L) {
+        if (active && progress == null) {
             CircularProgressIndicator(modifier = Modifier.size(44.dp), color = color, strokeWidth = 4.dp)
         } else {
-            CircularProgressIndicator(progress = { if (active) progress else 1f }, modifier = Modifier.size(44.dp), color = color, strokeWidth = 4.dp, trackColor = x.panel2)
+            CircularProgressIndicator(progress = { if (active) progress ?: 0f else 1f }, modifier = Modifier.size(44.dp), color = color, strokeWidth = 4.dp, trackColor = x.panel2)
         }
-        Icon(if (failed && !active) GcIcons.Alert else GcIcons.Upload, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
     }
+}
+
+/** The icon of a job of [kind] (`move`, `copy`, `trash` …). */
+internal fun jobIcon(kind: String): ImageVector = when (kind) {
+    "copy" -> GcIcons.Copy
+    "move" -> GcIcons.FolderMove
+    else -> GcIcons.Trash
 }
 
 private fun DriveTransfers.State.finished() =
     this == DriveTransfers.State.DONE || this == DriveTransfers.State.SAME || this == DriveTransfers.State.SKIPPED || this == DriveTransfers.State.FAILED
 
-/** The uploads one by one, each with its own bar; a name taken asks what to do. */
+/**
+ * The uploads one by one, each with its own bar; a name taken asks what to do. Above them the running jobs on several
+ * items ([jobs], Drive 1.12): each with "Abbrechen" and its items one by one with their bars (Drive 1.12.1; an older
+ * server: one bar for the job).
+ */
 @Composable
 internal fun UploadsSheet(
     uploads: List<DriveTransfers.Upload>,
     onConflict: (DriveTransfers.Upload) -> Unit,
     onClear: () -> Unit,
+    jobs: List<DriveOps.Job> = emptyList(),
+    onCancelJob: (String) -> Unit = {},
 ) {
     val x = GateControlTheme.extraColors
     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.drive_uploads), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            val title = when {
+                jobs.isEmpty() -> R.string.drive_uploads
+                uploads.isEmpty() -> R.string.drive_ops_title
+                else -> R.string.drive_ops_uploads_title
+            }
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             if (uploads.any { it.state.finished() }) TextButton(onClick = onClear) { Text(stringResource(R.string.drive_clear)) }
         }
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
+            jobs.forEach { j -> JobRows(j, onCancel = { onCancelJob(j.op.id) }) }
             uploads.takeLast(50).forEach { u ->
                 val line = when (u.state) {
                     DriveTransfers.State.QUEUED ->

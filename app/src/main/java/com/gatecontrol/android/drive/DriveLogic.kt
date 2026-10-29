@@ -167,6 +167,20 @@ internal object DriveLogic {
     /** At most one live reload of a folder this often. */
     const val LIVE_GAP_MS = 2_000L
 
+    /** What a tap on the path of a folder's page does (see [crumbStep]). */
+    enum class CrumbStep { STAY, BACK, TAB, NEW }
+
+    /**
+     * A tap on folder [id] in the path of a folder's page: nothing when the page on top shows it ([top]); back to the
+     * folder page that shows it ([onStack]); back to the Drive tab when its Files page shows it ([tab]); else a new page.
+     */
+    fun crumbStep(top: Long?, id: Long, onStack: Boolean, tab: Long?): CrumbStep = when {
+        top == id -> CrumbStep.STAY
+        onStack -> CrumbStep.BACK
+        tab == id -> CrumbStep.TAB
+        else -> CrumbStep.NEW
+    }
+
     private val SCAN_EXT = Regex("\\.(pdf|jpe?g)$", RegexOption.IGNORE_CASE)
 
     // ─── when a photo was taken (Drive 1.7, feature `takenAt`) ──────

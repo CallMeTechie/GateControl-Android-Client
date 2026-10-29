@@ -171,7 +171,7 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                         label = stringResource(R.string.drive_search_hint),
                     )
                 }
-                OpCards(running, busy, onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } }, onCancelBusy = viewModel.bulk::cancelBusy)
+                BulkBusyCard(busy, viewModel.bulk::cancelBusy)
                 when (val s = state) {
                     null -> if (q.isNotBlank()) Text(stringResource(R.string.drive_search_min), color = GateControlTheme.extraColors.muted)
                     DriveLoad.Loading -> DriveLoading()
@@ -220,7 +220,15 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                 )
             }
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 16.dp))
+        // jobs on several items: the ring of the round button (a tap shows them one by one)
+        if (!selecting) {
+            JobsFab(
+                jobs = running,
+                onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } },
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
+            )
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else if (running.isNotEmpty()) 84.dp else 16.dp))
     }
 
     val moreSheet: @Composable (List<DNode>, Boolean, () -> Unit) -> Unit = { ns, fromRow, close ->

@@ -966,6 +966,28 @@ internal object DriveJson {
             transfer = o.str("transfer")?.takeIf { it == "client" || it == "server" },
             transfersLeft = o.int("transfersLeft")?.coerceAtLeast(0) ?: 0,
             error = o.str("error")?.take(40),
+            files = o.arr("files")?.mapNotNull { opFile(it as? JsonObject) }?.take(OP_FILES_MAX),
+            filesMore = o.int("filesMore")?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    private val OP_FILE_STATES = setOf("waiting", "running", "done", "skipped", "failed")
+    const val OP_FILES_MAX = 1000
+
+    /** An item of a job (`{ seq, nodeId, name, size, isDir, state, reason?, bytesDone?, encrypted? }`, Drive 1.12.1). */
+    private fun opFile(o: JsonObject?): DOpFile? {
+        if (o == null) return null
+        val size = o.long("size")?.coerceAtLeast(0) ?: 0L
+        return DOpFile(
+            seq = o.int("seq")?.takeIf { it > 0 } ?: return null,
+            nodeId = o.long("nodeId")?.takeIf { it > 0 },
+            name = o.str("name")?.take(255)?.ifEmpty { null },
+            size = size,
+            isDir = o.bool("isDir") ?: false,
+            state = o.str("state")?.takeIf { it in OP_FILE_STATES } ?: return null,
+            reason = o.str("reason")?.take(40),
+            bytesDone = o.long("bytesDone")?.coerceIn(0, size.coerceAtLeast(0)),
+            encrypted = o.bool("encrypted") ?: false,
         )
     }
 

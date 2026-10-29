@@ -75,6 +75,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DFolder
+import com.gatecontrol.android.drive.DOpFile
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveBulk
@@ -89,6 +90,7 @@ import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcTextField
@@ -716,15 +718,34 @@ private fun AskChoice(title: String, description: String, selected: Boolean, ena
 
 // ─── jobs: progress, snackbar ───────────────────────────────────────
 
-/** The running jobs as cards on top: "Kopiere „X“ nach Y", how far, a bar, "Abbrechen". */
+/**
+ * The round button of a page without uploads (the photos, the search, a vault): a plus ([onAdd], if any) or, while
+ * jobs run, their ring; a tap on it opens the sheet with the jobs and their items.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun OpCards(jobs: List<DriveOps.Job>, busy: DriveBulkActions.Busy?, onCancel: (String) -> Unit, onCancelBusy: () -> Unit) {
-    jobs.forEach { j -> OpCard(j, onCancel = { onCancel(j.op.id) }) }
-    busy?.let { b -> BusyCard(b, onCancelBusy) }
+internal fun JobsFab(jobs: List<DriveOps.Job>, onCancel: (String) -> Unit, modifier: Modifier = Modifier, onAdd: (() -> Unit)? = null) {
+    var open by remember { mutableStateOf(false) }
+    DriveFab(uploads = emptyList(), onAdd = onAdd, onOpenUploads = { open = true }, onAllDone = {}, modifier = modifier, jobs = jobs)
+    if (open && jobs.isNotEmpty()) {
+        ModalBottomSheet(onDismissRequest = { open = false }) {
+            UploadsSheet(emptyList(), onConflict = {}, onClear = {}, jobs = jobs, onCancelJob = onCancel)
+        }
+    }
 }
 
+/** What the app does with the selection itself ("Senden", a ZIP): a card on top while it runs, with "Abbrechen". */
 @Composable
-private fun OpCard(job: DriveOps.Job, onCancel: () -> Unit) {
+internal fun BulkBusyCard(busy: DriveBulkActions.Busy?, onCancel: () -> Unit) {
+    busy?.let { b -> BusyCard(b, onCancel) }
+}
+
+/**
+ * A running job in the uploads sheet: "Verschiebe „X“ nach Y", how far, "Abbrechen"; below, its items one by one with
+ * their bars like the uploads (Drive 1.12.1) — without them (an older server, a job of this app) one bar for the job.
+ */
+@Composable
+internal fun JobRows(job: DriveOps.Job, onCancel: () -> Unit) {
     val x = GateControlTheme.extraColors
     val op = job.op
     val what = if (job.count == 1 && job.title != null) stringResource(R.string.drive_quoted, job.title) else pluralStringResource(R.plurals.drive_items, job.count, job.count)
@@ -742,28 +763,89 @@ private fun OpCard(job: DriveOps.Job, onCancel: () -> Unit) {
         if (total > 0) add(stringResource(if (job.local) R.string.drive_op_items else R.string.drive_op_files, op.done, total))
         if (op.bytesTotal > 0) add(stringResource(R.string.drive_op_bytes, DriveLogic.size(op.bytesDone), DriveLogic.size(op.bytesTotal)))
     }.joinToString(" · ")
-    val p = DriveBulk.progress(op)
-    val running = stringResource(R.string.drive_op_running)
-    GcCard(modifier = Modifier.semantics { contentDescription = running }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GcIconSquare(size = 36.dp, background = x.blueBg) {
-                Icon(if (op.kind == "copy") GcIcons.Copy else if (op.kind == "move") GcIcons.FolderMove else GcIcons.Trash, contentDescription = null, tint = x.blue, modifier = Modifier.size(18.dp))
-            }
-            Column(Modifier.weight(1f)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(jobIcon(op.kind), contentDescription = null, tint = x.blue, modifier = Modifier.size(20.dp))
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
                 Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (counts.isNotEmpty()) Text(counts, style = MaterialTheme.typography.bodySmall, color = x.muted)
+                Text(
+                    if (counts.isNotEmpty()) counts else stringResource(R.string.drive_op_running),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = x.muted,
+                )
             }
             TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 44.dp)) { Text(stringResource(R.string.drive_cancel), color = x.accentText, fontWeight = FontWeight.SemiBold) }
         }
-        val label = stringResource(R.string.drive_op_progress)
-        LinearProgressIndicator(
-            progress = { p },
-            color = x.blue,
-            trackColor = x.panel2,
-            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).semantics { contentDescription = label },
+        Text(
+            stringResource(if (job.local) R.string.drive_op_local else R.string.drive_op_server),
+            style = MaterialTheme.typography.bodySmall,
+            color = x.muted,
+            modifier = Modifier.padding(start = 52.dp, end = 20.dp, bottom = 4.dp),
         )
-        Text(stringResource(if (job.local) R.string.drive_op_local else R.string.drive_op_server), style = MaterialTheme.typography.bodySmall, color = x.muted)
+        val files = op.files
+        if (files.isNullOrEmpty()) {
+            val label = stringResource(R.string.drive_op_progress)
+            LinearProgressIndicator(
+                progress = { DriveBulk.progress(op) },
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = x.panel2,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).semantics { contentDescription = label },
+            )
+        } else {
+            val shown = DriveBulk.visibleFiles(files)
+            shown.forEach { f -> JobFileRow(f) }
+            val more = op.filesMore + files.size - shown.size
+            if (more > 0) {
+                Text(
+                    pluralStringResource(R.plurals.drive_op_files_more, more, more),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = x.muted,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                )
+            }
+        }
+        GcRowDivider(Modifier.padding(top = 6.dp))
     }
+}
+
+/** One item of a job: its name, its state, its bar (without a measure while it runs on the server). */
+@Composable
+private fun JobFileRow(f: DOpFile) {
+    val x = GateControlTheme.extraColors
+    val line = when (f.state) {
+        "waiting" -> stringResource(R.string.drive_upload_waiting)
+        "running" -> f.bytesDone?.takeIf { f.size > 0 }?.let { "${DriveLogic.size(it)} / ${DriveLogic.size(f.size)}" } ?: stringResource(R.string.drive_op_file_running)
+        "done" -> stringResource(R.string.drive_upload_done)
+        "skipped" -> if (f.reason == "cancelled") stringResource(R.string.drive_op_file_cancelled) else stringResource(R.string.drive_upload_skipped)
+        else -> stringResource(R.string.drive_upload_failed, bulkReason(f.reason ?: "error"))
+    }
+    val failed = f.state == "failed"
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        GcListRow(
+            title = f.name ?: stringResource(if (f.isDir) R.string.drive_op_folder_encrypted else R.string.drive_op_file_encrypted),
+            description = line,
+            titleColor = MaterialTheme.colorScheme.onSurface,
+        )
+        val p = DriveBulk.fileProgress(f)
+        val color = when {
+            failed -> MaterialTheme.colorScheme.error
+            f.state == "skipped" -> x.muted
+            else -> MaterialTheme.colorScheme.primary
+        }
+        val bar = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(4.dp).clip(RoundedCornerShape(2.dp))
+        if (p == null) {
+            LinearProgressIndicator(modifier = bar, color = color, trackColor = x.panel2)
+        } else {
+            LinearProgressIndicator(progress = { p }, modifier = bar, color = color, trackColor = x.panel2)
+        }
+    }
+}
+
+/** A job's reason (`into_itself`, `locked`, a Drive code …) as words. */
+@Composable
+private fun bulkReason(reason: String): String {
+    val context = LocalContext.current
+    return reasonText(context, reason)
 }
 
 @Composable
