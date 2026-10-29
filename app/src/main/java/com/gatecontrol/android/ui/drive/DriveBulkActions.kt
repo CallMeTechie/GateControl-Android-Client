@@ -61,6 +61,8 @@ internal class DriveBulkActions(
     private val nameOf: (DNode) -> String = { it.name },
     /** The vault's own folder (the target never goes above it). */
     private val vaultRoot: () -> Long? = { null },
+    /** Items moved from the folder shown (null: the photos, the search) into a target (work photos learn from it). */
+    private val onMoved: (nodes: List<DNode>, from: DFolder?, target: DFolder) -> Unit = { _, _, _ -> },
 ) {
     private val me: DMe? get() = live.me.value
 
@@ -346,6 +348,7 @@ internal class DriveBulkActions(
         when (val r = ops.start(t.mode.op, allowed, f.node.id, onConflict, title, label, pending)) {
             is DResult.Ok -> {
                 if (check.blocked.isNotEmpty()) _message.value = "bulk_some_blocked:" + check.blocked.size
+                if (t.mode == DriveBulk.Mode.MOVE) onMoved(nodes, here(), f)
                 follow(r.value.id, t.mode.op, nodes.size, label, allowed)
             }
             else -> failed(r.errorCode(), chosen)
@@ -401,6 +404,7 @@ internal class DriveBulkActions(
                 }
             }
             ops.finishLocal(id, DOpResults(done, skipped, failed))
+            if (moved.isNotEmpty()) onMoved(t.nodes.filter { it.id in moved }, here(), f)
             follow(id, "move", done, label, moved)
         }
     }

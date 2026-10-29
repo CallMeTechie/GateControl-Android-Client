@@ -296,6 +296,7 @@ class DriveFolderViewModel @Inject constructor(
     private val vaultLock: com.gatecontrol.android.drive.vault.DriveVaultLock,
     private val settings: com.gatecontrol.android.drive.DriveSettings,
     val ops: com.gatecontrol.android.drive.DriveOps,
+    private val workPhotos: com.gatecontrol.android.drive.work.DriveWorkPhotos,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -328,6 +329,8 @@ class DriveFolderViewModel @Inject constructor(
         items = { (_state.value as? DriveLoad.Ready)?.value?.items.orEmpty() },
         here = { (_state.value as? DriveLoad.Ready)?.value },
         changed = { refresh(quiet = true) },
+        // into or out of the work folder: the work photos' AI learns from it (Drive 1.13)
+        onMoved = { nodes, from, target -> workPhotos.learnMoved(nodes, from, target) },
     )
 
     init {

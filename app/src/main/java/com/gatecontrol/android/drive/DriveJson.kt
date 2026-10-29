@@ -194,6 +194,8 @@ internal object DriveJson {
             takenAt = o.str("takenAt")?.take(40),
             deleteAt = o.str("deleteAt")?.take(40),
             insight = o.obj("insight")?.let(::insightShort),
+            review = o.obj("review")?.let { DReview(it.int("hint")?.coerceIn(0, 100)) },
+            work = o.bool("work") == true,
         ).let { n ->
             // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
             val vault = vaultId(o.str("vaultId"))
@@ -446,14 +448,68 @@ internal object DriveJson {
      * [limit] (1–200), the day of the memories ([date]) — and `camera=1` for only the camera uploads (Drive 1.10,
      * feature `photosFolder`). Null for an invalid area.
      */
-    fun photosQuery(area: String? = null, before: String? = null, limit: Int? = null, camera: Boolean = false, date: String? = null): Map<String, String>? =
+    fun photosQuery(
+        area: String? = null,
+        before: String? = null,
+        limit: Int? = null,
+        camera: Boolean = false,
+        date: String? = null,
+        cls: String? = null,
+    ): Map<String, String>? =
         buildMap {
             if (area != null) put("area", areaId(area) ?: return null)
             if (before != null) put("before", before)
             if (limit != null) put("limit", limit.coerceIn(1, 200).toString())
             if (date != null) put("date", date)
             if (camera) put("camera", "1")
+            if (cls != null) put("class", cls.takeIf { it in PHOTO_CLASSES } ?: return null)
         }
+
+    /** The values of `class` (Drive 1.13). */
+    val PHOTO_CLASSES = setOf("work", "private", "review")
+
+    /** `GET|PUT photos/settings` → the work folder and its switches (Drive 1.13); null without the switches. */
+    fun photoSettings(o: JsonObject): DPhotoSettings? {
+        if (!o.has("workFolder") && !o.has("workSubfolders")) return null
+        val folder = o.obj("folder")
+        val id = o.long("workFolder")?.takeIf { it > 0 }
+        return DPhotoSettings(
+            workFolder = id,
+            workSubfolders = o.bool("workSubfolders") ?: true,
+            workInMemories = o.bool("workInMemories") ?: false,
+            folderPath = folder?.takeIf { id != null }?.str("path")?.take(2000),
+            folderAreaId = folder?.takeIf { id != null }?.let { areaId(it.str("areaId")) },
+        )
+    }
+
+    /** `PUT photos/settings`: only the fields given ([clearFolder] sends `workFolder: null`). */
+    fun photoSettingsBody(workFolder: Long? = null, clearFolder: Boolean = false, workSubfolders: Boolean? = null, workInMemories: Boolean? = null) =
+        JsonObject().apply {
+            if (clearFolder) add("workFolder", com.google.gson.JsonNull.INSTANCE) else if (workFolder != null) addProperty("workFolder", workFolder)
+            if (workSubfolders != null) addProperty("workSubfolders", workSubfolders)
+            if (workInMemories != null) addProperty("workInMemories", workInMemories)
+        }
+
+    /** `POST photos/review { ids, review, hint? }` (1 … 500 ids; [hint] 0 … 100). */
+    fun reviewBody(ids: List<Long>, review: Boolean, hint: Int?) = JsonObject().apply {
+        add("ids", idsArray(ids))
+        addProperty("review", review)
+        if (review && hint != null) addProperty("hint", hint.coerceIn(0, 100))
+    }
+
+    /** `POST photos/review` → each node's mark now (null: none); null without `items`. */
+    fun reviewAnswer(o: JsonObject): Map<Long, DReview?>? = o.arr("items")?.mapNotNull { e ->
+        val i = e as? JsonObject ?: return@mapNotNull null
+        val id = i.long("id") ?: return@mapNotNull null
+        id to i.obj("review")?.let { DReview(it.int("hint")?.coerceIn(0, 100)) }
+    }?.toMap()
+
+    /** `GET photos/classes` → `{ work, private, review }`; null when one is missing. */
+    fun photoClasses(o: JsonObject): DPhotoClasses? = DPhotoClasses(
+        work = o.int("work")?.coerceAtLeast(0) ?: return null,
+        private = o.int("private")?.coerceAtLeast(0) ?: return null,
+        review = o.int("review")?.coerceAtLeast(0) ?: return null,
+    )
 
     /** `GET photos/memories` → `{ groups: [{ yearsAgo, date, items }] }`; groups without photos are left out. */
     fun memories(o: JsonObject): List<DMemories>? = o.arr("groups")?.mapNotNull { e ->

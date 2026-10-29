@@ -294,6 +294,8 @@ internal fun BulkMoreSheet(
     single: List<MoreItem>,
     last: List<MoreItem>,
     onDismiss: () -> Unit,
+    /** Further sections at the end, each with its label (null: none). */
+    sections: List<Pair<String?, List<MoreItem>>> = emptyList(),
 ) {
     val x = GateControlTheme.extraColors
     val context = LocalContext.current
@@ -343,6 +345,12 @@ internal fun BulkMoreSheet(
             if (last.isNotEmpty()) {
                 GcRowDivider(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 last.forEach { MoreRow(it, onDismiss) }
+            }
+            sections.forEach { (label, items) ->
+                if (items.isEmpty()) return@forEach
+                GcRowDivider(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                if (label != null) GcSectionLabel(label, modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp).semantics { heading() })
+                items.forEach { MoreRow(it, onDismiss) }
             }
         }
     }

@@ -103,6 +103,8 @@ data class DriveNav(
     val vault: (String, Long) -> Unit = { _, _ -> },
     /** "Drive-Einstellungen" (Drive 1.11, the gear of the menu). */
     val settings: () -> Unit = {},
+    /** "Aufräumen" of the work photos (Drive 1.13). */
+    val cleanup: () -> Unit = {},
     /** The folder the Files page shows now (null: none, or the photos) — a folder page's path goes back to it. */
     val shown: (Long?) -> Unit = {},
 )
@@ -282,7 +284,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     key = { it },
                 ) { page ->
                     if (DriveLogic.isPhotosTab(page, hasPhotos)) {
-                        DrivePhotosContent(viewModel = photosViewModel, topBar = {}, onAlbum = nav.album)
+                        DrivePhotosContent(viewModel = photosViewModel, topBar = {}, onAlbum = nav.album, onCleanup = nav.cleanup, onFile = nav.file)
                     } else {
                         DriveFilesPage(
                             folderViewModel = folderViewModel,

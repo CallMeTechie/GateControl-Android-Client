@@ -103,6 +103,14 @@ class DriveFolderChooserViewModel @Inject constructor(
         return f.node.id
     }
 
+    /** The path of the folder shown ("Meine Dateien › Arbeit"); null when none is. */
+    fun pickedLabel(): String? {
+        val f = (_state.value.folder as? DriveLoad.Ready)?.value ?: return null
+        val area = _state.value.areas.firstOrNull { it.id == f.node.areaId }?.label ?: f.crumbs.firstOrNull()?.name ?: return null
+        val names = f.crumbs.drop(1).map { it.name } + listOfNotNull(f.node.name.takeIf { f.node.parentId != null && it.isNotEmpty() })
+        return (listOf(area) + names).joinToString(" › ")
+    }
+
     private companion object {
         const val KEY_LAST = "save_folder"
     }

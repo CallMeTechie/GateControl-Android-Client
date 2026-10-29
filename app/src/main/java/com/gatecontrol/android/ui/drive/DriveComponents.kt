@@ -712,7 +712,9 @@ private fun NodeTile(
                     if (!node.isDir && !node.encrypted) Text(DriveLogic.badge(node, stringResource(R.string.drive_photo)), style = MaterialTheme.typography.labelSmall, color = look.fg)
                 }
             }
-            if (kind != null) DocKindBadge(kind, 22, Modifier.align(Alignment.TopEnd).padding(6.dp))
+            // Drive 1.13: a photo to be reviewed (work or private?) shows the yellow question mark
+            if (node.review != null) ReviewMark(Modifier.align(Alignment.TopEnd).padding(6.dp), description = stringResource(R.string.drive_work_tile_review))
+            else if (kind != null) DocKindBadge(kind, 22, Modifier.align(Alignment.TopEnd).padding(6.dp))
             if (selecting) SelectCheck(selected, Modifier.align(Alignment.TopStart).padding(6.dp), onImage = picture != null)
             if (progress != null) {
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp))

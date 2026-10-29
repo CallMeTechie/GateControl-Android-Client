@@ -204,6 +204,8 @@ dependencies {
     // Drive: "Scannen" (Google's document scanner and text recognition, both through Play services: no models in the APK)
     implementation(libs.mlkit.document.scanner)
     implementation(libs.mlkit.text.recognition)
+    // Drive: work photos apart — image labeling on the phone (Play services, no model in the APK, no picture leaves the phone)
+    implementation(libs.mlkit.image.labeling)
 
     // Vault: end-to-end encryption (README "Kryptoformat" of gatecontrol-vault) and the recovery key's QR
     implementation(libs.bouncycastle.prov)

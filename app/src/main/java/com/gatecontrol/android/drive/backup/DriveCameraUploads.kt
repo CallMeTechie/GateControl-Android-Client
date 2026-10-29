@@ -24,9 +24,28 @@ class DriveCameraUploads @Inject constructor(
     private val lock = Mutex()
     private var base: Long? = null
     private val below = HashMap<String, Long>()
+    private val other = HashMap<String, Long>()
 
     /** The folder for [path] (year, month — [DriveBackupLogic.cameraPath]) below Kamera-Uploads. */
     suspend fun folder(path: List<String>): DResult<Long> = lock.withLock { blocked(resolve(path)) }
+
+    /**
+     * The folder for [path] below the folder [base] (the work folder, Drive 1.13: `<Arbeitsordner>/<JJJJ>/<MM>`), made
+     * when missing; [base] itself for an empty path.
+     */
+    suspend fun under(base: Long, path: List<String>): DResult<Long> = lock.withLock {
+        val key = "$base:" + path.joinToString("/")
+        other[key]?.let { return@withLock DResult.Ok(it) }
+        var parent = base
+        for (name in path) {
+            parent = when (val c = child(parent, name)) {
+                is DResult.Ok -> c.value
+                else -> return@withLock blocked(c)
+            }
+        }
+        other[key] = parent
+        DResult.Ok(parent)
+    }
 
     private suspend fun resolve(path: List<String>): DResult<Long> {
         val key = path.joinToString("/")
@@ -52,6 +71,7 @@ class DriveCameraUploads @Inject constructor(
     suspend fun forget() = lock.withLock {
         base = null
         below.clear()
+        other.clear()
     }
 
     /** Kamera-Uploads: the server's (`photosFolder`), else `Bilder/Kamera-Uploads` in the person's own area. */
