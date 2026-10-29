@@ -184,4 +184,18 @@
         <item quantity="one">%1$d Element in den Papierkorb legen?</item>
         <item quantity="other">%1$d Elemente in den Papierkorb legen?</item>
     </plurals>
+    <string name="drive_ops_title">Aufträge</string>
+    <string name="drive_ops_uploads_title">Uploads und Aufträge</string>
+    <string name="drive_op_file_running">läuft …</string>
+    <string name="drive_op_file_cancelled">abgebrochen</string>
+    <string name="drive_op_file_encrypted">Verschlüsselte Datei</string>
+    <string name="drive_op_folder_encrypted">Verschlüsselter Ordner</string>
+    <plurals name="drive_ops_running">
+        <item quantity="one">%1$d Auftrag läuft</item>
+        <item quantity="other">%1$d Aufträge laufen</item>
+    </plurals>
+    <plurals name="drive_op_files_more">
+        <item quantity="one">und %1$d weiteres</item>
+        <item quantity="other">und %1$d weitere</item>
+    </plurals>
 </resources>

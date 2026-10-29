@@ -211,4 +211,15 @@ class DriveLogicTest {
         // a clock that went back never waits longer than one gap
         assertEquals(DriveLogic.LIVE_GAP_MS, DriveLogic.liveDelay(10_000L, 1_000L))
     }
+
+    @Test
+    fun `the path of a folder page goes back to the page that shows that folder, else a new page`() {
+        // the Drive tab shows "Meine Dateien" (1), then the pages FEC (7) and Unter (9)
+        val stack = listOf(null, 1L, 7L, 9L)
+        assertEquals(2, DriveLogic.crumbPops(stack, 1L), "Meine Dateien: back to the tab")
+        assertEquals(1, DriveLogic.crumbPops(stack, 7L))
+        assertEquals(0, DriveLogic.crumbPops(stack, 9L))
+        assertNull(DriveLogic.crumbPops(stack, 3L), "a folder no page shows: a new page")
+        assertEquals(0, DriveLogic.crumbPops(listOf(1L, 7L, 1L), 1L), "the nearest one")
+    }
 }

@@ -362,4 +362,64 @@ class DriveBulkTest {
         assertEquals("b", DriveBulk.lastPart("/a/b/"))
         assertNull(DriveBulk.lastPart(null))
     }
+
+    // ─── the items of a job (Drive 1.12.1) ──────────────────────────
+
+    private fun file(seq: Int, state: String, size: Long = 100, bytes: Long? = null) =
+        DOpFile(seq = seq, nodeId = seq.toLong(), name = "f$seq", size = size, isDir = false, state = state, bytesDone = bytes)
+
+    private fun op(state: String = "running", total: Int = 5, done: Int = 0, bytesTotal: Long = 0, bytesDone: Long = 0, transfersLeft: Int = 0) =
+        DOp(id = "o".repeat(22), kind = "move", state = state, total = total, done = done, bytesTotal = bytesTotal, bytesDone = bytesDone, transfersLeft = transfersLeft)
+
+    @Test
+    fun `an item's bar - full when ended, without a measure while it runs on the server`() {
+        assertEquals(0f, DriveBulk.fileProgress(file(1, "waiting")))
+        assertNull(DriveBulk.fileProgress(file(1, "running")))
+        assertEquals(0.5f, DriveBulk.fileProgress(file(1, "running", bytes = 50)))
+        assertEquals(1f, DriveBulk.fileProgress(file(1, "done")))
+        assertEquals(1f, DriveBulk.fileProgress(file(1, "failed")))
+    }
+
+    @Test
+    fun `the items of the live event go over the known ones by their place`() {
+        val known = listOf(file(1, "done"), file(2, "running"), file(3, "waiting"))
+        val merged = DriveBulk.mergeFiles(known, listOf(file(2, "done"), file(3, "running")))!!
+        assertEquals(listOf("done", "done", "running"), merged.map { it.state })
+        assertEquals(known, DriveBulk.mergeFiles(known, null), "an event without items keeps them")
+        // at most max: the first done ones go
+        val many = DriveBulk.mergeFiles((1..4).map { file(it, "done") }, listOf(file(5, "running"), file(6, "waiting")), max = 3)!!
+        assertEquals(listOf(4, 5, 6), many.map { it.seq })
+    }
+
+    @Test
+    fun `the sheet shows a window from a few before the item at work`() {
+        val files = (1..300).map { file(it, if (it < 150) "done" else if (it == 150) "running" else "waiting") }
+        val shown = DriveBulk.visibleFiles(files)
+        assertEquals(DriveBulk.FILES_SHOWN, shown.size)
+        assertEquals(150 - DriveBulk.FILES_BEFORE, shown.first().seq)
+        assertEquals(files.takeLast(DriveBulk.FILES_SHOWN).map { it.seq }, DriveBulk.visibleFiles(files.map { it.copy(state = "done") }).map { it.seq })
+        assertEquals(3, DriveBulk.visibleFiles(files.take(3)).size)
+    }
+
+    @Test
+    fun `a job with all files done that does not change has ended (Drive 1_12_0 left it running)`() {
+        assertTrue(DriveBulk.stalledDone(op(total = 5, done = 5), DriveBulk.STALL_MS))
+        assertFalse(DriveBulk.stalledDone(op(total = 5, done = 5), DriveBulk.STALL_MS - 1))
+        assertFalse(DriveBulk.stalledDone(op(total = 5, done = 4), DriveBulk.STALL_MS * 10))
+        assertFalse(DriveBulk.stalledDone(op(total = 5, done = 5, transfersLeft = 2), DriveBulk.STALL_MS * 10), "a copy waiting for a device")
+        assertFalse(DriveBulk.stalledDone(op(state = "done", total = 5, done = 5), DriveBulk.STALL_MS * 10))
+        assertFalse(DriveBulk.stalledDone(op(total = 0, done = 0), DriveBulk.STALL_MS * 10))
+    }
+
+    @Test
+    fun `the round button's ring - uploads and jobs together by their bytes`() {
+        assertNull(DriveBulk.ring(emptyList(), emptyList()))
+        assertNull(DriveBulk.ring(listOf(0L to 0L), emptyList()), "an upload of an unknown size")
+        assertEquals(0.5f, DriveBulk.ring(listOf(50L to 100L), emptyList()))
+        assertEquals(0.25f, DriveBulk.ring(emptyList(), listOf(op(bytesTotal = 400, bytesDone = 100))))
+        // 100 of 100 uploaded, a job of 300 bytes half done: 250 of 400
+        assertEquals(0.625f, DriveBulk.ring(listOf(100L to 100L), listOf(op(bytesTotal = 300, bytesDone = 150))))
+        // a job without bytes counts by its files
+        assertEquals(0.4f, DriveBulk.ring(emptyList(), listOf(op(total = 5, done = 2))))
+    }
 }

@@ -167,6 +167,16 @@ internal object DriveLogic {
     /** At most one live reload of a folder this often. */
     const val LIVE_GAP_MS = 2_000L
 
+    /**
+     * A tap on the path of a folder's page: how many pages to go back to the one that shows folder [id] already (the
+     * nearest; 0: the page on top shows it), or null to open it as a new page. [shown]: the folder of each page on the
+     * back stack, the top last (null: a page that shows no folder).
+     */
+    fun crumbPops(shown: List<Long?>, id: Long): Int? {
+        val i = shown.lastIndexOf(id)
+        return if (i < 0) null else shown.size - 1 - i
+    }
+
     private val SCAN_EXT = Regex("\\.(pdf|jpe?g)$", RegexOption.IGNORE_CASE)
 
     // ─── when a photo was taken (Drive 1.7, feature `takenAt`) ──────

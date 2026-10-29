@@ -225,9 +225,9 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
                 }
             }
         }
-        if (running.isNotEmpty() || busy != null) {
+        if (busy != null) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OpCards(running, busy, onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } }, onCancelBusy = viewModel.bulk::cancelBusy)
+                BulkBusyCard(busy, viewModel.bulk::cancelBusy)
             }
         }
         Box(Modifier.weight(1f)) {
@@ -264,7 +264,15 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
             )
         }
     }
-    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 16.dp))
+    // jobs on several items: the ring of the round button (a tap shows them one by one)
+    if (!selecting) {
+        JobsFab(
+            jobs = running,
+            onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } },
+            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
+        )
+    }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else if (running.isNotEmpty()) 84.dp else 16.dp))
     }
     DriveBulkHost(viewModel.bulk, snackbar)
 

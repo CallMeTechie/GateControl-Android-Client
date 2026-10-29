@@ -103,6 +103,8 @@ fun DriveFolderScreen(
     onFolder: (Long) -> Unit,
     onFile: (Long) -> Unit = {},
     onVault: (String, Long) -> Unit = { _, _ -> },
+    /** A tap on the path above: back to the page with that folder, else a new page. */
+    onCrumb: ((Long) -> Unit)? = null,
     viewModel: DriveFolderViewModel = hiltViewModel(),
 ) {
     DriveFolderContent(
@@ -110,6 +112,7 @@ fun DriveFolderScreen(
         onFolder = onFolder,
         onFile = onFile,
         onVault = onVault,
+        onCrumb = onCrumb,
         topBar = { title, actions -> GcSubpageBar(title, onBack = onBack, backDescription = stringResource(R.string.drive_back)) { actions() } },
     )
 }
@@ -231,8 +234,8 @@ internal fun DriveFolderContent(
             if (area?.via == "parent") {
                 GcBanner(tone = GcTone.Warn, icon = GcIcons.Eye) { Text(stringResource(R.string.drive_child_note), style = MaterialTheme.typography.bodyMedium) }
             }
-            // jobs on several items: how far they are (they go on on the server)
-            OpCards(running, busy, onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } }, onCancelBusy = viewModel.bulk::cancelBusy)
+            // sending or zipping the selection here (the jobs on several items show in the round button)
+            BulkBusyCard(busy, viewModel.bulk::cancelBusy)
             header()
             when (val s = state) {
                 DriveLoad.Loading -> DriveLoading()
@@ -305,6 +308,7 @@ internal fun DriveFolderContent(
             onOpenUploads = { uploadsOpen = true },
             onAllDone = viewModel.transfers::clearFinished,
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
+            jobs = running,
         )
     }
     SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 84.dp))
@@ -348,9 +352,15 @@ internal fun DriveFolderContent(
         }
     }
 
-    if (uploadsOpen && uploads.isNotEmpty()) {
+    if (uploadsOpen && (uploads.isNotEmpty() || running.isNotEmpty())) {
         ModalBottomSheet(onDismissRequest = { uploadsOpen = false }) {
-            UploadsSheet(uploads, onConflict = { uploadsOpen = false; conflict = it }, onClear = viewModel.transfers::clearFinished)
+            UploadsSheet(
+                uploads,
+                onConflict = { uploadsOpen = false; conflict = it },
+                onClear = viewModel.transfers::clearFinished,
+                jobs = running,
+                onCancelJob = { id -> scope.launch { viewModel.ops.cancel(id) } },
+            )
         }
     }
 

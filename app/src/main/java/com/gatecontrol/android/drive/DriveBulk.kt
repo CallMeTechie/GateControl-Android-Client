@@ -276,6 +276,16 @@ internal object DriveBulk {
     const val ON_RENAME = "rename"
     const val ON_SKIP = "skip"
 
+    /** Items of a job the app keeps (the server sends up to 500 at a time). */
+    const val FILES_KEPT = 500
+
+    /** Items of a job the sheet shows at a time, and how many done ones before the one at work. */
+    const val FILES_SHOWN = 100
+    const val FILES_BEFORE = 5
+
+    /** A job with all its files done that does not change for this long has ended (see [stalledDone]). */
+    const val STALL_MS = 10_000L
+
     /** One line of the question: what is there, what comes; [same] the content is the same already. */
     data class ConflictRow(
         val name: String,
@@ -364,6 +374,71 @@ internal object DriveBulk {
         op.bytesTotal > 0 -> (op.bytesDone.toFloat() / op.bytesTotal).coerceIn(0f, 1f)
         op.total > 0 -> (op.done.toFloat() / op.total).coerceIn(0f, 1f)
         else -> 0f
+    }
+
+    /** How far one item of a job is (0…1); null while it runs without a measure (an indeterminate bar). */
+    fun fileProgress(f: DOpFile): Float? = when (f.state) {
+        "done", "skipped", "failed" -> 1f
+        "running" -> f.bytesDone?.takeIf { f.size > 0 }?.let { (it.toFloat() / f.size).coerceIn(0f, 1f) }
+        else -> 0f
+    }
+
+    /**
+     * The items of a job the sheet shows: at most [max], from a few before the first not done yet (the ones at work and
+     * waiting next; what failed stays in the snackbar's count).
+     */
+    fun visibleFiles(files: List<DOpFile>, max: Int = FILES_SHOWN): List<DOpFile> {
+        if (files.size <= max) return files
+        val at = files.indexOfFirst { it.state == "running" || it.state == "waiting" }.takeIf { it >= 0 } ?: files.size
+        val from = (at - FILES_BEFORE).coerceIn(0, files.size - max)
+        return files.subList(from, from + max)
+    }
+
+    /**
+     * A job's items as the app keeps them: [new] (the server's window — the live event carries fewer than `GET`) over
+     * [old], by their place in the job; at most [max], the first done ones go first. Null [new]: [old] stays.
+     */
+    fun mergeFiles(old: List<DOpFile>?, new: List<DOpFile>?, max: Int = FILES_KEPT): List<DOpFile>? {
+        if (new == null) return old
+        if (old.isNullOrEmpty()) return new.sortedBy { it.seq }.takeLast(max)
+        val all = (old.associateBy { it.seq } + new.associateBy { it.seq }).values.sortedBy { it.seq }
+        if (all.size <= max) return all
+        var drop = all.size - max
+        val out = ArrayList<DOpFile>(max)
+        for (f in all) {
+            if (drop > 0 && f.state == "done") { drop--; continue }
+            out += f
+        }
+        return out.takeLast(max)
+    }
+
+    /**
+     * A job that did all its files but still runs after [unchangedMs] without a change: Drive 1.12.0 left a job so when
+     * the time of a request ran out during its last item (it never ended there). The app stops it — what is done stays,
+     * "Rückgängig" works — and shows it as done.
+     */
+    fun stalledDone(op: DOp, unchangedMs: Long): Boolean =
+        op.running && op.total > 0 && op.done >= op.total && op.transfersLeft == 0 && unchangedMs >= STALL_MS
+
+    /**
+     * The round button's ring over uploads ([uploads]: sent and total bytes each; total ≤ 0: not known yet) and jobs:
+     * each weighted by its bytes (at least 1); null when none of them has a measure yet (an indeterminate ring).
+     */
+    fun ring(uploads: List<Pair<Long, Long>>, jobs: List<DOp>): Float? {
+        var weight = 0.0
+        var done = 0.0
+        for ((sent, total) in uploads) {
+            if (total <= 0) continue
+            weight += total
+            done += sent.coerceIn(0, total)
+        }
+        for (op in jobs) {
+            if (op.bytesTotal <= 0 && op.total <= 0) continue
+            val w = op.bytesTotal.coerceAtLeast(1).toDouble()
+            weight += w
+            done += w * progress(op)
+        }
+        return if (weight <= 0.0) null else (done / weight).toFloat().coerceIn(0f, 1f)
     }
 
     /** Whether "Rückgängig" still works for [op] at [nowMs] (a finished move, copy or trash; a stopped one too). */

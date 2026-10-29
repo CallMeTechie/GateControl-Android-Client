@@ -523,9 +523,30 @@ data class DOp(
     val transfersLeft: Int = 0,
     /** Why it failed: `abandoned`, `quota`, `device_locked`, `no_seat`, `internal`. */
     val error: String? = null,
+    /** Its items one by one (Drive 1.12.1, `?files=1` and the live event; null: the server does not say). */
+    val files: List<DOpFile>? = null,
+    /** Items not in [files]. */
+    val filesMore: Int = 0,
 ) {
     val running: Boolean get() = state == "running"
 }
+
+/**
+ * One item of a job (Drive 1.12.1): a chosen file or folder (a copy: each file), its [state] `waiting` | `running` |
+ * `done` | `skipped` | `failed` ([reason] for the last two), and the bytes done — null while it runs without a measure.
+ * [seq]: its place in the job. A vault's item has no [name] ([encrypted]).
+ */
+data class DOpFile(
+    val seq: Int,
+    val nodeId: Long?,
+    val name: String?,
+    val size: Long,
+    val isDir: Boolean,
+    val state: String,
+    val reason: String? = null,
+    val bytesDone: Long? = null,
+    val encrypted: Boolean = false,
+)
 
 /** `POST zip`: where the ZIP of a selection can be fetched for a short time, its file name. */
 data class DZip(val url: String?, val path: String?, val mediaId: String?, val name: String, val expiresAt: String?)

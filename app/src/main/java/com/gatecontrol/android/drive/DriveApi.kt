@@ -446,10 +446,11 @@ class DriveApi @Inject constructor(
         return post("ops", DriveJson.opBody(kind, ids, target, onConflict), DriveJson::opAnswer)
     }
 
-    suspend fun op(id: String): DResult<DOp> = get("ops/" + (DriveJson.opId(id) ?: return bad()), parse = DriveJson::opAnswer)
+    /** The job [id] with its items one by one (Drive 1.12.1; an older server leaves them out). */
+    suspend fun op(id: String): DResult<DOp> = get("ops/" + (DriveJson.opId(id) ?: return bad()), mapOf("files" to "1"), DriveJson::opAnswer)
 
     /** My jobs still running (after the app was closed, they go on on the server). */
-    suspend fun runningOps(): DResult<List<DOp>> = get("ops", mapOf("state" to "running"), DriveJson::ops)
+    suspend fun runningOps(): DResult<List<DOp>> = get("ops", mapOf("state" to "running", "files" to "1"), DriveJson::ops)
 
     /** Stops a job: what is done stays done. */
     suspend fun cancelOp(id: String): DResult<DOp> = del("ops/" + (DriveJson.opId(id) ?: return bad()), DriveJson::opAnswer)
