@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.24] - 2026-10-29
+
+### Changes
+- Aufträge im Ladekreis wie Uploads, Ende sicher erkannt, Pfad springt in den Ordner (#148)
+
+---
+
 ## [1.67.23] - 2026-10-29
 
 ### Changes
