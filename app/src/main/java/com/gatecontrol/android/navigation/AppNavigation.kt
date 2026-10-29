@@ -1494,25 +1494,32 @@ private const val DRIVE_TAB_SHOWN = "drive_shown"
 private fun NavGraphBuilder.driveRoutes(navController: NavHostController, navigateToTab: (String) -> Unit) {
     val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Drive.route) }
     val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
-    /** The folder shown by each page on the back stack, the top last (null: no folder page). */
-    val shownFolders: () -> List<Long?> = {
-        navController.currentBackStack.value.map { e ->
-            when (e.destination.route) {
-                Screen.DriveFolder.route -> e.arguments?.getString(Screen.DriveFolder.ARG_ID)?.toLongOrNull()
-                Screen.Drive.route -> e.savedStateHandle.get<Long>(DRIVE_TAB_SHOWN)
-                else -> null
-            }
-        }
+    /** The folder the page on top shows (null: no folder page). */
+    val topFolder: () -> Long? = {
+        navController.currentBackStackEntry?.takeIf { it.destination.route == Screen.DriveFolder.route }
+            ?.arguments?.getString(Screen.DriveFolder.ARG_ID)?.toLongOrNull()
     }
     // A folder is a page of its own. Not "launchSingleTop": a folder page on top of a folder page is the same
     // destination, the navigation would only give the page on top the new id (its view model keeps showing its folder).
     val folder: (Long) -> Unit = { id ->
-        if (shownFolders().lastOrNull() != id) navController.navigate(Screen.DriveFolder.create(id))
+        if (topFolder() != id) navController.navigate(Screen.DriveFolder.create(id))
     }
     // The path above a folder: back to the page that shows that folder already (the Drive tab too), else a new page.
     val crumb: (Long) -> Unit = { id ->
-        val pops = com.gatecontrol.android.drive.DriveLogic.crumbPops(shownFolders(), id)
-        if (pops == null) navController.navigate(Screen.DriveFolder.create(id)) else repeat(pops) { navController.popBackStack() }
+        val page = Screen.DriveFolder.create(id)
+        val tab = runCatching { navController.getBackStackEntry(Screen.Drive.route) }.getOrNull()
+        val step = com.gatecontrol.android.drive.DriveLogic.crumbStep(
+            top = topFolder(),
+            id = id,
+            onStack = runCatching { navController.getBackStackEntry(page) }.isSuccess,
+            tab = tab?.savedStateHandle?.get<Long>(DRIVE_TAB_SHOWN),
+        )
+        when (step) {
+            com.gatecontrol.android.drive.DriveLogic.CrumbStep.STAY -> Unit
+            com.gatecontrol.android.drive.DriveLogic.CrumbStep.BACK -> navController.popBackStack(page, inclusive = false)
+            com.gatecontrol.android.drive.DriveLogic.CrumbStep.TAB -> navController.popBackStack(Screen.Drive.route, inclusive = false)
+            com.gatecontrol.android.drive.DriveLogic.CrumbStep.NEW -> navController.navigate(page)
+        }
     }
     val file: (Long) -> Unit = { go(Screen.DriveFile.create(it)) }
     val vault: (String, Long) -> Unit = { v, f -> navController.navigate(Screen.DriveVault.create(v, f)) }

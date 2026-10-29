@@ -167,14 +167,18 @@ internal object DriveLogic {
     /** At most one live reload of a folder this often. */
     const val LIVE_GAP_MS = 2_000L
 
+    /** What a tap on the path of a folder's page does (see [crumbStep]). */
+    enum class CrumbStep { STAY, BACK, TAB, NEW }
+
     /**
-     * A tap on the path of a folder's page: how many pages to go back to the one that shows folder [id] already (the
-     * nearest; 0: the page on top shows it), or null to open it as a new page. [shown]: the folder of each page on the
-     * back stack, the top last (null: a page that shows no folder).
+     * A tap on folder [id] in the path of a folder's page: nothing when the page on top shows it ([top]); back to the
+     * folder page that shows it ([onStack]); back to the Drive tab when its Files page shows it ([tab]); else a new page.
      */
-    fun crumbPops(shown: List<Long?>, id: Long): Int? {
-        val i = shown.lastIndexOf(id)
-        return if (i < 0) null else shown.size - 1 - i
+    fun crumbStep(top: Long?, id: Long, onStack: Boolean, tab: Long?): CrumbStep = when {
+        top == id -> CrumbStep.STAY
+        onStack -> CrumbStep.BACK
+        tab == id -> CrumbStep.TAB
+        else -> CrumbStep.NEW
     }
 
     private val SCAN_EXT = Regex("\\.(pdf|jpe?g)$", RegexOption.IGNORE_CASE)
