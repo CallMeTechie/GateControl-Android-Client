@@ -45,6 +45,7 @@ import com.gatecontrol.android.drive.DStorageFile
 import com.gatecontrol.android.drive.DStorageReport
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLive
+import com.gatecontrol.android.drive.DriveBulk
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcListRow
@@ -160,11 +161,23 @@ fun DriveStorageScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: 
         }
     }
     val report = (state as? DriveLoad.Ready)?.value
+    val selecting = selected.isNotEmpty() && report != null
+    androidx.activity.compose.BackHandler(enabled = selecting) { viewModel.clearSelection() }
     Column(Modifier.fillMaxSize()) {
-        GcSubpageBar(stringResource(R.string.drive_storage_title), onBack = onBack, backDescription = stringResource(R.string.drive_back))
+        if (selecting) {
+            SelectionHead(
+                count = selected.size,
+                line = report?.let { DriveLogic.size(DriveLogic.freed(selected, it.duplicates)) },
+                allSelected = false,
+                onClose = viewModel::clearSelection,
+                onAll = null,
+            )
+        } else {
+            GcSubpageBar(stringResource(R.string.drive_storage_title), onBack = onBack, backDescription = stringResource(R.string.drive_back))
+        }
         Box(Modifier.weight(1f)) {
             Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = if (selected.isEmpty()) 0.dp else 88.dp),
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (me?.admin == true) {
@@ -180,11 +193,13 @@ fun DriveStorageScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: 
                     is DriveLoad.Ready -> StorageReport(s.value, selected, busy, onFolder, onToggle = viewModel::toggle, onAllButOne = viewModel::allButOne)
                 }
             }
-            if (selected.isNotEmpty() && report != null) {
-                SelectionBar(count = selected.size, onClear = viewModel::clearSelection, modifier = Modifier.align(Alignment.BottomCenter)) {
-                    TextButton(onClick = { confirm = true }, enabled = !busy) { Text(stringResource(R.string.drive_storage_delete_selected)) }
-                }
-            }
+        }
+        if (selecting) {
+            SelectionActionBar(
+                listOf(
+                    BarAction(GcIcons.Trash, stringResource(R.string.drive_storage_delete_selected), DriveBulk.Can.YES, danger = true) { if (!busy) confirm = true },
+                ),
+            )
         }
     }
     if (confirm && report != null) {

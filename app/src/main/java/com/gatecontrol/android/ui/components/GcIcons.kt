@@ -218,6 +218,9 @@ object GcIcons {
     val History = icon("History", 2f, "M3 12a9 9 0 1 0 3-6.7L3 8", "M3 3v5h5", "M12 7v5l3 2")
     val Vault = icon("Vault", 1.8f, rect(4f, 10f, 16f, 11f, 2.5f), "M8 10V7a4 4 0 0 1 8 0v3", circle(12f, 15.5f, 1.5f))
     val Lifebuoy = icon("Lifebuoy", 1.8f, circle(12f, 12f, 9f), circle(12f, 12f, 4f), "M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6")
+    val MoreHorizontal = icon("MoreHorizontal", 2.6f, "M5 12h.01M12 12h.01M19 12h.01")
+    val FolderMove = icon("FolderMove", 1.8f, "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M10 13h6M14 11l2 2-2 2")
+    val Info = icon("Info", 2f, circle(12f, 12f, 9f), "M12 11v6M12 7.5v.5")
     val Scan = icon("Scan", 2f, "M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16")
 
     fun fromPath(name: String, path: String): ImageVector = icon(name, 2f, path)

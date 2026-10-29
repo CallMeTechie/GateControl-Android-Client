@@ -68,6 +68,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import com.gatecontrol.android.drive.DriveBulk
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -145,6 +162,7 @@ internal fun DriveModeSwitch(photos: Boolean, onPhotos: (Boolean) -> Unit) {
 @Composable
 internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Composable () -> Unit, onAlbum: (String) -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val me by viewModel.live.me.collectAsStateWithLifecycle()
     val timeline by viewModel.timeline.collectAsStateWithLifecycle()
     val months by viewModel.months.collectAsStateWithLifecycle()
@@ -172,9 +190,26 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
         }
     }
 
+    val selecting = selected.isNotEmpty()
+    val running by viewModel.ops.running.collectAsStateWithLifecycle()
+    val busy by viewModel.bulk.busy.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    // back ends the selection first
+    BackHandler(enabled = selecting) { viewModel.clearSelection() }
+    val chosen = remember(selected, timeline.items) { timeline.items.filter { it.id in selected } }
+    val where = DriveBulk.Where(
+        writable = { n -> me?.areas?.firstOrNull { it.id == n.areaId }?.writable == true },
+        child = { n -> me?.areas?.firstOrNull { it.id == n.areaId }?.via == "parent" },
+    )
+
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
-        topBar()
-        if (hasAlbums || hasCamera) {
+        if (selecting) {
+            SelectionHead(count = selected.size, line = stringResource(R.string.drive_photos_sel_hint), allSelected = false, onClose = viewModel::clearSelection, onAll = null)
+        } else {
+            topBar()
+        }
+        if (!selecting && (hasAlbums || hasCamera)) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hasAlbums) {
                     GcFilterChip(stringResource(R.string.drive_photos_timeline), selected = tab == "timeline", onClick = { tab = "timeline" })
@@ -190,6 +225,11 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
                 }
             }
         }
+        if (running.isNotEmpty() || busy != null) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OpCards(running, busy, onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } }, onCancelBusy = viewModel.bulk::cancelBusy)
+            }
+        }
         Box(Modifier.weight(1f)) {
             if (tab == "albums" && hasAlbums) {
                 AlbumGrid(albums, onAlbum = { onAlbum(it.id) }, onNew = { creating = false }, onRetry = viewModel::loadAlbums)
@@ -203,26 +243,30 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
                     onMore = viewModel::more,
                     onRetry = viewModel::refresh,
                     empty = stringResource(R.string.drive_photos_empty),
-                    header = if (memories.isEmpty()) null else ({
+                    header = if (memories.isEmpty() || selecting) null else ({
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             MemoriesRow(memories, onOpen = { m -> viewing = m.yearsAgo to 0 })
                         }
                     }),
+                    onSelect = viewModel.bulk::set,
                 )
             }
-            if (selected.isNotEmpty()) {
-                SelectionBar(
-                    count = selected.size,
-                    onClear = viewModel::clearSelection,
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                ) {
-                    if (hasAlbums) {
-                        TextButton(onClick = { viewModel.loadAlbums(); choosing = true }) { Text(stringResource(R.string.drive_photos_add_to_album)) }
-                    }
-                }
-            }
+        }
+        if (selecting) {
+            SelectionActionBar(
+                listOf(
+                    BarAction(GcIcons.Share, stringResource(R.string.drive_bar_send), viewModel.bulk.can(DriveBulk.Action.SEND, chosen, where)) { viewModel.bulk.send() },
+                    BarAction(GcIcons.Photo, stringResource(R.string.drive_bar_album), viewModel.bulk.can(DriveBulk.Action.ALBUM, chosen, where)) { viewModel.loadAlbums(); choosing = true },
+                    BarAction(GcIcons.Download, stringResource(R.string.drive_bar_save), viewModel.bulk.can(DriveBulk.Action.SAVE, chosen, where)) { viewModel.bulk.save() },
+                    BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), viewModel.bulk.can(DriveBulk.Action.MOVE, chosen, where)) { viewModel.bulk.openTarget(DriveBulk.Mode.MOVE) },
+                    BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), viewModel.bulk.can(DriveBulk.Action.DELETE, chosen, where), danger = true) { viewModel.bulk.delete() },
+                ),
+            )
         }
     }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 16.dp))
+    }
+    DriveBulkHost(viewModel.bulk, snackbar)
 
     viewing?.let { (years, start) ->
         PhotoViewer(
@@ -288,7 +332,9 @@ private fun MemoriesRow(memories: List<DMemories>, onOpen: (DMemories) -> Unit) 
 
 /**
  * Photos as tiles, by month when [months] is given, loading the next page near the end. A tap opens one ([onOpen]
- * with its index), a long press — or a tap while some are ticked — ticks it.
+ * with its index), a long press — or a tap while some are ticked — ticks it. With [onSelect] a long press and a swipe
+ * over the photos tick several at once (or untick, when the first one was ticked), and each month has "Alle" / "Keine"
+ * while ticking.
  */
 @Composable
 internal fun PhotoGrid(
@@ -301,6 +347,7 @@ internal fun PhotoGrid(
     empty: String,
     months: Map<String, Int>? = null,
     header: (LazyGridScope.() -> Unit)? = null,
+    onSelect: ((Set<Long>) -> Unit)? = null,
 ) {
     val state = rememberLazyGridState()
     val nearEnd by remember {
@@ -311,7 +358,55 @@ internal fun PhotoGrid(
     }
     LaunchedEffect(nearEnd, pages.items.size, pages.next) { if (nearEnd && !pages.end) onMore() }
     val index = remember(pages.items) { pages.items.withIndex().associate { it.value.id to it.index } }
+    val ids = remember(pages.items) { pages.items.map { it.id } }
     val x = GateControlTheme.extraColors
+    val selecting = selected.isNotEmpty()
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val current by rememberUpdatedState(selected)
+    val drag = if (onSelect == null) {
+        Modifier
+    } else {
+        Modifier.pointerInput(ids) {
+            /** The photo under [pos] (its index in [ids]); -1 for none. */
+            fun indexAt(pos: Offset): Int {
+                val hit = state.layoutInfo.visibleItemsInfo.firstOrNull { info ->
+                    val k = info.key as? String ?: return@firstOrNull false
+                    k.startsWith("p-") && pos.x >= info.offset.x && pos.x < info.offset.x + info.size.width && pos.y >= info.offset.y && pos.y < info.offset.y + info.size.height
+                } ?: return -1
+                val id = (hit.key as String).removePrefix("p-").toLongOrNull() ?: return -1
+                return index[id] ?: -1
+            }
+            var anchor = -1
+            var base: Set<Long> = emptySet()
+            var select = true
+            detectDragGesturesAfterLongPress(
+                onDragStart = { pos ->
+                    val i = indexAt(pos)
+                    if (i >= 0) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        anchor = i
+                        base = current
+                        select = ids[i] !in base
+                        onSelect(DriveBulk.dragRange(base, ids, anchor, i, select))
+                    }
+                },
+                onDrag = { change, _ ->
+                    if (anchor >= 0) {
+                        change.consume()
+                        val i = indexAt(change.position)
+                        if (i >= 0) onSelect(DriveBulk.dragRange(base, ids, anchor, i, select))
+                        // near the edges the grid scrolls on
+                        val edge = 64.dp.toPx()
+                        val y = change.position.y
+                        if (y < edge) scope.launch { state.scrollBy(-(edge - y) / 3) } else if (y > size.height - edge) scope.launch { state.scrollBy((y - (size.height - edge)) / 3) }
+                    }
+                },
+                onDragEnd = { anchor = -1 },
+                onDragCancel = { anchor = -1 },
+            )
+        }
+    }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 96.dp),
         state = state,
@@ -319,7 +414,7 @@ internal fun PhotoGrid(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().then(drag),
     ) {
         header?.invoke(this)
         val groups = if (months != null) DriveLogic.byMonth(pages.items) else listOf(null to pages.items)
@@ -328,20 +423,33 @@ internal fun PhotoGrid(
                 item(key = "m-$g-$month", span = { GridItemSpan(maxLineSpan) }) {
                     val count = month?.let { months[it] }
                     val title = monthTitle(month) ?: stringResource(R.string.drive_photos_undated)
-                    Text(
-                        if (count != null && count > 0) "$title · ${pluralStringResource(R.plurals.drive_photos_count, count, count)}" else title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp, start = 4.dp),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        Text(
+                            if (count != null && count > 0) "$title · ${pluralStringResource(R.plurals.drive_photos_count, count, count)}" else title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.weight(1f).padding(top = 8.dp, bottom = 4.dp, start = 4.dp).semantics { heading() },
+                        )
+                        if (selecting && onSelect != null) {
+                            val monthIds = list.map { it.id }
+                            val all = DriveBulk.allSelected(selected, monthIds)
+                            val desc = stringResource(if (all) R.string.drive_sel_none_of else R.string.drive_sel_all_of, title)
+                            TextButton(onClick = { onSelect(DriveBulk.allOrNone(selected, monthIds)) }, modifier = Modifier.heightIn(min = 44.dp).semantics { contentDescription = desc }) {
+                                Text(stringResource(if (all) R.string.drive_sel_none else R.string.drive_sel_all), color = x.accentText, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
                 }
             }
             items(list, key = { "p-${it.id}" }) { n ->
                 PhotoTile(
                     node = n,
+                    selecting = selecting,
                     ticked = n.id in selected,
                     onClick = { if (selected.isNotEmpty()) onToggle(n) else onOpen(index[n.id] ?: 0) },
                     onLongClick = { onToggle(n) },
+                    // with a swipe to tick the grid takes the long press itself
+                    longPressGesture = onSelect == null,
                 )
             }
         }
@@ -359,61 +467,60 @@ internal fun PhotoGrid(
     }
 }
 
+/**
+ * A photo's tile: the tick top left while ticking (the ticked tile inset), the play mark of a video. [longPressGesture]
+ * false: the grid takes the long press (a swipe ticks several), TalkBack still has "Auswählen".
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PhotoTile(node: DNode, ticked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun PhotoTile(node: DNode, selecting: Boolean, ticked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, longPressGesture: Boolean = true) {
     val look = kindLook(DriveLogic.kind(node))
     val picture = rememberDrivePreview(node)
     val haptic = LocalHapticFeedback.current
-    val accent = MaterialTheme.colorScheme.primary
+    val selectLabel = stringResource(R.string.drive_photos_select)
+    val clickLabel = if (selecting) stringResource(if (ticked) R.string.drive_sel_deselect else R.string.drive_sel_select) else null
+    val state = stringResource(if (ticked) R.string.drive_sel_selected else R.string.drive_sel_not_selected)
+    val label = listOfNotNull(node.name, photoDate(node)).joinToString(", ")
     Box(
         Modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(6.dp))
-            .background(look.bg)
-            .then(if (ticked) Modifier.border(3.dp, accent, RoundedCornerShape(6.dp)) else Modifier)
-            .combinedClickable(
-                role = Role.Button,
-                onClick = onClick,
-                onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() },
-                onLongClickLabel = stringResource(R.string.drive_photos_select),
-            ),
+            .then(
+                if (longPressGesture) {
+                    Modifier.combinedClickable(
+                        role = Role.Button,
+                        onClickLabel = clickLabel,
+                        onClick = onClick,
+                        onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() },
+                        onLongClickLabel = selectLabel,
+                    )
+                } else {
+                    Modifier
+                        .clickable(role = Role.Button, onClickLabel = clickLabel, onClick = onClick)
+                        .semantics { onLongClick(selectLabel) { onLongClick(); true } }
+                },
+            )
+            .semantics {
+                contentDescription = label
+                if (selecting) { selected = ticked; stateDescription = state }
+            },
         contentAlignment = Alignment.Center,
     ) {
-        if (picture != null) {
-            Image(picture, contentDescription = node.name, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-        } else {
-            Icon(look.icon, contentDescription = node.name, tint = look.fg, modifier = Modifier.size(24.dp))
-        }
-        if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(24)
-        if (ticked) {
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(CircleShape).background(accent),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(GcIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
+        Box(
+            Modifier
+                .matchParentSize()
+                .padding(if (ticked) 8.dp else 0.dp)
+                .clip(RoundedCornerShape(if (ticked) 10.dp else 6.dp))
+                .background(look.bg),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (picture != null) {
+                Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            } else {
+                Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size(24.dp))
             }
+            if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(24)
         }
-    }
-}
-
-/** "3 ausgewählt" with the actions for them, at the bottom. */
-@Composable
-internal fun SelectionBar(count: Int, onClear: () -> Unit, modifier: Modifier = Modifier, actions: @Composable () -> Unit) {
-    Row(
-        modifier
-            .navigationBarsPadding()
-            .padding(16.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, GateControlTheme.extraColors.border, RoundedCornerShape(18.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        GcIconButton(GcIcons.Close, contentDescription = stringResource(R.string.drive_photos_clear_selection), onClick = onClear, tint = MaterialTheme.colorScheme.onSurface)
-        Text(pluralStringResource(R.plurals.drive_photos_selected, count, count), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-        actions()
+        if (selecting) SelectCheck(ticked, Modifier.align(Alignment.TopStart).padding(6.dp), onImage = true)
     }
 }
 
@@ -491,7 +598,7 @@ private fun NewAlbumCard(onClick: () -> Unit) {
 
 /** Which album the ticked photos go to (those the person may change), or a new one. */
 @Composable
-private fun AlbumChooser(albums: List<DAlbum>?, onAlbum: (DAlbum) -> Unit, onNew: () -> Unit) {
+internal fun AlbumChooser(albums: List<DAlbum>?, onAlbum: (DAlbum) -> Unit, onNew: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(stringResource(R.string.drive_album_choose), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
         GcListRow(

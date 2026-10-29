@@ -87,6 +87,16 @@ data class DMe(
          * `hasDirs`, a new vault always lies in its area's top folder.
          */
         const val FEATURE_VAULTS_APART = "vaultsApart"
+        /** Drive 1.12: jobs over several items at once (`ops`: move, copy, trash, restore, purge; undo). */
+        const val FEATURE_BULK = "bulk"
+        /** Drive 1.12: a ZIP of a selection (`POST zip`). */
+        const val FEATURE_ZIP = "zip"
+        /** Drive 1.12: one shared link for several files. */
+        const val FEATURE_MULTI_LINK = "multiLink"
+        /** Drive 1.12 on GateControl 1.215+: the server copies the bytes itself (only then the app offers "Kopieren"). */
+        const val FEATURE_COPY_SERVER = "copyServer"
+        /** Drive 1.12: a ZIP and one link of any selection (folders and files mixed, more than 20). */
+        const val FEATURE_ZIP_MIXED = "zipMixed"
     }
 }
 
@@ -432,3 +442,90 @@ data class DVaultCreated(val vault: DVault, val node: DNode?)
 
 /** Live event `vault { vault, event: request | approved | rotated, device?, keyVersion? }`. */
 data class DVaultEvent(val vault: String, val event: String, val device: String?, val keyVersion: Int?)
+
+// ─── Drive 1.12: several items at once (features `bulk`, `zip`, `multiLink`) ─
+
+/**
+ * A name taken at the target (`POST ops/check`): the item that comes ([path] inside a merged folder, its size and
+ * time) and what is there; [same] the same content is there already (it counts as done).
+ */
+data class DOpConflict(
+    val id: Long,
+    val name: String,
+    val existingId: Long?,
+    val existingSize: Long?,
+    val existingMtime: String?,
+    val same: Boolean,
+    val path: String? = null,
+    val isDir: Boolean = false,
+    val size: Long? = null,
+    val mtime: String? = null,
+    val existingIsDir: Boolean = false,
+)
+
+/** An item the job cannot take: `forbidden`, `root`, `into_itself`, `same_folder`, `encrypted`, `locked`, `not_found`, … */
+data class DOpBlocked(val id: Long, val reason: String, val name: String? = null)
+
+/** `POST ops/check`: what goes, how much (folders with their content), the names taken at the target, what cannot go. */
+data class DOpCheck(
+    val files: Int,
+    val folders: Int,
+    val bytes: Long,
+    val conflicts: List<DOpConflict>,
+    val blocked: List<DOpBlocked>,
+    /** The ids that go (null: the server did not say; then all but the blocked ones). */
+    val items: List<Long>? = null,
+    /** More taken names than listed. */
+    val conflictsMore: Int = 0,
+    /** Folders of the same name that are merged. */
+    val merges: Int = 0,
+    /** Bytes the job needs and the space left (null: unknown) — copy, and a move into another area. */
+    val quotaNeeded: Long? = null,
+    val quotaFree: Long? = null,
+    /** More than the server takes in one job. */
+    val tooMany: Boolean = false,
+)
+
+/** What a job came to: done, skipped (the same content was there), failed with the reason; the new items at the target. */
+data class DOpResults(
+    val done: Int,
+    val skipped: Int,
+    val failed: List<DOpBlocked>,
+    val failedCount: Int = failed.size,
+    val resultIds: List<Long> = emptyList(),
+)
+
+/** A job of Drive 1.12 (`POST ops`, `GET ops/<id>`, live event `op`); it runs on the server, the app only follows it. */
+data class DOp(
+    val id: String,
+    /** `move` | `copy` | `trash` | `restore` | `purge` | `undo`. */
+    val kind: String,
+    /** `running` | `done` | `failed` | `cancelled`. */
+    val state: String,
+    /** Files in all (folders with their content) and done so far. */
+    val total: Int,
+    val done: Int,
+    val bytesTotal: Long,
+    val bytesDone: Long,
+    val targetId: Long? = null,
+    val targetPath: String? = null,
+    val results: DOpResults? = null,
+    /** Until when "Rückgängig" works (ISO 8601); null: not at all. */
+    val undoUntil: String? = null,
+    /** How many items were chosen ("N Elemente"). */
+    val items: Int = 0,
+    /** The first item's name (null in a vault). */
+    val label: String? = null,
+    /** The target folder's name (or the area's; null in a vault). */
+    val targetName: String? = null,
+    /** Who brings a copy's bytes: `server`, or `client` with [transfersLeft] files to go (not used by this app). */
+    val transfer: String? = null,
+    val transfersLeft: Int = 0,
+    /** Why it failed: `abandoned`, `quota`, `device_locked`, `no_seat`, `internal`. */
+    val error: String? = null,
+) {
+    val running: Boolean get() = state == "running"
+}
+
+/** `POST zip`: where the ZIP of a selection can be fetched for a short time, its file name. */
+data class DZip(val url: String?, val path: String?, val mediaId: String?, val name: String, val expiresAt: String?)

@@ -166,6 +166,10 @@ class DriveApi @Inject constructor(
 
     suspend fun move(id: Long, parentId: Long): DResult<DNode> = patch("nodes/$id", DriveJson.patchBody(null, parentId), DriveJson::nodeAnswer)
 
+    /** Moved under another name (keep both, without Drive 1.12). */
+    suspend fun renameAndMove(id: Long, name: String, parentId: Long): DResult<DNode> =
+        patch("nodes/$id", DriveJson.patchBody(name, parentId), DriveJson::nodeAnswer)
+
     /** Into the trash. */
     /**
      * To the trash. [everywhere]: the user's other devices also remove their copies when next online (Drive 1.2+;
@@ -426,6 +430,92 @@ class DriveApi @Inject constructor(
     suspend fun endLink(token: String): DResult<Unit> {
         if (!Regex("^[A-Za-z0-9_-]{6,200}$").matches(token)) return bad()
         return del("links/$token", unit)
+    }
+
+    // ─── several items at once (Drive 1.12, features `bulk`, `zip`, `multiLink`) ─
+
+    /** What a job would do: how much, the names taken at [target], what cannot go (changes nothing). */
+    suspend fun opCheck(kind: String, ids: List<Long>, target: Long?): DResult<DOpCheck> {
+        if (kind !in DriveJson.OP_KINDS || ids.isEmpty()) return bad()
+        return post("ops/check", DriveJson.opCheckBody(kind, ids, target), DriveJson::opCheck)
+    }
+
+    /** Starts a job on the server (small ones come back `done` at once); [onConflict] `version` | `rename` | `skip`. */
+    suspend fun startOp(kind: String, ids: List<Long>, target: Long?, onConflict: String?): DResult<DOp> {
+        if (kind !in DriveJson.OP_KINDS || ids.isEmpty()) return bad()
+        return post("ops", DriveJson.opBody(kind, ids, target, onConflict), DriveJson::opAnswer)
+    }
+
+    suspend fun op(id: String): DResult<DOp> = get("ops/" + (DriveJson.opId(id) ?: return bad()), parse = DriveJson::opAnswer)
+
+    /** My jobs still running (after the app was closed, they go on on the server). */
+    suspend fun runningOps(): DResult<List<DOp>> = get("ops", mapOf("state" to "running"), DriveJson::ops)
+
+    /** Stops a job: what is done stays done. */
+    suspend fun cancelOp(id: String): DResult<DOp> = del("ops/" + (DriveJson.opId(id) ?: return bad()), DriveJson::opAnswer)
+
+    /** "Rückgängig" (until `undoUntil`): a move goes back, a trash is restored, copies go into the trash. */
+    suspend fun undoOp(id: String): DResult<DOp> = post("ops/" + (DriveJson.opId(id) ?: return bad()) + "/undo", JsonObject(), DriveJson::opAnswer)
+
+    /** A ZIP of [ids] (folders with their content; never a vault's content), for a short time. */
+    suspend fun zip(ids: List<Long>): DResult<DZip> {
+        if (ids.isEmpty()) return bad()
+        return post("zip", DriveJson.zipBody(ids), DriveJson::zip)
+    }
+
+    /**
+     * The ZIP of [zip] as a stream (the caller closes it): its media, the server's own relative address with the app's
+     * credentials, or GateControl's public bearer address without any ([DriveJson.zipFetch]).
+     */
+    suspend fun zipStream(zip: DZip): DResult<ResponseBody> {
+        val base = setupRepository.getServerUrl()
+        if (base.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
+        val fetch = if (zip.mediaId != null) null else DriveJson.zipFetch(base, zip.url ?: zip.path ?: return bad()) ?: return bad()
+        return try {
+            if (fetch == null || fetch.auth) {
+                val client = apiClientProvider.mediaClient(base)
+                val r = withTimeoutOrNull(TIMEOUT_MS) {
+                    if (fetch == null) client.pluginMediaGet(DRIVE_PLUGIN, zip.mediaId!!) else client.getRaw(fetch.url)
+                } ?: return DResult.Offline
+                val body = r.body()
+                if (r.isSuccessful && body != null) DResult.Ok(body) else {
+                    r.errorBody()?.close()
+                    DResult.Failed("http_${r.code()}", r.code())
+                }
+            } else {
+                // a bearer address: no token, no cookies, no device headers — and never on to plain http
+                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    plainHttp.newCall(okhttp3.Request.Builder().url(fetch.url).get().build()).execute()
+                }
+                val body = r.body
+                if (r.isSuccessful) DResult.Ok(body) else {
+                    r.close()
+                    DResult.Failed("http_${r.code}", r.code)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            DResult.Offline
+        } catch (e: Exception) {
+            Timber.d("Drive: zip failed (%s)", e.javaClass.simpleName)
+            DResult.Failed(CODE_INVALID, 0)
+        }
+    }
+
+    /** A client without the app's credentials, cookies or interceptors (public bearer addresses only). */
+    private val plainHttp: okhttp3.OkHttpClient by lazy {
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .followSslRedirects(false)
+            .build()
+    }
+
+    /** One link for several files (feature `multiLink`); folders mixed in: `400 invalid { reason: mixed }`. */
+    suspend fun createMultiLink(ids: List<Long>, mode: String, expires: String, pin: String?): DResult<DLink> {
+        if (ids.isEmpty()) return bad()
+        return post("links", DriveJson.multiLinkBody(ids, mode, expires, pin), DriveJson::linkAnswer)
     }
 
     // ─── files ──────────────────────────────────────────────────────

@@ -54,6 +54,10 @@ class DriveLive @Inject constructor(
     /** Drive 1.9 vaults: a device asks, a device was approved, a new key (event `vault`). */
     val vault: SharedFlow<DVaultEvent> = _vault.asSharedFlow()
 
+    private val _ops = MutableSharedFlow<DOp>(extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** Drive 1.12: a job's progress (event `op`, sent now and then while it runs, and at its end). */
+    val ops: SharedFlow<DOp> = _ops.asSharedFlow()
+
     @Volatile private var lastSeq = 0L
     private var lockJob: Job? = null
 
@@ -129,6 +133,7 @@ class DriveLive @Inject constructor(
             }
             "guard" -> scope.launch { refresh() }
             "vault" -> DriveJson.vaultEvent(data)?.let { _vault.tryEmit(it) }
+            "op" -> DriveJson.opEvent(data)?.let { _ops.tryEmit(it) }
         }
     }
 

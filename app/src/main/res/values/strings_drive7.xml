@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive 1.12: Mehrfachauswahl und Sammel-Aktionen -->
+    <string name="drive_sel_folder_content">+ folder contents</string>
+    <string name="drive_sel_all">All</string>
+    <string name="drive_sel_none">None</string>
+    <string name="drive_sel_all_desc">Select all</string>
+    <string name="drive_sel_none_desc">Deselect all</string>
+    <string name="drive_sel_all_of">Select all of %1$s</string>
+    <string name="drive_sel_none_of">Deselect all of %1$s</string>
+    <string name="drive_sel_end">End selection</string>
+    <string name="drive_sel_select">Select</string>
+    <string name="drive_sel_deselect">Deselect</string>
+    <string name="drive_sel_selected">Selected</string>
+    <string name="drive_sel_not_selected">Not selected</string>
+    <string name="drive_sel_more_for">More for %1$s</string>
+    <string name="drive_sel_actions">Actions for the selection</string>
+    <string name="drive_sel_unavailable">%1$s, not available: %2$s</string>
+    <string name="drive_bar_send">Send</string>
+    <string name="drive_bar_move">Move</string>
+    <string name="drive_bar_copy">Copy</string>
+    <string name="drive_bar_delete">Delete</string>
+    <string name="drive_bar_more">More</string>
+    <string name="drive_bar_album">To album</string>
+    <string name="drive_bar_save">Save</string>
+    <string name="drive_more_save">Save on the phone</string>
+    <string name="drive_more_save_desc">Files one by one, folders as a ZIP</string>
+    <string name="drive_more_zip">Send as ZIP</string>
+    <string name="drive_more_zip_desc">Everything in one file</string>
+    <string name="drive_more_link_one">With expiry and PIN</string>
+    <string name="drive_more_only_one">Only with one item</string>
+    <string name="drive_more_details">Details and older versions</string>
+    <string name="drive_more_album">Add to an album</string>
+    <string name="drive_more_copy">Copy</string>
+    <string name="drive_why_read_only">Only the right to view</string>
+    <string name="drive_why_child">A child’s folder: only to look at</string>
+    <string name="drive_why_bulk">Needs Drive 1.12</string>
+    <string name="drive_why_copy_server">Needs GateControl 1.215</string>
+    <string name="drive_why_links_off">Links are switched off</string>
+    <string name="drive_why_too_many">At most 20 files at once</string>
+    <string name="drive_why_zip_shape">As a ZIP: one folder, or files only</string>
+    <string name="drive_why_link_files">One link for several takes files only</string>
+    <string name="drive_why_folders_zip">Folders only as a ZIP – needs Drive 1.12</string>
+    <string name="drive_why_only_one">Only with one item</string>
+    <string name="drive_why_only_files">Only for files</string>
+    <string name="drive_why_not_media">Only when all are photos or videos</string>
+    <string name="drive_why_vault">Not possible in a vault</string>
+    <string name="drive_why_office">Not an office document</string>
+    <string name="drive_why_albums">No albums here</string>
+    <string name="drive_target_title">Choose target</string>
+    <string name="drive_target_what">What happens</string>
+    <string name="drive_target_move">Move</string>
+    <string name="drive_target_copy">Copy</string>
+    <string name="drive_target_view_only">%1$s (view only)</string>
+    <string name="drive_target_path">Path</string>
+    <string name="drive_target_itself_move">Being moved – not into itself</string>
+    <string name="drive_target_itself_copy">Being copied – not into itself</string>
+    <string name="drive_target_new_folder">New folder here</string>
+    <string name="drive_target_recent">Recently used</string>
+    <string name="drive_target_to">Target: %1$s</string>
+    <string name="drive_target_move_here">Move here (%1$d)</string>
+    <string name="drive_target_copy_here">Copy here (%1$d)</string>
+    <string name="drive_target_block_same">They are in this folder already</string>
+    <string name="drive_target_block_read">Only the right to view here</string>
+    <string name="drive_target_block_vault">Not over the border of a vault</string>
+    <string name="drive_target_block_itself">Not into itself</string>
+    <string name="drive_target_empty">No folders here</string>
+    <string name="drive_target_open">Open %1$s</string>
+    <string name="drive_ask_in">In the folder “%1$s” there are already:</string>
+    <string name="drive_ask_line">There: %1$s · New: %2$s</string>
+    <string name="drive_ask_same">same content</string>
+    <string name="drive_ask_folder">folder, is merged</string>
+    <string name="drive_ask_what">What should happen?</string>
+    <string name="drive_ask_version">Save as a new version</string>
+    <string name="drive_ask_version_desc">The earlier file stays under “Older versions”</string>
+    <string name="drive_ask_rename">Keep both</string>
+    <string name="drive_ask_rename_desc">The new one is then called “%1$s”</string>
+    <string name="drive_ask_skip">Skip</string>
+    <string name="drive_ask_same_one">Same content is never stored twice – “%1$s” is kept only once in any case.</string>
+    <string name="drive_ask_folders_note">Folders of the same name are merged: their content goes in, the choice counts for the files in them.</string>
+    <string name="drive_op_running">Running now</string>
+    <string name="drive_op_copy">Copying %1$s to %2$s</string>
+    <string name="drive_op_move">Moving %1$s to %2$s</string>
+    <string name="drive_op_trash">Moving %1$s to the trash</string>
+    <string name="drive_op_restore">Restoring %1$s</string>
+    <string name="drive_op_purge">Deleting %1$s for good</string>
+    <string name="drive_quoted">“%1$s”</string>
+    <string name="drive_op_files">%1$d of %2$d files</string>
+    <string name="drive_op_items">%1$d of %2$d items</string>
+    <string name="drive_op_bytes">%1$s of %2$s</string>
+    <string name="drive_op_server">Keeps running on the server, even if you close the app.</string>
+    <string name="drive_op_local">Runs on this phone – keep the app open.</string>
+    <string name="drive_op_progress">Progress</string>
+    <string name="drive_code_job_limit">Several jobs are running already – wait until one is done.</string>
+    <string name="drive_code_too_large">Too many items for one job (at most 10,000).</string>
+    <string name="drive_code_root">The top folder of an area stays where it is</string>
+    <string name="drive_code_same_folder">It is there already</string>
+    <string name="drive_code_abandoned">No device brought the files – the copy was stopped</string>
+    <string name="drive_code_undo_expired">Too late to undo</string>
+    <string name="drive_op_target_unknown">the target</string>
+    <string name="drive_snack_undone">Undone</string>
+    <string name="drive_snack_cancelled">Stopped – what was done stays</string>
+    <string name="drive_snack_undo">Undo</string>
+    <string name="drive_new_here">new here</string>
+    <string name="drive_busy_send">Fetching %1$d of %2$d …</string>
+    <string name="drive_busy_zip">Preparing the ZIP …</string>
+    <string name="drive_bulk_save_failed">Could not save</string>
+    <string name="drive_bulk_failed">The job failed</string>
+    <string name="drive_bulk_blocked">Not possible for any of them: %1$s</string>
+    <string name="drive_code_into_itself">Not into itself</string>
+    <string name="drive_bulk_delete_text">Without Drive 1.12 there is no undo here – the items stay in the trash for a while.</string>
+    <string name="drive_bulk_delete_go">Move to the trash</string>
+    <string name="drive_photos_sel_hint">Swiping over photos selects several</string>
+    <string name="drive_link_files_title">Share link · %1$s</string>
+    <plurals name="drive_sel_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="drive_sel_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="drive_sel_folders">
+        <item quantity="one">%1$d folder</item>
+        <item quantity="other">%1$d folders</item>
+    </plurals>
+    <plurals name="drive_items">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <plurals name="drive_target_from">
+        <item quantity="one">%1$d item from “%2$s”</item>
+        <item quantity="other">%1$d items from “%2$s”</item>
+    </plurals>
+    <plurals name="drive_more_link">
+        <item quantity="one">One link for all %1$d, with expiry and PIN</item>
+        <item quantity="other">One link for all %1$d, with expiry and PIN</item>
+    </plurals>
+    <plurals name="drive_more_for">
+        <item quantity="one">More for %1$d selected</item>
+        <item quantity="other">More for %1$d selected</item>
+    </plurals>
+    <plurals name="drive_ask_title">
+        <item quantity="one">%1$d name is there already</item>
+        <item quantity="other">%1$d names are there already</item>
+    </plurals>
+    <plurals name="drive_ask_skip_desc">
+        <item quantity="one">This %1$d stays where it is</item>
+        <item quantity="other">These %1$d stay where they are</item>
+    </plurals>
+    <plurals name="drive_ask_same_many">
+        <item quantity="one">Same content is never stored twice – %1$d of them is kept only once in any case.</item>
+        <item quantity="other">Same content is never stored twice – %1$d of them are kept only once in any case.</item>
+    </plurals>
+    <plurals name="drive_snack_move">
+        <item quantity="one">%1$d item moved to “%2$s”</item>
+        <item quantity="other">%1$d items moved to “%2$s”</item>
+    </plurals>
+    <plurals name="drive_snack_copy">
+        <item quantity="one">%1$d item copied to “%2$s”</item>
+        <item quantity="other">%1$d items copied to “%2$s”</item>
+    </plurals>
+    <plurals name="drive_snack_trash">
+        <item quantity="one">%1$d item moved to the trash</item>
+        <item quantity="other">%1$d items moved to the trash</item>
+    </plurals>
+    <plurals name="drive_snack_failed">
+        <item quantity="one"> · %1$d not possible</item>
+        <item quantity="other"> · %1$d not possible</item>
+    </plurals>
+    <plurals name="drive_snack_skipped">
+        <item quantity="one"> · %1$d there already</item>
+        <item quantity="other"> · %1$d there already</item>
+    </plurals>
+    <plurals name="drive_bulk_saved">
+        <item quantity="one">%1$d saved in “Download/GateControl”</item>
+        <item quantity="other">%1$d saved in “Download/GateControl”</item>
+    </plurals>
+    <plurals name="drive_bulk_some_blocked">
+        <item quantity="one">%1$d of them cannot go</item>
+        <item quantity="other">%1$d of them cannot go</item>
+    </plurals>
+    <plurals name="drive_bulk_delete_title">
+        <item quantity="one">Move %1$d item to the trash?</item>
+        <item quantity="other">Move %1$d items to the trash?</item>
+    </plurals>
+</resources>

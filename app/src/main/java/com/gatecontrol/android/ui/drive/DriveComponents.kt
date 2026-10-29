@@ -34,6 +34,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import kotlinx.coroutines.delay
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import com.gatecontrol.android.ui.components.GcIconButton
 import androidx.compose.ui.draw.shadow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.verticalScroll
@@ -239,7 +242,11 @@ internal fun nodeLine(node: DNode, extra: String? = null): String {
     return parts.joinToString(" · ")
 }
 
-/** A row of a folder, the trash or the search. */
+/**
+ * A row of a folder, the trash or the search. With a selection ([selecting]) a tap ticks it ([selected]: the round
+ * tick filled, the row tinted); [onMore] puts ⋯ on the right (the menu of this one item); [fresh] marks "neu hier".
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun NodeRow(
     node: DNode,
@@ -248,17 +255,73 @@ internal fun NodeRow(
     progress: Float? = null,
     trailing: (@Composable () -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    selecting: Boolean = false,
+    selected: Boolean = false,
+    onMore: (() -> Unit)? = null,
+    fresh: Boolean = false,
+    title: String? = null,
 ) {
+    if (!selecting && onMore == null && !fresh) {
+        Column {
+            GcListRow(
+                title = title ?: nodeTitle(node),
+                description = description ?: nodeLine(node),
+                onClick = onClick,
+                leading = { NodeIcon(node) },
+                trailing = trailing,
+                onLongClick = onLongClick,
+                onLongClickLabel = onLongClick?.let { stringResource(R.string.drive_sel_select) },
+            )
+            if (progress != null) {
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(3.dp))
+            }
+        }
+        return
+    }
+    val x = GateControlTheme.extraColors
+    val name = title ?: nodeTitle(node)
+    val state = stringResource(if (selected) R.string.drive_sel_selected else R.string.drive_sel_not_selected)
+    val clickLabel = if (selecting) stringResource(if (selected) R.string.drive_sel_deselect else R.string.drive_sel_select) else null
+    val longLabel = stringResource(R.string.drive_sel_select)
     Column {
-        GcListRow(
-            title = nodeTitle(node),
-            description = description ?: nodeLine(node),
-            onClick = onClick,
-            leading = { NodeIcon(node) },
-            trailing = trailing,
-            onLongClick = onLongClick,
-            onLongClickLabel = onLongClick?.let { stringResource(R.string.drive_more) },
-        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .then(if (selected) Modifier.background(x.accentBg) else Modifier)
+                .then(
+                    if (onClick == null) {
+                        Modifier
+                    } else {
+                        Modifier.combinedClickable(
+                            role = Role.Button,
+                            onClickLabel = clickLabel,
+                            onClick = onClick,
+                            onLongClick = onLongClick,
+                            onLongClickLabel = onLongClick?.let { longLabel },
+                        )
+                    },
+                )
+                .semantics { if (selecting) { this.selected = selected; stateDescription = state } }
+                .padding(start = 16.dp, end = if (onMore != null && !selecting) 4.dp else 16.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (selecting) SelectCheck(selected)
+            NodeIcon(node)
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (fresh) NewHereBadge()
+                }
+                val d = description ?: nodeLine(node)
+                if (d.isNotBlank()) Text(d, style = MaterialTheme.typography.bodySmall, color = x.muted)
+            }
+            trailing?.invoke()
+            if (!selecting && onMore != null) {
+                GcIconButton(GcIcons.MoreVertical, contentDescription = stringResource(R.string.drive_sel_more_for, name), onClick = onMore, size = 44.dp, iconSize = 20.dp)
+            }
+        }
         if (progress != null) {
             LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(3.dp))
         }
@@ -521,7 +584,10 @@ internal fun rememberDriveGrid(): androidx.compose.runtime.MutableState<Boolean>
     return remember { androidx.compose.runtime.mutableStateOf(DriveViewPref.grid(context)) }
 }
 
-/** The files as tiles: the preview (or the kind's symbol), the name below; long press for the menu. */
+/**
+ * The files as tiles: the preview (or the kind's symbol), the name below with ⋯ ([onMore]); a long press ticks
+ * ([selected], the tick top left, the tile inset).
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun NodeGrid(
@@ -529,13 +595,29 @@ internal fun NodeGrid(
     onClick: (DNode) -> Unit,
     onLongClick: (DNode) -> Unit,
     progress: (DNode) -> Float? = { null },
+    selected: Set<Long> = emptySet(),
+    onMore: ((DNode) -> Unit)? = null,
+    fresh: (DNode) -> Boolean = { false },
 ) {
+    val selecting = selected.isNotEmpty()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val columns = (maxWidth / 112.dp).toInt().coerceIn(3, 8)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items.chunked(columns).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { n -> NodeTile(n, onClick = { onClick(n) }, onLongClick = { onLongClick(n) }, progress = progress(n), modifier = Modifier.weight(1f)) }
+                    row.forEach { n ->
+                        NodeTile(
+                            n,
+                            onClick = { onClick(n) },
+                            onLongClick = { onLongClick(n) },
+                            progress = progress(n),
+                            selecting = selecting,
+                            selected = n.id in selected,
+                            onMore = onMore?.let { m -> { m(n) } },
+                            fresh = fresh(n),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
@@ -545,9 +627,19 @@ internal fun NodeGrid(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NodeTile(node: DNode, onClick: () -> Unit, onLongClick: () -> Unit, progress: Float?, modifier: Modifier = Modifier) {
+private fun NodeTile(
+    node: DNode,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    progress: Float?,
+    selecting: Boolean,
+    selected: Boolean,
+    onMore: (() -> Unit)?,
+    fresh: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val x = GateControlTheme.extraColors
     val look = if (node.encrypted) {
-        val x = GateControlTheme.extraColors
         KindLook(if (node.isDir) GcIcons.Vault else GcIcons.Lock, x.warn, x.warnBg)
     } else {
         kindLook(DriveLogic.kind(node))
@@ -555,18 +647,31 @@ private fun NodeTile(node: DNode, onClick: () -> Unit, onLongClick: () -> Unit, 
     val picture = if (node.encrypted) null else rememberDrivePreview(node)
     val kind = DriveLogic.docKind(node)
     val haptic = LocalHapticFeedback.current
+    val name = nodeTitle(node)
+    val state = stringResource(if (selected) R.string.drive_sel_selected else R.string.drive_sel_not_selected)
+    val clickLabel = if (selecting) stringResource(if (selected) R.string.drive_sel_deselect else R.string.drive_sel_select) else null
     Column(
         modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .background(if (selected) x.accentBg else MaterialTheme.colorScheme.surface)
             .combinedClickable(
                 role = Role.Button,
+                onClickLabel = clickLabel,
                 onClick = onClick,
                 onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() },
-                onLongClickLabel = stringResource(R.string.drive_more),
-            ),
+                onLongClickLabel = stringResource(R.string.drive_sel_select),
+            )
+            .semantics { if (selecting) { this.selected = selected; stateDescription = state } },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f).background(look.bg), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .padding(if (selected) 6.dp else 0.dp)
+                .clip(RoundedCornerShape(if (selected) 10.dp else 0.dp))
+                .background(look.bg),
+            contentAlignment = Alignment.Center,
+        ) {
             if (picture != null) {
                 Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
                 if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(28)
@@ -577,18 +682,26 @@ private fun NodeTile(node: DNode, onClick: () -> Unit, onLongClick: () -> Unit, 
                 }
             }
             if (kind != null) DocKindBadge(kind, 22, Modifier.align(Alignment.TopEnd).padding(6.dp))
+            if (selecting) SelectCheck(selected, Modifier.align(Alignment.TopStart).padding(6.dp), onImage = picture != null)
             if (progress != null) {
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp))
             }
         }
-        Text(
-            nodeTitle(node),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = if (onMore != null && !selecting) 0.dp else 8.dp)) {
+                Text(
+                    name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (fresh) Text(stringResource(R.string.drive_new_here), style = MaterialTheme.typography.labelSmall, color = x.accentText)
+            }
+            if (onMore != null && !selecting) {
+                GcIconButton(GcIcons.MoreVertical, contentDescription = stringResource(R.string.drive_sel_more_for, name), onClick = onMore, size = 44.dp, iconSize = 18.dp)
+            }
+        }
     }
 }
 
