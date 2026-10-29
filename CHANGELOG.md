@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.25] - 2026-10-29
+
+### Changes
+- Sammel-Aufträge zeigen sich sofort („wird vorbereitet“) (#149)
+
+---
+
 ## [1.67.24] - 2026-10-29
 
 ### Changes
