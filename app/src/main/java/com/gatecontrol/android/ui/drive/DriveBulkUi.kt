@@ -228,10 +228,7 @@ internal fun SelectionActionBar(actions: List<BarAction>, modifier: Modifier = M
                         .clickable(role = Role.Button, onClickLabel = a.label) {
                             if (a.can.ok) a.onClick() else if (why != null) Toast.makeText(context, why, Toast.LENGTH_SHORT).show()
                         }
-                        .semantics {
-                            contentDescription = a.label
-                            if (unavailable != null) stateDescription = unavailable
-                        }
+                        .semantics { if (unavailable != null) stateDescription = unavailable }
                         .padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -831,6 +828,7 @@ internal fun DriveBulkHost(bulk: DriveBulkActions, snackbar: SnackbarHostState, 
     val message by bulk.message.collectAsStateWithLifecycle()
     val snack by bulk.snack.collectAsStateWithLifecycle()
     var newAlbum by remember { mutableStateOf(false) }
+    val undoLabel = stringResource(R.string.drive_snack_undo)
 
     LaunchedEffect(message) {
         message?.let {
@@ -844,7 +842,7 @@ internal fun DriveBulkHost(bulk: DriveBulkActions, snackbar: SnackbarHostState, 
         val undo = s.undoId
         val result = snackbar.showSnackbar(
             snackText(context, s),
-            actionLabel = if (undo != null) context.getString(R.string.drive_snack_undo) else null,
+            actionLabel = if (undo != null) undoLabel else null,
             withDismissAction = undo == null,
             duration = if (undo != null) SnackbarDuration.Long else SnackbarDuration.Short,
         )
