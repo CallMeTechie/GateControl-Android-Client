@@ -47,6 +47,8 @@ class DriveApi @Inject constructor(
         const val CODE_INVALID = "invalid_answer"
         /** At most this many ids per album call (plugin README). */
         private const val ALBUM_IDS_MAX = 500
+        /** At most this many ids per `photos/review` (Drive 1.13). */
+        private const val REVIEW_IDS_MAX = 500
         private const val TIMEOUT_MS = 25_000L
         /** Small files go in one piece. */
         private const val RESUMABLE_FROM = 8L * 1024 * 1024
@@ -113,6 +115,9 @@ class DriveApi @Inject constructor(
 
     private suspend fun <T> post(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
         call(request = { pluginPost(DRIVE_PLUGIN, path, body, lang()) }, parse = parse)
+
+    private suspend fun <T> put(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
+        call(request = { pluginPut(DRIVE_PLUGIN, path, body, lang()) }, parse = parse)
 
     private suspend fun <T> patch(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
         call(request = { pluginPatch(DRIVE_PLUGIN, path, body, lang()) }, parse = parse)
@@ -247,11 +252,37 @@ class DriveApi @Inject constructor(
      * Photos and videos, newest first; [before] is the cursor of the page before. Without [area]: all I can read.
      * [camera]: only the camera uploads (Drive 1.10, feature `photosFolder`).
      */
-    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false): DResult<DPhotos> =
-        get("photos", DriveJson.photosQuery(area, before, limit, camera) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
+    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false, cls: String? = null): DResult<DPhotos> =
+        get("photos", DriveJson.photosQuery(area, before, limit, camera, cls = cls) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
 
-    suspend fun photoMonths(area: String? = null, camera: Boolean = false): DResult<List<DMonth>> =
-        get("photos/months", DriveJson.photosQuery(area, camera = camera) ?: return bad(), DriveJson::months)
+    suspend fun photoMonths(area: String? = null, camera: Boolean = false, cls: String? = null): DResult<List<DMonth>> =
+        get("photos/months", DriveJson.photosQuery(area, camera = camera, cls = cls) ?: return bad(), DriveJson::months)
+
+    // ─── work photos (Drive 1.13, feature `photoClasses`) ───────────
+
+    /** Where my work photos go, for every device and the portal. */
+    suspend fun photoSettings(): DResult<DPhotoSettings> = get("photos/settings", parse = DriveJson::photoSettings)
+
+    /** Changes only what is given; [clearFolder]: no work folder any more. */
+    suspend fun putPhotoSettings(workFolder: Long? = null, clearFolder: Boolean = false, workSubfolders: Boolean? = null, workInMemories: Boolean? = null): DResult<DPhotoSettings> =
+        put("photos/settings", DriveJson.photoSettingsBody(workFolder, clearFolder, workSubfolders, workInMemories), DriveJson::photoSettings)
+
+    /** Sets or clears the review mark of [ids] (at most 500 a call, so in parts); [hint] the AI's "work" in percent. */
+    suspend fun photoReview(ids: List<Long>, review: Boolean, hint: Int? = null): DResult<Map<Long, DReview?>> {
+        if (ids.isEmpty()) return bad()
+        val out = HashMap<Long, DReview?>()
+        for (part in ids.distinct().chunked(REVIEW_IDS_MAX)) {
+            when (val r = post("photos/review", DriveJson.reviewBody(part, review, hint), DriveJson::reviewAnswer)) {
+                is DResult.Ok -> out.putAll(r.value)
+                else -> return r.notOk()
+            }
+        }
+        return DResult.Ok(out)
+    }
+
+    /** How many photos are work, private, to be reviewed (the chips' counts). */
+    suspend fun photoClasses(camera: Boolean = false): DResult<DPhotoClasses> =
+        get("photos/classes", DriveJson.photosQuery(camera = camera) ?: return bad(), DriveJson::photoClasses)
 
     /** Photos of this calendar day ([date] `YYYY-MM-DD`, else the server's today) in earlier years. */
     suspend fun memories(date: String? = null, camera: Boolean = false): DResult<List<DMemories>> =

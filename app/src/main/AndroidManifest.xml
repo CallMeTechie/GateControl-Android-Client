@@ -70,10 +70,11 @@
         android:theme="@style/Theme.GateControl"
         tools:replace="android:theme">
 
-        <!-- Drive "Scannen": Play services fetch the text recognition model with the app, not on the first scan. -->
+        <!-- Drive "Scannen" and work photos: Play services fetch the text recognition and the image labeling model
+             with the app, not on the first use. -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="ocr" />
+            android:value="ocr,ica" />
 
         <activity
             android:name=".MainActivity"
@@ -396,6 +397,13 @@
             android:label="@string/vault_title"
             android:theme="@style/Theme.GateControl"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Drive work photos: Android's wake for a new WLAN (the app's own network
+             request) and the buttons of the "Neues WLAN" notification. NOT exported:
+             only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".drive.work.DriveWorkWifiReceiver"
+            android:exported="false" />
 
         <!-- GateDrop: buttons of its notifications (Kopieren, Speichern).
              NOT exported: only the app's own PendingIntents reach it. -->

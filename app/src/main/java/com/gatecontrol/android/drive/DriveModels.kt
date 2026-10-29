@@ -97,6 +97,11 @@ data class DMe(
         const val FEATURE_COPY_SERVER = "copyServer"
         /** Drive 1.12: a ZIP and one link of any selection (folders and files mixed, more than 20). */
         const val FEATURE_ZIP_MIXED = "zipMixed"
+        /**
+         * Drive 1.13: work photos apart (`photos/settings` with the work folder, the review mark `photos/review`, the
+         * filter `class=work|private|review` and the counts `photos/classes`).
+         */
+        const val FEATURE_PHOTO_CLASSES = "photoClasses"
     }
 }
 
@@ -191,9 +196,33 @@ data class DNode(
     val vaultId: String? = null,
     val nameCipher: String? = null,
     val keyVersion: Int? = null,
+    /** Drive 1.13 (`photoClasses`): marked "zu prüfen" (work or private?), with the AI's hint; null when not marked. */
+    val review: DReview? = null,
+    /** Drive 1.13: a photo item below my work folder (the small blue bag). */
+    val work: Boolean = false,
 ) {
     /** In a vault: nothing of it may go to a preview, a link, the office, the AI or a backup. */
     val encrypted: Boolean get() = vaultId != null
+}
+
+/** The review mark of a photo (Drive 1.13): [hint] the AI's probability "work" in percent, null when it had none. */
+data class DReview(val hint: Int?)
+
+/**
+ * `GET|PUT photos/settings` (Drive 1.13): where work photos go ([workFolder], its path [folderPath] in [folderAreaId]),
+ * whether below it by year and month, whether they may show in the memories and the photo frame.
+ */
+data class DPhotoSettings(
+    val workFolder: Long? = null,
+    val workSubfolders: Boolean = true,
+    val workInMemories: Boolean = false,
+    val folderPath: String? = null,
+    val folderAreaId: String? = null,
+)
+
+/** `GET photos/classes`: how many photos are work, private and to be reviewed. */
+data class DPhotoClasses(val work: Int, val private: Int, val review: Int) {
+    val all: Int get() = work + private + review
 }
 
 /** `DELETE nodes/<id>?after=`: the file goes into the trash at [deleteAt] (ISO 8601; null when the server did not say). */

@@ -96,6 +96,10 @@ import com.gatecontrol.android.drive.DMemories
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.work.DriveWorkLogic
+import com.gatecontrol.android.drive.work.DriveWorkPhotos
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -127,7 +131,8 @@ internal fun photosText(context: Context, code: String): String {
         code == "album_cover" -> context.getString(R.string.drive_album_cover_done)
         code == "album_frame_on" -> context.getString(R.string.drive_album_frame_on)
         code == "album_frame_off" -> context.getString(R.string.drive_album_frame_off)
-        else -> driveText(context, code)
+        code == "work_undone" -> context.getString(R.string.drive_work_snack_undone)
+        else -> workText(context, code)
     }
 }
 
@@ -160,7 +165,13 @@ internal fun DriveModeSwitch(photos: Boolean, onPhotos: (Boolean) -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Composable () -> Unit, onAlbum: (String) -> Unit) {
+internal fun DrivePhotosContent(
+    viewModel: DrivePhotosViewModel,
+    topBar: @Composable () -> Unit,
+    onAlbum: (String) -> Unit,
+    onCleanup: () -> Unit = {},
+    onFile: ((Long) -> Unit)? = null,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val me by viewModel.live.me.collectAsStateWithLifecycle()
@@ -180,7 +191,23 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
     var choosing by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf<Boolean?>(null) }
 
-    LaunchedEffect(Unit) { viewModel.start() }
+    // Drive 1.13: work photos apart (Alle | Privat | Arbeit | Prüfen, the review mark, Arbeit / Privat in front)
+    val cls by viewModel.cls.collectAsStateWithLifecycle()
+    val classes by viewModel.classes.collectAsStateWithLifecycle()
+    val workSettings by viewModel.workSettings.collectAsStateWithLifecycle()
+    val localReview by viewModel.localReview.collectAsStateWithLifecycle()
+    val learned by viewModel.learned.collectAsStateWithLifecycle()
+    val suggested by viewModel.work.suggested.collectAsStateWithLifecycle()
+    val workSnack by viewModel.workSnack.collectAsStateWithLifecycle()
+    val serverClasses = viewModel.work.serverClasses(me)
+    val workOn = workSettings.active || serverClasses
+    var moreOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.start()
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        viewModel.lookForSuggestions(unmetered = cm != null && !cm.isActiveNetworkMetered)
+    }
     LaunchedEffect(me?.features) { viewModel.featuresChanged() }
     LaunchedEffect(tab) { if (tab == "albums" && albums == null) viewModel.loadAlbums() }
     LaunchedEffect(message) {
@@ -197,6 +224,26 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
     // back ends the selection first
     BackHandler(enabled = selecting) { viewModel.clearSelection() }
     val chosen = remember(selected, timeline.items) { timeline.items.filter { it.id in selected } }
+    // without Drive 1.13 "Prüfen" shows this phone's marks among the photos loaded
+    val shown = if (!serverClasses && cls == "review") timeline.copy(items = timeline.items.filter { it.id in localReview }) else timeline
+    val reviewCount = if (serverClasses) classes?.review ?: 0 else localReview.size
+    val reviewBar = DriveWorkLogic.reviewBar(chosen, localReview)
+    val workSnackLearns = stringResource(R.string.drive_work_snack_learns)
+    val undoLabel = stringResource(R.string.drive_snack_undo)
+    LaunchedEffect(workSnack) {
+        val w = workSnack ?: return@LaunchedEffect
+        viewModel.workSnackShown()
+        val r = context.resources
+        val target = workSettings.folderLabel ?: context.getString(R.string.drive_work_work_default)
+        val line = when (w.to) {
+            DriveWorkPhotos.Target.WORK -> r.getQuantityString(R.plurals.drive_work_snack_work, w.count, w.count, target)
+            DriveWorkPhotos.Target.PRIVATE -> r.getQuantityString(R.plurals.drive_work_snack_private, w.count, w.count)
+            DriveWorkPhotos.Target.REVIEW -> r.getQuantityString(R.plurals.drive_work_snack_review, w.count, w.count)
+        }
+        val text = if (w.to == DriveWorkPhotos.Target.REVIEW) line else line + "\n" + workSnackLearns
+        val result = snackbar.showSnackbar(text, actionLabel = if (w.undo != null) undoLabel else null, withDismissAction = w.undo == null, duration = SnackbarDuration.Long)
+        if (result == SnackbarResult.ActionPerformed) w.undo?.let(viewModel::undoWork)
+    }
     val where = DriveBulk.Where(
         writable = { n -> me?.areas?.firstOrNull { it.id == n.areaId }?.writable == true },
         child = { n -> me?.areas?.firstOrNull { it.id == n.areaId }?.via == "parent" },
@@ -205,11 +252,36 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         if (selecting) {
-            SelectionHead(count = selected.size, line = stringResource(R.string.drive_photos_sel_hint), allSelected = false, onClose = viewModel::clearSelection, onAll = null)
+            val line = when {
+                reviewBar -> stringResource(R.string.drive_work_sel_review)
+                workOn -> stringResource(R.string.drive_work_sel_normal)
+                else -> stringResource(R.string.drive_photos_sel_hint)
+            }
+            SelectionHead(count = selected.size, line = line, allSelected = false, onClose = viewModel::clearSelection, onAll = null)
         } else {
             topBar()
         }
-        if (!selecting && (hasAlbums || hasCamera)) {
+        if (!selecting && workOn) {
+            val why = if (serverClasses) null else stringResource(R.string.drive_work_needs_1130)
+            val reviewDesc = stringResource(R.string.drive_work_review_count, reviewCount)
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 0.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                val onTimeline = tab == "timeline" || !hasAlbums
+                WorkChip(stringResource(R.string.drive_work_all), selected = onTimeline && cls == null, onClick = { tab = "timeline"; viewModel.setClass(null) })
+                WorkChip(stringResource(R.string.drive_work_private), selected = onTimeline && cls == "private", why = why, onClick = { tab = "timeline"; viewModel.setClass("private") })
+                WorkChip(stringResource(R.string.drive_work_work), selected = onTimeline && cls == "work", why = why, onClick = { tab = "timeline"; viewModel.setClass("work") })
+                WorkChip(
+                    stringResource(R.string.drive_work_review),
+                    selected = onTimeline && cls == "review",
+                    count = reviewCount,
+                    description = reviewDesc,
+                    onClick = { tab = "timeline"; viewModel.setClass("review") },
+                )
+                if (hasAlbums) GcFilterChip(stringResource(R.string.drive_photos_albums), selected = tab == "albums", onClick = { tab = "albums" }, modifier = Modifier.padding(start = 4.dp))
+                if (hasCamera && onTimeline) {
+                    GcFilterChip(stringResource(R.string.drive_photos_camera_only), selected = cameraOnly, onClick = { viewModel.setCameraOnly(!cameraOnly) }, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        } else if (!selecting && (hasAlbums || hasCamera)) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hasAlbums) {
                     GcFilterChip(stringResource(R.string.drive_photos_timeline), selected = tab == "timeline", onClick = { tab = "timeline" })
@@ -230,14 +302,28 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
                 BulkBusyCard(busy, viewModel.bulk::cancelBusy)
             }
         }
+        if (!selecting && workOn && tab != "albums") {
+            if (reviewCount > 0) {
+                WorkBand(
+                    pluralStringResource(R.plurals.drive_work_banner, reviewCount, reviewCount),
+                    button = if (cls != "review") stringResource(R.string.drive_work_banner_show) else null,
+                    warn = true,
+                    onClick = { viewModel.setClass("review") },
+                )
+            }
+            if (workSettings.active && learned.usable && suggested > 0 && cls != "review") {
+                WorkBand(pluralStringResource(R.plurals.drive_work_cleanup_hint, suggested, suggested), button = stringResource(R.string.drive_work_cleanup_open), warn = false, onClick = onCleanup)
+            }
+        }
         Box(Modifier.weight(1f)) {
             if (tab == "albums" && hasAlbums) {
                 AlbumGrid(albums, onAlbum = { onAlbum(it.id) }, onNew = { creating = false }, onRetry = viewModel::loadAlbums)
             } else {
                 PhotoGrid(
-                    pages = timeline,
+                    pages = shown,
                     selected = selected,
-                    months = months,
+                    months = if (shown !== timeline) emptyMap() else months,
+                    badge = if (workOn) ({ n -> TileBadge(review = DriveWorkLogic.isReview(n, localReview), work = n.work && cls == null) }) else null,
                     onOpen = { i -> viewing = null to i },
                     onToggle = viewModel::toggle,
                     onMore = viewModel::more,
@@ -253,15 +339,28 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
             }
         }
         if (selecting) {
-            SelectionActionBar(
-                listOf(
-                    BarAction(GcIcons.Share, stringResource(R.string.drive_bar_send), viewModel.bulk.can(DriveBulk.Action.SEND, chosen, where)) { viewModel.bulk.send() },
-                    BarAction(GcIcons.Photo, stringResource(R.string.drive_bar_album), viewModel.bulk.can(DriveBulk.Action.ALBUM, chosen, where)) { viewModel.loadAlbums(); choosing = true },
-                    BarAction(GcIcons.Download, stringResource(R.string.drive_bar_save), viewModel.bulk.can(DriveBulk.Action.SAVE, chosen, where)) { viewModel.bulk.save() },
-                    BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), viewModel.bulk.can(DriveBulk.Action.MOVE, chosen, where)) { viewModel.bulk.openTarget(DriveBulk.Mode.MOVE) },
-                    BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), viewModel.bulk.can(DriveBulk.Action.DELETE, chosen, where), danger = true) { viewModel.bulk.delete() },
-                ),
-            )
+            val send = BarAction(GcIcons.Share, stringResource(R.string.drive_bar_send), viewModel.bulk.can(DriveBulk.Action.SEND, chosen, where)) { viewModel.bulk.send() }
+            val delete = BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), viewModel.bulk.can(DriveBulk.Action.DELETE, chosen, where), danger = true) { viewModel.bulk.delete() }
+            val more = BarAction(GcIcons.MoreHorizontal, stringResource(R.string.drive_bar_more), DriveBulk.Can.YES) { moreOpen = true }
+            if (reviewBar) {
+                // every photo ticked is to be reviewed: "Arbeit" and "Privat" in front
+                ReviewAssignBar(
+                    hint = DriveWorkLogic.hint(chosen.map { DriveWorkLogic.hintOf(it, localReview) }),
+                    onWork = { viewModel.assign(DriveWorkPhotos.Target.WORK) },
+                    onPrivate = { viewModel.assign(DriveWorkPhotos.Target.PRIVATE) },
+                    small = listOf(send, delete, more),
+                )
+            } else {
+                SelectionActionBar(
+                    listOf(
+                        send,
+                        BarAction(GcIcons.Photo, stringResource(R.string.drive_bar_album), viewModel.bulk.can(DriveBulk.Action.ALBUM, chosen, where)) { viewModel.loadAlbums(); choosing = true },
+                        BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), viewModel.bulk.can(DriveBulk.Action.MOVE, chosen, where)) { viewModel.bulk.openTarget(DriveBulk.Mode.MOVE) },
+                        delete,
+                        more,
+                    ),
+                )
+            }
         }
     }
     // jobs on several items: the ring of the round button (a tap shows them one by one)
@@ -275,6 +374,19 @@ internal fun DrivePhotosContent(viewModel: DrivePhotosViewModel, topBar: @Compos
     SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else if (running.isNotEmpty()) 84.dp else 16.dp))
     }
     DriveBulkHost(viewModel.bulk, snackbar)
+    if (moreOpen && chosen.isNotEmpty()) {
+        PhotosMoreSheet(
+            nodes = chosen,
+            viewModel = viewModel,
+            where = where,
+            workOn = workOn,
+            workLabel = workSettings.folderLabel ?: stringResource(R.string.drive_work_work_default),
+            workFolderSet = workSettings.active,
+            localReview = localReview,
+            onFile = onFile,
+            onDismiss = { moreOpen = false },
+        )
+    }
 
     viewing?.let { (years, start) ->
         PhotoViewer(
@@ -356,6 +468,8 @@ internal fun PhotoGrid(
     months: Map<String, Int>? = null,
     header: (LazyGridScope.() -> Unit)? = null,
     onSelect: ((Set<Long>) -> Unit)? = null,
+    /** Drive 1.13: the review mark and the work bag of a tile. */
+    badge: ((DNode) -> TileBadge)? = null,
 ) {
     val state = rememberLazyGridState()
     val nearEnd by remember {
@@ -458,6 +572,7 @@ internal fun PhotoGrid(
                     onLongClick = { onToggle(n) },
                     // with a swipe to tick the grid takes the long press itself
                     longPressGesture = onSelect == null,
+                    badge = badge?.invoke(n),
                 )
             }
         }
@@ -479,16 +594,32 @@ internal fun PhotoGrid(
  * A photo's tile: the tick top left while ticking (the ticked tile inset), the play mark of a video. [longPressGesture]
  * false: the grid takes the long press (a swipe ticks several), TalkBack still has "Auswählen".
  */
+/** What a tile shows of the work photos: the yellow question mark ([review]), the blue bag ([work]). */
+internal data class TileBadge(val review: Boolean, val work: Boolean)
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PhotoTile(node: DNode, selecting: Boolean, ticked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, longPressGesture: Boolean = true) {
+private fun PhotoTile(
+    node: DNode,
+    selecting: Boolean,
+    ticked: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    longPressGesture: Boolean = true,
+    badge: TileBadge? = null,
+) {
     val look = kindLook(DriveLogic.kind(node))
     val picture = rememberDrivePreview(node)
     val haptic = LocalHapticFeedback.current
     val selectLabel = stringResource(R.string.drive_photos_select)
     val clickLabel = if (selecting) stringResource(if (ticked) R.string.drive_sel_deselect else R.string.drive_sel_select) else null
     val state = stringResource(if (ticked) R.string.drive_sel_selected else R.string.drive_sel_not_selected)
-    val label = listOfNotNull(node.name, photoDate(node)).joinToString(", ")
+    val label = listOfNotNull(
+        node.name,
+        photoDate(node),
+        if (badge?.review == true) stringResource(R.string.drive_work_tile_review) else null,
+        if (badge?.work == true) stringResource(R.string.drive_work_tile_work) else null,
+    ).joinToString(", ")
     Box(
         Modifier
             .aspectRatio(1f)
@@ -529,6 +660,8 @@ private fun PhotoTile(node: DNode, selecting: Boolean, ticked: Boolean, onClick:
             if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(24)
         }
         if (selecting) SelectCheck(ticked, Modifier.align(Alignment.TopStart).padding(6.dp), onImage = true)
+        if (badge?.review == true) ReviewMark(Modifier.align(Alignment.TopEnd).padding(6.dp))
+        if (badge?.work == true) WorkBag(Modifier.align(Alignment.BottomStart).padding(6.dp))
     }
 }
 
@@ -793,4 +926,88 @@ internal fun FrameCard(album: DAlbum, onFrame: (Boolean) -> Unit) {
             onCheckedChange = onFrame,
         )
     }
+}
+
+/**
+ * "Mehr" of the ticked photos: save on the phone, copy, one link, then — with work photos apart (Drive 1.13) — the
+ * section "Zuordnung" ("Ist ein Arbeitsfoto", "Ist privat", "Zum Prüfen markieren"), and the details of one.
+ */
+@Composable
+private fun PhotosMoreSheet(
+    nodes: List<DNode>,
+    viewModel: DrivePhotosViewModel,
+    where: DriveBulk.Where,
+    workOn: Boolean,
+    workLabel: String,
+    workFolderSet: Boolean,
+    localReview: Map<Long, Int?>,
+    onFile: ((Long) -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val bulk = viewModel.bulk
+    val one = nodes.singleOrNull()
+    val can: (DriveBulk.Action) -> DriveBulk.Can = { a -> bulk.can(a, nodes, where) }
+    val multi = listOf(
+        MoreItem(GcIcons.Download, stringResource(R.string.drive_more_save), stringResource(R.string.drive_more_save_desc), can(DriveBulk.Action.SAVE)) { bulk.save(nodes) },
+        MoreItem(GcIcons.Copy, stringResource(R.string.drive_bar_copy), can = can(DriveBulk.Action.COPY)) { bulk.openTarget(DriveBulk.Mode.COPY, nodes) },
+        MoreItem(
+            GcIcons.Link,
+            stringResource(R.string.drive_share_link),
+            if (one != null) stringResource(R.string.drive_more_link_one) else pluralStringResource(R.plurals.drive_more_link, nodes.size, nodes.size),
+            can(DriveBulk.Action.LINK),
+        ) { bulk.openLink(nodes) },
+    )
+    val assign = if (!workOn) emptyList() else {
+        val offer = DriveWorkLogic.offer(nodes, localReview)
+        listOf(
+            MoreItem(
+                GcIcons.Briefcase,
+                stringResource(R.string.drive_work_more_work),
+                stringResource(R.string.drive_work_more_work_desc, workLabel),
+                when {
+                    !workFolderSet -> DriveBulk.Can(false, null)
+                    !offer.work -> DriveBulk.Can(false, null)
+                    else -> can(DriveBulk.Action.MOVE)
+                },
+            ) { viewModel.assign(DriveWorkPhotos.Target.WORK, nodes) },
+            MoreItem(
+                GcIcons.House,
+                stringResource(R.string.drive_work_more_private),
+                stringResource(if (offer.private) R.string.drive_work_more_private_desc else R.string.drive_work_more_private_already),
+                if (offer.private) can(DriveBulk.Action.MOVE) else DriveBulk.Can(false, null),
+            ) { viewModel.assign(DriveWorkPhotos.Target.PRIVATE, nodes) },
+            MoreItem(
+                GcIcons.Alert,
+                stringResource(R.string.drive_work_more_review),
+                if (offer.review) null else stringResource(R.string.drive_work_more_review_already),
+                if (offer.review) can(DriveBulk.Action.MOVE) else DriveBulk.Can(false, null),
+            ) { viewModel.assign(DriveWorkPhotos.Target.REVIEW, nodes) },
+        ).map { item ->
+            // a greyed-out entry says why below its title
+            if (item.can.ok || item.description != null) item
+            else item.copy(description = stringResource(if (!workFolderSet) R.string.drive_work_more_no_folder else R.string.drive_work_more_work_already))
+        }
+    }
+    val state = one?.let {
+        when {
+            DriveWorkLogic.isReview(it, localReview) -> stringResource(R.string.drive_work_state_review)
+            it.work -> stringResource(R.string.drive_work_state_work)
+            else -> stringResource(R.string.drive_work_state_private)
+        }
+    }
+    val details = if (one != null && onFile != null) listOf(MoreItem(GcIcons.Info, stringResource(R.string.drive_details)) { onFile(one.id) }) else emptyList()
+    BulkMoreSheet(
+        count = nodes.size,
+        title = null,
+        summary = if (one != null && workOn) "${one.name} · $state" else one?.name ?: summaryText(DriveBulk.summary(nodes)),
+        quick = emptyList(),
+        multi = multi,
+        single = emptyList(),
+        last = emptyList(),
+        sections = listOfNotNull(
+            if (assign.isNotEmpty()) stringResource(R.string.drive_work_more_section) to assign else null,
+            if (details.isNotEmpty()) null to details else null,
+        ),
+        onDismiss = onDismiss,
+    )
 }

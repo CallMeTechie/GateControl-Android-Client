@@ -53,6 +53,8 @@ class DriveBackup @Inject constructor(
     private val live: DriveLive,
     private val dates: DriveTakenAt,
     private val camera: DriveCameraUploads,
+    private val work: com.gatecontrol.android.drive.work.DriveWorkPhotos,
+    private val wifi: com.gatecontrol.android.drive.work.DriveWorkWifi,
 ) {
     /** The run in progress: [done] of [total] photos, [current] the one going up. */
     data class Status(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val current: String? = null)
@@ -213,6 +215,11 @@ class DriveBackup @Inject constructor(
         if (!canRead(cfg.videos)) return stop("no_permission")
         // Stopped by Drive's ransomware protection: no photo is tried until it is lifted (that starts a pass).
         if (live.locked.value) return stop("device_locked")
+        // work photos apart (Drive 1.13): the settings as the server has them, the WLAN now on the timeline
+        if (work.settings.value.active || live.supports(DMe.FEATURE_PHOTO_CLASSES)) {
+            work.refreshSettings()
+            runCatching { wifi.sample() }
+        }
         var done = 0
         while (true) {
             val mark = mark() ?: DriveBackupMark.ALL
@@ -300,7 +307,28 @@ class DriveBackup @Inject constructor(
         // when it was taken — EXIF (with its time zone), else the media store's date: its year and month are its folder
         val own = dates.of(item.uri, item.mime, item.name)
         val path = DriveBackupLogic.cameraPath(own, item.taken, item.modified, item.added * 1000, ZoneId.systemDefault())
-        var folder = when (val f = camera.folder(path)) {
+        // work photos apart: where this one goes (the WLAN it was taken in, else the AI on the phone); null: Kamera-Uploads
+        var placed = try {
+            work.placeNew(item.uri, DriveBackupLogic.takenMs(own, item.taken, item.modified), item.video)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Drive backup: not placed (%s)", e.javaClass.simpleName)
+            null
+        }
+        suspend fun target(): DResult<Long> {
+            val p = placed
+            if (p != null && p.placement.dest == com.gatecontrol.android.drive.work.DriveWorkLogic.Dest.WORK) {
+                when (val w = work.workFolderFor(path)) {
+                    is DResult.Ok -> return w
+                    // the work folder is gone or read-only: the photo goes the private way, to be reviewed
+                    is DResult.Failed -> if (w.code in WORK_GONE) placed = p.copy(placement = DriveBackupLogic.reviewInstead(p.placement)) else return w
+                    else -> return w
+                }
+            }
+            return camera.folder(path)
+        }
+        var folder = when (val f = target()) {
             is DResult.Ok -> f.value
             else -> return code(f)
         }
@@ -308,7 +336,7 @@ class DriveBackup @Inject constructor(
         if (check is DResult.Failed && check.code == "not_found") {
             // the month's folder (or Kamera-Uploads) went away since: made again
             camera.forget()
-            folder = when (val f = camera.folder(path)) {
+            folder = when (val f = target()) {
                 is DResult.Ok -> f.value
                 else -> return code(f)
             }
@@ -325,7 +353,10 @@ class DriveBackup @Inject constructor(
         // Drive 1.7: the commit takes when it was taken
         val takenAt = if (live.supports(DMe.FEATURE_TAKEN_AT)) own ?: DriveLogic.msTakenAt(item.taken) else null
         return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME, takenAt = takenAt)) {
-            is DResult.Ok -> null
+            is DResult.Ok -> {
+                placed?.let { p -> runCatching { work.afterBackup(r.value.first, p, item.id, item.video) }.onFailure { if (it is CancellationException) throw it } }
+                null
+            }
             else -> {
                 if (r is DResult.Failed && r.code == "not_found") camera.forget()
                 code(r)
@@ -397,5 +428,7 @@ class DriveBackup @Inject constructor(
         private const val KEY_SAVED = "saved"
         private const val KEY_LAST = "last"
         private const val KEY_ERROR = "error"
+        /** The work folder cannot take the photo (gone, read-only, a file in its way). */
+        private val WORK_GONE = setOf("not_found", "forbidden", "no_folder", "no_work_folder")
     }
 }

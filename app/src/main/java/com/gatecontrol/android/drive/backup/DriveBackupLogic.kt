@@ -125,6 +125,19 @@ internal object DriveBackupLogic {
     private val YEARS = 1900..9999
 
     /**
+     * When a photo was taken (ms) for the WLAN timeline: the file's own date ([takenAt], ISO 8601 with its offset),
+     * else the media store's date taken, else when it was changed; null when unknown.
+     */
+    fun takenMs(takenAt: String?, takenMs: Long?, modifiedMs: Long?): Long? =
+        takenAt?.let { s -> runCatching { OffsetDateTime.parse(s).toInstant().toEpochMilli() }.getOrNull() }
+            ?: takenMs?.takeIf { it > 0 }
+            ?: modifiedMs?.takeIf { it > 0 }
+
+    /** The work folder cannot take a photo: it goes the private way, marked to be reviewed (its hint kept). */
+    fun reviewInstead(p: com.gatecontrol.android.drive.work.DriveWorkLogic.Placement) =
+        p.copy(dest = com.gatecontrol.android.drive.work.DriveWorkLogic.Dest.PRIVATE, review = true, learn = null, why = com.gatecontrol.android.drive.work.DriveWorkLogic.Why.REVIEW)
+
+    /**
      * Where a backup that is switched on starts: where it got to ([have]) — the photos before are in Drive already
      * (wherever they went then), so they are never sent again, also not into a new folder — else all photos or only
      * the new ones ([now]).

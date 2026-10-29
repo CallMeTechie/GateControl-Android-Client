@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit
 @InstallIn(SingletonComponent::class)
 interface DriveBackupEntryPoint {
     fun driveBackup(): DriveBackup
+    fun driveWorkWifi(): com.gatecontrol.android.drive.work.DriveWorkWifi
 }
 
 private fun backup(context: Context) = EntryPointAccessors.fromApplication(context, DriveBackupEntryPoint::class.java).driveBackup()
@@ -67,6 +68,8 @@ class DriveBackupTrigger(appContext: Context, params: WorkerParameters) : Corout
     override suspend fun doWork(): Result {
         val b = backup(applicationContext)
         if (b.config.value.enabled) {
+            // new photos came a moment ago: the WLAN now is where they were taken (the work photos' timeline)
+            runCatching { EntryPointAccessors.fromApplication(applicationContext, DriveBackupEntryPoint::class.java).driveWorkWifi().sample() }
             DriveBackupWork.runNow(applicationContext)
             DriveBackupWork.watch(applicationContext, again = true)
         }

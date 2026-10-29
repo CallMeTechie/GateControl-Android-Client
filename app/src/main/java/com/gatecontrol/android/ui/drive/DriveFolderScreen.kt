@@ -846,6 +846,8 @@ internal fun FolderPickerDialog(
     onDismiss: () -> Unit,
     hide: Long? = null,
     onNewFolder: (suspend (parentId: Long, name: String) -> DResult<DNode>)? = null,
+    /** A further button next to "Abbrechen" (e.g. "Kein Ordner für Arbeitsfotos"). */
+    extra: (@Composable () -> Unit)? = null,
 ) {
     val x = GateControlTheme.extraColors
     val ready = (folder as? DriveLoad.Ready)?.value
@@ -915,6 +917,11 @@ internal fun FolderPickerDialog(
             }
         },
         confirmButton = { TextButton(onClick = onPick, enabled = ready != null && canPick(ready)) { Text(confirm) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
+        dismissButton = {
+            Row {
+                extra?.invoke()
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) }
+            }
+        },
     )
 }

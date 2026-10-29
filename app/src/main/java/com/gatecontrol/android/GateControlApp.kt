@@ -71,6 +71,13 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start the trusted-network monitor")
         }
 
+        // Drive work photos: the WLAN timeline (needs the monitor above; Android drops the WLAN wake on reboot).
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.drive.work.DriveWorkEntryPoint::class.java).driveWorkWifi().start()
+        } catch (e: Throwable) {
+            Timber.w(e, "Drive work: WLAN timeline not started")
+        }
+
         // Drive photo backup: its work is scheduled while it is on (it may have been lost).
         try {
             com.gatecontrol.android.drive.backup.DriveBackupWork.ensure(this)

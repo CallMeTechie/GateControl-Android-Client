@@ -14,6 +14,10 @@ import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
+import com.gatecontrol.android.drive.DPhotoClasses
+import com.gatecontrol.android.drive.work.DriveWorkLogic
+import com.gatecontrol.android.drive.work.DriveWorkPhotos
+import com.gatecontrol.android.drive.work.WorkSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -85,6 +89,7 @@ class DrivePhotosViewModel @Inject constructor(
     private val transfers: DriveTransfers,
     val live: DriveLive,
     val ops: com.gatecontrol.android.drive.DriveOps,
+    val work: DriveWorkPhotos,
 ) : ViewModel() {
 
     private val _cameraOnly = MutableStateFlow(DriveViewPref.cameraOnly(context))
@@ -94,8 +99,24 @@ class DrivePhotosViewModel @Inject constructor(
     /** The filter as it is sent: only while Drive knows the camera uploads. */
     private fun camera(): Boolean = DriveLogic.cameraFilter(_cameraOnly.value, live.me.value)
 
-    private val pager = PhotoPager(viewModelScope) { before -> api.photos(before = before, camera = camera()) }
+    private val _cls = MutableStateFlow<String?>(null)
+    /** "Alle" (null) | `private` | `work` | `review` (Drive 1.13; without it `review` filters this phone's marks). */
+    val cls: StateFlow<String?> = _cls.asStateFlow()
+
+    /** The class as it is sent: only while Drive knows them. */
+    private fun serverCls(): String? = if (work.serverClasses(live.me.value)) _cls.value else null
+
+    private val pager = PhotoPager(viewModelScope) { before -> api.photos(before = before, camera = camera(), cls = serverCls()) }
     val timeline: StateFlow<PhotoPages> = pager.state
+
+    private val _classes = MutableStateFlow<DPhotoClasses?>(null)
+    /** How many photos are work, private, to be reviewed (Drive 1.13). */
+    val classes: StateFlow<DPhotoClasses?> = _classes.asStateFlow()
+
+    val workSettings: StateFlow<WorkSettings> = work.settings
+    val learned: StateFlow<DriveWorkLogic.Learned> = work.learned
+    /** Without Drive 1.13: the marks of this phone. */
+    val localReview: StateFlow<Map<Long, Int?>> = work.localReview
 
     private val _months = MutableStateFlow<Map<String, Int>>(emptyMap())
     /** Photos per month ("2026-10" → 120) for the headings. */
@@ -117,6 +138,8 @@ class DrivePhotosViewModel @Inject constructor(
         live = live,
         items = { timeline.value.items },
         changed = { load(quiet = true) },
+        // into or out of the work folder: the work photos' AI learns from it (Drive 1.13)
+        onMoved = { nodes, from, target -> work.learnMoved(nodes, from, target) },
     )
 
     /** Photos ticked (a long press, then taps or a swipe). */
@@ -148,9 +171,11 @@ class DrivePhotosViewModel @Inject constructor(
 
     private fun load(quiet: Boolean) {
         val camera = camera()
+        val cls = serverCls()
         loadedCamera = camera
         pager.reload(quiet = quiet)
-        viewModelScope.launch { _months.value = api.photoMonths(camera = camera).valueOrNull()?.associate { it.month to it.count }.orEmpty() }
+        viewModelScope.launch { _months.value = api.photoMonths(camera = camera, cls = cls).valueOrNull()?.associate { it.month to it.count }.orEmpty() }
+        if (work.serverClasses(live.me.value)) viewModelScope.launch { _classes.value = api.photoClasses(camera = camera).valueOrNull() } else _classes.value = null
         viewModelScope.launch { _memories.value = api.memories(LocalDate.now().toString(), camera = camera).valueOrNull().orEmpty() }
         if (_albums.value != null) loadAlbums()
     }
@@ -167,6 +192,61 @@ class DrivePhotosViewModel @Inject constructor(
     }
 
     fun more() = pager.more()
+
+    /** "Alle | Privat | Arbeit | Prüfen": the timeline of that class. */
+    fun setClass(c: String?) {
+        if (c == _cls.value) return
+        _cls.value = c
+        bulk.clear()
+        if (work.serverClasses(live.me.value)) {
+            _months.value = emptyMap()
+            load(quiet = false)
+        }
+    }
+
+    // ─── work photos (Drive 1.13) ───────────────────────────────────
+
+    /** The snackbar after "Arbeit" / "Privat" / "Zum Prüfen markieren" ([undo]: "Rückgängig"). */
+    data class WorkSnack(val to: DriveWorkPhotos.Target, val count: Int, val undo: DriveWorkPhotos.Undo?, val stamp: Long = System.nanoTime())
+
+    private val _workSnack = MutableStateFlow<WorkSnack?>(null)
+    val workSnack: StateFlow<WorkSnack?> = _workSnack.asStateFlow()
+
+    private val _assigning = MutableStateFlow(false)
+    val assigning: StateFlow<Boolean> = _assigning.asStateFlow()
+
+    fun workSnackShown() { _workSnack.value = null }
+
+    /** The ticked photos (or [only]) are work, private or to be reviewed. */
+    fun assign(to: DriveWorkPhotos.Target, only: List<DNode>? = null) {
+        val nodes = only ?: bulk.nodes()
+        if (nodes.isEmpty() || _assigning.value) return
+        bulk.clear()
+        viewModelScope.launch {
+            _assigning.value = true
+            try {
+                val r = work.assign(nodes, to)
+                if (r.error != null) _message.value = r.error else _workSnack.value = WorkSnack(to, r.count, r.undo)
+            } finally {
+                _assigning.value = false
+                load(quiet = true)
+            }
+        }
+    }
+
+    fun undoWork(u: DriveWorkPhotos.Undo) {
+        viewModelScope.launch {
+            _message.value = work.undo(u) ?: "work_undone"
+            load(quiet = true)
+        }
+    }
+
+    /** "N Fotos sind wahrscheinlich Arbeitsfotos": from time to time, on WLAN, a short look at the newest photos. */
+    fun lookForSuggestions(unmetered: Boolean) {
+        if (!unmetered || !work.settings.value.active || !work.learned.value.usable) return
+        if (System.currentTimeMillis() - work.suggestedAt() < SUGGEST_EVERY_MS) return
+        viewModelScope.launch { runCatching { work.suggest(limit = SUGGEST_LOOK) } }
+    }
 
     fun loadAlbums() {
         if (_albums.value !is DriveLoad.Ready) _albums.value = DriveLoad.Loading
@@ -220,6 +300,8 @@ class DrivePhotosViewModel @Inject constructor(
 
     companion object {
         const val NAME_MAX = 100
+        private const val SUGGEST_EVERY_MS = 3L * 24 * 60 * 60 * 1000
+        private const val SUGGEST_LOOK = 60
     }
 }
 

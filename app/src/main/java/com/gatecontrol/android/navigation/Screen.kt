@@ -141,6 +141,8 @@ sealed class Screen(val route: String) {
     data object DriveTrash : Screen("drive/trash")
     data object DriveSearch : Screen("drive/search")
     data object DriveBackup : Screen("drive/backup")
+    /** "Aufräumen" of the work photos (Drive 1.13): the AI's suggestions among the photos backed up. */
+    data object DriveCleanup : Screen("drive/cleanup")
     /** "Drive-Einstellungen" (Drive 1.11): the gear of the Drive menu, the app settings' row "Drive". */
     data object DriveSettings : Screen("drive/settings")
     /** "Ordner sichern": phone folders backed up into Drive. */

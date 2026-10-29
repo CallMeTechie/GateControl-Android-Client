@@ -121,4 +121,21 @@ class DriveBackupLogicTest {
         assertFalse(c.videos)
         assertTrue(c.cameraOnly)
     }
+
+    @Test
+    fun `when a photo was taken for the WLAN timeline`() {
+        assertEquals(1_793_261_520_000L, DriveBackupLogic.takenMs("2026-10-29T09:12:00+01:00", 5L, 6L))
+        assertEquals(5L, DriveBackupLogic.takenMs("not a date", 5L, 6L))
+        assertEquals(6L, DriveBackupLogic.takenMs(null, 0L, 6L))
+        assertNull(DriveBackupLogic.takenMs(null, null, null))
+    }
+
+    @Test
+    fun `a work photo whose folder is gone goes the private way, to be reviewed`() {
+        val p = com.gatecontrol.android.drive.work.DriveWorkLogic.place(com.gatecontrol.android.drive.work.WifiZone.WORK, null, ready = false, autoSort = true)
+        val r = DriveBackupLogic.reviewInstead(p)
+        assertEquals(com.gatecontrol.android.drive.work.DriveWorkLogic.Dest.PRIVATE, r.dest)
+        assertTrue(r.review)
+        assertNull(r.learn)
+    }
 }

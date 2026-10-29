@@ -57,9 +57,9 @@ import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcRowDivider
+import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTone
@@ -152,7 +152,7 @@ internal fun backupText(context: Context, code: String): String = when (code) {
 
 /** Drive tab › Foto-Sicherung. */
 @Composable
-fun DriveBackupScreen(onBack: () -> Unit, viewModel: DriveBackupViewModel = hiltViewModel()) {
+fun DriveBackupScreen(onBack: () -> Unit, onCleanup: () -> Unit = {}, viewModel: DriveBackupViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val config by viewModel.backup.config.collectAsStateWithLifecycle()
     val stats by viewModel.backup.stats.collectAsStateWithLifecycle()
@@ -204,12 +204,6 @@ fun DriveBackupScreen(onBack: () -> Unit, viewModel: DriveBackupViewModel = hilt
                     enabled = !busy,
                     onCheckedChange = { on -> if (on) turnOn() else viewModel.disable() },
                 )
-                GcRowDivider()
-                // fixed: Meine Dateien › Bilder › Kamera-Uploads › year › month
-                GcListRow(
-                    title = stringResource(R.string.drive_backup_folder),
-                    description = stringResource(R.string.drive_backup_camera_target),
-                )
             }
 
             if (busy) DriveLoading()
@@ -229,6 +223,10 @@ fun DriveBackupScreen(onBack: () -> Unit, viewModel: DriveBackupViewModel = hilt
                 BackupStatusCard(config, stats, status, pending, onRun = viewModel::runNow)
             }
 
+            // Drive 1.13: work photos apart (targets, WLANs, the AI, on the phone)
+            WorkPhotoSections(onCleanup = onCleanup)
+
+            GcSectionLabel(stringResource(R.string.drive_work_section_when), Modifier.padding(horizontal = 4.dp))
             GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                 GcSwitchRow(
                     label = stringResource(R.string.drive_backup_wifi),

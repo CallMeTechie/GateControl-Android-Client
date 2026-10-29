@@ -1538,6 +1538,7 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
                     deadlines = { go(Screen.DriveDeadlines.route) },
                     vault = vault,
                     settings = { go(Screen.DriveSettings.route) },
+                    cleanup = { go(Screen.DriveCleanup.route) },
                 ),
             )
         }
@@ -1577,7 +1578,10 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
         }
     }
     composable(Screen.DriveBackup.route) {
-        GcContentWidth { com.gatecontrol.android.ui.drive.DriveBackupScreen(onBack = back) }
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveBackupScreen(onBack = back, onCleanup = { go(Screen.DriveCleanup.route) }) }
+    }
+    composable(Screen.DriveCleanup.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveCleanupScreen(onBack = back) }
     }
     composable(Screen.DriveFolders.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderBackupScreen(onBack = back) }
