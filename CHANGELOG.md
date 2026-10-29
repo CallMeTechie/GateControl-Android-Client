@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.26] - 2026-10-29
+
+### Changes
+- Arbeitsfotos getrennt sichern (Drive 1.13) (#150)
+
+---
+
 ## [1.67.25] - 2026-10-29
 
 ### Changes
