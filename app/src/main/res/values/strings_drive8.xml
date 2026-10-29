@@ -43,8 +43,6 @@
     <string name="drive_work_assign_bar">Assign</string>
     <string name="drive_work_to_work">Work</string>
     <string name="drive_work_to_private">Private</string>
-    <string name="drive_work_to_work_desc">Is a work photo</string>
-    <string name="drive_work_to_private_desc">Is private</string>
     <string name="drive_work_more_section">Assignment</string>
     <string name="drive_work_more_work">Is a work photo</string>
     <string name="drive_work_more_work_desc">Moves to “%1$s”, the AI learns along</string>

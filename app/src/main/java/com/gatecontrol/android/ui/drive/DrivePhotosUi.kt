@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -229,12 +230,13 @@ internal fun DrivePhotosContent(
     val reviewCount = if (serverClasses) classes?.review ?: 0 else localReview.size
     val reviewBar = DriveWorkLogic.reviewBar(chosen, localReview)
     val workSnackLearns = stringResource(R.string.drive_work_snack_learns)
+    val resources = LocalResources.current
     val undoLabel = stringResource(R.string.drive_snack_undo)
     LaunchedEffect(workSnack) {
         val w = workSnack ?: return@LaunchedEffect
         viewModel.workSnackShown()
-        val r = context.resources
-        val target = workSettings.folderLabel ?: context.getString(R.string.drive_work_work_default)
+        val r = resources
+        val target = workSettings.folderLabel ?: r.getString(R.string.drive_work_work_default)
         val line = when (w.to) {
             DriveWorkPhotos.Target.WORK -> r.getQuantityString(R.plurals.drive_work_snack_work, w.count, w.count, target)
             DriveWorkPhotos.Target.PRIVATE -> r.getQuantityString(R.plurals.drive_work_snack_private, w.count, w.count)
@@ -959,34 +961,31 @@ private fun PhotosMoreSheet(
     )
     val assign = if (!workOn) emptyList() else {
         val offer = DriveWorkLogic.offer(nodes, localReview)
+        val no = DriveBulk.Can(false, null)
         listOf(
             MoreItem(
                 GcIcons.Briefcase,
                 stringResource(R.string.drive_work_more_work),
-                stringResource(R.string.drive_work_more_work_desc, workLabel),
                 when {
-                    !workFolderSet -> DriveBulk.Can(false, null)
-                    !offer.work -> DriveBulk.Can(false, null)
-                    else -> can(DriveBulk.Action.MOVE)
+                    !workFolderSet -> stringResource(R.string.drive_work_more_no_folder)
+                    !offer.work -> stringResource(R.string.drive_work_more_work_already)
+                    else -> stringResource(R.string.drive_work_more_work_desc, workLabel)
                 },
+                if (workFolderSet && offer.work) can(DriveBulk.Action.MOVE) else no,
             ) { viewModel.assign(DriveWorkPhotos.Target.WORK, nodes) },
             MoreItem(
                 GcIcons.House,
                 stringResource(R.string.drive_work_more_private),
                 stringResource(if (offer.private) R.string.drive_work_more_private_desc else R.string.drive_work_more_private_already),
-                if (offer.private) can(DriveBulk.Action.MOVE) else DriveBulk.Can(false, null),
+                if (offer.private) can(DriveBulk.Action.MOVE) else no,
             ) { viewModel.assign(DriveWorkPhotos.Target.PRIVATE, nodes) },
             MoreItem(
                 GcIcons.Alert,
                 stringResource(R.string.drive_work_more_review),
                 if (offer.review) null else stringResource(R.string.drive_work_more_review_already),
-                if (offer.review) can(DriveBulk.Action.MOVE) else DriveBulk.Can(false, null),
+                if (offer.review) can(DriveBulk.Action.MOVE) else no,
             ) { viewModel.assign(DriveWorkPhotos.Target.REVIEW, nodes) },
-        ).map { item ->
-            // a greyed-out entry says why below its title
-            if (item.can.ok || item.description != null) item
-            else item.copy(description = stringResource(if (!workFolderSet) R.string.drive_work_more_no_folder else R.string.drive_work_more_work_already))
-        }
+        )
     }
     val state = one?.let {
         when {

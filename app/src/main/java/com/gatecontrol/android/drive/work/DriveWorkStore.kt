@@ -60,8 +60,8 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
     private var examplesRead = false
 
     private val _learned = MutableStateFlow(DriveWorkLogic.Learned())
-    /** What the AI learned so far (read on first use). */
-    val learned: StateFlow<DriveWorkLogic.Learned> get() = _learned.also { examples() }
+    /** What the AI learned so far (read at app start, [examples]). */
+    val learned: StateFlow<DriveWorkLogic.Learned> = _learned.asStateFlow()
 
     private val _localReview = MutableStateFlow(readLocalReview())
     /** Without Drive 1.13: the photos marked "zu prüfen" on this phone (node id → hint). */

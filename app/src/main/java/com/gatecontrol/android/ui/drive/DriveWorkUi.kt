@@ -176,8 +176,6 @@ class DriveWorkViewModel @Inject constructor(
     }
 
     fun removalsDone(ids: List<Long>) = store.clearRemovals(ids)
-
-    fun hasClasses(): Boolean = work.serverClasses()
 }
 
 /** A work-photo code as a sentence (outside of composition). */

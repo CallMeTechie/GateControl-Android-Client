@@ -46,7 +46,7 @@ class DriveWorkPhotos @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
     val settings: StateFlow<WorkSettings> = store.settings
-    val learned: StateFlow<DriveWorkLogic.Learned> get() = store.learned
+    val learned: StateFlow<DriveWorkLogic.Learned> = store.learned
     val localReview: StateFlow<Map<Long, Int?>> = store.localReview
 
     /** Drive 1.13 keeps the settings and the marks; without it this phone does. */
@@ -149,6 +149,9 @@ class DriveWorkPhotos @Inject constructor(
             model
         }
     }
+
+    /** What was learned, read from the phone if not yet. */
+    suspend fun learnedNow(): DriveWorkLogic.Learned = withContext(Dispatchers.IO) { DriveWorkFeatures.learned(store.examples()) }
 
     /** The features of a photo in Drive (labeled once, then kept). */
     private suspend fun featuresOf(node: DNode): Map<Int, Float>? {

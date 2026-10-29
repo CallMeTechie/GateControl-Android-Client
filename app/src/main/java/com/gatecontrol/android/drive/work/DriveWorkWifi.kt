@@ -84,6 +84,8 @@ class DriveWorkWifi @Inject constructor(
         if (started) return
         started = true
         registerWake()
+        // what the AI learned, read once off the main thread
+        scope.launch { store.examples() }
         scope.launch {
             monitor.network
                 .map { ssidOf(it) }

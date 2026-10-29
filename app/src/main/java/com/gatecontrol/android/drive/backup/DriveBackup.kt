@@ -309,7 +309,9 @@ class DriveBackup @Inject constructor(
         val path = DriveBackupLogic.cameraPath(own, item.taken, item.modified, item.added * 1000, ZoneId.systemDefault())
         // work photos apart: where this one goes (the WLAN it was taken in, else the AI on the phone); null: Kamera-Uploads
         var placed = try {
-            work.placeNew(item.uri, DriveBackupLogic.takenMs(own, item.taken, item.modified), item.video)
+            // the plain URI: the thumbnail does not need the original's location data
+            val plain = ContentUris.withAppendedId(if (item.video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, item.id)
+            work.placeNew(plain, DriveBackupLogic.takenMs(own, item.taken, item.modified), item.video)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

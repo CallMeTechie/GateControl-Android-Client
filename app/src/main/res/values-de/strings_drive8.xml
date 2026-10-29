@@ -43,8 +43,6 @@
     <string name="drive_work_assign_bar">Zuordnen</string>
     <string name="drive_work_to_work">Arbeit</string>
     <string name="drive_work_to_private">Privat</string>
-    <string name="drive_work_to_work_desc">Ist ein Arbeitsfoto</string>
-    <string name="drive_work_to_private_desc">Ist privat</string>
     <string name="drive_work_more_section">Zuordnung</string>
     <string name="drive_work_more_work">Ist ein Arbeitsfoto</string>
     <string name="drive_work_more_work_desc">Verschiebt nach „%1$s“, die KI lernt mit</string>

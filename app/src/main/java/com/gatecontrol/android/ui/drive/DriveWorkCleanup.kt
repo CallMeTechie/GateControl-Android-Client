@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -97,13 +98,13 @@ class DriveCleanupViewModel @Inject constructor(private val work: DriveWorkPhoto
 
     init {
         viewModelScope.launch {
-            if (!work.learned.value.usable) {
+            if (!work.learnedNow().usable) {
                 _state.value = State.Learning
                 return@launch
             }
             val list = work.suggest { done, total -> _state.value = State.Looking(done, total) }
             _selected.value = list.filter { it.preselected }.map { it.node.id }.toSet()
-            _state.value = if (list.isEmpty() && !work.learned.value.usable) State.Learning else State.Ready(list)
+            _state.value = State.Ready(list)
         }
     }
 
@@ -144,6 +145,7 @@ private fun monthName(month: String?): String? = month?.let {
 @Composable
 fun DriveCleanupScreen(onBack: () -> Unit, viewModel: DriveCleanupViewModel = hiltViewModel()) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val x = GateControlTheme.extraColors
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
@@ -159,8 +161,8 @@ fun DriveCleanupScreen(onBack: () -> Unit, viewModel: DriveCleanupViewModel = hi
         val m = message ?: return@LaunchedEffect
         val n = m.substringAfter(':', "").toIntOrNull() ?: 0
         val text = when {
-            m.startsWith("cleanup_done:") -> context.resources.getQuantityString(R.plurals.drive_work_cleanup_done, n, n)
-            m == "cleanup_left" -> context.getString(R.string.drive_work_cleanup_left)
+            m.startsWith("cleanup_done:") -> resources.getQuantityString(R.plurals.drive_work_cleanup_done, n, n)
+            m == "cleanup_left" -> resources.getString(R.string.drive_work_cleanup_left)
             else -> workText(context, m)
         }
         Toast.makeText(context, text, Toast.LENGTH_LONG).show()
