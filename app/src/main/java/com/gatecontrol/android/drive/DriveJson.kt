@@ -3,6 +3,7 @@ package com.gatecontrol.android.drive
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * Pure parsers of the Drive plugin's answers (README "API"). Every parser returns null for an answer that does not
@@ -1010,6 +1011,30 @@ internal object DriveJson {
         if (url == null && path == null && media == null) return null
         val name = DriveLogic.safeName(z.str("name"))?.let { if (it.endsWith(".zip", ignoreCase = true)) it else "$it.zip" } ?: "Drive.zip"
         return DZip(url, path, media, name, z.str("expiresAt")?.take(40))
+    }
+
+    /** How a ZIP is fetched: [url] in full, [auth] with the app's credentials (only for the server's own relative address). */
+    data class ZipFetch(val url: String, val auth: Boolean)
+
+    /**
+     * Where to fetch a ZIP from: a relative address goes to the configured server [base] (below its path, if it has
+     * one) with the app's credentials; an absolute one — GateControl's public bearer address, often another host than
+     * the configured one — only over https (http only on the server's own host), and then without any credentials.
+     * Null for anything else.
+     */
+    fun zipFetch(base: String, url: String): ZipFetch? {
+        val b = base.trim().toHttpUrlOrNull() ?: return null
+        val u = url.trim()
+        if (u.isEmpty() || u.any(Char::isWhitespace) || u.length > 4000) return null
+        if (u.startsWith("/") && !u.startsWith("//")) {
+            if (u.split('?').first().split('/').any { it == ".." }) return null
+            val full = b.toString().trimEnd('/') + u
+            return full.toHttpUrlOrNull()?.let { ZipFetch(it.toString(), auth = true) }
+        }
+        val a = u.toHttpUrlOrNull() ?: return null
+        if (!u.startsWith("https://", ignoreCase = true) && !u.startsWith("http://", ignoreCase = true)) return null
+        if (!a.isHttps && !a.host.equals(b.host, ignoreCase = true)) return null
+        return ZipFetch(a.toString(), auth = false)
     }
 
     /** One link for several files (Drive 1.12 `multiLink`): `POST links { nodeIds, mode, expires, pin? }`. */

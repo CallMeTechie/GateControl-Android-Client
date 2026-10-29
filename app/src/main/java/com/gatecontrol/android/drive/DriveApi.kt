@@ -463,56 +463,54 @@ class DriveApi @Inject constructor(
         return post("zip", DriveJson.zipBody(ids), DriveJson::zip)
     }
 
-    /** The ZIP of [zip] as a stream (its short-lived address on the server, or its media). The caller closes the body. */
-    suspend fun zipStream(zip: DZip): DResult<Response<ResponseBody>> = when {
-        zip.mediaId != null -> mediaStream(zip.mediaId)
-        else -> serverFile(zip.url ?: zip.path ?: return bad())
-    }
-
-    private suspend fun mediaStream(mediaId: String): DResult<Response<ResponseBody>> = stream { base ->
-        apiClientProvider.mediaClient(base).pluginMediaGet(DRIVE_PLUGIN, mediaId)
-    }
-
     /**
-     * A file by an address the server handed out (the ZIP of a selection): relative to the
-     * server or on its own host — never elsewhere. The caller closes the body.
+     * The ZIP of [zip] as a stream (the caller closes it): its media, the server's own relative address with the app's
+     * credentials, or GateControl's public bearer address without any ([DriveJson.zipFetch]).
      */
-    suspend fun serverFile(url: String): DResult<Response<ResponseBody>> = stream { base ->
-        val path = when {
-            url.startsWith("/") && !url.startsWith("//") -> url.removePrefix("/")
-            sameOrigin(base, url) -> url
-            else -> return@stream null
-        }
-        apiClientProvider.mediaClient(base).getRaw(path)
-    }
-
-    private suspend fun stream(request: suspend (base: String) -> Response<ResponseBody>?): DResult<Response<ResponseBody>> {
+    suspend fun zipStream(zip: DZip): DResult<ResponseBody> {
         val base = setupRepository.getServerUrl()
         if (base.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
+        val fetch = if (zip.mediaId != null) null else DriveJson.zipFetch(base, zip.url ?: zip.path ?: return bad()) ?: return bad()
         return try {
-            var refused = false
-            val r = withTimeoutOrNull(TIMEOUT_MS) { request(base).also { if (it == null) refused = true } }
-            if (refused) return bad()
-            if (r == null) return DResult.Offline
-            if (r.isSuccessful && r.body() != null) DResult.Ok(r) else {
-                r.errorBody()?.close()
-                DResult.Failed("http_${r.code()}", r.code())
+            if (fetch == null || fetch.auth) {
+                val client = apiClientProvider.mediaClient(base)
+                val r = withTimeoutOrNull(TIMEOUT_MS) {
+                    if (fetch == null) client.pluginMediaGet(DRIVE_PLUGIN, zip.mediaId!!) else client.getRaw(fetch.url)
+                } ?: return DResult.Offline
+                val body = r.body()
+                if (r.isSuccessful && body != null) DResult.Ok(body) else {
+                    r.errorBody()?.close()
+                    DResult.Failed("http_${r.code()}", r.code())
+                }
+            } else {
+                // a bearer address: no token, no cookies, no device headers — and never on to plain http
+                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    plainHttp.newCall(okhttp3.Request.Builder().url(fetch.url).get().build()).execute()
+                }
+                val body = r.body
+                if (r.isSuccessful) DResult.Ok(body) else {
+                    r.close()
+                    DResult.Failed("http_${r.code}", r.code)
+                }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
             DResult.Offline
         } catch (e: Exception) {
-            Timber.d("Drive: download failed (%s)", e.javaClass.simpleName)
+            Timber.d("Drive: zip failed (%s)", e.javaClass.simpleName)
             DResult.Failed(CODE_INVALID, 0)
         }
     }
 
-    private fun sameOrigin(base: String, url: String): Boolean = runCatching {
-        val a = java.net.URI(base)
-        val b = java.net.URI(url)
-        a.scheme.equals(b.scheme, true) && a.host.equals(b.host, true) && a.port == b.port
-    }.getOrDefault(false)
+    /** A client without the app's credentials, cookies or interceptors (public bearer addresses only). */
+    private val plainHttp: okhttp3.OkHttpClient by lazy {
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .followSslRedirects(false)
+            .build()
+    }
 
     /** One link for several files (feature `multiLink`); folders mixed in: `400 invalid { reason: mixed }`. */
     suspend fun createMultiLink(ids: List<Long>, mode: String, expires: String, pin: String?): DResult<DLink> {

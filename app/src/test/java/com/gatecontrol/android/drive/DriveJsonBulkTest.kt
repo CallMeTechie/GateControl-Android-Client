@@ -166,4 +166,21 @@ class DriveJsonBulkTest {
         assertNull(DriveJson.zip(json("""{"url":"/../etc/passwd"}""")))
         assertNull(DriveJson.zip(json("""{"url":"javascript:alert(1)"}""")))
     }
+
+    @Test
+    fun `a zip is fetched from the server with credentials only by its relative address`() {
+        // relative: below the configured server, its path kept, with the app's credentials
+        assertEquals(DriveJson.ZipFetch("https://gc.home.lan/gc/s/tok/zip", auth = true), DriveJson.zipFetch("https://gc.home.lan/gc/", "/s/tok/zip"))
+        assertEquals(DriveJson.ZipFetch("https://gc.home.lan/s/tok/zip?x=1", auth = true), DriveJson.zipFetch("https://gc.home.lan", "/s/tok/zip?x=1"))
+        // absolute: GateControl's public bearer address, often another host — https, and never with credentials
+        assertEquals(DriveJson.ZipFetch("https://gc.example.org/s/tok/zip", auth = false), DriveJson.zipFetch("http://192.168.1.5:3000", "https://gc.example.org/s/tok/zip"))
+        assertEquals(DriveJson.ZipFetch("http://192.168.1.5:3000/s/tok/zip", auth = false), DriveJson.zipFetch("http://192.168.1.5:3000", "http://192.168.1.5:3000/s/tok/zip"))
+        // plain http elsewhere, other schemes, protocol-relative, climbing up: refused
+        assertNull(DriveJson.zipFetch("https://gc.home.lan", "http://evil.example/s/tok/zip"))
+        assertNull(DriveJson.zipFetch("https://gc.home.lan", "ftp://gc.home.lan/x"))
+        assertNull(DriveJson.zipFetch("https://gc.home.lan", "//evil.example/x"))
+        assertNull(DriveJson.zipFetch("https://gc.home.lan/gc", "/../admin"))
+        assertNull(DriveJson.zipFetch("not a url", "/s/tok/zip"))
+        assertNull(DriveJson.zipFetch("https://gc.home.lan", "s/tok zip"))
+    }
 }

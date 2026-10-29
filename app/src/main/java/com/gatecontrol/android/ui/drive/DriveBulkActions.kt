@@ -547,12 +547,12 @@ internal class DriveBulkActions(
             }
         }
         val body = when (val r = api.zipStream(z)) {
-            is DResult.Ok -> r.value.body()
+            is DResult.Ok -> r.value
             else -> {
                 _message.value = r.errorCode()
                 return null
             }
-        } ?: return null
+        }
         return withContext(Dispatchers.IO) {
             val dir = File(File(context.cacheDir, "drive-open"), "zip-" + System.currentTimeMillis()).apply { mkdirs() }
             val target = File(dir, z.name)
