@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.23] - 2026-10-29
+
+### Changes
+- Mehrfachauswahl und Sammel-Aktionen (Drive 1.12) (#147)
+
+---
+
 ## [1.67.22] - 2026-10-28
 
 ### Changes
