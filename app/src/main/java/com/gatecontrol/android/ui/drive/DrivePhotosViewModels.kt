@@ -84,6 +84,7 @@ class DrivePhotosViewModel @Inject constructor(
     private val api: DriveApi,
     private val transfers: DriveTransfers,
     val live: DriveLive,
+    val ops: com.gatecontrol.android.drive.DriveOps,
 ) : ViewModel() {
 
     private val _cameraOnly = MutableStateFlow(DriveViewPref.cameraOnly(context))
@@ -106,9 +107,20 @@ class DrivePhotosViewModel @Inject constructor(
     private val _albums = MutableStateFlow<DriveLoad<List<DAlbum>>?>(null)
     val albums: StateFlow<DriveLoad<List<DAlbum>>?> = _albums.asStateFlow()
 
-    private val _selected = MutableStateFlow<Set<Long>>(emptySet())
-    /** Photos ticked (long press) for an album. */
-    val selected: StateFlow<Set<Long>> = _selected.asStateFlow()
+    /** The ticked photos and what is done with them (send, album, save, move, delete; Drive 1.12). */
+    internal val bulk = DriveBulkActions(
+        context = context,
+        scope = viewModelScope,
+        api = api,
+        ops = ops,
+        transfers = transfers,
+        live = live,
+        items = { timeline.value.items },
+        changed = { load(quiet = true) },
+    )
+
+    /** Photos ticked (a long press, then taps or a swipe). */
+    val selected: StateFlow<Set<Long>> = bulk.selected
 
     /** A short message after an action (a Drive code or `photos_added:<n>`); the screen shows and clears it. */
     private val _message = MutableStateFlow<String?>(null)
@@ -148,7 +160,7 @@ class DrivePhotosViewModel @Inject constructor(
         if (on == _cameraOnly.value) return
         _cameraOnly.value = on
         DriveViewPref.setCameraOnly(context, on)
-        _selected.value = emptySet()
+        bulk.clear()
         _months.value = emptyMap()
         _memories.value = emptyList()
         load(quiet = false)
@@ -161,9 +173,9 @@ class DrivePhotosViewModel @Inject constructor(
         viewModelScope.launch { _albums.value = api.albums().toLoad { list -> list.sortedByDescending { it.updatedAt.orEmpty() } } }
     }
 
-    fun toggle(node: DNode) = _selected.update { if (node.id in it) it - node.id else it + node.id }
+    fun toggle(node: DNode) = bulk.toggle(node)
 
-    fun clearSelection() { _selected.value = emptySet() }
+    fun clearSelection() = bulk.clear()
 
     fun clearMessage() { _message.value = null }
 
@@ -172,13 +184,13 @@ class DrivePhotosViewModel @Inject constructor(
 
     /** The ticked photos into [album]. */
     fun addSelectedTo(album: DAlbum) {
-        val ids = _selected.value.toList()
+        val ids = selected.value.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
             val r = api.addToAlbum(album.id, ids)
             _message.value = if (r is DResult.Ok) "photos_added:${ids.size}" else r.errorCode()
             if (r is DResult.Ok) {
-                _selected.value = emptySet()
+                bulk.clear()
                 loadAlbums()
             }
         }
@@ -189,11 +201,11 @@ class DrivePhotosViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = api.createAlbum(name.trim().take(NAME_MAX), areaId)) {
                 is DResult.Ok -> {
-                    val ids = _selected.value.toList()
+                    val ids = selected.value.toList()
                     if (withSelected && ids.isNotEmpty()) {
                         val add = api.addToAlbum(r.value.id, ids)
                         _message.value = if (add is DResult.Ok) "photos_added:${ids.size}" else add.errorCode()
-                        if (add is DResult.Ok) _selected.value = emptySet()
+                        if (add is DResult.Ok) bulk.clear()
                     } else {
                         _message.value = "album_created"
                     }

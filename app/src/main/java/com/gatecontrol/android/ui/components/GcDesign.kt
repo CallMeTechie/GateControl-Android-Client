@@ -285,6 +285,7 @@ fun GcFilterChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val extra = GateControlTheme.extraColors
     Box(
@@ -293,14 +294,14 @@ fun GcFilterChip(
             .clip(RoundedCornerShape(10.dp))
             .background(if (selected) extra.accentBg else Color.Transparent)
             .border(1.dp, if (selected) Color.Transparent else extra.border2, RoundedCornerShape(10.dp))
-            .selectable(selected = selected, onClick = onClick)
+            .selectable(selected = selected, enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.titleSmall,
-            color = if (selected) extra.accentText else extra.muted,
+            color = if (selected) extra.accentText else if (enabled) extra.muted else extra.faint,
         )
     }
 }

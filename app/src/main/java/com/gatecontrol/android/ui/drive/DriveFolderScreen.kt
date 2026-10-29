@@ -25,6 +25,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import android.app.Activity
 import androidx.activity.result.IntentSenderRequest
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.res.pluralStringResource
+import com.gatecontrol.android.drive.DriveBulk
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.gatecontrol.android.drive.DriveLocal
@@ -190,18 +195,44 @@ internal fun DriveFolderContent(
         }
     }
 
+    val selected by viewModel.bulk.selected.collectAsStateWithLifecycle()
+    val running by viewModel.ops.running.collectAsStateWithLifecycle()
+    val busy by viewModel.bulk.busy.collectAsStateWithLifecycle()
+    val fresh by viewModel.ops.fresh.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    var moreOpen by remember { mutableStateOf(false) }
+    val selecting = selected.isNotEmpty()
+    val haptic = LocalHapticFeedback.current
+    // back ends the selection first
+    BackHandler(enabled = selecting) { viewModel.bulk.clear() }
+    val items = folder?.items.orEmpty()
+    val chosen = remember(selected, items) { items.filter { it.id in selected } }
+    val where = DriveBulk.Where(writable = { folder?.writable == true }, child = { area?.via == "parent" })
+
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
-        topBar(title) { FolderViewActions(viewModel, gridState) }
+        if (selecting) {
+            SelectionHead(
+                count = chosen.size,
+                line = summaryText(DriveBulk.summary(chosen)),
+                allSelected = DriveBulk.allSelected(selected, items.map { it.id }),
+                onClose = viewModel.bulk::clear,
+                onAll = viewModel.bulk::allOrNone,
+            )
+        } else {
+            topBar(title) { FolderViewActions(viewModel, gridState) }
+        }
         if (folder != null && folder.crumbs.isNotEmpty()) Crumbs(folder, area?.label, onCrumb ?: onFolder)
         Column(
-            // bottom: room for the round button over the last item
+            // bottom: room for the round button (or the selection's bar) over the last item
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (area?.via == "parent") {
                 GcBanner(tone = GcTone.Warn, icon = GcIcons.Eye) { Text(stringResource(R.string.drive_child_note), style = MaterialTheme.typography.bodyMedium) }
             }
+            // jobs on several items: how far they are (they go on on the server)
+            OpCards(running, busy, onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } }, onCancelBusy = viewModel.bulk::cancelBusy)
             header()
             when (val s = state) {
                 DriveLoad.Loading -> DriveLoading()
@@ -213,6 +244,8 @@ internal fun DriveFolderContent(
                         val onItem: (DNode) -> Unit = { n ->
                             val vault = n.vaultId?.takeIf { it != com.gatecontrol.android.drive.DriveJson.INVALID_VAULT }
                             when {
+                                // while ticking, a tap ticks
+                                selecting -> viewModel.bulk.toggle(n)
                                 n.isDir && vault != null -> onVault(vault, n.id)
                                 n.isDir -> onFolder(n.id)
                                 // a vault's file never opens here (its content is ciphertext)
@@ -220,10 +253,19 @@ internal fun DriveFolderContent(
                                 else -> open(n, false)
                             }
                         }
+                        val onLong: (DNode) -> Unit = { n -> if (selecting) viewModel.bulk.toggle(n) else viewModel.bulk.select(n) }
+                        val isFresh: (DNode) -> Boolean = { n -> n.id in fresh }
                         if (grid) {
-                            NodeGrid(s.value.items, onClick = onItem, onLongClick = { menuFor = it }, progress = { downloading[it.id] })
+                            NodeGrid(
+                                s.value.items,
+                                onClick = onItem,
+                                onLongClick = onLong,
+                                progress = { downloading[it.id] },
+                                selected = selected,
+                                onMore = { menuFor = it },
+                                fresh = isFresh,
+                            )
                         } else {
-                            val haptic = LocalHapticFeedback.current
                             GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                                 s.value.items.forEachIndexed { i, n ->
                                     if (i > 0) GcRowDivider()
@@ -231,7 +273,11 @@ internal fun DriveFolderContent(
                                         node = n,
                                         onClick = { onItem(n) },
                                         progress = downloading[n.id],
-                                        onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuFor = n },
+                                        onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLong(n) },
+                                        selecting = selecting,
+                                        selected = n.id in selected,
+                                        onMore = { menuFor = n },
+                                        fresh = isFresh(n),
                                     )
                                 }
                             }
@@ -240,14 +286,28 @@ internal fun DriveFolderContent(
                 }
             }
         }
+        if (selecting) {
+            SelectionActionBar(
+                listOf(
+                    BarAction(GcIcons.Share, stringResource(R.string.drive_bar_send), viewModel.bulk.can(DriveBulk.Action.SEND, chosen, where)) { viewModel.bulk.send() },
+                    BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), viewModel.bulk.can(DriveBulk.Action.MOVE, chosen, where)) { viewModel.bulk.openTarget(DriveBulk.Mode.MOVE) },
+                    BarAction(GcIcons.Copy, stringResource(R.string.drive_bar_copy), viewModel.bulk.can(DriveBulk.Action.COPY, chosen, where)) { viewModel.bulk.openTarget(DriveBulk.Mode.COPY) },
+                    BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), viewModel.bulk.can(DriveBulk.Action.DELETE, chosen, where), danger = true) { viewModel.bulk.delete() },
+                    BarAction(GcIcons.MoreHorizontal, stringResource(R.string.drive_bar_more), DriveBulk.Can.YES) { moreOpen = true },
+                ),
+            )
+        }
     }
-    DriveFab(
-        uploads,
-        onAdd = if (folder?.writable == true) ({ addOpen = true }) else null,
-        onOpenUploads = { uploadsOpen = true },
-        onAllDone = viewModel.transfers::clearFinished,
-        modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
-    )
+    if (!selecting) {
+        DriveFab(
+            uploads,
+            onAdd = if (folder?.writable == true) ({ addOpen = true }) else null,
+            onOpenUploads = { uploadsOpen = true },
+            onAllDone = viewModel.transfers::clearFinished,
+            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
+        )
+    }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 84.dp))
     }
 
     if (addOpen) {
@@ -296,69 +356,74 @@ internal fun DriveFolderContent(
 
     // ─── sheets and dialogs ─────────────────────────────────────────
 
-    menuFor?.let { n ->
+    /**
+     * "Mehr" of the selection ([fromRow] false) or ⋯ of one row ([fromRow]: the everyday actions as icons on top). With
+     * one item every action of before is there; with several the ones for one only are greyed out.
+     */
+    val moreSheet: @Composable (List<DNode>, Boolean, () -> Unit) -> Unit = { ns, fromRow, close ->
+        val one = ns.singleOrNull()
         val writable = folder?.writable == true
-        // Fully open at once: nothing of the menu hides below the edge.
-        ModalBottomSheet(onDismissRequest = { menuFor = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            Column(Modifier.padding(bottom = 24.dp)) {
-                Text(nodeTitle(n), style = MaterialTheme.typography.titleMedium, maxLines = 2, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                // The everyday actions as one row of icons on top (like the Windows 11 context menu), the rest below.
-                // A vault (Drive 1.9): no sending, no links, no renaming here (its name is encrypted: in the vault itself).
-                val vault = n.encrypted
-                val quick = buildList<Triple<ImageVector, Int, () -> Unit>> {
-                    if (!n.isDir && !vault) add(Triple(GcIcons.Share, R.string.drive_send) { open(n, true) })
-                    if (writable && !vault) add(Triple(GcIcons.Link, R.string.drive_share_link) { viewModel.openLinks(n) })
-                    if (writable && !vault) add(Triple(GcIcons.Edit, R.string.drive_rename) { renaming = n })
-                    // Read only: a file can still go from this phone (its own copy), the sheet offers what applies.
-                    if (writable || !n.isDir) add(Triple(GcIcons.Trash, R.string.drive_delete_menu) { deleting = n })
-                }
-                if (quick.isNotEmpty()) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                        quick.forEach { (icon, label, action) ->
-                            QuickAction(icon, stringResource(label), onClick = { menuFor = null; action() }, modifier = Modifier.weight(1f))
-                        }
-                    }
-                    GcRowDivider(Modifier.padding(vertical = 4.dp))
-                }
-                val item: @Composable (ImageVector, Int, () -> Unit) -> Unit = { icon, label, action ->
-                    GcListRow(
-                        title = stringResource(label),
-                        onClick = { menuFor = null; action() },
-                        leading = { Icon(icon, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
-                    )
-                }
-                if (vault) {
-                    n.vaultId?.takeIf { n.isDir && it != com.gatecontrol.android.drive.DriveJson.INVALID_VAULT }?.let { v ->
-                        item(GcIcons.Vault, R.string.drive_open) { onVault(v, n.id) }
-                    }
-                } else {
-                if (!n.isDir) item(GcIcons.External, R.string.drive_open) { open(n, false) }
-                // Drive 1.8 (`docAi`) and more: the file's page with what was recognised and its deadlines
-                if (!n.isDir) {
-                    val kind = DriveLogic.docKind(n)
-                    GcListRow(
-                        title = stringResource(R.string.drive_details),
-                        description = kind?.let { stringResource(R.string.drive_insight_title) + ": " + stringResource(docKindLabel(it)) },
-                        onClick = { menuFor = null; onFile(n.id) },
-                        leading = { Icon(if (kind != null) docKindIcon(kind) else GcIcons.File, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
-                    )
-                }
-                // Drive 1.9 (`office`): the document in the browser
-                if (DriveLogic.officeAllowed(me, n)) {
-                    item(GcIcons.Globe, if (writable) R.string.drive_office_edit else R.string.drive_office_view) {
-                        scope.launch { openOffice(context, viewModel.office(n)) }
-                    }
-                }
-                if (writable) item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n) }
-                if (!n.isDir) item(GcIcons.History, R.string.drive_versions) { viewModel.openVersions(n) }
-                // Drive 1.7 (feature `timeTravel`): the folder back to an earlier state.
-                if (n.isDir && writable && me?.has(DMe.FEATURE_TIME_TRAVEL) == true) item(GcIcons.History, R.string.drive_tt_menu) { viewModel.startTimeTravel(n) }
-                // Drive 1.6 (feature `links`): the file or folder in the portal.
-                DriveLogic.portalNodeUrl(me, n.id)?.let { url -> item(GcIcons.Globe, R.string.drive_open_portal) { openPortal(context, url) } }
-                }
-            }
+        val bulk = viewModel.bulk
+        val can: (DriveBulk.Action) -> DriveBulk.Can = { a -> bulk.can(a, ns, where) }
+        val quick = if (!fromRow || one == null) emptyList() else buildList {
+            add(BarAction(GcIcons.Share, stringResource(R.string.drive_bar_send), can(DriveBulk.Action.SEND)) { if (one.isDir) bulk.sendZip(ns) else open(one, true) })
+            add(BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), can(DriveBulk.Action.MOVE)) { bulk.openTarget(DriveBulk.Mode.MOVE, ns) })
+            add(BarAction(GcIcons.Copy, stringResource(R.string.drive_bar_copy), can(DriveBulk.Action.COPY)) { bulk.openTarget(DriveBulk.Mode.COPY, ns) })
+            // Read only: a file can still go from this phone (its own copy), the sheet offers what applies.
+            add(BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), if (writable || !one.isDir) DriveBulk.Can.YES else can(DriveBulk.Action.DELETE), danger = true) { deleting = one })
         }
+        val linkCan = can(DriveBulk.Action.LINK)
+        val multi = listOf(
+            MoreItem(GcIcons.Download, stringResource(R.string.drive_more_save), stringResource(R.string.drive_more_save_desc), can(DriveBulk.Action.SAVE)) { bulk.save(ns) },
+            MoreItem(GcIcons.Archive, stringResource(R.string.drive_more_zip), stringResource(R.string.drive_more_zip_desc), can(DriveBulk.Action.ZIP)) { bulk.sendZip(ns) },
+            MoreItem(
+                GcIcons.Link,
+                stringResource(R.string.drive_share_link),
+                if (one != null) stringResource(R.string.drive_more_link_one) else pluralStringResource(R.plurals.drive_more_link, ns.size, ns.size),
+                linkCan,
+            ) { if (one != null) viewModel.openLinks(one) else bulk.openLink(ns) },
+        )
+        val single = buildList {
+            if (one != null && !one.isDir) add(MoreItem(GcIcons.External, stringResource(R.string.drive_open)) { open(one, false) })
+            add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = can(DriveBulk.Action.RENAME)) { one?.let { renaming = it } })
+            if (one == null) {
+                add(MoreItem(GcIcons.Info, stringResource(R.string.drive_more_details), can = DriveBulk.Can.no(DriveBulk.Why.ONLY_ONE)) {})
+            } else if (!one.isDir) {
+                // Drive 1.8 (`docAi`) and more: the file's page with what was recognised and its deadlines
+                val kind = DriveLogic.docKind(one)
+                add(MoreItem(if (kind != null) docKindIcon(kind) else GcIcons.Info, stringResource(R.string.drive_details), kind?.let { stringResource(R.string.drive_insight_title) + ": " + stringResource(docKindLabel(it)) }) { onFile(one.id) })
+                add(MoreItem(GcIcons.History, stringResource(R.string.drive_versions)) { viewModel.openVersions(one) })
+            }
+            // Drive 1.9 (`office`): the document in the browser
+            if (one == null || DriveLogic.officeAllowed(me, one)) {
+                add(MoreItem(GcIcons.Globe, stringResource(if (writable) R.string.drive_office_edit else R.string.drive_office_view), can = can(DriveBulk.Action.OFFICE)) {
+                    one?.let { n -> scope.launch { openOffice(context, viewModel.office(n)) } }
+                })
+            }
+            // Drive 1.7 (feature `timeTravel`): the folder back to an earlier state.
+            if (one != null && one.isDir && writable && me?.has(DMe.FEATURE_TIME_TRAVEL) == true) add(MoreItem(GcIcons.History, stringResource(R.string.drive_tt_menu)) { viewModel.startTimeTravel(one) })
+            // Drive 1.6 (feature `links`): the file or folder in the portal.
+            one?.let { n -> DriveLogic.portalNodeUrl(me, n.id) }?.let { url -> add(MoreItem(GcIcons.Globe, stringResource(R.string.drive_open_portal)) { openPortal(context, url) }) }
+        }
+        val last = if (me?.has(DMe.FEATURE_ALBUMS) == true) {
+            listOf(MoreItem(GcIcons.Photo, stringResource(R.string.drive_more_album), can = can(DriveBulk.Action.ALBUM)) { bulk.openAlbums(ns) })
+        } else {
+            emptyList()
+        }
+        BulkMoreSheet(
+            count = ns.size,
+            title = one?.let { nodeTitle(it) }.takeIf { fromRow },
+            summary = summaryText(DriveBulk.summary(ns)),
+            quick = quick,
+            multi = multi,
+            single = single,
+            last = last,
+            onDismiss = close,
+        )
     }
+    menuFor?.let { n -> moreSheet(listOf(n), true) { menuFor = null } }
+    if (moreOpen && chosen.isNotEmpty()) moreSheet(chosen, false) { moreOpen = false }
+    DriveBulkHost(viewModel.bulk, snackbar)
 
     if (newFolder) {
         NameDialog(
@@ -541,27 +606,6 @@ internal fun openPortal(context: Context, url: String) {
         context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.isSuccess
     if (!ok) Toast.makeText(context, R.string.drive_portal_unavailable, Toast.LENGTH_LONG).show()
-}
-
-/** One action in the icon row on top of the long-press menu: icon over a short label. */
-@Composable
-private fun QuickAction(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-    }
 }
 
 /** Area › Folder › Folder: tap to go up. */

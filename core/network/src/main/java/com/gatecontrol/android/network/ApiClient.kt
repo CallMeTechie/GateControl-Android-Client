@@ -309,6 +309,14 @@ interface ApiClient {
     @GET
     suspend fun fetchNotifyMedia(@Url url: String): Response<ResponseBody>
 
+    /**
+     * A file of the server by its own address (a short-lived download a plugin handed out, e.g. Drive's ZIP of a
+     * selection). The caller makes sure [url] is on this server; relative to the base URL.
+     */
+    @Streaming
+    @GET
+    suspend fun getRaw(@Url url: String): Response<ResponseBody>
+
     /** Location sharing: may this device send, last stored position (404 on older servers). */
     @GET("api/v1/client/location")
     suspend fun getLocationStatus(): Response<LocationStatusResponse>

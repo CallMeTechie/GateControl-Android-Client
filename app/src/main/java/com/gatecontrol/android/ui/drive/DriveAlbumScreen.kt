@@ -1,6 +1,8 @@
 package com.gatecontrol.android.ui.drive
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import com.gatecontrol.android.drive.DriveBulk
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,7 +49,6 @@ fun DriveAlbumScreen(onBack: () -> Unit, viewModel: DriveAlbumViewModel = hiltVi
     val message by viewModel.message.collectAsStateWithLifecycle()
     val gone by viewModel.gone.collectAsStateWithLifecycle()
     val me by viewModel.live.me.collectAsStateWithLifecycle()
-    var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var viewing by remember { mutableStateOf<Int?>(null) }
@@ -62,26 +63,14 @@ fun DriveAlbumScreen(onBack: () -> Unit, viewModel: DriveAlbumViewModel = hiltVi
 
     val a = (album as? DriveLoad.Ready)?.value
     val canEdit = a?.canEdit == true
+    val selecting = selected.isNotEmpty()
+    // back ends the selection first
+    BackHandler(enabled = selecting) { viewModel.clearSelection() }
     Column(Modifier.fillMaxSize()) {
-        GcSubpageBar(a?.name ?: stringResource(R.string.drive_photos_albums), onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
-            if (canEdit) {
-                GcIconButton(GcIcons.Plus, contentDescription = stringResource(R.string.drive_album_add), onClick = viewModel::openPicker, tint = MaterialTheme.colorScheme.onBackground)
-                Box {
-                    GcIconButton(GcIcons.MoreVertical, contentDescription = stringResource(R.string.drive_more), onClick = { menu = true }, tint = MaterialTheme.colorScheme.onBackground)
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.drive_album_rename)) },
-                            leadingIcon = { Icon(GcIcons.Edit, contentDescription = null) },
-                            onClick = { menu = false; renaming = true },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.drive_album_delete)) },
-                            leadingIcon = { Icon(GcIcons.Trash, contentDescription = null) },
-                            onClick = { menu = false; deleting = true },
-                        )
-                    }
-                }
-            }
+        if (selecting) {
+            SelectionHead(count = selected.size, line = null, allSelected = false, onClose = viewModel::clearSelection, onAll = null)
+        } else {
+            AlbumBar(a?.name ?: stringResource(R.string.drive_photos_albums), canEdit, onBack, onAdd = viewModel::openPicker, onRename = { renaming = true }, onDelete = { deleting = true })
         }
         when (val s = album) {
             DriveLoad.Loading -> if (!photos.loaded) DriveLoading()
@@ -102,12 +91,18 @@ fun DriveAlbumScreen(onBack: () -> Unit, viewModel: DriveAlbumViewModel = hiltVi
                     onRetry = viewModel::refresh,
                     empty = stringResource(R.string.drive_album_empty),
                 )
-                if (selected.isNotEmpty()) {
-                    SelectionBar(count = selected.size, onClear = viewModel::clearSelection, modifier = Modifier.align(Alignment.BottomCenter)) {
-                        if (selected.size == 1) TextButton(onClick = viewModel::coverSelected) { Text(stringResource(R.string.drive_album_cover)) }
-                        TextButton(onClick = viewModel::removeSelected) { Text(stringResource(R.string.drive_album_remove)) }
-                    }
-                }
+            }
+            if (selecting) {
+                SelectionActionBar(
+                    listOf(
+                        BarAction(
+                            GcIcons.Photo,
+                            stringResource(R.string.drive_album_cover),
+                            if (selected.size == 1) DriveBulk.Can.YES else DriveBulk.Can.no(DriveBulk.Why.ONLY_ONE),
+                        ) { viewModel.coverSelected() },
+                        BarAction(GcIcons.Minus, stringResource(R.string.drive_album_remove), DriveBulk.Can.YES, danger = true) { viewModel.removeSelected() },
+                    ),
+                )
             }
         }
     }
@@ -135,5 +130,31 @@ fun DriveAlbumScreen(onBack: () -> Unit, viewModel: DriveAlbumViewModel = hiltVi
             confirmButton = { TextButton(onClick = { deleting = false; viewModel.delete() }) { Text(stringResource(R.string.drive_album_delete), color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.drive_cancel), color = GateControlTheme.extraColors.muted) } },
         )
+    }
+}
+
+/** The album's bar: back, its name, and with the right to change it "Fotos hinzufügen" and the menu (rename, delete). */
+@Composable
+private fun AlbumBar(title: String, canEdit: Boolean, onBack: () -> Unit, onAdd: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    GcSubpageBar(title, onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
+        if (canEdit) {
+            GcIconButton(GcIcons.Plus, contentDescription = stringResource(R.string.drive_album_add), onClick = onAdd, tint = MaterialTheme.colorScheme.onBackground)
+            Box {
+                GcIconButton(GcIcons.MoreVertical, contentDescription = stringResource(R.string.drive_more), onClick = { menu = true }, tint = MaterialTheme.colorScheme.onBackground)
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.drive_album_rename)) },
+                        leadingIcon = { Icon(GcIcons.Edit, contentDescription = null) },
+                        onClick = { menu = false; onRename() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.drive_album_delete)) },
+                        leadingIcon = { Icon(GcIcons.Trash, contentDescription = null) },
+                        onClick = { menu = false; onDelete() },
+                    )
+                }
+            }
+        }
     }
 }

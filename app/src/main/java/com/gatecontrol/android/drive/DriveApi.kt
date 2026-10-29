@@ -166,6 +166,10 @@ class DriveApi @Inject constructor(
 
     suspend fun move(id: Long, parentId: Long): DResult<DNode> = patch("nodes/$id", DriveJson.patchBody(null, parentId), DriveJson::nodeAnswer)
 
+    /** Moved under another name (keep both, without Drive 1.12). */
+    suspend fun renameAndMove(id: Long, name: String, parentId: Long): DResult<DNode> =
+        patch("nodes/$id", DriveJson.patchBody(name, parentId), DriveJson::nodeAnswer)
+
     /** Into the trash. */
     /**
      * To the trash. [everywhere]: the user's other devices also remove their copies when next online (Drive 1.2+;
@@ -426,6 +430,106 @@ class DriveApi @Inject constructor(
     suspend fun endLink(token: String): DResult<Unit> {
         if (!Regex("^[A-Za-z0-9_-]{6,200}$").matches(token)) return bad()
         return del("links/$token", unit)
+    }
+
+    // ─── several items at once (Drive 1.12, features `bulk`, `zip`, `multiLink`) ─
+
+    /** What a job would do: how much, the names taken at [target], what cannot go (changes nothing). */
+    suspend fun opCheck(kind: String, ids: List<Long>, target: Long?): DResult<DOpCheck> {
+        if (kind !in DriveJson.OP_KINDS || ids.isEmpty()) return bad()
+        return post("ops/check", DriveJson.opCheckBody(kind, ids, target), DriveJson::opCheck)
+    }
+
+    /** Starts a job on the server (small ones come back `done` at once); [onConflict] `version` | `rename` | `skip`. */
+    suspend fun startOp(kind: String, ids: List<Long>, target: Long?, onConflict: String?): DResult<DOp> {
+        if (kind !in DriveJson.OP_KINDS || ids.isEmpty()) return bad()
+        return post("ops", DriveJson.opBody(kind, ids, target, onConflict), DriveJson::opAnswer)
+    }
+
+    suspend fun op(id: String): DResult<DOp> = get("ops/" + (DriveJson.opId(id) ?: return bad()), parse = DriveJson::opAnswer)
+
+    /** My jobs still running (after the app was closed, they go on on the server). */
+    suspend fun runningOps(): DResult<List<DOp>> = get("ops", mapOf("state" to "running"), DriveJson::ops)
+
+    /** Stops a job: what is done stays done. */
+    suspend fun cancelOp(id: String): DResult<DOp> = del("ops/" + (DriveJson.opId(id) ?: return bad()), DriveJson::opAnswer)
+
+    /** "Rückgängig" (until `undoUntil`): a move goes back, a trash is restored, copies go into the trash. */
+    suspend fun undoOp(id: String): DResult<DOp> = post("ops/" + (DriveJson.opId(id) ?: return bad()) + "/undo", JsonObject(), DriveJson::opAnswer)
+
+    /** A ZIP of [ids] (folders with their content; never a vault's content), for a short time. */
+    suspend fun zip(ids: List<Long>): DResult<DZip> {
+        if (ids.isEmpty()) return bad()
+        return post("zip", DriveJson.zipBody(ids), DriveJson::zip)
+    }
+
+    /** The ZIP of [zip] as a stream (its short-lived address on the server, or its media). The caller closes the body. */
+    suspend fun zipStream(zip: DZip): DResult<Response<ResponseBody>> = when {
+        zip.mediaId != null -> mediaStream(zip.mediaId)
+        else -> serverFile(zip.url ?: zip.path ?: return bad())
+    }
+
+    private suspend fun mediaStream(mediaId: String): DResult<Response<ResponseBody>> = stream { base ->
+        apiClientProvider.mediaClient(base).pluginMediaGet(DRIVE_PLUGIN, mediaId)
+    }
+
+    /**
+     * A file by an address the server handed out (a signed media address, the ZIP of a selection): relative to the
+     * server or on its own host — never elsewhere. The caller closes the body.
+     */
+    suspend fun serverFile(url: String): DResult<Response<ResponseBody>> = stream { base ->
+        val path = when {
+            url.startsWith("/") && !url.startsWith("//") -> url.removePrefix("/")
+            sameOrigin(base, url) -> url
+            else -> return@stream null
+        }
+        apiClientProvider.mediaClient(base).getRaw(path)
+    }
+
+    private suspend fun stream(request: suspend (base: String) -> Response<ResponseBody>?): DResult<Response<ResponseBody>> {
+        val base = setupRepository.getServerUrl()
+        if (base.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
+        return try {
+            var refused = false
+            val r = withTimeoutOrNull(TIMEOUT_MS) { request(base).also { if (it == null) refused = true } }
+            if (refused) return bad()
+            if (r == null) return DResult.Offline
+            if (r.isSuccessful && r.body() != null) DResult.Ok(r) else {
+                r.errorBody()?.close()
+                DResult.Failed("http_${r.code()}", r.code())
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            DResult.Offline
+        } catch (e: Exception) {
+            Timber.d("Drive: download failed (%s)", e.javaClass.simpleName)
+            DResult.Failed(CODE_INVALID, 0)
+        }
+    }
+
+    /** A copy whose bytes this device brings: up to [limit] files lent to it for a while. */
+    suspend fun leaseTransfers(opId: String, limit: Int = 5): DResult<DTransfers> =
+        post("ops/" + (DriveJson.opId(opId) ?: return bad()) + "/transfers", DriveJson.transfersBody(limit), DriveJson::transfers)
+
+    /** The bytes of transfer [id] are up as [mediaId]: the file is made at the target. */
+    suspend fun transferDone(opId: String, id: Long, mediaId: String): DResult<DOp> =
+        post("ops/" + (DriveJson.opId(opId) ?: return bad()) + "/transfers/$id", DriveJson.transferDoneBody(mediaId), DriveJson::opAnswer)
+
+    /** Transfer [id] could not be done here ([reason] `download`, `upload`, …). */
+    suspend fun transferFailed(opId: String, id: Long, reason: String): DResult<DOp> =
+        post("ops/" + (DriveJson.opId(opId) ?: return bad()) + "/transfers/$id", DriveJson.transferFailedBody(reason), DriveJson::opAnswer)
+
+    private fun sameOrigin(base: String, url: String): Boolean = runCatching {
+        val a = java.net.URI(base)
+        val b = java.net.URI(url)
+        a.scheme.equals(b.scheme, true) && a.host.equals(b.host, true) && a.port == b.port
+    }.getOrDefault(false)
+
+    /** One link for several files (feature `multiLink`); folders mixed in: `400 invalid { reason: mixed }`. */
+    suspend fun createMultiLink(ids: List<Long>, mode: String, expires: String, pin: String?): DResult<DLink> {
+        if (ids.isEmpty()) return bad()
+        return post("links", DriveJson.multiLinkBody(ids, mode, expires, pin), DriveJson::linkAnswer)
     }
 
     // ─── files ──────────────────────────────────────────────────────

@@ -877,6 +877,183 @@ internal object DriveJson {
     /** The `reason` of a refusal (`no_text`, `media_disabled`, `stale_key`, …). */
     fun reason(body: JsonObject?): String? = body?.str("reason")?.take(40)
 
+    // ─── Drive 1.12: several items at once ──────────────────────────
+
+    private val OP_ID = Regex("^[A-Za-z0-9_-]{1,80}$")
+    val OP_KINDS = setOf("move", "copy", "trash", "restore", "purge")
+    private val OP_STATES = setOf("running", "done", "failed", "cancelled")
+    /** At most this many ids in one job (the server expands folders and has its own limit). */
+    const val OP_IDS_MAX = 10_000
+
+    fun opId(v: String?): String? = v?.takeIf { OP_ID.matches(it) }
+
+    private fun blocked(e: JsonElement?): DOpBlocked? {
+        val o = e as? JsonObject ?: return null
+        return DOpBlocked(o.long("id") ?: return null, o.str("reason")?.take(40) ?: "failed", o.str("name")?.take(255))
+    }
+
+    private fun ids(a: JsonArray?, max: Int): List<Long>? = a?.mapNotNull { e ->
+        e.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asLong }.getOrNull() }?.takeIf { it > 0 }
+    }?.take(max)
+
+    /**
+     * `POST ops/check` → `{ items, files, folders, bytes, conflicts, conflictsMore, merges, blocked, quota, tooMany }`.
+     */
+    fun opCheck(o: JsonObject): DOpCheck? {
+        val c = o.obj("check") ?: o
+        if (!c.has("files") && !c.has("conflicts") && !c.has("blocked") && !c.has("items")) return null
+        val quota = c.obj("quota")
+        return DOpCheck(
+            files = c.int("files")?.coerceAtLeast(0) ?: 0,
+            folders = c.int("folders")?.coerceAtLeast(0) ?: 0,
+            bytes = c.long("bytes")?.coerceAtLeast(0) ?: 0L,
+            conflicts = c.arr("conflicts")?.mapNotNull { e ->
+                val x = e as? JsonObject ?: return@mapNotNull null
+                val existing = x.obj("existing")
+                DOpConflict(
+                    id = x.long("id") ?: return@mapNotNull null,
+                    name = x.str("name")?.take(255) ?: return@mapNotNull null,
+                    existingId = existing?.long("id"),
+                    existingSize = existing?.long("size")?.coerceAtLeast(0),
+                    existingMtime = existing?.str("mtime")?.take(40),
+                    same = x.bool("same") ?: false,
+                    path = x.str("path")?.take(2000)?.ifEmpty { null },
+                    isDir = x.bool("isDir") ?: false,
+                    size = x.long("size")?.coerceAtLeast(0),
+                    mtime = x.str("mtime")?.take(40),
+                    existingIsDir = existing?.bool("isDir") ?: false,
+                )
+            }?.take(OP_IDS_MAX).orEmpty(),
+            blocked = c.arr("blocked")?.mapNotNull(::blocked)?.take(OP_IDS_MAX).orEmpty(),
+            items = ids(c.arr("items"), OP_IDS_MAX),
+            conflictsMore = c.int("conflictsMore")?.coerceAtLeast(0) ?: 0,
+            merges = c.int("merges")?.coerceAtLeast(0) ?: 0,
+            quotaNeeded = quota?.long("needed")?.coerceAtLeast(0),
+            quotaFree = quota?.long("free")?.coerceAtLeast(0),
+            tooMany = c.bool("tooMany") ?: false,
+        )
+    }
+
+    /** A job (`{ id, kind, state, items, total, done, bytes…, label, target…, transfer…, results, undoUntil, error }`). */
+    fun op(o: JsonObject?): DOp? {
+        if (o == null) return null
+        val r = o.obj("results")
+        val failed = r?.arr("failed")?.mapNotNull(::blocked)?.take(1000).orEmpty()
+        return DOp(
+            id = opId(o.idString("id")) ?: return null,
+            kind = o.str("kind")?.takeIf { it in OP_KINDS || it == "undo" } ?: return null,
+            state = o.str("state")?.takeIf { it in OP_STATES } ?: return null,
+            total = o.int("total")?.coerceAtLeast(0) ?: 0,
+            done = o.int("done")?.coerceAtLeast(0) ?: 0,
+            bytesTotal = o.long("bytesTotal")?.coerceAtLeast(0) ?: 0L,
+            bytesDone = o.long("bytesDone")?.coerceAtLeast(0) ?: 0L,
+            targetId = (o.long("targetId") ?: o.long("target"))?.takeIf { it > 0 },
+            targetPath = o.str("targetPath")?.take(2000),
+            results = r?.let {
+                DOpResults(
+                    done = it.int("done")?.coerceAtLeast(0) ?: 0,
+                    skipped = it.int("skipped")?.coerceAtLeast(0) ?: 0,
+                    failed = failed,
+                    failedCount = it.int("failedCount")?.coerceAtLeast(failed.size) ?: failed.size,
+                    resultIds = ids(it.arr("resultIds"), 500).orEmpty(),
+                )
+            },
+            undoUntil = o.str("undoUntil")?.take(40),
+            items = o.int("items")?.coerceAtLeast(0) ?: 0,
+            label = o.str("label")?.take(255),
+            targetName = o.str("targetName")?.take(255),
+            transfer = o.str("transfer")?.takeIf { it == "client" || it == "server" },
+            transfersLeft = o.int("transfersLeft")?.coerceAtLeast(0) ?: 0,
+            error = o.str("error")?.take(40),
+        )
+    }
+
+    /** `POST ops`, `GET ops/<id>`, `DELETE ops/<id>`, `POST ops/<id>/undo` → `{ op }`. */
+    fun opAnswer(o: JsonObject): DOp? = op(o.obj("op"))
+
+    /** `GET ops?state=running` → `{ ops: [...] }`. */
+    fun ops(o: JsonObject): List<DOp>? = o.arr("ops")?.mapNotNull { op(it as? JsonObject) }?.take(50)
+
+    /** Live event `op`: the job as it is now (`{ op }` or the job itself). */
+    fun opEvent(data: JsonElement?): DOp? {
+        val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        return op(o.obj("op") ?: o)
+    }
+
+    /** A file address of the server: relative to it (`/…`) or absolute (https; http only for a local test server). */
+    private fun serverUrl(v: String?): String? =
+        v?.trim()?.takeIf { (it.startsWith("/") && !it.startsWith("//")) || webUrl(it) != null }?.takeIf { it.length <= 4000 && it.none(Char::isWhitespace) && !it.contains("/../") }
+
+    /** `POST ops/<id>/transfers` → `{ transfers: [{ id, nodeId, name, size, sha256, mime, url }], left }`. */
+    fun transfers(o: JsonObject): DTransfers? {
+        val list = o.arr("transfers") ?: return null
+        return DTransfers(
+            list.mapNotNull { e ->
+                val t = e as? JsonObject ?: return@mapNotNull null
+                DTransfer(
+                    id = t.long("id") ?: return@mapNotNull null,
+                    nodeId = t.long("nodeId"),
+                    name = t.str("name")?.take(255) ?: "",
+                    size = t.long("size")?.coerceAtLeast(0) ?: 0L,
+                    sha256 = sha256(t.str("sha256")),
+                    mime = t.str("mime")?.take(100),
+                    url = serverUrl(t.str("url")) ?: return@mapNotNull null,
+                )
+            }.take(20),
+            left = o.int("left")?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    fun transfersBody(limit: Int) = JsonObject().apply { addProperty("limit", limit.coerceIn(1, 20)) }
+
+    /** The bytes of a transfer are up: `{ mediaId }`; or it could not be done: `{ failed: true, reason }`. */
+    fun transferDoneBody(mediaId: String) = JsonObject().apply { addProperty("mediaId", mediaId) }
+
+    fun transferFailedBody(reason: String) = JsonObject().apply {
+        addProperty("failed", true)
+        addProperty("reason", reason.take(40))
+    }
+
+    private fun idsArray(ids: List<Long>) = JsonArray().apply { ids.distinct().take(OP_IDS_MAX).forEach { add(it) } }
+
+    /** `POST ops/check { op, ids, target? }`. */
+    fun opCheckBody(kind: String, ids: List<Long>, target: Long?) = JsonObject().apply {
+        addProperty("op", kind)
+        add("ids", idsArray(ids))
+        if (target != null) addProperty("target", target)
+    }
+
+    /** `POST ops { op, ids, target?, onConflict? }` ([onConflict] `version` | `rename` | `skip`). */
+    fun opBody(kind: String, ids: List<Long>, target: Long?, onConflict: String?) = JsonObject().apply {
+        addProperty("op", kind)
+        add("ids", idsArray(ids))
+        if (target != null) addProperty("target", target)
+        if (onConflict != null && onConflict in setOf("version", "rename", "skip")) addProperty("onConflict", onConflict)
+    }
+
+    /** `POST zip { ids }`. */
+    fun zipBody(ids: List<Long>) = JsonObject().apply { add("ids", idsArray(ids)) }
+
+    /** `POST zip` → `{ url | path | mediaId, name, expiresAt }` (null without any of the three). */
+    fun zip(o: JsonObject): DZip? {
+        val z = o.obj("zip") ?: o
+        val url = webUrl(z.str("url"))
+        val path = z.str("path")?.takeIf { it.startsWith("/") && it.length <= 2000 && it.none(Char::isWhitespace) && !it.contains("..") }
+            ?: z.str("url")?.takeIf { url == null && it.startsWith("/") && it.length <= 2000 && it.none(Char::isWhitespace) && !it.contains("..") }
+        val media = mediaId(z.str("mediaId"))
+        if (url == null && path == null && media == null) return null
+        val name = DriveLogic.safeName(z.str("name"))?.let { if (it.endsWith(".zip", ignoreCase = true)) it else "$it.zip" } ?: "Drive.zip"
+        return DZip(url, path, media, name, z.str("expiresAt")?.take(40))
+    }
+
+    /** One link for several files (Drive 1.12 `multiLink`): `POST links { nodeIds, mode, expires, pin? }`. */
+    fun multiLinkBody(ids: List<Long>, mode: String, expires: String, pin: String?) = JsonObject().apply {
+        add("nodeIds", idsArray(ids))
+        addProperty("mode", mode)
+        addProperty("expires", expires)
+        if (!pin.isNullOrBlank()) addProperty("pin", pin)
+    }
+
     // ─── helpers ────────────────────────────────────────────────────
 
     private fun JsonObject.prim(key: String): JsonElement? = get(key)?.takeIf { it.isJsonPrimitive }

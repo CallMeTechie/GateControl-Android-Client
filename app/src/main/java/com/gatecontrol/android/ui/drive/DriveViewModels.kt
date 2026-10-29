@@ -295,6 +295,7 @@ class DriveFolderViewModel @Inject constructor(
     private val vaults: com.gatecontrol.android.drive.vault.DriveVaultSession,
     private val vaultLock: com.gatecontrol.android.drive.vault.DriveVaultLock,
     private val settings: com.gatecontrol.android.drive.DriveSettings,
+    val ops: com.gatecontrol.android.drive.DriveOps,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -316,8 +317,23 @@ class DriveFolderViewModel @Inject constructor(
     internal val sort: StateFlow<DriveLogic.FolderSort> = _sort.asStateFlow()
     private var job: Job? = null
 
+    /** The selection and what is done with several items at once (Drive 1.12). */
+    internal val bulk = DriveBulkActions(
+        context = context,
+        scope = viewModelScope,
+        api = api,
+        ops = ops,
+        transfers = transfers,
+        live = live,
+        items = { (_state.value as? DriveLoad.Ready)?.value?.items.orEmpty() },
+        here = { (_state.value as? DriveLoad.Ready)?.value },
+        changed = { refresh(quiet = true) },
+    )
+
     init {
         if (folderId > 0) refresh()
+        // jobs that still run on the server (the app was closed meanwhile) show their cards again
+        ops.restore()
         viewModelScope.launch { transfers.changed.collect { if (it == folderId) refresh(quiet = true) } }
         viewModelScope.launch { live.changed.collect(::onChanged) }
         // Portal links and features for the menu (usually known from the Drive tab already).
@@ -368,6 +384,7 @@ class DriveFolderViewModel @Inject constructor(
         if (id == folderId && _state.value !is DriveLoad.Error) return
         folderId = id
         _area.value = null
+        bulk.clear()
         refresh()
     }
 
@@ -403,6 +420,7 @@ class DriveFolderViewModel @Inject constructor(
             val sort = _sort.value
             val r = api.folder(folderId, sort = DriveLogic.serverSort(sort.key), order = if (sort.desc) "desc" else "asc")
             _state.value = r.toLoad { it.copy(items = DriveLogic.ordered(it.items, sort)) }
+            bulk.keepPresent()
             val areaId = (r as? DResult.Ok)?.value?.node?.areaId
             if (areaId != null && _area.value?.id != areaId) {
                 _area.value = api.areas().valueOrNull()?.firstOrNull { it.id == areaId }
@@ -790,29 +808,80 @@ class DriveTrashViewModel @Inject constructor(private val api: DriveApi) : ViewM
     }
 }
 
-/** Search by name across the areas. */
+/** Search by name across the areas; the hits can be ticked and handled together (Drive 1.12). */
 @HiltViewModel
 class DriveSearchViewModel @Inject constructor(
+    @ApplicationContext context: Context,
     private val api: DriveApi,
     private val transfers: DriveTransfers,
+    val live: DriveLive,
+    val ops: com.gatecontrol.android.drive.DriveOps,
 ) : ViewModel() {
     private val _state = MutableStateFlow<DriveLoad<List<DNode>>?>(null)
     val state: StateFlow<DriveLoad<List<DNode>>?> = _state.asStateFlow()
     private var job: Job? = null
+    private var term = ""
+
+    private val _areas = MutableStateFlow<List<DArea>>(emptyList())
+    /** The areas with the person's role in each (what may be changed among the hits). */
+    val areas: StateFlow<List<DArea>> = _areas.asStateFlow()
+
+    /** A short message after an action (a Drive code or `done_*`); the screen shows and clears it. */
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    fun clearMessage() { _message.value = null }
+
+    internal val bulk = DriveBulkActions(
+        context = context,
+        scope = viewModelScope,
+        api = api,
+        ops = ops,
+        transfers = transfers,
+        live = live,
+        items = { (_state.value as? DriveLoad.Ready)?.value.orEmpty() },
+        changed = { again() },
+    )
+
+    init {
+        viewModelScope.launch { _areas.value = api.areas().valueOrNull() ?: live.current()?.areas.orEmpty() }
+    }
 
     fun search(q: String) {
         job?.cancel()
-        val term = q.trim()
-        if (term.length < 2) {
+        val t = q.trim()
+        term = t
+        bulk.clear()
+        if (t.length < 2) {
             _state.value = null
             return
         }
         job = viewModelScope.launch {
             delay(300)
             _state.value = DriveLoad.Loading
-            _state.value = api.search(term.take(100)).toLoad { it }
+            _state.value = api.search(t.take(100)).toLoad { it }
         }
     }
+
+    /** The same search again (after a job changed the hits), quietly. */
+    private fun again() {
+        if (term.length < 2) return
+        viewModelScope.launch {
+            val r = api.search(term.take(100))
+            if (r is DResult.Ok) _state.value = DriveLoad.Ready(r.value)
+            bulk.keepPresent()
+        }
+    }
+
+    fun rename(node: DNode, name: String) {
+        viewModelScope.launch {
+            val r = api.rename(node.id, name.trim())
+            _message.value = r.errorCode() ?: "done_rename"
+            if (r is DResult.Ok) again()
+        }
+    }
+
+    suspend fun office(node: DNode): DResult<com.gatecontrol.android.drive.DOffice> = api.office(node.id)
 
     suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
 }

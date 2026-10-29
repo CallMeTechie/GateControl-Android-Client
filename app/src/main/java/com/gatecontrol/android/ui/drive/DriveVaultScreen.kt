@@ -39,6 +39,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.activity.compose.BackHandler
+import com.gatecontrol.android.drive.DriveBulk
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -118,6 +122,8 @@ class DriveVaultViewModel @Inject constructor(
     private val lock: DriveVaultLock,
     private val settings: DriveSettings,
     private val network: DriveUploadNetwork,
+    val ops: com.gatecontrol.android.drive.DriveOps,
+    transfers: com.gatecontrol.android.drive.DriveTransfers,
 ) : ViewModel() {
 
     val vaultId: String = savedStateHandle.get<String>("vault").orEmpty()
@@ -158,6 +164,28 @@ class DriveVaultViewModel @Inject constructor(
     private var job: Job? = null
     private var requestsShown = false
 
+    /**
+     * The ticked items of the vault: moved within it, copied (Drive 1.12, when the server can do it without decrypting)
+     * or put in the trash — nothing leaves the vault (no sending, no link, no ZIP).
+     */
+    internal val bulk = DriveBulkActions(
+        context = context,
+        scope = viewModelScope,
+        api = api,
+        ops = ops,
+        transfers = transfers,
+        live = live,
+        items = { (_ui.value as? Ui.Ready)?.items?.map { it.first }.orEmpty() },
+        here = { (_ui.value as? Ui.Ready)?.folder },
+        changed = { refresh(quiet = true) },
+        vaultId = vaultId,
+        nameOf = { session.nameOf(it) ?: "…" },
+        vaultRoot = { (_ui.value as? Ui.Ready)?.vault?.nodeId },
+    ).also { b ->
+        b.newVaultFolder = { parent, name -> lock.touch(); session.createFolder(vaultId, parent, name) }
+        b.fetch = { n -> fetch(n, session.nameOf(n) ?: "file") }
+    }
+
     /** The person just confirmed: the next opening may read the device key (and moves it, [DriveVaultSession.protectDeviceKey]). */
     private var confirmed = false
 
@@ -175,6 +203,8 @@ class DriveVaultViewModel @Inject constructor(
                 confirmed = false
                 _requests.value = null
                 _move.value = null
+                bulk.clear()
+                bulk.closeTarget()
                 _conflict.value?.let { resolve(it, null) }
                 _ui.value = Ui.Gate(vault, session.label(vault), noScreenLock = !deviceSecure())
             }
@@ -266,6 +296,7 @@ class DriveVaultViewModel @Inject constructor(
             val title = (if (folder.node.id == vault.nodeId) session.nameOf(vault) else session.nameOf(folder.node)) ?: "…"
             val items = DriveLogic.sortVault(folder.items.filter { it.vaultId == vaultId }.map { it to (session.nameOf(it) ?: "…") })
             _ui.value = Ui.Ready(vault, folder, title, items)
+            bulk.keepPresent()
             if (showRequests && !requestsShown && vault.pending > 0) {
                 requestsShown = true
                 openRequests()
@@ -542,9 +573,27 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     }
     val ready = ui as? DriveVaultViewModel.Ui.Ready
     val barTitle = ready?.title ?: (ui as? DriveVaultViewModel.Ui.Gate)?.title ?: stringResource(R.string.drive_vault)
+    val selected by viewModel.bulk.selected.collectAsStateWithLifecycle()
+    val running by viewModel.ops.running.collectAsStateWithLifecycle()
+    val bulkBusy by viewModel.bulk.busy.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    var moreOpen by remember { mutableStateOf(false) }
+    val selecting = selected.isNotEmpty() && ready != null
+    BackHandler(enabled = selecting) { viewModel.bulk.clear() }
+    val vaultItems = ready?.items.orEmpty()
+    val chosen = remember(selected, vaultItems) { vaultItems.filter { it.first.id in selected } }
+    val where = DriveBulk.Where(writable = { ready?.folder?.writable == true }, vault = true)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            GcSubpageBar(barTitle, onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
+            if (selecting) {
+                SelectionHead(
+                    count = chosen.size,
+                    line = summaryText(DriveBulk.summary(chosen.map { it.first })),
+                    allSelected = DriveBulk.allSelected(selected, vaultItems.map { it.first.id }),
+                    onClose = viewModel.bulk::clear,
+                    onAll = { viewModel.touch(); viewModel.bulk.allOrNone() },
+                )
+            } else GcSubpageBar(barTitle, onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
                 if (ready != null) {
                     GcIconButton(GcIcons.Lock, contentDescription = stringResource(R.string.drive_vault_lock_now), onClick = viewModel::lockNow, tint = MaterialTheme.colorScheme.onBackground)
                     GcIconButton(GcIcons.Users, contentDescription = stringResource(R.string.drive_vault_requests), onClick = viewModel::openRequests, tint = MaterialTheme.colorScheme.onBackground)
@@ -609,6 +658,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             Icon(GcIcons.Lock, contentDescription = null, tint = GateControlTheme.extraColors.muted, modifier = Modifier.padding(end = 8.dp))
                             Text(stringResource(R.string.drive_vault_note), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
                         }
+                        OpCards(running, bulkBusy, onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } }, onCancelBusy = viewModel.bulk::cancelBusy)
                         upload?.let { (name, p) ->
                             GcCard {
                                 Text(stringResource(R.string.drive_vault_uploading, name), style = MaterialTheme.typography.bodyMedium)
@@ -624,8 +674,23 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                                     if (i > 0) GcRowDivider()
                                     NodeRow(
                                         node = n,
-                                        onClick = { if (n.isDir) onFolder(viewModel.vaultId, n.id) else open(n, name) },
-                                        onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuFor = n to name },
+                                        title = name,
+                                        onClick = {
+                                            viewModel.touch()
+                                            when {
+                                                selecting -> viewModel.bulk.toggle(n)
+                                                n.isDir -> onFolder(viewModel.vaultId, n.id)
+                                                else -> open(n, name)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            viewModel.touch()
+                                            if (selecting) viewModel.bulk.toggle(n) else viewModel.bulk.select(n)
+                                        },
+                                        selecting = selecting,
+                                        selected = n.id in selected,
+                                        onMore = { menuFor = n to name },
                                     )
                                 }
                             }
@@ -633,8 +698,19 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     }
                 }
             }
+            if (selecting) {
+                SelectionActionBar(
+                    listOf(
+                        BarAction(GcIcons.Share, stringResource(R.string.drive_bar_send), viewModel.bulk.can(DriveBulk.Action.SEND, chosen.map { it.first }, where)) {},
+                        BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), viewModel.bulk.can(DriveBulk.Action.MOVE, chosen.map { it.first }, where)) { viewModel.touch(); viewModel.bulk.openTarget(DriveBulk.Mode.MOVE) },
+                        BarAction(GcIcons.Copy, stringResource(R.string.drive_bar_copy), viewModel.bulk.can(DriveBulk.Action.COPY, chosen.map { it.first }, where)) { viewModel.touch(); viewModel.bulk.openTarget(DriveBulk.Mode.COPY) },
+                        BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), viewModel.bulk.can(DriveBulk.Action.DELETE, chosen.map { it.first }, where), danger = true) { viewModel.touch(); viewModel.bulk.delete() },
+                        BarAction(GcIcons.MoreHorizontal, stringResource(R.string.drive_bar_more), DriveBulk.Can.YES) { moreOpen = true },
+                    ),
+                )
+            }
         }
-        if (ready != null) {
+        if (ready != null && !selecting) {
             DriveFab(
                 uploads = emptyList(),
                 onAdd = if (ready.folder.writable && upload == null) ({ addOpen = true }) else null,
@@ -643,7 +719,9 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
             )
         }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 84.dp))
     }
+    DriveBulkHost(viewModel.bulk, snackbar)
 
     if (addOpen) {
         ModalBottomSheet(onDismissRequest = { addOpen = false }) {
@@ -661,28 +739,46 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             }
         }
     }
-    menuFor?.let { (n, name) ->
+    /** ⋯ of a row ([fromRow], with the everyday actions as icons) or "Mehr" of the selection: what a vault allows. */
+    val moreSheet: @Composable (List<Pair<DNode, String>>, Boolean, () -> Unit) -> Unit = { ns, fromRow, close ->
         val writable = ready?.folder?.writable == true
-        ModalBottomSheet(onDismissRequest = { menuFor = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            Column(Modifier.padding(bottom = 24.dp)) {
-                Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 2, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                val item: @Composable (androidx.compose.ui.graphics.vector.ImageVector, Int, () -> Unit) -> Unit = { icon, label, action ->
-                    GcListRow(
-                        title = stringResource(label),
-                        onClick = { menuFor = null; action() },
-                        leading = { Icon(icon, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
-                    )
-                }
-                if (!n.isDir) item(GcIcons.External, R.string.drive_open) { open(n, name) }
-                if (writable) item(GcIcons.Edit, R.string.drive_rename) { renaming = n to name }
-                if (writable) item(GcIcons.Folder, R.string.drive_move) { viewModel.startMove(n, name) }
-                if (writable && !n.isDir && upload == null) {
-                    item(GcIcons.Upload, R.string.drive_vault_new_version) { versionFor = n to name; viewModel.away(); pickVersion.launch(arrayOf("*/*")) }
-                }
-                if (writable) item(GcIcons.Trash, R.string.drive_delete_menu) { deleting = n to name }
+        val nodes = ns.map { it.first }
+        val one = ns.singleOrNull()
+        val bulk = viewModel.bulk
+        val can: (DriveBulk.Action) -> DriveBulk.Can = { a -> bulk.can(a, nodes, where) }
+        val quick = if (!fromRow || one == null) emptyList() else listOf(
+            BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), can(DriveBulk.Action.MOVE)) { bulk.openTarget(DriveBulk.Mode.MOVE, nodes) },
+            BarAction(GcIcons.Copy, stringResource(R.string.drive_bar_copy), can(DriveBulk.Action.COPY)) { bulk.openTarget(DriveBulk.Mode.COPY, nodes) },
+            BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), can(DriveBulk.Action.DELETE), danger = true) { deleting = one },
+        )
+        val multi = listOf(
+            MoreItem(GcIcons.Download, stringResource(R.string.drive_more_save), stringResource(R.string.drive_more_save_desc), can(DriveBulk.Action.SAVE)) {},
+            MoreItem(GcIcons.Archive, stringResource(R.string.drive_more_zip), stringResource(R.string.drive_more_zip_desc), can(DriveBulk.Action.ZIP)) {},
+            MoreItem(GcIcons.Link, stringResource(R.string.drive_share_link), null, can(DriveBulk.Action.LINK)) {},
+        )
+        val single = buildList {
+            if (one != null && !one.first.isDir) add(MoreItem(GcIcons.External, stringResource(R.string.drive_open)) { open(one.first, one.second) })
+            add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = can(DriveBulk.Action.RENAME)) { one?.let { renaming = it } })
+            if (one == null || !one.first.isDir) {
+                add(
+                    MoreItem(
+                        GcIcons.Upload,
+                        stringResource(R.string.drive_vault_new_version),
+                        can = when {
+                            one == null -> DriveBulk.Can.no(DriveBulk.Why.ONLY_ONE)
+                            !writable -> DriveBulk.Can.no(DriveBulk.Why.READ_ONLY)
+                            else -> DriveBulk.Can.YES
+                        },
+                    ) {
+                        if (one != null && upload == null) { versionFor = one; viewModel.away(); pickVersion.launch(arrayOf("*/*")) }
+                    },
+                )
             }
         }
+        BulkMoreSheet(ns.size, one?.second.takeIf { fromRow }, summaryText(DriveBulk.summary(nodes)), quick, multi, single, emptyList(), onDismiss = close)
     }
+    menuFor?.let { m -> moreSheet(listOf(m), true) { menuFor = null } }
+    if (moreOpen && chosen.isNotEmpty()) moreSheet(chosen, false) { moreOpen = false }
     if (newFolder) {
         NameDialog(
             title = stringResource(R.string.drive_new_folder),

@@ -159,6 +159,9 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     // Drive 1.7 (feature `photos`): the tab has two pages, the files and the photos; a swipe goes from one to the other.
     val hasPhotos = me?.has(DMe.FEATURE_PHOTOS) == true
     val ticked by photosViewModel.selected.collectAsStateWithLifecycle()
+    val folderTicked by folderViewModel.bulk.selected.collectAsStateWithLifecycle()
+    /** Items are ticked on one of the pages: its own bar shows instead of the tab's, swiping stays off. */
+    val selecting = ticked.isNotEmpty() || folderTicked.isNotEmpty()
     val pager = rememberPagerState(initialPage = DriveLogic.tabOf(DriveViewPref.photos(context), hasPhotos)) { DriveLogic.tabCount(hasPhotos) }
     val onPhotosPage = DriveLogic.isPhotosTab(pager.currentPage, hasPhotos)
     val showPage: (Boolean) -> Unit = { photos -> scope.launch { pager.animateScrollToPage(DriveLogic.tabOf(photos, hasPhotos)) } }
@@ -187,7 +190,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     }
     val grid = rememberDriveGrid()
     // a folder below the area's top (opened from the menu): back goes up a level
-    BackHandler(enabled = !drawer.isOpen && !onPhotosPage && shown != null && shown.parentId != null && shown.areaId == current?.id) {
+    BackHandler(enabled = !drawer.isOpen && !selecting && !onPhotosPage && shown != null && shown.parentId != null && shown.areaId == current?.id) {
         shown?.parentId?.let(folderViewModel::open)
     }
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
@@ -252,22 +255,25 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     ) {
         if (home != null && current != null) {
             Column(Modifier.fillMaxSize()) {
-                TabBar(
-                    when {
-                        onPhotosPage -> stringResource(R.string.drive_mode_photos)
-                        shown != null && shown.parentId != null && shown.areaId == current.id -> shown.name
-                        else -> current.label
-                    },
-                    onMenu = openMenu,
-                    onSearch = nav.search,
-                    actions = { if (!onPhotosPage) FolderViewActions(folderViewModel, grid) },
-                )
-                if (hasPhotos) DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage)
+                // while ticking, the page's own bar ("N ausgewählt") is on top
+                if (!selecting) {
+                    TabBar(
+                        when {
+                            onPhotosPage -> stringResource(R.string.drive_mode_photos)
+                            shown != null && shown.parentId != null && shown.areaId == current.id -> shown.name
+                            else -> current.label
+                        },
+                        onMenu = openMenu,
+                        onSearch = nav.search,
+                        actions = { if (!onPhotosPage) FolderViewActions(folderViewModel, grid) },
+                    )
+                    if (hasPhotos) DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage)
+                }
                 HorizontalPager(
                     state = pager,
                     modifier = Modifier.weight(1f),
-                    // ticked photos keep their page (the selection bar belongs to it)
-                    userScrollEnabled = DriveLogic.tabSwipe(hasPhotos, ticked.isNotEmpty()),
+                    // ticked items keep their page (the selection's bars belong to it)
+                    userScrollEnabled = DriveLogic.tabSwipe(hasPhotos, selecting),
                     key = { it },
                 ) { page ->
                     if (DriveLogic.isPhotosTab(page, hasPhotos)) {
