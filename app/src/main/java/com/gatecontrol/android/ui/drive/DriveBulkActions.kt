@@ -144,10 +144,10 @@ internal class DriveBulkActions(
         }
     }
 
-    /** "Rückgängig" of the snackbar. */
-    fun undo(id: String) {
+    /** "Rückgängig" of the snackbar ([count] items: the ring and the sheet show it at once). */
+    fun undo(id: String, count: Int = 0) {
         scope.launch {
-            when (val r = ops.undo(id)) {
+            when (val r = ops.undo(id, count)) {
                 is DResult.Ok -> {
                     val done = ops.await(r.value.id)
                     _snack.value = Snack("undo", done.op.results?.done ?: done.op.done, skipped = done.op.results?.skipped ?: 0, failed = done.op.results?.failedCount ?: 0)
@@ -335,16 +335,27 @@ internal class DriveBulkActions(
             onConflict = askAbout(t.mode, label, check, t.nodes, versionOk = true) ?: return
         }
         val nodes = t.nodes.filter { it.id in allowed }
-        when (val r = ops.start(t.mode.op, allowed, f.node.id, onConflict, nodes.firstOrNull()?.let(nameOf), label)) {
+        // the target closes and the selection ends now: the job shows at once (the ring, its items waiting) while the
+        // server takes it (Drive 1.12.2 answers at once, an older Drive after up to 5 s)
+        remember(DriveBulk.Recent(f.node.id, path))
+        closeTarget()
+        val chosen = _selected.value
+        clear()
+        val title = nodes.firstOrNull()?.let(nameOf)
+        val pending = ops.prepare(t.mode.op, nodes.size, title, label, DriveBulk.waitingFiles(nodes, nameOf))
+        when (val r = ops.start(t.mode.op, allowed, f.node.id, onConflict, title, label, pending)) {
             is DResult.Ok -> {
-                remember(DriveBulk.Recent(f.node.id, path))
-                closeTarget()
-                clear()
                 if (check.blocked.isNotEmpty()) _message.value = "bulk_some_blocked:" + check.blocked.size
                 follow(r.value.id, t.mode.op, nodes.size, label, allowed)
             }
-            else -> _message.value = r.errorCode()
+            else -> failed(r.errorCode(), chosen)
         }
+    }
+
+    /** A job the server did not take: its message, the selection back (unless another one began meanwhile). */
+    private fun failed(code: String?, chosen: Set<Long>) {
+        _message.value = code
+        if (_selected.value.isEmpty()) _selected.value = DriveBulk.keep(chosen, items().map { it.id })
     }
 
     private suspend fun askAbout(mode: DriveBulk.Mode, label: String, check: DOpCheck, nodes: List<DNode>, versionOk: Boolean): String? {
@@ -405,13 +416,14 @@ internal class DriveBulkActions(
         val nodes = only ?: nodes()
         if (nodes.isEmpty()) return
         if (me?.has(DMe.FEATURE_BULK) == true) {
+            // shown at once (the ring, the items waiting) while the server takes it
+            val chosen = _selected.value
+            clear()
+            val pending = ops.prepare("trash", nodes.size, nameOf(nodes.first()), null, DriveBulk.waitingFiles(nodes, nameOf))
             scope.launch {
-                when (val r = ops.start("trash", nodes.map { it.id }, null, null, nameOf(nodes.first()), null)) {
-                    is DResult.Ok -> {
-                        clear()
-                        follow(r.value.id, "trash", nodes.size, null, emptyList())
-                    }
-                    else -> _message.value = r.errorCode()
+                when (val r = ops.start("trash", nodes.map { it.id }, null, null, nameOf(nodes.first()), null, pending)) {
+                    is DResult.Ok -> follow(r.value.id, "trash", nodes.size, null, emptyList())
+                    else -> failed(r.errorCode(), chosen)
                 }
             }
         } else {

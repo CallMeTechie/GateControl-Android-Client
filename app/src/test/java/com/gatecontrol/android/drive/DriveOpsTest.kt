@@ -4,8 +4,10 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -124,5 +126,124 @@ class DriveOpsTest {
         events.emit(op("running", 4))
         runCurrent()
         assertEquals(5, ops.running.value.single().op.files!!.size)
+    }
+
+    // ─── shown at once (Drive 1.12.2: the answer comes at once; an older Drive answers after up to 5 s) ───
+
+    private val chosen = (1..5).map { DOpFile(seq = it, nodeId = it.toLong(), name = "f$it", size = 10, isDir = false, state = "waiting") }
+
+    @Test
+    fun `a job shows at once - the placeholder with its items waiting until the answer puts the job in its place`() = runTest {
+        val answer = CompletableDeferred<DResult<DOp>>()
+        coEvery { api.startOp("move", any(), 7L, null) } coAnswers { answer.await() }
+        coEvery { api.op(id) } returns DResult.Ok(op("running", 1))
+        val ops = ops()
+        runCurrent()
+        val pending = ops.prepare("move", 5, "f1", "FEC", chosen)
+        runCurrent()
+        val job = ops.running.value.single()
+        assertTrue(job.pending, "the ring instead of the plus at once")
+        assertEquals(listOf("waiting"), job.op.files!!.map { it.state }.distinct(), "the items from the selection, waiting")
+        assertEquals(5, job.count)
+        assertEquals("FEC", job.target)
+        val started = async { ops.start("move", listOf(1, 2, 3, 4, 5), 7L, null, "f1", "FEC", pending) }
+        // an older Drive: the answer takes a while — the placeholder stays meanwhile
+        advanceTimeBy(5_000)
+        assertTrue(ops.running.value.single().pending)
+        answer.complete(DResult.Ok(op("running", 1, files = listOf(file(1, "done"), file(2, "running")))))
+        runCurrent()
+        assertTrue(started.await() is DResult.Ok)
+        val now = ops.running.value.single()
+        assertEquals(id, now.op.id, "replaced by the server's job")
+        assertFalse(now.pending)
+        assertEquals(listOf("done", "running"), now.op.files!!.map { it.state }, "the server's items, not mixed with the placeholder's")
+        assertFalse(ops.jobs.value.containsKey(pending))
+        events.emit(op("done", 5))
+        runCurrent()
+        assertTrue(ops.running.value.isEmpty())
+    }
+
+    @Test
+    fun `a start the server refuses takes the placeholder away`() = runTest {
+        coEvery { api.startOp(any(), any(), any(), any()) } returns DResult.Failed("job_limit", 409)
+        val ops = ops()
+        val pending = ops.prepare("trash", 5, "f1", null, chosen)
+        val r = ops.start("trash", listOf(1, 2, 3, 4, 5), null, null, "f1", null, pending)
+        assertEquals("job_limit", (r as DResult.Failed).code)
+        assertTrue(ops.jobs.value.isEmpty(), "the plus again")
+    }
+
+    @Test
+    fun `Abbrechen while it is being prepared - the job stops as soon as the server answers`() = runTest {
+        val answer = CompletableDeferred<DResult<DOp>>()
+        coEvery { api.startOp(any(), any(), any(), any()) } coAnswers { answer.await() }
+        coEvery { api.cancelOp(id) } returns DResult.Ok(op("cancelled", 1, undoUntil = "2026-10-29T12:15:00Z"))
+        val ops = ops()
+        runCurrent()
+        val pending = ops.prepare("move", 5, "f1", "FEC", chosen)
+        val started = async { ops.start("move", listOf(1, 2, 3, 4, 5), 7L, null, "f1", "FEC", pending) }
+        runCurrent()
+        ops.cancel(pending)
+        coVerify(exactly = 0) { api.cancelOp(any()) }
+        answer.complete(DResult.Ok(op("running", 1)))
+        started.await()
+        runCurrent()
+        coVerify(exactly = 1) { api.cancelOp(id) }
+        assertEquals("cancelled", ops.jobs.value.getValue(id).op.state)
+        assertTrue(ops.running.value.isEmpty())
+    }
+
+    @Test
+    fun `the start goes on when the screen that asked is gone`() = runTest {
+        val answer = CompletableDeferred<DResult<DOp>>()
+        coEvery { api.startOp(any(), any(), any(), any()) } coAnswers { answer.await() }
+        coEvery { api.op(id) } returns DResult.Ok(op("running", 1))
+        val ops = ops()
+        runCurrent()
+        val pending = ops.prepare("move", 5, "f1", "FEC", chosen)
+        val screen = launch { ops.start("move", listOf(1, 2, 3, 4, 5), 7L, null, "f1", "FEC", pending) }
+        runCurrent()
+        screen.cancel()
+        answer.complete(DResult.Ok(op("running", 1)))
+        runCurrent()
+        assertEquals(id, ops.running.value.single().op.id, "the job is followed, the placeholder gone")
+    }
+
+    @Test
+    fun `the undo shows at once too`() = runTest {
+        val answer = CompletableDeferred<DResult<DOp>>()
+        val undoId = "u".repeat(22)
+        coEvery { api.undoOp(id) } coAnswers { answer.await() }
+        coEvery { api.op(undoId) } returns DResult.Ok(op("running", 0).copy(id = undoId, kind = "undo"))
+        val ops = ops()
+        runCurrent()
+        val r = async { ops.undo(id, 5) }
+        runCurrent()
+        val shown = ops.running.value.single()
+        assertTrue(shown.pending)
+        assertEquals("undo", shown.op.kind)
+        assertEquals(5, shown.count)
+        answer.complete(DResult.Ok(op("done", 5).copy(id = undoId, kind = "undo")))
+        assertTrue(r.await() is DResult.Ok)
+        assertTrue(ops.running.value.isEmpty())
+        assertEquals("done", ops.jobs.value.getValue(undoId).op.state)
+        // refused: nothing stays
+        coEvery { api.undoOp("x".repeat(22)) } returns DResult.Failed("conflict", 409)
+        ops.undo("x".repeat(22), 2)
+        assertTrue(ops.running.value.isEmpty())
+    }
+
+    @Test
+    fun `the items of a selection as a placeholder's`() {
+        val nodes = listOf(
+            DNode(11, "a1", 3, "Fotos", true, 0, null, null, 1, null, null, null),
+            DNode(12, "a1", 3, "Brief.pdf", false, 2048, "application/pdf", "m", 1, null, null, null),
+        )
+        val files = DriveBulk.waitingFiles(nodes, nameOf = { it.name.uppercase() })
+        assertEquals(listOf(1, 2), files.map { it.seq })
+        assertEquals(listOf("FOTOS", "BRIEF.PDF"), files.map { it.name })
+        assertEquals(listOf(0L, 2048L), files.map { it.size })
+        assertTrue(files.all { it.state == "waiting" })
+        assertEquals(1, DriveBulk.waitingFiles(nodes, max = 1).size)
     }
 }

@@ -79,6 +79,7 @@
     <string name="drive_ask_same_one">Same content is never stored twice – “%1$s” is kept only once in any case.</string>
     <string name="drive_ask_folders_note">Folders of the same name are merged: their content goes in, the choice counts for the files in them.</string>
     <string name="drive_op_running">Running now</string>
+    <string name="drive_op_preparing">Preparing …</string>
     <string name="drive_op_copy">Copying %1$s to %2$s</string>
     <string name="drive_op_move">Moving %1$s to %2$s</string>
     <string name="drive_op_trash">Moving %1$s to the trash</string>
