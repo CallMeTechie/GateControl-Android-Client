@@ -474,7 +474,7 @@ class DriveApi @Inject constructor(
     }
 
     /**
-     * A file by an address the server handed out (a signed media address, the ZIP of a selection): relative to the
+     * A file by an address the server handed out (the ZIP of a selection): relative to the
      * server or on its own host — never elsewhere. The caller closes the body.
      */
     suspend fun serverFile(url: String): DResult<Response<ResponseBody>> = stream { base ->
@@ -507,18 +507,6 @@ class DriveApi @Inject constructor(
             DResult.Failed(CODE_INVALID, 0)
         }
     }
-
-    /** A copy whose bytes this device brings: up to [limit] files lent to it for a while. */
-    suspend fun leaseTransfers(opId: String, limit: Int = 5): DResult<DTransfers> =
-        post("ops/" + (DriveJson.opId(opId) ?: return bad()) + "/transfers", DriveJson.transfersBody(limit), DriveJson::transfers)
-
-    /** The bytes of transfer [id] are up as [mediaId]: the file is made at the target. */
-    suspend fun transferDone(opId: String, id: Long, mediaId: String): DResult<DOp> =
-        post("ops/" + (DriveJson.opId(opId) ?: return bad()) + "/transfers/$id", DriveJson.transferDoneBody(mediaId), DriveJson::opAnswer)
-
-    /** Transfer [id] could not be done here ([reason] `download`, `upload`, …). */
-    suspend fun transferFailed(opId: String, id: Long, reason: String): DResult<DOp> =
-        post("ops/" + (DriveJson.opId(opId) ?: return bad()) + "/transfers/$id", DriveJson.transferFailedBody(reason), DriveJson::opAnswer)
 
     private fun sameOrigin(base: String, url: String): Boolean = runCatching {
         val a = java.net.URI(base)

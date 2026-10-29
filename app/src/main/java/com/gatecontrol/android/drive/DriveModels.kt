@@ -93,6 +93,10 @@ data class DMe(
         const val FEATURE_ZIP = "zip"
         /** Drive 1.12: one shared link for several files. */
         const val FEATURE_MULTI_LINK = "multiLink"
+        /** Drive 1.12 on GateControl 1.215+: the server copies the bytes itself (only then the app offers "Kopieren"). */
+        const val FEATURE_COPY_SERVER = "copyServer"
+        /** Drive 1.12: a ZIP and one link of any selection (folders and files mixed, more than 20). */
+        const val FEATURE_ZIP_MIXED = "zipMixed"
     }
 }
 
@@ -514,23 +518,14 @@ data class DOp(
     val label: String? = null,
     /** The target folder's name (or the area's; null in a vault). */
     val targetName: String? = null,
-    /** A copy whose bytes a device brings (`client`): [transfersLeft] files still to go. */
+    /** Who brings a copy's bytes: `server`, or `client` with [transfersLeft] files to go (not used by this app). */
     val transfer: String? = null,
     val transfersLeft: Int = 0,
     /** Why it failed: `abandoned`, `quota`, `device_locked`, `no_seat`, `internal`. */
     val error: String? = null,
 ) {
     val running: Boolean get() = state == "running"
-
-    /** A copy that waits for a device to bring the bytes. */
-    val needsTransfer: Boolean get() = running && kind == "copy" && transfer == "client" && transfersLeft > 0
 }
-
-/** One file of a copy whose bytes this device brings (`POST ops/<id>/transfers`): fetch [url], upload it unchanged. */
-data class DTransfer(val id: Long, val nodeId: Long?, val name: String, val size: Long, val sha256: String?, val mime: String?, val url: String)
-
-/** A lease of transfers and how many are left after it. */
-data class DTransfers(val transfers: List<DTransfer>, val left: Int)
 
 /** `POST zip`: where the ZIP of a selection can be fetched for a short time, its file name. */
 data class DZip(val url: String?, val path: String?, val mediaId: String?, val name: String, val expiresAt: String?)

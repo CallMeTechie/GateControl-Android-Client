@@ -980,40 +980,6 @@ internal object DriveJson {
         return op(o.obj("op") ?: o)
     }
 
-    /** A file address of the server: relative to it (`/…`) or absolute (https; http only for a local test server). */
-    private fun serverUrl(v: String?): String? =
-        v?.trim()?.takeIf { (it.startsWith("/") && !it.startsWith("//")) || webUrl(it) != null }?.takeIf { it.length <= 4000 && it.none(Char::isWhitespace) && !it.contains("/../") }
-
-    /** `POST ops/<id>/transfers` → `{ transfers: [{ id, nodeId, name, size, sha256, mime, url }], left }`. */
-    fun transfers(o: JsonObject): DTransfers? {
-        val list = o.arr("transfers") ?: return null
-        return DTransfers(
-            list.mapNotNull { e ->
-                val t = e as? JsonObject ?: return@mapNotNull null
-                DTransfer(
-                    id = t.long("id") ?: return@mapNotNull null,
-                    nodeId = t.long("nodeId"),
-                    name = t.str("name")?.take(255) ?: "",
-                    size = t.long("size")?.coerceAtLeast(0) ?: 0L,
-                    sha256 = sha256(t.str("sha256")),
-                    mime = t.str("mime")?.take(100),
-                    url = serverUrl(t.str("url")) ?: return@mapNotNull null,
-                )
-            }.take(20),
-            left = o.int("left")?.coerceAtLeast(0) ?: 0,
-        )
-    }
-
-    fun transfersBody(limit: Int) = JsonObject().apply { addProperty("limit", limit.coerceIn(1, 20)) }
-
-    /** The bytes of a transfer are up: `{ mediaId }`; or it could not be done: `{ failed: true, reason }`. */
-    fun transferDoneBody(mediaId: String) = JsonObject().apply { addProperty("mediaId", mediaId) }
-
-    fun transferFailedBody(reason: String) = JsonObject().apply {
-        addProperty("failed", true)
-        addProperty("reason", reason.take(40))
-    }
-
     private fun idsArray(ids: List<Long>) = JsonArray().apply { ids.distinct().take(OP_IDS_MAX).forEach { add(it) } }
 
     /** `POST ops/check { op, ids, target? }`. */

@@ -172,9 +172,10 @@ internal class DriveBulkActions(
         val areas: List<DArea>,
         val folder: DriveLoad<DFolder>?,
         val recent: List<DriveBulk.Recent>,
-        /** Copy works (Drive 1.12); else the switch says why not. */
+        /** Copy works (Drive 1.12 on GateControl 1.215, `copyServer`); else the switch says why not ([copyWhy]). */
         val copyOk: Boolean,
         val busy: Boolean = false,
+        val copyWhy: DriveBulk.Why? = null,
         /** Within a vault: its own folder (no path above it, names decrypted). */
         val vaultRoot: Long? = null,
     ) {
@@ -201,7 +202,8 @@ internal class DriveBulkActions(
     fun openTarget(mode: DriveBulk.Mode, only: List<DNode>? = null) {
         val nodes = only ?: nodes()
         if (nodes.isEmpty()) return
-        val copyOk = me?.has(DMe.FEATURE_BULK) == true
+        val copyCan = DriveBulk.can(DriveBulk.Action.COPY, nodes, DriveBulk.Where(writable = { true }), me)
+        val copyOk = copyCan.ok
         val start = here()
         _target.value = Target(
             mode = if (mode == DriveBulk.Mode.COPY && !copyOk) DriveBulk.Mode.MOVE else mode,
@@ -211,6 +213,7 @@ internal class DriveBulkActions(
             folder = DriveLoad.Loading,
             recent = if (vaultId == null) recent() else emptyList(),
             copyOk = copyOk,
+            copyWhy = copyCan.why,
             vaultRoot = if (vaultId != null) vaultRoot() else null,
         )
         scope.launch {

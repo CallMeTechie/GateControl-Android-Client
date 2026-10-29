@@ -24,17 +24,14 @@ import javax.inject.Singleton
 /**
  * The jobs on several items at once (Drive 1.12, feature `bulk`): started here, they run on the server — also when the
  * app is closed — and the app follows them by the live event `op`, else by asking (`GET ops/<id>`) now and then. After a
- * restart the running ones are fetched again ([restore]). A copy whose bytes a device brings (`transfer: client`,
- * GateControl has no media copy yet) is pumped from here: lend files, fetch each, upload it unchanged, report it
- * ([pump]). Without Drive 1.12 the app runs a move or a delete itself, one call per item ([startLocal]); it shows the
- * same way. New items at a target are marked "neu hier" for a while.
+ * restart the running ones are fetched again ([restore]). A copy is offered only when the server copies the bytes
+ * itself (`copyServer`). Without Drive 1.12 the app runs a move or a delete itself, one call per item ([startLocal]);
+ * it shows the same way. New items at a target are marked "neu hier" for a while.
  */
 @Singleton
 class DriveOps @Inject constructor(
-    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
     private val api: DriveApi,
     private val live: DriveLive,
-    private val network: DriveUploadNetwork,
 ) {
     /**
      * A job followed here: the server's state ([op]) and what the app knows besides — the first item's name ([title])
@@ -70,9 +67,6 @@ class DriveOps @Inject constructor(
                 update(op)
             }
         }
-        // the stop of this device is lifted, or WLAN is back: copies waiting for this device go on
-        scope.launch { live.locked.collect { locked -> if (!locked) resumePumps() } }
-        scope.launch { network.allowed.collect { ok -> if (ok) resumePumps() } }
     }
 
     private fun update(op: DOp) {
@@ -80,10 +74,7 @@ class DriveOps @Inject constructor(
             val known = m[op.id]
             m + (op.id to (known?.copy(op = op) ?: Job(op, op.label, op.items.takeIf { it > 0 } ?: op.total, op.targetName ?: DriveBulk.lastPart(op.targetPath))))
         }
-        if (op.needsTransfer) pump(op.id)
     }
-
-    private fun resumePumps() = _jobs.value.values.filter { it.op.needsTransfer }.forEach { pump(it.op.id) }
 
     /** Starts [kind] for [ids] (to [target]); a running job is followed until it ends. */
     suspend fun start(kind: String, ids: List<Long>, target: Long?, onConflict: String?, title: String?, targetName: String?): DResult<DOp> {
@@ -92,7 +83,6 @@ class DriveOps @Inject constructor(
             val op = r.value
             _jobs.update { it + (op.id to Job(op, title ?: op.label, op.items.takeIf { n -> n > 0 } ?: ids.size, targetName ?: op.targetName ?: DriveBulk.lastPart(op.targetPath))) }
             if (op.running) follow(op.id)
-            if (op.needsTransfer) pump(op.id)
         }
         return r
     }
@@ -175,92 +165,6 @@ class DriveOps @Inject constructor(
         }
     }
 
-    // ─── a copy whose bytes this device brings ──────────────────────
-
-    private val pumping = ConcurrentHashMap.newKeySet<String>()
-
-    /**
-     * Brings the bytes of the copy [id]: a few files at a time are lent to this device, each is fetched (its signed
-     * address), uploaded unchanged (a vault's file stays ciphertext) and reported; the server makes the file at the
-     * target and checks it is the same. Until nothing is left, the job ends, it is stopped, or this device may not
-     * upload now (stopped by the ransomware protection, "only in WLAN": it goes on when that changes).
-     */
-    private fun pump(id: String) {
-        if (!pumping.add(id)) return
-        scope.launch {
-            try {
-                var idle = 0
-                while (true) {
-                    val job = _jobs.value[id] ?: break
-                    if (!job.op.needsTransfer || live.locked.value || network.waitsForWifi()) break
-                    val lease = when (val r = api.leaseTransfers(id)) {
-                        is DResult.Ok -> r.value
-                        // ended, gone or not allowed: the job's own state tells the rest
-                        is DResult.Failed -> {
-                            api.op(id).valueOrNull()?.let(::update)
-                            break
-                        }
-                        else -> {
-                            delay(POLL_MS * 5)
-                            continue
-                        }
-                    }
-                    if (lease.transfers.isEmpty()) {
-                        // all lent to other devices for now: wait a little, then ask again
-                        if (lease.left == 0 || ++idle > IDLE_MAX) break
-                        delay(POLL_MS * 5)
-                        continue
-                    }
-                    idle = 0
-                    for (t in lease.transfers) {
-                        if (_jobs.value[id]?.op?.running != true) break
-                        if (!transfer(id, t)) return@launch
-                    }
-                }
-            } finally {
-                pumping.remove(id)
-            }
-        }
-    }
-
-    /** One file of a copy: fetched, uploaded, reported. False when this device should stop for now. */
-    private suspend fun transfer(id: String, t: DTransfer): Boolean {
-        val dir = java.io.File(context.cacheDir, "drive-copy").apply { mkdirs() }
-        val file = java.io.File(dir, "$id-${t.id}.part")
-        try {
-            val got = when (val r = api.serverFile(t.url)) {
-                is DResult.Ok -> runCatching {
-                    r.value.body()!!.use { b -> b.byteStream().use { inp -> file.outputStream().use { inp.copyTo(it, 256 * 1024) } } }
-                }.isSuccess
-                else -> false
-            }
-            if (!got) {
-                api.transferFailed(id, t.id, "download").valueOrNull()?.let(::update)
-                return true
-            }
-            when (val up = api.upload(file, t.mime)) {
-                is DResult.Ok -> api.transferDone(id, t.id, up.value).let { r ->
-                    when (r) {
-                        is DResult.Ok -> update(r.value)
-                        is DResult.Failed -> DriveJson.op(runCatching { r.body?.getAsJsonObject("op") }.getOrNull())?.let(::update)
-                        else -> Unit
-                    }
-                }
-                is DResult.Failed -> {
-                    // this device is stopped (ransomware protection) or Drive is full: stop here, the job says the rest
-                    if (up.code == DriveJson.DEVICE_LOCKED) return false
-                    api.transferFailed(id, t.id, if (up.code == "quota") "quota" else "upload").valueOrNull()?.let(::update)
-                    if (up.code == "quota") return false
-                }
-                // offline: the lease runs out, the file is lent again later
-                else -> return false
-            }
-            return true
-        } finally {
-            file.delete()
-        }
-    }
-
     // ─── a job the app runs itself (without Drive 1.12) ─────────────
 
     /** Starts a job of [kind] over [count] items that the app runs itself; its id. */
@@ -302,7 +206,5 @@ class DriveOps @Inject constructor(
     private companion object {
         const val POLL_MS = 2_000L
         const val FRESH_MS = 90_000L
-        /** How often an empty lease is asked again before this device leaves the copy to the others. */
-        const val IDLE_MAX = 12
     }
 }

@@ -110,6 +110,7 @@ internal fun whyRes(why: DriveBulk.Why): Int = when (why) {
     DriveBulk.Why.READ_ONLY -> R.string.drive_why_read_only
     DriveBulk.Why.CHILD -> R.string.drive_why_child
     DriveBulk.Why.NEEDS_BULK -> R.string.drive_why_bulk
+    DriveBulk.Why.NEEDS_COPY_SERVER -> R.string.drive_why_copy_server
     DriveBulk.Why.LINKS_OFF -> R.string.drive_why_links_off
     DriveBulk.Why.LINK_FILES_ONLY -> R.string.drive_why_link_files
     DriveBulk.Why.TOO_MANY -> R.string.drive_why_too_many
@@ -412,7 +413,7 @@ internal fun TargetPickerDialog(
             ModeSwitch(t.mode, t.copyOk, onMode)
             if (!t.copyOk) {
                 Text(
-                    stringResource(R.string.drive_target_copy) + ": " + stringResource(R.string.drive_why_bulk),
+                    stringResource(R.string.drive_target_copy) + ": " + (whyText(t.copyWhy) ?: stringResource(R.string.drive_why_bulk)),
                     style = MaterialTheme.typography.bodySmall,
                     color = x.faint,
                     modifier = Modifier.padding(horizontal = 20.dp),
@@ -761,17 +762,7 @@ private fun OpCard(job: DriveOps.Job, onCancel: () -> Unit) {
             trackColor = x.panel2,
             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).semantics { contentDescription = label },
         )
-        Text(
-            stringResource(
-                when {
-                    job.local -> R.string.drive_op_local
-                    op.transfer == "client" && op.transfersLeft > 0 -> R.string.drive_op_client
-                    else -> R.string.drive_op_server
-                },
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = x.muted,
-        )
+        Text(stringResource(if (job.local) R.string.drive_op_local else R.string.drive_op_server), style = MaterialTheme.typography.bodySmall, color = x.muted)
     }
 }
 

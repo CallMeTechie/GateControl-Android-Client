@@ -98,8 +98,9 @@ class DriveBulkTest {
     fun `copy, zip and one link for several need Drive 1_12, zip and link also the public links`() {
         val ns = listOf(node(1), node(2))
         assertEquals(DriveBulk.Why.NEEDS_BULK, DriveBulk.can(DriveBulk.Action.COPY, ns, writable, me()).why)
-        // a copy needs the read right only
-        assertTrue(DriveBulk.can(DriveBulk.Action.COPY, ns, readOnly, me(DMe.FEATURE_BULK)).ok)
+        // a copy needs the server to copy the bytes (GateControl 1.215), and the read right only
+        assertEquals(DriveBulk.Why.NEEDS_COPY_SERVER, DriveBulk.can(DriveBulk.Action.COPY, ns, writable, me(DMe.FEATURE_BULK)).why)
+        assertTrue(DriveBulk.can(DriveBulk.Action.COPY, ns, readOnly, me(DMe.FEATURE_BULK, DMe.FEATURE_COPY_SERVER)).ok)
         assertEquals(DriveBulk.Why.NEEDS_BULK, DriveBulk.can(DriveBulk.Action.ZIP, ns, writable, me()).why)
         assertEquals(DriveBulk.Why.LINKS_OFF, DriveBulk.can(DriveBulk.Action.ZIP, ns, writable, me(DMe.FEATURE_BULK)).why)
         assertTrue(DriveBulk.can(DriveBulk.Action.ZIP, ns, readOnly, me(DMe.FEATURE_BULK, DMe.FEATURE_ZIP)).ok)
@@ -116,6 +117,9 @@ class DriveBulkTest {
         assertEquals(DriveBulk.Why.LINK_FILES_ONLY, DriveBulk.can(DriveBulk.Action.LINK, listOf(node(1), node(2, dir = true)), writable, all).why)
         assertEquals(DriveBulk.Why.TOO_MANY, DriveBulk.can(DriveBulk.Action.LINK, (1L..21L).map { node(it) }, writable, all).why)
         assertTrue(DriveBulk.can(DriveBulk.Action.LINK, (1L..20L).map { node(it) }, writable, all).ok)
+        // `zipMixed`: folders and more than 20 go too
+        val mixed = me(DMe.FEATURE_BULK, DMe.FEATURE_MULTI_LINK, DMe.FEATURE_ZIP_MIXED)
+        assertTrue(DriveBulk.can(DriveBulk.Action.LINK, (1L..21L).map { node(it) } + node(30, dir = true), writable, mixed).ok)
     }
 
     @Test
@@ -126,6 +130,10 @@ class DriveBulkTest {
         assertEquals(DriveBulk.Why.ZIP_SHAPE, DriveBulk.can(DriveBulk.Action.ZIP, listOf(node(1, dir = true), node(2, dir = true)), readOnly, all).why)
         assertEquals(DriveBulk.Why.ZIP_SHAPE, DriveBulk.can(DriveBulk.Action.ZIP, listOf(node(1, dir = true), node(2)), readOnly, all).why)
         assertEquals(DriveBulk.Why.TOO_MANY, DriveBulk.can(DriveBulk.Action.ZIP, (1L..21L).map { node(it) }, readOnly, all).why)
+        // `zipMixed`: any selection
+        val mixed = me(DMe.FEATURE_BULK, DMe.FEATURE_ZIP, DMe.FEATURE_ZIP_MIXED)
+        assertTrue(DriveBulk.can(DriveBulk.Action.ZIP, (1L..21L).map { node(it) } + node(30, dir = true) + node(31, dir = true), readOnly, mixed).ok)
+        assertTrue(DriveBulk.can(DriveBulk.Action.SEND, listOf(node(1), node(30, dir = true)), readOnly, mixed).ok)
     }
 
     @Test
@@ -169,7 +177,7 @@ class DriveBulkTest {
         val v = "a".repeat(22)
         val ns = listOf(node(1, vault = v), node(2, vault = v))
         val inVault = DriveBulk.Where(writable = { true }, vault = true)
-        val all = me(DMe.FEATURE_BULK, DMe.FEATURE_ZIP, DMe.FEATURE_MULTI_LINK, DMe.FEATURE_ALBUMS)
+        val all = me(DMe.FEATURE_BULK, DMe.FEATURE_COPY_SERVER, DMe.FEATURE_ZIP, DMe.FEATURE_MULTI_LINK, DMe.FEATURE_ALBUMS)
         for (a in listOf(DriveBulk.Action.SEND, DriveBulk.Action.SAVE, DriveBulk.Action.ZIP, DriveBulk.Action.LINK, DriveBulk.Action.ALBUM)) {
             assertEquals(DriveBulk.Why.VAULT, DriveBulk.can(a, ns, inVault, all).why, a.name)
         }

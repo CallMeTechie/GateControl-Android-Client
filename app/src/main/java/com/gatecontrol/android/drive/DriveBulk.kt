@@ -62,6 +62,8 @@ internal object DriveBulk {
         CHILD,
         /** Needs Drive 1.12 (`bulk`). */
         NEEDS_BULK,
+        /** A copy needs GateControl 1.215 (the server copies the bytes, `copyServer`). */
+        NEEDS_COPY_SERVER,
         /** GateControl's public links are switched off: no ZIP, no link for several (`zip`, `multiLink` missing). */
         LINKS_OFF,
         /** A link for several takes files only. */
@@ -113,9 +115,12 @@ internal object DriveBulk {
     /** A ZIP of files takes at most this many, one link for several too (Drive 1.12). */
     const val MAX_FILES = 20
 
-    /** What the server zips: exactly one folder (with all in it), or 1…[MAX_FILES] files. */
-    fun zipShape(nodes: Collection<DNode>): Why? = when {
-        nodes.size == 1 -> null
+    /**
+     * What the server zips: exactly one folder (with all in it), or 1…[MAX_FILES] files — any selection with
+     * `zipMixed` ([mixed]).
+     */
+    fun zipShape(nodes: Collection<DNode>, mixed: Boolean = false): Why? = when {
+        mixed || nodes.size == 1 -> null
         nodes.any { it.isDir } -> Why.ZIP_SHAPE
         nodes.size > MAX_FILES -> Why.TOO_MANY
         else -> null
@@ -132,6 +137,7 @@ internal object DriveBulk {
     fun can(action: Action, nodes: Collection<DNode>, where: Where, me: DMe?): Can {
         if (nodes.isEmpty()) return Can.no(Why.ONLY_ONE)
         val bulk = me?.has(DMe.FEATURE_BULK) == true
+        val mixed = me?.has(DMe.FEATURE_ZIP_MIXED) == true
         val one = nodes.size == 1
         val folders = nodes.any { it.isDir }
         val vault = where.vault || nodes.any { it.encrypted }
@@ -142,12 +148,16 @@ internal object DriveBulk {
                 !folders -> Can.YES
                 zipOff(me, DMe.FEATURE_ZIP) == Why.NEEDS_BULK -> Can.no(Why.FOLDERS_NEED_ZIP)
                 zipOff(me, DMe.FEATURE_ZIP) != null -> Can.no(zipOff(me, DMe.FEATURE_ZIP)!!)
-                zipShape(nodes) != null -> Can.no(Why.ZIP_SHAPE)
+                zipShape(nodes, mixed) != null -> Can.no(Why.ZIP_SHAPE)
                 else -> Can.YES
             }
             Action.MOVE -> rights(nodes, where)
-            // a copy needs the read right only (the target's write right is checked there)
-            Action.COPY -> if (!bulk) Can.no(Why.NEEDS_BULK) else Can.YES
+            // a copy needs the read right only (the target's write right is checked there); the server copies the bytes
+            Action.COPY -> when {
+                !bulk -> Can.no(Why.NEEDS_BULK)
+                me?.has(DMe.FEATURE_COPY_SERVER) != true -> Can.no(Why.NEEDS_COPY_SERVER)
+                else -> Can.YES
+            }
             Action.DELETE -> rights(nodes, where)
             // files one by one, each folder as its own ZIP
             Action.SAVE -> when {
@@ -160,7 +170,7 @@ internal object DriveBulk {
             Action.ZIP -> when {
                 vault -> Can.no(Why.VAULT)
                 zipOff(me, DMe.FEATURE_ZIP) != null -> Can.no(zipOff(me, DMe.FEATURE_ZIP)!!)
-                zipShape(nodes) != null -> Can.no(zipShape(nodes)!!)
+                zipShape(nodes, mixed) != null -> Can.no(zipShape(nodes, mixed)!!)
                 else -> Can.YES
             }
             Action.LINK -> when {
@@ -168,8 +178,8 @@ internal object DriveBulk {
                 !rights(nodes, where).ok -> rights(nodes, where)
                 one -> Can.YES
                 zipOff(me, DMe.FEATURE_MULTI_LINK) != null -> Can.no(zipOff(me, DMe.FEATURE_MULTI_LINK)!!)
-                folders -> Can.no(Why.LINK_FILES_ONLY)
-                nodes.size > MAX_FILES -> Can.no(Why.TOO_MANY)
+                folders && !mixed -> Can.no(Why.LINK_FILES_ONLY)
+                nodes.size > MAX_FILES && !mixed -> Can.no(Why.TOO_MANY)
                 else -> Can.YES
             }
             Action.RENAME -> when {

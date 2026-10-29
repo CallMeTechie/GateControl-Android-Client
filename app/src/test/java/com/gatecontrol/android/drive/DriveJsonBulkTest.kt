@@ -87,29 +87,9 @@ class DriveJsonBulkTest {
         assertEquals("Familie", op.targetName)
         assertEquals("client", op.transfer)
         assertEquals(70, op.transfersLeft)
-        assertTrue(op.needsTransfer)
         assertEquals(2, op.results!!.failedCount)
         assertEquals(listOf(100L, 101L), op.results!!.resultIds)
-        assertFalse(op.copy(transfer = "server").needsTransfer)
         assertEquals("undo", DriveJson.op(json("""{"id":"u","kind":"undo","state":"done","error":"internal"}"""))?.kind)
-    }
-
-    @Test
-    fun `the files of a copy lent to this device`() {
-        val t = DriveJson.transfers(
-            json(
-                """{"transfers":[{"id":7,"nodeId":3,"name":"a.jpg","size":12,"sha256":"${"a".repeat(64)}","mime":"image/jpeg","url":"/plugin-media/abc?sig=1"},
-                {"id":8,"name":"b","url":"https://elsewhere.example/x"},{"id":9,"name":"c","url":"ftp://x"},{"name":"no id","url":"/x"}],"left":4}""",
-            ),
-        )!!
-        assertEquals(listOf(7L, 8L), t.transfers.map { it.id })
-        assertEquals("/plugin-media/abc?sig=1", t.transfers[0].url)
-        assertEquals("a".repeat(64), t.transfers[0].sha256)
-        assertEquals(4, t.left)
-        assertNull(DriveJson.transfers(json("""{"left":0}""")))
-        assertEquals(20, DriveJson.transfersBody(99).get("limit").asInt)
-        assertTrue(DriveJson.transferFailedBody("download").get("failed").asBoolean)
-        assertEquals("m", DriveJson.transferDoneBody("m").get("mediaId").asString)
     }
 
     @Test
