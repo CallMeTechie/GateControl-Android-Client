@@ -369,6 +369,13 @@ internal object DriveBulk {
         }
     }
 
+    /**
+     * The chosen items of a job asked for but not answered yet (Drive 1.12.2: the sheet lists them from the first moment,
+     * each waiting): at most [max]; [nameOf] the name shown (a vault's decrypted here).
+     */
+    fun waitingFiles(nodes: List<DNode>, nameOf: (DNode) -> String = { it.name }, max: Int = FILES_KEPT): List<DOpFile> =
+        nodes.take(max).mapIndexed { i, n -> DOpFile(seq = i + 1, nodeId = n.id, name = nameOf(n), size = if (n.isDir) 0 else n.size, isDir = n.isDir, state = "waiting") }
+
     /** How much of a job is done, 0..1 (by bytes when known, else by items). */
     fun progress(op: DOp): Float = when {
         op.bytesTotal > 0 -> (op.bytesDone.toFloat() / op.bytesTotal).coerceIn(0f, 1f)

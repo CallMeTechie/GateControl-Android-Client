@@ -79,6 +79,7 @@
     <string name="drive_ask_same_one">Gleicher Inhalt wird nie doppelt gespeichert – „%1$s“ wird in jedem Fall nur einmal behalten.</string>
     <string name="drive_ask_folders_note">Ordner mit gleichem Namen werden zusammengeführt: der Inhalt kommt hinein, die Wahl gilt für die Dateien darin.</string>
     <string name="drive_op_running">Läuft gerade</string>
+    <string name="drive_op_preparing">Wird vorbereitet …</string>
     <string name="drive_op_copy">Kopiere %1$s nach %2$s</string>
     <string name="drive_op_move">Verschiebe %1$s nach %2$s</string>
     <string name="drive_op_trash">Lege %1$s in den Papierkorb</string>

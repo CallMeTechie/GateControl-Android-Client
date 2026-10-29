@@ -5,6 +5,7 @@ import com.gatecontrol.android.support.CrashReports
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,6 +28,10 @@ import javax.inject.Singleton
  * restart the running ones are fetched again ([restore]). A copy is offered only when the server copies the bytes
  * itself (`copyServer`). Without Drive 1.12 the app runs a move or a delete itself, one call per item ([startLocal]);
  * it shows the same way. New items at a target are marked "neu hier" for a while.
+ *
+ * A job shows from the moment it is asked for ([prepare]): until the server's answer with its id it is a placeholder
+ * ("wird vorbereitet", [Job.pending]) with the chosen items waiting — Drive 1.12.2 answers at once, an older Drive
+ * after up to 5 s. The start and "Rückgängig" run in this object's scope: a screen left meanwhile loses nothing.
  */
 @Singleton
 class DriveOps internal constructor(
@@ -45,7 +50,8 @@ class DriveOps internal constructor(
 
     /**
      * A job followed here: the server's state ([op]) and what the app knows besides — the first item's name ([title])
-     * and how many there were ([count]), the target's name ([target]). [local]: the app runs it itself.
+     * and how many there were ([count]), the target's name ([target]). [local]: the app runs it itself. [pending]: asked
+     * for, the server has not answered yet ("wird vorbereitet" — its id is the app's own).
      */
     data class Job(
         val op: DOp,
@@ -53,6 +59,7 @@ class DriveOps internal constructor(
         val count: Int = op.total,
         val target: String? = null,
         val local: Boolean = false,
+        val pending: Boolean = false,
     )
 
     private val _jobs = MutableStateFlow<Map<String, Job>>(emptyMap())
@@ -66,6 +73,7 @@ class DriveOps internal constructor(
     private val following = ConcurrentHashMap.newKeySet<String>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private val localIds = AtomicLong(0)
+    private val pendingIds = AtomicLong(0)
     @Volatile private var restored = false
 
     init {
@@ -85,19 +93,52 @@ class DriveOps internal constructor(
         }
     }
 
-    /** Starts [kind] for [ids] (to [target]); a running job is followed until it ends. */
-    suspend fun start(kind: String, ids: List<Long>, target: Long?, onConflict: String?, title: String?, targetName: String?): DResult<DOp> {
-        val r = api.startOp(kind, ids, target, onConflict)
-        if (r is DResult.Ok) {
-            val answer = r.value
-            _jobs.update { m ->
-                // the live event may have told the end before the answer came
-                val op = merged(m[answer.id]?.op, answer) ?: m[answer.id]?.op ?: answer
-                m + (op.id to Job(op, title ?: op.label, op.items.takeIf { n -> n > 0 } ?: ids.size, targetName ?: op.targetName ?: DriveBulk.lastPart(op.targetPath)))
+    /**
+     * A job of [kind] over [count] items shown at once, before the server answers its start: the ring instead of the
+     * plus, the sheet with [files] (the chosen items, waiting). Its id goes to [start] (or [undo]), which puts the
+     * server's job in its place — or takes it away when the start fails.
+     */
+    fun prepare(kind: String, count: Int, title: String?, targetName: String?, files: List<DOpFile>? = null): String {
+        val id = PENDING + pendingIds.incrementAndGet()
+        val shown = files?.takeIf { it.isNotEmpty() }
+        val op = DOp(id, kind, "running", 0, 0, 0, 0, items = count, files = shown, filesMore = (count - (shown?.size ?: count)).coerceAtLeast(0))
+        _jobs.update { it + (id to Job(op, title, count, targetName, pending = true)) }
+        return id
+    }
+
+    /**
+     * Starts [kind] for [ids] (to [target]); a running job is followed until it ends. [pending]: the placeholder of
+     * [prepare] it replaces (stopped meanwhile: the job is stopped right away).
+     */
+    suspend fun start(kind: String, ids: List<Long>, target: Long?, onConflict: String?, title: String?, targetName: String?, pending: String? = null): DResult<DOp> =
+        scope.async {
+            val r = try {
+                api.startOp(kind, ids, target, onConflict)
+            } catch (e: Throwable) {
+                drop(pending)
+                throw e
             }
-            if (_jobs.value[answer.id]?.op?.running == true) follow(answer.id)
-        }
-        return r
+            if (r is DResult.Ok) {
+                val answer = r.value
+                _jobs.update { m ->
+                    // the live event may have told the end before the answer came
+                    val op = merged(m[answer.id]?.op, answer) ?: m[answer.id]?.op ?: answer
+                    (if (pending != null) m - pending else m) +
+                        (op.id to Job(op, title ?: op.label, op.items.takeIf { n -> n > 0 } ?: ids.size, targetName ?: op.targetName ?: DriveBulk.lastPart(op.targetPath)))
+                }
+                if (pending != null && cancelled.remove(pending)) cancel(answer.id)
+                if (_jobs.value[answer.id]?.op?.running == true) follow(answer.id)
+            } else {
+                drop(pending)
+            }
+            r
+        }.await()
+
+    /** A placeholder whose start failed: gone. */
+    private fun drop(pending: String?) {
+        if (pending == null) return
+        cancelled.remove(pending)
+        _jobs.update { it - pending }
     }
 
     /**
@@ -162,10 +203,10 @@ class DriveOps internal constructor(
     /** Waits until the job [id] ends; its last state. */
     suspend fun await(id: String): Job = _jobs.mapNotNull { it[id] }.first { !it.op.running }
 
-    /** "Abbrechen": what is done stays done. */
+    /** "Abbrechen": what is done stays done (a job still being prepared stops once the server answers). */
     suspend fun cancel(id: String) {
         val job = _jobs.value[id] ?: return
-        if (job.local) {
+        if (job.local || job.pending) {
             cancelled.add(id)
             return
         }
@@ -175,16 +216,31 @@ class DriveOps internal constructor(
         }
     }
 
-    /** "Rückgängig": the server puts it back (it may run as a job of its own). */
-    suspend fun undo(id: String): DResult<DOp> {
-        val r = api.undoOp(id)
-        if (r is DResult.Ok) {
+    /**
+     * "Rückgängig": the server puts it back (it may run as a job of its own); shown at once ([prepare]) over [count]
+     * items until the server answers.
+     */
+    suspend fun undo(id: String, count: Int = 0): DResult<DOp> =
+        scope.async {
             val was = _jobs.value[id]
-            _jobs.update { m -> m + (r.value.id to Job(merged(m[r.value.id]?.op, r.value) ?: m.getValue(r.value.id).op, was?.title, was?.count ?: r.value.total, was?.target)) }
-            if (r.value.running) follow(r.value.id)
-        }
-        return r
-    }
+            val pending = prepare("undo", count.takeIf { it > 0 } ?: was?.count ?: 0, was?.title, was?.target)
+            val r = try {
+                api.undoOp(id)
+            } catch (e: Throwable) {
+                drop(pending)
+                throw e
+            }
+            if (r is DResult.Ok) {
+                _jobs.update { m ->
+                    (m - pending) + (r.value.id to Job(merged(m[r.value.id]?.op, r.value) ?: m.getValue(r.value.id).op, was?.title, was?.count ?: r.value.total, was?.target))
+                }
+                if (cancelled.remove(pending)) cancel(r.value.id)
+                if (_jobs.value[r.value.id]?.op?.running == true) follow(r.value.id)
+            } else {
+                drop(pending)
+            }
+            r
+        }.await()
 
     /** A finished job is no longer needed. */
     fun forget(id: String) {
@@ -253,6 +309,8 @@ class DriveOps internal constructor(
     }
 
     internal companion object {
+        /** The ids of placeholders ([prepare]) — never a server's (22 characters of base64url). */
+        const val PENDING = "pending-"
         const val POLL_MS = 2_000L
         const val FRESH_MS = 90_000L
     }

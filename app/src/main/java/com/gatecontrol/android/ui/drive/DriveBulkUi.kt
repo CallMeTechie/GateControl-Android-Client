@@ -769,7 +769,12 @@ internal fun JobRows(job: DriveOps.Job, onCancel: () -> Unit) {
             Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
                 Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (counts.isNotEmpty()) counts else stringResource(R.string.drive_op_running),
+                    when {
+                        // asked for, the server has not answered yet (Drive 1.12.2 answers at once, an older one after a while)
+                        job.pending -> stringResource(R.string.drive_op_preparing)
+                        counts.isNotEmpty() -> counts
+                        else -> stringResource(R.string.drive_op_running)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = x.muted,
                 )
@@ -919,7 +924,7 @@ internal fun DriveBulkHost(bulk: DriveBulkActions, snackbar: SnackbarHostState, 
             withDismissAction = undo == null,
             duration = if (undo != null) SnackbarDuration.Long else SnackbarDuration.Short,
         )
-        if (result == SnackbarResult.ActionPerformed && undo != null) bulk.undo(undo)
+        if (result == SnackbarResult.ActionPerformed && undo != null) bulk.undo(undo, s.count)
     }
 
     target?.let { t ->
