@@ -96,6 +96,32 @@ class ChatNotifyTest {
     }
 
     @Test
+    fun `own exports - granted for a while, nothing else of ours`() {
+        val uri = "content://com.gatecontrol.client.provider/export/0123456789abcdef01234567/gatecontrol-logs.txt"
+        val other = "content://com.gatecontrol.client.provider/export/ffffffffffffffffffffffff/gatecontrol-logs.txt"
+        assertFalse(OwnExports.allows(uri, now = 1_000L))
+        OwnExports.grant(uri, now = 1_000L)
+        assertTrue(OwnExports.allows(uri, now = 1_000L + OwnExports.TTL_MS - 1))
+        assertFalse(OwnExports.allows(uri, now = 1_000L + OwnExports.TTL_MS))
+        assertFalse(OwnExports.allows(other, now = 2_000L))
+        assertFalse(OwnExports.allows(null))
+    }
+
+    @Test
+    fun `own exports - a fresh random folder per export`() {
+        val cache = kotlin.io.path.createTempDirectory("own-exports").toFile()
+        try {
+            val a = OwnExports.newDir(cache)
+            val b = OwnExports.newDir(cache)
+            assertTrue(a.isDirectory && b.isDirectory)
+            assertEquals(java.io.File(cache, "export"), a.parentFile)
+            assertTrue(a.name != b.name && a.name.length == 24)
+        } finally {
+            cache.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `file types - allowed as is, aliases, octet-stream fallback`() {
         val allowed = listOf("image/jpeg", "audio/mp4", "application/pdf", "application/octet-stream")
         assertEquals("application/pdf", ChatMime.sendable("application/pdf", allowed))
