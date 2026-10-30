@@ -321,7 +321,7 @@ fun MailSettingsScreen(onBack: () -> Unit, onAccount: (Long) -> Unit, onAdd: () 
                         title = a.label,
                         description = a.email,
                         onClick = { onAccount(a.id) },
-                        leading = { MailDot(accountColor(a), size = 12) },
+                        leading = { MailAccountAvatar(a, size = 36.dp) },
                         trailing = { GcChevron() },
                     )
                 }
@@ -367,7 +367,13 @@ fun MailAccountScreen(onBack: () -> Unit, onRelogin: (Long) -> Unit, viewModel: 
         var password by rememberSaveable(a.id) { mutableStateOf("") }
         var askRemove by remember { mutableStateOf(false) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(a.email, style = MaterialTheme.typography.bodyMedium, color = extra.muted)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                MailAccountAvatar(a, size = 56.dp, ring = MaterialTheme.colorScheme.background)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(a.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (a.label != a.email) Text(a.email, style = MaterialTheme.typography.bodyMedium, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             when (a.state) {
                 MAccount.STATE_AUTH_FAILED -> GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
                     Text(stringResource(R.string.mail_account_auth_failed, a.label), style = MaterialTheme.typography.bodySmall)

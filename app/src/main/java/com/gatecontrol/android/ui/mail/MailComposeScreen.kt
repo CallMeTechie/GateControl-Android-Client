@@ -295,7 +295,7 @@ private fun FromRow(me: MMe?, account: MAccount?, onPick: (Long) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                MailDot(accountColor(account))
+                MailAccountAvatar(account, size = 24.dp, dot = false)
                 Text(account?.email.orEmpty(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 account?.name?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, maxLines = 1) }
                 if (accounts.size > 1) Icon(GcIcons.ChevronDown, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -303,8 +303,8 @@ private fun FromRow(me: MMe?, account: MAccount?, onPick: (Long) -> Unit) {
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 accounts.forEach { a ->
                     DropdownMenuItem(
-                        leadingIcon = { MailDot(accountColor(a), size = 10) },
-                        text = { Column { Text(a.label); Text(a.email, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted) } },
+                        leadingIcon = { MailAccountAvatar(a, size = 32.dp, ring = MaterialTheme.colorScheme.surfaceContainer) },
+                        text = { MailAccountText(a) },
                         onClick = { open = false; onPick(a.id) },
                     )
                 }

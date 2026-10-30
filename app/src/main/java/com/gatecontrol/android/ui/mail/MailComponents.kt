@@ -7,6 +7,21 @@ import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.unit.Dp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import com.gatecontrol.android.mail.MailEntryPoint
+import dagger.hilt.android.EntryPointAccessors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -88,6 +103,93 @@ internal fun accountColor(hex: String?, fallback: Color): Color = MailLogic.colo
 @Composable
 internal fun MailDot(color: Color, size: Int = 8) {
     Box(Modifier.size(size.dp).clip(CircleShape).background(color))
+}
+
+/** An account's picture ([MAccount.avatar]) as the app keeps it; null without one, while loading or offline. */
+@Composable
+private fun rememberMailAvatar(mediaId: String?): ImageBitmap? {
+    val context = LocalContext.current.applicationContext
+    val preview = LocalInspectionMode.current
+    val store = remember(context, preview) {
+        if (preview) null else runCatching { EntryPointAccessors.fromApplication(context, MailEntryPoint::class.java).mailAvatars() }.getOrNull()
+    }
+    val bitmap by produceState(mediaId?.let { store?.peek(it) }?.asImageBitmap(), mediaId, store) {
+        value = if (mediaId == null || store == null) null else value ?: store.bitmap(mediaId)?.asImageBitmap()
+    }
+    return bitmap
+}
+
+/**
+ * An account as the Outlook app shows it: round, its picture (Microsoft) or the provider's mark — own simple signs
+ * in the provider's color, no logos ("O", four squares, "G", "GMX", "W", "T", else "@" in the account's color) —
+ * with a small dot in the account's color.
+ */
+@Composable
+internal fun MailAccountAvatar(account: MAccount?, size: Dp = 36.dp, dot: Boolean = true, ring: Color = MaterialTheme.colorScheme.surface) {
+    val picture = rememberMailAvatar(account?.avatar?.mediaId)
+    val color = accountColor(account)
+    Box(Modifier.size(size)) {
+        Box(Modifier.matchParentSize().clip(CircleShape), contentAlignment = Alignment.Center) {
+            if (picture != null) {
+                Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            } else {
+                ProviderMark(MailLogic.mark(account?.provider), color, size)
+            }
+        }
+        if (dot) {
+            val d = (size * 0.34f).coerceAtLeast(9.dp)
+            Box(
+                Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(d).clip(CircleShape).background(ring).padding(2.dp).clip(CircleShape).background(color),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.ProviderMark(mark: MailLogic.Mark, accountColor: Color, size: Dp) {
+    val density = LocalDensity.current
+    @Composable
+    fun letter(text: String, bg: Color, fg: Color, scale: Float = 0.46f) {
+        Box(Modifier.matchParentSize().background(bg))
+        Text(text, color = fg, fontWeight = FontWeight.Bold, fontSize = with(density) { (size * scale).toSp() }, maxLines = 1)
+    }
+    when (mark) {
+        MailLogic.Mark.OUTLOOK -> letter("O", Color(0xFF0F6CBD), Color.White)
+        MailLogic.Mark.M365 -> {
+            Box(Modifier.matchParentSize().background(Color(0xFFF3F4F6)))
+            Canvas(Modifier.size(size * 0.44f)) {
+                val gap = this.size.width * 0.08f
+                val side = (this.size.width - gap) / 2
+                val tiles = listOf(Color(0xFFF25022), Color(0xFF7FBA00), Color(0xFF00A4EF), Color(0xFFFFB900))
+                tiles.forEachIndexed { i, c ->
+                    drawRect(c, topLeft = Offset((i % 2) * (side + gap), (i / 2) * (side + gap)), size = Size(side, side))
+                }
+            }
+        }
+        MailLogic.Mark.GMAIL -> letter("G", Color.White, Color(0xFFEA4335))
+        MailLogic.Mark.GMX -> letter("GMX", Color(0xFF1C449B), Color.White, scale = 0.27f)
+        MailLogic.Mark.WEBDE -> letter("W", Color(0xFFFFD800), Color(0xFF1A1A1A))
+        MailLogic.Mark.TONLINE -> letter("T", Color(0xFFE20074), Color.White)
+        MailLogic.Mark.OTHER -> letter("@", accountColor, Color(0xFF0D1015))
+    }
+}
+
+/** The account's name and below its address (only the address when it has no name). */
+@Composable
+internal fun MailAccountText(account: MAccount, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurface, bold: Boolean = false) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Text(
+            account.label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (account.label != account.email) {
+            Text(account.email, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
 }
 
 /** The time column of a mail: the time today, "Gestern", the weekday, else the date. */
@@ -331,6 +433,7 @@ internal fun mailText(context: Context, code: String?): String = context.getStri
         "not_waiting" -> R.string.mail_err_not_waiting
         "exists" -> R.string.mail_err_exists
         "links_disabled" -> R.string.mail_err_links_disabled
+        "busy" -> R.string.mail_err_busy
         else -> R.string.mail_err_failed
     },
 )

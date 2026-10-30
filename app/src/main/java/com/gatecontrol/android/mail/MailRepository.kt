@@ -210,4 +210,5 @@ class MailStartup @Inject constructor(
 @InstallIn(SingletonComponent::class)
 interface MailEntryPoint {
     fun mailStartup(): MailStartup
+    fun mailAvatars(): MailAvatars
 }

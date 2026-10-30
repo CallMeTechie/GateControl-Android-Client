@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.mail.MAi
 import com.gatecontrol.android.mail.MAttachment
+import com.gatecontrol.android.mail.MChanged
+import com.gatecontrol.android.mail.MPicture
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MMessage
 import com.gatecontrol.android.mail.MResult
@@ -14,12 +16,16 @@ import com.gatecontrol.android.mail.MSavedTo
 import com.gatecontrol.android.mail.MSuggestion
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MailCache
+import com.gatecontrol.android.mail.MailJson
 import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.mail.MailRepository
+import com.gatecontrol.android.mail.notOk
 import com.gatecontrol.android.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +33,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 /** The AI bar of a mail. */
@@ -45,6 +52,8 @@ data class MailAttachmentUi(
     val savedTo: MSavedTo? = attachment.savedTo,
     val duplicate: Boolean = false,
     val busy: Boolean = false,
+    /** The provider still sends it (`409 busy { reason: 'loading' }`): asked again by itself. */
+    val loading: Boolean = false,
 )
 
 data class MailReadState(
@@ -58,6 +67,10 @@ data class MailReadState(
     val ai: MailAiState = MailAiState.Off,
     val imagesBusy: Boolean = false,
     val savingAll: Boolean = false,
+    /** Embedded pictures the provider still sends (`cid/…` answered `busy`). */
+    val picturesLoading: Boolean = false,
+    /** Counts up when the HTML is to load its pictures again (one came in the meantime). */
+    val pictureRound: Int = 0,
 )
 
 /** Reading a mail (mockup "Mail lesen"): the AI bar, the attachments with "In Drive speichern", pictures, the thread. */
@@ -82,9 +95,28 @@ class MailReadViewModel @Inject constructor(
     val event: StateFlow<MailReadEvent?> = _event.asStateFlow()
 
     private var aiTried = false
+    private var extrasLoaded = false
+    private var loadJob: Job? = null
+    /** An event came while `GET messages/<id>` was still on its way: ask once more when it answers without a body. */
+    private var loadAgain = false
+
+    /** Attachments to open once the provider sent them: their id → how often they were asked for again. */
+    private val waitingOpen = ConcurrentHashMap<Long, Int>()
+    private val openRetry = ConcurrentHashMap<Long, Job>()
+
+    /** Embedded pictures the provider still sends (attachment ids) and the HTML's next try. */
+    private val waitingCid: MutableSet<Long> = ConcurrentHashMap.newKeySet()
+    private var pictureTries = 0
+    private var pictureRetry: Job? = null
+
+    /** The HTML's pictures as they came (the page loads them again after a [MailReadState.pictureRound]). */
+    private val pictures = object : LinkedHashMap<String, MPicture.Got>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, MPicture.Got>?): Boolean = picturesBytes() > PICTURES_MAX_BYTES
+    }
 
     init {
         load()
+        viewModelScope.launch { repository.changed.collect(::onChanged) }
     }
 
     fun load() {
@@ -92,21 +124,52 @@ class MailReadViewModel @Inject constructor(
             _state.value = MailReadState(loading = false, error = "not_found")
             return
         }
-        viewModelScope.launch {
+        if (loadJob?.isActive == true) return
+        loadJob = viewModelScope.launch {
             if (_state.value.message == null) cache.message(id)?.let { show(it, loading = true) }
+            loadAgain = false
             when (val r = api.message(id)) {
                 is MResult.Ok -> {
                     val (m, raw) = r.value
-                    show(m, loading = false)
-                    cache.putMessage(raw)
+                    // the snippet stands in for a body not here yet: a full copy kept earlier stays
+                    if (m.bodyMissing) cache.message(id)?.takeIf { !it.bodyMissing && (it.html != null || !it.text.isNullOrBlank()) }?.let { show(it, loading = false) } ?: show(m, loading = false)
+                    else {
+                        show(m, loading = false)
+                        cache.putMessage(raw)
+                    }
                     if (m.summary.unread) markRead(m)
-                    loadExtras(m)
+                    if (!m.bodyMissing && !extrasLoaded) {
+                        extrasLoaded = true
+                        loadExtras(m)
+                    }
                 }
                 else -> _state.update {
                     it.copy(loading = false, offline = r is MResult.Offline && it.message != null, error = if (it.message == null) MailHomeViewModel.code(r) else null)
                 }
             }
+        }.also { job ->
+            job.invokeOnCompletion {
+                if (loadAgain && _state.value.message?.bodyMissing == true) viewModelScope.launch { load() }
+            }
         }
+    }
+
+    /**
+     * The live event `mail` (Mail 1.1.2): this mail's body (or its conversation's) is there now → load it again; an
+     * attachment or embedded picture the provider was still sending is there → open it, or the pictures load again.
+     */
+    private fun onChanged(c: MChanged) {
+        val m = _state.value.message
+        if (m != null && m.bodyMissing && MailLogic.concerns(c, id, m.summary.threadId)) {
+            if (loadJob?.isActive == true) loadAgain = true else load()
+        }
+        val aid = c.attachmentId ?: return
+        if (c.messageId != id) return
+        if (waitingOpen.containsKey(aid)) {
+            openRetry.remove(aid)?.cancel()
+            _state.value.attachments.firstOrNull { it.attachment.id == aid }?.let { viewModelScope.launch { openNow(it.attachment) } }
+        }
+        if (waitingCid.remove(aid)) reloadPictures()
     }
 
     private fun show(m: MMessage, loading: Boolean) {
@@ -281,14 +344,39 @@ class MailReadViewModel @Inject constructor(
 
     /** An attachment opened in another app: fetched into `cache/mail-open/<mail>-<attachment>/<name>`. */
     fun open(a: MAttachment) {
+        if (waitingOpen.containsKey(a.id)) return
+        waitingOpen[a.id] = 0
+        viewModelScope.launch { openNow(a) }
+    }
+
+    /**
+     * Fetches and opens [a]. While the provider still sends it (`409 busy { reason: 'loading', retryAfter }`) it shows
+     * "Wird gerade geladen …" and asks again after `retryAfter` (at most [MailLogic.BUSY_RETRIES] times), or at once
+     * when the live event names it.
+     */
+    private suspend fun openNow(a: MAttachment) {
         updateAttachment(a.id) { it.copy(busy = true) }
-        viewModelScope.launch {
-            val file = fetch(a)
-            updateAttachment(a.id) { it.copy(busy = false) }
-            _event.value = when (file) {
-                is MResult.Ok -> MailReadEvent.Open(file.value, a.mime)
-                else -> MailReadEvent.Toast(mailText(context, MailHomeViewModel.code(file)))
+        val file = fetch(a)
+        val busy = (file as? MResult.Failed)?.takeIf { MailJson.busyRetryAfter(it.code, it.error) != null }
+        val tries = waitingOpen[a.id] ?: 0
+        if (busy != null && tries < MailLogic.BUSY_RETRIES) {
+            waitingOpen[a.id] = tries + 1
+            updateAttachment(a.id) { it.copy(busy = false, loading = true) }
+            openRetry.remove(a.id)?.cancel()
+            openRetry[a.id] = viewModelScope.launch {
+                delay(MailLogic.retryDelayMs(MailJson.busyRetryAfter(busy.code, busy.error)))
+                openRetry.remove(a.id)
+                openNow(a)
             }
+            return
+        }
+        waitingOpen.remove(a.id)
+        openRetry.remove(a.id)?.cancel()
+        updateAttachment(a.id) { it.copy(busy = false, loading = false) }
+        _event.value = when {
+            file is MResult.Ok -> MailReadEvent.Open(file.value, a.mime)
+            busy != null && MailJson.busyLoading(busy.code, busy.error) -> MailReadEvent.Toast(context.getString(R.string.mail_attachment_still_loading))
+            else -> MailReadEvent.Toast(mailText(context, MailHomeViewModel.code(file)))
         }
     }
 
@@ -297,7 +385,7 @@ class MailReadViewModel @Inject constructor(
         val target = File(dir, MailLogic.fileName(a.name))
         if (target.isFile && target.length() > 0) return MResult.Ok(target)
         val media = api.attachmentMedia(id, a.id)
-        if (media !is MResult.Ok) return media.let { MResult.Failed(MailHomeViewModel.code(it), 0) }
+        if (media !is MResult.Ok) return media.notOk()
         val body = api.media(media.value.mediaId)
         if (body !is MResult.Ok) return MResult.Failed(MailHomeViewModel.code(body), 0)
         return withContext(Dispatchers.IO) {
@@ -319,8 +407,56 @@ class MailReadViewModel @Inject constructor(
         root.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.deleteRecursively() }
     }
 
-    /** A picture of the HTML (`img/…`, `cid/…`) through the plugin, with the app's sign-in. */
-    suspend fun picture(path: String): Pair<ByteArray, String>? = api.picture(path)
+    /**
+     * A picture of the HTML (`img/…`, `cid/…`) through the plugin, with the app's sign-in (called on the WebView's
+     * threads). An embedded picture the provider still sends (`busy`) is left out for now: the page loads its pictures
+     * again after `retryAfter` (at most [MailLogic.BUSY_RETRIES] times) or when the live event names it.
+     */
+    suspend fun picture(path: String): Pair<ByteArray, String>? {
+        synchronized(pictures) { pictures[path] }?.let { return it.bytes to it.mime }
+        return when (val r = api.picture(path)) {
+            is MPicture.Got -> {
+                synchronized(pictures) { pictures[path] = r }
+                MailLogic.cidAttachment(path)?.let { aid ->
+                    if (waitingCid.remove(aid) && waitingCid.isEmpty()) _state.update { it.copy(picturesLoading = false) }
+                }
+                r.bytes to r.mime
+            }
+            is MPicture.Busy -> {
+                MailLogic.cidAttachment(path)?.let { aid -> pictureBusy(aid, r.retryAfter) }
+                null
+            }
+            MPicture.None -> null
+        }
+    }
+
+    private fun picturesBytes(): Long = pictures.values.sumOf { it.bytes.size.toLong() }
+
+    private fun pictureBusy(attachmentId: Long, retryAfter: Int) {
+        waitingCid.add(attachmentId)
+        if (pictureTries >= MailLogic.BUSY_RETRIES) {
+            _state.update { it.copy(picturesLoading = false) }
+            return
+        }
+        _state.update { it.copy(picturesLoading = true) }
+        synchronized(this) {
+            if (pictureRetry?.isActive == true) return
+            pictureRetry = viewModelScope.launch {
+                delay(MailLogic.retryDelayMs(retryAfter))
+                pictureTries++
+                reloadPictures(fromTimer = true)
+            }
+        }
+    }
+
+    /** The page asks for its pictures again (those it has come from [pictures]). */
+    private fun reloadPictures(fromTimer: Boolean = false) {
+        if (!fromTimer) synchronized(this) {
+            pictureRetry?.cancel()
+            pictureRetry = null
+        }
+        _state.update { it.copy(pictureRound = it.pictureRound + 1) }
+    }
 
     fun consumed() {
         _event.value = null
@@ -328,6 +464,7 @@ class MailReadViewModel @Inject constructor(
 
     private companion object {
         const val MAX_SUGGEST = 5
+        const val PICTURES_MAX_BYTES = 16L * 1024 * 1024
     }
 }
 

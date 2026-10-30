@@ -48,6 +48,7 @@ class MailApi @Inject constructor(
         private const val UPLOAD_TIMEOUT_MS = 30 * 60_000L
         private const val IMAGE_TIMEOUT_MS = 20_000L
         private const val IMAGE_MAX_BYTES = 6L * 1024 * 1024
+        private const val AVATAR_MAX_BYTES = 2L * 1024 * 1024
     }
 
     private val _unauthorized = MutableSharedFlow<Int>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -217,21 +218,23 @@ class MailApi @Inject constructor(
     }
 
     /**
-     * A picture the mail's HTML asks for ([MailLogic.interceptPath]), with the app's own sign-in; null when it cannot
-     * be had. `img/<token>` answers `{ mime, size, data }` (Base64, at most 700 KB); `cid/<m>/<a>` answers
-     * `{ mediaId, mime, size }` and the picture is the plugin's media file. Only raster pictures (never SVG), a few MB.
+     * A picture the mail's HTML asks for ([MailLogic.interceptPath]), with the app's own sign-in. `img/<token>` answers
+     * `{ mime, size, data }` (Base64, at most 700 KB); `cid/<m>/<a>` answers `{ mediaId, mime, size }` and the picture
+     * is the plugin's media file, or `409 busy { reason: 'loading', retryAfter }` while the provider still sends it
+     * ([MPicture.Busy]). Only raster pictures (never SVG), a few MB.
      */
-    suspend fun picture(path: String): Pair<ByteArray, String>? {
+    suspend fun picture(path: String): MPicture {
         val url = setupRepository.getServerUrl()
-        if (url.isBlank() || !setupRepository.isConfigured()) return null
+        if (url.isBlank() || !setupRepository.isConfigured()) return MPicture.None
         return try {
             withTimeoutOrNull(IMAGE_TIMEOUT_MS) {
                 val r = apiClientProvider.getClient(url).pluginGet(MAIL_PLUGIN, path)
                 val o = r.body()?.takeIf { r.isSuccessful && !MailJson.isRefusal(it) } ?: run {
-                    r.errorBody()?.close()
-                    return@withTimeoutOrNull null
+                    val err = if (r.isSuccessful) r.body() else errorJson(r)
+                    val code = MailJson.failureCode(r.code(), err)
+                    return@withTimeoutOrNull MailJson.busyRetryAfter(code, err)?.let { MPicture.Busy(it) } ?: MPicture.None
                 }
-                val picture = MailJson.picture(o) ?: return@withTimeoutOrNull null
+                val picture = MailJson.picture(o) ?: return@withTimeoutOrNull MPicture.None
                 val bytes = picture.data ?: picture.mediaId?.let { media ->
                     val m = apiClientProvider.mediaClient(url).pluginMediaGet(MAIL_PLUGIN, media)
                     val body = m.body()
@@ -242,14 +245,20 @@ class MailApi @Inject constructor(
                     } else {
                         body.use { b -> b.byteStream().use { input -> readAtMost(input, IMAGE_MAX_BYTES) } }
                     }
-                } ?: return@withTimeoutOrNull null
-                bytes to picture.mime
-            }
+                } ?: return@withTimeoutOrNull MPicture.None
+                MPicture.Got(bytes, picture.mime)
+            } ?: MPicture.None
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            null
+            MPicture.None
         }
+    }
+
+    /** The account's picture ([MAccount.avatar]): the plugin's media file, at most [AVATAR_MAX_BYTES]; null when not had. */
+    suspend fun avatar(mediaId: String): ByteArray? = when (val r = media(mediaId)) {
+        is MResult.Ok -> runCatching { r.value.use { b -> b.byteStream().use { readAtMost(it, AVATAR_MAX_BYTES) } } }.getOrNull()
+        else -> null
     }
 
     /** All of [input], null when it is longer than [max]. */

@@ -216,6 +216,40 @@ class MailJsonTest {
     }
 
     @Test
+    fun `the realtime event since 1_1_2 - a body, an attachment, a thread`() {
+        assertEquals(
+            MChanged(3, null, messageId = 42, attachmentId = 7),
+            MailJson.changed(JsonParser.parseString("""{"kind":"changed","accountId":3,"folderId":null,"messageId":42,"attachmentId":7}""")),
+        )
+        assertEquals(MChanged(3, 10, threadId = 9), MailJson.changed(JsonParser.parseString("""{"mail":{"kind":"changed","accountId":3,"folderId":10,"threadId":9}}""")))
+        assertEquals(MChanged(3, null), MailJson.changed(JsonParser.parseString("""{"kind":"changed","accountId":3,"messageId":0,"attachmentId":"x"}""")))
+    }
+
+    @Test
+    fun `account picture - media id and a raster mime, else none`() {
+        val a = MailJson.account(obj("""{"id":5,"provider":"m365","email":"t@firma.de","avatar":{"mediaId":"ab_12","mime":"image/jpeg"}}"""))!!
+        assertEquals(MAvatar("ab_12", "image/jpeg"), a.avatar)
+        assertNull(MailJson.account(obj("""{"id":5,"provider":"m365","email":"t@firma.de","avatar":null}"""))!!.avatar)
+        assertNull(MailJson.account(obj(account))!!.avatar, "older servers send none")
+        assertNull(MailJson.account(obj("""{"id":5,"email":"t@firma.de","avatar":{"mediaId":"../x","mime":"image/png"}}"""))!!.avatar)
+        assertNull(MailJson.account(obj("""{"id":5,"email":"t@firma.de","avatar":{"mediaId":"m1","mime":"image/svg+xml"}}"""))!!.avatar)
+    }
+
+    @Test
+    fun `busy - when to ask again and whether it is still loading`() {
+        val loading = obj("""{"code":"busy","reason":"loading","retryAfter":5}""")
+        assertEquals(5, MailJson.busyRetryAfter("busy", loading))
+        assertTrue(MailJson.busyLoading("busy", loading))
+        assertEquals(12, MailJson.busyRetryAfter("busy", obj("""{"error":{"code":"busy","retryAfter":12}}""")))
+        assertFalse(MailJson.busyLoading("busy", obj("""{"error":{"code":"busy","retryAfter":12}}""")), "throttled, not loading")
+        assertEquals(5, MailJson.busyRetryAfter("busy", null))
+        assertEquals(60, MailJson.busyRetryAfter("busy", obj("""{"retryAfter":3600}""")))
+        assertEquals(1, MailJson.busyRetryAfter("busy", obj("""{"retryAfter":0}""")))
+        assertNull(MailJson.busyRetryAfter("not_found", loading))
+        assertFalse(MailJson.busyLoading("conflict", loading))
+    }
+
+    @Test
     fun `bodies - drafts with every kind of attachment, flags, moves, accounts`() {
         val body = MailJson.draftBody(
             accountId = 3,

@@ -193,6 +193,39 @@ object MailLogic {
     fun nextColor(used: List<String?>): String =
         COLORS.firstOrNull { c -> used.none { it.equals(c, ignoreCase = true) } } ?: COLORS[used.size % COLORS.size]
 
+    // ─── accounts: the provider's mark ──────────────────────────────
+
+    /** The round mark of an account without a picture (own simple signs, no provider logos). */
+    enum class Mark { OUTLOOK, M365, GMAIL, GMX, WEBDE, TONLINE, OTHER }
+
+    fun mark(provider: String?): Mark = when (provider) {
+        MAccount.PROVIDER_OUTLOOK -> Mark.OUTLOOK
+        MAccount.PROVIDER_M365 -> Mark.M365
+        MAccount.PROVIDER_GMAIL -> Mark.GMAIL
+        MAccount.PROVIDER_GMX -> Mark.GMX
+        MAccount.PROVIDER_WEBDE -> Mark.WEBDE
+        MAccount.PROVIDER_TONLINE -> Mark.TONLINE
+        else -> Mark.OTHER
+    }
+
+    // ─── loading later (Mail 1.1.2) ─────────────────────────────────
+
+    /** How often an attachment or embedded picture still loading (`busy`) is asked for again by itself. */
+    const val BUSY_RETRIES = 3
+
+    /** `busy`'s `retryAfter` (seconds) as a wait; never below a second, never above a minute. */
+    fun retryDelayMs(retryAfter: Int?): Long = (retryAfter ?: 5).coerceIn(1, 60) * 1000L
+
+    /** Whether a live event `mail` concerns the open mail [messageId] (or its conversation [threadId]). */
+    fun concerns(changed: MChanged, messageId: Long, threadId: Long?): Boolean =
+        changed.messageId == messageId || (threadId != null && changed.threadId == threadId)
+
+    /** The attachment of an embedded picture's path `cid/<mail>/<attachment>`; null for anything else. */
+    fun cidAttachment(path: String): Long? {
+        val parts = path.split('/')
+        return if (parts.size == 3 && parts[0] == "cid") parts[2].toLongOrNull()?.takeIf { it > 0 } else null
+    }
+
     /** Quota in percent (0…100), null without a quota. */
     fun quotaPercent(used: Long, quota: Long): Int? = if (quota <= 0) null else ((used.coerceAtLeast(0) * 100.0) / quota).toInt().coerceIn(0, 100)
 

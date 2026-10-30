@@ -84,6 +84,8 @@ data class MAccount(
     /** off | suggest | auto */
     val attachments: String,
     val signature: String?,
+    /** The account's picture at the provider (Microsoft only, since Mail 1.1.2), loaded as the plugin's media. */
+    val avatar: MAvatar? = null,
 ) {
     val label: String get() = name?.takeIf { it.isNotBlank() } ?: email
 
@@ -107,6 +109,9 @@ data class MAccount(
         val ATTACHMENTS = listOf("off", "suggest", "auto")
     }
 }
+
+/** `Account.avatar`: `{ mediaId, mime }`. */
+data class MAvatar(val mediaId: String, val mime: String)
 
 /** `GET providers`: one entry of "Konto hinzufügen". */
 data class MProvider(
@@ -234,7 +239,10 @@ data class MMessage(
     val trackers: Int,
     val attachments: List<MAttachment>,
     val unsubscribe: MUnsubscribe?,
-    /** The body is not on the server (any more) and could not be fetched from the provider. */
+    /**
+     * The body is not here yet: the server did not get it from the provider in time (`text` is the snippet then); the
+     * live event `mail` with this mail's id (or its thread's) tells when it is there.
+     */
     val bodyMissing: Boolean = false,
 ) {
     val id: Long get() = summary.id
@@ -328,10 +336,27 @@ data class MFilingItem(
 /** `GET messages/<id>/attachments/<aid>`: where its file lies. */
 data class MAttachmentMedia(val mediaId: String, val name: String, val mime: String, val size: Long)
 
+/** A picture of a mail's HTML (`img/…`, `cid/…`) as the app got it. */
+sealed class MPicture {
+    class Got(val bytes: ByteArray, val mime: String) : MPicture()
+    /** `409 busy { reason: 'loading' }`: an embedded picture still on its way — ask again after [retryAfter] s. */
+    data class Busy(val retryAfter: Int) : MPicture()
+    data object None : MPicture()
+}
+
 data class MSaveAll(val saved: List<Pair<Long, MSavedTo>>, val failed: List<Pair<Long, String>>)
 
 /** `POST messages/<id>/attachments/<aid>/drive/suggest`. */
 data class MSuggest(val suggestion: MSuggestion?, val duplicate: Boolean)
 
-/** Realtime event `mail` `{ kind: 'changed', accountId, folderId }`. */
-data class MChanged(val accountId: Long?, val folderId: Long?)
+/**
+ * Realtime event `mail` `{ kind: 'changed', accountId, folderId }` — since Mail 1.1.2 also with [messageId] (a body
+ * the answer did not wait for is there; with [attachmentId]: that attachment) or [threadId].
+ */
+data class MChanged(
+    val accountId: Long?,
+    val folderId: Long?,
+    val messageId: Long? = null,
+    val threadId: Long? = null,
+    val attachmentId: Long? = null,
+)
