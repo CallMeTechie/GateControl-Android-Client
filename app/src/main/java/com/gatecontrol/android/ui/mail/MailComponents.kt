@@ -111,12 +111,8 @@ internal fun mailDateTime(date: Long): String =
     Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(Locale.getDefault()))
 
-/** A size in bytes as KB / MB. */
-internal fun mailSize(bytes: Long): String = when {
-    bytes >= 1024L * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / 1024.0 / 1024.0)
-    bytes >= 1024 -> "${(bytes / 1024.0).roundToInt()} KB"
-    else -> "$bytes B"
-}
+/** A size in bytes as B / KB / MB / GB (GB from 1 GB on, like Drive). */
+internal fun mailSize(bytes: Long): String = com.gatecontrol.android.drive.DriveLogic.size(bytes)
 
 /** The square with a file's type (`PDF`, `DOC` …) in its color. */
 @Composable
