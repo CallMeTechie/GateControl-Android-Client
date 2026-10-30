@@ -72,9 +72,12 @@ internal fun MailHtmlView(
                         safeBrowsingEnabled = true
                     }
                     webViewClient = object : WebViewClient() {
-                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse {
+                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                             val url = request.url.toString()
-                            // the page itself (loadDataWithBaseURL) never comes here; anything else must be one of ours
+                            // the page itself: newer WebViews hand loadDataWithBaseURL's data: document through here too;
+                            // a data: URL never leaves the device, so the WebView loads it (the CSP still applies)
+                            if (request.url.scheme.equals("data", ignoreCase = true)) return null
+                            // anything else must be one of ours
                             val path = MailLogic.interceptPath(url)
                             if (path != null && request.method.equals("GET", ignoreCase = true)) {
                                 val got = runCatching { runBlocking { load.value(path) } }.getOrNull()

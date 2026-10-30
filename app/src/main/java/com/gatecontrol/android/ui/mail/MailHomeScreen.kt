@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -155,7 +156,8 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
+            // the screen already sits below the status bar: no second inset at the top of the menu
+            ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface, windowInsets = WindowInsets(0)) {
                 val close: () -> Unit = { scope.launch { drawer.close() } }
                 MailDrawer(
                     me = me,
@@ -588,7 +590,7 @@ private fun MailDrawer(
     onSettings: () -> Unit,
 ) {
     val extra = GateControlTheme.extraColors
-    Column(Modifier.fillMaxHeight().padding(horizontal = 12.dp, vertical = 16.dp)) {
+    Column(Modifier.fillMaxHeight().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp)) {
         Text(
             stringResource(R.string.mail_tab),
             style = MaterialTheme.typography.headlineMedium,
