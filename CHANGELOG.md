@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.31] - 2026-10-30
+
+### Changes
+- Tab „Mail“ – Konten, Posteingänge, Lesen, Schreiben, KI, Drive (#156)
+
+---
+
 ## [1.67.30] - 2026-10-30
 
 ### Changes
