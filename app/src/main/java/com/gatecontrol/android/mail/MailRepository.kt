@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -62,6 +63,15 @@ class MailRepository @Inject constructor(
 
     private val _undo = MutableStateFlow<MUndo?>(null)
     val undo: StateFlow<MUndo?> = _undo.asStateFlow()
+
+    /** The menu's folded accounts (account id → folders shown), kept while the app runs. */
+    private val _folds = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    val folds: StateFlow<Map<Long, Boolean>> = _folds.asStateFlow()
+
+    /** A tap on an account in the menu: its folders open or close ([MailLogic.toggleFold]). */
+    fun toggleFold(accountId: Long, box: MailLogic.Box) {
+        _folds.update { MailLogic.toggleFold(it, accountId, box) }
+    }
 
     @Volatile private var meAt = 0L
     private var refreshJob: Job? = null

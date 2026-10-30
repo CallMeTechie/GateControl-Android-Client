@@ -320,7 +320,13 @@ data class MOutboxItem(
     val error: String?,
 )
 
-data class MContact(val name: String?, val email: String, val source: String)
+data class MContact(val name: String?, val email: String, val source: String) {
+    companion object {
+        /** A contact of the person (the coming contacts plugin); `recent`: someone written with lately. */
+        const val SOURCE_PERSON = "person"
+        const val SOURCE_RECENT = "recent"
+    }
+}
 
 /** "Zum Ablegen": an attachment the AI was not sure about. */
 data class MFilingItem(

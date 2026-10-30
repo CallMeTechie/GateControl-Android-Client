@@ -44,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -72,12 +73,15 @@ data class MailReadNav(
     val mailTo: (String) -> Unit,
     /** Another mail of the conversation. */
     val open: (Long) -> Unit,
+    /** The sender's page (their mails in the account [accountId]). */
+    val sender: (email: String, name: String?, accountId: Long) -> Unit = { _, _, _ -> },
 )
 
 /**
- * A mail (mockup "Mail lesen mit KI und Anhang nach Drive"): archive, delete and more on top; subject, sender and
- * account; the AI bar ("Kurz gesagt", to-dos as chips); the attachments with Drive's suggestion; "Bilder laden";
- * the body; the earlier mails of the conversation; answer suggestions, "Antworten" and "Weiterleiten" below.
+ * A mail (mockup "Mail lesen mit KI und Anhang nach Drive"): archive, delete and more on top; subject, the
+ * conversation ("Unterhaltung · n Mails": a tap shows all its mails, oldest first, each unfolding), sender (a tap
+ * opens the sender's page) and account; the AI bar ("Kurz gesagt", to-dos as chips); the attachments with Drive's
+ * suggestion; "Bilder laden"; the body; answer suggestions, "Antworten" and "Weiterleiten" below.
  */
 @Composable
 fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewModel()) {
@@ -152,11 +156,35 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                     Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Header(m, account?.label, accountColor(account))
+                    Subject(m)
+                    // the conversation: its line, and once tapped the mails before this one (oldest first)
+                    val (older, newer) = remember(state.conversation, m.id) { MailLogic.conversation(state.conversation, m.id) }
+                    val thread = me?.settings?.threads != false && m.summary.threadId != null && m.summary.threadCount > 1
+                    val threadMail: @Composable (MMessage) -> Unit = { t ->
+                        ThreadMail(
+                            t,
+                            color = accountColor(me?.account(t.summary.accountId)),
+                            unfolded = t.id in state.threadUnfolded,
+                            onFold = { viewModel.toggleThreadMail(t.id) },
+                            onOpen = { nav.open(t.id) },
+                            loader = viewModel::picture,
+                            onLink = onLink,
+                        )
+                    }
+                    if (thread) {
+                        ThreadLine(
+                            count = maxOf(m.summary.threadCount, state.conversation.size),
+                            names = MailLogic.participants(state.conversation.map { it.summary }.ifEmpty { listOf(m.summary) }),
+                            open = state.threadOpen,
+                            loading = state.threadLoading,
+                            onToggle = viewModel::toggleThread,
+                        )
+                        if (state.threadOpen) older.forEach { threadMail(it) }
+                    }
+                    SenderLine(m, account?.label, accountColor(account), onSender = { nav.sender(m.summary.from.email, m.summary.from.name, m.summary.accountId) })
                     if (state.offline) {
                         GcBanner(tone = GcTone.Neutral, icon = GcIcons.Wifi) { Text(stringResource(R.string.mail_offline_copy), style = MaterialTheme.typography.bodySmall) }
                     }
-                    if (state.thread.isNotEmpty()) ThreadBox(state.thread, nav.open)
                     AiCard(state.ai, me, onRetry = { viewModel.runAi(force = true) }, onFamily = viewModel::todoToFamily, onCalendar = { todo ->
                         addToCalendar(context, todo, todo.text)
                     })
@@ -223,6 +251,8 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                             )
                         }
                     }
+                    // the mails after this one (the newest at the bottom)
+                    if (thread && state.threadOpen) newer.forEach { threadMail(it) }
                 }
                 BottomBar(
                     replies = (state.ai as? MailAiState.Ready)?.ai?.replies.orEmpty(),
@@ -254,28 +284,46 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
 }
 
 @Composable
-private fun Header(m: MMessage, accountLabel: String?, color: androidx.compose.ui.graphics.Color) {
+private fun Subject(m: MMessage) {
+    Text(
+        m.summary.subject.ifEmpty { stringResource(R.string.mail_no_subject) },
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.semantics { heading() },
+    )
+}
+
+/** The sender (a tap: their page), the account and the time (a tap: the details). */
+@Composable
+private fun SenderLine(m: MMessage, accountLabel: String?, color: androidx.compose.ui.graphics.Color, onSender: () -> Unit) {
     val extra = GateControlTheme.extraColors
     var details by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            m.summary.subject.ifEmpty { stringResource(R.string.mail_no_subject) },
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.semantics { heading() },
-        )
-        Row(
-            Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.mail_details)) { details = !details },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            MailDot(color)
-            Text(m.summary.from.label.ifEmpty { stringResource(R.string.mail_unknown_sender) }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Text(
-                listOfNotNull(accountLabel?.let { stringResource(R.string.mail_to_account, it) }, mailTime(m.summary.date)).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = extra.muted,
-                maxLines = 1,
-            )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier
+                    .weight(1f, fill = false)
+                    .heightIn(min = 32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.mail_sender_show), onClick = onSender),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MailDot(color)
+                Text(m.summary.from.label.ifEmpty { stringResource(R.string.mail_unknown_sender) }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Row(
+                Modifier.heightIn(min = 32.dp).clickable(role = Role.Button, onClickLabel = stringResource(R.string.mail_details)) { details = !details },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    listOfNotNull(accountLabel?.let { stringResource(R.string.mail_to_account, it) }, mailTime(m.summary.date)).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extra.muted,
+                    maxLines = 1,
+                )
+                Icon(if (details) GcIcons.ChevronUp else GcIcons.ChevronDown, contentDescription = null, tint = extra.muted, modifier = Modifier.size(14.dp))
+            }
         }
         if (details) {
             SelectionContainer {
@@ -301,25 +349,99 @@ private fun DetailLine(label: String, list: List<MAddress>) {
     )
 }
 
-/** The earlier mails of the conversation (tap: open one). */
+/** "Unterhaltung · n Mails" with its senders: a tap shows all its mails (or folds them again). */
 @Composable
-private fun ThreadBox(thread: List<MSummary>, onOpen: (Long) -> Unit) {
+private fun ThreadLine(count: Int, names: List<String>, open: Boolean, loading: Boolean, onToggle: () -> Unit) {
     val extra = GateControlTheme.extraColors
+    val state = stringResource(if (open) R.string.mail_thread_shown else R.string.mail_thread_hidden)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(role = Role.Button, onClickLabel = stringResource(if (open) R.string.mail_thread_hide else R.string.mail_thread_show), onClick = onToggle)
+            .semantics { stateDescription = state }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(pluralStringResource(R.plurals.mail_thread, count, count), style = MaterialTheme.typography.labelMedium, color = extra.muted)
+            if (names.isNotEmpty()) {
+                Text(names.joinToString(", "), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+        Icon(if (open) GcIcons.ChevronUp else GcIcons.ChevronDown, contentDescription = null, tint = extra.muted, modifier = Modifier.size(18.dp))
+    }
+}
+
+/**
+ * Another mail of the conversation: sender, time and preview; a tap unfolds it (its body, "Mail öffnen" for the
+ * attachments and answering).
+ */
+@Composable
+private fun ThreadMail(
+    t: MMessage,
+    color: androidx.compose.ui.graphics.Color,
+    unfolded: Boolean,
+    onFold: () -> Unit,
+    onOpen: () -> Unit,
+    loader: suspend (String) -> Pair<ByteArray, String>?,
+    onLink: (String) -> Unit,
+) {
+    val extra = GateControlTheme.extraColors
+    val s = t.summary
+    val state = stringResource(if (unfolded) R.string.mail_thread_shown else R.string.mail_thread_hidden)
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surface)) {
-        Text(
-            pluralStringResource(R.plurals.mail_thread, thread.size + 1, thread.size + 1),
-            style = MaterialTheme.typography.labelMedium,
-            color = extra.muted,
-            modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 4.dp),
-        )
-        thread.forEach { t ->
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable { onOpen(t.id) }.padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(t.from.label, style = MaterialTheme.typography.bodyMedium, fontWeight = if (t.unread) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Text(mailTime(t.date), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .clickable(role = Role.Button, onClick = onFold)
+                .semantics { stateDescription = state }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SenderAvatar(s.from.name, s.from.email, color, size = 32.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        s.from.label.ifEmpty { stringResource(R.string.mail_unknown_sender) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (s.unread) FontWeight.Bold else FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(mailTime(s.date), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                }
+                if (!unfolded) {
+                    val preview = s.snippet.ifBlank { s.subject }
+                    if (preview.isNotBlank()) Text(preview, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        if (unfolded) {
+            Column(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                val html = t.html
+                if (html != null) {
+                    val page = remember(html, t.attachments) { MailLogic.rewriteCid(html, t.id, t.attachments) }
+                    MailHtmlView(page, loader = loader, onLink = onLink)
+                } else {
+                    SelectionContainer {
+                        Text(t.text.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f), modifier = Modifier.padding(horizontal = 6.dp))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (t.imagesBlocked || t.attachments.any { !it.inline }) {
+                        Icon(if (t.imagesBlocked) GcIcons.Photo else GcIcons.Paperclip, contentDescription = null, tint = extra.muted, modifier = Modifier.padding(start = 6.dp).size(14.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onOpen) { Text(stringResource(R.string.mail_thread_open)) }
+                }
             }
         }
     }

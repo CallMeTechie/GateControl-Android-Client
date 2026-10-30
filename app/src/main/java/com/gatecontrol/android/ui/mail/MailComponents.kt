@@ -235,9 +235,9 @@ internal fun FileBadge(name: String, mime: String, size: Int = 40) {
 
 /** The round avatar with the sender's initials in the account's color. */
 @Composable
-internal fun SenderAvatar(name: String?, email: String, color: Color) {
-    Box(Modifier.size(40.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
-        Text(MailLogic.initials(name, email), color = Color(0xFF0D1015), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+internal fun SenderAvatar(name: String?, email: String, color: Color, size: Dp = 40.dp) {
+    Box(Modifier.size(size).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
+        Text(MailLogic.initials(name, email), color = Color(0xFF0D1015), fontWeight = FontWeight.Bold, fontSize = (size.value * 0.35f).sp)
     }
 }
 

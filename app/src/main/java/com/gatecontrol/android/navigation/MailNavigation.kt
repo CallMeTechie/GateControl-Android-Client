@@ -16,6 +16,8 @@ import com.gatecontrol.android.ui.mail.MailOutboxScreen
 import com.gatecontrol.android.ui.mail.MailReadNav
 import com.gatecontrol.android.ui.mail.MailReadScreen
 import com.gatecontrol.android.ui.mail.MailSearchScreen
+import com.gatecontrol.android.ui.mail.MailSenderNav
+import com.gatecontrol.android.ui.mail.MailSenderScreen
 import com.gatecontrol.android.ui.mail.MailSettingsScreen
 
 /** Mail's ways between its screens (the tab, a page beside Start and the routes on top share them). */
@@ -71,6 +73,18 @@ internal fun NavGraphBuilder.mailRoutes(
                     compose = { mode, reply -> if (id != null) go(Screen.MailCompose.create(ref = id, mode = mode, reply = reply)) },
                     mailTo = { to -> go(Screen.MailCompose.create(to = to)) },
                     open = { other -> navController.navigate(Screen.MailMessage.create(other)) },
+                    sender = { email, name, account -> go(Screen.MailSender.create(email, name, account)) },
+                ),
+            )
+        }
+    }
+    composable(Screen.MailSender.route, arguments = listOf(optional(Screen.MailSender.ARG_EMAIL), optional(Screen.MailSender.ARG_NAME), optional(Screen.MailSender.ARG_ACCOUNT))) {
+        GcContentWidth {
+            MailSenderScreen(
+                MailSenderNav(
+                    back = back,
+                    write = { to, account -> go(Screen.MailCompose.create(account = account, to = to)) },
+                    open = { id -> navController.navigate(Screen.MailMessage.create(id)) },
                 ),
             )
         }

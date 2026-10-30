@@ -58,6 +58,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -114,6 +115,7 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
     val undo by viewModel.undo.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val reopen by viewModel.reopen.collectAsStateWithLifecycle()
+    val folds by viewModel.folds.collectAsStateWithLifecycle()
     val context = mailContext()
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -165,6 +167,8 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
                     box = box,
                     filing = filing,
                     outbox = outbox,
+                    folds = folds,
+                    onFold = viewModel::toggleFold,
                     onBox = { close(); viewModel.selectBox(it) },
                     onFiling = { close(); nav.filing() },
                     onOutbox = { close(); nav.outbox() },
@@ -573,8 +577,9 @@ internal object MailFolders {
 
 /**
  * The menu (mockup "Seitenmenü"): "Mail", "Alle Posteingänge", "Zum Ablegen" (with Drive), "Postausgang" (when
- * something waits), the accounts — the chosen one with its folders — and below "Konto hinzufügen" and the settings.
- * Calendar and resources come later (phase 2/3).
+ * something waits), the accounts with their folders and below "Konto hinzufügen" and the settings. A tap on an
+ * account opens or closes its folders (the menu stays, [folds] keeps it for the session); picking its "Posteingang"
+ * or a folder closes the menu. Calendar and resources come later (phase 2/3).
  */
 @Composable
 private fun MailDrawer(
@@ -583,6 +588,8 @@ private fun MailDrawer(
     box: MailLogic.Box,
     filing: Int,
     outbox: Int,
+    folds: Map<Long, Boolean>,
+    onFold: (Long) -> Unit,
     onBox: (MailLogic.Box) -> Unit,
     onFiling: () -> Unit,
     onOutbox: () -> Unit,
@@ -611,31 +618,26 @@ private fun MailDrawer(
                 item(key = "accounts") { DrawerLabel(stringResource(R.string.mail_accounts)) }
             }
             accounts.forEach { a ->
+                val open = MailLogic.foldOpen(folds, a.id, box)
                 item(key = "a${a.id}") {
-                    DrawerAccount(a, me?.unreadByAccount?.get(a.id) ?: 0, on = box.accountId == a.id && box.folderId == null) {
-                        onBox(MailLogic.Box(a.id))
-                    }
+                    DrawerAccount(a, me?.unreadByAccount?.get(a.id) ?: 0, on = !open && box.accountId == a.id, open = open) { onFold(a.id) }
                 }
-                if (box.accountId == a.id) {
+                if (open) {
                     val list = MailFolders.ordered(folders[a.id].orEmpty())
+                    // the account's inbox is always there (also before its folders came)
+                    if (list.none { it.role == MFolder.ROLE_INBOX }) {
+                        item(key = "i${a.id}") {
+                            DrawerFolder(stringResource(R.string.mail_inbox), 0, on = box.accountId == a.id && box.folderId == null) { onBox(MailLogic.Box(a.id)) }
+                        }
+                    }
                     list.forEach { f ->
                         item(key = "f${f.id}") {
-                            val label = MailFolders.label(f)
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 40.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (box.folderId == f.id) extra.accentBg else Color.Transparent)
-                                    .selectable(selected = box.folderId == f.id, role = Role.Tab) {
-                                        onBox(MailLogic.Box(a.id, f.id.takeIf { f.role != MFolder.ROLE_INBOX }))
-                                    }
-                                    .padding(start = 58.dp, end = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(label, style = MaterialTheme.typography.bodyMedium, color = if (box.folderId == f.id) extra.accentText else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (f.unread > 0) Text(f.unread.toString(), style = MaterialTheme.typography.labelMedium, color = extra.muted, fontWeight = FontWeight.Bold)
-                            }
+                            val inbox = f.role == MFolder.ROLE_INBOX
+                            DrawerFolder(
+                                MailFolders.label(f),
+                                f.unread,
+                                on = if (inbox) box.accountId == a.id && box.folderId == null else box.folderId == f.id,
+                            ) { onBox(MailLogic.Box(a.id, f.id.takeIf { !inbox })) }
                         }
                     }
                 }
@@ -692,24 +694,49 @@ private fun DrawerItem(icon: androidx.compose.ui.graphics.vector.ImageVector?, l
     }
 }
 
-/** An account in the menu (like the Outlook app): its picture or the provider's mark, the name, the address below. */
+/** A folder of an account in the menu (indented below it). */
 @Composable
-private fun DrawerAccount(a: MAccount, count: Int, on: Boolean, onClick: () -> Unit) {
+private fun DrawerFolder(label: String, unread: Int, on: Boolean, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (on) extra.accentBg else Color.Transparent)
+            .selectable(selected = on, role = Role.Tab, onClick = onClick)
+            .padding(start = 58.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (on) extra.accentText else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (unread > 0) Text(unread.toString(), style = MaterialTheme.typography.labelMedium, color = extra.muted, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * An account in the menu (like the Outlook app): its picture or the provider's mark, the name, the address below and
+ * the arrow; a tap opens or closes its folders.
+ */
+@Composable
+private fun DrawerAccount(a: MAccount, count: Int, on: Boolean, open: Boolean, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val state = stringResource(if (open) R.string.mail_folders_shown else R.string.mail_folders_hidden)
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (on) extra.accentBg else Color.Transparent)
-            .selectable(selected = on, role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .clickable(role = Role.Button, onClickLabel = stringResource(if (open) R.string.mail_folders_hide else R.string.mail_folders_show), onClick = onClick)
+            .semantics { stateDescription = state }
+            .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         MailAccountAvatar(a, size = 34.dp, ring = if (on) extra.accentBg else MaterialTheme.colorScheme.surface)
         MailAccountText(a, Modifier.weight(1f), color = if (on) extra.accentText else MaterialTheme.colorScheme.onSurface, bold = on)
         if (count > 0) Text(count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = extra.muted)
+        Icon(if (open) GcIcons.ChevronUp else GcIcons.ChevronDown, contentDescription = null, tint = extra.muted, modifier = Modifier.size(18.dp))
     }
 }
 

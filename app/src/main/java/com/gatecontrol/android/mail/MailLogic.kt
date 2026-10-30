@@ -74,6 +74,51 @@ object MailLogic {
     /** Whether a mail still belongs to the list it is in after [action] (archive, delete, junk, move take it away). */
     fun leavesList(action: String): Boolean = action in setOf(SWIPE_ARCHIVE, SWIPE_DELETE, "junk", "move", "tab")
 
+    // ─── the menu: an account's folders ─────────────────────────────
+
+    /**
+     * Whether the menu shows [accountId]'s folders: as the person folded it this session ([folds]), else open for the
+     * account of the [box] shown.
+     */
+    fun foldOpen(folds: Map<Long, Boolean>, accountId: Long, box: Box): Boolean = folds[accountId] ?: (box.accountId == accountId)
+
+    /** [folds] after a tap on the account (its folders open or close; the menu stays). */
+    fun toggleFold(folds: Map<Long, Boolean>, accountId: Long, box: Box): Map<Long, Boolean> =
+        folds + (accountId to !foldOpen(folds, accountId, box))
+
+    // ─── a conversation ─────────────────────────────────────────────
+
+    /**
+     * A conversation (`GET threads/<id>`) around the open mail [currentId]: the mails before it and those after it,
+     * each oldest first (the newest at the bottom, as in Outlook). Without the open mail in it, all count as before.
+     */
+    fun conversation(items: List<MMessage>, currentId: Long): Pair<List<MMessage>, List<MMessage>> {
+        val sorted = items.distinctBy { it.id }.sortedWith(compareBy({ it.summary.date }, { it.id }))
+        val at = sorted.indexOfFirst { it.id == currentId }
+        if (at < 0) return sorted to emptyList()
+        return sorted.subList(0, at) to sorted.subList(at + 1, sorted.size)
+    }
+
+    /** The senders of a conversation for its line ("Anna, Tim"), each once, at most [max]. */
+    fun participants(items: List<MSummary>, max: Int = 3): List<String> =
+        items.map { it.from }.distinctBy { it.email.lowercase() }.map { it.label }.filter { it.isNotBlank() }.take(max)
+
+    // ─── a sender ───────────────────────────────────────────────────
+
+    /** `GET search` for the mails of [email] in the account [accountId] (all accounts without one). */
+    fun senderQuery(email: String, accountId: Long?, cursor: String? = null): Map<String, String> = buildMap {
+        put("from", email.trim().lowercase())
+        put("box", accountId?.toString() ?: BOX_ALL)
+        cursor?.let { put("cursor", it) }
+    }
+
+    /** The server's `from` matches a part of the address: only the mails of exactly [email] stay. */
+    fun fromSender(items: List<MSummary>, email: String): List<MSummary> = items.filter { it.from.email.trim().equals(email.trim(), ignoreCase = true) }
+
+    /** The name of [email] in the person's contacts (`contacts?q=`, a `person` hit), null when there is none. */
+    fun contactOf(contacts: List<MContact>, email: String): MContact? =
+        contacts.firstOrNull { it.source == MContact.SOURCE_PERSON && it.email.trim().equals(email.trim(), ignoreCase = true) && !it.name.isNullOrBlank() }
+
     // ─── swipes ─────────────────────────────────────────────────────
 
     const val SWIPE_ARCHIVE = MSettings.SWIPE_ARCHIVE
@@ -311,21 +356,50 @@ object MailLogic {
         return parseRecipients(addr).addresses.firstOrNull()
     }
 
+    /** The page's margin (CSS px) around the mail. */
+    const val PAGE_PADDING = 12
+
+    /** Below this a mail is not made any smaller to fit (pinching still zooms in). */
+    const val MIN_ZOOM = 0.25
+
+    /** How often a page is laid out again to fit (each time only smaller, so it always ends). */
+    const val FIT_ROUNDS = 3
+
     /**
      * The page the WebView shows: the mail's (already cleaned) HTML with a strict content policy (no scripts, no
-     * frames, pictures only from the app's own address) and a width that fits the phone.
+     * frames, pictures only from the app's own address) and a width that fits the phone: pictures, tables, long
+     * links and preformatted text stay inside the screen. What is still wider (a newsletter's table of a fixed 600 px)
+     * is made smaller as a whole with [zoom] (CSS `zoom` on the mail, as mail apps do), measured from outside by
+     * [fitZoom] — the page itself never runs a script. Pinching still zooms in.
      */
-    fun page(html: String, dark: Boolean = false): String {
+    fun page(html: String, dark: Boolean = false, zoom: Double = 1.0): String {
         val csp = "default-src 'none'; img-src $BASE_URL data:; style-src 'unsafe-inline'; font-src data:; " +
             "script-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'"
         val colors = if (dark) "color-scheme: light;" else ""
+        val z = zoom.coerceIn(MIN_ZOOM, 1.0)
+        val fit = if (z < 1.0) "#gc-fit{zoom:${String.format(java.util.Locale.ROOT, "%.3f", z)}}" else ""
         return "<!doctype html><html><head><meta charset=\"utf-8\">" +
             "<meta http-equiv=\"Content-Security-Policy\" content=\"$csp\">" +
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
-            "<style>html,body{margin:0;padding:0;$colors}body{padding:12px;font-family:sans-serif;font-size:15px;line-height:1.5;" +
+            "<style>html,body{margin:0;padding:0;$colors}body{padding:${PAGE_PADDING}px;font-family:sans-serif;font-size:15px;line-height:1.5;" +
             "word-wrap:break-word;overflow-wrap:anywhere;background:#FFFFFF;color:#1A1D22}" +
-            "img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}</style></head><body>" +
-            html + "</body></html>"
+            "img{max-width:100%;height:auto}table{max-width:100%}td,th{overflow-wrap:anywhere}" +
+            "a{overflow-wrap:anywhere;word-break:break-word}pre{white-space:pre-wrap;overflow-wrap:anywhere}$fit</style></head><body>" +
+            "<div id=\"gc-fit\">" + html + "</div></body></html>"
+    }
+
+    /**
+     * The [page]'s zoom so the mail fits without scrolling sideways, from what the WebView measured: [viewCss] its
+     * width and [contentCss] the width of what it shows (both in CSS px, the content at the [current] zoom). Null
+     * when it fits already (1 px of rounding allowed) or would not get smaller; never below [MIN_ZOOM].
+     */
+    fun fitZoom(viewCss: Double, contentCss: Double, current: Double = 1.0): Double? {
+        if (viewCss <= 2 * PAGE_PADDING || contentCss <= viewCss + 1.0 || current <= MIN_ZOOM) return null
+        // the mail at zoom 1 (the margin on the left is not zoomed; one on the right may count or not)
+        val mail = (contentCss - PAGE_PADDING) / current
+        val zoom = ((viewCss - 2 * PAGE_PADDING) / mail).coerceIn(MIN_ZOOM, 1.0)
+        val rounded = kotlin.math.floor(zoom * 1000) / 1000
+        return rounded.takeIf { it < current - 0.001 }
     }
 
     // ─── the body of a draft ────────────────────────────────────────

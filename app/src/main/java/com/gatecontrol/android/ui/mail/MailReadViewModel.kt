@@ -61,8 +61,13 @@ data class MailReadState(
     val loading: Boolean = true,
     val offline: Boolean = false,
     val error: String? = null,
-    /** The other mails of the conversation, oldest first. */
-    val thread: List<MSummary> = emptyList(),
+    /** The mails of the conversation (`GET threads/<id>`, this one among them), oldest first; empty until loaded. */
+    val conversation: List<MMessage> = emptyList(),
+    /** "Unterhaltung · n Mails" was tapped: all its mails show, the open one unfolded. */
+    val threadOpen: Boolean = false,
+    val threadLoading: Boolean = false,
+    /** The other mails of the conversation unfolded. */
+    val threadUnfolded: Set<Long> = emptySet(),
     val attachments: List<MailAttachmentUi> = emptyList(),
     val ai: MailAiState = MailAiState.Off,
     val imagesBusy: Boolean = false,
@@ -200,10 +205,7 @@ class MailReadViewModel @Inject constructor(
         val me = repository.me.value ?: repository.refresh().valueOrNull()
         val account = me?.account(m.summary.accountId)
         // the conversation (when the person groups by conversation)
-        val threadId = m.summary.threadId
-        if (me?.settings?.threads != false && threadId != null && m.summary.threadCount > 1) {
-            api.thread(threadId).valueOrNull()?.let { items -> _state.update { it.copy(thread = items.map { t -> t.summary }.filter { t -> t.id != m.id }) } }
-        }
+        if (me?.settings?.threads != false && hasThread(m)) loadThread()
         // the AI bar: only where the server offers AI and the account allows it
         if (me?.has(MMe.FEATURE_AI) == true && account?.ai != false) {
             if (_state.value.ai !is MailAiState.Ready) _state.update { it.copy(ai = MailAiState.Loading) }
@@ -220,6 +222,35 @@ class MailReadViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun hasThread(m: MMessage): Boolean = m.summary.threadId != null && m.summary.threadCount > 1
+
+    /** The conversation's mails (`GET threads/<id>`, oldest first). */
+    private suspend fun loadThread() {
+        val threadId = _state.value.message?.summary?.threadId ?: return
+        if (_state.value.threadLoading) return
+        _state.update { it.copy(threadLoading = true) }
+        val r = api.thread(threadId)
+        _state.update { s ->
+            when (r) {
+                is MResult.Ok -> s.copy(conversation = r.value, threadLoading = false)
+                else -> s.copy(threadLoading = false)
+            }
+        }
+        if (r !is MResult.Ok && _state.value.threadOpen) _event.value = MailReadEvent.Toast(mailText(context, MailHomeViewModel.code(r)))
+    }
+
+    /** A tap on "Unterhaltung · n Mails": all mails of the conversation show (loaded now when not yet), or fold again. */
+    fun toggleThread() {
+        val open = !_state.value.threadOpen
+        _state.update { it.copy(threadOpen = open) }
+        if (open && _state.value.conversation.isEmpty()) viewModelScope.launch { loadThread() }
+    }
+
+    /** Another mail of the conversation unfolded or folded. */
+    fun toggleThreadMail(id: Long) {
+        _state.update { s -> s.copy(threadUnfolded = if (id in s.threadUnfolded) s.threadUnfolded - id else s.threadUnfolded + id) }
     }
 
     private fun aiError(r: MResult<*>): MailAiState = when ((r as? MResult.Failed)?.code) {
@@ -258,6 +289,8 @@ class MailReadViewModel @Inject constructor(
                 is MResult.Ok -> {
                     show(r.value.first, loading = false)
                     cache.putMessage(r.value.second)
+                    // the HTML is the same as before (its pictures' addresses do not change): the page loads them now
+                    imagesAllowed(sender)
                 }
                 else -> _event.value = MailReadEvent.Toast(mailText(context, MailHomeViewModel.code(r)))
             }
@@ -447,6 +480,16 @@ class MailReadViewModel @Inject constructor(
                 reloadPictures(fromTimer = true)
             }
         }
+    }
+
+    /**
+     * The pictures were allowed (`POST messages/<id>/images`): those the page was refused are asked for again — none of
+     * them is kept (a refusal never is, and the WebView keeps no answer); always for the [sender]: the conversation's
+     * mails come again with theirs.
+     */
+    private fun imagesAllowed(sender: Boolean) {
+        reloadPictures()
+        if (sender && _state.value.conversation.isNotEmpty()) viewModelScope.launch { loadThread() }
     }
 
     /** The page asks for its pictures again (those it has come from [pictures]). */
