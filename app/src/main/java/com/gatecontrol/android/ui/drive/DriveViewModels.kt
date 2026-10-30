@@ -297,6 +297,7 @@ class DriveFolderViewModel @Inject constructor(
     private val settings: com.gatecontrol.android.drive.DriveSettings,
     val ops: com.gatecontrol.android.drive.DriveOps,
     private val workPhotos: com.gatecontrol.android.drive.work.DriveWorkPhotos,
+    private val filing: com.gatecontrol.android.drive.DriveFiling,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -600,6 +601,10 @@ class DriveFolderViewModel @Inject constructor(
     /**
      * A scan waiting to be saved: its pages, their recognised text (null while that runs), PDF or pictures (the
      * server's "Scans speichern als" until the person picks), and the folder it goes to (this one at first).
+     *
+     * Drive 1.14 (`scanDocs`, D5): "Scan prüfen" instead ([review]) — the phone reads the pages with where the text
+     * stands ([reads]), the pages go up as media and Drive's AI says what the scan is ([kind]; null while it runs,
+     * [classified] once it answered or failed); the person picks PDF (searchable, made here), Word, Excel or the picture.
      */
     data class ScanDraft(
         val scan: DriveScanner.Pages,
@@ -608,30 +613,94 @@ class DriveFolderViewModel @Inject constructor(
         val formatPicked: Boolean = false,
         val folderId: Long,
         val folderLabel: String,
-    )
+        val review: Boolean = false,
+        val reads: List<DriveScanner.Read?>? = null,
+        /** The AI may be asked (the folder's area has AI for documents). */
+        val ai: Boolean = false,
+        val kind: com.gatecontrol.android.drive.DScanKind? = null,
+        val classified: Boolean = false,
+        val mediaIds: List<String>? = null,
+        val format: com.gatecontrol.android.drive.DriveKi.Format? = null,
+        /** The name typed ("Ändern"), without extension; null: the suggested one. */
+        val name: String? = null,
+        val keepOriginal: Boolean = true,
+        val saving: Boolean = false,
+        val scanFormat: String? = null,
+    ) {
+        /** What the AI said the scan is (`other` while it has not, or could not). */
+        val kindNow: String get() = kind?.kind ?: com.gatecontrol.android.drive.DriveKi.KIND_OTHER
+        /** Word and Excel only once the AI said what it is and its pages are in Drive. */
+        val aiReady: Boolean get() = ai && kind != null && !mediaIds.isNullOrEmpty()
+        val formats: List<com.gatecontrol.android.drive.DriveKi.Format> get() = com.gatecontrol.android.drive.DriveKi.formats(kindNow, aiReady)
+        val formatNow: com.gatecontrol.android.drive.DriveKi.Format
+            get() = format?.takeIf { it in formats } ?: com.gatecontrol.android.drive.DriveKi.defaultFormat(kindNow, aiReady, scanFormat)
+        val lines: List<String> get() = reads.orEmpty().flatMap { r -> r?.lines.orEmpty().map { it.text } }
+        val text: String? get() = DriveLogic.scanText(texts ?: reads?.map { it?.text }.orEmpty())
+    }
 
     private val _scan = MutableStateFlow<ScanDraft?>(null)
     val scan: StateFlow<ScanDraft?> = _scan.asStateFlow()
     private var recognizing: Deferred<List<String?>>? = null
+    private var reading: Deferred<List<DriveScanner.Read?>>? = null
 
     /** The scanner is back with [pages]: the save sheet opens, the text is recognised meanwhile. */
     fun scanned(pages: DriveScanner.Pages) {
         val here = (_state.value as? DriveLoad.Ready)?.value ?: return
         if (pages.pages.isEmpty()) return
-        _scan.value = ScanDraft(pages, folderId = here.node.id, folderLabel = label(here, _area.value?.label))
+        val review = live.me.value?.has(com.gatecontrol.android.drive.DMe.FEATURE_SCAN_DOCS) == true
+        // Word and Excel: at most 8 pages go to Drive's AI
+        val ai = review && _area.value?.docAi != false && pages.pages.size <= com.gatecontrol.android.drive.DriveJson.SCAN_MEDIA_MAX
+        val keep = DriveViewPref.keepOriginal(context) ?: live.me.value?.scanKeepOriginal ?: true
+        _scan.value = ScanDraft(pages, folderId = here.node.id, folderLabel = label(here, _area.value?.label), review = review, ai = ai, keepOriginal = keep)
         viewModelScope.launch {
             val format = api.me().valueOrNull()?.scanFormat
-            _scan.update { d -> if (d != null && d.scan == pages && !d.formatPicked && format != null) d.copy(pdf = format != "image") else d }
+            _scan.update { d -> if (d != null && d.scan == pages && !d.formatPicked && format != null) d.copy(pdf = format != "image", scanFormat = format) else d }
         }
-        val job = viewModelScope.async { scanner.recognize(pages.pages) }
-        recognizing = job
+        if (!review) {
+            val job = viewModelScope.async { scanner.recognize(pages.pages) }
+            recognizing = job
+            viewModelScope.launch {
+                val texts = job.await()
+                _scan.update { d -> if (d?.scan == pages) d.copy(texts = texts) else d }
+            }
+            return
+        }
+        val read = viewModelScope.async { scanner.read(pages.pages) }
+        reading = read
+        recognizing = viewModelScope.async { read.await().map { it?.text } }
         viewModelScope.launch {
-            val texts = job.await()
-            _scan.update { d -> if (d?.scan == pages) d.copy(texts = texts) else d }
+            val reads = read.await()
+            _scan.update { d -> if (d?.scan == pages) d.copy(reads = reads, texts = reads.map { it?.text }) else d }
+            if (!ai) {
+                _scan.update { d -> if (d?.scan == pages) d.copy(classified = true) else d }
+                return@launch
+            }
+            // text first: the pages go up as media (Word and Excel are made from them), the AI gets the text
+            val media = scanner.uploadPages(pages, api)
+            val ids = media.valueOrNull()
+            if (ids == null) {
+                _scan.update { d -> if (d?.scan == pages) d.copy(classified = true) else d }
+                return@launch
+            }
+            _scan.update { d -> if (d?.scan == pages) d.copy(mediaIds = ids) else d }
+            val kind = api.classifyScan(ids, DriveLogic.scanText(reads.map { it?.text }))
+            _scan.update { d -> if (d?.scan == pages) d.copy(kind = kind.valueOrNull(), classified = true) else d }
         }
     }
 
     fun setScanPdf(pdf: Boolean) = _scan.update { it?.copy(pdf = pdf, formatPicked = true) }
+
+    /** "Scan prüfen": the chip [format]. */
+    fun setScanFormat(format: com.gatecontrol.android.drive.DriveKi.Format) = _scan.update { it?.copy(format = format, formatPicked = true) }
+
+    /** "Scan prüfen": the name typed ("Ändern"). */
+    fun setScanName(name: String) = _scan.update { it?.copy(name = com.gatecontrol.android.drive.DriveKi.cleanName(name)) }
+
+    /** "Original-Scan behalten" (kept on this phone for the next scan). */
+    fun setKeepOriginal(on: Boolean) {
+        DriveViewPref.setKeepOriginal(context, on)
+        _scan.update { it?.copy(keepOriginal = on) }
+    }
 
     /** Another folder for the scan: the folder picker, starting here. */
     fun pickScanFolder() {
@@ -656,6 +725,127 @@ class DriveFolderViewModel @Inject constructor(
             val texts = d.texts ?: job?.await().orEmpty()
             val ok = scanner.save(d.scan, texts, DriveLogic.scanBase(typedName, fallback), d.pdf, d.folderId)
             if (!ok) _message.value = "scan_read"
+        }
+    }
+
+    /**
+     * "Scan prüfen" saves as [base] (the shown name, without extension): the searchable PDF made here, the pictures,
+     * or Word / Excel made by Drive (`scans/convert`); the dialog stays open on a refusal.
+     */
+    fun saveReviewed(base: String) {
+        val d = _scan.value ?: return
+        if (d.saving) return
+        val format = d.formatNow
+        val name = com.gatecontrol.android.drive.DriveKi.fileName(base, format)
+        viewModelScope.launch {
+            _scan.update { it?.copy(saving = true) }
+            val reads = d.reads ?: reading?.await()
+            val text = DriveLogic.scanText(reads?.map { it?.text } ?: recognizing?.await().orEmpty())
+            when (format) {
+                com.gatecontrol.android.drive.DriveKi.Format.IMAGE -> {
+                    _scan.value = null
+                    val ok = scanner.savePictures(d.scan, reads?.map { it?.text } ?: recognizing?.await().orEmpty(), base, d.folderId)
+                    if (!ok) _message.value = "scan_read"
+                }
+                com.gatecontrol.android.drive.DriveKi.Format.PDF -> {
+                    val pdf = scanner.searchablePdf(d.scan, reads.orEmpty())
+                    if (pdf == null) {
+                        // no JPEG pages: the scanner's own PDF as before
+                        _scan.value = null
+                        val ok = scanner.save(d.scan, reads?.map { it?.text }.orEmpty(), base, true, d.folderId)
+                        if (!ok) _message.value = "scan_read"
+                    } else {
+                        _scan.value = null
+                        scanner.uploadMade(pdf, name, format.mime, d.folderId, text)
+                    }
+                }
+                else -> {
+                    val ids = d.mediaIds
+                    val target = format.target
+                    if (ids.isNullOrEmpty() || target == null) {
+                        _scan.update { it?.copy(saving = false) }
+                        _message.value = "failed"
+                        return@launch
+                    }
+                    val code = convertScan(d, ids, target, name, base, text, reads)
+                    if (code == null) {
+                        _scan.value = null
+                        _message.value = "done_scan_doc"
+                    } else {
+                        _scan.update { it?.copy(saving = false) }
+                        _message.value = code
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Word / Excel (Drive 1.14 `scans/convert`): Drive reads the pages and sends the document's bytes back; they go up as
+     * media and are filed with `scans/save`. A whiteboard's photo and handwritten pages go along as small pictures (too
+     * large: once more without). "Original-Scan behalten": the scan goes next to it as a searchable PDF. Null when done.
+     */
+    private suspend fun convertScan(
+        d: ScanDraft,
+        ids: List<String>,
+        target: String,
+        name: String,
+        base: String,
+        text: String?,
+        reads: List<DriveScanner.Read?>?,
+    ): String? {
+        val kind = d.kindNow
+        val pictures = when (kind) {
+            com.gatecontrol.android.drive.DriveKi.KIND_WHITEBOARD -> listOf(0)
+            com.gatecontrol.android.drive.DriveKi.KIND_HANDWRITING -> d.scan.pages.indices.take(com.gatecontrol.android.drive.DriveJson.SCAN_MEDIA_MAX).toList()
+            else -> emptyList()
+        }
+        val images = if (pictures.isEmpty()) emptyList() else scanner.smallJpegs(d.scan, pictures)
+        var r = api.convertScan(ids, target, kind, d.folderId, name, text, images)
+        if (images.isNotEmpty() && r is DResult.Failed && (r.code == "too_large" || r.http == 413)) {
+            r = api.convertScan(ids, target, kind, d.folderId, name, text)
+        }
+        val c = when (r) {
+            is DResult.Ok -> r.value
+            else -> return r.errorCode() ?: "failed"
+        }
+        val file = c.file ?: return "invalid_answer"
+        val media = scanner.uploadBytes(file.data, file.mime, api)
+        val mediaId = media.valueOrNull() ?: return media.errorCode() ?: "failed"
+        val saved = when (val s = api.saveScan(mediaId, c.folderId ?: d.folderId, c.name ?: file.name, c.text ?: text)) {
+            is DResult.Ok -> s.value
+            else -> return s.errorCode() ?: "failed"
+        }
+        if (saved.node.parentId == folderId) refresh(quiet = true)
+        filing.watch(saved.node, scan = true)
+        // the scan's pages are fresh uploads here, not a file of Drive: kept, they go next to it as a PDF
+        if (d.keepOriginal) {
+            val pdf = scanner.searchablePdf(d.scan, reads.orEmpty())
+            val stem = com.gatecontrol.android.drive.DriveKi.cleanName(saved.node.name.substringBeforeLast('.')) ?: base
+            if (pdf != null) {
+                scanner.uploadMade(pdf, com.gatecontrol.android.drive.DriveKi.fileName("$stem (Scan)", com.gatecontrol.android.drive.DriveKi.Format.PDF), "application/pdf", saved.node.parentId ?: d.folderId, text, propose = false)
+            } else {
+                scanner.savePictures(d.scan, reads?.map { it?.text }.orEmpty(), "$stem (Scan)", saved.node.parentId ?: d.folderId)
+            }
+        }
+        return null
+    }
+
+    // ─── filing right after the upload (Drive 1.14, D4) ─────────────
+
+    /** The bar "Vorschlag · Ablegen als … in …" of a file just uploaded here. */
+    val filingProposal: StateFlow<com.gatecontrol.android.drive.DriveFiling.Proposal?> get() = filing.proposal
+
+    fun dismissFiling() = filing.dismiss()
+
+    /** "Übernehmen" ([folder] true) or "Anderer Ordner" (the name now, then the folder picker). */
+    fun acceptFiling(folder: Boolean, remind: Boolean) {
+        val p = filing.proposal.value ?: return
+        viewModelScope.launch {
+            val (node, code) = filing.accept(p, folder, remind)
+            _message.value = code ?: if (folder) "done_insight" else null
+            refresh(quiet = true)
+            if (!folder && node != null) startMove(node)
         }
     }
 
@@ -887,4 +1077,56 @@ class DriveSearchViewModel @Inject constructor(
     suspend fun office(node: DNode): DResult<com.gatecontrol.android.drive.DOffice> = api.office(node.id)
 
     suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
+
+    // ─── questions to the documents (Drive 1.14, feature `docAsk`) ──
+
+    /** A question and its answer; [deadline]: a recognised deadline of a source that the answer names. */
+    data class Asked(val q: String, val answer: DriveLoad<com.gatecontrol.android.drive.DAnswer>, val deadline: com.gatecontrol.android.drive.DDeadline? = null)
+
+    private val _asked = MutableStateFlow<Asked?>(null)
+    val asked: StateFlow<Asked?> = _asked.asStateFlow()
+    private var askJob: Job? = null
+
+    private val _calendarBusy = MutableStateFlow(false)
+    val calendarBusy: StateFlow<Boolean> = _calendarBusy.asStateFlow()
+
+    /** Asks Drive [q] (only from my files, never a vault). */
+    fun ask(q: String) {
+        val t = q.trim()
+        if (t.length < com.gatecontrol.android.drive.DriveJson.ASK_MIN) return
+        if ((_asked.value?.answer is DriveLoad.Loading) && _asked.value?.q == t) return
+        askJob?.cancel()
+        job?.cancel()
+        _state.value = null
+        askJob = viewModelScope.launch {
+            _asked.value = Asked(t, DriveLoad.Loading)
+            val r = api.ask(t.take(com.gatecontrol.android.drive.DriveJson.ASK_MAX))
+            // the deadline of a source the answer names comes with it
+            _asked.value = Asked(t, r.toLoad { it }, r.valueOrNull()?.takeIf { it.answered }?.deadline)
+        }
+    }
+
+    /** Back to the file search: the answer goes. */
+    fun clearAsk() {
+        askJob?.cancel()
+        _asked.value = null
+    }
+
+    fun calendar(d: com.gatecontrol.android.drive.DDeadline) {
+        if (_calendarBusy.value) return
+        viewModelScope.launch {
+            _calendarBusy.value = true
+            val r = api.deadlineToCalendar(d.id)
+            _calendarBusy.value = false
+            if (r is DResult.Ok) {
+                _asked.update { it?.copy(deadline = r.value.copy(nodeId = d.nodeId, node = r.value.node ?: d.node)) }
+                _message.value = "done_calendar"
+            } else {
+                _message.value = r.errorCode()
+            }
+        }
+    }
+
+    /** A source of the answer, to open it. */
+    suspend fun node(id: Long): DResult<DNode> = api.node(id)
 }

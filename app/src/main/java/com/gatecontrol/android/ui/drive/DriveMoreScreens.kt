@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -50,6 +52,38 @@ import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.launch
+
+/** The question's answer (Drive 1.14, D1), or what to do; the note "Antwort nur aus deinen Dateien …". */
+@Composable
+private fun AskContent(
+    asked: DriveSearchViewModel.Asked?,
+    areas: List<com.gatecontrol.android.drive.DArea>,
+    calendar: Boolean,
+    calendarBusy: Boolean,
+    onCalendar: (com.gatecontrol.android.drive.DDeadline) -> Unit,
+    onRetry: () -> Unit,
+    onSource: (com.gatecontrol.android.drive.DSource) -> Unit,
+) {
+    val x = GateControlTheme.extraColors
+    when (val a = asked?.answer) {
+        null -> Text(stringResource(R.string.drive_ki_ask_hint), color = x.muted, style = MaterialTheme.typography.bodyMedium)
+        DriveLoad.Loading -> DriveLoading()
+        is DriveLoad.Error -> DriveErrorBox(a.code, onRetry = onRetry)
+        is DriveLoad.Ready -> AnswerCard(
+            a = a.value,
+            areas = joinLabels(areas.filter { !it.archived }.map { it.label }),
+            deadline = asked?.deadline,
+            calendar = calendar,
+            calendarBusy = calendarBusy,
+            onCalendar = onCalendar,
+            onSource = onSource,
+        )
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+        androidx.compose.material3.Icon(GcIcons.Lock, contentDescription = null, tint = x.muted, modifier = Modifier.padding(top = 2.dp).size(14.dp))
+        Text(stringResource(R.string.drive_ki_ask_note), style = MaterialTheme.typography.bodySmall, color = x.muted)
+    }
+}
 
 /** The trash of every area the person writes to: restore or delete for good. */
 @Composable
@@ -125,6 +159,12 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     val haptic = LocalHapticFeedback.current
     val snackbar = remember { SnackbarHostState() }
     var q by rememberSaveable { mutableStateOf("") }
+    // Drive 1.14 (`docAsk`): "Dateien | Fragen" — a question goes to Drive's AI, answered only from my files
+    val askable = me?.has(DMe.FEATURE_DOC_ASK) == true
+    var askMode by rememberSaveable { mutableStateOf(false) }
+    val asking = askable && askMode
+    val asked by viewModel.asked.collectAsStateWithLifecycle()
+    val calendarBusy by viewModel.calendarBusy.collectAsStateWithLifecycle()
     var menuFor by remember { mutableStateOf<DNode?>(null) }
     var moreOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<DNode?>(null) }
@@ -167,12 +207,58 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                 if (!selecting) {
                     GcTextField(
                         value = q,
-                        onValueChange = { q = it.take(100); viewModel.search(q) },
-                        label = stringResource(R.string.drive_search_hint),
+                        onValueChange = {
+                            q = it.take(if (askable) com.gatecontrol.android.drive.DriveJson.ASK_MAX else 100)
+                            // a question mark at the end: it is a question
+                            if (askable && !askMode && com.gatecontrol.android.drive.DriveKi.isQuestion(q)) {
+                                askMode = true
+                                viewModel.search("")
+                            }
+                            if (!(askable && askMode)) viewModel.search(q.take(100))
+                        },
+                        label = stringResource(if (askable) R.string.drive_ki_search_or_ask else R.string.drive_search_hint),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { if (askable && askMode) viewModel.ask(q) }),
+                        trailingIcon = if (asking) {
+                            { GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.drive_ki_ask_send), onClick = { viewModel.ask(q) }, size = 44.dp, iconSize = 20.dp) }
+                        } else {
+                            null
+                        },
                     )
+                    if (askable) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            com.gatecontrol.android.ui.components.GcFilterChip(stringResource(R.string.drive_ki_mode_files), selected = !askMode, onClick = {
+                                askMode = false
+                                viewModel.clearAsk()
+                                viewModel.search(q.take(100))
+                            })
+                            com.gatecontrol.android.ui.components.GcFilterChip(stringResource(R.string.drive_ki_mode_ask), selected = askMode, onClick = {
+                                askMode = true
+                                viewModel.search("")
+                                if (q.trim().length >= com.gatecontrol.android.drive.DriveJson.ASK_MIN) viewModel.ask(q)
+                            })
+                        }
+                    }
                 }
                 BulkBusyCard(busy, viewModel.bulk::cancelBusy)
-                when (val s = state) {
+                if (asking) {
+                    AskContent(
+                        asked = asked,
+                        areas = areas,
+                        calendar = me?.has(DMe.FEATURE_DEADLINE_CALENDAR) == true,
+                        calendarBusy = calendarBusy,
+                        onCalendar = viewModel::calendar,
+                        onRetry = { viewModel.ask(q) },
+                        onSource = { src ->
+                            scope.launch {
+                                when (val r = viewModel.node(src.nodeId)) {
+                                    is com.gatecontrol.android.drive.DResult.Ok -> open(r.value, false)
+                                    else -> Toast.makeText(context, driveText(context, r.errorCode() ?: "failed"), Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                    )
+                } else when (val s = state) {
                     null -> if (q.isNotBlank()) Text(stringResource(R.string.drive_search_min), color = GateControlTheme.extraColors.muted)
                     DriveLoad.Loading -> DriveLoading()
                     is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = { viewModel.search(q) })

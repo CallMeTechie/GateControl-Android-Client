@@ -213,6 +213,22 @@ class DriveSettingsViewModel @Inject constructor(
             }
         }
     }
+
+    /** "Neue Fristen in den Familienkalender" of [area] (Drive 1.14, `deadlineCalendar`, the write right). */
+    fun setDeadlinesToCalendar(area: DArea, on: Boolean) {
+        val before = area.deadlinesToCalendar
+        fun put(value: Boolean?) = _areas.update { list -> list.map { if (it.id == area.id) it.copy(deadlinesToCalendar = value) else it } }
+        put(on)
+        viewModelScope.launch {
+            when (val r = api.setAreaDeadlinesToCalendar(area.id, on)) {
+                is DResult.Ok -> put(r.value)
+                else -> {
+                    put(before)
+                    _message.value = r.errorCode()
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -395,6 +411,17 @@ fun DriveSettingsScreen(
                             onCheckedChange = { on -> viewModel.setDocAi(a, on) },
                             icon = GcIcons.Receipt,
                         )
+                        // Drive 1.14 (`deadlineCalendar`): new deadlines of the area into the family calendar on their own
+                        if (me?.has(DMe.FEATURE_DEADLINE_CALENDAR) == true && a.docAi == true && a.deadlinesToCalendar != null) {
+                            GcRowDivider()
+                            GcSwitchRow(
+                                label = stringResource(R.string.drive_ki_area_calendar),
+                                description = stringResource(R.string.drive_ki_area_calendar_desc, a.label),
+                                checked = a.deadlinesToCalendar == true,
+                                onCheckedChange = { on -> viewModel.setDeadlinesToCalendar(a, on) },
+                                icon = GcIcons.Calendar,
+                            )
+                        }
                     }
                     GcRowDivider()
                     Text(
