@@ -47,6 +47,14 @@
 # models keep their field names like the logbook's all the same. Chat
 # conversations (listPinned, notice) are tree-parsed too (ChatJson).
 -keep class com.gatecontrol.android.push.routes.** { <fields>; }
+# Order of the start and Familie tabs and the pages beside Start
+# (TabLayoutRepository): stored as reflective Gson JSON (StoredTabLayout with
+# LayoutAccess and the enum LayoutScope). Without this rule R8 dropped the
+# enum constant LayoutScope.USER, Gson stored the scope as null, the app read
+# it back as "device" and never sent a change: the next refresh replaced it
+# with the server's order (pinned pages lost, 1.67.27/28). Field names stay
+# stable across releases like Familie's.
+-keep class com.gatecontrol.android.layout.** { <fields>; }
 
 # ── WireGuard ─────────────────────────────────────────────
 -keep class com.wireguard.** { *; }
