@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 /** The form of "<Anbieter> einrichten". */
@@ -216,6 +217,8 @@ class MailAddAccountViewModel @Inject constructor(
             return
         }
         val redirect = MailMicrosoft.redirectUri(hash)
+        // in the support log: the redirect to compare with the app registration ("redirect_uri is not valid")
+        Timber.i("Mail: Microsoft sign-in, redirect %s", redirect)
         val verifier = MailMicrosoft.newVerifier()
         val st = MailMicrosoft.newState()
         val hint = relogin?.let { me.account(it)?.email }
