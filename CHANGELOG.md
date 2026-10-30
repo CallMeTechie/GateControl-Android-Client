@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.32] - 2026-10-30
+
+### Changes
+- Speicher ab 1 GB in GB anzeigen (#157)
+
+---
+
 ## [1.67.31] - 2026-10-30
 
 ### Changes
