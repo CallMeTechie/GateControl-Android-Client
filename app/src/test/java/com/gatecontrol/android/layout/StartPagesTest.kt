@@ -50,8 +50,16 @@ class StartPagesTest {
         assertEquals(listOf("info"), split.start)
         assertEquals(listOf("vault", "future", "w1"), StartPages.pages(StartPages.join(split)))
         // Shown: known functions that are available and widget pages from 2 on.
-        assertEquals(listOf("vault"), StartPages.visible(listOf("page:vault", "page:future", "page:w1", "page:drive"), listOf("vault")))
-        assertEquals(listOf("w2", "network"), StartPages.visible(listOf("page:w2", "page:network"), listOf("network", "chats")))
+        assertEquals(listOf("vault"), StartPages.visible(StartPages.pages(listOf("page:vault", "page:future", "page:w1", "page:drive")), listOf("vault")))
+        assertEquals(listOf("w2", "network"), StartPages.visible(StartPages.pages(listOf("page:w2", "page:network")), listOf("network", "chats")))
+    }
+
+    @Test
+    fun `visible takes the page ids the store hands out`() {
+        // StartPagesStore.pages are ids, not the start list: a pinned page must show (1.67.27 showed none).
+        val ids = StartPages.pages(StartPages.pin(listOf("info", "usage"), StartPages.NETWORK))
+        assertEquals(listOf("network"), ids)
+        assertEquals(listOf("network"), StartPages.visible(ids, listOf("chats", "network")))
     }
 
     @Test

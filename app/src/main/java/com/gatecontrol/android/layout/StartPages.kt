@@ -93,12 +93,13 @@ object StartPages {
     fun pages(saved: List<String>): List<String> = split(saved).ids
 
     /**
-     * The pages to show: function pages only when the function is
+     * The pages to show of the page ids [pages] (as [pages] gives them, not
+     * the start list): function pages only when the function is
      * [available] (its plugin listed, the Netzwerk segments allowed),
      * every widget page; unknown ids are left out.
      */
-    fun visible(saved: List<String>, available: Collection<String>): List<String> =
-        pages(saved).filter { isWidgets(it) || (isFeature(it) && it in available) }
+    fun visible(pages: List<String>, available: Collection<String>): List<String> =
+        pages.filter { isWidgets(it) || (isFeature(it) && it in available) }
 
     /** The entries of the page [page] (null: the start tab). */
     fun entriesOf(saved: List<String>, page: String?): List<String> {
