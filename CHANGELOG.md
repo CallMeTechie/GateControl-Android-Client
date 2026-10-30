@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.27] - 2026-10-30
+
+### Changes
+- Seiten neben Start statt Tabs (#151)
+
+---
+
 ## [1.67.26] - 2026-10-29
 
 ### Changes
