@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -127,6 +126,28 @@ import com.gatecontrol.android.chat.ChatShareHandover
 import com.gatecontrol.android.ui.gatedrop.SharedScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.gatecontrol.android.layout.StartPages
+import com.gatecontrol.android.ui.start.LocalPageSnack
+import com.gatecontrol.android.ui.start.START_PAGE
+import com.gatecontrol.android.ui.start.StartPageRequest
+import com.gatecontrol.android.ui.start.StartPager
+import com.gatecontrol.android.ui.start.StartPagesArrangeScreen
+import com.gatecontrol.android.ui.start.StartPagesSettingsScreen
+import com.gatecontrol.android.ui.start.StartPagesViewModel
+import com.gatecontrol.android.ui.start.startPageLabel
+import kotlinx.coroutines.launch
 
 private data class TabItem(
     val route: String,
@@ -134,6 +155,8 @@ private data class TabItem(
     val label: Int,
     val icon: ImageVector,
     val badge: Int = 0,
+    /** The page id when the tab can be pinned to Start (all but Start, StartPages). */
+    val page: String? = MainTabs.pageOf(route),
 )
 
 @Composable
@@ -155,16 +178,105 @@ fun AppNavigation(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val showBottomBar = currentRoute in MainTabs.BAR_ROUTES
+    // Pages beside Start (StartPages): functions pinned there leave the bar.
+    val pagesViewModel: StartPagesViewModel = hiltViewModel()
+    val allPages by pagesViewModel.pages.collectAsStateWithLifecycle()
+    val pagesAccess by pagesViewModel.access.collectAsStateWithLifecycle()
+    val hideBarSetting by pagesViewModel.hideBar.collectAsStateWithLifecycle()
+    val tabRoutes = MainTabs.routes(
+        network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission),
+        plugins = plugins,
+    )
+    /** The functions this login has besides Start (tabs or pages). */
+    val features = MainTabs.features(tabRoutes)
+    /** The pages shown beside Start, in their order. */
+    val startPages = StartPages.visible(allPages, features)
+    val pinnedFeatures = startPages.filter { StartPages.isFeature(it) }
+    val barRoutes = MainTabs.visible(tabRoutes, pinnedFeatures)
+    val barHidden = MainTabs.hideBar(barRoutes, startPages, hideBarSetting)
+    val pinnedNow by rememberUpdatedState(pinnedFeatures)
+    /** The page of Start to show next (a pinned tab's route asked for, Start tapped). */
+    var pageRequest by remember { mutableStateOf<StartPageRequest?>(null) }
+    /** The last request per page (its route's arguments stay with the page). */
+    var pageRequests by remember { mutableStateOf(emptyMap<String, StartPageRequest>()) }
+    val requestPage: (StartPageRequest) -> Unit = { request ->
+        pageRequest = request
+        pageRequests = pageRequests + (request.page to request)
+    }
 
-    val navigateToTab: (String) -> Unit = { route ->
-        navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
-            }
+    val showBottomBar = currentRoute in MainTabs.BAR_ROUTES && !barHidden
+
+    /** To Start, showing [page] of it (null: whichever page it shows). */
+    val showStart: (StartPageRequest?) -> Unit = { request ->
+        if (request != null) requestPage(request)
+        navController.navigate(Screen.Vpn.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
             restoreState = true
         }
+    }
+    // A tab pinned to Start opens as its page there (the route's arguments go along).
+    val navigateToTab: (String) -> Unit = { route ->
+        val page = MainTabs.pageFor(route)?.takeIf { it in pinnedNow }
+        if (page != null) {
+            showStart(StartPageRequest(page, route))
+        } else {
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+    /** A tab's route with arguments that must win over a saved state (no restoreState); a pinned one opens its page. */
+    val openTab: (String) -> Unit = { route ->
+        val page = MainTabs.pageFor(route)?.takeIf { it in pinnedNow }
+        if (page != null) {
+            showStart(StartPageRequest(page, route))
+        } else {
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+            }
+        }
+    }
+    /** A pinned tab's route was opened anyway (an older path): its page instead. */
+    @Composable
+    fun RedirectToPage(page: String, route: String) {
+        LaunchedEffect(page, route) {
+            requestPage(StartPageRequest(page, route))
+            navController.navigate(Screen.Vpn.route) {
+                popUpTo(Screen.Vpn.route) { inclusive = false }
+                launchSingleTop = true
+            }
+        }
+    }
+    /** Start tapped in the bar: its first page, also when Start is shown already. */
+    val goToStart: () -> Unit = { showStart(StartPageRequest(START_PAGE)) }
+
+    // Pinning, taking off: a snackbar with "Rückgängig" (also from the settings).
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackScope = rememberCoroutineScope()
+    val undoLabel = stringResource(R.string.pages_undo)
+    val showSnack: (String, (() -> Unit)?) -> Unit = { message, undo ->
+        snackScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message,
+                actionLabel = if (undo != null) undoLabel else null,
+                withDismissAction = undo == null,
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) undo?.invoke()
+        }
+    }
+    val resources = LocalResources.current
+    /** Long press on a tab → "An Start anheften": the page, shown on Start. */
+    val pinFromBar: (String) -> Unit = { page ->
+        pagesViewModel.pin(page) { undo -> showSnack(resources.getString(R.string.pages_snack_pinned, startPageLabel(resources, page)), undo) }
+        showStart(StartPageRequest(page))
     }
 
     // The plugin's own tab icon (SVG path), else the house.
@@ -181,10 +293,7 @@ fun AppNavigation(
     // Start, Chats (messenger plugin), Netzwerk (Dienste, Pi-hole, Remote),
     // the plugin tab Familie (docs/FAMILIE.md). The door plugin has no tab
     // (docs/DOOR.md), the settings open from the profile (gear top right).
-    val tabs = MainTabs.routes(
-        network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission),
-        plugins = plugins,
-    ).map { route ->
+    val tabs = barRoutes.map { route ->
         when (route) {
             Screen.Network.route -> TabItem(route, Screen.Network.create(), R.string.nav_network, GcIcons.Globe, onlineRdpHostCount)
             Screen.Familie.route -> TabItem(route, Screen.Familie.create(), R.string.nav_familie, familieIcon)
@@ -229,15 +338,111 @@ fun AppNavigation(
         navBackStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true
     }
 
-    CompositionLocalProvider(LocalGcWindowLayout provides layout) {
+    // A tab's screen: as the tab (its route) or as a page beside Start (StartPager), the same either way.
+    @Composable
+    fun NetworkTab(initialTab: String?) {
+        GcContentWidth(maxWidth = 840.dp) {
+            NetworkScreen(
+                hasServices = hasServicesPermission,
+                hasPihole = hasPiholePermission,
+                hasRemote = hasRdpPermission,
+                initialTab = initialTab,
+                onGoToStart = goToStart,
+            )
+        }
+    }
+
+    @Composable
+    fun FamilieTab(dest: FamilieDest?) {
+        if (layout.twoPane) {
+            FamilieTwoPane(initial = dest, onOpenProfile = { openSettingsPane(SettingsPane.Profile) })
+        } else {
+            GcContentWidth {
+                FamilieHomeScreen(
+                    onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) },
+                    onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                )
+            }
+        }
+    }
+
+    @Composable
+    fun ChatsTab(conv: Long?, share: Boolean) {
+        val openInbox: () -> Unit = { navController.navigate(Screen.Inbox.create()) { launchSingleTop = true } }
+        val newChat: () -> Unit = { navController.navigate(Screen.ChatNew.create()) { launchSingleTop = true } }
+        val chatSettings: () -> Unit = { navController.navigate(Screen.ChatSettings.create()) { launchSingleTop = true } }
+        val openStory: (Long) -> Unit = { u -> navController.navigate(Screen.ChatStoryView.create(u)) { launchSingleTop = true } }
+        val storyComposer: () -> Unit = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } }
+        ChatSecureGate {
+            if (layout.twoPane) {
+                ChatsTwoPane(
+                    initial = conv,
+                    share = share,
+                    onOpenInbox = openInbox,
+                    onNewChat = newChat,
+                    onOpenUpdates = openSettings,
+                    onOpenInfo = { id -> navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
+                    onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
+                    onOpenSettings = chatSettings,
+                    onOpenStory = openStory,
+                    onOpenStoryComposer = storyComposer,
+                )
+            } else {
+                GcContentWidth {
+                    ChatListScreen(
+                        onOpen = { id ->
+                            val sharing = share || ChatShareHandover.pending.value != null
+                            navController.navigate(Screen.ChatConversation.create(id, sharing)) { launchSingleTop = true }
+                        },
+                        onOpenInbox = openInbox,
+                        onNewChat = newChat,
+                        onOpenUpdates = openSettings,
+                        onOpenSettings = chatSettings,
+                        onOpenStory = openStory,
+                        onOpenStoryComposer = storyComposer,
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * A function's page beside Start: its tab's screen. [route] is the
+     * tab's route last asked for (a push, a deep link) with its arguments;
+     * a new one starts the screen afresh with them.
+     */
+    @Composable
+    fun FeatureTab(id: String, route: String?) {
+        when (id) {
+            StartPages.NETWORK -> NetworkTab(route?.let { MainTabs.arg(it, Screen.Network.ARG_TAB) })
+            StartPages.FAMILIE -> FamilieTab(FamilieDest.parse(route?.let { MainTabs.arg(it, Screen.Familie.ARG_DEST) }))
+            StartPages.CHATS -> ChatsTab(
+                conv = route?.let { MainTabs.arg(it, Screen.Chats.ARG_CONV) }?.toLongOrNull(),
+                share = route?.let { MainTabs.arg(it, Screen.Chats.ARG_SHARE) } == "true",
+            )
+            StartPages.VAULT -> VaultHome(navController)
+            StartPages.DRIVE -> DriveHome(navController, onShown = {})
+        }
+    }
+
+    val selectTab: (TabItem) -> Unit = { tab -> if (tab.route == Screen.Vpn.route) goToStart() else navigateToTab(tab.navigateTo) }
+    val tabMenu = TabMenuActions(
+        locked = pagesAccess.locked,
+        onPin = pinFromBar,
+        onSettings = { openSettingsPane(SettingsPane.Pages) },
+    )
+
+    CompositionLocalProvider(LocalGcWindowLayout provides layout, LocalPageSnack provides showSnack) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (showBottomBar && !layout.useRail) {
                 GcTabBar(
                     tabs = tabs,
                     isSelected = isTabSelected,
-                    onSelect = { tab -> navigateToTab(tab.navigateTo) },
+                    onSelect = selectTab,
+                    menu = tabMenu,
                 )
             }
         },
@@ -247,7 +452,8 @@ fun AppNavigation(
             GcNavRail(
                 tabs = tabs,
                 isSelected = isTabSelected,
-                onSelect = { tab -> navigateToTab(tab.navigateTo) },
+                onSelect = selectTab,
+                menu = tabMenu,
             )
         }
         NavHost(
@@ -325,33 +531,49 @@ fun AppNavigation(
                     onPauseOrDispose { }
                 }
                 val bell = bellState(bellInputs?.first, bellInputs?.second ?: true, systemAllowed)
-                VpnScreen(
-                    unreadCount = unread,
-                    bell = bell,
-                    // Nothing arrives yet: the bell leads to where notifications are switched on.
-                    onOpenInbox = {
-                        if (bell.pushOff) openSettingsPane(SettingsPane.Notifications)
-                        else navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
-                    },
-                    onEnableNotifications = { openSettingsPane(SettingsPane.Notifications) },
-                    onDismissPushHint = inboxViewModel::dismissStartHint,
-                    onTokenInvalid = {
-                        navController.navigate(Screen.Setup.route) {
-                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        }
-                    },
-                    onOpenLogs = { openSettingsPane(SettingsPane.Logs) },
-                    onOpenQuickActions = { navController.navigate(Screen.QuickActions.route) { launchSingleTop = true } },
-                    onOpenLocationSettings = { openSettingsPane(SettingsPane.Location) },
-                    onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
-                    onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
-                    onOpenInfoCardPicker = { navController.navigate(Screen.InfoCardPicker.route) { launchSingleTop = true } },
-                    onOpenConnectionDetails = { openSettingsPane(SettingsPane.Connection) },
-                    // Long press on a door quick action: the door screen, a normal destination — no tab.
-                    onOpenDoor = openDoor,
-                    onOpenStoryComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
-                    onOpenOwnStories = { navController.navigate(Screen.ChatStoryView.create(0L)) { launchSingleTop = true } },
+                StartPager(
+                    pages = startPages,
+                    candidates = features.filter { it !in allPages },
+                    badges = mapOf(StartPages.CHATS to chatBadge, StartPages.NETWORK to onlineRdpHostCount),
+                    request = pageRequest,
+                    requests = pageRequests,
+                    names = barHidden,
+                    onArrangePages = { navController.navigate(Screen.StartPagesArrange.route) { launchSingleTop = true } },
+                    onOpenQuickActions = { page -> navController.navigate(Screen.QuickActions.create(page)) { launchSingleTop = true } },
                     onNewReminder = { navController.navigate(Screen.ReminderNew.create(it)) { launchSingleTop = true } },
+                    onOpenDoor = openDoor,
+                    // A new request for the page starts its screen afresh with the route's arguments.
+                    feature = { id, request -> key(request?.seq) { FeatureTab(id, request?.route) } },
+                    start = { onArrange ->
+                        VpnScreen(
+                            unreadCount = unread,
+                            bell = bell,
+                            // Nothing arrives yet: the bell leads to where notifications are switched on.
+                            onOpenInbox = {
+                                if (bell.pushOff) openSettingsPane(SettingsPane.Notifications)
+                                else navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
+                            },
+                            onEnableNotifications = { openSettingsPane(SettingsPane.Notifications) },
+                            onDismissPushHint = inboxViewModel::dismissStartHint,
+                            onTokenInvalid = {
+                                navController.navigate(Screen.Setup.route) {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                }
+                            },
+                            onOpenLogs = { openSettingsPane(SettingsPane.Logs) },
+                            onOpenQuickActions = { navController.navigate(Screen.QuickActions.create()) { launchSingleTop = true } },
+                            onOpenLocationSettings = { openSettingsPane(SettingsPane.Location) },
+                            onOpenDiagnosis = { openSettingsPane(SettingsPane.Diagnosis) },
+                            onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                            onOpenInfoCardPicker = { navController.navigate(Screen.InfoCardPicker.route) { launchSingleTop = true } },
+                            onOpenConnectionDetails = { openSettingsPane(SettingsPane.Connection) },
+                            // Long press on a door quick action: the door screen, a normal destination — no tab.
+                            onOpenDoor = openDoor,
+                            onOpenStoryComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
+                            onOpenOwnStories = { navController.navigate(Screen.ChatStoryView.create(0L)) { launchSingleTop = true } },
+                            onArrange = onArrange,
+                        )
+                    },
                 )
             }
 
@@ -375,14 +597,11 @@ fun AppNavigation(
                     },
                 ),
             ) { backStackEntry ->
-                GcContentWidth(maxWidth = 840.dp) {
-                    NetworkScreen(
-                        hasServices = hasServicesPermission,
-                        hasPihole = hasPiholePermission,
-                        hasRemote = hasRdpPermission,
-                        initialTab = backStackEntry.arguments?.getString(Screen.Network.ARG_TAB),
-                        onGoToStart = { navigateToTab(Screen.Vpn.route) },
-                    )
+                val tab = backStackEntry.arguments?.getString(Screen.Network.ARG_TAB)
+                if (StartPages.NETWORK in pinnedNow) {
+                    RedirectToPage(StartPages.NETWORK, Screen.Network.create(tab))
+                } else {
+                    NetworkTab(tab)
                 }
             }
 
@@ -421,6 +640,7 @@ fun AppNavigation(
                                 onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
                                 onNavigateToShared = if (plugins.gatedrop) { { paneKey = SettingsPane.Shared.key } } else null,
                                 onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
+                                onNavigateToPages = { paneKey = SettingsPane.Pages.key },
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
                             )
@@ -433,6 +653,8 @@ fun AppNavigation(
                                     onOpenRoutes = { navController.navigate(Screen.NotifyRoutes.route) { launchSingleTop = true } },
                                     onOpenRules = { navController.navigate(RulesRoutes.LIST) { launchSingleTop = true } },
                                     onSelectPane = { paneKey = it.key },
+                                    features = features,
+                                    onArrangePages = { navController.navigate(Screen.StartPagesArrange.route) { launchSingleTop = true } },
                                 )
                             }
                         },
@@ -451,6 +673,7 @@ fun AppNavigation(
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                         onNavigateToShared = if (plugins.gatedrop) { { navController.navigate(Screen.Shared.create()) { launchSingleTop = true } } } else null,
                         onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
+                        onNavigateToPages = { navController.navigate(Screen.SettingsPages.route) { launchSingleTop = true } },
                     )
                 }
             }
@@ -465,16 +688,11 @@ fun AppNavigation(
                     },
                 ),
             ) { backStackEntry ->
-                val dest = FamilieDest.parse(backStackEntry.arguments?.getString(Screen.Familie.ARG_DEST))
-                if (layout.twoPane) {
-                    FamilieTwoPane(initial = dest, onOpenProfile = { openSettingsPane(SettingsPane.Profile) })
+                val raw = backStackEntry.arguments?.getString(Screen.Familie.ARG_DEST)
+                if (StartPages.FAMILIE in pinnedNow) {
+                    RedirectToPage(StartPages.FAMILIE, Screen.Familie.create(raw))
                 } else {
-                    GcContentWidth {
-                        FamilieHomeScreen(
-                            onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) },
-                            onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
-                        )
-                    }
+                    FamilieTab(FamilieDest.parse(raw))
                 }
             }
 
@@ -518,41 +736,10 @@ fun AppNavigation(
             ) { backStackEntry ->
                 val conv = backStackEntry.arguments?.getString(Screen.Chats.ARG_CONV)?.toLongOrNull()
                 val share = backStackEntry.arguments?.getString(Screen.Chats.ARG_SHARE) == "true"
-                val openInbox: () -> Unit = { navController.navigate(Screen.Inbox.create()) { launchSingleTop = true } }
-                val newChat: () -> Unit = { navController.navigate(Screen.ChatNew.create()) { launchSingleTop = true } }
-                val chatSettings: () -> Unit = { navController.navigate(Screen.ChatSettings.create()) { launchSingleTop = true } }
-                val openStory: (Long) -> Unit = { u -> navController.navigate(Screen.ChatStoryView.create(u)) { launchSingleTop = true } }
-                val storyComposer: () -> Unit = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } }
-                ChatSecureGate {
-                if (layout.twoPane) {
-                    ChatsTwoPane(
-                        initial = conv,
-                        share = share,
-                        onOpenInbox = openInbox,
-                        onNewChat = newChat,
-                        onOpenUpdates = openSettings,
-                        onOpenInfo = { id -> navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
-                        onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
-                        onOpenSettings = chatSettings,
-                        onOpenStory = openStory,
-                        onOpenStoryComposer = storyComposer,
-                    )
+                if (StartPages.CHATS in pinnedNow) {
+                    RedirectToPage(StartPages.CHATS, Screen.Chats.create(conv, share))
                 } else {
-                    GcContentWidth {
-                        ChatListScreen(
-                            onOpen = { id ->
-                                val sharing = share || ChatShareHandover.pending.value != null
-                                navController.navigate(Screen.ChatConversation.create(id, sharing)) { launchSingleTop = true }
-                            },
-                            onOpenInbox = openInbox,
-                            onNewChat = newChat,
-                            onOpenUpdates = openSettings,
-                            onOpenSettings = chatSettings,
-                            onOpenStory = openStory,
-                            onOpenStoryComposer = storyComposer,
-                        )
-                    }
-                }
+                    ChatsTab(conv, share)
                 }
             }
 
@@ -604,10 +791,7 @@ fun AppNavigation(
                                 if (!navController.popBackStack()) break
                             }
                             if (layout.twoPane) {
-                                navController.navigate(Screen.Chats.create(conv = id)) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                }
+                                openTab(Screen.Chats.create(conv = id))
                             } else {
                                 navController.navigate(Screen.ChatConversation.create(id))
                             }
@@ -899,7 +1083,7 @@ fun AppNavigation(
                                     onBack = { selected = null },
                                     onNavigate = { target ->
                                         if (target is PushNavTarget.Detail) selected = target.id
-                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
                                     },
                                     viewModel = detailViewModel,
                                 )
@@ -926,7 +1110,7 @@ fun AppNavigation(
                         onBack = {
                             if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
                         },
-                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive) },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive) },
                     )
                 }
             }
@@ -984,12 +1168,36 @@ fun AppNavigation(
                 GcContentWidth { DiagnosisScreen(onBack = { navController.popBackStack() }) }
             }
 
-            composable(Screen.QuickActions.route) {
+            composable(
+                route = Screen.QuickActions.route,
+                arguments = listOf(
+                    navArgument(Screen.QuickActions.ARG_PAGE) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
                 GcContentWidth { QuickActionsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenDoor = openDoor,
                     onNewReminder = { navController.navigate(Screen.ReminderNew.create(it)) { launchSingleTop = true } },
+                    page = backStackEntry.arguments?.getString(Screen.QuickActions.ARG_PAGE)?.takeIf { StartPages.isWidgets(it) },
                 ) }
+            }
+
+            // Pages beside Start: "Seiten anordnen" and Einstellungen → "Leiste und Seiten".
+            composable(Screen.StartPagesArrange.route) {
+                GcContentWidth { StartPagesArrangeScreen(available = features, onBack = { navController.popBackStack() }) }
+            }
+            composable(Screen.SettingsPages.route) {
+                GcContentWidth {
+                    StartPagesSettingsScreen(
+                        available = features,
+                        onBack = { navController.popBackStack() },
+                        onArrangePages = { navController.navigate(Screen.StartPagesArrange.route) { launchSingleTop = true } },
+                    )
+                }
             }
 
             composable(
@@ -1016,8 +1224,16 @@ fun AppNavigation(
                 )
             }
 
-            vaultRoutes(navController, navigateToTab)
-            driveRoutes(navController, navigateToTab)
+            vaultRoutes(navController, navigateToTab) {
+                if (StartPages.VAULT in pinnedNow) RedirectToPage(StartPages.VAULT, Screen.Vault.route) else VaultHome(navController)
+            }
+            driveRoutes(navController, navigateToTab) { entry ->
+                if (StartPages.DRIVE in pinnedNow) {
+                    RedirectToPage(StartPages.DRIVE, Screen.Drive.route)
+                } else {
+                    DriveHome(navController, onShown = { id -> entry.savedStateHandle[DRIVE_TAB_SHOWN] = id })
+                }
+            }
         }
 
         // A tapped push message (PushOpenActivity) — only once the app is set up.
@@ -1026,7 +1242,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
+            openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -1046,6 +1262,8 @@ private fun openPushTarget(
     navController: NavHostController,
     target: PushNavTarget,
     navigateToTab: (String) -> Unit,
+    /** A tab's route whose arguments win over a saved state (a pinned tab: its page beside Start). */
+    openTab: (String) -> Unit,
     layout: GcWindowLayout,
     familieTab: Boolean,
     /** The door plugin is listed: its pushes open the door screens. */
@@ -1092,10 +1310,7 @@ private fun openPushTarget(
                 when {
             target.conversationId == null -> navigateToTab(Screen.Chats.create())
             target.conversationId == null -> navigateToTab(Screen.Chats.create())
-            layout.twoPane -> navController.navigate(Screen.Chats.create(conv = target.conversationId)) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-            }
+            layout.twoPane -> openTab(Screen.Chats.create(conv = target.conversationId))
             else -> {
                 navigateToTab(Screen.Chats.create())
                 navController.navigate(Screen.ChatConversation.create(target.conversationId)) { launchSingleTop = true }
@@ -1105,10 +1320,7 @@ private fun openPushTarget(
         }
         is PushNavTarget.ChatShare -> when {
             !chats -> ChatShareHandover.clear()
-            target.conversationId == null || layout.twoPane -> navController.navigate(Screen.Chats.create(conv = target.conversationId, share = true)) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-            }
+            target.conversationId == null || layout.twoPane -> openTab(Screen.Chats.create(conv = target.conversationId, share = true))
             else -> {
                 navigateToTab(Screen.Chats.create())
                 navController.navigate(Screen.ChatConversation.create(target.conversationId, share = true)) { launchSingleTop = true }
@@ -1127,14 +1339,8 @@ private fun openPushTarget(
             navController.navigate(Screen.NotificationDetail.create(target.id))
         }
         PushNavTarget.Vpn -> navigateToTab(Screen.Vpn.route)
-        PushNavTarget.Services -> navController.navigate(Screen.Network.create(NetworkTabs.SERVICES)) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-        }
-        PushNavTarget.Remote -> navController.navigate(Screen.Network.create(NetworkTabs.REMOTE)) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-        }
+        PushNavTarget.Services -> openTab(Screen.Network.create(NetworkTabs.SERVICES))
+        PushNavTarget.Remote -> openTab(Screen.Network.create(NetworkTabs.REMOTE))
         is PushNavTarget.Familie -> {
             val dest = FamilieDest.parse(target.dest) ?: FamilieDest.Home
             when {
@@ -1143,6 +1349,7 @@ private fun openPushTarget(
                     navController,
                     target.messageId?.let { PushNavTarget.Detail(it) } ?: PushNavTarget.Inbox,
                     navigateToTab,
+                    openTab,
                     layout,
                     familieTab = false,
                     door = door,
@@ -1150,10 +1357,7 @@ private fun openPushTarget(
                 )
                 // Wide screens: the screen beside the Familie start screen. No
                 // restoreState: the dest argument must win over a saved state.
-                layout.twoPane -> navController.navigate(Screen.Familie.create(dest.key)) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                }
+                layout.twoPane -> openTab(Screen.Familie.create(dest.key))
                 else -> {
                     navigateToTab(Screen.Familie.create())
                     if (dest != FamilieDest.Home) navController.navigate(Screen.FamiliePage.create(dest.key))
@@ -1173,6 +1377,7 @@ private fun openPushTarget(
                     navController,
                     target.messageId?.let { PushNavTarget.Detail(it) } ?: PushNavTarget.Inbox,
                     navigateToTab,
+                    openTab,
                     layout,
                     familieTab,
                     door = false,
@@ -1194,13 +1399,71 @@ private fun openPushTarget(
     }
 }
 
-/** Bottom tab bar from the mockup: pill indicator behind the icon, label below. */
+/**
+ * A long press on a tab (all but Start): "An Start anheften" (the tab
+ * becomes a page beside Start, [onPin] its page id) and "Leiste und Seiten
+ * …" ([onSettings]); [locked]: the admin fixes the order, pinning is off.
+ */
+private class TabMenuActions(
+    val locked: Boolean,
+    val onPin: (String) -> Unit,
+    val onSettings: () -> Unit,
+)
+
+/** A tab of the bar or the rail: tap selects it, a long press opens [TabMenu] (all but Start; [menuLabel] read out for it). */
+private fun Modifier.tabClick(tab: TabItem, selected: Boolean, onSelect: (TabItem) -> Unit, onMenu: (() -> Unit)?, menuLabel: String): Modifier =
+    combinedClickable(
+        role = Role.Tab,
+        onClick = { onSelect(tab) },
+        onLongClick = onMenu,
+        onLongClickLabel = if (onMenu != null) menuLabel else null,
+    ).semantics { this.selected = selected }
+
+/** The menu of a long-pressed tab (mockup "Tab lange drücken"). */
+@Composable
+private fun TabMenu(tab: TabItem, expanded: Boolean, actions: TabMenuActions, onDismiss: () -> Unit) {
+    val page = tab.page ?: return
+    val extra = GateControlTheme.extraColors
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        Text(
+            stringResource(tab.label),
+            style = MaterialTheme.typography.labelMedium,
+            color = extra.muted,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(stringResource(R.string.pages_tab_pin))
+                    Text(
+                        stringResource(if (actions.locked) R.string.arrange_locked else R.string.pages_tab_pin_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extra.muted,
+                    )
+                }
+            },
+            leadingIcon = { Icon(GcIcons.Pin, contentDescription = null, modifier = Modifier.size(20.dp)) },
+            enabled = !actions.locked,
+            onClick = { onDismiss(); actions.onPin(page) },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.pages_tab_settings)) },
+            leadingIcon = { Icon(GcIcons.Sliders, contentDescription = null, modifier = Modifier.size(20.dp)) },
+            onClick = { onDismiss(); actions.onSettings() },
+        )
+    }
+}
+
+/** Bottom tab bar from the mockup: pill indicator behind the icon, label below; a long press offers pinning to Start. */
 @Composable
 private fun GcTabBar(
     tabs: List<TabItem>,
     isSelected: (TabItem) -> Boolean,
     onSelect: (TabItem) -> Unit,
+    menu: TabMenuActions,
 ) {
+    var menuFor by remember { mutableStateOf<String?>(null) }
+    val menuLabel = stringResource(R.string.pages_tab_options)
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     Column(
@@ -1219,16 +1482,19 @@ private fun GcTabBar(
             val pill = if (tabs.size > 5) 52.dp else 60.dp
             tabs.forEach { tab ->
                 val selected = isSelected(tab)
-                TabItemContent(
-                    tab = tab,
-                    selected = selected,
-                    pillWidth = pill,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(72.dp)
-                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
-                        .padding(top = 10.dp),
-                )
+                Box(Modifier.weight(1f)) {
+                    TabItemContent(
+                        tab = tab,
+                        selected = selected,
+                        pillWidth = pill,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(72.dp)
+                            .tabClick(tab, selected, onSelect, onMenu = tab.page?.let { { menuFor = tab.route } }, menuLabel = menuLabel)
+                            .padding(top = 10.dp),
+                    )
+                    TabMenu(tab, expanded = menuFor == tab.route, actions = menu, onDismiss = { menuFor = null })
+                }
             }
         }
     }
@@ -1293,8 +1559,11 @@ private fun GcNavRail(
     tabs: List<TabItem>,
     isSelected: (TabItem) -> Boolean,
     onSelect: (TabItem) -> Unit,
+    menu: TabMenuActions,
 ) {
     val extra = GateControlTheme.extraColors
+    var menuFor by remember { mutableStateOf<String?>(null) }
+    val menuLabel = stringResource(R.string.pages_tab_options)
     Row(Modifier.fillMaxHeight()) {
         Column(
             Modifier
@@ -1314,14 +1583,17 @@ private fun GcNavRail(
             )
             tabs.forEach { tab ->
                 val selected = isSelected(tab)
-                TabItemContent(
-                    tab = tab,
-                    selected = selected,
-                    modifier = Modifier
-                        .width(80.dp)
-                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(tab) })
-                        .padding(vertical = 6.dp),
-                )
+                Box {
+                    TabItemContent(
+                        tab = tab,
+                        selected = selected,
+                        modifier = Modifier
+                            .width(80.dp)
+                            .tabClick(tab, selected, onSelect, onMenu = tab.page?.let { { menuFor = tab.route } }, menuLabel = menuLabel)
+                            .padding(vertical = 6.dp),
+                    )
+                    TabMenu(tab, expanded = menuFor == tab.route, actions = menu, onDismiss = { menuFor = null })
+                }
             }
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(extra.border))
@@ -1348,6 +1620,7 @@ private fun SettingsPane.route(): String = when (this) {
     SettingsPane.TrustedNetworks -> Screen.TrustedNetworks.route
     SettingsPane.Location -> Screen.LocationSharing.route
     SettingsPane.Notifications -> Screen.SettingsNotifications.route
+    SettingsPane.Pages -> Screen.SettingsPages.route
     SettingsPane.Shared -> Screen.Shared.create()
     SettingsPane.Logs -> Screen.Logs.route
     SettingsPane.Diagnosis -> Screen.Diagnosis.route
@@ -1355,7 +1628,15 @@ private fun SettingsPane.route(): String = when (this) {
 
 /** A settings page in the detail pane beside the settings list. */
 @Composable
-private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, onSelectPane: (SettingsPane) -> Unit, onOpenRules: () -> Unit = {}, onOpenRoutes: (() -> Unit)? = null) {
+private fun SettingsPaneContent(
+    pane: SettingsPane,
+    onOpenEnroll: () -> Unit,
+    onSelectPane: (SettingsPane) -> Unit,
+    onOpenRules: () -> Unit = {},
+    onOpenRoutes: (() -> Unit)? = null,
+    features: List<String> = emptyList(),
+    onArrangePages: () -> Unit = {},
+) {
     when (pane) {
         SettingsPane.Profile -> ProfileScreen(onBack = {}, onOpenRules = onOpenRules)
         SettingsPane.Connection -> ConnectionDetailsScreen(onBack = {}, onOpenDiagnosis = { onSelectPane(SettingsPane.Diagnosis) })
@@ -1364,6 +1645,7 @@ private fun SettingsPaneContent(pane: SettingsPane, onOpenEnroll: () -> Unit, on
         SettingsPane.TrustedNetworks -> TrustedNetworksScreen(onBack = {})
         SettingsPane.Location -> LocationSharingScreen(onBack = {})
         SettingsPane.Notifications -> NotificationSettingsScreen(onBack = {}, onOpenRoutes = onOpenRoutes)
+        SettingsPane.Pages -> StartPagesSettingsScreen(available = features, onBack = {}, onArrangePages = onArrangePages)
         SettingsPane.Shared -> SharedScreen(onBack = {})
         SettingsPane.Logs -> LogsScreen(onNavigateBack = {})
         SettingsPane.Diagnosis -> DiagnosisScreen(onBack = {})
@@ -1394,27 +1676,11 @@ private fun InboxPanePlaceholder() {
  * Vault (plugin gatecontrol-vault): the tab and its pages, each a route of its own so the tab bar shows on the list
  * only and back works as everywhere else.
  */
-private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, navigateToTab: (String) -> Unit) {
+private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, navigateToTab: (String) -> Unit, home: @Composable () -> Unit) {
     val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Vault.route) }
     val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
     val recover: () -> Unit = { go(Screen.VaultRecover.route) }
-    composable(Screen.Vault.route) {
-        GcContentWidth {
-            com.gatecontrol.android.ui.vault.VaultScreen(
-                com.gatecontrol.android.ui.vault.VaultNav(
-                    setup = { go(Screen.VaultSetup.route) },
-                    recover = recover,
-                    entry = { go(Screen.VaultEntry.create(it)) },
-                    newEntry = { type, vault -> go(Screen.VaultEdit.create(type = type, vault = vault)) },
-                    vaults = { go(Screen.VaultVaults.route) },
-                    emergency = { go(Screen.VaultEmergency.route) },
-                    import = { go(Screen.VaultImport.route) },
-                    trash = { go(Screen.VaultTrash.route) },
-                    settings = { go(Screen.VaultSettings.route) },
-                ),
-            )
-        }
-    }
+    composable(Screen.Vault.route) { home() }
     composable(Screen.VaultSetup.route) {
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultSetupScreen(onBack = back, onDone = back) }
     }
@@ -1484,18 +1750,35 @@ private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, naviga
     }
 }
 
+/** The Vault tab's screen (as the tab or as a page beside Start); its pages are routes of their own. */
+@Composable
+private fun VaultHome(navController: NavHostController) {
+    val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
+    GcContentWidth {
+        com.gatecontrol.android.ui.vault.VaultScreen(
+            com.gatecontrol.android.ui.vault.VaultNav(
+                setup = { go(Screen.VaultSetup.route) },
+                recover = { go(Screen.VaultRecover.route) },
+                entry = { go(Screen.VaultEntry.create(it)) },
+                newEntry = { type, vault -> go(Screen.VaultEdit.create(type = type, vault = vault)) },
+                vaults = { go(Screen.VaultVaults.route) },
+                emergency = { go(Screen.VaultEmergency.route) },
+                import = { go(Screen.VaultImport.route) },
+                trash = { go(Screen.VaultTrash.route) },
+                settings = { go(Screen.VaultSettings.route) },
+            ),
+        )
+    }
+}
+
 /** The folder the Drive tab's Files page shows (kept in the tab's back stack entry). */
 private const val DRIVE_TAB_SHOWN = "drive_shown"
 
-/**
- * Drive (plugin gatecontrol-drive): the tab, a folder, the trash and the search, each a route of its own so the tab
- * bar shows on the tab only and back works as everywhere else.
- */
-private fun NavGraphBuilder.driveRoutes(navController: NavHostController, navigateToTab: (String) -> Unit) {
-    val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Drive.route) }
+/** Drive's ways between its pages (the tab, a page beside Start and the routes on top share them). */
+private class DriveNavigation(private val navController: NavHostController) {
     val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
     /** The folder the page on top shows (null: no folder page). */
-    val topFolder: () -> Long? = {
+    private val topFolder: () -> Long? = {
         navController.currentBackStackEntry?.takeIf { it.destination.route == Screen.DriveFolder.route }
             ?.arguments?.getString(Screen.DriveFolder.ARG_ID)?.toLongOrNull()
     }
@@ -1523,26 +1806,53 @@ private fun NavGraphBuilder.driveRoutes(navController: NavHostController, naviga
     }
     val file: (Long) -> Unit = { go(Screen.DriveFile.create(it)) }
     val vault: (String, Long) -> Unit = { v, f -> navController.navigate(Screen.DriveVault.create(v, f)) }
-    composable(Screen.Drive.route) { entry ->
-        GcContentWidth {
-            com.gatecontrol.android.ui.drive.DriveHomeScreen(
-                com.gatecontrol.android.ui.drive.DriveNav(
-                    folder = folder,
-                    shown = { id -> entry.savedStateHandle[DRIVE_TAB_SHOWN] = id },
-                    search = { go(Screen.DriveSearch.route) },
-                    trash = { go(Screen.DriveTrash.route) },
-                    storage = { go(Screen.DriveStorage.route) },
-                    folders = { go(Screen.DriveFolders.route) },
-                    album = { go(Screen.DriveAlbum.create(it)) },
-                    file = file,
-                    deadlines = { go(Screen.DriveDeadlines.route) },
-                    vault = vault,
-                    settings = { go(Screen.DriveSettings.route) },
-                    cleanup = { go(Screen.DriveCleanup.route) },
-                ),
-            )
-        }
+}
+
+/**
+ * The Drive tab's screen (as the tab or as a page beside Start); [onShown]
+ * gets the folder its Files page shows (the tab keeps it for the path above
+ * a folder).
+ */
+@Composable
+private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit) {
+    val nav = remember(navController) { DriveNavigation(navController) }
+    GcContentWidth {
+        com.gatecontrol.android.ui.drive.DriveHomeScreen(
+            com.gatecontrol.android.ui.drive.DriveNav(
+                folder = nav.folder,
+                shown = onShown,
+                search = { nav.go(Screen.DriveSearch.route) },
+                trash = { nav.go(Screen.DriveTrash.route) },
+                storage = { nav.go(Screen.DriveStorage.route) },
+                folders = { nav.go(Screen.DriveFolders.route) },
+                album = { nav.go(Screen.DriveAlbum.create(it)) },
+                file = nav.file,
+                deadlines = { nav.go(Screen.DriveDeadlines.route) },
+                vault = nav.vault,
+                settings = { nav.go(Screen.DriveSettings.route) },
+                cleanup = { nav.go(Screen.DriveCleanup.route) },
+            ),
+        )
     }
+}
+
+/**
+ * Drive (plugin gatecontrol-drive): the tab, a folder, the trash and the search, each a route of its own so the tab
+ * bar shows on the tab only and back works as everywhere else.
+ */
+private fun NavGraphBuilder.driveRoutes(
+    navController: NavHostController,
+    navigateToTab: (String) -> Unit,
+    home: @Composable (androidx.navigation.NavBackStackEntry) -> Unit,
+) {
+    val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(Screen.Drive.route) }
+    val nav = DriveNavigation(navController)
+    val go = nav.go
+    val folder = nav.folder
+    val crumb = nav.crumb
+    val file = nav.file
+    val vault = nav.vault
+    composable(Screen.Drive.route) { entry -> home(entry) }
     composable(Screen.DriveFolder.route, arguments = listOf(navArgument(Screen.DriveFolder.ARG_ID) { type = NavType.StringType })) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveFolderScreen(onBack = back, onFolder = folder, onFile = file, onVault = vault, onCrumb = crumb) }
     }

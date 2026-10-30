@@ -29,15 +29,21 @@ class StartArrangement @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
-    val entries: StateFlow<List<StartEntry>> =
+    /** The blocks of the start tab (key null) and of each widget page beside it ([StartPages]). */
+    val pages: StateFlow<Map<String?, List<StartEntry>>> =
         combine(tabLayout.layout, quickActions.pins, quickActions.widgets) { layout, pins, widgets ->
-            StartLayout.merge(layout.start, pins.map { it.key }, widgets.map { StartEntry.Widget(it.device, it.wide) })
-        }.stateIn(scope, SharingStarted.Eagerly, StartLayout.merge(emptyList(), emptyList(), emptyList()))
+            StartPages.merge(layout.start, pins.map { it.key }, widgets.map { StartEntry.Widget(it.device, it.wide) })
+        }.stateIn(scope, SharingStarted.Eagerly, StartPages.merge(emptyList(), emptyList(), emptyList()))
+
+    /** The start tab's blocks. */
+    val entries: StateFlow<List<StartEntry>> = pages.map { it[null].orEmpty() }
+        .stateIn(scope, SharingStarted.Eagerly, pages.value[null].orEmpty())
 
     val access: StateFlow<LayoutAccess> = tabLayout.access
 
     init {
-        // An order from the account (or arranged here): the pins take its order and widths.
+        // An order from the account (or arranged here): the pins take its order and widths
+        // (the pages' markers are no blocks: decode skips them).
         scope.launch {
             tabLayout.layout.map { it.start }.distinctUntilChanged().collect { saved ->
                 if (saved.isEmpty()) return@collect
@@ -51,17 +57,19 @@ class StartArrangement @Inject constructor(
         }
     }
 
-    /** Arranged by the person: the new order of all blocks. */
-    suspend fun save(entries: List<StartEntry>) = tabLayout.saveStart(StartLayout.encodeAll(entries))
+    /** Arranged by the person: the new order of all blocks of [page] (null: the start tab). */
+    suspend fun save(entries: List<StartEntry>, page: String? = null) =
+        tabLayout.updateStart { StartPages.withEntries(it, page, StartLayout.encodeAll(entries)) }
 
-    /** After pinning, unpinning or a new width (pin sheet): the order takes the pins as they are now. */
-    suspend fun syncFromPins() {
-        val merged = StartLayout.merge(
-            tabLayout.current().start,
-            quickActions.currentPins().map { it.key },
-            quickActions.currentWidgets().map { StartEntry.Widget(it.device, it.wide) },
-        )
-        tabLayout.saveStart(StartLayout.encodeAll(merged))
+    /**
+     * After pinning, unpinning or a new width (pin sheet): the order takes
+     * the pins as they are now; a block pinned just now joins [page] (the
+     * widget page it was pinned from, null: the start tab).
+     */
+    suspend fun syncFromPins(page: String? = null) {
+        val tiles = quickActions.currentPins().map { it.key }
+        val widgets = quickActions.currentWidgets().map { StartEntry.Widget(it.device, it.wide) }
+        tabLayout.updateStart { StartPages.syncPins(it, tiles, widgets, page) }
     }
 
     /** Asks the server for the account's order (throttled). */

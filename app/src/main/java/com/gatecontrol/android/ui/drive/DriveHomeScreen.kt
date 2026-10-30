@@ -280,7 +280,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     state = pager,
                     modifier = Modifier.weight(1f),
                     // ticked items keep their page (the selection's bars belong to it)
-                    userScrollEnabled = DriveLogic.tabSwipe(hasPhotos, selecting),
+                    // As a page beside Start, swiping changes the page: Dateien and Fotos by tapping only.
+                    userScrollEnabled = DriveLogic.tabSwipe(hasPhotos, selecting) && !com.gatecontrol.android.ui.start.LocalInStartPager.current,
                     key = { it },
                 ) { page ->
                     if (DriveLogic.isPhotosTab(page, hasPhotos)) {
@@ -437,6 +438,8 @@ private fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)?
         GcScreenTitle(title, modifier = Modifier.weight(1f).padding(start = 4.dp))
         actions()
         if (onSearch != null) GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.drive_search), onClick = onSearch, tint = MaterialTheme.colorScheme.onBackground)
+        // "⋯" of the page when Drive is pinned to Start.
+        com.gatecontrol.android.ui.start.StartPageMenuButton()
     }
 }
 

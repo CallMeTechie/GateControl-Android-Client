@@ -211,6 +211,8 @@ private fun Header(profile: FamilieProfile?, onArrange: (() -> Unit)?) {
                 }
             }
         }
+        // "⋯" of the page when Familie is pinned to Start.
+        com.gatecontrol.android.ui.start.StartPageMenuButton()
     }
 }
 

@@ -73,13 +73,15 @@ object StartLayout {
      * where they did before arranging: a tile after the other tiles, a
      * widget after the last widget (before the cards when there is none),
      * Info and usage card at the end. Entries for blocks this device does
-     * not have are skipped.
+     * not have are skipped. [cards] false (a widget page beside Start,
+     * [StartPages]): no Info and usage card.
      */
-    fun merge(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>): List<StartEntry> {
+    fun merge(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>, cards: Boolean = true): List<StartEntry> {
         val widgetByDevice = widgets.associateBy { it.device }
         val tileSet = tiles.toSet()
+        val withCards = cards
         val orderedTiles = ArrayList<StartEntry>()
-        val cards = ArrayList<StartEntry>()
+        val blocks = ArrayList<StartEntry>()
         val seen = HashSet<String>()
         for (raw in saved) {
             val entry = decode(raw) ?: continue
@@ -87,19 +89,19 @@ object StartLayout {
             when (entry) {
                 is StartEntry.Tile -> if (entry.action in tileSet) orderedTiles += entry
                 // The width is the pin's: arranging and the pin sheet keep both in step.
-                is StartEntry.Widget -> widgetByDevice[entry.device]?.let { cards += it }
-                StartEntry.Info, StartEntry.Usage -> cards += entry
+                is StartEntry.Widget -> widgetByDevice[entry.device]?.let { blocks += it }
+                StartEntry.Info, StartEntry.Usage -> if (withCards) blocks += entry
             }
         }
         tiles.filter { seen.add(TILE + it) }.forEach { orderedTiles += StartEntry.Tile(it) }
         for (widget in widgets) {
             if (!seen.add(widget.key)) continue
-            val lastWidget = cards.indexOfLast { it is StartEntry.Widget }
-            cards.add(if (lastWidget >= 0) lastWidget + 1 else 0, widget)
+            val lastWidget = blocks.indexOfLast { it is StartEntry.Widget }
+            blocks.add(if (lastWidget >= 0) lastWidget + 1 else 0, widget)
         }
-        if (seen.add(INFO)) cards += StartEntry.Info
-        if (seen.add(USAGE)) cards += StartEntry.Usage
-        return orderedTiles + cards
+        if (withCards && seen.add(INFO)) blocks += StartEntry.Info
+        if (withCards && seen.add(USAGE)) blocks += StartEntry.Usage
+        return orderedTiles + blocks
     }
 
     /**

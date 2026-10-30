@@ -44,9 +44,15 @@ data class TabLayout(
          * device's place for it. [identity] compares entries (the start
          * tab's width prefix does not make a widget another one). Foreign
          * entries are the first to go when the list would grow past
-         * [MAX_ENTRIES].
+         * [MAX_ENTRIES]; those [keep] refuses are dropped (the pages'
+         * markers, [StartPages.keepForeign]).
          */
-        fun keepForeign(local: List<String>, remote: List<String>, identity: (String) -> String = { it }): List<String> {
+        fun keepForeign(
+            local: List<String>,
+            remote: List<String>,
+            identity: (String) -> String = { it },
+            keep: (String) -> Boolean = { true },
+        ): List<String> {
             val known = local.map(identity).toSet()
             val result = local.toMutableList()
             var room = MAX_ENTRIES - local.size
@@ -57,6 +63,7 @@ data class TabLayout(
                     anchor = id
                     continue
                 }
+                if (!keep(entry)) continue
                 if (room <= 0) break
                 if (result.any { identity(it) == id }) continue
                 val at = anchor?.let { a -> result.indexOfFirst { identity(it) == a } + 1 } ?: 0

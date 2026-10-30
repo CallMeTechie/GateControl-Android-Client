@@ -96,6 +96,63 @@ Familie-Plugin mit Tab anbietet — **Familie**. Seit dem Messenger-Plugin
   öffnen weiterhin direkt die jeweilige Seite; auf breiten Bildschirmen die
   Einstellungen mit der Seite daneben.
 
+### Seiten neben Start statt Tabs
+Jede Funktion, die sonst ein Tab ist (Chats, Vault, Drive, Netzwerk,
+Familie – soweit vorhanden), kann wahlweise **Tab** in der Leiste oder
+**Seite neben Start** sein. Start wird dann eine Reihe von Seiten: Start
+bleibt immer die erste Seite (und immer in der Leiste), rechts davon die
+angehefteten Seiten in ihrer Reihenfolge, ganz rechts die **Plus-Seite**
+(„Seite anheften“). Wischen wechselt die Seite; die **Seitenpunkte** über
+der Leiste (aktiver Punkt breit in Akzentfarbe, die Plus-Seite als kleines
+„+“) sind antippbar und tragen die Zähler (ungelesene Chats, Remote-Hosts
+online). Eine angeheftete Funktion zeigt ihren echten Bildschirm, ihr
+Symbol verschwindet aus der Leiste (bzw. der Navigationsleiste links).
+
+- **Anheften:** Plus-Seite → „Seite an Start anheften“ (Abschnitte „Aus der
+  Leiste“ und „Mehr Platz für Widgets“); einen Tab unten **lange drücken** →
+  „An Start anheften“ oder „Leiste und Seiten …“; Einstellungen → Darstellung
+  → **„Leiste und Seiten“**; „Seiten anordnen“ → „Anheften“. Danach zeigt
+  Start die neue Seite, eine Snackbar meldet „„X“ ist jetzt eine Seite neben
+  Start“ mit **Rückgängig**.
+- **Lösen:** „⋯“ in der Kopfzeile der Seite → „Als Tab anzeigen“ (bei einer
+  Widget-Seite „Seite entfernen“, mit Rückfrage, wenn sie etwas enthält – ihre
+  Schnellaktionen und Widgets kommen zurück auf Start) und „Seiten anordnen“.
+- **Widget-Seiten** („Widgets 2“, „Widgets 3“ …) nehmen Schnellaktionen und
+  Widgets auf wie Start (ohne Info- und Verbrauchskarte): lange auf eine freie
+  Stelle drücken → „Schnellaktionen und Widgets“ (was dort angeheftet wird,
+  kommt auf diese Seite) und „Anordnen“. Leer zeigt sie einen gestrichelten
+  Rahmen mit „Widgets hinzufügen“.
+- **Seiten anordnen:** Start fest oben, die Seiten halten und ziehen
+  (Screenreader: „Nach oben/unten“), je „Als Tab“ bzw. „Entfernen“; darunter
+  „Unten in der Leiste“ mit „Anheften“ und „Neue Widget-Seite“.
+- **Leiste und Seiten** (Einstellungen): Vorschau der Leiste, je Funktion
+  „Tab | Seite“ und **„Leiste ausblenden, wenn nur Start bleibt“** (Standard
+  an). Ist alles angeheftet, gibt es dann keine Leiste mehr, nur die
+  Seitenpunkte mit einer Zeile der Seitennamen. Der Schalter gilt nur für
+  dieses Gerät (er ändert nur die Darstellung hier; die Seiten selbst gelten
+  mit dem Konto).
+- **Regeln:** Tippen auf Start in der Leiste zeigt die erste Seite (auch wenn
+  Start schon gewählt ist). Die Zurück-Taste auf einer anderen Seite führt
+  erst zu Start, dann wie bisher aus der App. Auf einer Seite wechseln innere
+  Reiter nur per Tippen (Drive: Dateien/Fotos, Schule: die Tage);
+  Listen- und Kartenkarussells (Info-Karte, Chips-Leisten) scrollen weiter
+  selbst und geben am Ende an den Seitenwechsel ab.
+- **Pushes und Links** auf eine angeheftete Funktion (Chat, Netzwerk →
+  Remote, Familie, Vault, Drive) öffnen ihre Seite bzw. den Unterbildschirm
+  darüber, Zurück führt auf die Seite. Die alten Routen bleiben gültig und
+  leiten auf die Seite um.
+- **Speicherung:** in der Start-Reihenfolge (`start` von
+  `GET/PUT /api/v1/client/layout`, ohne Serveränderung) als Trenn-Einträge
+  `page:<id>` (`page:chats`, `page:vault`, `page:drive`, `page:network`,
+  `page:familie`, `page:w2` …). Alles vor dem ersten `page:` gehört zu Start,
+  Einträge nach `page:wN` zu dieser Widget-Seite; Funktionsseiten haben keine
+  Einträge. Damit gelten die Seiten wie die Start-Reihenfolge mit dem Konto
+  (gleiche Seiten auf dem zweiten Handy); legt der Administrator die
+  Reihenfolge fest, sind Anheften, Lösen und Anordnen gesperrt („Die
+  Anordnung legt der Administrator fest.“), seine Seiten gelten trotzdem.
+  **Ältere App-Versionen** überspringen die `page:`-Einträge, zeigen alle
+  Widgets wieder auf Start und behalten die Einträge beim Speichern.
+
 ### Startbildschirm (1.32, umgebaut in 1.35 und 1.36)
 Seit 1.36 passt die Standardansicht (Kopfzeile, Schnellaktionen, Info-Karte,
 Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.

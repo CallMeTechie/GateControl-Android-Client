@@ -97,16 +97,22 @@ class VaultNav(
 fun VaultScreen(nav: VaultNav, viewModel: VaultViewModel = hiltViewModel()) {
     val status by viewModel.status.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.check() }
-    when (status) {
-        VaultStatus.LOADING -> VaultCentered { CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp) }
-        VaultStatus.UNAVAILABLE -> VaultCentered {
-            Text(stringResource(R.string.vault_unavailable), textAlign = TextAlign.Center, color = GateControlTheme.extraColors.muted)
-            Spacer(Modifier.height(16.dp))
-            GcOutlineButton(stringResource(R.string.vault_retry), onClick = { viewModel.check() }, fillWidth = false)
+    Box(Modifier.fillMaxSize()) {
+        when (status) {
+            VaultStatus.LOADING -> VaultCentered { CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp) }
+            VaultStatus.UNAVAILABLE -> VaultCentered {
+                Text(stringResource(R.string.vault_unavailable), textAlign = TextAlign.Center, color = GateControlTheme.extraColors.muted)
+                Spacer(Modifier.height(16.dp))
+                GcOutlineButton(stringResource(R.string.vault_retry), onClick = { viewModel.check() }, fillWidth = false)
+            }
+            VaultStatus.NOT_SET_UP -> VaultIntro(onStart = nav.setup)
+            VaultStatus.LOCKED -> VaultUnlock(viewModel, onForgot = nav.recover)
+            VaultStatus.UNLOCKED -> VaultList(viewModel, nav)
         }
-        VaultStatus.NOT_SET_UP -> VaultIntro(onStart = nav.setup)
-        VaultStatus.LOCKED -> VaultUnlock(viewModel, onForgot = nav.recover)
-        VaultStatus.UNLOCKED -> VaultList(viewModel, nav)
+        // "⋯" of the page when Vault is pinned to Start (its own title rows have it otherwise).
+        if (status == VaultStatus.LOADING || status == VaultStatus.UNAVAILABLE) {
+            com.gatecontrol.android.ui.start.StartPageMenuButton(Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp))
+        }
     }
 }
 
@@ -123,7 +129,10 @@ fun VaultCentered(content: @Composable () -> Unit) {
 private fun VaultIntro(onStart: () -> Unit) {
     val x = GateControlTheme.extraColors
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp)) {
-        Text(stringResource(R.string.vault_title), style = MaterialTheme.typography.headlineLarge)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.vault_title), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
+            com.gatecontrol.android.ui.start.StartPageMenuButton()
+        }
         Spacer(Modifier.weight(1f))
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             VaultHeroIcon(GcIcons.Vault)
@@ -177,6 +186,7 @@ private fun VaultUnlock(viewModel: VaultViewModel, onForgot: () -> Unit) {
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.vault_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
             if (sync == VaultRepository.Sync.Offline) GcChip(stringResource(R.string.vault_offline), small = true)
+            com.gatecontrol.android.ui.start.StartPageMenuButton()
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
@@ -359,6 +369,7 @@ private fun VaultList(viewModel: VaultViewModel, nav: VaultNav) {
                             }
                         }
                     }
+                    com.gatecontrol.android.ui.start.StartPageMenuButton()
                 }
             }
             item {

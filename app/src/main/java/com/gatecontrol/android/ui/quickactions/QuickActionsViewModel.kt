@@ -35,9 +35,16 @@ import kotlinx.coroutines.launch
 /**
  * A pin sheet to show: the device [deviceKey], opened from a start-tab
  * widget ([widget]) or button ([action]: its key), [fromStart] by a long
- * press on the start tab (only that side, with the reminder and arranging rows).
+ * press on the start tab (only that side, with the reminder and arranging rows);
+ * [page] the widget page beside Start it was opened on (null: Start).
  */
-data class PinSheetRequest(val deviceKey: String, val widget: Boolean, val action: String? = null, val fromStart: Boolean = true)
+data class PinSheetRequest(
+    val deviceKey: String,
+    val widget: Boolean,
+    val action: String? = null,
+    val fromStart: Boolean = true,
+    val page: String? = null,
+)
 
 /** The list "Schnellaktionen und Widgets", the pin sheet and the start tab's buttons and widgets. */
 @HiltViewModel
@@ -50,6 +57,9 @@ class QuickActionsViewModel @Inject constructor(
 
     /** The start tab's blocks in their order (tiles, widgets, Info and usage card). */
     val entries: StateFlow<List<StartEntry>> = arrangement.entries
+
+    /** The blocks of the start tab (key null) and of each widget page beside it. */
+    val pages: StateFlow<Map<String?, List<StartEntry>>> = arrangement.pages
 
     /** Where the order lives and whether this person may change it. */
     val layoutAccess: StateFlow<LayoutAccess> = arrangement.access
@@ -135,18 +145,21 @@ class QuickActionsViewModel @Inject constructor(
         _confirming.value = null
     }
 
-    /** The device's buttons on the start tab become exactly [actionIds]. */
-    fun setButtons(device: QuickActionDeviceGroup, actionIds: Set<String>) {
+    /**
+     * The device's buttons on the start tab become exactly [actionIds];
+     * new ones join [page] (a widget page beside Start, null: Start).
+     */
+    fun setButtons(device: QuickActionDeviceGroup, actionIds: Set<String>, page: String? = null) {
         viewModelScope.launch {
             repository.setButtons(device, actionIds)
-            arrangement.syncFromPins()
+            arrangement.syncFromPins(page)
         }
     }
 
-    fun setWidget(device: QuickActionDeviceGroup, parts: List<String>, wide: Boolean) {
+    fun setWidget(device: QuickActionDeviceGroup, parts: List<String>, wide: Boolean, page: String? = null) {
         viewModelScope.launch {
             repository.setWidget(device, parts, wide)
-            arrangement.syncFromPins()
+            arrangement.syncFromPins(page)
         }
     }
 
@@ -157,9 +170,9 @@ class QuickActionsViewModel @Inject constructor(
         }
     }
 
-    /** Arranged on "Start-Tab anordnen": the new order and widths. */
-    fun saveArrangement(entries: List<StartEntry>) {
-        viewModelScope.launch { arrangement.save(entries) }
+    /** Arranged on "Start-Tab anordnen" (or a widget page's [page]): the new order and widths. */
+    fun saveArrangement(entries: List<StartEntry>, page: String? = null) {
+        viewModelScope.launch { arrangement.save(entries, page) }
     }
 
     /** "−" on a tile while arranging: the button leaves the start tab. */

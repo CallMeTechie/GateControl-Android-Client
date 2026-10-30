@@ -45,6 +45,7 @@ import com.gatecontrol.android.ui.components.GcPolicySystemVpnCard
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
+import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTone
@@ -85,6 +86,8 @@ fun SettingsScreen(
     onNavigateToShared: (() -> Unit)? = null,
     /** "Drive-Einstellungen" (backup, vaults, data on this phone …); null hides the row (no Drive on the server). */
     onNavigateToDrive: (() -> Unit)? = null,
+    /** "Leiste und Seiten" (functions as tabs or as pages beside Start). */
+    onNavigateToPages: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
     selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -327,6 +330,17 @@ fun SettingsScreen(
 
         // --- Darstellung ---------------------------------------------------
         SettingsGroup(stringResource(R.string.settings_group_appearance)) {
+            if (onNavigateToPages != null) {
+                GcListRow(
+                    title = stringResource(R.string.pages_settings_title),
+                    description = stringResource(R.string.pages_settings_row_desc),
+                    onClick = onNavigateToPages,
+                    leading = { Icon(GcIcons.ViewGrid, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                    trailing = { GcChevron() },
+                    selected = selectedPane == SettingsPane.Pages,
+                )
+                GcRowDivider(Modifier.padding(horizontal = 16.dp))
+            }
             SegmentRow(stringResource(R.string.settings_theme)) {
                 GcSegmented(
                     options = listOf(

@@ -117,4 +117,54 @@ class MainTabsTest {
         assertEquals("settings/profile", Screen.Profile.route)
         assertEquals("info-card", Screen.InfoCardPicker.route)
     }
+
+    @Test
+    fun `tabs and pages beside Start name each other`() {
+        val all = PluginAvailability(familieTab = true, messengerTab = true, vault = true, drive = true)
+        val routes = MainTabs.routes(network = true, plugins = all)
+        assertEquals(listOf("chats", "vault", "drive", "network", "familie"), MainTabs.features(routes))
+        routes.drop(1).forEach { assertEquals(it, MainTabs.routeOf(MainTabs.pageOf(it)!!)) }
+        assertNull(MainTabs.pageOf(Screen.Vpn.route))
+        assertNull(MainTabs.routeOf("w2"))
+    }
+
+    @Test
+    fun `routes to navigate to find their page`() {
+        assertEquals("network", MainTabs.pageFor(Screen.Network.create(NetworkTabs.REMOTE)))
+        assertEquals("network", MainTabs.pageFor(Screen.Network.create()))
+        assertEquals("chats", MainTabs.pageFor(Screen.Chats.create(conv = 7, share = true)))
+        assertEquals("familie", MainTabs.pageFor("familie?dest=tasks"))
+        assertEquals("vault", MainTabs.pageFor(Screen.Vault.route))
+        assertEquals("drive", MainTabs.pageFor(Screen.Drive.route))
+        // Screens on top of a tab and Start have no page.
+        assertNull(MainTabs.pageFor(Screen.ChatConversation.create(7)))
+        assertNull(MainTabs.pageFor("familie/page?dest=tasks"))
+        assertNull(MainTabs.pageFor(Screen.DriveTrash.route))
+        assertNull(MainTabs.pageFor(Screen.Vpn.route))
+        // The arguments go along.
+        assertEquals("remote", MainTabs.arg(Screen.Network.create(NetworkTabs.REMOTE), Screen.Network.ARG_TAB))
+        assertEquals("7", MainTabs.arg(Screen.Chats.create(conv = 7, share = true), Screen.Chats.ARG_CONV))
+        assertEquals("true", MainTabs.arg(Screen.Chats.create(conv = 7, share = true), Screen.Chats.ARG_SHARE))
+        assertEquals("ride:12 a", MainTabs.arg("familie?dest=ride%3A12%20a", Screen.Familie.ARG_DEST))
+        assertNull(MainTabs.arg(Screen.Network.create(), Screen.Network.ARG_TAB))
+        assertNull(MainTabs.arg("network?tab=", Screen.Network.ARG_TAB))
+    }
+
+    @Test
+    fun `pinned functions leave the bar, Start stays`() {
+        val routes = MainTabs.routes(network = true, plugins = PluginAvailability(familieTab = true, messengerTab = true))
+        assertEquals(listOf(Screen.Vpn.route, Screen.Chats.route), MainTabs.visible(routes, listOf("network", "familie", "w2")))
+        assertEquals(listOf(Screen.Vpn.route), MainTabs.visible(routes, listOf("chats", "network", "familie")))
+        assertEquals(routes, MainTabs.visible(routes, emptyList()))
+    }
+
+    @Test
+    fun `the bar goes only when everything is a page and the person wants that`() {
+        val onlyStart = listOf(Screen.Vpn.route)
+        assertTrue(MainTabs.hideBar(onlyStart, pages = listOf("network"), hideWhenOnlyStart = true))
+        assertFalse(MainTabs.hideBar(onlyStart, pages = listOf("network"), hideWhenOnlyStart = false))
+        // Nothing pinned (a login with Start only): the bar stays as before.
+        assertFalse(MainTabs.hideBar(onlyStart, pages = emptyList(), hideWhenOnlyStart = true))
+        assertFalse(MainTabs.hideBar(listOf(Screen.Vpn.route, Screen.Chats.route), pages = listOf("network"), hideWhenOnlyStart = true))
+    }
 }
