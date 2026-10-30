@@ -325,6 +325,16 @@ internal fun mailText(context: Context, code: String?): String = context.getStri
         "not_found", "http_404" -> R.string.mail_err_not_found
         "conflict", "http_409" -> R.string.mail_err_conflict
         "encrypted" -> R.string.mail_err_encrypted
+        "forbidden", "login_required" -> R.string.mail_err_not_allowed
+        "microsoft_off" -> R.string.mail_err_microsoft_off
+        "attachments_unsupported" -> R.string.mail_err_attachments_unsupported
+        "images_blocked" -> R.string.mail_err_images_blocked
+        "images_off" -> R.string.mail_err_images_off
+        "drive_unavailable" -> R.string.mail_err_drive_unavailable
+        "no_folder" -> R.string.mail_err_no_folder
+        "not_waiting" -> R.string.mail_err_not_waiting
+        "exists" -> R.string.mail_err_exists
+        "links_disabled" -> R.string.mail_err_links_disabled
         else -> R.string.mail_err_failed
     },
 )

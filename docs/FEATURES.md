@@ -749,16 +749,20 @@ wie die anderen Tabs als **Seite neben Start** anheftbar. Ohne Plugin
   (List-Unsubscribe).
 - **HTML-Anzeige:** WebView ohne JavaScript, ohne Datei-/Content-Zugriff,
   ohne Speicher und Fenster, mit Content-Security-Policy; alle Anfragen
-  werden abgefangen: nur `img/<token>` und `cid/<mail>/<anhang>` lädt die
-  App mit ihrer Anmeldung über die Plugin-API (`cid:` wird umgeschrieben),
-  alles andere bleibt leer. Links öffnen außerhalb der App, `mailto:` im
+  werden abgefangen: nur `img/<token>` (JSON mit Base64, ≤ 700 KB) und
+  `cid/<mail>/<anhang>` (JSON mit `mediaId`, Bild aus der Plugin-Media) lädt
+  die App mit ihrer Anmeldung über die Plugin-API (`cid:` wird
+  umgeschrieben); nur Rasterbilder, nie SVG; alles andere bleibt leer. Links öffnen außerhalb der App, `mailto:` im
   Schreiben-Bildschirm.
 - **Schreiben:** Absender-Konto wählbar, Empfänger mit Vorschlägen
   (`GET contacts`), Cc/Bcc, Anhänge vom Gerät (≤ 25 MB, Plugin-Media) oder
   „Aus Drive“ (Drive-Suche, je Datei Kopie oder Link, Link 14 Tage),
   Warnungen des Servers, Entwurf wird laufend gespeichert, „Senden planen“
   (lange auf Senden drücken oder Menü). Antworten/Weiterleiten lässt den
-  Server Empfänger, Betreff und Zitat vorfüllen.
+  Server Empfänger, Betreff und Zitat vorfüllen; die Signatur des Kontos
+  setzt die App oben in neue Mails, Antworten und Weiterleitungen.
+  Microsoft-Konten: Gerätedateien und Anhänge aus Mails anderer Konten
+  gehen nicht (Warnung, Senden → `attachments_unsupported` mit Erklärung).
 - **Konto hinzufügen:** Anbieterliste des Servers, Formular mit Hinweis des
   Anbieters, bei „Andere / eigene Domain“ IMAP/SMTP von Hand (nur TLS bzw.
   STARTTLS). **Microsoft:** Autorisierungscode mit PKCE im Custom Tab,

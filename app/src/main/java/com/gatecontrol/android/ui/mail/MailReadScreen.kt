@@ -187,6 +187,12 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                             }
                         }
                     }
+                    if (m.bodyMissing && m.html == null && m.text.isNullOrBlank()) {
+                        GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
+                            Text(stringResource(R.string.mail_body_missing), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            TextButton(onClick = viewModel::load) { Text(stringResource(R.string.mail_retry)) }
+                        }
+                    }
                     val html = m.html
                     if (html != null) {
                         val page = remember(html, m.attachments) { MailLogic.rewriteCid(html, m.id, m.attachments) }

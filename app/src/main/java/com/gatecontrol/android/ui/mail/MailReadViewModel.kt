@@ -170,7 +170,7 @@ class MailReadViewModel @Inject constructor(
         aiTried = true
         _state.update { it.copy(ai = MailAiState.Loading) }
         viewModelScope.launch {
-            when (val r = api.runAi(id)) {
+            when (val r = api.runAi(id, again = force)) {
                 is MResult.Ok -> _state.update { it.copy(ai = if (r.value.done) MailAiState.Ready(r.value) else MailAiState.Off) }
                 else -> _state.update { it.copy(ai = aiError(r)) }
             }

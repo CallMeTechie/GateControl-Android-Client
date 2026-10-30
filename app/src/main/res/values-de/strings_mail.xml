@@ -223,6 +223,16 @@
     <string name="mail_err_not_found">Nicht gefunden – vielleicht wurde es gelöscht.</string>
     <string name="mail_err_conflict">Das hat nicht geklappt – der Stand hat sich geändert.</string>
     <string name="mail_err_encrypted">Dateien aus einem Tresor können nicht angehängt werden.</string>
+    <string name="mail_body_missing">Der Inhalt dieser Mail konnte nicht vom Anbieter geholt werden.</string>
+    <string name="mail_err_microsoft_off">Die Microsoft-Anmeldung ist auf dem Server nicht eingerichtet.</string>
+    <string name="mail_err_attachments_unsupported">Microsoft-Konten können keine Dateien vom Gerät oder aus Mails anderer Konten senden. Hänge sie aus Drive an (als Link) oder entferne sie.</string>
+    <string name="mail_err_images_blocked">Bilder bleiben für diese Mail blockiert.</string>
+    <string name="mail_err_images_off">Das Laden von Bildern ist auf dem Server ausgeschaltet.</string>
+    <string name="mail_err_drive_unavailable">Drive ist gerade nicht erreichbar.</string>
+    <string name="mail_err_no_folder">Dafür gibt es keinen Ordner – wähle einen aus.</string>
+    <string name="mail_err_not_waiting">Das wartet nicht mehr – es wurde schon gesendet.</string>
+    <string name="mail_err_exists">Dieses Konto gibt es schon.</string>
+    <string name="mail_err_links_disabled">Drive-Links sind ausgeschaltet.</string>
     <string name="mail_err_failed">Das hat nicht geklappt.</string>
     <plurals name="mail_thread">
         <item quantity="one">Unterhaltung · %d Mail</item>

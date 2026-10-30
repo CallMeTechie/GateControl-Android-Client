@@ -223,6 +223,16 @@
     <string name="mail_err_not_found">Not found – it may have been deleted.</string>
     <string name="mail_err_conflict">That did not work – the state has changed.</string>
     <string name="mail_err_encrypted">Files from a vault cannot be attached.</string>
+    <string name="mail_body_missing">The content of this mail could not be fetched from the provider.</string>
+    <string name="mail_err_microsoft_off">Microsoft sign-in is not set up on the server.</string>
+    <string name="mail_err_attachments_unsupported">Microsoft accounts cannot send files from the device or from another account’s mail. Attach them from Drive (as a link) or remove them.</string>
+    <string name="mail_err_images_blocked">Pictures stay blocked for this mail.</string>
+    <string name="mail_err_images_off">Loading pictures is switched off on the server.</string>
+    <string name="mail_err_drive_unavailable">Drive cannot be reached right now.</string>
+    <string name="mail_err_no_folder">There is no folder for it – pick one.</string>
+    <string name="mail_err_not_waiting">It is no longer waiting – it was sent already.</string>
+    <string name="mail_err_exists">This account exists already.</string>
+    <string name="mail_err_links_disabled">Drive links are switched off.</string>
     <string name="mail_err_failed">That did not work.</string>
     <plurals name="mail_thread">
         <item quantity="one">Conversation · %d mail</item>

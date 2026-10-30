@@ -234,6 +234,8 @@ data class MMessage(
     val trackers: Int,
     val attachments: List<MAttachment>,
     val unsubscribe: MUnsubscribe?,
+    /** The body is not on the server (any more) and could not be fetched from the provider. */
+    val bodyMissing: Boolean = false,
 ) {
     val id: Long get() = summary.id
 }
@@ -288,7 +290,7 @@ data class MDraft(
 sealed class MAtt {
     /** Already on the draft (kept when the draft is saved again). */
     data class Kept(val id: Long) : MAtt()
-    /** Uploaded from the device (plugin media); the name and type ride along, the media itself has none. */
+    /** Uploaded from the device (plugin media); the name rides along, the media itself has none ([mime] stays here). */
     data class Upload(val mediaId: String, val name: String, val mime: String) : MAtt()
     /** An attachment of the mail being forwarded. */
     data class Forwarded(val messageId: Long, val attachmentId: Long) : MAtt()

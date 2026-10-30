@@ -336,6 +336,7 @@ object MailJson {
             trackers = o.int("trackers")?.coerceAtLeast(0) ?: 0,
             attachments = o.arr("attachments")?.objects()?.mapNotNull(::attachment).orEmpty(),
             unsubscribe = unsub,
+            bodyMissing = o.bool("bodyMissing") ?: false,
         )
     }
 
@@ -343,6 +344,24 @@ object MailJson {
     fun attachmentMedia(o: JsonObject): MAttachmentMedia? {
         val media = o.str("mediaId")?.takeIf { TOKEN.matches(it) } ?: return null
         return MAttachmentMedia(media, o.str("name") ?: "attachment", o.str("mime") ?: "application/octet-stream", o.long("size") ?: 0L)
+    }
+
+    /** A picture of the HTML: inline bytes (`img/…`) or a media file (`cid/…`). */
+    class Picture(val mime: String, val data: ByteArray?, val mediaId: String?)
+
+    /** Raster pictures only: SVG (it can carry script) and anything else is refused. */
+    private val PICTURE_MIME = Regex("^image/(png|jpe?g|gif|webp|bmp|x-icon|vnd\\.microsoft\\.icon|avif|heic|heif)$")
+
+    /**
+     * `GET img/<token>` → `{ mime, size, data }` (Base64) or `GET cid/<m>/<a>` → `{ mediaId, mime, size, url }`; null
+     * when it is no picture the WebView may show.
+     */
+    fun picture(o: JsonObject): Picture? {
+        val mime = o.str("mime")?.lowercase()?.substringBefore(';')?.trim()?.takeIf { PICTURE_MIME.matches(it) } ?: return null
+        val data = o.str("data")?.let { runCatching { java.util.Base64.getMimeDecoder().decode(it) }.getOrNull() }
+        if (data != null) return if (data.isEmpty() || data.size > 6 * 1024 * 1024) null else Picture(mime, data, null)
+        val media = o.str("mediaId")?.takeIf { TOKEN.matches(it) } ?: return null
+        return Picture(mime, null, media)
     }
 
     // ─── AI ─────────────────────────────────────────────────────────
@@ -562,7 +581,6 @@ object MailJson {
             is MAtt.Upload -> {
                 addProperty("mediaId", a.mediaId)
                 addProperty("name", a.name)
-                addProperty("mime", a.mime)
             }
             is MAtt.Forwarded -> {
                 addProperty("messageId", a.messageId)

@@ -242,6 +242,7 @@ class MailJsonTest {
         assertEquals(1L, atts[0].get("id").asLong)
         assertEquals("m1", atts[1].get("mediaId").asString)
         assertEquals("a.pdf", atts[1].get("name").asString)
+        assertFalse(atts[1].has("mime"), "Att of a device file: { mediaId, name }")
         assertEquals(7L, atts[2].get("attachmentId").asLong)
         assertEquals("copy", atts[3].get("as").asString)
         assertFalse(atts[3].has("expiresDays"))
@@ -271,5 +272,20 @@ class MailJsonTest {
         assertEquals("once", MailJson.imagesBody(false).get("allow").asString)
         assertEquals("family_calendar", MailJson.todoBody().get("action").asString)
         assertEquals(setOf("folderId", "remember"), MailJson.driveSaveBody(5, " ", true).keySet())
+    }
+
+    @Test
+    fun `pictures of the HTML - inline Base64 or a media file, never SVG`() {
+        val img = MailJson.picture(obj("""{"mime":"image/png","size":3,"data":"AQID"}"""))!!
+        assertEquals("image/png", img.mime)
+        assertEquals(listOf<Byte>(1, 2, 3), img.data!!.toList())
+        val cid = MailJson.picture(obj("""{"mediaId":"m_1","mime":"image/jpeg","size":10,"url":"/x"}"""))!!
+        assertEquals("m_1", cid.mediaId)
+        assertNull(cid.data)
+        assertNull(MailJson.picture(obj("""{"mime":"image/svg+xml","data":"PHN2Zz4="}""")), "SVG can carry script")
+        assertNull(MailJson.picture(obj("""{"mime":"text/html","data":"AQID"}""")))
+        assertNull(MailJson.picture(obj("""{"mime":"image/png","mediaId":"../x"}""")))
+        assertNull(MailJson.picture(obj("""{"mime":"image/png"}""")))
+        assertTrue(MailJson.message(obj("""{"id":1,"accountId":2,"bodyMissing":true}"""))!!.bodyMissing)
     }
 }

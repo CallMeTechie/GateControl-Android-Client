@@ -217,27 +217,33 @@ class MailApi @Inject constructor(
     }
 
     /**
-     * A picture the mail's HTML asks for ([MailLogic.interceptPath]: `img/<token>`, `cid/<m>/<a>`), with the app's
-     * own sign-in; null when it cannot be had. Bytes and type (only pictures), at most a few MB.
+     * A picture the mail's HTML asks for ([MailLogic.interceptPath]), with the app's own sign-in; null when it cannot
+     * be had. `img/<token>` answers `{ mime, size, data }` (Base64, at most 700 KB); `cid/<m>/<a>` answers
+     * `{ mediaId, mime, size }` and the picture is the plugin's media file. Only raster pictures (never SVG), a few MB.
      */
     suspend fun picture(path: String): Pair<ByteArray, String>? {
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return null
         return try {
             withTimeoutOrNull(IMAGE_TIMEOUT_MS) {
-                val r = apiClientProvider.mediaClient(url).getRaw(API_PREFIX + path)
-                val body = r.body()
-                if (!r.isSuccessful || body == null) {
+                val r = apiClientProvider.getClient(url).pluginGet(MAIL_PLUGIN, path)
+                val o = r.body()?.takeIf { r.isSuccessful && !MailJson.isRefusal(it) } ?: run {
                     r.errorBody()?.close()
-                    body?.close()
                     return@withTimeoutOrNull null
                 }
-                body.use { b ->
-                    val type = b.contentType()?.let { "${it.type}/${it.subtype}" } ?: return@use null
-                    if (!type.startsWith("image/") || b.contentLength() > IMAGE_MAX_BYTES) return@use null
-                    val bytes = b.byteStream().use { input -> readAtMost(input, IMAGE_MAX_BYTES) } ?: return@use null
-                    bytes to type
-                }
+                val picture = MailJson.picture(o) ?: return@withTimeoutOrNull null
+                val bytes = picture.data ?: picture.mediaId?.let { media ->
+                    val m = apiClientProvider.mediaClient(url).pluginMediaGet(MAIL_PLUGIN, media)
+                    val body = m.body()
+                    if (!m.isSuccessful || body == null) {
+                        m.errorBody()?.close()
+                        body?.close()
+                        null
+                    } else {
+                        body.use { b -> b.byteStream().use { input -> readAtMost(input, IMAGE_MAX_BYTES) } }
+                    }
+                } ?: return@withTimeoutOrNull null
+                bytes to picture.mime
             }
         } catch (e: CancellationException) {
             throw e
@@ -294,7 +300,9 @@ class MailApi @Inject constructor(
 
     suspend fun ai(messageId: Long): MResult<MAi> = get("ai/$messageId", parse = MailJson::ai)
 
-    suspend fun runAi(messageId: Long): MResult<MAi> = post("ai/$messageId", JsonObject(), timeoutMs = 60_000L, parse = MailJson::ai)
+    /** "Kurz gesagt" etc.: the result that is there, or (with [again]) asked anew (at most 60 a person and hour). */
+    suspend fun runAi(messageId: Long, again: Boolean = false): MResult<MAi> =
+        post("ai/$messageId", JsonObject().apply { if (again) addProperty("again", true) }, timeoutMs = 60_000L, parse = MailJson::ai)
 
     suspend fun todoToFamily(messageId: Long, index: Int): MResult<String> =
         post("ai/$messageId/todo/${index.coerceAtLeast(0)}", MailJson.todoBody(), parse = MailJson::where)
