@@ -37,7 +37,6 @@
     <string name="drive_kind_warranty">Garantie</string>
     <string name="drive_kind_other">Sonstiges Dokument</string>
     <string name="drive_deadlines">Fristen</string>
-    <string name="drive_deadlines_desc">Zahlungs-, Kündigungs- und Widerspruchsfristen deiner Dokumente</string>
     <string name="drive_deadlines_none">Keine Fristen im kommenden Jahr.</string>
     <string name="drive_deadline_payment">Zahlung</string>
     <string name="drive_deadline_cancellation">Kündigung</string>

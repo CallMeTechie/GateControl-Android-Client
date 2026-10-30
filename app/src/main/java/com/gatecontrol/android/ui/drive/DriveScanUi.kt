@@ -233,7 +233,7 @@ private fun ScanPage(uri: Uri, first: Boolean) {
 }
 
 /** The page at about [max] px on its long side (a scan page is several megapixels). */
-private fun decodeSmall(context: Context, uri: Uri, max: Int): Bitmap? = runCatching {
+internal fun decodeSmall(context: Context, uri: Uri, max: Int): Bitmap? = runCatching {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
     var sample = 1

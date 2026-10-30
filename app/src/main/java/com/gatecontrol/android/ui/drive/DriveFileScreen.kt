@@ -53,6 +53,7 @@ import com.gatecontrol.android.drive.DOffice
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveJson
+import com.gatecontrol.android.drive.DriveKi
 import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
@@ -459,6 +460,8 @@ internal fun deadlineWhen(left: Long?): String? = when {
 internal fun deadlineLabel(kind: String): Int = when (kind) {
     "payment" -> R.string.drive_deadline_payment
     "cancellation" -> R.string.drive_deadline_cancellation
+    "warranty" -> R.string.drive_ki_deadline_warranty
+    "renewal" -> R.string.drive_ki_deadline_renewal
     else -> R.string.drive_deadline_objection
 }
 
@@ -493,35 +496,75 @@ internal fun openInBrowser(context: Context, url: String) {
     if (!ok) Toast.makeText(context, R.string.drive_portal_unavailable, Toast.LENGTH_LONG).show()
 }
 
-// ─── "Fristen": the deadlines of all my documents (Drive 1.8) ───────
+// ─── "Fristen": the deadlines of all my documents (Drive 1.8; as cards with the family calendar, Drive 1.14) ──
 
 @HiltViewModel
-class DriveDeadlinesViewModel @Inject constructor(private val api: DriveApi) : ViewModel() {
+class DriveDeadlinesViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
+    private val api: DriveApi,
+    val live: DriveLive,
+) : ViewModel() {
     private val _state = MutableStateFlow<DriveLoad<List<DDeadline>>>(DriveLoad.Loading)
     val state: StateFlow<DriveLoad<List<DDeadline>>> = _state.asStateFlow()
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
-    init { refresh() }
+    /** Deadlines not there at the last visit ("neu", Drive 1.14). */
+    private val _fresh = MutableStateFlow<Set<Long>>(emptySet())
+    val fresh: StateFlow<Set<Long>> = _fresh.asStateFlow()
+
+    /** The deadline going into the family calendar right now. */
+    private val _calendarBusy = MutableStateFlow<Long?>(null)
+    val calendarBusy: StateFlow<Long?> = _calendarBusy.asStateFlow()
+
+    private var seen: Set<Long>? = DriveViewPref.deadlinesSeen(context)
+
+    init {
+        refresh()
+        if (live.me.value == null) viewModelScope.launch { live.current() }
+    }
 
     fun clearMessage() { _message.value = null }
 
     fun refresh(quiet: Boolean = false) {
         viewModelScope.launch {
             if (!quiet || _state.value !is DriveLoad.Ready) _state.value = DriveLoad.Loading
-            _state.value = api.deadlines().toLoad { list -> list.filter { it.node?.encrypted != true } }
+            val r = api.deadlines().toLoad { list -> list.filter { it.node?.encrypted != true } }
+            if (r is DriveLoad.Ready) {
+                val ids = r.value.map { it.id }
+                // "neu" stays for this visit; the next one compares with what is here now
+                _fresh.value = _fresh.value + DriveKi.fresh(ids, seen)
+                DriveViewPref.setDeadlinesSeen(context, ids)
+            }
+            _state.value = r
         }
     }
 
     fun remind(d: DDeadline, days: Int?) {
         viewModelScope.launch {
             val r = if (days == null) api.unremind(d.id) else api.remind(d.id, days)
+            if (r is DResult.Ok) took(d, r.value) else _message.value = r.errorCode()
+        }
+    }
+
+    /** "In den Familienkalender" (Drive 1.14, feature `deadlineCalendar`). */
+    fun calendar(d: DDeadline) {
+        if (_calendarBusy.value != null) return
+        viewModelScope.launch {
+            _calendarBusy.value = d.id
+            val r = api.deadlineToCalendar(d.id)
+            _calendarBusy.value = null
             if (r is DResult.Ok) {
-                _state.update { s -> (s as? DriveLoad.Ready)?.let { DriveLoad.Ready(it.value.map { x -> if (x.id == d.id) r.value.copy(node = x.node) else x }) } ?: s }
+                took(d, r.value)
+                _message.value = "done_calendar"
             } else {
                 _message.value = r.errorCode()
             }
         }
+    }
+
+    private fun took(d: DDeadline, now: DDeadline) {
+        _state.update { s -> (s as? DriveLoad.Ready)?.let { DriveLoad.Ready(it.value.map { x -> if (x.id == d.id) now.copy(node = now.node ?: x.node) else x }) } ?: s }
     }
 }
 
@@ -529,6 +572,10 @@ class DriveDeadlinesViewModel @Inject constructor(private val api: DriveApi) : V
 fun DriveDeadlinesScreen(onBack: () -> Unit, onFile: (Long) -> Unit, viewModel: DriveDeadlinesViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val fresh by viewModel.fresh.collectAsStateWithLifecycle()
+    val busy by viewModel.calendarBusy.collectAsStateWithLifecycle()
+    val me by viewModel.live.me.collectAsStateWithLifecycle()
+    val calendar = me?.has(DMe.FEATURE_DEADLINE_CALENDAR) == true
     val context = LocalContext.current
     var shown by remember { mutableStateOf(false) }
     LifecycleResumeEffect(viewModel) {
@@ -546,9 +593,9 @@ fun DriveDeadlinesScreen(onBack: () -> Unit, onFile: (Long) -> Unit, viewModel: 
         GcSubpageBar(stringResource(R.string.drive_deadlines), onBack = onBack, backDescription = stringResource(R.string.drive_back))
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(stringResource(R.string.drive_deadlines_desc), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 4.dp))
+            Text(stringResource(R.string.drive_ki_deadlines_desc), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 4.dp))
             when (val s = state) {
                 DriveLoad.Loading -> DriveLoading()
                 is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })
@@ -556,22 +603,18 @@ fun DriveDeadlinesScreen(onBack: () -> Unit, onFile: (Long) -> Unit, viewModel: 
                     GcBanner(tone = GcTone.Neutral, icon = GcIcons.Calendar) { Text(stringResource(R.string.drive_deadlines_none), style = MaterialTheme.typography.bodyMedium) }
                 } else {
                     // by month: "März 2026"
-                    s.value.groupBy { it.date.take(7) }.forEach { (month, list) ->
-                        GcSectionLabel(monthTitle(month), modifier = Modifier.padding(start = 4.dp, top = 4.dp))
-                        GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                            list.forEachIndexed { n, d ->
-                                if (n > 0) GcRowDivider()
-                                d.node?.let { node ->
-                                    GcListRow(
-                                        title = nodeTitle(node),
-                                        description = node.path,
-                                        onClick = { onFile(node.id) },
-                                        leading = { NodeIcon(node, 36) },
-                                        trailing = { GcChevron() },
-                                    )
-                                }
-                                DeadlineReminderRow(d, viewModel::remind)
-                            }
+                    s.value.sortedBy { it.date }.groupBy { it.date.take(7) }.forEach { (month, list) ->
+                        GcSectionLabel(monthTitle(month), modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 2.dp))
+                        list.forEach { d ->
+                            DeadlineCard(
+                                d = d,
+                                fresh = d.id in fresh,
+                                calendar = calendar,
+                                calendarBusy = busy == d.id,
+                                onCalendar = { viewModel.calendar(d) },
+                                onRemind = viewModel::remind,
+                                onFile = d.node?.let { n -> { onFile(n.id) } },
+                            )
                         }
                     }
                 }

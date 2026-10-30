@@ -102,6 +102,14 @@ data class DMe(
          * filter `class=work|private|review` and the counts `photos/classes`).
          */
         const val FEATURE_PHOTO_CLASSES = "photoClasses"
+        /** Drive 1.14: questions to the documents (`POST ask`). */
+        const val FEATURE_DOC_ASK = "docAsk"
+        /** Drive 1.14: a scan becomes a document (`scans/classify`, `scans/convert`: Word, Excel). */
+        const val FEATURE_SCAN_DOCS = "scanDocs"
+        /** Drive 1.14: photos found by what is in them (`PUT nodes/<id>/labels`, `GET photos?q=`). */
+        const val FEATURE_PHOTO_SEARCH = "photoSearch"
+        /** Drive 1.14: a deadline into the family calendar (`POST deadlines/<id>/calendar`). */
+        const val FEATURE_DEADLINE_CALENDAR = "deadlineCalendar"
     }
 }
 
@@ -287,7 +295,14 @@ sealed class DUploadOutcome {
 // ─── Drive 1.7: photos, albums, time travel, storage ────────────────
 
 /** `GET photos` / `GET albums/<id>`: photos and videos, newest first; [next] is the cursor for `before` (null: the end). */
-data class DPhotos(val items: List<DNode>, val next: String?)
+data class DPhotos(
+    val items: List<DNode>,
+    val next: String?,
+    /** Drive 1.14 `photos?q=`: how many photos match in all (null: not said). */
+    val total: Int? = null,
+    /** Drive 1.14 `photos?q=`: the most frequent terms of the hits (the chips). */
+    val terms: List<String> = emptyList(),
+)
 
 /** `GET photos/months`: how many photos a month (`2026-10`) has. */
 data class DMonth(val month: String, val count: Int)
@@ -406,7 +421,7 @@ data class DSuggestion(val folderId: Long?, val folderPath: String?, val name: S
 /** A payment, cancellation or objection deadline of a file; [reminder] is the asking person's own. */
 data class DDeadline(
     val id: Long,
-    /** `payment` | `cancellation` | `objection`. */
+    /** `payment` | `cancellation` | `objection` | `warranty` (end of the warranty) | `renewal` (Drive 1.14: the last day to cancel before a contract renews). */
     val kind: String,
     /** `YYYY-MM-DD`. */
     val date: String,
@@ -414,7 +429,12 @@ data class DDeadline(
     val reminder: DReminder?,
     /** `GET deadlines`: the file it belongs to. */
     val node: DNode? = null,
+    /** Drive 1.14 (`deadlineCalendar`): my entry in the family calendar; null when there is none. */
+    val calendar: DCalendarEntry? = null,
 )
+
+/** A deadline's entry in the family calendar (Drive 1.14). */
+data class DCalendarEntry(val eventId: String?, val at: String?)
 
 data class DReminder(val at: String?, val daysBefore: Int, val sent: Boolean)
 

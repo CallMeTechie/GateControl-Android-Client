@@ -301,6 +301,16 @@ internal fun DriveFolderContent(
             )
         }
     }
+    // Drive 1.14 (D4): file the new upload where Drive suggests
+    val filing by viewModel.filingProposal.collectAsStateWithLifecycle()
+    filing?.takeIf { !selecting }?.let { p ->
+        FilingBar(
+            p,
+            onAccept = viewModel::acceptFiling,
+            onDismiss = viewModel::dismissFiling,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 84.dp),
+        )
+    }
     if (!selecting) {
         DriveFab(
             uploads,
@@ -528,7 +538,18 @@ internal fun DriveFolderContent(
             LinkSheetContent(sheet, onCreate = viewModel::createLink, onEnd = viewModel::endLink)
         }
     }
-    scanDraft?.let { d ->
+    scanDraft?.takeIf { it.review }?.let { d ->
+        ScanReviewDialog(
+            draft = d,
+            onFormat = viewModel::setScanFormat,
+            onName = viewModel::setScanName,
+            onPickFolder = viewModel::pickScanFolder,
+            onKeepOriginal = viewModel::setKeepOriginal,
+            onSave = viewModel::saveReviewed,
+            onClose = viewModel::closeScan,
+        )
+    }
+    scanDraft?.takeIf { !it.review }?.let { d ->
         ScanSaveDialog(
             draft = d,
             onPdf = viewModel::setScanPdf,

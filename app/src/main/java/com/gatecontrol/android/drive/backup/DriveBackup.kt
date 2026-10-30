@@ -55,6 +55,7 @@ class DriveBackup @Inject constructor(
     private val camera: DriveCameraUploads,
     private val work: com.gatecontrol.android.drive.work.DriveWorkPhotos,
     private val wifi: com.gatecontrol.android.drive.work.DriveWorkWifi,
+    private val labels: DrivePhotoLabels,
 ) {
     /** The run in progress: [done] of [total] photos, [current] the one going up. */
     data class Status(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val current: String? = null)
@@ -357,6 +358,9 @@ class DriveBackup @Inject constructor(
         return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME, takenAt = takenAt)) {
             is DResult.Ok -> {
                 placed?.let { p -> runCatching { work.afterBackup(r.value.first, p, item.id, item.video) }.onFailure { if (it is CancellationException) throw it } }
+                // Drive 1.14 (`photoSearch`): what is in the photo, found on the phone (the thumbnail, no location data)
+                val plain = ContentUris.withAppendedId(if (item.video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, item.id)
+                runCatching { labels.afterBackup(r.value.first, plain, item.video) }.onFailure { if (it is CancellationException) throw it }
                 null
             }
             else -> {

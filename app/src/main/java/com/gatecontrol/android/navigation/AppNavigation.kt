@@ -1828,6 +1828,7 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 album = { nav.go(Screen.DriveAlbum.create(it)) },
                 file = nav.file,
                 deadlines = { nav.go(Screen.DriveDeadlines.route) },
+                photoSearch = { nav.go(Screen.DrivePhotoSearch.route) },
                 vault = nav.vault,
                 settings = { nav.go(Screen.DriveSettings.route) },
                 cleanup = { nav.go(Screen.DriveCleanup.route) },
@@ -1861,6 +1862,9 @@ private fun NavGraphBuilder.driveRoutes(
     }
     composable(Screen.DriveDeadlines.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveDeadlinesScreen(onBack = back, onFile = file) }
+    }
+    composable(Screen.DrivePhotoSearch.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DrivePhotoSearchScreen(onBack = back) }
     }
     composable(
         Screen.DriveVault.route,

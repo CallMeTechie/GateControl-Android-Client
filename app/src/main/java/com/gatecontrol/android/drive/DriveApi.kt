@@ -50,6 +50,10 @@ class DriveApi @Inject constructor(
         /** At most this many ids per `photos/review` (Drive 1.13). */
         private const val REVIEW_IDS_MAX = 500
         private const val TIMEOUT_MS = 25_000L
+        /** The AI takes its time: a question, what a scan is. */
+        private const val AI_TIMEOUT_MS = 60_000L
+        /** A scan read by the AI and written as Word or Excel. */
+        private const val CONVERT_TIMEOUT_MS = 180_000L
         /** Small files go in one piece. */
         private const val RESUMABLE_FROM = 8L * 1024 * 1024
         /** Part size of a resumable upload: a multiple of 64 KiB. */
@@ -252,8 +256,8 @@ class DriveApi @Inject constructor(
      * Photos and videos, newest first; [before] is the cursor of the page before. Without [area]: all I can read.
      * [camera]: only the camera uploads (Drive 1.10, feature `photosFolder`).
      */
-    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false, cls: String? = null): DResult<DPhotos> =
-        get("photos", DriveJson.photosQuery(area, before, limit, camera, cls = cls) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
+    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false, cls: String? = null, q: String? = null): DResult<DPhotos> =
+        get("photos", DriveJson.photosQuery(area, before, limit, camera, cls = cls, q = q) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
 
     suspend fun photoMonths(area: String? = null, camera: Boolean = false, cls: String? = null): DResult<List<DMonth>> =
         get("photos/months", DriveJson.photosQuery(area, camera = camera, cls = cls) ?: return bad(), DriveJson::months)
@@ -383,11 +387,47 @@ class DriveApi @Inject constructor(
 
     suspend fun unremind(id: Long): DResult<DDeadline> = del("deadlines/$id/remind", DriveJson::deadlineAnswer)
 
+    /**
+     * Deadline [id] into the family calendar (Drive 1.14, feature `deadlineCalendar`) → the deadline with `calendar`;
+     * no Familie or it refuses: `familie_unavailable`.
+     */
+    suspend fun deadlineToCalendar(id: Long): DResult<DDeadline> = post("deadlines/$id/calendar", JsonObject(), DriveJson::deadlineAnswer)
+
     /** AI for documents in area [id] on or off (`PATCH areas/<id> { docAi }`, the write right) → the setting now. */
     suspend fun setAreaDocAi(id: String, on: Boolean): DResult<Boolean> {
         val area = DriveJson.areaId(id) ?: return bad()
         return patch("areas/$area", DriveJson.docAiBody(on), DriveJson::areaDocAi)
     }
+
+    // ─── AI in Drive (Drive 1.14) ────────────────────────────────────
+
+    /**
+     * A question to my documents (feature `docAsk`), answered only from the files I may read (never a vault); [area]
+     * narrows it. 30 an hour: `rate_limited`.
+     */
+    suspend fun ask(q: String, area: String? = null): DResult<DAnswer> {
+        val a = area?.let { DriveJson.areaId(it) ?: return bad() }
+        return call(timeoutMs = AI_TIMEOUT_MS, media = true, request = { pluginPost(DRIVE_PLUGIN, "ask", DriveJson.askBody(q, a), lang()) }, parse = DriveJson::answer)
+    }
+
+    /** What the scanned pages [mediaIds] are (feature `scanDocs`); the [text] recognised on the phone goes first. */
+    suspend fun classifyScan(mediaIds: List<String>, text: String?): DResult<DScanKind> {
+        if (mediaIds.isEmpty() || mediaIds.any { DriveJson.mediaId(it) == null }) return bad()
+        return call(timeoutMs = AI_TIMEOUT_MS, media = true, request = { pluginPost(DRIVE_PLUGIN, "scans/classify", DriveJson.classifyBody(mediaIds, text), lang()) }, parse = DriveJson::scanKind)
+    }
+
+    /**
+     * The scanned pages [mediaIds] as a document [target] (`docx` | `xlsx` | `pdf`) of [kind] in [folderId], named [name];
+     * [keepOriginal]: the scan stays next to it.
+     */
+    suspend fun convertScan(mediaIds: List<String>, target: String, kind: String, folderId: Long?, name: String?, keepOriginal: Boolean): DResult<DConverted> {
+        if (mediaIds.isEmpty() || mediaIds.any { DriveJson.mediaId(it) == null } || target !in DriveJson.SCAN_TARGETS) return bad()
+        val body = DriveJson.convertBody(mediaIds, target, kind.takeIf { it in DriveJson.SCAN_KINDS } ?: "other", folderId, name, keepOriginal)
+        return call(timeoutMs = CONVERT_TIMEOUT_MS, media = true, request = { pluginPost(DRIVE_PLUGIN, "scans/convert", body, lang()) }, parse = DriveJson::converted)
+    }
+
+    /** What is in photo [id], found on this phone (feature `photoSearch`). */
+    suspend fun putLabels(id: Long, labels: List<String>): DResult<Unit> = put("nodes/$id/labels", DriveJson.labelsBody(labels), unit)
 
     // ─── office in the browser (Drive 1.9, feature `office`) ────────
 
