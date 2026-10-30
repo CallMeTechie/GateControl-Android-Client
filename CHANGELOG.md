@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.29] - 2026-10-30
+
+### Changes
+- R8 behält die gespeicherten Felder (LayoutScope.USER) (#154)
+
+---
+
 ## [1.67.28] - 2026-10-30
 
 ### Changes
