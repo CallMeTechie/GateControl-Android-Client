@@ -129,13 +129,14 @@ class GateDropPushHandler @Inject constructor(
     }
 }
 
-/** Realtime events of the push stream for the chats, GateDrop and Drive. */
+/** Realtime events of the push stream for the chats, GateDrop, Drive and Mail. */
 @Singleton
 class AppPluginEventSink @Inject constructor(
     private val chats: com.gatecontrol.android.chat.ChatEventSink,
     private val gatedrop: dagger.Lazy<GateDropPushHandler>,
     private val gatedropRepository: dagger.Lazy<GateDropRepository>,
     private val drive: dagger.Lazy<com.gatecontrol.android.drive.DriveLive>,
+    private val mail: dagger.Lazy<com.gatecontrol.android.mail.MailRepository>,
 ) : PluginEventSink {
     override fun onPluginEvent(plugin: String, type: String, data: JsonElement?) {
         if (plugin == GATEDROP_PLUGIN) {
@@ -144,6 +145,10 @@ class AppPluginEventSink @Inject constructor(
         }
         if (plugin == com.gatecontrol.android.drive.DRIVE_PLUGIN) {
             runCatching { drive.get().onPluginEvent(type, data) }
+            return
+        }
+        if (plugin == com.gatecontrol.android.mail.MAIL_PLUGIN) {
+            runCatching { mail.get().onPluginEvent(type, data) }
             return
         }
         chats.onPluginEvent(plugin, type, data)
@@ -155,6 +160,8 @@ class AppPluginEventSink @Inject constructor(
         runCatching { gatedropRepository.get().pollPendingSoon() }
         // Drive's changes of that time: whatever is open loads again.
         runCatching { drive.get().onStreamOpen() }
+        // Mail: the lists load again when the tab is open
+        runCatching { mail.get().onStreamOpen() }
     }
 }
 

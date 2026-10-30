@@ -113,6 +113,13 @@ class GateControlApp : Application() {
             Timber.e(e, "Failed to start GateDrop")
         }
 
+        // Mail: the Microsoft redirect only with the plugin; its offline copy goes with the plugin or the login.
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.mail.MailEntryPoint::class.java).mailStartup().start()
+        } catch (e: Throwable) {
+            Timber.w(e, "Mail: not started")
+        }
+
         // Google Play build: in-app update (network watch, install in the background).
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
             try {

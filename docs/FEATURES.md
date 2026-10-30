@@ -97,7 +97,7 @@ Familie-Plugin mit Tab anbietet — **Familie**. Seit dem Messenger-Plugin
   Einstellungen mit der Seite daneben.
 
 ### Seiten neben Start statt Tabs
-Jede Funktion, die sonst ein Tab ist (Chats, Vault, Drive, Netzwerk,
+Jede Funktion, die sonst ein Tab ist (Chats, Mail, Vault, Drive, Netzwerk,
 Familie – soweit vorhanden), kann wahlweise **Tab** in der Leiste oder
 **Seite neben Start** sein. Start wird dann eine Reihe von Seiten: Start
 bleibt immer die erste Seite (und immer in der Leiste), rechts davon die
@@ -720,6 +720,58 @@ Abgleich über die normale Server-Adresse, auch ohne aktiven Tunnel.
   und Benutzername; das Passwort wird erst beim Auswählen eingesetzt.
 
 ---
+
+
+## Mail (Plugin `gatecontrol-mail` 1.0, GateControl 1.216+)
+Eigener Tab **Mail** (Tab-Id `mail`, nach Chats), nur wenn der Server das
+Plugin mit Tab für die Person listet (installiert und freigeschaltet);
+wie die anderen Tabs als **Seite neben Start** anheftbar. Ohne Plugin
+ändert sich nichts (auch der Microsoft-Redirect ist dann abgeschaltet).
+
+- **Posteingang:** „Alle Posteingänge“ oder ein Konto (Chips mit dem
+  Farbpunkt des Kontos), **Relevant | Sonstige** (nur in Posteingängen),
+  Wischen nach links/rechts wie in den Mail-Einstellungen
+  (`archive`/`delete`/`read`/`none`, auch als Bedienungshilfen-Aktionen),
+  lange drücken: gelesen, markieren, Relevant/Sonstige (lernt pro
+  Absender), archivieren, verschieben, Spam, löschen. „Neue Mail“ unten
+  rechts; nach dem Senden 10 s die Leiste **Rückgängig** (Server-Fenster
+  `undoUntil`, bei abweichender Uhr 10 s ab Antwort).
+- **Seitenmenü:** Alle Posteingänge, **Zum Ablegen** (mit Drive),
+  **Postausgang** (wenn etwas wartet), die Konten mit ihren Ordnern,
+  Speicherbelegung, „Konto hinzufügen“ und „Mail-Einstellungen“.
+  Kalender/Ressourcen kommen erst in Phase 2/3.
+- **Lesen:** KI-Leiste (nur mit Feature `ai` und KI am Konto): „Kurz
+  gesagt“, Zu tun als Chips (Termine/Fristen in den Familienkalender oder
+  den eigenen Kalender), Antwortvorschläge über „Antworten“. Anhänge mit
+  Drives Vorschlag, „In Drive speichern“, „Anderer Ordner“ und „künftig
+  automatisch ablegen“ (nur mit Feature `drive`). „Bilder laden“ /
+  „Immer für diesen Absender“ (Feature `images`). Unterhaltung, Abmelden
+  (List-Unsubscribe).
+- **HTML-Anzeige:** WebView ohne JavaScript, ohne Datei-/Content-Zugriff,
+  ohne Speicher und Fenster, mit Content-Security-Policy; alle Anfragen
+  werden abgefangen: nur `img/<token>` und `cid/<mail>/<anhang>` lädt die
+  App mit ihrer Anmeldung über die Plugin-API (`cid:` wird umgeschrieben),
+  alles andere bleibt leer. Links öffnen außerhalb der App, `mailto:` im
+  Schreiben-Bildschirm.
+- **Schreiben:** Absender-Konto wählbar, Empfänger mit Vorschlägen
+  (`GET contacts`), Cc/Bcc, Anhänge vom Gerät (≤ 25 MB, Plugin-Media) oder
+  „Aus Drive“ (Drive-Suche, je Datei Kopie oder Link, Link 14 Tage),
+  Warnungen des Servers, Entwurf wird laufend gespeichert, „Senden planen“
+  (lange auf Senden drücken oder Menü). Antworten/Weiterleiten lässt den
+  Server Empfänger, Betreff und Zitat vorfüllen.
+- **Konto hinzufügen:** Anbieterliste des Servers, Formular mit Hinweis des
+  Anbieters, bei „Andere / eigene Domain“ IMAP/SMTP von Hand (nur TLS bzw.
+  STARTTLS). **Microsoft:** Autorisierungscode mit PKCE im Custom Tab,
+  Redirect `msauth://com.gatecontrol.client/<URL-kodierter Base64-SHA-1 der
+  App-Signatur>` (zur Laufzeit berechnet, `MailSigninActivity`), der Server
+  löst den Code ein. Ohne Client-ID: „noch nicht eingerichtet“.
+- **Push:** Topic `mail` (Kanal „Mail“) öffnet die Mail, `mail_failed`
+  den Postausgang. Realtime-Event `mail` lädt offene Listen neu.
+- **Offline:** zuletzt geladene Listen (Posteingang mindestens 30 Tage,
+  wenigstens die neuesten 100) und geöffnete Mails (30 Tage, höchstens 500)
+  liegen pro Anmeldung in `noBackupFilesDir/mail`; sie werden gelöscht,
+  wenn das Plugin verschwindet, sich Server/Token ändern oder der Server
+  401 antwortet (Fernlöschen), ebenso geöffnete Anhänge (`cache/mail-open`).
 
 ## Einstellungen
 

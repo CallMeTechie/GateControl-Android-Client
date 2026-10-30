@@ -24,4 +24,9 @@
          left and at the next start. The ciphertext of an upload in
          cacheDir/drive-vault-up stays private. -->
     <cache-path name="drive_vault_open" path="drive-vault-open/" />
+    <!-- Mail: an attachment the person opens or shares
+         (cacheDir/mail-open/<message>-<attachment>/<name>, pruned after a
+         day, removed with Mail's offline copy). Uploads in cacheDir/mail-up
+         stay private. -->
+    <cache-path name="mail_open" path="mail-open/" />
 </paths>

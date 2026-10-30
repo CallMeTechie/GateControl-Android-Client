@@ -68,6 +68,12 @@ sealed interface PushNavTarget {
      */
     data class Drive(val dest: String, val messageId: Long? = null) : PushNavTarget
 
+    /**
+     * Mail: a mail (`message:<id>`, a new mail's push) or the outbox (`outbox[:<id>]`, a send failed). Without the
+     * plugin (gone meanwhile) the message [messageId] opens.
+     */
+    data class Mail(val dest: String, val messageId: Long? = null) : PushNavTarget
+
     companion object {
         /** App route of the Familie plugin (`plg-gatecontrol-familie`). */
         const val FAMILIE_ROUTE = "plg-gatecontrol-familie"

@@ -300,6 +300,7 @@ fun AppNavigation(
             Screen.Chats.route -> TabItem(route, Screen.Chats.create(), R.string.nav_chats, Icons.AutoMirrored.Outlined.Chat, chatBadge)
             Screen.Vault.route -> TabItem(route, Screen.Vault.route, R.string.vault_tab, GcIcons.Vault)
             Screen.Drive.route -> TabItem(route, Screen.Drive.route, R.string.drive_tab, GcIcons.Cloud)
+            Screen.Mail.route -> TabItem(route, Screen.Mail.route, R.string.mail_tab, GcIcons.Mail)
             else -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
         }
     }
@@ -422,6 +423,7 @@ fun AppNavigation(
             )
             StartPages.VAULT -> VaultHome(navController)
             StartPages.DRIVE -> DriveHome(navController, onShown = {})
+            StartPages.MAIL -> MailHome(navController)
         }
     }
 
@@ -1083,7 +1085,7 @@ fun AppNavigation(
                                     onBack = { selected = null },
                                     onNavigate = { target ->
                                         if (target is PushNavTarget.Detail) selected = target.id
-                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
+                                        else if (target != PushNavTarget.Inbox) openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive, plugins.mail)
                                     },
                                     viewModel = detailViewModel,
                                 )
@@ -1110,7 +1112,7 @@ fun AppNavigation(
                         onBack = {
                             if (!navController.popBackStack()) navController.navigate(Screen.Inbox.create())
                         },
-                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive) },
+                        onNavigate = { target -> openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive, plugins.mail) },
                     )
                 }
             }
@@ -1227,6 +1229,9 @@ fun AppNavigation(
             vaultRoutes(navController, navigateToTab) {
                 if (StartPages.VAULT in pinnedNow) RedirectToPage(StartPages.VAULT, Screen.Vault.route) else VaultHome(navController)
             }
+            mailRoutes(navController, navigateToTab) {
+                if (StartPages.MAIL in pinnedNow) RedirectToPage(StartPages.MAIL, Screen.Mail.route) else MailHome(navController)
+            }
             driveRoutes(navController, navigateToTab) { entry ->
                 if (StartPages.DRIVE in pinnedNow) {
                     RedirectToPage(StartPages.DRIVE, Screen.Drive.route)
@@ -1242,7 +1247,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive)
+            openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive, plugins.mail)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -1274,8 +1279,25 @@ private fun openPushTarget(
     vault: Boolean = false,
     /** The Drive plugin is listed: a deadline opens its file, a vault request the vault. */
     drive: Boolean = false,
+    /** The Mail plugin is listed with its tab: a mail push opens the mail, a failed send the outbox. */
+    mail: Boolean = false,
 ) {
     when (target) {
+        is PushNavTarget.Mail -> {
+            val message = com.gatecontrol.android.mail.MailPush.messageOf(target.dest)
+            when {
+                mail && message != null -> {
+                    navigateToTab(Screen.Mail.route)
+                    navController.navigate(Screen.MailMessage.create(message)) { launchSingleTop = true }
+                }
+                mail && com.gatecontrol.android.mail.MailPush.isOutbox(target.dest) -> {
+                    navigateToTab(Screen.Mail.route)
+                    navController.navigate(Screen.MailOutbox.route) { launchSingleTop = true }
+                }
+                target.messageId != null -> navController.navigate(Screen.NotificationDetail.create(target.messageId))
+                else -> navigateToTab(Screen.Vpn.route)
+            }
+        }
         is PushNavTarget.Drive -> {
             val file = com.gatecontrol.android.drive.DrivePush.fileOf(target.dest)
             val vaultDest = com.gatecontrol.android.drive.DrivePush.vaultOf(target.dest)
@@ -1479,7 +1501,11 @@ private fun GcTabBar(
                 .padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
         ) {
             // Six tabs (all plugins) share a phone's width: a narrower pill.
-            val pill = if (tabs.size > 5) 52.dp else 60.dp
+            val pill = when {
+                tabs.size > 6 -> 44.dp
+                tabs.size > 5 -> 52.dp
+                else -> 60.dp
+            }
             tabs.forEach { tab ->
                 val selected = isSelected(tab)
                 Box(Modifier.weight(1f)) {
@@ -1602,7 +1628,7 @@ private fun GcNavRail(
 
 /** Single-column pages on wide windows: centred, at most [maxWidth] wide. */
 @Composable
-private fun GcContentWidth(maxWidth: Dp = 720.dp, content: @Composable () -> Unit) {
+internal fun GcContentWidth(maxWidth: Dp = 720.dp, content: @Composable () -> Unit) {
     Box(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.TopCenter,

@@ -120,6 +120,28 @@
             </intent-filter>
         </activity>
 
+        <!-- Mail: the browser's answer to "Mit Microsoft anmelden" of a mail
+             account (msauth://com.gatecontrol.client/<signature hash>, as
+             Microsoft registers Android apps). Exported for the browser, but
+             disabled until the server offers Mail (MailStartup); hands the
+             one-time code to the Mail screen, which holds the PKCE verifier. -->
+        <activity
+            android:name=".MailSigninActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.GateControl.TileAction">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="msauth"
+                    android:host="com.gatecontrol.client" />
+            </intent-filter>
+        </activity>
+
         <!-- Performs Quick Settings tile actions (connect incl. VPN consent,
              disconnect). NOT exported: other apps must not be able to
              toggle the VPN. -->

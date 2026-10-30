@@ -69,6 +69,11 @@ data class PluginAvailability(
      * listed for this user: the tab "Drive".
      */
     val drive: Boolean = false,
+    /**
+     * The Mail plugin is listed with an app tab for this user (installed and the person allowed, its `appVisible`):
+     * the tab "Mail" (contract D).
+     */
+    val mail: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -88,6 +93,7 @@ data class PluginAvailability(
                 gatedrop = plugins.any { it.id == com.gatecontrol.android.gatedrop.GATEDROP_PLUGIN },
                 vault = plugins.any { it.id == com.gatecontrol.android.vault.VAULT_PLUGIN },
                 drive = plugins.any { it.id == com.gatecontrol.android.drive.DRIVE_PLUGIN },
+                mail = plugins.any { it.id == com.gatecontrol.android.mail.MAIL_PLUGIN && it.tab != null },
             )
         }
 
