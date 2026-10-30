@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.67.34] - 2026-10-30
+
+### Changes
+- selbst exportierte Protokolle an GateControl teilen (#159)
+
+---
+
+## [1.67.33] - 2026-10-30
+
+### Changes
+- Inhalt wieder sichtbar, Menü oben, Microsoft-Adresse im Protokoll (#158)
+
+---
+
 ## [1.67.32] - 2026-10-30
 
 ### Changes

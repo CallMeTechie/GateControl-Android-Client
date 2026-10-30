@@ -294,9 +294,11 @@ class ChatShareActivity : ComponentActivity() {
 object ChatShareRules {
     /**
      * Only `content://` of another app: never `file://` (another app could
-     * name this app's private files) and never this app's own providers.
+     * name this app's private files) and never this app's own providers —
+     * except a file this app has just exported to the share sheet itself ([OwnExports]).
      */
-    fun acceptable(uri: Uri, ownPackage: String): Boolean = acceptable(uri.scheme, uri.authority, ownPackage)
+    fun acceptable(uri: Uri, ownPackage: String): Boolean =
+        acceptable(uri.scheme, uri.authority, ownPackage) || (uri.scheme == ContentResolver.SCHEME_CONTENT && OwnExports.allows(uri.toString()))
 
     fun acceptable(scheme: String?, authority: String?, ownPackage: String): Boolean {
         if (scheme != ContentResolver.SCHEME_CONTENT) return false
