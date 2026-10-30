@@ -153,6 +153,13 @@ class TabLayoutRepository @Inject constructor(
     /** The start tab's new order (StartLayout entries). */
     suspend fun saveStart(entries: List<String>) = save { it.copy(start = TabLayout.clean(entries)) }
 
+    /**
+     * The start list changed from what it is now (the pages beside Start
+     * live in it, [StartPages]): read and written in one step, so a change
+     * of the pages and one of the blocks do not undo each other.
+     */
+    suspend fun updateStart(change: (List<String>) -> List<String>) = save { it.copy(start = TabLayout.clean(change(it.start))) }
+
     /** The Familie tab's new order and hidden cards (FamilieLayout ids). */
     suspend fun saveFamilie(order: List<String>, hidden: List<String>) =
         save { it.copy(familie = TabLayout.clean(order), familieHidden = TabLayout.clean(hidden)) }
@@ -179,7 +186,7 @@ class TabLayoutRepository @Inject constructor(
         if (serverUrl.isBlank()) return
         val remote = s.remote
         val outgoing = if (remote == null) s.layout else s.layout.copy(
-            start = TabLayout.keepForeign(s.layout.start, remote.start, StartLayout::identity),
+            start = StartPages.keepForeign(s.layout.start, remote.start),
             familie = TabLayout.keepForeign(s.layout.familie, remote.familie),
         )
         try {

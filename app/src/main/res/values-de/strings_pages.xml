@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Seiten neben Start statt Tabs: Funktionen und Widget-Seiten an Start anheften, Einstellungen „Leiste und Seiten“ -->
+<resources>
+    <string name="pages_widgets_name">Widgets %1$d</string>
+    <string name="pages_plus_title">Seite anheften</string>
+    <string name="pages_plus_text">Eine Funktion aus der Leiste unten oder eine neue Seite für weitere Widgets</string>
+    <string name="pages_dots_desc">Seiten</string>
+    <string name="pages_dot_desc">Seite %1$d von %2$d: %3$s</string>
+    <string name="pages_dot_desc_badge">Seite %1$d von %2$d: %3$s (%4$d)</string>
+    <string name="pages_menu_desc">Optionen für diese Seite</string>
+    <string name="pages_as_tab">Als Tab anzeigen</string>
+    <string name="pages_as_tab_desc">Symbol kommt zurück in die Leiste</string>
+    <string name="pages_remove">Seite entfernen</string>
+    <string name="pages_arrange">Seiten anordnen</string>
+    <string name="pages_sheet_title">Seite an Start anheften</string>
+    <string name="pages_sheet_text">Wische von Start nach links, um sie zu öffnen. Ihr Symbol verschwindet aus der Leiste.</string>
+    <string name="pages_sheet_from_bar">Aus der Leiste</string>
+    <string name="pages_sheet_icon_leaves">Symbol verschwindet aus der Leiste</string>
+    <string name="pages_sheet_all_pinned">Alle Funktionen sind schon an Start angeheftet.</string>
+    <string name="pages_sheet_more_room">Mehr Platz für Widgets</string>
+    <string name="pages_new_widgets">Neue Widget-Seite</string>
+    <string name="pages_new_widgets_desc">Leere Seite für weitere Schnellaktionen und Widgets</string>
+    <string name="pages_snack_pinned">„%1$s“ ist jetzt eine Seite neben Start</string>
+    <string name="pages_snack_unpinned">„%1$s“ ist wieder ein Tab unten</string>
+    <string name="pages_snack_removed">Seite entfernt</string>
+    <string name="pages_undo">Rückgängig</string>
+    <string name="pages_tab_pin">An Start anheften</string>
+    <string name="pages_tab_pin_desc">Dann: von Start nach links wischen</string>
+    <string name="pages_tab_settings">Leiste und Seiten …</string>
+    <string name="pages_tab_options">Optionen</string>
+    <string name="pages_widgets_empty">Noch leer. Lange drücken oder hier tippen, um Schnellaktionen und Widgets hinzuzufügen.</string>
+    <string name="pages_widgets_add">Widgets hinzufügen</string>
+    <string name="pages_widgets_add_desc">Schnellaktion oder Widget hinzufügen</string>
+    <string name="pages_widgets_hint">Funktioniert wie Start: lange auf eine freie Stelle drücken öffnet „Schnellaktionen und Widgets“ und „Anordnen“.</string>
+    <string name="pages_widgets_edit_title">Seite bearbeiten</string>
+    <string name="pages_widgets_arrange">„%1$s“ anordnen</string>
+    <string name="pages_remove_confirm_title">„%1$s“ entfernen?</string>
+    <plurals name="pages_remove_confirm_text">
+        <item quantity="one">Die Schnellaktion oder das Widget dieser Seite kommt zurück auf Start.</item>
+        <item quantity="other">Die %1$d Schnellaktionen und Widgets dieser Seite kommen zurück auf Start.</item>
+    </plurals>
+    <string name="pages_remove_confirm">Entfernen</string>
+    <string name="pages_arrange_hint">Halten und ziehen. Die Reihenfolge gilt beim Wischen von Start nach links.</string>
+    <string name="pages_beside_start">Seiten neben Start</string>
+    <string name="pages_start_first">Immer die erste Seite</string>
+    <string name="pages_fixed">Fest an erster Stelle</string>
+    <string name="pages_moving">Wird verschoben …</string>
+    <string name="pages_as_tab_short">Als Tab</string>
+    <string name="pages_remove_short">Entfernen</string>
+    <string name="pages_in_bar">Unten in der Leiste</string>
+    <string name="pages_pin_short">Anheften</string>
+    <string name="pages_settings_title">Leiste und Seiten</string>
+    <string name="pages_settings_row_desc">Funktionen als Tab oder als Seite neben Start</string>
+    <string name="pages_preview">Vorschau</string>
+    <string name="pages_preview_line">Wischen: %1$s → +</string>
+    <string name="pages_preview_none">Keine Seiten neben Start</string>
+    <string name="pages_each_as">Jede Funktion als</string>
+    <string name="pages_start_always">Immer Tab und erste Seite</string>
+    <string name="pages_tab">Tab</string>
+    <string name="pages_page">Seite</string>
+    <string name="pages_segment_desc">%1$s anzeigen als</string>
+    <string name="pages_settings_footer">„Seite“ heißt: an Start angeheftet, erreichbar durch Wischen nach links. Die Reihenfolge änderst du unter „Seiten anordnen“.</string>
+    <string name="pages_hide_bar">Leiste ausblenden, wenn nur Start bleibt</string>
+    <string name="pages_hide_bar_desc">Mehr Platz für die Seiten</string>
+    <string name="pages_settings_no_features">Noch nichts zum Anheften: außer Start ist keine Funktion verfügbar.</string>
+</resources>

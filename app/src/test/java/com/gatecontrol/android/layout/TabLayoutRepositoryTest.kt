@@ -145,4 +145,28 @@ class TabLayoutRepositoryTest {
         assertTrue(state().access.locked)
         assertEquals(listOf("info", "usage"), state().layout.start)
     }
+
+    @Test
+    fun `a page taken off here does not come back from the account's copy`() = runTest {
+        serves("user", layout = ClientLayoutDto(start = listOf("info", "page:network", "page:w2", "widget:other/phone")))
+        coEvery { api.putClientLayout(capture(sent)) } returns Response.success(ClientLayoutPutResponse(ok = true))
+        val repo = repo()
+        repo.refresh(force = true)
+        repo.updateStart { StartPages.unpin(it, "network") }
+        assertEquals(listOf("info", "page:w2", "widget:other/phone"), sent.captured.layout.start)
+        repo.updateStart { StartPages.pin(it, "chats") }
+        assertEquals(listOf("info", "page:w2", "widget:other/phone", "page:chats"), sent.captured.layout.start)
+        assertEquals(listOf("w2", "chats"), StartPages.pages(state().layout.start))
+    }
+
+    @Test
+    fun `pages stay as the admin fixed them`() = runTest {
+        serves("global", editable = false, layout = ClientLayoutDto(start = listOf("info", "page:network")))
+        val repo = repo()
+        repo.refresh(force = true)
+        repo.updateStart { StartPages.unpin(it, "network") }
+        repo.updateStart { StartPages.pin(it, "w2") }
+        assertEquals(listOf("info", "page:network"), state().layout.start)
+        coVerify(exactly = 0) { api.putClientLayout(any()) }
+    }
 }

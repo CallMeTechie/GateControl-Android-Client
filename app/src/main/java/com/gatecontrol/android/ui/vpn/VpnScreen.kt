@@ -121,11 +121,11 @@ fun VpnScreen(
     /** Messenger 1.4: the own active stories (from the status sheet). */
     onOpenOwnStories: () -> Unit = {},
     /**
-     * "Erinnerung für dieses Gerät" in a widget's or button's settings: the
-     * reminder editor for the action `<plugin>/<id>` (Screen.ReminderNew);
-     * null: the row is not offered.
+     * "Start-Tab anordnen" (the edit sheet's row): the arranging screen
+     * replaces Start and its pages (StartPager), which also shows the pin
+     * sheets and results of the quick actions for all of them.
      */
-    onNewReminder: ((actionId: String) -> Unit)? = null,
+    onArrange: () -> Unit = {},
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
@@ -530,12 +530,6 @@ fun VpnScreen(
     val quickActionsViewModel: com.gatecontrol.android.ui.quickactions.QuickActionsViewModel = hiltViewModel()
     val startEntries by quickActionsViewModel.entries.collectAsState()
     val layoutAccess by quickActionsViewModel.layoutAccess.collectAsState()
-    var arranging by rememberSaveable { mutableStateOf(false) }
-    com.gatecontrol.android.ui.quickactions.QuickActionsEffects(
-        onArrange = { arranging = true },
-        onNewReminder = onNewReminder,
-        viewModel = quickActionsViewModel,
-    )
     val tilesSection: @Composable ColumnScope.() -> Unit = {
         com.gatecontrol.android.ui.quickactions.StartTiles(onOpenDoor = onOpenDoor, viewModel = quickActionsViewModel)
     }
@@ -552,7 +546,7 @@ fun VpnScreen(
             onActions = { editOpen = false; onOpenQuickActions() },
             onInfoCard = { editOpen = false; onOpenInfoCardPicker() },
             onDismiss = { editOpen = false },
-            onArrange = { editOpen = false; arranging = true },
+            onArrange = { editOpen = false; onArrange() },
             arrangeLocked = layoutAccess.locked,
         )
     }
@@ -580,16 +574,6 @@ fun VpnScreen(
             onOpenDoor = onOpenDoor,
             viewModel = quickActionsViewModel,
         )
-    }
-
-    // "Start-Tab anordnen" replaces the tab until "Fertig".
-    if (arranging && !layoutAccess.locked) {
-        com.gatecontrol.android.ui.start.StartArrangeScreen(
-            onDone = { arranging = false },
-            onAddTile = onOpenQuickActions,
-            viewModel = quickActionsViewModel,
-        )
-        return
     }
 
     // Phones: one column. Wide windows: quick actions and Info card on the
@@ -635,7 +619,7 @@ fun VpnScreen(
 
 /** A scrolling column of home sections; a long press on its free space calls [onLongPress]. */
 @Composable
-private fun HomeColumn(
+internal fun HomeColumn(
     modifier: Modifier = Modifier,
     onLongPress: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,

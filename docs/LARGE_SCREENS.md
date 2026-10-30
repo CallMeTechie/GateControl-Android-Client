@@ -31,6 +31,11 @@ Details:
   Remote as segments) and Familie; since 1.35 there is no settings tab and
   no remote tab. The settings are a normal destination with back, opened
   from the profile's gear; they hide the rail like any other sub page.
+- Functions pinned to Start as pages (`StartPages`, docs/FEATURES.md
+  „Seiten neben Start statt Tabs“) leave the rail as they leave the bottom
+  bar; the pages and their dots work the same on wide windows (a page shows
+  its tab's two-pane screen). With everything pinned and „Leiste
+  ausblenden, wenn nur Start bleibt“ on, there is no rail either.
 - Links into a settings page (logs, location, notifications, diagnosis)
   open the settings (list with that page beside it) on wide windows
   (`settings?pane=…`), else the page's own route. The profile always opens

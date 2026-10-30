@@ -97,6 +97,8 @@ fun QuickActionsScreen(
     onOpenDoor: (() -> Unit)? = null,
     /** "Erinnerung für dieses Gerät" in the pin sheet: the reminder editor for the action `<plugin>/<id>` (null: no such row). */
     onNewReminder: ((actionId: String) -> Unit)? = null,
+    /** The widget page beside Start the list was opened from: what is pinned here joins it (null: Start). */
+    page: String? = null,
     viewModel: QuickActionsViewModel = hiltViewModel(),
 ) {
     val devices by viewModel.devices.collectAsStateWithLifecycle()
@@ -186,8 +188,8 @@ fun QuickActionsScreen(
             device = open,
             pinnedActionIds = open.actions.filter { it.key in pinnedKeys }.map { it.id }.toSet(),
             widgetPin = widgets.firstOrNull { it.resolve(devices)?.key == open.key },
-            onSaveButtons = { ids -> viewModel.setButtons(open, ids); sheetFor = null },
-            onSaveWidget = { parts, wide -> viewModel.setWidget(open, parts, wide); sheetFor = null },
+            onSaveButtons = { ids -> viewModel.setButtons(open, ids, page); sheetFor = null },
+            onSaveWidget = { parts, wide -> viewModel.setWidget(open, parts, wide, page); sheetFor = null },
             onRemoveWidget = { viewModel.removeWidget(open.key); sheetFor = null },
             onDismiss = { sheetFor = null },
             onReminder = onNewReminder?.let { start -> { sheetFor = null; start(open.carrier?.key ?: open.actions.first().key) } },
@@ -263,11 +265,12 @@ private const val REFRESH_MS = 60_000L
  * "Ausführen?" and the pin sheet a long press on a widget or button opens
  * (with "Erinnerung für dieses Gerät" when [onNewReminder] is given — it
  * gets the action's key `<plugin>/<id>` — and "Start-Tab anordnen",
- * [onArrange]).
+ * [onArrange] with the page the sheet was opened on, null: Start). Once
+ * for Start and its pages together (they share the view model).
  */
 @Composable
 fun QuickActionsEffects(
-    onArrange: () -> Unit,
+    onArrange: (page: String?) -> Unit,
     onNewReminder: ((actionId: String) -> Unit)? = null,
     viewModel: QuickActionsViewModel = hiltViewModel(),
 ) {
@@ -306,8 +309,8 @@ fun QuickActionsEffects(
         device = device,
         pinnedActionIds = device.actions.filter { it.key in pinnedKeys }.map { it.id }.toSet(),
         widgetPin = widgets.firstOrNull { it.resolve(devices)?.key == device.key },
-        onSaveButtons = { ids -> viewModel.setButtons(device, ids); viewModel.closeSheet() },
-        onSaveWidget = { parts, wide -> viewModel.setWidget(device, parts, wide); viewModel.closeSheet() },
+        onSaveButtons = { ids -> viewModel.setButtons(device, ids, request.page); viewModel.closeSheet() },
+        onSaveWidget = { parts, wide -> viewModel.setWidget(device, parts, wide, request.page); viewModel.closeSheet() },
         onRemoveWidget = { viewModel.removeWidget(device.key); viewModel.closeSheet() },
         onDismiss = viewModel::closeSheet,
         fromStart = request.fromStart,
@@ -318,7 +321,7 @@ fun QuickActionsEffects(
                 open(request.action ?: device.carrier?.key ?: device.actions.first().key)
             }
         },
-        onArrange = { viewModel.closeSheet(); onArrange() },
+        onArrange = { viewModel.closeSheet(); onArrange(request.page) },
         arrangeLocked = access.locked,
     )
 }
@@ -337,20 +340,25 @@ fun StartTiles(
     modifier: Modifier = Modifier,
     /** Long press on a door action: the door screen (null: door plugin not listed). */
     onOpenDoor: (() -> Unit)? = null,
+    /** The widget page beside Start these tiles stand on (null: Start). */
+    page: String? = null,
     viewModel: QuickActionsViewModel = hiltViewModel(),
 ) {
     val pins by viewModel.pins.collectAsStateWithLifecycle()
     val actions by viewModel.actions.collectAsStateWithLifecycle()
     val devices by viewModel.devices.collectAsStateWithLifecycle()
     val widgetPins by viewModel.widgets.collectAsStateWithLifecycle()
-    val entries by viewModel.entries.collectAsStateWithLifecycle()
+    val pages by viewModel.pages.collectAsStateWithLifecycle()
     val running by viewModel.running.collectAsStateWithLifecycle()
     val extra = GateControlTheme.extraColors
     val hasWidgets = widgetPins.any { it.resolve(devices) != null }
-    val order = entries.filterIsInstance<StartEntry.Tile>().map { it.action }
+    val order = pages[page].orEmpty().filterIsInstance<StartEntry.Tile>().map { it.action }
     val settingsLabel = stringResource(R.string.start_tile_settings)
+    // Only this page's buttons (a button on another page beside Start is not shown here).
+    val here = order.toSet()
+    val shown = StartLayout.ordered(pins.filter { it.key in here }, order) { it.key }
 
-    when (val row = QuickActionsRow.of(StartLayout.ordered(pins, order) { it.key }, actions, hasWidgets)) {
+    when (val row = QuickActionsRow.of(shown, actions, hasWidgets || page != null)) {
         QuickActionsRow.Hidden -> Unit
         QuickActionsRow.Choose -> Text(
             stringResource(R.string.start_edit_hint),
@@ -376,7 +384,7 @@ fun StartTiles(
                         width = tile,
                         running = running == item.key,
                         onClick = { viewModel.ask(item) },
-                        onLongPress = door ?: { viewModel.openSheet(PinSheetRequest(item.deviceKey, widget = false, action = item.key)) },
+                        onLongPress = door ?: { viewModel.openSheet(PinSheetRequest(item.deviceKey, widget = false, action = item.key, page = page)) },
                         longPressLabel = if (door != null) stringResource(R.string.door_open_screen) else settingsLabel,
                     )
                 }
@@ -399,6 +407,8 @@ fun StartCards(
     usage: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     onOpenDoor: (() -> Unit)? = null,
+    /** The widget page beside Start these cards stand on (null: Start). */
+    page: String? = null,
     viewModel: QuickActionsViewModel = hiltViewModel(),
 ) {
     val devices by viewModel.devices.collectAsStateWithLifecycle()
@@ -427,7 +437,7 @@ fun StartCards(
             running = running,
             adjusting = adjusting,
             onRun = viewModel::ask,
-            onLongPress = door ?: { viewModel.openSheet(PinSheetRequest(device.key, widget = true)) },
+            onLongPress = door ?: { viewModel.openSheet(PinSheetRequest(device.key, widget = true, page = page)) },
             longPressLabel = if (door != null) doorLabel else settingsLabel,
             onControl = { carrier, control, value -> viewModel.control(carrier, control, value) },
             modifier = cardModifier,

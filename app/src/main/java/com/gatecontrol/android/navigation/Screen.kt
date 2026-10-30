@@ -240,7 +240,19 @@ sealed class Screen(val route: String) {
     data object LocationSharing : Screen("settings/location")
     /** Diagnose & Problem melden (Settings › Hilfe, start screen on connection problems). */
     data object Diagnosis : Screen("settings/diagnosis")
-    data object QuickActions : Screen("quick-actions")
+    /**
+     * "Schnellaktionen und Widgets"; `page` = the widget page beside Start
+     * it was opened from (what is pinned there joins that page).
+     */
+    data object QuickActions : Screen("quick-actions?page={page}") {
+        const val ARG_PAGE = "page"
+        const val BASE = "quick-actions"
+        fun create(page: String? = null): String = if (page == null) BASE else "$BASE?page=$page"
+    }
+    /** "Seiten anordnen": the pages beside Start (StartPages), from a page's "⋯" and the settings. */
+    data object StartPagesArrange : Screen("start-pages")
+    /** Einstellungen → "Leiste und Seiten": each function as tab or page beside Start. */
+    data object SettingsPages : Screen("settings/pages")
     /**
      * New personal reminder for a device ("Erinnerung für dieses Gerät" in
      * a start-tab widget's settings): the reminder editor with the action

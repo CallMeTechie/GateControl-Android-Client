@@ -125,6 +125,8 @@ fun ChatListScreen(
                     if (!searching) viewModel.setQuery("")
                 })
                 GcIconButton(GcIcons.Settings, stringResource(R.string.chat_settings_title), onClick = onOpenSettings)
+                // "⋯" of the page when Chats is pinned to Start.
+                com.gatecontrol.android.ui.start.StartPageMenuButton()
             }
             if (searching) {
                 GcTextField(

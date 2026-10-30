@@ -14,6 +14,8 @@ enum class SettingsPane(val key: String) {
     TrustedNetworks("trusted-networks"),
     Location("location"),
     Notifications("notifications"),
+    /** "Leiste und Seiten": functions as tabs or as pages beside Start. */
+    Pages("pages"),
     /** GateDrop "Geteilt" (only while the server offers GateDrop). */
     Shared("shared"),
     Logs("logs"),

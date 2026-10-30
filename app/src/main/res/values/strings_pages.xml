@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pages beside Home instead of tabs: pinning functions and widget pages to the Home tab, the bar and pages settings -->
+<resources>
+    <string name="pages_widgets_name">Widgets %1$d</string>
+    <string name="pages_plus_title">Pin a page</string>
+    <string name="pages_plus_text">A function from the bar below or a new page for more widgets</string>
+    <string name="pages_dots_desc">Pages</string>
+    <string name="pages_dot_desc">Page %1$d of %2$d: %3$s</string>
+    <string name="pages_dot_desc_badge">Page %1$d of %2$d: %3$s (%4$d)</string>
+    <string name="pages_menu_desc">Options for this page</string>
+    <string name="pages_as_tab">Show as tab</string>
+    <string name="pages_as_tab_desc">Its icon returns to the bar</string>
+    <string name="pages_remove">Remove page</string>
+    <string name="pages_arrange">Arrange pages</string>
+    <string name="pages_sheet_title">Pin a page to Home</string>
+    <string name="pages_sheet_text">Swipe left from Home to open it. Its icon leaves the bar.</string>
+    <string name="pages_sheet_from_bar">From the bar</string>
+    <string name="pages_sheet_icon_leaves">Its icon leaves the bar</string>
+    <string name="pages_sheet_all_pinned">All functions are already pinned to Home.</string>
+    <string name="pages_sheet_more_room">More room for widgets</string>
+    <string name="pages_new_widgets">New widget page</string>
+    <string name="pages_new_widgets_desc">Empty page for more quick actions and widgets</string>
+    <string name="pages_snack_pinned">“%1$s” is now a page beside Home</string>
+    <string name="pages_snack_unpinned">“%1$s” is a tab below again</string>
+    <string name="pages_snack_removed">Page removed</string>
+    <string name="pages_undo">Undo</string>
+    <string name="pages_tab_pin">Pin to Home</string>
+    <string name="pages_tab_pin_desc">Then: swipe left from Home</string>
+    <string name="pages_tab_settings">Bar and pages …</string>
+    <string name="pages_tab_options">Options</string>
+    <string name="pages_widgets_empty">Still empty. Long-press or tap here to add quick actions and widgets.</string>
+    <string name="pages_widgets_add">Add widgets</string>
+    <string name="pages_widgets_add_desc">Add a quick action or widget</string>
+    <string name="pages_widgets_hint">Works like Home: long-press an empty spot to open “Quick actions and widgets” and “Arrange”.</string>
+    <string name="pages_widgets_edit_title">Edit page</string>
+    <string name="pages_widgets_arrange">Arrange “%1$s”</string>
+    <string name="pages_remove_confirm_title">Remove “%1$s”?</string>
+    <plurals name="pages_remove_confirm_text">
+        <item quantity="one">The quick action or widget on this page goes back to Home.</item>
+        <item quantity="other">The %1$d quick actions and widgets on this page go back to Home.</item>
+    </plurals>
+    <string name="pages_remove_confirm">Remove</string>
+    <string name="pages_arrange_hint">Hold and drag. The order applies when swiping left from Home.</string>
+    <string name="pages_beside_start">Pages beside Home</string>
+    <string name="pages_start_first">Always the first page</string>
+    <string name="pages_fixed">Fixed in first place</string>
+    <string name="pages_moving">Moving …</string>
+    <string name="pages_as_tab_short">As tab</string>
+    <string name="pages_remove_short">Remove</string>
+    <string name="pages_in_bar">In the bar below</string>
+    <string name="pages_pin_short">Pin</string>
+    <string name="pages_settings_title">Bar and pages</string>
+    <string name="pages_settings_row_desc">Functions as tabs or as pages beside Home</string>
+    <string name="pages_preview">Preview</string>
+    <string name="pages_preview_line">Swipe: %1$s → +</string>
+    <string name="pages_preview_none">No pages beside Home</string>
+    <string name="pages_each_as">Each function as</string>
+    <string name="pages_start_always">Always a tab and the first page</string>
+    <string name="pages_tab">Tab</string>
+    <string name="pages_page">Page</string>
+    <string name="pages_segment_desc">Show %1$s as</string>
+    <string name="pages_settings_footer">“Page” means: pinned to Home, reached by swiping left. Change the order under “Arrange pages”.</string>
+    <string name="pages_hide_bar">Hide the bar when only Home is left</string>
+    <string name="pages_hide_bar_desc">More room for the pages</string>
+    <string name="pages_settings_no_features">There is nothing to pin yet: no function besides Home is available.</string>
+</resources>

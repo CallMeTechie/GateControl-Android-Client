@@ -85,11 +85,15 @@ fun StartArrangeScreen(
     onDone: () -> Unit,
     onAddTile: () -> Unit,
     modifier: Modifier = Modifier,
+    /** A widget page beside Start to arrange instead of the start tab, with its [title]. */
+    page: String? = null,
+    title: String? = null,
     viewModel: QuickActionsViewModel = hiltViewModel(),
 ) {
     val extra = GateControlTheme.extraColors
     val haptic = LocalHapticFeedback.current
-    val entries by viewModel.entries.collectAsStateWithLifecycle()
+    val pages by viewModel.pages.collectAsStateWithLifecycle()
+    val entries = pages[page].orEmpty()
     val access by viewModel.layoutAccess.collectAsStateWithLifecycle()
     val pins by viewModel.pins.collectAsStateWithLifecycle()
     val devices by viewModel.devices.collectAsStateWithLifecycle()
@@ -98,7 +102,7 @@ fun StartArrangeScreen(
     var working by remember { mutableStateOf<List<StartEntry>?>(null) }
     val list = working ?: entries
     val finish = {
-        working?.let { viewModel.saveArrangement(it) }
+        working?.let { viewModel.saveArrangement(it, page) }
         onDone()
     }
     BackHandler(onBack = finish)
@@ -128,7 +132,7 @@ fun StartArrangeScreen(
 
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         ArrangeBar(
-            title = stringResource(R.string.start_arrange),
+            title = title ?: stringResource(R.string.start_arrange),
             hint = stringResource(R.string.start_arrange_hint),
             scope = access,
             onDone = finish,
@@ -175,8 +179,10 @@ fun StartArrangeScreen(
                     Text(stringResource(R.string.arrange_add_tile), style = MaterialTheme.typography.labelLarge, color = extra.muted)
                 }
             }
-            item(key = "h:cards", span = { GridItemSpan(COLUMNS) }) {
-                GcSectionLabel(stringResource(R.string.arrange_cards), Modifier.padding(start = 4.dp, top = 8.dp))
+            if (page == null || cards.isNotEmpty()) {
+                item(key = "h:cards", span = { GridItemSpan(COLUMNS) }) {
+                    GcSectionLabel(stringResource(R.string.arrange_cards), Modifier.padding(start = 4.dp, top = 8.dp))
+                }
             }
             items(cards, key = { it.key }, span = { GridItemSpan(if (it.isHalf) COLUMNS / 2 else COLUMNS) }) { card ->
                 val (title, icon, accent) = when (card) {

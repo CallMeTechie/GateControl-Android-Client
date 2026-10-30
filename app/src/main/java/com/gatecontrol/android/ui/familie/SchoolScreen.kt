@@ -264,7 +264,9 @@ private fun Plan(
             onHorizontalDrag = { _, amount -> drag += amount },
         )
     }
-    Column(swipe.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // As (part of) a page beside Start, swiping changes the page: the days by tapping only.
+    val daySwipe = if (com.gatecontrol.android.ui.start.LocalInStartPager.current) Modifier else swipe
+    Column(daySwipe.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         GcSectionLabel(dayHeading(date.toString()), Modifier.padding(start = 4.dp, top = 4.dp))
         day?.holiday?.let { h ->
             GcBanner(tone = GcTone.Info, icon = GcIcons.Calendar) {

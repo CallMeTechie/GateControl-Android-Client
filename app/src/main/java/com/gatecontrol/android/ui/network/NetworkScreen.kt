@@ -3,6 +3,8 @@ package com.gatecontrol.android.ui.network
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -98,7 +100,11 @@ fun NetworkScreen(
             Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            GcScreenTitle(stringResource(R.string.nav_network))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GcScreenTitle(stringResource(R.string.nav_network), Modifier.weight(1f))
+                // "⋯" of the page when Netzwerk is pinned to Start.
+                com.gatecontrol.android.ui.start.StartPageMenuButton()
+            }
             if (available.size > 1 && current != null) {
                 GcSegmented(
                     options = available,

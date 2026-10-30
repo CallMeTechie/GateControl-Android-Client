@@ -22,7 +22,8 @@ import com.gatecontrol.android.ui.start.StartIcons
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
- * Menu from below after a long press on a free spot of the start tab:
+ * Menu from below after a long press on a free spot of the start tab (or
+ * of a widget page beside it, [title] its own and no [onInfoCard]):
  * "Schnellaktionen und Widgets" (the list, pinning, widget or button) and
  * "Inhalte der Info-Karte" (the picker).
  */
@@ -30,11 +31,13 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 @Composable
 fun StartEditSheet(
     onActions: () -> Unit,
-    onInfoCard: () -> Unit,
+    onInfoCard: (() -> Unit)?,
     onDismiss: () -> Unit,
     /** "Start-Tab anordnen"; [arrangeLocked]: off, with the hint that the admin sets the order. */
     onArrange: (() -> Unit)? = null,
     arrangeLocked: Boolean = false,
+    title: String = stringResource(R.string.start_edit_title),
+    arrangeTitle: String = stringResource(R.string.start_arrange),
 ) {
     val extra = GateControlTheme.extraColors
     ModalBottomSheet(
@@ -44,7 +47,7 @@ fun StartEditSheet(
     ) {
         Column(Modifier.padding(bottom = 24.dp)) {
             Text(
-                stringResource(R.string.start_edit_title),
+                title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
@@ -56,17 +59,19 @@ fun StartEditSheet(
                 leading = { Icon(GcIcons.Zap, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp)) },
                 trailing = { GcChevron() },
             )
-            GcRowDivider(Modifier.padding(horizontal = 16.dp))
-            GcListRow(
-                title = stringResource(R.string.start_edit_info),
-                onClick = onInfoCard,
-                leading = { Icon(GcIcons.Sliders, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp)) },
-                trailing = { GcChevron() },
-            )
+            if (onInfoCard != null) {
+                GcRowDivider(Modifier.padding(horizontal = 16.dp))
+                GcListRow(
+                    title = stringResource(R.string.start_edit_info),
+                    onClick = onInfoCard,
+                    leading = { Icon(GcIcons.Sliders, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp)) },
+                    trailing = { GcChevron() },
+                )
+            }
             if (onArrange != null) {
                 GcRowDivider(Modifier.padding(horizontal = 16.dp))
                 GcListRow(
-                    title = stringResource(R.string.start_arrange),
+                    title = arrangeTitle,
                     description = if (arrangeLocked) stringResource(R.string.arrange_locked) else stringResource(R.string.start_arrange_hint),
                     onClick = if (arrangeLocked) null else onArrange,
                     titleColor = if (arrangeLocked) extra.faint else MaterialTheme.colorScheme.onSurface,
