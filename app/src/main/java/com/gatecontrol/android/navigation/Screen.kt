@@ -129,6 +129,53 @@ sealed class Screen(val route: String) {
     data object VaultImport : Screen("vault/import")
     data object VaultSettings : Screen("vault/settings")
     /**
+     * Tab "Mail" (plugin gatecontrol-mail, only when the server lists it with its tab): the inboxes. A mail, writing,
+     * the search, "Zum Ablegen", adding an account and the settings are routes of their own (no tab bar).
+     */
+    data object Mail : Screen("mail")
+    data object MailMessage : Screen("mail/m/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "mail/m/$id"
+    }
+    /** Writing: a new mail (`account`, `to`), an answer or forward of `ref` (`mode`), or the draft `draft`. */
+    data object MailCompose : Screen("mail/compose?draft={draft}&ref={ref}&mode={mode}&account={account}&to={to}&reply={reply}") {
+        const val ARG_DRAFT = "draft"
+        const val ARG_REF = "ref"
+        const val ARG_MODE = "mode"
+        const val ARG_ACCOUNT = "account"
+        const val ARG_TO = "to"
+        const val ARG_REPLY = "reply"
+        fun create(draft: Long? = null, ref: Long? = null, mode: String? = null, account: Long? = null, to: String? = null, reply: String? = null): String {
+            // %20, not "+": the navigation decodes arguments like a URI path
+            fun enc(v: String) = java.net.URLEncoder.encode(v, "UTF-8").replace("+", "%20")
+            val args = listOfNotNull(
+                draft?.let { "draft=$it" },
+                ref?.let { "ref=$it" },
+                mode?.let { "mode=" + enc(it) },
+                account?.let { "account=$it" },
+                to?.let { "to=" + enc(it) },
+                reply?.let { "reply=" + enc(it.take(2000)) },
+            )
+            return "mail/compose" + if (args.isEmpty()) "" else "?" + args.joinToString("&")
+        }
+    }
+    data object MailSearch : Screen("mail/search")
+    /** "Zum Ablegen": attachments the AI was not sure about. */
+    data object MailFiling : Screen("mail/filing")
+    /** "Konto hinzufügen"; `account` = sign in to that Microsoft account again. */
+    data object MailAddAccount : Screen("mail/accounts/add?account={account}") {
+        const val ARG_ACCOUNT = "account"
+        fun create(account: Long? = null) = "mail/accounts/add" + (account?.let { "?account=$it" } ?: "")
+    }
+    /** "Mail-Einstellungen": the list settings and the accounts. */
+    data object MailSettings : Screen("mail/settings")
+    data object MailAccount : Screen("mail/accounts/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "mail/accounts/$id"
+    }
+    /** "Postausgang": sends planned or failed. */
+    data object MailOutbox : Screen("mail/outbox")
+    /**
      * Tab "Drive" (plugin gatecontrol-drive, only when the server lists it):
      * the areas and the newest files. A folder, the trash and the search are
      * routes of their own (no tab bar).

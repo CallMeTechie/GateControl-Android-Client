@@ -55,6 +55,12 @@
 # with the server's order (pinned pages lost, 1.67.27/28). Field names stay
 # stable across releases like Familie's.
 -keep class com.gatecontrol.android.layout.** { <fields>; }
+# Mail (plugin gatecontrol-mail): answers are read from the Gson tree
+# (MailJson) and the offline copy keeps the server's raw JSON (MailCache),
+# nothing reflective; the models keep their field names like the door's, in
+# case they are ever (de)serialized by reflection. PluginAvailability.mail is
+# covered by the familie rule above.
+-keep class com.gatecontrol.android.mail.** { <fields>; }
 
 # ── WireGuard ─────────────────────────────────────────────
 -keep class com.wireguard.** { *; }

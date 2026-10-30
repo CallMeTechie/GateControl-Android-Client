@@ -2,7 +2,7 @@ package com.gatecontrol.android.layout
 
 /**
  * Pages beside the start tab (pure, unit-tested): functions that are a tab
- * otherwise (Chats, Vault, Drive, Netzwerk, Familie) pinned to Start, and
+ * otherwise (Chats, Mail, Vault, Drive, Netzwerk, Familie) pinned to Start, and
  * widget pages ("Widgets 2", "Widgets 3" …) holding quick actions and
  * widgets like Start does.
  *
@@ -22,13 +22,14 @@ object StartPages {
     const val MARKER = "page:"
 
     const val CHATS = "chats"
+    const val MAIL = "mail"
     const val VAULT = "vault"
     const val DRIVE = "drive"
     const val NETWORK = "network"
     const val FAMILIE = "familie"
 
     /** Functions that can be pages, in the order of the tab bar. */
-    val FEATURES = listOf(CHATS, VAULT, DRIVE, NETWORK, FAMILIE)
+    val FEATURES = listOf(CHATS, MAIL, VAULT, DRIVE, NETWORK, FAMILIE)
 
     private val WIDGETS = Regex("^w([0-9]{1,3})$")
 

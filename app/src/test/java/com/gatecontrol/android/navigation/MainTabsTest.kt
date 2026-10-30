@@ -167,4 +167,39 @@ class MainTabsTest {
         assertFalse(MainTabs.hideBar(onlyStart, pages = emptyList(), hideWhenOnlyStart = true))
         assertFalse(MainTabs.hideBar(listOf(Screen.Vpn.route, Screen.Chats.route), pages = listOf("network"), hideWhenOnlyStart = true))
     }
+
+    @Test
+    fun `Mail comes after Chats, only with its tab, and can be a page beside Start`() {
+        fun plugin(id: String, tab: Boolean) = com.gatecontrol.android.network.ClientPlugin(id = id, tab = if (tab) com.gatecontrol.android.network.ClientPluginTab("Mail", "M3 5h18v14H3z") else null)
+        assertTrue(PluginAvailability.from(listOf(plugin("gatecontrol-mail", true))).mail)
+        assertFalse(PluginAvailability.from(listOf(plugin("gatecontrol-mail", false))).mail, "listed without its tab: the person is not allowed")
+        assertFalse(PluginAvailability.from(emptyList()).mail, "no plugin: nothing changes")
+        val all = PluginAvailability(familieTab = true, messengerTab = true, mail = true, vault = true, drive = true)
+        assertEquals(
+            listOf(Screen.Vpn.route, Screen.Chats.route, Screen.Mail.route, Screen.Vault.route, Screen.Drive.route, Screen.Network.route, Screen.Familie.route),
+            MainTabs.routes(network = true, plugins = all),
+        )
+        assertFalse(Screen.Mail.route in MainTabs.routes(network = true, plugins = all.copy(mail = false)))
+        assertTrue(Screen.Mail.route in MainTabs.BAR_ROUTES)
+        assertFalse(Screen.MailMessage.route in MainTabs.BAR_ROUTES)
+        assertEquals(com.gatecontrol.android.layout.StartPages.MAIL, MainTabs.pageOf(Screen.Mail.route))
+        assertEquals(Screen.Mail.route, MainTabs.routeOf(com.gatecontrol.android.layout.StartPages.MAIL))
+        assertEquals(com.gatecontrol.android.layout.StartPages.MAIL, MainTabs.pageFor(Screen.Mail.route))
+        assertNull(MainTabs.pageFor(Screen.MailMessage.create(4)), "a mail lies on top of the tab")
+        assertTrue(com.gatecontrol.android.layout.StartPages.isFeature("mail"))
+        assertEquals(listOf(Screen.Vpn.route, Screen.Chats.route), MainTabs.visible(listOf(Screen.Vpn.route, Screen.Chats.route, Screen.Mail.route), listOf("mail")))
+    }
+
+    @Test
+    fun `mail routes`() {
+        assertEquals("mail/m/42", Screen.MailMessage.create(42))
+        assertEquals("mail/compose", Screen.MailCompose.create())
+        assertEquals("mail/compose?ref=42&mode=replyAll", Screen.MailCompose.create(ref = 42, mode = "replyAll"))
+        assertEquals("mail/compose?draft=9", Screen.MailCompose.create(draft = 9))
+        assertEquals("mail/compose?account=3&to=a%40b.de", Screen.MailCompose.create(account = 3, to = "a@b.de"))
+        assertEquals("mail/compose?ref=1&mode=reply&reply=Danke%2C%20gern%21", Screen.MailCompose.create(ref = 1, mode = "reply", reply = "Danke, gern!"))
+        assertEquals("mail/accounts/add", Screen.MailAddAccount.create())
+        assertEquals("mail/accounts/add?account=3", Screen.MailAddAccount.create(3))
+        assertEquals("mail/accounts/3", Screen.MailAccount.create(3))
+    }
 }

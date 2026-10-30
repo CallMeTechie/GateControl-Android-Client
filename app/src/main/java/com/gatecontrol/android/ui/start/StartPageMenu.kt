@@ -127,6 +127,7 @@ fun startPageLabel(resources: Resources, id: String): String {
 /** The tab's name of a function page. */
 fun featureLabel(id: String): Int? = when (id) {
     StartPages.CHATS -> R.string.nav_chats
+    StartPages.MAIL -> R.string.mail_tab
     StartPages.VAULT -> R.string.vault_tab
     StartPages.DRIVE -> R.string.drive_tab
     StartPages.NETWORK -> R.string.nav_network
@@ -138,6 +139,7 @@ fun featureLabel(id: String): Int? = when (id) {
 fun startPageIcon(id: String): ImageVector = when (id) {
     START_PAGE -> GcIcons.Shield
     StartPages.CHATS -> Icons.AutoMirrored.Outlined.Chat
+    StartPages.MAIL -> GcIcons.Mail
     StartPages.VAULT -> GcIcons.Vault
     StartPages.DRIVE -> GcIcons.Cloud
     StartPages.NETWORK -> GcIcons.Globe

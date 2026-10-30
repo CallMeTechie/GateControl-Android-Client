@@ -203,4 +203,21 @@ class ManifestSecurityTest {
         val category = (target.getElementsByTagName("category").item(0) as Element).androidAttr("name")
         assertEquals(com.gatecontrol.android.chat.ChatShortcutLogic.SHARE_CATEGORY, category)
     }
+
+    @Test
+    fun `mail sign-in redirect is msauth of the app only, off until the server offers Mail`() {
+        val activity = components("activity").firstOrNull { it.androidAttr("name").endsWith("MailSigninActivity") }
+        assertNotNull(activity, "MailSigninActivity must be declared")
+        assertEquals("true", activity!!.androidAttr("exported"))
+        assertEquals("false", activity.androidAttr("enabled"), "enabled by MailStartup only while the plugin is there")
+        assertEquals("true", activity.androidAttr("excludeFromRecents"))
+        val data = activity.getElementsByTagName("data")
+        assertEquals(1, data.length)
+        val d = data.item(0) as org.w3c.dom.Element
+        assertEquals("msauth", d.androidAttr("scheme"))
+        assertEquals("com.gatecontrol.client", d.androidAttr("host"))
+        val xml = moduleFile("src/main/res/xml/file_paths.xml").readText()
+        assertTrue(xml.contains("path=\"mail-open/\""), "opened attachments only")
+        assertFalse(xml.contains("path=\"mail-up"), "uploads stay private")
+    }
 }

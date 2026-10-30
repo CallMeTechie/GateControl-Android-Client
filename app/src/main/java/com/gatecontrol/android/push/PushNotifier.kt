@@ -96,6 +96,8 @@ class PushNotifier @Inject constructor(
 
     private fun channelName(ctx: Context, spec: ChannelSpec): String =
         spec.key?.let { PushText.channelName(it) }?.let { ctx.getString(it) }
+            // Mail's new mails: the channel "Mail" (contract D), whatever the server calls the topic
+            ?: ctx.getString(R.string.mail_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_MAIL) }
             ?: spec.label
             ?: PushText.fallbackLabel(spec.id.removePrefix(PushChannels.topicChannelId("")))
 
@@ -317,7 +319,9 @@ class PushNotifier @Inject constructor(
         val vaultDest = com.gatecontrol.android.vault.VaultPush.destination(message)
         // Drive: a deadline opens its file, a vault request the vault's requests
         val driveDest = com.gatecontrol.android.drive.DrivePush.destination(message)
-        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest).setData(uri(message, slot))
+        // Mail: a new mail opens it, a failed send the outbox
+        val mailDest = com.gatecontrol.android.mail.MailPush.destination(message)
+        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
