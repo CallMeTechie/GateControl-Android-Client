@@ -3,6 +3,7 @@ package com.gatecontrol.android.ui.settings
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import com.gatecontrol.android.chat.OwnExports
 import timber.log.Timber
 import java.io.File
 
@@ -17,11 +18,12 @@ internal object LogExport {
             .orEmpty()
 
     /**
-     * Writes [content] (null: all log files) to cacheDir/export — the only part of the cache the FileProvider shares —
+     * Writes [content] (null: all log files) to a fresh folder below cacheDir/export — the only part of the cache the
+     * FileProvider shares —
      * and opens the share sheet. False when that did not work.
      */
     fun share(context: Context, chooserTitle: String, content: String? = null): Boolean = try {
-        val file = File(File(context.cacheDir, "export").apply { mkdirs() }, "gatecontrol-logs.txt")
+        val file = File(OwnExports.newDir(context.cacheDir), "gatecontrol-logs.txt")
         if (content != null) {
             file.writeText(content)
         } else {
@@ -32,6 +34,8 @@ internal object LogExport {
             }
         }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+        // may also go into GateControl itself (a chat, GateDrop, Drive)
+        OwnExports.grant(uri.toString())
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)

@@ -60,6 +60,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
+import com.gatecontrol.android.chat.OwnExports
 import com.gatecontrol.android.logbook.LogbookApi
 import com.gatecontrol.android.logbook.LogbookExportFile
 import com.gatecontrol.android.logbook.LogbookListFilter
@@ -576,18 +577,19 @@ internal fun LogbookNotices(notices: Flow<LogbookNotice>, host: SnackbarHostStat
 
 /**
  * Hands an export to the share sheet (save to files, mail, …) through the
- * FileProvider: written to cacheDir/export/ (the only shared cache folder),
- * replacing an older copy of the same name.
+ * FileProvider: written to a fresh folder below cacheDir/export/ (the only
+ * shared cache folder), granted to GateControl's own share targets too.
  */
 private suspend fun shareExport(context: Context, file: LogbookExportFile): Boolean {
     val target = withContext(Dispatchers.IO) {
         runCatching {
-            val dir = File(context.cacheDir, "export").apply { mkdirs() }
-            File(dir, file.name).also { it.writeBytes(file.bytes) }
+            File(OwnExports.newDir(context.cacheDir), file.name).also { it.writeBytes(file.bytes) }
         }.getOrNull()
     } ?: return false
     return try {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".provider", target)
+        // may also go into GateControl itself (a chat, GateDrop, Drive)
+        OwnExports.grant(uri.toString())
         val send = Intent(Intent.ACTION_SEND)
             .setType(file.type)
             .putExtra(Intent.EXTRA_STREAM, uri)
