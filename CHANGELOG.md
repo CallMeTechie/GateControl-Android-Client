@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.28] - 2026-10-30
+
+### Changes
+- Schlüssel=Wert-Regel ohne teuren Präfix-Lauf (#153)
+
+---
+
 ## [1.67.27] - 2026-10-30
 
 ### Changes
