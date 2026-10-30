@@ -201,5 +201,7 @@ class MainTabsTest {
         assertEquals("mail/accounts/add", Screen.MailAddAccount.create())
         assertEquals("mail/accounts/add?account=3", Screen.MailAddAccount.create(3))
         assertEquals("mail/accounts/3", Screen.MailAccount.create(3))
+        assertEquals("mail/sender?email=a%40b.de&name=Anna%20M%C3%BCller&account=3", Screen.MailSender.create("a@b.de", "Anna Müller", 3))
+        assertEquals("mail/sender?email=a%40b.de", Screen.MailSender.create("a@b.de", " ", null))
     }
 }

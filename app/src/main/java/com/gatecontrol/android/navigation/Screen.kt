@@ -160,6 +160,17 @@ sealed class Screen(val route: String) {
         }
     }
     data object MailSearch : Screen("mail/search")
+    /** A sender's page: their mails in the account `account`. */
+    data object MailSender : Screen("mail/sender?email={email}&name={name}&account={account}") {
+        const val ARG_EMAIL = "email"
+        const val ARG_NAME = "name"
+        const val ARG_ACCOUNT = "account"
+        fun create(email: String, name: String? = null, account: Long? = null): String {
+            fun enc(v: String) = java.net.URLEncoder.encode(v, "UTF-8").replace("+", "%20")
+            val args = listOfNotNull("email=" + enc(email), name?.takeIf { it.isNotBlank() }?.let { "name=" + enc(it.take(200)) }, account?.let { "account=$it" })
+            return "mail/sender?" + args.joinToString("&")
+        }
+    }
     /** "Zum Ablegen": attachments the AI was not sure about. */
     data object MailFiling : Screen("mail/filing")
     /** "Konto hinzufügen"; `account` = sign in to that Microsoft account again. */

@@ -238,6 +238,25 @@
     <string name="mail_err_exists">Dieses Konto gibt es schon.</string>
     <string name="mail_err_links_disabled">Drive-Links sind ausgeschaltet.</string>
     <string name="mail_err_failed">Das hat nicht geklappt.</string>
+    <!-- reader: the menu's folders, the conversation, the sender's page -->
+    <string name="mail_folders_show">Ordner zeigen</string>
+    <string name="mail_folders_hide">Ordner ausblenden</string>
+    <string name="mail_folders_shown">Ordner aufgeklappt</string>
+    <string name="mail_folders_hidden">Ordner zugeklappt</string>
+    <string name="mail_thread_show">Alle Mails der Unterhaltung zeigen</string>
+    <string name="mail_thread_hide">Unterhaltung zuklappen</string>
+    <string name="mail_thread_shown">Aufgeklappt</string>
+    <string name="mail_thread_hidden">Zugeklappt</string>
+    <string name="mail_thread_open">Mail öffnen</string>
+    <string name="mail_sender_show">Absender zeigen</string>
+    <string name="mail_sender_title">Absender</string>
+    <string name="mail_sender_write">Mail schreiben</string>
+    <string name="mail_sender_copy">Adresse kopieren</string>
+    <string name="mail_sender_copied">Adresse kopiert</string>
+    <string name="mail_sender_mails">Mails von diesem Absender</string>
+    <string name="mail_sender_mails_in">Mails von diesem Absender in %1$s</string>
+    <string name="mail_sender_none">Noch keine Mails von diesem Absender.</string>
+    <string name="mail_sender_in_contacts">In deinen Kontakten</string>
     <plurals name="mail_thread">
         <item quantity="one">Unterhaltung · %d Mail</item>
         <item quantity="other">Unterhaltung · %d Mails</item>

@@ -238,6 +238,25 @@
     <string name="mail_err_exists">This account exists already.</string>
     <string name="mail_err_links_disabled">Drive links are switched off.</string>
     <string name="mail_err_failed">That did not work.</string>
+    <!-- reader: the menu's folders, the conversation, the sender's page -->
+    <string name="mail_folders_show">Show folders</string>
+    <string name="mail_folders_hide">Hide folders</string>
+    <string name="mail_folders_shown">Folders shown</string>
+    <string name="mail_folders_hidden">Folders hidden</string>
+    <string name="mail_thread_show">Show all mails of the conversation</string>
+    <string name="mail_thread_hide">Hide the conversation</string>
+    <string name="mail_thread_shown">Unfolded</string>
+    <string name="mail_thread_hidden">Folded</string>
+    <string name="mail_thread_open">Open mail</string>
+    <string name="mail_sender_show">Show sender</string>
+    <string name="mail_sender_title">Sender</string>
+    <string name="mail_sender_write">Write mail</string>
+    <string name="mail_sender_copy">Copy address</string>
+    <string name="mail_sender_copied">Address copied</string>
+    <string name="mail_sender_mails">Mails from this sender</string>
+    <string name="mail_sender_mails_in">Mails from this sender in %1$s</string>
+    <string name="mail_sender_none">No mails from this sender yet.</string>
+    <string name="mail_sender_in_contacts">In your contacts</string>
     <plurals name="mail_thread">
         <item quantity="one">Conversation · %d mail</item>
         <item quantity="other">Conversation · %d mails</item>
