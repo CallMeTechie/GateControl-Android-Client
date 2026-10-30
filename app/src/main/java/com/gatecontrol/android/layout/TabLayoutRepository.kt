@@ -124,16 +124,23 @@ class TabLayoutRepository @Inject constructor(
         if (serverUrl.isBlank()) return
         lastRefresh = now
         try {
-            val response = withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.getClient(serverUrl).getClientLayout() } ?: return
+            val response = withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.getClient(serverUrl).getClientLayout() }
             when {
+                response == null -> Timber.i("Tab layout: no answer")
                 response.code() == 404 -> write { it.copy(access = LayoutAccess(server = false), pending = false) }
-                !response.isSuccessful -> Timber.d("Tab layout: HTTP %d", response.code())
+                !response.isSuccessful -> Timber.i("Tab layout: HTTP %d", response.code())
                 else -> {
                     val body = response.body() ?: return
                     val scopeNow = LayoutScope.parse(body.scope) ?: LayoutScope.DEVICE
                     val access = LayoutAccess(scopeNow, editable = body.editable != false, server = true)
                     val remote = TabLayout.from(body.layout)
                     val local = read()
+                    Timber.i(
+                        "Tab layout: scope %s%s, server pages [%s], here [%s]%s",
+                        scopeNow.wire, if (access.locked) " (locked)" else "",
+                        remote?.let { StartPages.pages(it.start).joinToString(",") } ?: "-",
+                        StartPages.pages(local.layout.start).joinToString(","), if (local.pending) " pending" else "",
+                    )
                     when {
                         !access.shared -> write { it.copy(access = access, remote = null, pending = false) }
                         access.editable && (local.pending || remote == null) && local.layout != TabLayout() ->
@@ -146,7 +153,7 @@ class TabLayoutRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.d("Tab layout unavailable (%s)", e.javaClass.simpleName)
+            Timber.i("Tab layout unavailable (%s)", e.javaClass.simpleName)
         }
     }
 
@@ -164,15 +171,25 @@ class TabLayoutRepository @Inject constructor(
     suspend fun saveFamilie(order: List<String>, hidden: List<String>) =
         save { it.copy(familie = TabLayout.clean(order), familieHidden = TabLayout.clean(hidden)) }
 
-    /** A locked order (global, admins only) stays as the server has it. */
+    /**
+     * A locked order (global, admins only) stays as the server has it. A
+     * change made before the server was asked ([LayoutAccess.server] not
+     * known yet) stays pending too: should the account keep the order, the
+     * next [refresh] sends it instead of replacing it with the server's.
+     */
     private suspend fun save(change: (TabLayout) -> TabLayout) {
         val next = mutex.withLock {
             write { s ->
                 val layout = change(s.layout)
-                if (layout == s.layout || s.access.locked) s else s.copy(layout = layout, pending = s.access.shared && s.access.editable)
+                if (layout == s.layout || s.access.locked) {
+                    s
+                } else {
+                    s.copy(layout = layout, pending = s.access.editable && (s.access.shared || !s.access.server))
+                }
             }
         }
-        if (next.pending) mutex.withLock { push(next) }
+        Timber.i("Tab layout saved here: pages [%s]%s", StartPages.pages(next.layout.start).joinToString(","), if (next.pending) " pending" else "")
+        if (next.pending && next.access.shared) mutex.withLock { push(next) }
     }
 
     /**
@@ -193,6 +210,7 @@ class TabLayoutRepository @Inject constructor(
             val response = withTimeoutOrNull(TIMEOUT_MS) {
                 apiClientProvider.getClient(serverUrl).putClientLayout(ClientLayoutRequest(outgoing.toDto()))
             }
+            Timber.i("Tab layout sent: %s", response?.code()?.let { "HTTP $it" } ?: "no answer")
             when {
                 response == null -> write { it.copy(pending = true, access = s.access, remote = s.remote) }
                 response.isSuccessful -> write { it.copy(remote = outgoing, access = s.access, pending = it.layout != s.layout) }
@@ -201,15 +219,12 @@ class TabLayoutRepository @Inject constructor(
                     it.copy(layout = s.remote ?: it.layout, access = s.access.copy(editable = false), pending = false)
                 }
                 response.code() == 404 -> write { it.copy(access = LayoutAccess(server = false), remote = null, pending = false) }
-                else -> {
-                    Timber.d("Tab layout not saved: HTTP %d", response.code())
-                    write { it.copy(pending = true, access = s.access, remote = s.remote) }
-                }
+                else -> write { it.copy(pending = true, access = s.access, remote = s.remote) }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.d("Tab layout not saved (%s)", e.javaClass.simpleName)
+            Timber.i("Tab layout not sent (%s)", e.javaClass.simpleName)
             write { it.copy(pending = true, access = s.access, remote = s.remote) }
         }
     }
