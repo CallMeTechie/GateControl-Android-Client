@@ -223,7 +223,11 @@
     <string name="mail_err_not_found">Not found – it may have been deleted.</string>
     <string name="mail_err_conflict">That did not work – the state has changed.</string>
     <string name="mail_err_encrypted">Files from a vault cannot be attached.</string>
-    <string name="mail_body_missing">The content of this mail could not be fetched from the provider.</string>
+    <string name="mail_body_loading">The content is still being loaded from the provider …</string>
+    <string name="mail_attachment_loading">Loading …</string>
+    <string name="mail_attachment_still_loading">The attachment is still being loaded from the provider – please open it again in a moment.</string>
+    <string name="mail_pictures_loading">Embedded pictures are loading …</string>
+    <string name="mail_err_busy">The provider is busy right now – please try again in a moment.</string>
     <string name="mail_err_microsoft_off">Microsoft sign-in is not set up on the server.</string>
     <string name="mail_err_attachments_unsupported">Microsoft accounts cannot send files from the device or from another account’s mail. Attach them from Drive (as a link) or remove them.</string>
     <string name="mail_err_images_blocked">Pictures stay blocked for this mail.</string>

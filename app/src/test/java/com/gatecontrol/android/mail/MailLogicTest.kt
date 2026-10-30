@@ -221,4 +221,32 @@ class MailLogicTest {
         assertEquals("attachment", MailLogic.fileName(null))
         assertNotNull(MailLogic.isEmail("a@b.de"))
     }
+
+    @Test
+    fun `the provider's mark of an account without a picture`() {
+        assertEquals(MailLogic.Mark.OUTLOOK, MailLogic.mark("outlook"))
+        assertEquals(MailLogic.Mark.M365, MailLogic.mark("m365"))
+        assertEquals(MailLogic.Mark.GMAIL, MailLogic.mark("gmail"))
+        assertEquals(MailLogic.Mark.GMX, MailLogic.mark("gmx"))
+        assertEquals(MailLogic.Mark.WEBDE, MailLogic.mark("webde"))
+        assertEquals(MailLogic.Mark.TONLINE, MailLogic.mark("tonline"))
+        assertEquals(MailLogic.Mark.OTHER, MailLogic.mark("imap"))
+        assertEquals(MailLogic.Mark.OTHER, MailLogic.mark(null))
+    }
+
+    @Test
+    fun `loading later - the event of the open mail, waits, embedded pictures`() {
+        assertTrue(MailLogic.concerns(MChanged(1, null, messageId = 42), 42, null))
+        assertTrue(MailLogic.concerns(MChanged(1, null, threadId = 9), 42, 9))
+        assertFalse(MailLogic.concerns(MChanged(1, 10), 42, 9), "a plain list change is not the body")
+        assertFalse(MailLogic.concerns(MChanged(1, null, messageId = 43, threadId = 8), 42, 9))
+        assertFalse(MailLogic.concerns(MChanged(1, null), 42, null))
+        assertEquals(5_000L, MailLogic.retryDelayMs(5))
+        assertEquals(5_000L, MailLogic.retryDelayMs(null))
+        assertEquals(1_000L, MailLogic.retryDelayMs(0))
+        assertEquals(60_000L, MailLogic.retryDelayMs(999))
+        assertEquals(7L, MailLogic.cidAttachment("cid/42/7"))
+        assertNull(MailLogic.cidAttachment("img/abc"))
+        assertNull(MailLogic.cidAttachment("cid/42/x"))
+    }
 }

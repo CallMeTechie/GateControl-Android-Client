@@ -71,6 +71,20 @@ class MailCache @Inject constructor(
 
     suspend fun folders(): Map<Long, List<MFolder>>? = io { dir -> read(File(dir, "folders.json"))?.let(MailJson::folders) }
 
+    // ─── account pictures ───────────────────────────────────────────
+
+    /** An account's picture as it came ([MAccount.avatar]); the media id changes with the picture. */
+    suspend fun putAvatar(mediaId: String, bytes: ByteArray) {
+        io { dir ->
+            val avatars = File(dir, "avatars").apply { mkdirs() }
+            File(avatars, name(mediaId)).writeBytes(bytes)
+            // only the newest few stay (a picture changed: the old one is of no use)
+            avatars.listFiles()?.sortedByDescending { it.lastModified() }?.drop(MAX_AVATARS)?.forEach { it.delete() }
+        }
+    }
+
+    suspend fun avatar(mediaId: String): ByteArray? = io { dir -> File(dir, "avatars/${name(mediaId)}").takeIf { it.isFile }?.readBytes() }
+
     // ─── lists ──────────────────────────────────────────────────────
 
     /**
@@ -151,6 +165,7 @@ class MailCache @Inject constructor(
 
     companion object {
         private const val DIR = "mail"
+        private const val MAX_AVATARS = 20
         /** Attachments opened or shared (FileProvider `mail_open`). */
         const val OPEN_DIR = "mail-open"
         /** Device files on their way to the server (private). */

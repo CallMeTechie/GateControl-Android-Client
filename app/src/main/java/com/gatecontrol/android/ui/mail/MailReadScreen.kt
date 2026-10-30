@@ -187,16 +187,24 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                             }
                         }
                     }
-                    if (m.bodyMissing && m.html == null && m.text.isNullOrBlank()) {
-                        GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
-                            Text(stringResource(R.string.mail_body_missing), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                            TextButton(onClick = viewModel::load) { Text(stringResource(R.string.mail_retry)) }
+                    if (m.bodyMissing) {
+                        // the provider has not sent the body yet: the snippet below, the body comes with the live event
+                        GcBanner(tone = GcTone.Info, icon = GcIcons.Clock) {
+                            Text(stringResource(R.string.mail_body_loading), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            if (state.loading) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                TextButton(onClick = viewModel::load) { Text(stringResource(R.string.mail_retry)) }
+                            }
                         }
+                    }
+                    if (state.picturesLoading) {
+                        Text(stringResource(R.string.mail_pictures_loading), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                     }
                     val html = m.html
                     if (html != null) {
                         val page = remember(html, m.attachments) { MailLogic.rewriteCid(html, m.id, m.attachments) }
-                        MailHtmlView(page, loader = viewModel::picture, onLink = onLink)
+                        MailHtmlView(page, loader = viewModel::picture, onLink = onLink, round = state.pictureRound)
                     } else {
                         SelectionContainer {
                             Text(m.text.orEmpty(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f))
@@ -416,9 +424,13 @@ private fun AttachmentCard(
             FileBadge(a.attachment.name, a.attachment.mime)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(a.attachment.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(mailSize(a.attachment.size), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                Text(
+                    if (a.loading) stringResource(R.string.mail_attachment_loading) else mailSize(a.attachment.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extra.muted,
+                )
             }
-            if (a.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            if (a.busy || a.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         }
         if (!drive) return@Column
         val saved = a.savedTo

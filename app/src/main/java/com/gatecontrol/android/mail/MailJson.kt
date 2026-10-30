@@ -153,6 +153,11 @@ object MailJson {
             ai = o.bool("ai") ?: false,
             attachments = o.str("attachments")?.takeIf { it in MAccount.ATTACHMENTS } ?: "off",
             signature = o.str("signature")?.takeIf { it.isNotBlank() },
+            avatar = o.obj("avatar")?.let { av ->
+                val media = av.str("mediaId")?.takeIf { TOKEN.matches(it) } ?: return@let null
+                val mime = av.str("mime")?.lowercase()?.substringBefore(';')?.trim()?.takeIf { PICTURE_MIME.matches(it) } ?: return@let null
+                MAvatar(media, mime)
+            },
         )
     }
 
@@ -484,7 +489,24 @@ object MailJson {
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         val root = o.obj("mail") ?: o
         if (root.str("kind") != "changed") return null
-        return MChanged(root.id("accountId"), root.id("folderId"))
+        return MChanged(root.id("accountId"), root.id("folderId"), root.id("messageId"), root.id("threadId"), root.id("attachmentId"))
+    }
+
+    /**
+     * `409 busy { reason, retryAfter }` (the error object of [MResult.Failed]): when to ask again, in seconds (1…60,
+     * 5 without a value); null when the refusal is no `busy`.
+     */
+    fun busyRetryAfter(code: String?, error: JsonObject?): Int? {
+        if (code != "busy") return null
+        val err = error?.obj("error") ?: error
+        return (err?.int("retryAfter") ?: 5).coerceIn(1, 60)
+    }
+
+    /** `busy` with `reason: 'loading'`: an attachment (or embedded picture) still on its way from the provider. */
+    fun busyLoading(code: String?, error: JsonObject?): Boolean {
+        if (code != "busy") return false
+        val err = error?.obj("error") ?: error
+        return err?.str("reason") == "loading"
     }
 
     // ─── request bodies ─────────────────────────────────────────────

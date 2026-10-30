@@ -37,6 +37,8 @@ internal fun MailHtmlView(
     loader: suspend (String) -> Pair<ByteArray, String>?,
     onLink: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Counts up when the page is to load its pictures again (an embedded one the provider was still sending came). */
+    round: Int = 0,
 ) {
     val load = rememberUpdatedState(loader)
     val link = rememberUpdatedState(onLink)
@@ -91,8 +93,9 @@ internal fun MailHtmlView(
             },
             onRelease = { web -> web.destroy() },
             update = { web ->
-                if (web.tag != page) {
-                    web.tag = page
+                val key = page to round
+                if (web.tag != key) {
+                    web.tag = key
                     web.loadDataWithBaseURL(MailLogic.BASE_URL, page, "text/html", "utf-8", null)
                 }
             },

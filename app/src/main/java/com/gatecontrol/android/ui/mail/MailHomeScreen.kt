@@ -596,13 +596,13 @@ private fun MailDrawer(
         )
         LazyColumn(Modifier.weight(1f)) {
             item(key = "all") {
-                DrawerItem(MailIcons.Inbox, null, stringResource(R.string.mail_all_inboxes), me?.unreadAll ?: 0, on = box.all, accent = true) { onBox(MailLogic.Box()) }
+                DrawerItem(MailIcons.Inbox, stringResource(R.string.mail_all_inboxes), me?.unreadAll ?: 0, on = box.all, accent = true) { onBox(MailLogic.Box()) }
             }
             if (me?.has(MMe.FEATURE_DRIVE) == true) {
-                item(key = "filing") { DrawerItem(GcIcons.Folder, null, stringResource(R.string.mail_filing), filing, on = false) { onFiling() } }
+                item(key = "filing") { DrawerItem(GcIcons.Folder, stringResource(R.string.mail_filing), filing, on = false) { onFiling() } }
             }
             if (outbox > 0) {
-                item(key = "outbox") { DrawerItem(MailIcons.Outbox, null, stringResource(R.string.mail_outbox), outbox, on = false) { onOutbox() } }
+                item(key = "outbox") { DrawerItem(MailIcons.Outbox, stringResource(R.string.mail_outbox), outbox, on = false) { onOutbox() } }
             }
             val accounts = me?.accounts.orEmpty()
             if (accounts.isNotEmpty()) {
@@ -610,7 +610,7 @@ private fun MailDrawer(
             }
             accounts.forEach { a ->
                 item(key = "a${a.id}") {
-                    DrawerItem(null, accountColor(a), a.label, me?.unreadByAccount?.get(a.id) ?: 0, on = box.accountId == a.id && box.folderId == null) {
+                    DrawerAccount(a, me?.unreadByAccount?.get(a.id) ?: 0, on = box.accountId == a.id && box.folderId == null) {
                         onBox(MailLogic.Box(a.id))
                     }
                 }
@@ -628,7 +628,7 @@ private fun MailDrawer(
                                     .selectable(selected = box.folderId == f.id, role = Role.Tab) {
                                         onBox(MailLogic.Box(a.id, f.id.takeIf { f.role != MFolder.ROLE_INBOX }))
                                     }
-                                    .padding(start = 40.dp, end = 12.dp),
+                                    .padding(start = 58.dp, end = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(label, style = MaterialTheme.typography.bodyMedium, color = if (box.folderId == f.id) extra.accentText else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -668,7 +668,7 @@ private fun DrawerLabel(text: String) {
 }
 
 @Composable
-private fun DrawerItem(icon: androidx.compose.ui.graphics.vector.ImageVector?, dot: Color?, label: String, count: Int, on: Boolean, accent: Boolean = false, onClick: () -> Unit) {
+private fun DrawerItem(icon: androidx.compose.ui.graphics.vector.ImageVector?, label: String, count: Int, on: Boolean, accent: Boolean = false, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
     val fg = if (on) extra.accentText else MaterialTheme.colorScheme.onSurface
     Row(
@@ -683,11 +683,31 @@ private fun DrawerItem(icon: androidx.compose.ui.graphics.vector.ImageVector?, d
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
-        if (dot != null) MailDot(dot, size = 10)
         Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, color = fg, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (count > 0 || accent) {
             Text(count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = if (accent && count > 0) extra.accentText else extra.muted)
         }
+    }
+}
+
+/** An account in the menu (like the Outlook app): its picture or the provider's mark, the name, the address below. */
+@Composable
+private fun DrawerAccount(a: MAccount, count: Int, on: Boolean, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (on) extra.accentBg else Color.Transparent)
+            .selectable(selected = on, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        MailAccountAvatar(a, size = 34.dp, ring = if (on) extra.accentBg else MaterialTheme.colorScheme.surface)
+        MailAccountText(a, Modifier.weight(1f), color = if (on) extra.accentText else MaterialTheme.colorScheme.onSurface, bold = on)
+        if (count > 0) Text(count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = extra.muted)
     }
 }
 
