@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.68.0] - 2026-10-30
+
+### Features
+- Konten wie in der Outlook-App, später geladene Inhalte und Anhänge (Mail 1.1.2) (#160)
+
+---
+
 ## [1.67.34] - 2026-10-30
 
 ### Changes
