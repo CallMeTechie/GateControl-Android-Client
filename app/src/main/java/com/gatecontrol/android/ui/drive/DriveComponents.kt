@@ -368,6 +368,11 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "done_approved" -> context.getString(R.string.drive_done_approved)
     "done_declined" -> context.getString(R.string.drive_done_declined)
     "done_upload" -> context.getString(R.string.drive_done_upload)
+    "done_scan_doc" -> context.getString(R.string.drive_ki_done_scan_doc)
+    "done_calendar" -> context.getString(R.string.drive_ki_done_calendar)
+    "familie_unavailable" -> context.getString(R.string.drive_ki_familie_unavailable)
+    "rate_limited" -> context.getString(R.string.drive_ki_rate_limited)
+    "ai_unavailable", "no_ai" -> context.getString(R.string.drive_ki_ai_unavailable)
     "no_text" -> context.getString(R.string.drive_insight_no_text)
     "media_disabled" -> context.getString(R.string.drive_insight_media_disabled)
     "encrypted" -> context.getString(R.string.drive_code_encrypted)
@@ -605,6 +610,26 @@ internal object DriveViewPref {
 
     fun setSort(context: Context, sort: DriveLogic.FolderSort) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SORT, sort.key).putBoolean(KEY_SORT_DESC, sort.desc).apply()
+    }
+
+    private const val KEY_KEEP_ORIGINAL = "scan_keep_original"
+
+    /** "Original-Scan behalten" of "Scan prüfen" (Drive 1.14) as switched here; null: Drive's setting (`scanKeepOriginal`). */
+    fun keepOriginal(context: Context): Boolean? = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .takeIf { it.contains(KEY_KEEP_ORIGINAL) }?.getBoolean(KEY_KEEP_ORIGINAL, true)
+
+    fun setKeepOriginal(context: Context, on: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_KEEP_ORIGINAL, on).apply()
+    }
+
+    private const val KEY_DEADLINES_SEEN = "deadlines_seen"
+
+    /** The deadlines shown at the last visit of "Fristen" (Drive 1.14: the others are "neu"); null before the first. */
+    fun deadlinesSeen(context: Context): Set<Long>? = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .getString(KEY_DEADLINES_SEEN, null)?.split(',')?.mapNotNull { it.trim().toLongOrNull() }?.toSet()
+
+    fun setDeadlinesSeen(context: Context, ids: Collection<Long>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_DEADLINES_SEEN, ids.distinct().take(2000).joinToString(",")).apply()
     }
 }
 

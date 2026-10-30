@@ -44,12 +44,27 @@ class DriveScanner @Inject constructor(
     )
 
     /** The recognised text of each page; null for a page without text (or when recognising failed). */
-    suspend fun recognize(pages: List<Uri>): List<String?> = withContext(Dispatchers.IO) {
+    suspend fun recognize(pages: List<Uri>): List<String?> = read(pages).map { it?.text }
+
+    /**
+     * What the phone read on a page: the [text], and its [lines] with their boxes in a picture of [width] × [height]
+     * pixels (for the searchable PDF and the table preview, Drive 1.14).
+     */
+    data class Read(val text: String?, val width: Int, val height: Int, val lines: List<DriveKi.OcrLine>)
+
+    /** The text of each page with where it stands; null for a page that could not be read. */
+    suspend fun read(pages: List<Uri>): List<Read?> = withContext(Dispatchers.IO) {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         try {
             pages.map { uri ->
                 try {
-                    recognizer.process(InputImage.fromFilePath(context, uri)).await().text.trim().ifEmpty { null }
+                    val image = InputImage.fromFilePath(context, uri)
+                    val result = recognizer.process(image).await()
+                    val lines = result.textBlocks.flatMap { b -> b.lines }.mapNotNull { l ->
+                        val box = l.boundingBox ?: return@mapNotNull null
+                        DriveKi.OcrLine(l.text, box.left, box.top, box.right, box.bottom)
+                    }
+                    Read(result.text.trim().ifEmpty { null }, image.width, image.height, lines)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -77,9 +92,128 @@ class DriveScanner @Inject constructor(
         }
         for ((file, name, text) in copies) {
             file ?: continue
-            transfers.uploadWritten(file, name, if (asPdf) "application/pdf" else "image/jpeg", folderId, DriveLogic.ON_CONFLICT_RENAME, text)
+            transfers.uploadWritten(file, name, if (asPdf) "application/pdf" else "image/jpeg", folderId, DriveLogic.ON_CONFLICT_RENAME, text, scan = true)
         }
         true
+    }
+
+    /**
+     * The searchable PDF of the scan (Drive 1.14, D5): the scanner's JPEG pages with the lines read on them as
+     * invisible text ([DriveSearchablePdf]), in the cache; null when a page cannot be read or is no JPEG.
+     */
+    suspend fun searchablePdf(scan: Pages, reads: List<Read?>): File? = withContext(Dispatchers.IO) {
+        val copies = scan.pages.map { copy(it) }
+        try {
+            if (copies.any { it == null }) return@withContext null
+            val files = copies.filterNotNull()
+            val pages = files.mapIndexed { i, f ->
+                val head = f.inputStream().use { input -> ByteArray(64 * 1024).let { b -> b.copyOf(input.read(b).coerceAtLeast(0)) } }
+                val info = DriveSearchablePdf.jpegInfo(head) ?: return@withContext null
+                val r = reads.getOrNull(i)
+                DriveSearchablePdf.Page(f.length(), info, r?.width ?: 0, r?.height ?: 0, r?.lines.orEmpty())
+            }
+            val dir = File(context.cacheDir, "drive-scan").apply { mkdirs() }
+            val out = File.createTempFile("scan", ".pdf", dir)
+            val paint = android.graphics.Paint().apply { typeface = android.graphics.Typeface.SANS_SERIF; textSize = 100f }
+            try {
+                out.outputStream().buffered().use { o ->
+                    DriveSearchablePdf.write(o, pages, open = { files[it].inputStream() }, measure = { t -> paint.measureText(t) / 100.0 })
+                }
+                out
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Timber.d("Drive scan: no PDF made (%s)", e.javaClass.simpleName)
+                out.delete()
+                null
+            }
+        } finally {
+            copies.forEach { it?.delete() }
+        }
+    }
+
+    /** The scan's pages as media of Drive (for `scans/classify` and `scans/convert`, Drive 1.14); in order. */
+    suspend fun uploadPages(scan: Pages, api: DriveApi): DResult<List<String>> = withContext(Dispatchers.IO) {
+        val out = ArrayList<String>()
+        for (uri in scan.pages) {
+            val file = copy(uri) ?: return@withContext DResult.Failed("scan_read", 0)
+            try {
+                when (val r = api.upload(file, "image/jpeg")) {
+                    is DResult.Ok -> out += r.value
+                    else -> return@withContext r.notOk()
+                }
+            } finally {
+                file.delete()
+            }
+        }
+        DResult.Ok(out)
+    }
+
+    /** The scan as the pictures of its pages, each with its text (as before Drive 1.14), named after [base]. */
+    suspend fun savePictures(scan: Pages, texts: List<String?>, base: String, folderId: Long): Boolean = save(scan, texts, base, pdf = false, folderId = folderId)
+
+    /**
+     * A file made here (the searchable PDF) goes up into [folderId] as [name], with its [text]; [propose]: it may get the
+     * filing suggestion (D4) — not the original kept next to a converted document.
+     */
+    fun uploadMade(file: File, name: String, mime: String, folderId: Long, text: String?, propose: Boolean = true) =
+        transfers.uploadWritten(file, name, mime, folderId, DriveLogic.ON_CONFLICT_RENAME, text, scan = propose)
+
+    /** [data] (a document Drive made, `scans/convert`) as media of Drive → its media id. */
+    suspend fun uploadBytes(data: ByteArray, mime: String, api: DriveApi): DResult<String> = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "drive-scan").apply { mkdirs() }
+        val f = File.createTempFile("doc", ".part", dir)
+        try {
+            f.writeBytes(data)
+            api.upload(f, mime)
+        } finally {
+            f.delete()
+        }
+    }
+
+    /**
+     * The pages [indices] as small JPEGs (base64) for `scans/convert` `images`: together below [budget] bytes (the
+     * server takes 600 KB), each at most 1600 px long, the quality lowered until they fit; empty when they do not.
+     */
+    suspend fun smallJpegs(scan: Pages, indices: List<Int>, budget: Int = DriveJson.SCAN_IMAGES_MAX - 40 * 1024): List<String> = withContext(Dispatchers.IO) {
+        val uris = indices.mapNotNull { scan.pages.getOrNull(it) }
+        if (uris.isEmpty()) return@withContext emptyList()
+        val each = budget / uris.size
+        val out = ArrayList<String>()
+        for (uri in uris) {
+            val bytes = runCatching { smallJpeg(uri, each) }.getOrNull() ?: return@withContext emptyList()
+            out += java.util.Base64.getEncoder().encodeToString(bytes)
+        }
+        out
+    }
+
+    private fun smallJpeg(uri: Uri, max: Int): ByteArray? {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+        var side = 1600
+        while (side >= 400) {
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= side) sample *= 2
+            val raw = context.contentResolver.openInputStream(uri)?.use {
+                android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+            } ?: return null
+            val long = maxOf(raw.width, raw.height)
+            val bmp = if (long > side) {
+                android.graphics.Bitmap.createScaledBitmap(raw, raw.width * side / long, raw.height * side / long, true).also { if (it !== raw) raw.recycle() }
+            } else {
+                raw
+            }
+            try {
+                for (q in listOf(80, 65, 50)) {
+                    val o = java.io.ByteArrayOutputStream()
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, q, o)
+                    if (o.size() <= max) return o.toByteArray()
+                }
+            } finally {
+                bmp.recycle()
+            }
+            side = side * 3 / 4
+        }
+        return null
     }
 
     /** The scanner's file in the cache, handed over to the upload (which deletes it); null when it cannot be read. */

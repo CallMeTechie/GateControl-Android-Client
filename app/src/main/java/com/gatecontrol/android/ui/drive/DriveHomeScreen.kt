@@ -99,6 +99,8 @@ data class DriveNav(
     val file: (Long) -> Unit = {},
     /** "Fristen" (Drive 1.8). */
     val deadlines: () -> Unit = {},
+    /** Photos by what is in them (Drive 1.14, `photoSearch`): the search of the Photos page. */
+    val photoSearch: () -> Unit = {},
     /** A vault folder (Drive 1.9). */
     val vault: (String, Long) -> Unit = { _, _ -> },
     /** "Drive-Einstellungen" (Drive 1.11, the gear of the menu). */
@@ -171,6 +173,11 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     val showPage: (Boolean) -> Unit = { photos -> scope.launch { pager.animateScrollToPage(DriveLogic.tabOf(photos, hasPhotos)) } }
     // the folder on the Files page: the path of a folder page goes back here when it names this one
     val shownId = shown?.id?.takeIf { !onPhotosPage }
+    // Drive 1.14 (`photoSearch`): photos without words get them now (in the background, under the backup's conditions)
+    val photoSearch = me?.has(DMe.FEATURE_PHOTO_SEARCH) == true
+    LaunchedEffect(onPhotosPage, photoSearch) {
+        if (onPhotosPage && photoSearch) com.gatecontrol.android.drive.backup.DrivePhotoLabelsWork.request(context)
+    }
     LaunchedEffect(shownId) { nav.shown(shownId) }
     // the page the person ends on is kept, and shown again when the person comes back to the tab
     var synced by remember { mutableStateOf(false) }
@@ -271,7 +278,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                             else -> current.label
                         },
                         onMenu = openMenu,
-                        onSearch = nav.search,
+                        onSearch = if (onPhotosPage && me?.has(DMe.FEATURE_PHOTO_SEARCH) == true) nav.photoSearch else nav.search,
                         actions = { if (!onPhotosPage) FolderViewActions(folderViewModel, grid) },
                     )
                     if (hasPhotos) DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage)

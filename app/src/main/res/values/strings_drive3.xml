@@ -37,7 +37,6 @@
     <string name="drive_kind_warranty">Warranty</string>
     <string name="drive_kind_other">Other document</string>
     <string name="drive_deadlines">Deadlines</string>
-    <string name="drive_deadlines_desc">Payment, cancellation and objection deadlines of your documents</string>
     <string name="drive_deadlines_none">No deadlines in the coming year.</string>
     <string name="drive_deadline_payment">Payment</string>
     <string name="drive_deadline_cancellation">Cancellation</string>

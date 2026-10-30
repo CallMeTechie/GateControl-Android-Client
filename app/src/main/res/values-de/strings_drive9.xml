@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drive 1.14: KI in Drive – Scan prüfen (D5), Ablegen (D4), Fristen und Familienkalender (D2), Fragen (D1), Fotosuche (D3) -->
+    <string name="drive_ki_done_scan_doc">Als Dokument gespeichert.</string>
+    <string name="drive_ki_done_calendar">Im Familienkalender eingetragen.</string>
+    <string name="drive_ki_familie_unavailable">Der Familienkalender nimmt gerade keine Einträge von Drive an (Familie ist nicht erreichbar oder lässt Drive noch nicht zu). Bitte später noch einmal versuchen.</string>
+    <string name="drive_ki_rate_limited">Zu viele Fragen in kurzer Zeit. Bitte später noch einmal.</string>
+    <string name="drive_ki_ai_unavailable">Die KI deines GateControl ist gerade nicht verfügbar.</string>
+
+    <string name="drive_ki_deadlines_desc">Aus deinen Dokumenten erkannt · nur Dateien, die du lesen darfst</string>
+    <string name="drive_ki_deadline_warranty">Garantieende</string>
+    <string name="drive_ki_deadline_renewal">Vertragsverlängerung</string>
+    <string name="drive_ki_renewal_until">kündigen bis %1$s</string>
+    <string name="drive_ki_area_calendar">Neue Fristen in den Familienkalender</string>
+    <string name="drive_ki_area_calendar_desc">In „%1$s“ erkannte Fristen kommen von selbst in den Familienkalender</string>
+    <string name="drive_ki_new">neu</string>
+    <string name="drive_ki_calendar_add">In den Familienkalender</string>
+    <string name="drive_ki_calendar_done">Im Familienkalender</string>
+    <string name="drive_ki_remind">Erinnern</string>
+    <string name="drive_ki_remind_off">Keine Erinnerung</string>
+    <string name="drive_ki_reminded_day0">Erinnerung am Tag selbst</string>
+    <plurals name="drive_ki_reminded_days">
+        <item quantity="one">Erinnerung %d Tag vorher</item>
+        <item quantity="other">Erinnerung %d Tage vorher</item>
+    </plurals>
+
+    <string name="drive_ki_filing_title">Ablagevorschlag</string>
+    <string name="drive_ki_suggestion">Vorschlag</string>
+    <string name="drive_ki_file_as">Ablegen als</string>
+    <string name="drive_ki_file_in">in</string>
+    <string name="drive_ki_filing_remind">An die Zahlung am %1$s erinnern</string>
+    <string name="drive_ki_accept">Übernehmen</string>
+    <string name="drive_ki_other_folder">Anderer Ordner</string>
+    <string name="drive_ki_filing_dismiss">Vorschlag verwerfen</string>
+
+    <string name="drive_ki_scan_title">Scan prüfen</string>
+    <string name="drive_ki_recognising">Wird erkannt …</string>
+    <string name="drive_ki_recognised">Erkannt: %1$s</string>
+    <string name="drive_ki_kind_printed">Gedruckter Text</string>
+    <string name="drive_ki_kind_handwriting">Handschrift</string>
+    <string name="drive_ki_kind_table">Tabelle</string>
+    <string name="drive_ki_kind_whiteboard">Whiteboard</string>
+    <string name="drive_ki_kind_other">Bild</string>
+    <string name="drive_ki_format_word">Word</string>
+    <string name="drive_ki_format_excel">Excel</string>
+    <string name="drive_ki_format_image">Nur Bild</string>
+    <string name="drive_ki_ask_xlsx">Als Excel-Datei ablegen?</string>
+    <string name="drive_ki_ask_docx">Als Word-Datei ablegen?</string>
+    <string name="drive_ki_ask_docx_outline">Als Word-Datei mit Gliederung ablegen?</string>
+    <string name="drive_ki_ask_pdf">Als durchsuchbares PDF ablegen?</string>
+    <string name="drive_ki_ask_image">Nur als Bild ablegen?</string>
+    <string name="drive_ki_preview">Vorschau</string>
+    <string name="drive_ki_note_xlsx">Zahlen als Zahlen, Datum als Datum, Kopfzeile fixiert. Die Summe wird als Formel angelegt.</string>
+    <string name="drive_ki_note_pdf">Das Bild bleibt, darüber liegt der erkannte Text unsichtbar: durchsuchbar und kopierbar. Ohne KI, auf dem Gerät.</string>
+    <string name="drive_ki_note_docx_table">Die Tabelle steht als Word-Tabelle im Dokument.</string>
+    <string name="drive_ki_note_docx_whiteboard">Überschriften, Stichpunkte und Aufgaben als Liste; das bereinigte Foto steht obenauf. Eingekreistes wird zu „Offen“.</string>
+    <string name="drive_ki_note_docx_handwriting">Der abgeschriebene Text, der Scan als letzte Seite.</string>
+    <string name="drive_ki_note_docx">Der erkannte Text als Word-Dokument, der Scan als letzte Seite.</string>
+    <string name="drive_ki_note_image">Wie bisher: nur das Bild.</string>
+    <string name="drive_ki_file_in_label">Ablegen in</string>
+    <string name="drive_ki_change">Ändern</string>
+    <string name="drive_ki_keep_original">Original-Scan behalten</string>
+    <string name="drive_ki_cost_pdf">Erkannt auf dem Handy, ohne KI.</string>
+    <string name="drive_ki_cost_ai">Ausgewertet über den KI-Anbieter deines GateControl.</string>
+    <string name="drive_ki_cost_image">Nichts wird ausgewertet.</string>
+    <string name="drive_ki_save_xlsx">Als Excel-Datei speichern</string>
+    <string name="drive_ki_save_docx">Als Word-Datei speichern</string>
+    <string name="drive_ki_save_pdf">Als PDF speichern</string>
+    <string name="drive_ki_save_image">Bild speichern</string>
+
+    <string name="drive_ki_search_or_ask">Suchen oder fragen</string>
+    <string name="drive_ki_mode_files">Dateien</string>
+    <string name="drive_ki_mode_ask">Fragen</string>
+    <string name="drive_ki_ask_send">Fragen</string>
+    <string name="drive_ki_ask_hint">Frag deine Dokumente, z. B. „Wann läuft die Kfz-Versicherung ab?“</string>
+    <string name="drive_ki_ask_note">Antwort nur aus deinen Dateien. Tresore werden nie durchsucht.</string>
+    <string name="drive_ki_ask_none">Dazu habe ich in deinen Dateien nichts gefunden.</string>
+    <string name="drive_ki_ask_searched">Gesucht nach: %1$s · in %2$s</string>
+    <string name="drive_ki_ask_where">Gesucht in %1$s</string>
+    <string name="drive_ki_ask_calendar">Frist in den Familienkalender</string>
+    <string name="drive_ki_and">und</string>
+    <string name="drive_ki_page">Seite %1$d</string>
+    <plurals name="drive_ki_sources">
+        <item quantity="one">%d Quelle</item>
+        <item quantity="other">%d Quellen</item>
+    </plurals>
+
+    <string name="drive_ki_photo_search">Fotos durchsuchen</string>
+    <string name="drive_ki_photo_search_hint">Was ist auf dem Foto?</string>
+    <string name="drive_ki_photo_search_example">z. B. Strand</string>
+    <string name="drive_ki_photo_labels_device">Begriffe auf dem Handy erkannt</string>
+    <string name="drive_ki_photo_search_none">Keine Fotos dazu gefunden.</string>
+    <string name="drive_ki_photo_search_note">Fotos, die nicht vom Handy gesichert wurden (z. B. vom PC), haben noch keine Begriffe. Sie werden beim nächsten Öffnen auf dem Handy nachgetragen.</string>
+    <plurals name="drive_ki_photos_found">
+        <item quantity="one">%d Foto</item>
+        <item quantity="other">%d Fotos</item>
+    </plurals>
+</resources>

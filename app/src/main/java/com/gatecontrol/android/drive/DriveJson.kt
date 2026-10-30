@@ -49,6 +49,7 @@ internal object DriveJson {
             }?.toMap().orEmpty(),
             wipes = o.int("wipes")?.coerceAtLeast(0) ?: 0,
             scanFormat = if (o.obj("settings")?.str("scanFormat") == "image") "image" else "pdf",
+            scanKeepOriginal = o.obj("settings")?.bool("scanKeepOriginal"),
             admin = me.bool("admin") ?: false,
             deviceId = me.str("deviceId")?.takeIf { DEVICE_ID.matches(it) },
         ).let { base ->
@@ -146,6 +147,7 @@ internal object DriveJson {
             rootId = root,
             archived = o.bool("archived") ?: false,
             docAi = o.bool("docAi"),
+            deadlinesToCalendar = o.bool("deadlinesToCalendar"),
             storage = st?.let {
                 DStorage(
                     bytes = it.long("bytes"), quota = it.long("quota"), form = it.str("form")?.take(20),
@@ -196,6 +198,7 @@ internal object DriveJson {
             insight = o.obj("insight")?.let(::insightShort),
             review = o.obj("review")?.let { DReview(it.int("hint")?.coerceIn(0, 100)) },
             work = o.bool("work") == true,
+            labeled = o.bool("labeled"),
         ).let { n ->
             // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
             val vault = vaultId(o.str("vaultId"))
@@ -426,7 +429,7 @@ internal object DriveJson {
     /** `GET photos` → `{ items, next }`. */
     fun photos(o: JsonObject): DPhotos? {
         if (o.arr("items") == null) return null
-        return DPhotos(nodes(o), o.cursor("next"))
+        return DPhotos(nodes(o), o.cursor("next"), o.int("total")?.takeIf { it >= 0 }, terms(o))
     }
 
     /** `GET photos/months` → `{ months: [{ month, count }] }`. */
@@ -455,6 +458,8 @@ internal object DriveJson {
         camera: Boolean = false,
         date: String? = null,
         cls: String? = null,
+        q: String? = null,
+        unlabeled: Boolean = false,
     ): Map<String, String>? =
         buildMap {
             if (area != null) put("area", areaId(area) ?: return null)
@@ -463,6 +468,8 @@ internal object DriveJson {
             if (date != null) put("date", date)
             if (camera) put("camera", "1")
             if (cls != null) put("class", cls.takeIf { it in PHOTO_CLASSES } ?: return null)
+            if (q != null) q.trim().take(PHOTO_Q_MAX).takeIf { it.isNotEmpty() }?.let { put("q", it) }
+            if (unlabeled) put("unlabeled", "1")
         }
 
     /** The values of `class` (Drive 1.13). */
@@ -671,7 +678,8 @@ internal object DriveJson {
     private val DATE = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
     private val INSIGHT_STATUS = setOf("none", "pending", "ready", "failed", "off")
     val DOC_KINDS = setOf("invoice", "contract", "notice", "medical", "certificate", "statement", "insurance", "warranty", "other")
-    val DEADLINE_KINDS = setOf("payment", "cancellation", "objection")
+    /** Drive 1.14 adds `warranty` (end of the warranty) and `renewal` (last day to cancel before a contract renews). */
+    val DEADLINE_KINDS = setOf("payment", "cancellation", "objection", "warranty", "renewal")
 
     fun insightShort(o: JsonObject): DInsightShort? {
         val status = o.str("status")?.takeIf { it in INSIGHT_STATUS } ?: return null
@@ -711,10 +719,12 @@ internal object DriveJson {
             label = o.str("label")?.trim()?.take(200)?.ifEmpty { null },
             reminder = r?.let { DReminder(it.str("at")?.take(40), it.int("daysBefore")?.coerceIn(0, 90) ?: 0, it.bool("sent") ?: false) },
             node = node(o.obj("node")),
+            calendar = o.obj("calendar")?.let { c -> DCalendarEntry(c.idString("eventId")?.take(200), c.str("at")?.take(40)) },
+            nodeId = o.long("nodeId")?.takeIf { it > 0 },
         )
     }
 
-    /** `POST|DELETE deadlines/<id>/remind` → `{ deadline }`. */
+    /** `POST|DELETE deadlines/<id>/remind`, `POST deadlines/<id>/calendar` → `{ deadline }`. */
     fun deadlineAnswer(o: JsonObject): DDeadline? = deadline(o.obj("deadline"))
 
     /** `GET deadlines` → `{ deadlines }`. */
@@ -1124,6 +1134,145 @@ internal object DriveJson {
     }
 
     // ─── helpers ────────────────────────────────────────────────────
+
+    // ─── Drive 1.14: AI in Drive ────────────────────────────────────
+
+    /** How long a photo search may be. */
+    const val PHOTO_Q_MAX = 100
+    val SCAN_KINDS = setOf("printed", "handwriting", "table", "whiteboard", "other")
+    val SCAN_TARGETS = setOf("pdf", "docx", "xlsx")
+    /** At most this many labels of a photo, each at most [LABEL_MAX] characters (`PUT nodes/<id>/labels`). */
+    const val LABELS_MAX = 20
+    const val LABEL_MAX = 40
+    private const val TERMS_MAX = 20
+
+    /**
+     * Words of an answer: `terms` (or `chips`, `labels`) as strings or `{ term | label | name | text }`, trimmed, without
+     * repeats, at most [TERMS_MAX].
+     */
+    fun terms(o: JsonObject): List<String> {
+        val a = o.arr("terms") ?: o.arr("chips") ?: o.arr("labels") ?: return emptyList()
+        return a.mapNotNull { e ->
+            when {
+                e.isJsonPrimitive -> runCatching { e.asString }.getOrNull()
+                e.isJsonObject -> e.asJsonObject.let { it.str("term") ?: it.str("label") ?: it.str("name") ?: it.str("text") }
+                else -> null
+            }?.trim()?.take(60)?.ifEmpty { null }
+        }.distinctBy { it.lowercase() }.take(TERMS_MAX)
+    }
+
+    fun askBody(q: String, area: String?) = JsonObject().apply {
+        addProperty("q", q.trim().take(ASK_MAX))
+        if (area != null) addProperty("area", area)
+    }
+
+    /** How long a question may be (3 … 300 characters). */
+    const val ASK_MIN = 3
+    const val ASK_MAX = 300
+
+    /** `POST ask` → `{ status, answer, sources, terms }`. */
+    fun answer(o: JsonObject): DAnswer? {
+        val status = o.str("status")?.takeIf { it == DAnswer.STATUS_ANSWERED || it == DAnswer.STATUS_NOT_FOUND } ?: return null
+        val sources = o.arr("sources")?.mapNotNull { e ->
+            val s = e as? JsonObject ?: return@mapNotNull null
+            DSource(
+                nodeId = s.long("nodeId")?.takeIf { it > 0 } ?: return@mapNotNull null,
+                name = s.str("name")?.trim()?.take(255)?.ifEmpty { null } ?: return@mapNotNull null,
+                path = s.str("path")?.trim()?.take(2000)?.ifEmpty { null },
+                page = s.int("page")?.takeIf { it > 0 },
+                quote = s.str("quote")?.trim()?.take(600)?.ifEmpty { null },
+            )
+        }.orEmpty().distinctBy { it.nodeId to it.page }.take(8)
+        return DAnswer(
+            status,
+            o.str("answer")?.trim()?.take(4000)?.ifEmpty { null },
+            sources,
+            terms(o),
+            areas = o.arr("areas")?.mapNotNull { e -> runCatching { e.asString }.getOrNull()?.trim()?.take(200)?.ifEmpty { null } }?.take(20).orEmpty(),
+            deadline = deadline(o.obj("deadline")),
+        )
+    }
+
+    fun classifyBody(mediaIds: List<String>, text: String?) = JsonObject().apply {
+        add("mediaIds", JsonArray().apply { mediaIds.forEach { add(it) } })
+        if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
+    }
+
+    /** `POST scans/classify` → `{ kind, confidence, summary }` (an unknown kind is `other`). */
+    fun scanKind(o: JsonObject): DScanKind? {
+        val kind = o.str("kind") ?: return null
+        return DScanKind(
+            kind = kind.takeIf { it in SCAN_KINDS } ?: "other",
+            confidence = o.prim("confidence")?.let { runCatching { it.asDouble }.getOrNull() }?.takeIf { it.isFinite() }?.coerceIn(0.0, 1.0),
+            summary = o.str("summary")?.trim()?.take(200)?.ifEmpty { null },
+        )
+    }
+
+    /** At most this many pages go to `scans/classify` and `scans/convert`. */
+    const val SCAN_MEDIA_MAX = 8
+    /** The pictures of `scans/convert` (`images`) together at most this many bytes (else `413 too_large`). */
+    const val SCAN_IMAGES_MAX = 600 * 1024
+
+    fun convertBody(mediaIds: List<String>, target: String, kind: String, folderId: Long?, name: String?, text: String?, images: List<String>) = JsonObject().apply {
+        add("mediaIds", JsonArray().apply { mediaIds.forEach { add(it) } })
+        addProperty("target", target)
+        addProperty("kind", kind)
+        if (folderId != null) addProperty("folderId", folderId)
+        if (!name.isNullOrBlank()) addProperty("name", name.take(255))
+        if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
+        if (images.isNotEmpty()) add("images", JsonArray().apply { images.forEach { add(it) } })
+    }
+
+    /** `POST scans/convert` → `{ kind, target, title, name, folderId, text, file { name, mime, data } | null, … }`. */
+    fun conversion(o: JsonObject): DConversion? {
+        val target = o.str("target")?.takeIf { it in SCAN_TARGETS } ?: return null
+        val f = o.obj("file")
+        val file = f?.let {
+            val data = it.str("data")?.let { d -> runCatching { java.util.Base64.getMimeDecoder().decode(d.substringAfter("base64,")) }.getOrNull() }
+            val name = it.str("name")?.trim()?.take(255)?.ifEmpty { null }
+            if (data == null || data.isEmpty() || name == null) null else DConvertedFile(name, it.str("mime")?.take(200) ?: "application/octet-stream", data)
+        }
+        // a file announced but unreadable is no answer
+        if (f != null && file == null) return null
+        return DConversion(
+            kind = o.str("kind")?.takeIf { it in SCAN_KINDS } ?: "other",
+            target = target,
+            title = o.str("title")?.trim()?.take(200)?.ifEmpty { null },
+            name = o.str("name")?.trim()?.take(255)?.ifEmpty { null },
+            folderId = o.long("folderId"),
+            text = o.str("text")?.take(TEXT_MAX)?.ifBlank { null },
+            file = file,
+        )
+    }
+
+    fun saveScanBody(mediaId: String, folderId: Long, name: String, text: String?) = JsonObject().apply {
+        addProperty("mediaId", mediaId)
+        addProperty("folderId", folderId)
+        addProperty("name", name.take(255))
+        if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
+    }
+
+    /** `POST scans/save` → `{ node, original }`. */
+    fun saved(o: JsonObject): DSaved? {
+        val node = node(o.obj("node")) ?: return null
+        return DSaved(node, node(o.obj("original")))
+    }
+
+    fun deadlinesToCalendarBody(on: Boolean) = JsonObject().apply { addProperty("deadlinesToCalendar", on) }
+
+    /** `PATCH areas/<id>` → `{ area { deadlinesToCalendar } }`. */
+    fun areaDeadlinesToCalendar(o: JsonObject): Boolean? = o.obj("area")?.bool("deadlinesToCalendar")
+
+    /** `PUT nodes/<id>/labels { labels, source: 'device' }`: at most [LABELS_MAX] labels of at most [LABEL_MAX] characters. */
+    fun labelsBody(labels: List<String>) = JsonObject().apply {
+        add(
+            "labels",
+            JsonArray().apply {
+                labels.map { it.trim().take(LABEL_MAX) }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }.take(LABELS_MAX).forEach { add(it) }
+            },
+        )
+        addProperty("source", "device")
+    }
 
     private fun JsonObject.prim(key: String): JsonElement? = get(key)?.takeIf { it.isJsonPrimitive }
     fun JsonObject.str(key: String): String? = prim(key)?.let { runCatching { it.asString }.getOrNull() }

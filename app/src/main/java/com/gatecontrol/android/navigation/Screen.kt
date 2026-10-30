@@ -203,6 +203,8 @@ sealed class Screen(val route: String) {
     }
     /** "Fristen": the deadlines of my documents (Drive 1.8). */
     data object DriveDeadlines : Screen("drive/deadlines")
+    /** Photos by what is in them (Drive 1.14, feature `photoSearch`). */
+    data object DrivePhotoSearch : Screen("drive/photos/search")
     /** A folder of a vault (Drive 1.9); `requests=1` shows the approval requests at once (a request's push). */
     data object DriveVault : Screen("drive/vault/{vault}/{folder}?requests={requests}") {
         const val ARG_VAULT = "vault"

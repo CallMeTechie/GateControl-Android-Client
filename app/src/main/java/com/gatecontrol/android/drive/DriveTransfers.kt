@@ -77,7 +77,13 @@ class DriveTransfers @Inject constructor(
         val text: String? = null,
         /** An empty file is dropped unless the server takes empty files (a "save as" closed without content). */
         val dropEmpty: Boolean = false,
+        /** Drive 1.14 (D4): the new file may get the filing suggestion; [scan]: it is a scan from the app. */
+        val propose: Boolean = false,
+        val scan: Boolean = false,
     )
+
+    /** A file this device uploaded that may get the filing suggestion (D4): the person chose it, or a scan. */
+    data class Committed(val node: DNode, val scan: Boolean)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
@@ -115,6 +121,10 @@ class DriveTransfers @Inject constructor(
         }
     }
 
+    private val _committed = MutableSharedFlow<Committed>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** Files the person uploaded here (picked or scanned), once they are in Drive ([DriveFiling]). */
+    val committed: SharedFlow<Committed> = _committed.asSharedFlow()
+
     /** A folder whose content changed through an upload here (reload it). */
     private val _changed = MutableSharedFlow<Long>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val changed: SharedFlow<Long> = _changed.asSharedFlow()
@@ -136,7 +146,7 @@ class DriveTransfers @Inject constructor(
                     local.hold(uri)
                     val id = ids.incrementAndGet()
                     val (name, size) = describe(uri)
-                    queue.addLast(Job(id, uri, folderId, name = name))
+                    queue.addLast(Job(id, uri, folderId, name = name, propose = true))
                     _uploads.update { it + Upload(id, name, folderId, size) }
                 }
             }
@@ -157,6 +167,7 @@ class DriveTransfers @Inject constructor(
         onExists: String,
         text: String? = null,
         dropEmpty: Boolean = false,
+        scan: Boolean = false,
         onDone: (DNode?) -> Unit = {},
     ) {
         scope.launch {
@@ -166,7 +177,7 @@ class DriveTransfers @Inject constructor(
                 queue.addLast(
                     Job(
                         id, null, folderId, file = file, name = name, mime = mime, mtime = System.currentTimeMillis(), sha = sha,
-                        onExists = onExists, onDone = onDone, text = text, dropEmpty = dropEmpty,
+                        onExists = onExists, onDone = onDone, text = text, dropEmpty = dropEmpty, propose = scan, scan = scan,
                     ),
                 )
                 _uploads.update { it + Upload(id, name, folderId, file.length()) }
@@ -288,6 +299,7 @@ class DriveTransfers @Inject constructor(
                 file.delete()
                 set(job.id) { it.copy(state = State.DONE, sent = it.total) }
                 _changed.tryEmit(job.folderId)
+                if (job.propose && r.value.second) _committed.tryEmit(Committed(r.value.first, job.scan))
                 job.onDone?.invoke(r.value.first)
             }
             is DResult.Failed -> if (r.code == DriveJson.DEVICE_LOCKED) pause(job, choice) else fail(job, r.code)

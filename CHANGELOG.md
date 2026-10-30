@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.30] - 2026-10-30
+
+### Changes
+- KI-Funktionen D1–D5 (Drive 1.14) (#155)
+
+---
+
 ## [1.67.29] - 2026-10-30
 
 ### Changes
