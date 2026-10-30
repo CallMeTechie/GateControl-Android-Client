@@ -44,9 +44,11 @@ object SupportRedactor {
         Regex("((?:proxy-)?authorization[\"']?\\s*[:=]\\s*[\"']?)(?:(?:bearer|basic|digest|token)\\s+)?[^\\s\"',;]+", RegexOption.IGNORE_CASE) to "$1$M",
         Regex("((?:set-)?cookie[\"']?\\s*[:=]\\s*[\"']?)[^\\r\\n\"']+", RegexOption.IGNORE_CASE) to "$1$M",
         Regex("(x-api-(?:token|key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',;]+", RegexOption.IGNORE_CASE) to "$1$M",
-        // key=value and "key": "value" with a secret-like key name
+        // key=value and "key": "value" with a secret-like key name. The match starts at the
+        // name itself: the part before it ("client_", "rdp") stays as it is anyway, and
+        // matching it too (`\b[A-Za-z0-9_-]{0,40}?`) tried up to 40 starts per position.
         Regex(
-            "\\b([A-Za-z0-9_-]{0,40}?(?:password|passwd|pwd|secret|token|api[-_]?key|apikey|private[-_]?key|preshared[-_]?key|psk|" +
+            "((?:password|passwd|pwd|secret|token|api[-_]?key|apikey|private[-_]?key|preshared[-_]?key|psk|" +
                 "enrol(?:l)?ment[-_]?code|setup[-_]?code|credential)s?[\"']?\\s*[:=]\\s*[\"']?)(?!\\[REDACTED\\])[^\\s\"'&,;}]+",
             RegexOption.IGNORE_CASE,
         ) to "$1$M",
