@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.33] - 2026-10-30
+
+### Changes
+- Inhalt wieder sichtbar, Menü oben, Microsoft-Adresse im Protokoll (#158)
+
+---
+
 ## [1.67.32] - 2026-10-30
 
 ### Changes
