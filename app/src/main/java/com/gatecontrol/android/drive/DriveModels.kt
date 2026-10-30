@@ -55,6 +55,8 @@ data class DMe(
     val admin: Boolean = false,
     /** This device as Drive knows it (the app's device token; null without the permission `devices`). */
     val deviceId: String? = null,
+    /** Drive 1.14: "Original-Scan behalten" by default (setting *scan_keep_original*); null when the server says nothing. */
+    val scanKeepOriginal: Boolean? = null,
 ) {
     fun has(feature: String): Boolean = feature in features
 
@@ -160,6 +162,8 @@ data class DArea(
     val storage: DStorage? = null,
     /** AI for documents in this area (Drive 1.8, `PATCH areas/<id> { docAi }`); null while the feature is off. */
     val docAi: Boolean? = null,
+    /** New deadlines into the family calendar on their own (Drive 1.14, with `deadlineCalendar`); null while not offered. */
+    val deadlinesToCalendar: Boolean? = null,
 ) {
     val writable: Boolean get() = !archived && (role == "write" || role == "manage")
 }
@@ -208,6 +212,8 @@ data class DNode(
     val review: DReview? = null,
     /** Drive 1.13: a photo item below my work folder (the small blue bag). */
     val work: Boolean = false,
+    /** Drive 1.14 (`photoSearch`): a phone looked at the photo and sent what is on it; null when the server says nothing. */
+    val labeled: Boolean? = null,
 ) {
     /** In a vault: nothing of it may go to a preview, a link, the office, the AI or a backup. */
     val encrypted: Boolean get() = vaultId != null
@@ -431,6 +437,8 @@ data class DDeadline(
     val node: DNode? = null,
     /** Drive 1.14 (`deadlineCalendar`): my entry in the family calendar; null when there is none. */
     val calendar: DCalendarEntry? = null,
+    /** Drive 1.14 `ask`: the file of the deadline (the answer has no node). */
+    val nodeId: Long? = null,
 )
 
 /** A deadline's entry in the family calendar (Drive 1.14). */

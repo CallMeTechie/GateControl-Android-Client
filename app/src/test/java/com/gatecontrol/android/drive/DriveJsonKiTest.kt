@@ -52,9 +52,17 @@ class DriveJsonKiTest {
         assertEquals(listOf(12L), a.sources.map { it.nodeId })
         assertEquals(DSource(12, "Versicherungsschein Kfz 2026.pdf", "Versicherungen", 1, "Vertragslaufzeit"), a.sources[0])
 
-        val none = DriveJson.answer(json("""{"status":"not_found","answer":null,"sources":[],"terms":["Kfz"]}"""))!!
+        val none = DriveJson.answer(json("""{"status":"not_found","answer":null,"sources":[],"terms":["Kfz"],"areas":["Meine Dateien","Familie"],"deadline":null}"""))!!
         assertFalse(none.answered)
         assertEquals(listOf("Kfz"), none.terms)
+        assertEquals(listOf("Meine Dateien", "Familie"), none.areas)
+        assertNull(none.deadline)
+        val withDeadline = DriveJson.answer(
+            json("""{"status":"answered","answer":"Bis 30.11.2026.","sources":[{"nodeId":12,"name":"a.pdf","page":null}],"deadline":{"id":9,"kind":"cancellation","date":"2026-11-30","label":"Kfz kündigen","calendar":null,"nodeId":12}}"""),
+        )!!
+        assertEquals(9L, withDeadline.deadline?.id)
+        assertEquals(12L, withDeadline.deadline?.nodeId)
+        assertNull(withDeadline.sources[0].page)
         assertNull(DriveJson.answer(json("""{"status":"maybe"}""")))
         // answered without words is no answer
         assertFalse(DriveJson.answer(json("""{"status":"answered","answer":"  "}"""))!!.answered)
@@ -63,7 +71,7 @@ class DriveJsonKiTest {
         assertEquals("Wann?", body.get("q").asString)
         assertEquals("family:3", body.get("area").asString)
         assertFalse(DriveJson.askBody("x".repeat(900), null).has("area"))
-        assertEquals(DriveJson.ASK_MAX, DriveJson.askBody("x".repeat(900), null).get("q").asString.length)
+        assertEquals(300, DriveJson.askBody("x".repeat(900), null).get("q").asString.length)
     }
 
     @Test
@@ -78,20 +86,54 @@ class DriveJsonKiTest {
         assertEquals("Text", c.get("text").asString)
         assertFalse(DriveJson.classifyBody(listOf("abcdef12"), " ").has("text"))
 
-        val b = DriveJson.convertBody(listOf("abcdef12", "ghijkl34"), "xlsx", "table", 40, "2026 Zählerstände.xlsx", keepOriginal = true)
+        val b = DriveJson.convertBody(listOf("abcdef12", "ghijkl34"), "xlsx", "table", 40, "2026 Zählerstände.xlsx", "Datum Zähler", listOf("AAAA"))
         assertEquals(2, b.getAsJsonArray("mediaIds").size())
         assertEquals("xlsx", b.get("target").asString)
         assertEquals("table", b.get("kind").asString)
         assertEquals(40L, b.get("folderId").asLong)
         assertEquals("2026 Zählerstände.xlsx", b.get("name").asString)
-        assertTrue(b.get("keepOriginal").asBoolean)
-        assertFalse(DriveJson.convertBody(listOf("abcdef12"), "docx", "printed", null, null, false).has("folderId"))
+        assertEquals("Datum Zähler", b.get("text").asString)
+        assertEquals("AAAA", b.getAsJsonArray("images")[0].asString)
+        assertFalse(b.has("keepOriginal"))
+        val plain = DriveJson.convertBody(listOf("abcdef12"), "docx", "printed", null, null, null, emptyList())
+        assertFalse(plain.has("folderId") || plain.has("text") || plain.has("images"))
 
-        val r = DriveJson.converted(json("""{"node":{"id":5,"areaId":"mine:7","name":"a.xlsx"},"original":{"id":6,"areaId":"mine:7","name":"a.jpg"}}"""))!!
-        assertEquals(5L, r.node.id)
-        assertEquals(6L, r.original?.id)
-        assertNull(DriveJson.converted(json("""{"node":{"id":5,"areaId":"mine:7","name":"a.xlsx"}}"""))!!.original)
-        assertNull(DriveJson.converted(json("""{}""")))
+        val data = java.util.Base64.getEncoder().encodeToString("PK-word".toByteArray())
+        val conv = DriveJson.conversion(
+            json("""{"kind":"table","target":"xlsx","title":"Zählerstände","name":"2026-11-03 Zählerstände.xlsx","folderId":40,"folderPath":"Haus","text":"Datum	Stand","content":{},"file":{"name":"2026-11-03 Zählerstände.xlsx","mime":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","size":7,"sha256":"x","data":"$data"},"source":"media","usage":{"costCents":0.1}}"""),
+        )!!
+        assertEquals("2026-11-03 Zählerstände.xlsx", conv.name)
+        assertEquals(40L, conv.folderId)
+        assertEquals("PK-word", String(conv.file!!.data))
+        assertEquals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", conv.file!!.mime)
+        // a PDF without pictures: no file, the app makes it
+        assertNull(DriveJson.conversion(json("""{"kind":"printed","target":"pdf","text":"Hallo","file":null}"""))!!.file)
+        // a file that cannot be read is no answer
+        assertNull(DriveJson.conversion(json("""{"kind":"printed","target":"docx","file":{"name":"a.docx","data":"%%%"}}""")))
+        assertNull(DriveJson.conversion(json("""{"kind":"printed"}""")))
+
+        val save = DriveJson.saveScanBody("abcdef12", 40, "a.xlsx", "Text")
+        assertEquals("abcdef12", save.get("mediaId").asString)
+        assertEquals(40L, save.get("folderId").asLong)
+        assertEquals("a.xlsx", save.get("name").asString)
+        assertEquals("Text", save.get("text").asString)
+        val saved = DriveJson.saved(json("""{"node":{"id":5,"areaId":"mine:7","name":"a.xlsx"},"original":null}"""))!!
+        assertEquals(5L, saved.node.id)
+        assertNull(saved.original)
+        assertNull(DriveJson.saved(json("""{}""")))
+    }
+
+    @Test
+    fun `area and me - deadlines into the calendar, keep the original scan`() {
+        val me = DriveJson.me(
+            json("""{"me":{"id":7},"licence":{"valid":true},"settings":{"scanKeepOriginal":false},"areas":[{"id":"mine:7","rootId":1,"role":"manage","docAi":true,"deadlinesToCalendar":true}]}"""),
+        )!!
+        assertEquals(false, me.scanKeepOriginal)
+        assertEquals(true, me.areas[0].deadlinesToCalendar)
+        assertNull(DriveJson.me(json("""{"me":{"id":7}}"""))!!.scanKeepOriginal)
+        assertNull(DriveJson.area(json("""{"id":"mine:7","rootId":1}"""))!!.deadlinesToCalendar)
+        assertTrue(DriveJson.deadlinesToCalendarBody(true).get("deadlinesToCalendar").asBoolean)
+        assertEquals(false, DriveJson.areaDeadlinesToCalendar(json("""{"area":{"id":"mine:7","docAi":true,"deadlinesToCalendar":false}}""")))
     }
 
     @Test
@@ -105,11 +147,15 @@ class DriveJsonKiTest {
 
         assertEquals("Strand Meer", DriveJson.photosQuery(q = "  Strand Meer ")!!["q"])
         assertFalse(DriveJson.photosQuery(q = " ")!!.containsKey("q"))
+        assertEquals("1", DriveJson.photosQuery(unlabeled = true)!!["unlabeled"])
+        assertFalse(DriveJson.photosQuery()!!.containsKey("unlabeled"))
+        assertEquals(true, DriveJson.node(json("""{"id":1,"areaId":"mine:7","name":"a.jpg","labeled":true}"""))!!.labeled)
+        assertNull(DriveJson.node(json("""{"id":1,"areaId":"mine:7","name":"a.jpg"}"""))!!.labeled)
         assertEquals(DriveJson.PHOTO_Q_MAX, DriveJson.photosQuery(q = "x".repeat(300))!!["q"]!!.length)
 
-        val p = DriveJson.photos(json("""{"items":[{"id":1,"areaId":"mine:7","name":"a.jpg"}],"next":null,"total":38,"terms":[{"label":"Meer","count":20},"Sonnenuntergang"]}"""))!!
+        val p = DriveJson.photos(json("""{"items":[{"id":1,"areaId":"mine:7","name":"a.jpg"}],"next":null,"total":38,"terms":[{"term":"meer","label":"sea","count":20},"Sonnenuntergang"]}"""))!!
         assertEquals(38, p.total)
-        assertEquals(listOf("Meer", "Sonnenuntergang"), p.terms)
+        assertEquals(listOf("meer", "Sonnenuntergang"), p.terms)
         val plain = DriveJson.photos(json("""{"items":[]}"""))!!
         assertNull(plain.total)
         assertTrue(plain.terms.isEmpty())

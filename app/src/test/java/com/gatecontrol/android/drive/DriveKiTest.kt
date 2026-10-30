@@ -134,23 +134,12 @@ class DriveKiTest {
     }
 
     @Test
-    fun `dates in an answer and the deadline it names`() {
+    fun `dates in an answer are found for bold`() {
         val a = "Die Kfz-Versicherung läuft bis 31.12.2026 und verlängert sich jeweils um ein Jahr. Kündigen kannst du bis 30.11.2026."
-        assertEquals(setOf(LocalDate.of(2026, 12, 31), LocalDate.of(2026, 11, 30)), DriveKi.datesIn(a, today))
         assertEquals(2, DriveKi.dateSpans(a).size)
         assertEquals("31.12.2026", a.substring(DriveKi.dateSpans(a)[0]))
-        // without a year: this year, or the next when over
-        assertEquals(setOf(LocalDate.of(2026, 11, 28), LocalDate.of(2027, 1, 5)), DriveKi.datesIn("am 28.11. und am 5.1.", today))
-        assertEquals(setOf(LocalDate.of(2026, 12, 1)), DriveKi.datesIn("bis 2026-12-01", today))
-        assertTrue(DriveKi.datesIn("Version 1.2 von 3 Seiten, 41.208 kWh", today).none { it.year == 2026 && it.monthValue == 2 && it.dayOfMonth == 41 })
-
-        val end = deadline(1, "payment", "2026-12-31")
-        val cancel = deadline(2, "cancellation", "2026-11-30")
-        val other = deadline(3, "cancellation", "2027-03-01")
-        assertEquals(2L, DriveKi.matchDeadline(a, listOf(end, cancel, other), today)?.id)
-        assertEquals(1L, DriveKi.matchDeadline(a, listOf(end, other), today)?.id)
-        assertNull(DriveKi.matchDeadline(a, listOf(other), today))
-        assertNull(DriveKi.matchDeadline("Keine Daten", listOf(end), today))
+        assertEquals(listOf("28.11.", "5.1.", "2026-12-01"), "am 28.11. und am 5.1. bis 2026-12-01".let { t -> DriveKi.dateSpans(t).map { t.substring(it) } })
+        assertTrue(DriveKi.dateSpans("Version 1.2 von 3 Seiten, 41.208 kWh").isEmpty())
     }
 
     // ─── D3 ─────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
     <!-- Drive 1.14: KI in Drive – Scan prüfen (D5), Ablegen (D4), Fristen und Familienkalender (D2), Fragen (D1), Fotosuche (D3) -->
     <string name="drive_ki_done_scan_doc">Als Dokument gespeichert.</string>
     <string name="drive_ki_done_calendar">Im Familienkalender eingetragen.</string>
-    <string name="drive_ki_familie_unavailable">Der Familienkalender ist nicht erreichbar (Familie ist nicht eingerichtet oder hat abgelehnt).</string>
+    <string name="drive_ki_familie_unavailable">Der Familienkalender nimmt gerade keine Einträge von Drive an (Familie ist nicht erreichbar oder lässt Drive noch nicht zu). Bitte später noch einmal versuchen.</string>
     <string name="drive_ki_rate_limited">Zu viele Fragen in kurzer Zeit. Bitte später noch einmal.</string>
     <string name="drive_ki_ai_unavailable">Die KI deines GateControl ist gerade nicht verfügbar.</string>
 
@@ -11,6 +11,8 @@
     <string name="drive_ki_deadline_warranty">Garantieende</string>
     <string name="drive_ki_deadline_renewal">Vertragsverlängerung</string>
     <string name="drive_ki_renewal_until">kündigen bis %1$s</string>
+    <string name="drive_ki_area_calendar">Neue Fristen in den Familienkalender</string>
+    <string name="drive_ki_area_calendar_desc">In „%1$s“ erkannte Fristen kommen von selbst in den Familienkalender</string>
     <string name="drive_ki_new">neu</string>
     <string name="drive_ki_calendar_add">In den Familienkalender</string>
     <string name="drive_ki_calendar_done">Im Familienkalender</string>

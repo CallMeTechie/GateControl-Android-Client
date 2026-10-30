@@ -170,35 +170,6 @@ object DriveKi {
     fun dateSpans(text: String): List<IntRange> =
         (DATE_DOTTED.findAll(text) + DATE_ISO.findAll(text)).map { it.range }.sortedBy { it.first }.toList()
 
-    /** The days named in [text]; one without a year takes the year of [today] (or the next, when already past). */
-    fun datesIn(text: String, today: LocalDate): Set<LocalDate> {
-        val out = HashSet<LocalDate>()
-        DATE_DOTTED.findAll(text).forEach { m ->
-            val d = m.groupValues[1].toIntOrNull() ?: return@forEach
-            val mo = m.groupValues[2].toIntOrNull() ?: return@forEach
-            val y = m.groupValues[3].takeIf { it.isNotEmpty() }?.toIntOrNull()?.let { if (it < 100) 2000 + it else it }
-            val date = runCatching { LocalDate.of(y ?: today.year, mo, d) }.getOrNull() ?: return@forEach
-            out += if (y == null && date.isBefore(today)) date.plusYears(1) else date
-        }
-        DATE_ISO.findAll(text).forEach { m -> runCatching { LocalDate.parse(m.value) }.getOrNull()?.let { out += it } }
-        return out
-    }
-
-    /**
-     * The deadline of a source the answer speaks of: one whose day the answer names. Still ahead comes first, then
-     * cancellation and renewal (what the family calendar is for), then the earliest.
-     */
-    fun matchDeadline(answer: String, deadlines: List<DDeadline>, today: LocalDate): DDeadline? {
-        val named = datesIn(answer, today)
-        if (named.isEmpty()) return null
-        return deadlines
-            .filter { d -> runCatching { LocalDate.parse(d.date) }.getOrNull() in named }
-            .sortedWith(
-                compareBy<DDeadline>({ !calendarOpen(it, today) }, { it.kind !in setOf("cancellation", "renewal") }, { it.date }),
-            )
-            .firstOrNull()
-    }
-
     // ─── D3: photos by what is in them ─────────────────────────────
 
     /** Labels the labeler is at least this sure of go to Drive. */

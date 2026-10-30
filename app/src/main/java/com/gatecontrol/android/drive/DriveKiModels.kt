@@ -11,6 +11,10 @@ data class DAnswer(
     val answer: String?,
     val sources: List<DSource>,
     val terms: List<String>,
+    /** Where Drive searched (the areas' labels). */
+    val areas: List<String> = emptyList(),
+    /** A deadline of a source whose day the answer names ("Frist in den Familienkalender"); [DDeadline.nodeId] its file. */
+    val deadline: DDeadline? = null,
 ) {
     val answered: Boolean get() = status == STATUS_ANSWERED && !answer.isNullOrBlank()
 
@@ -29,5 +33,23 @@ data class DSource(val nodeId: Long, val name: String, val path: String?, val pa
  */
 data class DScanKind(val kind: String, val confidence: Double?, val summary: String?)
 
-/** `POST scans/convert`: the new document and, kept, the original scan. */
-data class DConverted(val node: DNode, val original: DNode?)
+/**
+ * `POST scans/convert`: the document Drive made — as bytes ([file]; GateControl lets no plugin write a file of its own,
+ * the app uploads them and files them with `scans/save`), its [name], its recognised [text]; [file] null: a PDF
+ * without pictures (the app makes it itself).
+ */
+data class DConversion(
+    val kind: String,
+    val target: String,
+    val title: String?,
+    val name: String?,
+    val folderId: Long?,
+    val text: String?,
+    val file: DConvertedFile?,
+)
+
+/** The bytes of a converted scan. */
+class DConvertedFile(val name: String, val mime: String, val data: ByteArray)
+
+/** `POST scans/save`: the filed document and the scan's file while it stays. */
+data class DSaved(val node: DNode, val original: DNode?)

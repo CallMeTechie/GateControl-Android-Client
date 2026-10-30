@@ -151,9 +151,70 @@ class DriveScanner @Inject constructor(
     /** The scan as the pictures of its pages, each with its text (as before Drive 1.14), named after [base]. */
     suspend fun savePictures(scan: Pages, texts: List<String?>, base: String, folderId: Long): Boolean = save(scan, texts, base, pdf = false, folderId = folderId)
 
-    /** A file made here (the searchable PDF) goes up into [folderId] as [name], with its [text]; [onDone] hears the new file. */
-    fun uploadMade(file: File, name: String, mime: String, folderId: Long, text: String?, onDone: (DNode?) -> Unit) =
-        transfers.uploadWritten(file, name, mime, folderId, DriveLogic.ON_CONFLICT_RENAME, text, onDone = onDone, scan = true)
+    /**
+     * A file made here (the searchable PDF) goes up into [folderId] as [name], with its [text]; [propose]: it may get the
+     * filing suggestion (D4) — not the original kept next to a converted document.
+     */
+    fun uploadMade(file: File, name: String, mime: String, folderId: Long, text: String?, propose: Boolean = true) =
+        transfers.uploadWritten(file, name, mime, folderId, DriveLogic.ON_CONFLICT_RENAME, text, scan = propose)
+
+    /** [data] (a document Drive made, `scans/convert`) as media of Drive → its media id. */
+    suspend fun uploadBytes(data: ByteArray, mime: String, api: DriveApi): DResult<String> = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "drive-scan").apply { mkdirs() }
+        val f = File.createTempFile("doc", ".part", dir)
+        try {
+            f.writeBytes(data)
+            api.upload(f, mime)
+        } finally {
+            f.delete()
+        }
+    }
+
+    /**
+     * The pages [indices] as small JPEGs (base64) for `scans/convert` `images`: together below [budget] bytes (the
+     * server takes 600 KB), each at most 1600 px long, the quality lowered until they fit; empty when they do not.
+     */
+    suspend fun smallJpegs(scan: Pages, indices: List<Int>, budget: Int = DriveJson.SCAN_IMAGES_MAX - 40 * 1024): List<String> = withContext(Dispatchers.IO) {
+        val uris = indices.mapNotNull { scan.pages.getOrNull(it) }
+        if (uris.isEmpty()) return@withContext emptyList()
+        val each = budget / uris.size
+        val out = ArrayList<String>()
+        for (uri in uris) {
+            val bytes = runCatching { smallJpeg(uri, each) }.getOrNull() ?: return@withContext emptyList()
+            out += java.util.Base64.getEncoder().encodeToString(bytes)
+        }
+        out
+    }
+
+    private fun smallJpeg(uri: Uri, max: Int): ByteArray? {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+        var side = 1600
+        while (side >= 400) {
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= side) sample *= 2
+            val raw = context.contentResolver.openInputStream(uri)?.use {
+                android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+            } ?: return null
+            val long = maxOf(raw.width, raw.height)
+            val bmp = if (long > side) {
+                android.graphics.Bitmap.createScaledBitmap(raw, raw.width * side / long, raw.height * side / long, true).also { if (it !== raw) raw.recycle() }
+            } else {
+                raw
+            }
+            try {
+                for (q in listOf(80, 65, 50)) {
+                    val o = java.io.ByteArrayOutputStream()
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, q, o)
+                    if (o.size() <= max) return o.toByteArray()
+                }
+            } finally {
+                bmp.recycle()
+            }
+            side = side * 3 / 4
+        }
+        return null
+    }
 
     /** The scanner's file in the cache, handed over to the upload (which deletes it); null when it cannot be read. */
     private fun copy(uri: Uri): File? {

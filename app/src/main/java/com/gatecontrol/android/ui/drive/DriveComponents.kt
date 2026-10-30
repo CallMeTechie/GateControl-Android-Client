@@ -614,8 +614,9 @@ internal object DriveViewPref {
 
     private const val KEY_KEEP_ORIGINAL = "scan_keep_original"
 
-    /** "Original-Scan behalten" of "Scan prüfen" (Drive 1.14): on until switched off. */
-    fun keepOriginal(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_KEEP_ORIGINAL, true)
+    /** "Original-Scan behalten" of "Scan prüfen" (Drive 1.14) as switched here; null: Drive's setting (`scanKeepOriginal`). */
+    fun keepOriginal(context: Context): Boolean? = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .takeIf { it.contains(KEY_KEEP_ORIGINAL) }?.getBoolean(KEY_KEEP_ORIGINAL, true)
 
     fun setKeepOriginal(context: Context, on: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_KEEP_ORIGINAL, on).apply()

@@ -58,6 +58,7 @@ import kotlinx.coroutines.launch
 private fun AskContent(
     asked: DriveSearchViewModel.Asked?,
     areas: List<com.gatecontrol.android.drive.DArea>,
+    calendar: Boolean,
     calendarBusy: Boolean,
     onCalendar: (com.gatecontrol.android.drive.DDeadline) -> Unit,
     onRetry: () -> Unit,
@@ -70,8 +71,9 @@ private fun AskContent(
         is DriveLoad.Error -> DriveErrorBox(a.code, onRetry = onRetry)
         is DriveLoad.Ready -> AnswerCard(
             a = a.value,
-            areas = joinAreas(areas.filter { !it.archived }.map { it.label }),
+            areas = joinLabels(areas.filter { !it.archived }.map { it.label }),
             deadline = asked?.deadline,
+            calendar = calendar,
             calendarBusy = calendarBusy,
             onCalendar = onCalendar,
             onSource = onSource,
@@ -80,17 +82,6 @@ private fun AskContent(
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
         androidx.compose.material3.Icon(GcIcons.Lock, contentDescription = null, tint = x.muted, modifier = Modifier.padding(top = 2.dp).size(14.dp))
         Text(stringResource(R.string.drive_ki_ask_note), style = MaterialTheme.typography.bodySmall, color = x.muted)
-    }
-}
-
-/** "Meine Dateien und Familie" / "A, B and C". */
-@Composable
-private fun joinAreas(labels: List<String>): String {
-    val and = stringResource(R.string.drive_ki_and)
-    return when (labels.size) {
-        0 -> ""
-        1 -> labels[0]
-        else -> labels.dropLast(1).joinToString(", ") + " $and " + labels.last()
     }
 }
 
@@ -244,7 +235,7 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                             com.gatecontrol.android.ui.components.GcFilterChip(stringResource(R.string.drive_ki_mode_ask), selected = askMode, onClick = {
                                 askMode = true
                                 viewModel.search("")
-                                if (q.trim().length >= 3) viewModel.ask(q)
+                                if (q.trim().length >= com.gatecontrol.android.drive.DriveJson.ASK_MIN) viewModel.ask(q)
                             })
                         }
                     }
@@ -254,6 +245,7 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                     AskContent(
                         asked = asked,
                         areas = areas,
+                        calendar = me?.has(DMe.FEATURE_DEADLINE_CALENDAR) == true,
                         calendarBusy = calendarBusy,
                         onCalendar = viewModel::calendar,
                         onRetry = { viewModel.ask(q) },

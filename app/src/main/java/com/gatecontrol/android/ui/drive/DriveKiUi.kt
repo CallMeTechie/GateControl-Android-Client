@@ -613,6 +613,17 @@ private fun SheetCell(text: String, modifier: Modifier, head: Boolean = false, b
 
 // ─── D1: the answer card ────────────────────────────────────────────
 
+/** "Meine Dateien und Familie" / "A, B and C". */
+@Composable
+internal fun joinLabels(labels: List<String>): String {
+    val and = stringResource(R.string.drive_ki_and)
+    return when (labels.size) {
+        0 -> ""
+        1 -> labels[0]
+        else -> labels.dropLast(1).joinToString(", ") + " $and " + labels.last()
+    }
+}
+
 /** [text] with its dates in bold. */
 internal fun boldDates(text: String): AnnotatedString {
     val b = AnnotatedString.Builder(text)
@@ -630,6 +641,7 @@ internal fun AnswerCard(
     a: DAnswer,
     areas: String,
     deadline: DDeadline?,
+    calendar: Boolean,
     calendarBusy: Boolean,
     onCalendar: (DDeadline) -> Unit,
     onSource: (DSource) -> Unit,
@@ -639,6 +651,7 @@ internal fun AnswerCard(
         GcCard {
             Text(stringResource(R.string.drive_ki_ask_none), style = MaterialTheme.typography.titleMedium)
             val terms = a.terms.joinToString(", ")
+            val areas = joinLabels(a.areas).ifEmpty { areas }
             Text(
                 if (terms.isEmpty()) stringResource(R.string.drive_ki_ask_where, areas) else stringResource(R.string.drive_ki_ask_searched, terms, areas),
                 style = MaterialTheme.typography.bodySmall,
@@ -651,9 +664,19 @@ internal fun AnswerCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(boldDates(a.answer.orEmpty()), style = MaterialTheme.typography.bodyLarge)
             if (deadline != null) {
-                if (deadline.calendar != null) {
+                // the deadline the answer names: its kind, day and what it is
+                val today = remember { LocalDate.now() }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GcChip(stringResource(deadlineLabel(deadline.kind)), tone = deadlineTone(deadline.kind), small = true)
+                    Text(
+                        listOfNotNull(kiDay(deadline.date, weekday = true) ?: deadline.date, deadlineWhen(DriveLogic.daysUntil(deadline.date, today)), deadline.label).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = x.muted,
+                    )
+                }
+                if (calendar && deadline.calendar != null) {
                     KiButton(stringResource(R.string.drive_ki_calendar_done), GcIcons.Calendar, done = true, enabled = false) {}
-                } else {
+                } else if (calendar && DriveKi.calendarOpen(deadline, today)) {
                     KiButton(stringResource(R.string.drive_ki_ask_calendar), GcIcons.Calendar, busy = calendarBusy) { onCalendar(deadline) }
                 }
             }

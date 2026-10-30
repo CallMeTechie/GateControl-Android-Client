@@ -49,6 +49,7 @@ internal object DriveJson {
             }?.toMap().orEmpty(),
             wipes = o.int("wipes")?.coerceAtLeast(0) ?: 0,
             scanFormat = if (o.obj("settings")?.str("scanFormat") == "image") "image" else "pdf",
+            scanKeepOriginal = o.obj("settings")?.bool("scanKeepOriginal"),
             admin = me.bool("admin") ?: false,
             deviceId = me.str("deviceId")?.takeIf { DEVICE_ID.matches(it) },
         ).let { base ->
@@ -146,6 +147,7 @@ internal object DriveJson {
             rootId = root,
             archived = o.bool("archived") ?: false,
             docAi = o.bool("docAi"),
+            deadlinesToCalendar = o.bool("deadlinesToCalendar"),
             storage = st?.let {
                 DStorage(
                     bytes = it.long("bytes"), quota = it.long("quota"), form = it.str("form")?.take(20),
@@ -196,6 +198,7 @@ internal object DriveJson {
             insight = o.obj("insight")?.let(::insightShort),
             review = o.obj("review")?.let { DReview(it.int("hint")?.coerceIn(0, 100)) },
             work = o.bool("work") == true,
+            labeled = o.bool("labeled"),
         ).let { n ->
             // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
             val vault = vaultId(o.str("vaultId"))
@@ -456,6 +459,7 @@ internal object DriveJson {
         date: String? = null,
         cls: String? = null,
         q: String? = null,
+        unlabeled: Boolean = false,
     ): Map<String, String>? =
         buildMap {
             if (area != null) put("area", areaId(area) ?: return null)
@@ -465,6 +469,7 @@ internal object DriveJson {
             if (camera) put("camera", "1")
             if (cls != null) put("class", cls.takeIf { it in PHOTO_CLASSES } ?: return null)
             if (q != null) q.trim().take(PHOTO_Q_MAX).takeIf { it.isNotEmpty() }?.let { put("q", it) }
+            if (unlabeled) put("unlabeled", "1")
         }
 
     /** The values of `class` (Drive 1.13). */
@@ -715,6 +720,7 @@ internal object DriveJson {
             reminder = r?.let { DReminder(it.str("at")?.take(40), it.int("daysBefore")?.coerceIn(0, 90) ?: 0, it.bool("sent") ?: false) },
             node = node(o.obj("node")),
             calendar = o.obj("calendar")?.let { c -> DCalendarEntry(c.idString("eventId")?.take(200), c.str("at")?.take(40)) },
+            nodeId = o.long("nodeId")?.takeIf { it > 0 },
         )
     }
 
@@ -1160,8 +1166,9 @@ internal object DriveJson {
         if (area != null) addProperty("area", area)
     }
 
-    /** How long a question may be. */
-    const val ASK_MAX = 500
+    /** How long a question may be (3 … 300 characters). */
+    const val ASK_MIN = 3
+    const val ASK_MAX = 300
 
     /** `POST ask` → `{ status, answer, sources, terms }`. */
     fun answer(o: JsonObject): DAnswer? {
@@ -1176,7 +1183,14 @@ internal object DriveJson {
                 quote = s.str("quote")?.trim()?.take(600)?.ifEmpty { null },
             )
         }.orEmpty().distinctBy { it.nodeId to it.page }.take(8)
-        return DAnswer(status, o.str("answer")?.trim()?.take(4000)?.ifEmpty { null }, sources, terms(o))
+        return DAnswer(
+            status,
+            o.str("answer")?.trim()?.take(4000)?.ifEmpty { null },
+            sources,
+            terms(o),
+            areas = o.arr("areas")?.mapNotNull { e -> runCatching { e.asString }.getOrNull()?.trim()?.take(200)?.ifEmpty { null } }?.take(20).orEmpty(),
+            deadline = deadline(o.obj("deadline")),
+        )
     }
 
     fun classifyBody(mediaIds: List<String>, text: String?) = JsonObject().apply {
@@ -1194,20 +1208,60 @@ internal object DriveJson {
         )
     }
 
-    fun convertBody(mediaIds: List<String>, target: String, kind: String, folderId: Long?, name: String?, keepOriginal: Boolean) = JsonObject().apply {
+    /** At most this many pages go to `scans/classify` and `scans/convert`. */
+    const val SCAN_MEDIA_MAX = 8
+    /** The pictures of `scans/convert` (`images`) together at most this many bytes (else `413 too_large`). */
+    const val SCAN_IMAGES_MAX = 600 * 1024
+
+    fun convertBody(mediaIds: List<String>, target: String, kind: String, folderId: Long?, name: String?, text: String?, images: List<String>) = JsonObject().apply {
         add("mediaIds", JsonArray().apply { mediaIds.forEach { add(it) } })
         addProperty("target", target)
         addProperty("kind", kind)
         if (folderId != null) addProperty("folderId", folderId)
         if (!name.isNullOrBlank()) addProperty("name", name.take(255))
-        addProperty("keepOriginal", keepOriginal)
+        if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
+        if (images.isNotEmpty()) add("images", JsonArray().apply { images.forEach { add(it) } })
     }
 
-    /** `POST scans/convert` → `{ node, original? }`. */
-    fun converted(o: JsonObject): DConverted? {
-        val node = node(o.obj("node")) ?: return null
-        return DConverted(node, node(o.obj("original")))
+    /** `POST scans/convert` → `{ kind, target, title, name, folderId, text, file { name, mime, data } | null, … }`. */
+    fun conversion(o: JsonObject): DConversion? {
+        val target = o.str("target")?.takeIf { it in SCAN_TARGETS } ?: return null
+        val f = o.obj("file")
+        val file = f?.let {
+            val data = it.str("data")?.let { d -> runCatching { java.util.Base64.getMimeDecoder().decode(d.substringAfter("base64,")) }.getOrNull() }
+            val name = it.str("name")?.trim()?.take(255)?.ifEmpty { null }
+            if (data == null || data.isEmpty() || name == null) null else DConvertedFile(name, it.str("mime")?.take(200) ?: "application/octet-stream", data)
+        }
+        // a file announced but unreadable is no answer
+        if (f != null && file == null) return null
+        return DConversion(
+            kind = o.str("kind")?.takeIf { it in SCAN_KINDS } ?: "other",
+            target = target,
+            title = o.str("title")?.trim()?.take(200)?.ifEmpty { null },
+            name = o.str("name")?.trim()?.take(255)?.ifEmpty { null },
+            folderId = o.long("folderId"),
+            text = o.str("text")?.take(TEXT_MAX)?.ifBlank { null },
+            file = file,
+        )
     }
+
+    fun saveScanBody(mediaId: String, folderId: Long, name: String, text: String?) = JsonObject().apply {
+        addProperty("mediaId", mediaId)
+        addProperty("folderId", folderId)
+        addProperty("name", name.take(255))
+        if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
+    }
+
+    /** `POST scans/save` → `{ node, original }`. */
+    fun saved(o: JsonObject): DSaved? {
+        val node = node(o.obj("node")) ?: return null
+        return DSaved(node, node(o.obj("original")))
+    }
+
+    fun deadlinesToCalendarBody(on: Boolean) = JsonObject().apply { addProperty("deadlinesToCalendar", on) }
+
+    /** `PATCH areas/<id>` → `{ area { deadlinesToCalendar } }`. */
+    fun areaDeadlinesToCalendar(o: JsonObject): Boolean? = o.obj("area")?.bool("deadlinesToCalendar")
 
     /** `PUT nodes/<id>/labels { labels, source: 'device' }`: at most [LABELS_MAX] labels of at most [LABEL_MAX] characters. */
     fun labelsBody(labels: List<String>) = JsonObject().apply {

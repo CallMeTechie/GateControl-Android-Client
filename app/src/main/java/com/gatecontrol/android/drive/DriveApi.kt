@@ -256,8 +256,8 @@ class DriveApi @Inject constructor(
      * Photos and videos, newest first; [before] is the cursor of the page before. Without [area]: all I can read.
      * [camera]: only the camera uploads (Drive 1.10, feature `photosFolder`).
      */
-    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false, cls: String? = null, q: String? = null): DResult<DPhotos> =
-        get("photos", DriveJson.photosQuery(area, before, limit, camera, cls = cls, q = q) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
+    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false, cls: String? = null, q: String? = null, unlabeled: Boolean = false): DResult<DPhotos> =
+        get("photos", DriveJson.photosQuery(area, before, limit, camera, cls = cls, q = q, unlabeled = unlabeled) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
 
     suspend fun photoMonths(area: String? = null, camera: Boolean = false, cls: String? = null): DResult<List<DMonth>> =
         get("photos/months", DriveJson.photosQuery(area, camera = camera, cls = cls) ?: return bad(), DriveJson::months)
@@ -407,23 +407,37 @@ class DriveApi @Inject constructor(
      */
     suspend fun ask(q: String, area: String? = null): DResult<DAnswer> {
         val a = area?.let { DriveJson.areaId(it) ?: return bad() }
+        if (q.trim().length < DriveJson.ASK_MIN) return bad()
         return call(timeoutMs = AI_TIMEOUT_MS, media = true, request = { pluginPost(DRIVE_PLUGIN, "ask", DriveJson.askBody(q, a), lang()) }, parse = DriveJson::answer)
     }
 
     /** What the scanned pages [mediaIds] are (feature `scanDocs`); the [text] recognised on the phone goes first. */
     suspend fun classifyScan(mediaIds: List<String>, text: String?): DResult<DScanKind> {
-        if (mediaIds.isEmpty() || mediaIds.any { DriveJson.mediaId(it) == null }) return bad()
+        if (mediaIds.isEmpty() || mediaIds.size > DriveJson.SCAN_MEDIA_MAX || mediaIds.any { DriveJson.mediaId(it) == null }) return bad()
         return call(timeoutMs = AI_TIMEOUT_MS, media = true, request = { pluginPost(DRIVE_PLUGIN, "scans/classify", DriveJson.classifyBody(mediaIds, text), lang()) }, parse = DriveJson::scanKind)
     }
 
     /**
-     * The scanned pages [mediaIds] as a document [target] (`docx` | `xlsx` | `pdf`) of [kind] in [folderId], named [name];
-     * [keepOriginal]: the scan stays next to it.
+     * The scanned pages [mediaIds] (at most 8) as a document [target] (`docx` | `xlsx`) of [kind], named [name] for
+     * [folderId]; [text] what the phone read, [images] small JPEGs (base64, ≤ 600 KB together: a whiteboard's photo on
+     * top, handwriting as the last page). The answer carries the file's bytes: upload them and [saveScan] them.
      */
-    suspend fun convertScan(mediaIds: List<String>, target: String, kind: String, folderId: Long?, name: String?, keepOriginal: Boolean): DResult<DConverted> {
-        if (mediaIds.isEmpty() || mediaIds.any { DriveJson.mediaId(it) == null } || target !in DriveJson.SCAN_TARGETS) return bad()
-        val body = DriveJson.convertBody(mediaIds, target, kind.takeIf { it in DriveJson.SCAN_KINDS } ?: "other", folderId, name, keepOriginal)
-        return call(timeoutMs = CONVERT_TIMEOUT_MS, media = true, request = { pluginPost(DRIVE_PLUGIN, "scans/convert", body, lang()) }, parse = DriveJson::converted)
+    suspend fun convertScan(mediaIds: List<String>, target: String, kind: String, folderId: Long?, name: String?, text: String?, images: List<String> = emptyList()): DResult<DConversion> {
+        if (mediaIds.isEmpty() || mediaIds.size > DriveJson.SCAN_MEDIA_MAX || mediaIds.any { DriveJson.mediaId(it) == null } || target !in DriveJson.SCAN_TARGETS) return bad()
+        val body = DriveJson.convertBody(mediaIds, target, kind.takeIf { it in DriveJson.SCAN_KINDS } ?: "other", folderId, name, text, images)
+        return call(timeoutMs = CONVERT_TIMEOUT_MS, media = true, request = { pluginPost(DRIVE_PLUGIN, "scans/convert", body, lang()) }, parse = DriveJson::conversion)
+    }
+
+    /** The uploaded document [mediaId] filed as [name] in [folderId] (a free name), with [text] as its recognised text. */
+    suspend fun saveScan(mediaId: String, folderId: Long, name: String, text: String?): DResult<DSaved> {
+        if (DriveJson.mediaId(mediaId) == null) return bad()
+        return post("scans/save", DriveJson.saveScanBody(mediaId, folderId, name, text), DriveJson::saved)
+    }
+
+    /** New deadlines of area [id] into the family calendar on their own (Drive 1.14, write right) → the setting now. */
+    suspend fun setAreaDeadlinesToCalendar(id: String, on: Boolean): DResult<Boolean> {
+        val area = DriveJson.areaId(id) ?: return bad()
+        return patch("areas/$area", DriveJson.deadlinesToCalendarBody(on), DriveJson::areaDeadlinesToCalendar)
     }
 
     /** What is in photo [id], found on this phone (feature `photoSearch`). */

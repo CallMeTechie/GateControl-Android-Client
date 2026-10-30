@@ -3,7 +3,7 @@
     <!-- Drive 1.14: AI in Drive – check a scan (D5), file it (D4), deadlines and the family calendar (D2), questions (D1), photo search (D3) -->
     <string name="drive_ki_done_scan_doc">Saved as a document.</string>
     <string name="drive_ki_done_calendar">Added to the family calendar.</string>
-    <string name="drive_ki_familie_unavailable">The family calendar cannot be reached (Familie is not set up or refused).</string>
+    <string name="drive_ki_familie_unavailable">The family calendar cannot take entries from Drive right now (Familie is not reachable or does not allow Drive yet). Please try again later.</string>
     <string name="drive_ki_rate_limited">Too many questions in a short time. Please try again later.</string>
     <string name="drive_ki_ai_unavailable">The AI of your GateControl is not available right now.</string>
 
@@ -11,6 +11,8 @@
     <string name="drive_ki_deadline_warranty">End of warranty</string>
     <string name="drive_ki_deadline_renewal">Contract renewal</string>
     <string name="drive_ki_renewal_until">cancel by %1$s</string>
+    <string name="drive_ki_area_calendar">New deadlines to the family calendar</string>
+    <string name="drive_ki_area_calendar_desc">Deadlines recognised in “%1$s” go into the family calendar on their own</string>
     <string name="drive_ki_new">new</string>
     <string name="drive_ki_calendar_add">To the family calendar</string>
     <string name="drive_ki_calendar_done">In the family calendar</string>
