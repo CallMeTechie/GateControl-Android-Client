@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.71.0] - 2026-10-31
+
+### Features
+- Ordner als Baum mit Auf- und Zuklappen in der Seitenleiste (#166)
+
+---
+
 ## [1.70.2] - 2026-10-31
 
 ### Fixes
