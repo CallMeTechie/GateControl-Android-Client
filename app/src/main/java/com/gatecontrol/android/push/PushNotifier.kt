@@ -98,6 +98,9 @@ class PushNotifier @Inject constructor(
         spec.key?.let { PushText.channelName(it) }?.let { ctx.getString(it) }
             // Mail's new mails: the channel "Mail" (contract D), whatever the server calls the topic
             ?: ctx.getString(R.string.mail_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_MAIL) }
+            // the calendar's reminders and invitations (Mail 1.2.0): "Kalender", whatever the server calls the topics
+            ?: ctx.getString(R.string.mail_calendar_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_REMINDER) }
+            ?: ctx.getString(R.string.mail_invite_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_INVITE) }
             ?: spec.label
             ?: PushText.fallbackLabel(spec.id.removePrefix(PushChannels.topicChannelId("")))
 

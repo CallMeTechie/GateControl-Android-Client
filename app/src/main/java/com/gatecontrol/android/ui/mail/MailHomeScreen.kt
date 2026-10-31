@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -77,6 +78,16 @@ import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.mail.calendar.CalendarMenuDialogs
+import com.gatecontrol.android.ui.mail.calendar.CalendarMenuState
+import com.gatecontrol.android.ui.mail.calendar.CalendarNav
+import com.gatecontrol.android.ui.mail.calendar.MailCalendarContent
+import com.gatecontrol.android.ui.mail.calendar.MailCalendarViewModel
+import com.gatecontrol.android.ui.mail.calendar.calendarDrawerItems
+import com.gatecontrol.android.ui.mail.contacts.ContactsNav
+import com.gatecontrol.android.ui.mail.contacts.MailContactsContent
+import com.gatecontrol.android.ui.mail.contacts.MailContactsViewModel
+import com.gatecontrol.android.ui.mail.contacts.contactsDrawerItems
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -95,6 +106,15 @@ data class MailNav(
     val settings: () -> Unit,
     val account: (Long) -> Unit,
     val outbox: () -> Unit,
+    /** Calendar and contacts (since Mail 1.2.0): an occurrence, a new event, a contact, a group, the duplicates. */
+    val event: (eventId: Long, occurrence: String?) -> Unit = { _, _ -> },
+    val newEvent: (start: Long?, end: Long?, allDay: Boolean) -> Unit = { _, _, _ -> },
+    val contact: (Long) -> Unit = {},
+    val newContact: () -> Unit = {},
+    val group: (Long) -> Unit = {},
+    val duplicates: () -> Unit = {},
+    /** "Neu anmelden" of a Microsoft account (calendar and contacts rights). */
+    val relogin: (Long) -> Unit = {},
 )
 
 /**
@@ -104,7 +124,12 @@ data class MailNav(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel()) {
+fun MailHomeScreen(
+    nav: MailNav,
+    /** The area shown first: mail, or calendar / contacts when that page is pinned to Start. */
+    initialArea: String = MailDrawerFoot.MAIL,
+    viewModel: MailHomeViewModel = hiltViewModel(key = "mail-home-$initialArea"),
+) {
     val me by viewModel.me.collectAsStateWithLifecycle()
     val meError by viewModel.meError.collectAsStateWithLifecycle()
     val folders by viewModel.folders.collectAsStateWithLifecycle()
@@ -123,6 +148,21 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
     val extra = GateControlTheme.extraColors
     var actionsFor by remember { mutableStateOf<MSummary?>(null) }
     var moveFor by remember { mutableStateOf<MSummary?>(null) }
+    // the areas of the tab (contract D2): mail, calendar, contacts — switched by the menu's foot
+    var area by rememberSaveable(initialArea) { mutableStateOf(initialArea) }
+    var calendarUsed by rememberSaveable { mutableStateOf(initialArea == MailDrawerFoot.CALENDAR) }
+    var contactsUsed by rememberSaveable { mutableStateOf(initialArea == MailDrawerFoot.CONTACTS) }
+    if (area == MailDrawerFoot.CALENDAR) calendarUsed = true
+    if (area == MailDrawerFoot.CONTACTS) contactsUsed = true
+    // the view models of an area only once it was opened (their first calls need the feature)
+    val calendarVm: MailCalendarViewModel? = if (calendarUsed) hiltViewModel(key = "mail-cal-$initialArea") else null
+    val contactsVm: MailContactsViewModel? = if (contactsUsed) hiltViewModel(key = "mail-con-$initialArea") else null
+    val calendarMenu = remember { CalendarMenuState() }
+    // an area the server no longer offers: back to the mail
+    LaunchedEffect(me, area) {
+        val m = me ?: return@LaunchedEffect
+        if ((area == MailDrawerFoot.CALENDAR && !MailDrawerFoot.calendar(m)) || (area == MailDrawerFoot.CONTACTS && !MailDrawerFoot.contacts(m))) area = MailDrawerFoot.MAIL
+    }
 
     LifecycleResumeEffect(viewModel) {
         viewModel.onShown()
@@ -148,7 +188,10 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
     }
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
     // a folder of an account: back goes to the account's inbox first
-    BackHandler(enabled = !drawer.isOpen && box.folderId != null) { viewModel.selectBox(MailLogic.Box(box.accountId)) }
+    BackHandler(enabled = !drawer.isOpen && area == MailDrawerFoot.MAIL && box.folderId != null) { viewModel.selectBox(MailLogic.Box(box.accountId)) }
+    // calendar or contacts: back goes to the area the screen started with (the mail in the tab)
+    BackHandler(enabled = !drawer.isOpen && area != initialArea) { area = initialArea }
+    val toggle: (String) -> Unit = { a -> area = if (area == a) MailDrawerFoot.MAIL else a }
 
     val accounts = me?.accounts.orEmpty()
     val account = me?.account(box.accountId)
@@ -174,132 +217,33 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
                     onFiling = { close(); nav.filing() },
                     onOutbox = { close(); nav.outbox() },
                     onSettings = { close(); nav.settings() },
+                    onContacts = { toggle(MailDrawerFoot.CONTACTS) },
+                    onCalendar = { toggle(MailDrawerFoot.CALENDAR) },
+                    area = area,
+                    onMail = { close(); area = MailDrawerFoot.MAIL },
+                    calendarVm = calendarVm,
+                    calendarMenu = calendarMenu,
+                    contactsVm = contactsVm,
+                    onContactsFilter = { close() },
+                    onDuplicates = { close(); nav.duplicates() },
                 )
             }
         },
     ) {
-        Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                // the bar: menu, title with the unread count, search, "⋯" when pinned to Start
-                val unread = when {
-                    folder != null -> folder.unread
-                    box.accountId != null -> me?.unreadByAccount?.get(box.accountId) ?: 0
-                    else -> me?.unreadAll ?: 0
-                }
-                val title = when {
-                    folder != null && !inbox -> folder.name
-                    box.all -> stringResource(R.string.mail_all_inboxes)
-                    else -> stringResource(R.string.mail_inbox)
-                }
-                val where = if (box.all) pluralStringResource(R.plurals.mail_accounts_n, accounts.size, accounts.size) else account?.label.orEmpty()
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    GcIconButton(
-                        GcIcons.Menu,
-                        contentDescription = stringResource(R.string.mail_menu),
-                        onClick = { scope.launch { drawer.open() } },
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                        Text(title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (me != null) {
-                            Text(
-                                listOf(where, pluralStringResource(R.plurals.mail_unread_n, unread, unread)).filter { it.isNotEmpty() }.joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = extra.muted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                    GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.mail_search), onClick = nav.search, tint = MaterialTheme.colorScheme.onBackground)
-                    com.gatecontrol.android.ui.start.StartPageMenuButton()
-                }
-                if (accounts.size > 1) {
-                    BoxChips(accounts = accounts, box = box, onBox = viewModel::selectBox)
-                }
-                if (inbox) {
-                    TabSwitch(
-                        tab = tab,
-                        other = list.counts?.other,
-                        onTab = viewModel::selectTab,
-                    )
-                }
-                MailBanners(me = me, meError = meError, offline = list.offline, onAccount = nav.account)
-                when {
-                    me != null && accounts.isEmpty() -> NoAccounts(onAdd = nav.addAccount)
-                    me == null && meError != null && list.items.isEmpty() -> ErrorBox(mailText(context, meError), onRetry = { viewModel.load(refresh = true) })
-                    else -> {
-                        val listState = rememberLazyListState()
-                        LaunchedEffect(listState, list.next) {
-                            snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
-                                if (list.next != null && last >= list.items.size - 8) viewModel.loadMore()
-                            }
-                        }
-                        PullToRefreshBox(
-                            isRefreshing = list.refreshing,
-                            onRefresh = { viewModel.load(refresh = true) },
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                        ) {
-                            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
-                                if (list.items.isEmpty()) {
-                                    item(key = "empty") {
-                                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                            if (list.loading) {
-                                                CircularProgressIndicator(Modifier.size(28.dp))
-                                            } else {
-                                                Text(
-                                                    list.error?.let { mailText(context, it) } ?: stringResource(if (inbox && tab == MSummary.TAB_OTHER) R.string.mail_empty_other else R.string.mail_empty),
-                                                    color = extra.muted,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                items(list.items, key = { it.id }) { item ->
-                                    val settings = me?.settings
-                                    SwipeRow(
-                                        left = swipeSpec(settings?.swipeLeft, item.unread),
-                                        right = swipeSpec(settings?.swipeRight, item.unread),
-                                        onSwipe = { viewModel.act(item, it.action) },
-                                    ) {
-                                        Column {
-                                            MailRow(
-                                                item = item,
-                                                account = me?.account(item.accountId),
-                                                onClick = { nav.open(item.id) },
-                                                onLongClick = { actionsFor = item },
-                                            )
-                                            MailDivider()
-                                        }
-                                    }
-                                }
-                                if (list.loadingMore) {
-                                    item(key = "more") {
-                                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                            CircularProgressIndicator(Modifier.size(24.dp))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (accounts.isNotEmpty()) {
-                NewMailButton(
-                    onClick = { nav.compose(box.accountId) },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = if (undo != null) 88.dp else 16.dp),
-                )
-            }
-            undo?.let { u ->
-                UndoBar(u, onUndo = { viewModel.undoSend(u) }, onExpired = { viewModel.undoExpired(u) }, modifier = Modifier.align(Alignment.BottomCenter))
-            }
+        val openMenu: () -> Unit = { scope.launch { drawer.open() } }
+        when {
+            area == MailDrawerFoot.CALENDAR && calendarVm != null -> MailCalendarContent(
+                CalendarNav(menu = openMenu, event = nav.event, newEvent = nav.newEvent, relogin = nav.relogin),
+                calendarVm,
+            )
+            area == MailDrawerFoot.CONTACTS && contactsVm != null -> MailContactsContent(
+                ContactsNav(menu = openMenu, contact = nav.contact, newContact = nav.newContact, group = nav.group, duplicates = nav.duplicates, relogin = nav.relogin),
+                contactsVm,
+            )
+            else -> MailArea(nav, viewModel, me, meError, folders, box, tab, list, undo, accounts, account, inbox, folder, openMenu) { actionsFor = it }
         }
     }
+    calendarVm?.let { CalendarMenuDialogs(calendarMenu, it, it.calendars.collectAsStateWithLifecycle().value) }
 
     actionsFor?.let { item ->
         RowActions(
@@ -322,6 +266,151 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
             },
             onDismiss = { moveFor = null },
         )
+    }
+}
+
+/** The mail area: the bar, the boxes, Relevant / Sonstige, the list, "Neue Mail" and the bar to undo a send. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MailArea(
+    nav: MailNav,
+    viewModel: MailHomeViewModel,
+    me: MMe?,
+    meError: String?,
+    folders: Map<Long, List<MFolder>>,
+    box: MailLogic.Box,
+    tab: String,
+    list: MailListState,
+    undo: MUndo?,
+    accounts: List<MAccount>,
+    account: MAccount?,
+    inbox: Boolean,
+    folder: MFolder?,
+    openMenu: () -> Unit,
+    onActions: (MSummary) -> Unit,
+) {
+    val context = mailContext()
+    val extra = GateControlTheme.extraColors
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            // the bar: menu, title with the unread count, search, "⋯" when pinned to Start
+            val unread = when {
+                folder != null -> folder.unread
+                box.accountId != null -> me?.unreadByAccount?.get(box.accountId) ?: 0
+                else -> me?.unreadAll ?: 0
+            }
+            val title = when {
+                folder != null && !inbox -> folder.name
+                box.all -> stringResource(R.string.mail_all_inboxes)
+                else -> stringResource(R.string.mail_inbox)
+            }
+            val where = if (box.all) pluralStringResource(R.plurals.mail_accounts_n, accounts.size, accounts.size) else account?.label.orEmpty()
+            Row(
+                Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GcIconButton(
+                    GcIcons.Menu,
+                    contentDescription = stringResource(R.string.mail_menu),
+                    onClick = openMenu,
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+                Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                    Text(title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (me != null) {
+                        Text(
+                            listOf(where, pluralStringResource(R.plurals.mail_unread_n, unread, unread)).filter { it.isNotEmpty() }.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = extra.muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.mail_search), onClick = nav.search, tint = MaterialTheme.colorScheme.onBackground)
+                com.gatecontrol.android.ui.start.StartPageMenuButton()
+            }
+            if (accounts.size > 1) {
+                BoxChips(accounts = accounts, box = box, onBox = viewModel::selectBox)
+            }
+            if (inbox) {
+                TabSwitch(
+                    tab = tab,
+                    other = list.counts?.other,
+                    onTab = viewModel::selectTab,
+                )
+            }
+            MailBanners(me = me, meError = meError, offline = list.offline, onAccount = nav.account)
+            when {
+                me != null && accounts.isEmpty() -> NoAccounts(onAdd = nav.addAccount)
+                me == null && meError != null && list.items.isEmpty() -> ErrorBox(mailText(context, meError), onRetry = { viewModel.load(refresh = true) })
+                else -> {
+                    val listState = rememberLazyListState()
+                    LaunchedEffect(listState, list.next) {
+                        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
+                            if (list.next != null && last >= list.items.size - 8) viewModel.loadMore()
+                        }
+                    }
+                    PullToRefreshBox(
+                        isRefreshing = list.refreshing,
+                        onRefresh = { viewModel.load(refresh = true) },
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    ) {
+                        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
+                            if (list.items.isEmpty()) {
+                                item(key = "empty") {
+                                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                        if (list.loading) {
+                                            CircularProgressIndicator(Modifier.size(28.dp))
+                                        } else {
+                                            Text(
+                                                list.error?.let { mailText(context, it) } ?: stringResource(if (inbox && tab == MSummary.TAB_OTHER) R.string.mail_empty_other else R.string.mail_empty),
+                                                color = extra.muted,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            items(list.items, key = { it.id }) { item ->
+                                val settings = me?.settings
+                                SwipeRow(
+                                    left = swipeSpec(settings?.swipeLeft, item.unread),
+                                    right = swipeSpec(settings?.swipeRight, item.unread),
+                                    onSwipe = { viewModel.act(item, it.action) },
+                                ) {
+                                    Column {
+                                        MailRow(
+                                            item = item,
+                                            account = me?.account(item.accountId),
+                                            onClick = { nav.open(item.id) },
+                                            onLongClick = { onActions(item) },
+                                        )
+                                        MailDivider()
+                                    }
+                                }
+                            }
+                            if (list.loadingMore) {
+                                item(key = "more") {
+                                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(Modifier.size(24.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (accounts.isNotEmpty()) {
+            NewMailButton(
+                onClick = { nav.compose(box.accountId) },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = if (undo != null) 88.dp else 16.dp),
+            )
+        }
+        undo?.let { u ->
+            UndoBar(u, onUndo = { viewModel.undoSend(u) }, onExpired = { viewModel.undoExpired(u) }, modifier = Modifier.align(Alignment.BottomCenter))
+        }
     }
 }
 
@@ -598,15 +687,74 @@ private fun MailDrawer(
     onContacts: (() -> Unit)? = null,
     onCalendar: (() -> Unit)? = null,
     area: String = MailDrawerFoot.MAIL,
+    onMail: () -> Unit = {},
+    calendarVm: MailCalendarViewModel? = null,
+    calendarMenu: CalendarMenuState? = null,
+    contactsVm: MailContactsViewModel? = null,
+    onContactsFilter: () -> Unit = {},
+    onDuplicates: () -> Unit = {},
 ) {
     val extra = GateControlTheme.extraColors
+    val cals = calendarVm?.calendars?.collectAsStateWithLifecycle()?.value
+    val books = contactsVm?.books?.collectAsStateWithLifecycle()?.value
+    val contactsState = contactsVm?.state?.collectAsStateWithLifecycle()?.value
+    val contactsTotal = contactsVm?.total?.collectAsStateWithLifecycle()?.value?.size ?: 0
     Column(Modifier.fillMaxHeight().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp)) {
         Text(
-            stringResource(R.string.mail_tab),
+            stringResource(
+                when (area) {
+                    MailDrawerFoot.CALENDAR -> R.string.mail_calendar
+                    MailDrawerFoot.CONTACTS -> R.string.mail_contacts
+                    else -> R.string.mail_tab
+                },
+            ),
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 12.dp).semantics { heading() },
         )
+        val inboxRow: @Composable () -> Unit = { DrawerItem(MailIcons.Inbox, stringResource(R.string.mail_inboxes), me?.unreadAll ?: 0, on = false, onClick = onMail) }
+        val label: @Composable (String) -> Unit = { DrawerLabel(it) }
         LazyColumn(Modifier.weight(1f)) {
+            if (area == MailDrawerFoot.CALENDAR && calendarVm != null && calendarMenu != null) {
+                calendarDrawerItems(me, cals, calendarMenu, inboxRow, label, onToggle = calendarVm::toggleCalendar, onToggleOverlay = calendarVm::toggleOverlay)
+            } else if (area == MailDrawerFoot.CONTACTS && contactsVm != null && contactsState != null) {
+                contactsDrawerItems(
+                    me, books, contactsTotal, contactsState.duplicates, contactsState.filter, inboxRow, label,
+                    row = { icon, text, count, on, click -> DrawerItem(icon, text, count, on, onClick = click) },
+                    onFilter = { f -> contactsVm.setFilter(f); onContactsFilter() },
+                    onToggleBook = contactsVm::toggleBook,
+                    onDuplicates = onDuplicates,
+                )
+            } else {
+                mailDrawerItems(me, folders, box, filing, outbox, folds, onFold, onBox, onFiling, onOutbox)
+            }
+            me?.limits?.let { l ->
+                MailLogic.quotaPercent(l.usedBytes, l.quotaBytes)?.let { p ->
+                    item(key = "quota") {
+                        Column(Modifier.padding(horizontal = 12.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(stringResource(R.string.mail_quota, mailSize(l.usedBytes), mailSize(l.quotaBytes)), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                            LinearProgressIndicator(progress = { p / 100f }, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            }
+        }
+        MailDrawerFoot(me = me, area = area, onSettings = onSettings, onContacts = onContacts, onCalendar = onCalendar)
+    }
+}
+
+/** The mail's part of the menu: "Alle Posteingänge", "Zum Ablegen", "Postausgang", the accounts and their folders. */
+private fun androidx.compose.foundation.lazy.LazyListScope.mailDrawerItems(
+    me: MMe?,
+    folders: Map<Long, List<MFolder>>,
+    box: MailLogic.Box,
+    filing: Int,
+    outbox: Int,
+    folds: Map<Long, Boolean>,
+    onFold: (Long) -> Unit,
+    onBox: (MailLogic.Box) -> Unit,
+    onFiling: () -> Unit,
+    onOutbox: () -> Unit,
+) {
             item(key = "all") {
                 DrawerItem(MailIcons.Inbox, stringResource(R.string.mail_all_inboxes), me?.unreadAll ?: 0, on = box.all, accent = true) { onBox(MailLogic.Box()) }
             }
@@ -645,19 +793,6 @@ private fun MailDrawer(
                     }
                 }
             }
-            me?.limits?.let { l ->
-                MailLogic.quotaPercent(l.usedBytes, l.quotaBytes)?.let { p ->
-                    item(key = "quota") {
-                        Column(Modifier.padding(horizontal = 12.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(stringResource(R.string.mail_quota, mailSize(l.usedBytes), mailSize(l.quotaBytes)), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-                            LinearProgressIndicator(progress = { p / 100f }, modifier = Modifier.fillMaxWidth())
-                        }
-                    }
-                }
-            }
-        }
-        MailDrawerFoot(me = me, area = area, onSettings = onSettings, onContacts = onContacts, onCalendar = onCalendar)
-    }
 }
 
 /**

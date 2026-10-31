@@ -380,8 +380,10 @@ internal fun MailRow(
             if (preview.isNotBlank()) {
                 Text(preview, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (item.hasAttachments || item.savedToDrive) {
+            if (item.hasAttachments || item.savedToDrive || item.invite != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // since Mail 1.2.0: an invitation (or its answer, a cancellation) in the mail
+                    if (item.invite != null) MailTag(stringResource(R.string.mail_invite_label), extra.blueBg, extra.blue)
                     if (item.hasAttachments) Icon(GcIcons.Paperclip, contentDescription = stringResource(R.string.mail_has_attachments), tint = extra.muted, modifier = Modifier.size(14.dp))
                     if (item.savedToDrive) MailTag(stringResource(R.string.mail_saved_to_drive), extra.accentBg, extra.accentText)
                 }

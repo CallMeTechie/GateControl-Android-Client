@@ -186,6 +186,69 @@ sealed class Screen(val route: String) {
     }
     /** "Postausgang": sends planned or failed. */
     data object MailOutbox : Screen("mail/outbox")
+    /** An event of the calendar (since Mail 1.2.0): the occurrence `occ` of a series, or the event itself. */
+    data object MailEvent : Screen("mail/event/{id}?occ={occ}") {
+        const val ARG_ID = "id"
+        const val ARG_OCC = "occ"
+        fun create(id: Long, occurrence: String? = null) = "mail/event/$id" + (occurrence?.let { "?occ=" + MailRoutes.enc(it) } ?: "")
+    }
+    /**
+     * A new event (`cal`, `start`/`end` of the tapped time, `allDay`, `to`: attendees) or the event `id` to change
+     * (`occ` + `scope`: only this occurrence or the whole series).
+     */
+    data object MailEventEdit : Screen("mail/event-edit?id={id}&occ={occ}&scope={scope}&cal={cal}&start={start}&end={end}&allDay={allDay}&to={to}") {
+        const val ARG_ID = "id"
+        const val ARG_OCC = "occ"
+        const val ARG_SCOPE = "scope"
+        const val ARG_CAL = "cal"
+        const val ARG_START = "start"
+        const val ARG_END = "end"
+        const val ARG_ALL_DAY = "allDay"
+        const val ARG_TO = "to"
+        fun create(
+            id: Long? = null,
+            occurrence: String? = null,
+            scope: String? = null,
+            calendar: Long? = null,
+            start: Long? = null,
+            end: Long? = null,
+            allDay: Boolean = false,
+            to: String? = null,
+        ): String = MailRoutes.build(
+            "mail/event-edit",
+            "id" to id?.toString(), "occ" to occurrence, "scope" to scope, "cal" to calendar?.toString(),
+            "start" to start?.toString(), "end" to end?.toString(), "allDay" to (if (allDay) "1" else null), "to" to to,
+        )
+    }
+    /** An invitation (a push of a GateControl person's invitation). */
+    data object MailInvitation : Screen("mail/invitation/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "mail/invitation/$id"
+    }
+    /** A contact. */
+    data object MailContact : Screen("mail/contact/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "mail/contact/$id"
+    }
+    /** A new contact, the contact `id` to change, or "Als Kontakt speichern" of `email` (from the mail `message`). */
+    data object MailContactEdit : Screen("mail/contact-edit?id={id}&message={message}&email={email}&name={name}&group={group}") {
+        const val ARG_ID = "id"
+        const val ARG_MESSAGE = "message"
+        const val ARG_EMAIL = "email"
+        const val ARG_NAME = "name"
+        const val ARG_GROUP = "group"
+        fun create(id: Long? = null, message: Long? = null, email: String? = null, name: String? = null, group: Long? = null): String = MailRoutes.build(
+            "mail/contact-edit",
+            "id" to id?.toString(), "message" to message?.toString(), "email" to email, "name" to name?.take(200), "group" to group?.toString(),
+        )
+    }
+    /** "Dubletten": contacts that may be one person. */
+    data object MailContactDuplicates : Screen("mail/contacts/duplicates")
+    /** A group of contacts: its members, "Mail an alle". */
+    data object MailGroup : Screen("mail/group/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "mail/group/$id"
+    }
     /**
      * Tab "Drive" (plugin gatecontrol-drive, only when the server lists it):
      * the areas and the newest files. A folder, the trash and the search are
@@ -338,5 +401,15 @@ sealed class Screen(val route: String) {
         const val ARG_LINK = "link"
         fun create(link: String? = null): String =
             if (link == null) "setup/enroll" else "setup/enroll?link=" + android.net.Uri.encode(link)
+    }
+}
+
+/** Query arguments of Mail's routes (%20, not "+": the navigation decodes arguments like a URI path). */
+internal object MailRoutes {
+    fun enc(v: String): String = java.net.URLEncoder.encode(v, "UTF-8").replace("+", "%20")
+
+    fun build(base: String, vararg args: Pair<String, String?>): String {
+        val q = args.mapNotNull { (k, v) -> v?.let { "$k=" + enc(it) } }
+        return base + if (q.isEmpty()) "" else "?" + q.joinToString("&")
     }
 }

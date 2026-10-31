@@ -118,6 +118,7 @@ object MailJson {
                 clientId = ms?.str("clientId")?.trim()?.takeIf { it.isNotEmpty() && it.length <= 200 },
                 authority = ms?.str("authority")?.trimEnd('/')?.takeIf { it.startsWith("https://") } ?: MailMicrosoft.DEFAULT_AUTHORITY,
                 scopes = ms?.arr("scopes")?.strings()?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() } ?: MailMicrosoft.DEFAULT_SCOPES,
+                adminConsentUrl = ms?.str("adminConsentUrl")?.trim()?.takeIf { it.startsWith("https://") && it.length <= 2000 },
             ),
             accounts = o.arr("accounts")?.objects()?.mapNotNull(::account).orEmpty(),
             unreadAll = unread?.int("all")?.coerceAtLeast(0) ?: 0,
@@ -158,6 +159,9 @@ object MailJson {
                 val mime = av.str("mime")?.lowercase()?.substringBefore(';')?.trim()?.takeIf { PICTURE_MIME.matches(it) } ?: return@let null
                 MAvatar(media, mime)
             },
+            calendar = MailPimJson.pimSide(o.obj("calendar")),
+            contacts = MailPimJson.pimSide(o.obj("contacts")),
+            missingScopes = o.arr("missingScopes")?.strings()?.filter { it.isNotBlank() }.orEmpty(),
         )
     }
 
@@ -267,8 +271,11 @@ object MailJson {
             tab = o.str("tab")?.takeIf { it == MSummary.TAB_OTHER } ?: MSummary.TAB_RELEVANT,
             savedToDrive = o.bool("savedToDrive") ?: false,
             aiSummary = o.obj("ai")?.str("summary")?.takeIf { it.isNotBlank() },
+            invite = o.str("invite")?.takeIf { it in INVITES },
         )
     }
+
+    private val INVITES = setOf("request", "cancel", "reply", "counter")
 
     fun summaries(arr: JsonArray?): List<MSummary> = arr?.objects()?.mapNotNull(::summary).orEmpty()
 
@@ -342,6 +349,7 @@ object MailJson {
             attachments = o.arr("attachments")?.objects()?.mapNotNull(::attachment).orEmpty(),
             unsubscribe = unsub,
             bodyMissing = o.bool("bodyMissing") ?: false,
+            invite = o.obj("invite")?.let(MailPimJson::invitation),
         )
     }
 
@@ -452,9 +460,17 @@ object MailJson {
         )
     }
 
+    /** Suggestions: entries with an address, and groups (since Mail 1.2.0: no address, their members). */
     fun contacts(o: JsonObject): List<MContact>? = o.arr("items")?.objects()?.mapNotNull { c ->
+        val source = c.str("source") ?: MContact.SOURCE_RECENT
+        val name = c.str("name")?.trim()?.takeIf { it.isNotEmpty() }
+        if (source == MContact.SOURCE_GROUP) {
+            val members = addresses(c.arr("members")).filter { it.email.contains('@') }.take(50)
+            if (members.isEmpty()) return@mapNotNull null
+            return@mapNotNull MContact(name ?: members.size.toString(), "", source, groupId = c.id("groupId"), members = members)
+        }
         val email = c.str("email")?.trim()?.takeIf { it.contains('@') } ?: return@mapNotNull null
-        MContact(c.str("name")?.trim()?.takeIf { it.isNotEmpty() }, email, c.str("source") ?: "recent")
+        MContact(name, email, source, contactId = c.id("contactId"), photo = c.bool("photo") ?: false)
     }
 
     // ─── Drive ──────────────────────────────────────────────────────

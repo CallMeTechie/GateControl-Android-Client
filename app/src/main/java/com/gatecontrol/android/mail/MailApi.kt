@@ -4,6 +4,7 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -14,8 +15,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import retrofit2.Response
 import timber.log.Timber
@@ -49,6 +52,10 @@ class MailApi @Inject constructor(
         private const val IMAGE_TIMEOUT_MS = 20_000L
         private const val IMAGE_MAX_BYTES = 6L * 1024 * 1024
         private const val AVATAR_MAX_BYTES = 2L * 1024 * 1024
+        /** Keeps `null` members (a PATCH that clears a field); Retrofit's Gson leaves them out. */
+        private val NULLS_GSON = GsonBuilder().serializeNulls().create()
+        private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
+        private val OVERLAY_ID = Regex("^(familie|birthdays|alltag:[0-9]{1,15})$")
     }
 
     private val _unauthorized = MutableSharedFlow<Int>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -332,4 +339,135 @@ class MailApi @Inject constructor(
         post("filing/$id/confirm", MailJson.driveSaveBody(folderId, name, null), timeoutMs = 60_000L, parse = MailJson::savedAnswer)
 
     suspend fun dismissFiling(id: Long): MResult<Unit> = post("filing/$id/dismiss", JsonObject(), parse = unit)
+
+    // ─── calendars (since Mail 1.2.0) ───────────────────────────────
+
+    /** A PATCH whose body keeps its `null` members (clearing a field: a rule, the online link, a birthday). */
+    private suspend fun <T> patchNulls(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
+        call(request = {
+            pluginPatchRaw(MAIL_PLUGIN, path, NULLS_GSON.toJson(body).toRequestBody(JSON_TYPE), langQuery())
+        }, parse = parse)
+
+    /** `GET calendars` with the raw answer (kept for offline). */
+    suspend fun calendars(): MResult<Pair<MCalendars, JsonObject>> = get("calendars") { o -> MailPimJson.calendars(o)?.let { it to o } }
+
+    suspend fun createCalendar(name: String, color: String?): MResult<MCalendar> =
+        post("calendars", MailPimJson.calendarBody(name, color), parse = MailPimJson::calendarAnswer)
+
+    suspend fun patchCalendar(id: Long, body: JsonObject): MResult<MCalendar> = patch("calendars/$id", body, parse = MailPimJson::calendarAnswer)
+
+    suspend fun deleteCalendar(id: Long): MResult<Unit> = del("calendars/$id", unit)
+
+    suspend fun patchOverlay(id: String, body: JsonObject): MResult<MOverlay> = patch("overlays/" + id.takeIf { OVERLAY_ID.matches(it) }.orEmpty(), body, parse = MailPimJson::overlayAnswer)
+
+    suspend fun subscribeCalendar(url: String, name: String?): MResult<MCalendar> =
+        post("calendars/subscribe", MailPimJson.subscribeBody(url, name), timeoutMs = 45_000L, parse = MailPimJson::calendarAnswer)
+
+    suspend fun calendarSettings(body: JsonObject): MResult<MCalPrefs> = put("calendar/settings", body, MailPimJson::prefsAnswer)
+
+    /** `GET events` in `[from, to)` (≤ 62 days) of [calendars] (ids and overlay ids; null: all visible). */
+    suspend fun events(from: Long, to: Long, calendars: List<String>? = null): MResult<Pair<MEvents, JsonObject>> =
+        get("events", buildMap {
+            put("from", from.toString())
+            put("to", to.toString())
+            calendars?.let { put("calendars", it.joinToString(",")) }
+        }) { o -> MailPimJson.events(o)?.let { it to o } }
+
+    suspend fun event(id: Long, occurrence: String?): MResult<Pair<MEvent, JsonObject>> =
+        get("events/$id", occurrence?.let { mapOf("occurrence" to it) }.orEmpty()) { o -> MailPimJson.event(o)?.let { it to o } }
+
+    suspend fun createEvent(body: JsonObject): MResult<MEventSaved> = post("events", body, timeoutMs = 60_000L, parse = MailPimJson::eventSaved)
+
+    /** `PATCH events/<id>`: `409 conflict { current }` when [body]'s etag is old ([MailPimJson.conflictEvent]). */
+    suspend fun updateEvent(id: Long, body: JsonObject): MResult<MEventSaved> = patchNulls("events/$id", body, MailPimJson::eventSaved)
+
+    suspend fun deleteEvent(id: Long, scope: String, occurrence: String?, notify: Boolean, comment: String?): MResult<Unit> =
+        call(request = {
+            pluginDelete(MAIL_PLUGIN, "events/$id", buildMap {
+                put("scope", scope)
+                occurrence?.let { put("occurrence", it) }
+                if (notify) put("notify", "1")
+                comment?.trim()?.takeIf { it.isNotEmpty() }?.let { put("comment", it.take(1000)) }
+            } + langQuery())
+        }, parse = unit)
+
+    suspend fun respondEvent(id: Long, body: JsonObject): MResult<MEvent> = post("events/$id/respond", body, timeoutMs = 60_000L, parse = MailPimJson::eventAnswer)
+
+    suspend fun invitations(): MResult<List<MInvitation>> = get("invitations", mapOf("state" to "open"), MailPimJson::invitations)
+
+    suspend fun invitation(id: Long): MResult<MInvitation> = get("invitations/$id", parse = MailPimJson::invitation)
+
+    suspend fun respondInvitation(id: Long, body: JsonObject): MResult<MInviteAnswer> =
+        post("invitations/$id/respond", body, timeoutMs = 60_000L, parse = MailPimJson::inviteAnswer)
+
+    suspend fun applyInvitation(id: Long): MResult<MInviteAnswer> = post("invitations/$id/apply", JsonObject(), timeoutMs = 60_000L, parse = MailPimJson::inviteAnswer)
+
+    suspend fun dismissInvitation(id: Long, decline: Boolean): MResult<Unit> = post("invitations/$id/dismiss", MailPimJson.dismissBody(decline), timeoutMs = 60_000L, parse = unit)
+
+    // ─── contacts (since Mail 1.2.0, path `cards`) ──────────────────
+
+    suspend fun addressbooks(): MResult<Pair<MBooks, JsonObject>> = get("addressbooks") { o -> MailPimJson.books(o)?.let { it to o } }
+
+    suspend fun patchAddressbook(id: Long, visible: Boolean): MResult<MAddressbook> = patch("addressbooks/$id", MailPimJson.bookPatch(visible), parse = MailPimJson::bookAnswer)
+
+    /** `GET cards`: a page of the list ([since]: only what changed, for the offline copy). */
+    suspend fun cards(q: String? = null, book: Long? = null, group: Long? = null, cursor: String? = null, since: Long? = null, limit: Int = 200): MResult<Pair<MCardPage, JsonObject>> =
+        get("cards", buildMap {
+            q?.trim()?.takeIf { it.isNotEmpty() }?.let { put("q", it.take(100)) }
+            put("book", book?.toString() ?: "all")
+            group?.let { put("group", it.toString()) }
+            cursor?.let { put("cursor", it) }
+            since?.let { put("since", it.toString()) }
+            put("limit", limit.coerceIn(1, 1000).toString())
+        }) { o -> MailPimJson.cardPage(o)?.let { it to o } }
+
+    suspend fun card(id: Long): MResult<Pair<MCard, JsonObject>> = get("cards/$id") { o -> MailPimJson.fullCard(o)?.let { it to o } }
+
+    suspend fun createCard(body: JsonObject): MResult<MCard> = post("cards", body, parse = MailPimJson::cardAnswer)
+
+    /** `PATCH cards/<id>`: `409 conflict { current }` ([MailPimJson.conflictCard]), `409 read_only`. */
+    suspend fun patchCard(id: Long, body: JsonObject): MResult<MCard> = patchNulls("cards/$id", body, MailPimJson::cardAnswer)
+
+    suspend fun deleteCard(id: Long): MResult<Unit> = del("cards/$id", unit)
+
+    suspend fun cardPhoto(id: Long): MResult<MPhoto> = get("cards/$id/photo", parse = MailPimJson::photo)
+
+    suspend fun putCardPhoto(id: Long, mime: String, bytes: ByteArray): MResult<MCard> = put("cards/$id/photo", MailPimJson.photoBody(mime, bytes), MailPimJson::cardAnswer)
+
+    suspend fun deleteCardPhoto(id: Long): MResult<MCard> = del("cards/$id/photo", MailPimJson::cardAnswer)
+
+    suspend fun lookup(email: String): MResult<MLookup> = get("cards/lookup", mapOf("email" to email.trim().take(320)), MailPimJson::lookup)
+
+    suspend fun activity(id: Long): MResult<MActivity> = get("cards/$id/activity", parse = MailPimJson::activity)
+
+    suspend fun cardDraft(messageId: Long?, email: String): MResult<MCardDraft> =
+        get("cards/draft", buildMap {
+            messageId?.let { put("messageId", it.toString()) }
+            put("email", email.trim().take(320))
+        }, MailPimJson::cardDraft)
+
+    suspend fun duplicates(): MResult<List<MDuplicate>> = get("cards/duplicates", parse = MailPimJson::duplicates)
+
+    suspend fun merge(body: JsonObject): MResult<MCard> = post("cards/merge", body, timeoutMs = 60_000L, parse = MailPimJson::cardAnswer)
+
+    suspend fun ignoreDuplicates(ids: List<Long>): MResult<Unit> = post("cards/duplicates/ignore", MailJson.idsBody(ids), parse = unit)
+
+    suspend fun importVcf(vcf: String, addressbookId: Long?): MResult<MImport> =
+        post("cards/import", MailPimJson.importBody(vcf, addressbookId), timeoutMs = 120_000L, parse = MailPimJson::importAnswer)
+
+    suspend fun exportVcf(book: Long? = null, group: Long? = null): MResult<MExport> =
+        get("cards/export", buildMap {
+            put("book", book?.toString() ?: "all")
+            group?.let { put("group", it.toString()) }
+        }, MailPimJson::export)
+
+    suspend fun createGroup(name: String): MResult<MGroup> = post("groups", MailPimJson.groupBody(name), parse = MailPimJson::groupAnswer)
+
+    suspend fun renameGroup(id: Long, name: String): MResult<MGroup> = patch("groups/$id", MailPimJson.groupBody(name), parse = MailPimJson::groupAnswer)
+
+    suspend fun deleteGroup(id: Long): MResult<Unit> = del("groups/$id", unit)
+
+    suspend fun group(id: Long): MResult<MGroupDetail> = get("groups/$id", parse = MailPimJson::groupDetail)
+
+    suspend fun groupMembers(id: Long, body: JsonObject): MResult<MGroupDetail> = post("groups/$id/members", body, parse = MailPimJson::groupDetail)
 }

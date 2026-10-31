@@ -401,6 +401,13 @@ fun MailAccountScreen(onBack: () -> Unit, onRelogin: (Long) -> Unit, viewModel: 
                     Text(stringResource(R.string.mail_account_syncing), style = MaterialTheme.typography.bodySmall)
                 }
             }
+            // since Mail 1.2.0: a Microsoft account without the calendar / contacts rights (contract D6)
+            if (a.microsoft && a.missingScopes.isNotEmpty()) {
+                GcBanner(tone = GcTone.Warn, icon = GcIcons.Key) {
+                    Text(stringResource(R.string.pim_consent, a.label), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onRelogin(a.id) }) { Text(stringResource(R.string.pim_relogin)) }
+                }
+            }
             GcSectionLabel(stringResource(R.string.mail_name_color))
             GcTextField(value = name, onValueChange = { name = it }, label = stringResource(R.string.mail_name))
             if (name != a.name.orEmpty()) TextButton(onClick = { viewModel.patch(name = name) }, enabled = !busy) { Text(stringResource(R.string.mail_save)) }

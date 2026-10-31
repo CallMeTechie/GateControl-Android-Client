@@ -41,6 +41,8 @@ class StartPageMenu(
     val locked: Boolean,
     val onUnpin: () -> Unit,
     val onArrange: () -> Unit,
+    /** A page without a tab (Mail's calendar, contacts): "Seite entfernen", it stays in the Mail tab. */
+    val pageOnly: Boolean = false,
 )
 
 /**
@@ -76,10 +78,11 @@ fun StartPageMenuButton(menu: StartPageMenu, modifier: Modifier = Modifier) {
             DropdownMenuItem(
                 text = {
                     Column {
-                        Text(stringResource(if (menu.widgets) R.string.pages_remove else R.string.pages_as_tab))
+                        Text(stringResource(if (menu.widgets || menu.pageOnly) R.string.pages_remove else R.string.pages_as_tab))
                         val hint = when {
                             menu.locked -> R.string.arrange_locked
                             menu.widgets -> null
+                            menu.pageOnly -> R.string.pages_in_mail_desc
                             else -> R.string.pages_as_tab_desc
                         }
                         if (hint != null) {
@@ -92,7 +95,7 @@ fun StartPageMenuButton(menu: StartPageMenu, modifier: Modifier = Modifier) {
                         }
                     }
                 },
-                leadingIcon = { Icon(if (menu.widgets) GcIcons.Trash else GcIcons.Pin, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                leadingIcon = { Icon(if (menu.widgets || menu.pageOnly) GcIcons.Trash else GcIcons.Pin, contentDescription = null, modifier = Modifier.size(20.dp)) },
                 enabled = !menu.locked,
                 onClick = { open = false; menu.onUnpin() },
             )
@@ -132,6 +135,8 @@ fun featureLabel(id: String): Int? = when (id) {
     StartPages.DRIVE -> R.string.drive_tab
     StartPages.NETWORK -> R.string.nav_network
     StartPages.FAMILIE -> R.string.nav_familie
+    StartPages.CALENDAR -> R.string.mail_calendar
+    StartPages.CONTACTS -> R.string.mail_contacts
     else -> null
 }
 
@@ -144,5 +149,7 @@ fun startPageIcon(id: String): ImageVector = when (id) {
     StartPages.DRIVE -> GcIcons.Cloud
     StartPages.NETWORK -> GcIcons.Globe
     StartPages.FAMILIE -> GcIcons.Family
+    StartPages.CALENDAR -> GcIcons.Calendar
+    StartPages.CONTACTS -> GcIcons.User
     else -> GcIcons.ViewGrid
 }

@@ -42,6 +42,9 @@ data class MailSenderNav(
     /** A new mail to [to] from the account [accountId]. */
     val write: (to: String, accountId: Long?) -> Unit,
     val open: (Long) -> Unit,
+    /** Since Mail 1.2.0: the sender's contact, or "Als Kontakt speichern". */
+    val contact: (Long) -> Unit = {},
+    val saveContact: (email: String, name: String?) -> Unit = { _, _ -> },
 )
 
 /**
@@ -64,7 +67,12 @@ fun MailSenderScreen(nav: MailSenderNav, viewModel: MailSenderViewModel = hiltVi
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    SenderAvatar(state.label.takeIf { it != state.email }, state.email, accountColor(account), size = 72.dp)
+                    val card = state.card
+                    if (card != null) {
+                        com.gatecontrol.android.ui.mail.contacts.ContactAvatar(card.label, state.email, card.id.takeIf { card.photo }, card.photoEtag, size = 72.dp)
+                    } else {
+                        SenderAvatar(state.label.takeIf { it != state.email }, state.email, accountColor(account), size = 72.dp)
+                    }
                     Text(
                         state.label,
                         style = MaterialTheme.typography.headlineSmall,
@@ -74,7 +82,7 @@ fun MailSenderScreen(nav: MailSenderNav, viewModel: MailSenderViewModel = hiltVi
                     if (state.label != state.email) {
                         SelectionContainer { Text(state.email, style = MaterialTheme.typography.bodyMedium, color = extra.muted, textAlign = TextAlign.Center) }
                     }
-                    SenderContact(state.contact)
+                    SenderContact(state.contact, state.card, state.looked, state.person, onOpen = nav.contact, onSave = { nav.saveContact(state.email, state.name) })
                     Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GcPrimaryButton(
                             stringResource(R.string.mail_sender_write),
@@ -121,13 +129,29 @@ fun MailSenderScreen(nav: MailSenderNav, viewModel: MailSenderViewModel = hiltVi
 }
 
 /**
- * What the person's contacts know about the sender. For now only that they are one (the name above comes from
- * there); the coming contacts plugin fills this place (phone, company, …) — no contacts are kept by Mail itself.
+ * What the person's contacts know about the sender (contract D5): with a contact its position · company, its numbers
+ * (a tap calls) and "Kontakt öffnen"; without one "Als Kontakt speichern"; a GateControl person as before. Servers
+ * before Mail 1.2.0 (or contacts off): only that the sender is a GateControl person.
  */
 @Composable
-private fun SenderContact(contact: MContact?) {
-    if (contact == null) return
-    Text(stringResource(R.string.mail_sender_in_contacts), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.accentText)
+private fun SenderContact(contact: MContact?, card: com.gatecontrol.android.mail.MCard?, looked: Boolean, person: String?, onOpen: (Long) -> Unit, onSave: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val context = mailContext()
+    if (card != null) {
+        val job = listOfNotNull(card.title, card.company).joinToString(" · ")
+        if (job.isNotEmpty()) Text(job, style = MaterialTheme.typography.bodyMedium, color = extra.muted)
+        card.phones.forEach { p ->
+            TextButton(onClick = { com.gatecontrol.android.mail.MailPimLogic.telUri(p.value)?.let { openExternal(context, it) } }) {
+                Text(com.gatecontrol.android.ui.mail.contacts.typeName(p.type) + ": " + p.value)
+            }
+        }
+        TextButton(onClick = { onOpen(card.id) }) { Text(stringResource(R.string.con_open), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) }
+        return
+    }
+    if (person != null || contact != null) {
+        Text(stringResource(R.string.mail_sender_in_contacts), style = MaterialTheme.typography.bodySmall, color = extra.accentText)
+    }
+    if (looked) TextButton(onClick = onSave) { Text(stringResource(R.string.con_save_sender), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) }
 }
 
 private fun copy(context: Context, text: String) {

@@ -97,8 +97,25 @@ internal object MainTabs {
         }
     }
 
-    /** The functions of the tab [routes] that can be pinned to Start (all but Start). */
-    fun features(routes: List<String>): List<String> = routes.mapNotNull(::pageOf)
+    /**
+     * The functions of the tab [routes] that can be pinned to Start (all but Start), and Mail's pages without a tab
+     * ([mailPages]: calendar, contacts — only with Mail) right after Mail.
+     */
+    fun features(routes: List<String>, mailPages: Collection<String> = emptyList()): List<String> = routes.mapNotNull(::pageOf).flatMap { page ->
+        if (page == StartPages.MAIL) listOf(page) + StartPages.PAGE_ONLY.filter { it in mailPages }.sortedBy { StartPages.FEATURES.indexOf(it) } else listOf(page)
+    }
+
+    /**
+     * Mail's pages without a tab the server offers ([MMe] features `calendar`, `contacts`); [lenient]: while `me` is
+     * not known yet, both (a pinned page does not vanish for a moment at start).
+     */
+    fun mailPages(me: com.gatecontrol.android.mail.MMe?, lenient: Boolean = false): List<String> = when {
+        me == null -> if (lenient) listOf(StartPages.CALENDAR, StartPages.CONTACTS) else emptyList()
+        else -> listOfNotNull(
+            StartPages.CALENDAR.takeIf { me.has(com.gatecontrol.android.mail.MMe.FEATURE_CALENDAR) },
+            StartPages.CONTACTS.takeIf { me.has(com.gatecontrol.android.mail.MMe.FEATURE_CONTACTS) },
+        )
+    }
 
     /** The tabs left in the bar: [routes] without the functions pinned to Start ([pinned] page ids); Start always stays. */
     fun visible(routes: List<String>, pinned: Collection<String>): List<String> =

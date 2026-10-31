@@ -187,8 +187,12 @@ fun AppNavigation(
         network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission),
         plugins = plugins,
     )
+    // Mail's calendar and contacts: pages without a tab, while the server offers them
+    val mailMe by pagesViewModel.mailMe.collectAsStateWithLifecycle()
     /** The functions this login has besides Start (tabs or pages). */
-    val features = MainTabs.features(tabRoutes)
+    val features = MainTabs.features(tabRoutes, MainTabs.mailPages(mailMe, lenient = true))
+    /** The same, only what is known to be there (to offer pinning). */
+    val pinnable = MainTabs.features(tabRoutes, MainTabs.mailPages(mailMe))
     /** The pages shown beside Start, in their order. */
     val startPages = StartPages.visible(allPages, features)
     val pinnedFeatures = startPages.filter { StartPages.isFeature(it) }
@@ -424,6 +428,8 @@ fun AppNavigation(
             StartPages.VAULT -> VaultHome(navController)
             StartPages.DRIVE -> DriveHome(navController, onShown = {})
             StartPages.MAIL -> MailHome(navController)
+            StartPages.CALENDAR -> MailHome(navController, com.gatecontrol.android.ui.mail.MailDrawerFoot.CALENDAR)
+            StartPages.CONTACTS -> MailHome(navController, com.gatecontrol.android.ui.mail.MailDrawerFoot.CONTACTS)
         }
     }
 
@@ -535,7 +541,7 @@ fun AppNavigation(
                 val bell = bellState(bellInputs?.first, bellInputs?.second ?: true, systemAllowed)
                 StartPager(
                     pages = startPages,
-                    candidates = features.filter { it !in allPages },
+                    candidates = pinnable.filter { it !in allPages },
                     badges = mapOf(StartPages.CHATS to chatBadge, StartPages.NETWORK to onlineRdpHostCount),
                     request = pageRequest,
                     requests = pageRequests,
@@ -655,7 +661,7 @@ fun AppNavigation(
                                     onOpenRoutes = { navController.navigate(Screen.NotifyRoutes.route) { launchSingleTop = true } },
                                     onOpenRules = { navController.navigate(RulesRoutes.LIST) { launchSingleTop = true } },
                                     onSelectPane = { paneKey = it.key },
-                                    features = features,
+                                    features = pinnable,
                                     onArrangePages = { navController.navigate(Screen.StartPagesArrange.route) { launchSingleTop = true } },
                                 )
                             }
@@ -1190,12 +1196,12 @@ fun AppNavigation(
 
             // Pages beside Start: "Seiten anordnen" and Einstellungen → "Leiste und Seiten".
             composable(Screen.StartPagesArrange.route) {
-                GcContentWidth { StartPagesArrangeScreen(available = features, onBack = { navController.popBackStack() }) }
+                GcContentWidth { StartPagesArrangeScreen(available = pinnable, onBack = { navController.popBackStack() }) }
             }
             composable(Screen.SettingsPages.route) {
                 GcContentWidth {
                     StartPagesSettingsScreen(
-                        available = features,
+                        available = pinnable,
                         onBack = { navController.popBackStack() },
                         onArrangePages = { navController.navigate(Screen.StartPagesArrange.route) { launchSingleTop = true } },
                     )
@@ -1293,6 +1299,15 @@ private fun openPushTarget(
                 mail && com.gatecontrol.android.mail.MailPush.isOutbox(target.dest) -> {
                     navigateToTab(Screen.Mail.route)
                     navController.navigate(Screen.MailOutbox.route) { launchSingleTop = true }
+                }
+                mail && com.gatecontrol.android.mail.MailPush.eventOf(target.dest) != null -> {
+                    val (event, occurrence) = com.gatecontrol.android.mail.MailPush.eventOf(target.dest)!!
+                    navigateToTab(Screen.Mail.route)
+                    navController.navigate(Screen.MailEvent.create(event, occurrence)) { launchSingleTop = true }
+                }
+                mail && com.gatecontrol.android.mail.MailPush.invitationOf(target.dest) != null -> {
+                    navigateToTab(Screen.Mail.route)
+                    navController.navigate(Screen.MailInvitation.create(com.gatecontrol.android.mail.MailPush.invitationOf(target.dest)!!)) { launchSingleTop = true }
                 }
                 target.messageId != null -> navController.navigate(Screen.NotificationDetail.create(target.messageId))
                 else -> navigateToTab(Screen.Vpn.route)

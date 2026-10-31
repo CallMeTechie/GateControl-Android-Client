@@ -191,6 +191,22 @@ class MainTabsTest {
     }
 
     @Test
+    fun `calendar and contacts are pages after Mail without a tab, only with the server's features`() {
+        val me = com.gatecontrol.android.mail.MailJson.me(com.google.gson.JsonParser.parseString("""{"features":["mail","calendar"]}""").asJsonObject)
+        assertEquals(listOf("calendar"), MainTabs.mailPages(me))
+        assertEquals(emptyList<String>(), MainTabs.mailPages(null))
+        assertEquals(listOf("calendar", "contacts"), MainTabs.mailPages(null, lenient = true))
+        val routes = listOf(Screen.Vpn.route, Screen.Chats.route, Screen.Mail.route, Screen.Drive.route)
+        assertEquals(listOf("chats", "mail", "calendar", "contacts", "drive"), MainTabs.features(routes, listOf("contacts", "calendar")))
+        assertEquals(listOf("chats", "drive"), MainTabs.features(listOf(Screen.Vpn.route, Screen.Chats.route, Screen.Drive.route), listOf("calendar")), "no Mail: no calendar")
+        // a page only: it never shows up as a tab, taking it off leaves the bar as it is
+        assertTrue(com.gatecontrol.android.layout.StartPages.isPageOnly("calendar"))
+        assertFalse(com.gatecontrol.android.layout.StartPages.isPageOnly("mail"))
+        assertEquals(routes, MainTabs.visible(routes, listOf("calendar")))
+        assertEquals(listOf("calendar"), com.gatecontrol.android.layout.StartPages.visible(listOf("calendar", "unknown"), MainTabs.features(routes, listOf("calendar"))))
+    }
+
+    @Test
     fun `mail routes`() {
         assertEquals("mail/m/42", Screen.MailMessage.create(42))
         assertEquals("mail/compose", Screen.MailCompose.create())
@@ -203,5 +219,14 @@ class MainTabsTest {
         assertEquals("mail/accounts/3", Screen.MailAccount.create(3))
         assertEquals("mail/sender?email=a%40b.de&name=Anna%20M%C3%BCller&account=3", Screen.MailSender.create("a@b.de", "Anna Müller", 3))
         assertEquals("mail/sender?email=a%40b.de", Screen.MailSender.create("a@b.de", " ", null))
+        // calendar and contacts
+        assertEquals("mail/event/5", Screen.MailEvent.create(5))
+        assertEquals("mail/event/5?occ=2026-11-04", Screen.MailEvent.create(5, "2026-11-04"))
+        assertEquals("mail/event-edit?start=10&end=20", Screen.MailEventEdit.create(start = 10, end = 20))
+        assertEquals("mail/event-edit?id=5&occ=1730800800000", Screen.MailEventEdit.create(id = 5, occurrence = "1730800800000"))
+        assertEquals("mail/contact-edit?message=7&email=a%40b.de&name=Anna%20Lang", Screen.MailContactEdit.create(message = 7, email = "a@b.de", name = "Anna Lang"))
+        assertEquals("mail/contact-edit", Screen.MailContactEdit.create())
+        assertEquals("mail/invitation/9", Screen.MailInvitation.create(9))
+        assertNull(MainTabs.pageFor(Screen.MailEvent.create(5)), "an event lies on top of the tab")
     }
 }

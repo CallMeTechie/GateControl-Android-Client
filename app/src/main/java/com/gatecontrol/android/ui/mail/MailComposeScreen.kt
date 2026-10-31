@@ -353,18 +353,9 @@ private fun RecipientRow(f: RecipientField, label: String, state: ComposeState, 
     }
     if (state.suggestFor == f && state.suggestions.isNotEmpty()) {
         Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+            // photo or initials and the source; a group puts in all its members (since Mail 1.2.0)
             state.suggestions.take(6).forEach { c ->
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { viewModel.pick(f, c) }.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(if (c.source == "person") GcIcons.User else GcIcons.History, contentDescription = null, tint = extra.muted, modifier = Modifier.size(18.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(c.name ?: c.email, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                        if (c.name != null) Text(c.email, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1)
-                    }
-                }
+                com.gatecontrol.android.ui.mail.contacts.SuggestionRow(c) { viewModel.pick(f, c) }
             }
         }
     }

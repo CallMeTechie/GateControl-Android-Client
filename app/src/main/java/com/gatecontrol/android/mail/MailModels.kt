@@ -53,7 +53,13 @@ data class MMe(
 data class MLimits(val accountsMax: Int, val quotaBytes: Long, val usedBytes: Long, val retentionMonths: Int)
 
 /** Microsoft sign-in (public client with PKCE): no client id → not set up yet. */
-data class MMicrosoft(val clientId: String?, val authority: String, val scopes: List<String>)
+data class MMicrosoft(
+    val clientId: String?,
+    val authority: String,
+    val scopes: List<String>,
+    /** Since Mail 1.2.0: the link a company's administrator opens to allow the new rights (null: none). */
+    val adminConsentUrl: String? = null,
+)
 
 /** The person's list settings (`PUT settings`). */
 data class MSettings(val threads: Boolean, val swipeLeft: String, val swipeRight: String) {
@@ -89,6 +95,11 @@ data class MAccount(
     val signature: String?,
     /** The account's picture at the provider (Microsoft only, since Mail 1.1.2), loaded as the plugin's media. */
     val avatar: MAvatar? = null,
+    /** Since Mail 1.2.0: the account's calendar and address book side (null from older servers). */
+    val calendar: MPimSide? = null,
+    val contacts: MPimSide? = null,
+    /** Microsoft scopes the account still lacks for calendar and contacts (`Calendars.ReadWrite` …). */
+    val missingScopes: List<String> = emptyList(),
 ) {
     val label: String get() = name?.takeIf { it.isNotBlank() } ?: email
 
@@ -186,6 +197,8 @@ data class MSummary(
     val tab: String,
     val savedToDrive: Boolean,
     val aiSummary: String?,
+    /** Since Mail 1.2.0: request | cancel | reply | counter (the label "Einladung"), null for other mails. */
+    val invite: String? = null,
 ) {
     companion object {
         const val TAB_RELEVANT = "relevant"
@@ -247,6 +260,8 @@ data class MMessage(
      * live event `mail` with this mail's id (or its thread's) tells when it is there.
      */
     val bodyMissing: Boolean = false,
+    /** Since Mail 1.2.0: the invitation the mail carries (the card above the text). */
+    val invite: MInvitation? = null,
 ) {
     val id: Long get() = summary.id
 }
@@ -323,9 +338,25 @@ data class MOutboxItem(
     val error: String?,
 )
 
-data class MContact(val name: String?, val email: String, val source: String) {
+/**
+ * A suggestion of `GET contacts?q=`: an own contact (`contact`, since Mail 1.2.0, with [contactId]), a group
+ * (`group`: [email] empty, its [members] go in), a GateControl person (`person`) or someone written with lately.
+ */
+data class MContact(
+    val name: String?,
+    val email: String,
+    val source: String,
+    val contactId: Long? = null,
+    val photo: Boolean = false,
+    val groupId: Long? = null,
+    val members: List<MAddress> = emptyList(),
+) {
+    val group: Boolean get() = source == SOURCE_GROUP
+
     companion object {
-        /** A contact of the person (the coming contacts plugin); `recent`: someone written with lately. */
+        const val SOURCE_CONTACT = "contact"
+        const val SOURCE_GROUP = "group"
+        /** Someone of this GateControl with a Mail account; `recent`: someone written with lately. */
         const val SOURCE_PERSON = "person"
         const val SOURCE_RECENT = "recent"
     }

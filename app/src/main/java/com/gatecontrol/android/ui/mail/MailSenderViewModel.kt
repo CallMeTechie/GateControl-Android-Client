@@ -28,6 +28,12 @@ data class MailSenderState(
      * coming contacts plugin knows about them; for now only its name is shown.
      */
     val contact: MContact? = null,
+    /** Since Mail 1.2.0 (`cards/lookup`): the sender's contact, null without one. */
+    val card: com.gatecontrol.android.mail.MCard? = null,
+    /** The lookup came (with contacts on): "Als Kontakt speichern" when [card] is null. */
+    val looked: Boolean = false,
+    /** A GateControl person with this address (their name). */
+    val person: String? = null,
     /** Their mails in the account, newest first. */
     val items: List<MSummary> = emptyList(),
     val next: String? = null,
@@ -35,7 +41,7 @@ data class MailSenderState(
     val error: String? = null,
 ) {
     /** The name shown: from the contacts first, else from the mail. */
-    val label: String get() = contact?.name?.takeIf { it.isNotBlank() } ?: name?.takeIf { it.isNotBlank() } ?: email
+    val label: String get() = card?.label?.takeIf { it.isNotBlank() } ?: contact?.name?.takeIf { it.isNotBlank() } ?: person ?: name?.takeIf { it.isNotBlank() } ?: email
 }
 
 /** A sender's page: who it is (the contacts' name when there is one) and their mails in the account (`GET search?from=`). */
@@ -70,7 +76,12 @@ class MailSenderViewModel @Inject constructor(
         }
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            api.contacts(s.email).valueOrNull()?.let { list -> _state.update { it.copy(contact = MailLogic.contactOf(list, s.email)) } }
+            if (repository.me.value?.has(MMe.FEATURE_CONTACTS) == true) {
+                // since Mail 1.2.0: the real contact (contract D5)
+                api.lookup(s.email).valueOrNull()?.let { l -> _state.update { it.copy(card = l.card, person = l.personName, looked = true) } }
+            } else {
+                api.contacts(s.email).valueOrNull()?.let { list -> _state.update { it.copy(contact = MailLogic.contactOf(list, s.email)) } }
+            }
         }
         viewModelScope.launch {
             when (val r = api.search(MailLogic.senderQuery(s.email, s.accountId))) {

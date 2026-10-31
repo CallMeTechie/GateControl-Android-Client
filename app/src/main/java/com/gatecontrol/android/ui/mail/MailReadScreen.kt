@@ -64,6 +64,11 @@ import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.mail.calendar.InviteConsentCard
+import com.gatecontrol.android.ui.mail.calendar.InviteNav
+import com.gatecontrol.android.ui.mail.calendar.MailInvitationCard
+import com.gatecontrol.android.mail.MInvitation
+import com.gatecontrol.android.mail.MailMicrosoft
 
 /** Where the reading screen leads. */
 data class MailReadNav(
@@ -76,6 +81,12 @@ data class MailReadNav(
     val open: (Long) -> Unit,
     /** The sender's page (their mails in the account [accountId]). */
     val sender: (email: String, name: String?, accountId: Long) -> Unit = { _, _, _ -> },
+    /** Since Mail 1.2.0: "Als Kontakt speichern" of an address of this mail. */
+    val saveContact: (email: String, name: String?, messageId: Long) -> Unit = { _, _, _ -> },
+    val contact: (Long) -> Unit = {},
+    val event: (Long) -> Unit = {},
+    /** "Kalender freigeben": sign in to the Microsoft account again. */
+    val relogin: (Long) -> Unit = {},
 )
 
 /**
@@ -148,6 +159,13 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                             DropdownMenuItem(text = { Text(stringResource(R.string.mail_move)) }, onClick = { menu = false; move = true })
                         }
                         DropdownMenuItem(text = { Text(stringResource(R.string.mail_junk)) }, onClick = { menu = false; viewModel.act("junk") })
+                        // since Mail 1.2.0: the sender into the contacts (name, address, the signature's number …)
+                        if (me?.has(MMe.FEATURE_CONTACTS) == true && m.summary.from.email.contains('@')) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.con_save_sender)) },
+                                onClick = { menu = false; nav.saveContact(m.summary.from.email, m.summary.from.name, m.id) },
+                            )
+                        }
                         m.unsubscribe?.let { u ->
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.mail_unsubscribe)) },
@@ -201,6 +219,15 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                     SenderLine(m, account?.label, accountColor(account), onSender = { nav.sender(m.summary.from.email, m.summary.from.name, m.summary.accountId) })
                     if (state.offline) {
                         GcBanner(tone = GcTone.Neutral, icon = GcIcons.Wifi) { Text(stringResource(R.string.mail_offline_copy), style = MaterialTheme.typography.bodySmall) }
+                    }
+                    // since Mail 1.2.0: the invitation the mail carries (mockup "Einladung"), above the text
+                    if (me?.has(MMe.FEATURE_CALENDAR) == true) {
+                        val inv = m.invite
+                        if (inv != null) {
+                            MailInvitationCard(inv, InviteNav(event = nav.event, contact = nav.contact, saveContact = { e, n -> nav.saveContact(e, n, m.id) }), enabled = !state.offline)
+                        } else if (m.summary.invite == MInvitation.METHOD_REQUEST && account?.missingScopes?.any { it.equals(MailMicrosoft.CALENDAR_SCOPE, true) } == true) {
+                            InviteConsentCard(account.label) { nav.relogin(account.id) }
+                        }
                     }
                     AiCard(state.ai, me, onRetry = { viewModel.runAi(force = true) }, onFamily = viewModel::todoToFamily, onCalendar = { todo ->
                         addToCalendar(context, todo, todo.text)
