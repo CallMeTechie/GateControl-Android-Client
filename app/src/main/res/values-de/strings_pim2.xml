@@ -11,6 +11,10 @@
     <string name="fav_unpinned">Von Start entfernt</string>
     <string name="fav_none_hint">Markiere Kontakte mit dem Stern als Favoriten, um sie auf Start zu legen.</string>
     <string name="fav_no_phone">Keine Nummer: ein Tipp öffnet den Kontakt</string>
+    <string name="fav_call_perm_title">Direkt anrufen?</string>
+    <string name="fav_call_perm_text">Damit ein Tipp direkt anruft, braucht GateControl die Berechtigung „Anrufe tätigen“. Ohne sie öffnet ein Tipp die Telefon-App mit der Nummer. Ändern kannst du das jederzeit in den Android-Einstellungen: Apps › GateControl › Berechtigungen › Telefon.</string>
+    <string name="fav_call_perm_continue">Weiter</string>
+    <string name="fav_call_perm_dial">Wähler öffnen</string>
     <plurals name="con_conflicts_n">
         <item quantity="one">%d abweichender Wert</item>
         <item quantity="other">%d abweichende Werte</item>

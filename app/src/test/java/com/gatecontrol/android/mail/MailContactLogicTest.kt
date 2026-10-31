@@ -270,9 +270,11 @@ class MailContactLogicTest {
         val synced = MailContactLogic.syncedPins(pins, listOf(MFavorite(5, "Anna", "e", MCardPhone("0171 2", "mobile"), null), MFavorite(9, "Neu", null, null, null)))
         assertEquals(listOf(StartContactPin(5, "Anna", "e", "0171 2")), synced.contacts)
         assertTrue(synced.agenda)
-        assertEquals(TileTap.Call("tel:01712"), MailContactLogic.tap(synced.contacts[0]))
+        assertEquals(TileTap.Call("01712"), MailContactLogic.tap(synced.contacts[0]))
         assertEquals(TileTap.Open(6), MailContactLogic.tap(pins.contacts[1]))
-        assertEquals(TileTap.Call("tel:+4917112"), MailContactLogic.tap(StartContactPin(1, "x", null, "+49 171 12")))
+        assertEquals(TileTap.Call("+4917112"), MailContactLogic.tap(StartContactPin(1, "x", null, "+49 171 12")))
+        // not a number to call: the contact opens
+        assertEquals(TileTap.Open(1), MailContactLogic.tap(StartContactPin(1, "x", null, "0171 12 ext 3")))
 
         val more = MailContactLogic.withPin(pins, StartContactPin(7, "C"), on = true)
         assertEquals(listOf(5L, 6L, 7L), more.extras.contacts)
@@ -283,11 +285,70 @@ class MailContactLogicTest {
     }
 
     @Test
+    fun `calling - only digits, a leading plus, star, hash and separators`() {
+        assertEquals("+4917112345", MailContactLogic.callNumber(" +49 (171) 12-34/5 "))
+        assertEquals("030123", MailContactLogic.callNumber("030.123"))
+        assertEquals("030123", MailContactLogic.callNumber("030\u00A0123"))
+        assertEquals("*31#0301234", MailContactLogic.callNumber("*31# 030 1234"))
+        // letters, pauses, a plus inside, too short, too long, empty: nothing to call
+        assertNull(MailContactLogic.callNumber("0171 12 ext 3"))
+        assertNull(MailContactLogic.callNumber("Tel. 0171 12"))
+        assertNull(MailContactLogic.callNumber("030 123,456"))
+        assertNull(MailContactLogic.callNumber("030 123;456"))
+        assertNull(MailContactLogic.callNumber("030+123"))
+        assertNull(MailContactLogic.callNumber("++49 171"))
+        assertNull(MailContactLogic.callNumber("*#06#"))
+        assertNull(MailContactLogic.callNumber("12"))
+        assertNull(MailContactLogic.callNumber("   "))
+        assertNull(MailContactLogic.callNumber("1".repeat(65)))
+        assertNull(MailContactLogic.callNumber("０１７１２３"))
+        assertNull(MailContactLogic.callNumber("tel:0171 23"))
+        assertNull(MailContactLogic.callNumber("0171%2312"))
+    }
+
+    @Test
+    fun `calling - service codes are never called straight away`() {
+        listOf("*#*#4636#*#*", "**21*0171234#", "#31#0301234", "*100#", "0301234#", "+49171*12").forEach {
+            val n = MailContactLogic.callNumber(it)!!
+            assertTrue(MailContactLogic.serviceCode(n), it)
+            assertEquals(MailContactLogic.ACTION_DIAL, MailContactLogic.callAction(n, callPermission = true), it)
+            assertEquals(CallStep.DIAL, MailContactLogic.callStep(n, telephony = true, granted = true, deniedForGood = false), it)
+            assertEquals(CallStep.DIAL, MailContactLogic.callStep(n, telephony = true, granted = false, deniedForGood = false), it)
+        }
+        assertFalse(MailContactLogic.serviceCode("+4917112345"))
+    }
+
+    @Test
     fun `calling - straight away only with the permission, else the dialer`() {
-        assertEquals(MailContactLogic.ACTION_DIAL, MailContactLogic.callAction(callPermission = false))
-        assertEquals(MailContactLogic.ACTION_CALL, MailContactLogic.callAction(callPermission = true))
+        assertEquals(MailContactLogic.ACTION_DIAL, MailContactLogic.callAction("0171234", callPermission = false))
+        assertEquals(MailContactLogic.ACTION_CALL, MailContactLogic.callAction("0171234", callPermission = true))
         assertEquals("android.intent.action.DIAL", MailContactLogic.ACTION_DIAL)
         assertEquals("android.intent.action.CALL", MailContactLogic.ACTION_CALL)
+    }
+
+    @Test
+    fun `calling - the step of a tap - call, ask once, dialer when denied for good or without telephony`() {
+        val n = "+4917112345"
+        assertEquals(CallStep.CALL, MailContactLogic.callStep(n, telephony = true, granted = true, deniedForGood = false))
+        assertEquals(CallStep.CALL, MailContactLogic.callStep(n, telephony = true, granted = true, deniedForGood = true))
+        assertEquals(CallStep.ASK, MailContactLogic.callStep(n, telephony = true, granted = false, deniedForGood = false))
+        assertEquals(CallStep.DIAL, MailContactLogic.callStep(n, telephony = true, granted = false, deniedForGood = true))
+        // a tablet without a phone: never asks
+        assertEquals(CallStep.DIAL, MailContactLogic.callStep(n, telephony = false, granted = false, deniedForGood = false))
+        assertEquals(CallStep.DIAL, MailContactLogic.callStep(n, telephony = false, granted = true, deniedForGood = false))
+    }
+
+    @Test
+    fun `calling - only a denial after an explanation without one afterwards is for good`() {
+        // allowed
+        assertFalse(MailContactLogic.deniedForGood(granted = true, rationaleBefore = true, rationaleAfter = false))
+        // first denial: Android explains from now on
+        assertFalse(MailContactLogic.deniedForGood(granted = false, rationaleBefore = false, rationaleAfter = true))
+        // the question dismissed (back): no denial
+        assertFalse(MailContactLogic.deniedForGood(granted = false, rationaleBefore = false, rationaleAfter = false))
+        assertFalse(MailContactLogic.deniedForGood(granted = false, rationaleBefore = true, rationaleAfter = true))
+        // denied again / "don't ask again"
+        assertTrue(MailContactLogic.deniedForGood(granted = false, rationaleBefore = true, rationaleAfter = false))
     }
 
     @Test

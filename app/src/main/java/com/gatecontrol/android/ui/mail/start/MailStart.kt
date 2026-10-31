@@ -1,10 +1,15 @@
 package com.gatecontrol.android.ui.mail.start
 
 import android.Manifest
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,17 +30,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -57,8 +65,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -69,6 +77,7 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.layout.StartArrangement
 import com.gatecontrol.android.mail.AgendaView
+import com.gatecontrol.android.mail.CallStep
 import com.gatecontrol.android.mail.MCalendars
 import com.gatecontrol.android.mail.MFavorite
 import com.gatecontrol.android.mail.MMe
@@ -145,16 +154,91 @@ internal fun favoritesAvailable(me: MMe?, supported: Boolean?): Boolean = me?.ha
 
 // ─── favourite tiles ────────────────────────────────────────────────
 
-/** Calls [tel]: straight away while the app may place calls, else the dialer with the number. */
-internal fun dial(context: Context, tel: String) {
-    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
-    val intent = Intent(MailContactLogic.callAction(granted), tel.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+/** Whether the person answered "don't ask again" to calling straight away (Android shows no question any more then). */
+private object DirectCallPrefs {
+    private const val PREFS = "mail_call"
+    private const val KEY_DENIED = "denied_for_good"
+
+    fun deniedForGood(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_DENIED, false)
+
+    fun setDeniedForGood(context: Context, on: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_DENIED, false) != on) prefs.edit().putBoolean(KEY_DENIED, on).apply()
+    }
+}
+
+/**
+ * Starts the call of [number] with [action] (`ACTION_CALL` straight away, `ACTION_DIAL` the dialer). The number goes
+ * in as the parts of a `tel:` uri (`#` and `*` escaped), never parsed from a string. Refused: the dialer instead.
+ */
+internal fun startCall(context: Context, number: String, action: String) {
+    val intent = Intent(action, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     try {
         context.startActivity(intent)
     } catch (_: ActivityNotFoundException) {
         // no phone app: nothing to call with
     } catch (_: SecurityException) {
-        context.startActivity(Intent(MailContactLogic.ACTION_DIAL, tel.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        if (action != MailContactLogic.ACTION_DIAL) startCall(context, number, MailContactLogic.ACTION_DIAL)
+    }
+}
+
+private tailrec fun Context.activity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.activity()
+    else -> null
+}
+
+/**
+ * A favourite's call (the user wants a tap to call the main number straight away): with the permission to place calls
+ * the call, without it once a short hint and Android's question — allowed: the call, denied: this time the dialer,
+ * "don't ask again": from then on the dialer without asking. Service codes and devices without telephony: the dialer.
+ */
+@Composable
+private fun rememberTileCall(): (String) -> Unit {
+    val context = LocalContext.current
+    var hint by rememberSaveable { mutableStateOf<String?>(null) }
+    var asking by rememberSaveable { mutableStateOf<String?>(null) }
+    var rationaleBefore by rememberSaveable { mutableStateOf(false) }
+    fun rationale() = context.activity()?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CALL_PHONE) } == true
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val number = asking ?: return@rememberLauncherForActivityResult
+        asking = null
+        if (MailContactLogic.deniedForGood(granted, rationaleBefore, rationale())) DirectCallPrefs.setDeniedForGood(context, true)
+        startCall(context, number, MailContactLogic.callAction(number, granted))
+    }
+    hint?.let { number ->
+        AlertDialog(
+            onDismissRequest = { hint = null },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.extraLarge,
+            title = { Text(stringResource(R.string.fav_call_perm_title), style = MaterialTheme.typography.titleLarge) },
+            text = { Text(stringResource(R.string.fav_call_perm_text), style = MaterialTheme.typography.bodyMedium) },
+            confirmButton = {
+                TextButton(onClick = {
+                    hint = null
+                    rationaleBefore = rationale()
+                    asking = number
+                    launcher.launch(Manifest.permission.CALL_PHONE)
+                }) { Text(stringResource(R.string.fav_call_perm_continue), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    hint = null
+                    startCall(context, number, MailContactLogic.ACTION_DIAL)
+                }) { Text(stringResource(R.string.fav_call_perm_dial)) }
+            },
+        )
+    }
+    return { number ->
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+        // Allowed later in Android's settings: a later withdrawal may ask again.
+        if (granted) DirectCallPrefs.setDeniedForGood(context, false)
+        val telephony = context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+        when (MailContactLogic.callStep(number, telephony, granted, DirectCallPrefs.deniedForGood(context))) {
+            CallStep.CALL -> startCall(context, number, MailContactLogic.ACTION_CALL)
+            CallStep.DIAL -> startCall(context, number, MailContactLogic.ACTION_DIAL)
+            CallStep.ASK -> hint = number
+        }
     }
 }
 
@@ -162,16 +246,17 @@ private val TileShape = RoundedCornerShape(18.dp)
 
 /**
  * A favourite on Start: the photo or the initials as the tile, the name below (like the plugins' buttons, [width]).
- * A tap calls the main number (without one it opens the contact), a long press opens the contact.
+ * A tap calls the main number straight away (see [rememberTileCall]; without one it opens the contact), a long press
+ * opens the contact.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ContactTile(pin: StartContactPin, width: Dp) {
     val nav = LocalMailStartNav.current
-    val context = LocalContext.current
     val extra = GateControlTheme.extraColors
     val photo = rememberCardPhoto(pin.id.takeIf { pin.photoEtag != null }, pin.photoEtag)
     val tap = MailContactLogic.tap(pin)
+    val call = rememberTileCall()
     Column(
         Modifier
             .width(width)
@@ -183,7 +268,7 @@ fun ContactTile(pin: StartContactPin, width: Dp) {
                 onLongClick = { nav?.contact?.invoke(pin.id) },
                 onClick = {
                     when (tap) {
-                        is TileTap.Call -> dial(context, tap.tel)
+                        is TileTap.Call -> call(tap.number)
                         is TileTap.Open -> nav?.contact?.invoke(tap.id)
                     }
                 },

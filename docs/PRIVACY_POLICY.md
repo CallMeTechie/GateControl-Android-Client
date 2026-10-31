@@ -77,6 +77,7 @@ Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder 
 | Akku-Optimierung ausnehmen | optional: Benachrichtigungen auch im Ruhezustand |
 | Standort (auch im Hintergrund) | optional: WLAN-Namen für vertrauenswürdige WLANs; Standort auf Tipp an den eigenen Server; Familie: Standort auf Anfrage der Eltern, „Bin angekommen“/SOS, Orts-Erinnerungen (siehe oben) |
 | Kamera | Einrichtungs-QR-Code |
+| Anrufe tätigen (Telefon) | optional: Ein Tipp auf einen Kontakt-Favoriten auf Start ruft dessen Hauptnummer direkt an. Gefragt erst beim ersten Tipp; ohne die Berechtigung öffnet sich die Telefon-App mit der Nummer. Die App liest keine Anrufliste und keine Telefondaten und sendet nichts. Änderbar in den Android-Einstellungen: Apps › GateControl › Berechtigungen › Telefon |
 | Biometrie / Displaysperre | Tür & Kamera: Bestätigung vor dem Aufsperren und Öffnen einer Tür (über Android, nichts wird gespeichert oder gesendet) |
 
 ### Speicherung und Löschung
@@ -164,6 +165,7 @@ Only to scan the setup QR code when you open the scanner. No images are stored o
 | Ignore battery optimisation | optional: notifications while the device sleeps |
 | Location (incl. background) | optional: Wi-Fi names for trusted Wi-Fi; location on tap to your own server; Family: location on a parent's request, "I've arrived"/SOS, place reminders (see above) |
 | Camera | Setup QR code |
+| Make phone calls (Phone) | optional: a tap on a contact favourite on Start calls its main number straight away. Asked only on the first tap; without the permission the phone app opens with the number. The app reads no call log or phone data and sends nothing. Can be changed in Android's settings: Apps › GateControl › Permissions › Phone |
 | Biometrics / screen lock | Door & Camera: confirmation before a door is unlocked or opened (through Android; nothing is stored or sent) |
 
 ### Retention and deletion

@@ -44,6 +44,11 @@
          then). -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- Mail favourites on Start: a tap on a favourite's tile calls its main
+         number straight away. Asked on the first tap (with a hint before
+         Android's question); without it the tile opens the dialer. Service
+         codes (* or #) only ever go to the dialer. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
 
     <!-- Query all launchable apps for split-tunnel app picker -->
     <queries>
@@ -58,6 +63,8 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- CALL_PHONE implies telephony: tablets without a phone keep installing the app. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:name=".GateControlApp"

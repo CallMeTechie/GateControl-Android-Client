@@ -11,6 +11,10 @@
     <string name="fav_unpinned">Removed from Start</string>
     <string name="fav_none_hint">Mark contacts with the star as favourites to put them on Start.</string>
     <string name="fav_no_phone">No number: a tap opens the contact</string>
+    <string name="fav_call_perm_title">Call straight away?</string>
+    <string name="fav_call_perm_text">So that a tap calls straight away, GateControl needs the permission “Make phone calls”. Without it a tap opens the phone app with the number. You can change this at any time in Android’s settings: Apps › GateControl › Permissions › Phone.</string>
+    <string name="fav_call_perm_continue">Continue</string>
+    <string name="fav_call_perm_dial">Open dialer</string>
     <plurals name="con_conflicts_n">
         <item quantity="one">%d different value</item>
         <item quantity="other">%d different values</item>
