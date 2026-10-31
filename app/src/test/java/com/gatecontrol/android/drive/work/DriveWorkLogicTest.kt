@@ -72,6 +72,88 @@ class DriveWorkLogicTest {
     }
 
     @Test
+    fun `the place comes after the WLAN and before the AI, and teaches it`() {
+        val w = DriveWorkLogic.place(null, score = 0.02, ready = true, autoSort = true, at = WifiZone.WORK)
+        assertEquals(Dest.WORK, w.dest)
+        assertFalse(w.review)
+        assertEquals(true, w.learn)
+        assertEquals(Why.PLACE_WORK, w.why)
+        val h = DriveWorkLogic.place(WifiZone.NEITHER, score = 0.99, ready = true, autoSort = true, at = WifiZone.HOME)
+        assertEquals(Dest.PRIVATE, h.dest)
+        assertFalse(h.review)
+        assertEquals(false, h.learn)
+        assertEquals(Why.PLACE_HOME, h.why)
+        // the WLAN says otherwise: the WLAN wins
+        assertEquals(Why.WIFI_HOME, DriveWorkLogic.place(WifiZone.HOME, score = null, ready = false, autoSort = false, at = WifiZone.WORK).why)
+        // also in the learning phase and with "Selbst einsortieren" off, as the WLAN
+        assertEquals(Dest.WORK, DriveWorkLogic.place(null, score = null, ready = false, autoSort = false, at = WifiZone.WORK).dest)
+        // no place: as before
+        assertTrue(DriveWorkLogic.place(null, score = 0.5, ready = true, autoSort = true, at = null).review)
+    }
+
+    @Test
+    fun `an old photo nothing can place goes private without the mark, unless the AI thinks it rather work`() {
+        val none = DriveWorkLogic.place(null, score = null, ready = false, autoSort = true, old = true)
+        assertEquals(Dest.PRIVATE, none.dest)
+        assertFalse(none.review)
+        assertNull(none.hint)
+        assertNull(none.learn, "nobody said so: no example")
+        assertEquals(Why.OLD_PRIVATE, none.why)
+        assertFalse(DriveWorkLogic.place(null, score = 0.49, ready = false, autoSort = true, old = true).review)
+        val rather = DriveWorkLogic.place(null, score = 0.5, ready = false, autoSort = true, old = true)
+        assertTrue(rather.review)
+        assertEquals(50, rather.hint)
+        assertEquals(Why.REVIEW, rather.why)
+        // a sure AI and a place still decide
+        assertEquals(Why.AI_WORK, DriveWorkLogic.place(null, score = 0.9, ready = true, autoSort = true, old = true).why)
+        assertEquals(Why.PLACE_HOME, DriveWorkLogic.place(null, score = 0.9, ready = false, autoSort = true, at = WifiZone.HOME, old = true).why)
+        // a new photo out of Firma and Zuhause keeps the mark
+        assertTrue(DriveWorkLogic.place(null, score = null, ready = false, autoSort = true, old = false).review)
+    }
+
+    @Test
+    fun `old means taken before the setup`() {
+        assertTrue(DriveWorkLogic.isOld(takenMs = 999, since = 1000))
+        assertFalse(DriveWorkLogic.isOld(takenMs = 1000, since = 1000))
+        assertFalse(DriveWorkLogic.isOld(takenMs = null, since = 1000))
+        assertFalse(DriveWorkLogic.isOld(takenMs = 0, since = 1000))
+        assertFalse(DriveWorkLogic.isOld(takenMs = 999, since = null))
+    }
+
+    @Test
+    fun `a marked photo is sorted again only when sure`() {
+        // the AI, once it learned and only this sure
+        assertEquals(DriveWorkLogic.Resorted(Dest.WORK, false), DriveWorkLogic.resort(0.85, null, ready = true, autoSort = true))
+        assertEquals(DriveWorkLogic.Resorted(Dest.PRIVATE, false), DriveWorkLogic.resort(0.15, null, ready = true, autoSort = true))
+        assertNull(DriveWorkLogic.resort(0.84, null, ready = true, autoSort = true))
+        assertNull(DriveWorkLogic.resort(0.16, null, ready = true, autoSort = true))
+        assertNull(DriveWorkLogic.resort(null, null, ready = true, autoSort = true))
+        // still learning, or not allowed
+        assertNull(DriveWorkLogic.resort(0.99, null, ready = false, autoSort = true))
+        assertNull(DriveWorkLogic.resort(0.99, null, ready = true, autoSort = false))
+        assertNull(DriveWorkLogic.resort(null, WifiZone.WORK, ready = true, autoSort = false))
+        // the place first, also before the AI learned
+        assertEquals(DriveWorkLogic.Resorted(Dest.WORK, true), DriveWorkLogic.resort(0.01, WifiZone.WORK, ready = false, autoSort = true))
+        assertEquals(DriveWorkLogic.Resorted(Dest.PRIVATE, true), DriveWorkLogic.resort(0.99, WifiZone.HOME, ready = true, autoSort = true))
+        assertNull(DriveWorkLogic.resort(0.5, WifiZone.NEITHER, ready = true, autoSort = true))
+    }
+
+    @Test
+    fun `the AI never learns from its own sorting`() {
+        assertNull(DriveWorkLogic.learnsFrom(DriveWorkLogic.Resorted(Dest.WORK, byPlace = false)))
+        assertNull(DriveWorkLogic.learnsFrom(DriveWorkLogic.Resorted(Dest.PRIVATE, byPlace = false)))
+        assertEquals(WorkExample.Source.PLACE, DriveWorkLogic.learnsFrom(DriveWorkLogic.Resorted(Dest.WORK, byPlace = true)))
+        // the work folder teaches, but not what this phone put there alone, nor twice
+        val work = (1L..6L).map { photo(it, work = true) }
+        val video = photo(7, work = true).copy(mime = "video/mp4")
+        val marked = photo(8, review = DReview(60))
+        val priv = photo(9)
+        val out = DriveWorkLogic.stockExamples(work + video + marked + priv + work[0], known = setOf("n:2"), auto = setOf(3L), limit = 10)
+        assertEquals(listOf(1L, 4L, 5L, 6L), out.map { it.id })
+        assertEquals(listOf(1L, 4L), DriveWorkLogic.stockExamples(work, known = setOf("n:2"), auto = setOf(3L), limit = 2).map { it.id })
+    }
+
+    @Test
     fun `learning phase ends with 30 examples of both kinds`() {
         assertFalse(DriveWorkLogic.Learned(total = 29, work = 10, private = 19).ready)
         assertTrue(DriveWorkLogic.Learned(total = 30, work = 10, private = 20).ready)

@@ -82,6 +82,7 @@ import com.gatecontrol.android.drive.work.DriveWorkPhotos
 import com.gatecontrol.android.drive.work.DriveWorkStore
 import com.gatecontrol.android.drive.work.DriveWorkWifi
 import com.gatecontrol.android.drive.work.WifiZone
+import com.gatecontrol.android.drive.work.WorkPlace
 import com.gatecontrol.android.drive.work.WorkSettings
 import com.gatecontrol.android.trustednet.TrustedNetSnapshot
 import com.gatecontrol.android.ui.components.GcBanner
@@ -114,6 +115,7 @@ class DriveWorkViewModel @Inject constructor(
 ) : ViewModel() {
     val settings: StateFlow<WorkSettings> = work.settings
     val learned: StateFlow<DriveWorkLogic.Learned> = work.learned
+    val places: StateFlow<List<WorkPlace>> = work.places
     val network: StateFlow<TrustedNetSnapshot> = wifi.network
     val ask: StateFlow<String?> = store.ask
     val removals: StateFlow<List<Long>> = store.removals
@@ -134,6 +136,7 @@ class DriveWorkViewModel @Inject constructor(
             live.current()
             work.refreshSettings()
         }
+        viewModelScope.launch { work.learnedNow(); work.placesNow() }
     }
 
     fun clearMessage() { _message.value = null }
@@ -222,6 +225,7 @@ internal fun WorkPhotoSections(onCleanup: () -> Unit, viewModel: DriveWorkViewMo
     val x = GateControlTheme.extraColors
     val s by viewModel.settings.collectAsStateWithLifecycle()
     val learned by viewModel.learned.collectAsStateWithLifecycle()
+    val places by viewModel.places.collectAsStateWithLifecycle()
     val network by viewModel.network.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
@@ -405,6 +409,14 @@ internal fun WorkPhotoSections(onCleanup: () -> Unit, viewModel: DriveWorkViewMo
                 color = x.muted,
             )
         }
+        GcRowDivider()
+        val workPlaces = places.count { it.work }
+        val homePlaces = places.size - workPlaces
+        GcListRow(
+            title = stringResource(R.string.drive_work_places),
+            description = if (places.isEmpty()) stringResource(R.string.drive_work_places_none)
+            else stringResource(R.string.drive_work_places_learned, workPlaces, homePlaces),
+        )
         GcRowDivider()
         GcSwitchRow(
             label = stringResource(R.string.drive_work_ai_auto),

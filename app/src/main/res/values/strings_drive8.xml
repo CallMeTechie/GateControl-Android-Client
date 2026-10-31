@@ -117,14 +117,14 @@
     <string name="drive_work_ai_progress_label">Learning progress</string>
     <string name="drive_work_ai_learned">Learned from %1$d work photos (%2$d of them from the company WLAN) and %3$d private photos</string>
     <string name="drive_work_ai_auto">Sort in by itself when sure</string>
-    <string name="drive_work_ai_auto_desc">Only after the learning phase; unsure photos keep getting the review mark</string>
+    <string name="drive_work_ai_auto_desc">Only after the learning phase, also for photos already marked; unsure ones keep the review mark</string>
     <string name="drive_work_ai_local">Runs only on this phone</string>
     <string name="drive_work_ai_local_desc">No photo goes to a service for the AI</string>
     <string name="drive_work_ai_cleanup">Clean up</string>
     <string name="drive_work_ai_cleanup_desc">Suggestions for photos already backed up</string>
     <string name="drive_work_ai_open">Open</string>
     <string name="drive_work_ai_reset">Learn anew</string>
-    <string name="drive_work_ai_reset_desc">Forgets all examples</string>
+    <string name="drive_work_ai_reset_desc">Forgets all examples and places</string>
     <string name="drive_work_ai_reset_button">Reset</string>
     <string name="drive_work_ai_reset_title">Forget everything learned?</string>
     <string name="drive_work_ai_reset_text">The AI starts again with its learning phase. Photos and folders stay as they are.</string>
@@ -165,4 +165,17 @@
         <item quantity="other">%1$d photos moved to work</item>
     </plurals>
     <string name="drive_work_cleanup_left">Nothing moved – the AI learns from it</string>
+    <plurals name="drive_work_auto_sorted">
+        <item quantity="one">%1$d photo sorted automatically</item>
+        <item quantity="other">%1$d photos sorted automatically</item>
+    </plurals>
+    <string name="drive_work_learning_band">The AI is still learning: %1$d of %2$d examples (work %3$d, private %4$d) – assign a few photos and it will sort them itself</string>
+    <plurals name="drive_work_old_private">
+        <item quantity="one">%1$d older photo without a location was backed up as private – “Clean up” makes suggestions later</item>
+        <item quantity="other">%1$d older photos without a location were backed up as private – “Clean up” makes suggestions later</item>
+    </plurals>
+    <string name="drive_work_old_ok">Got it</string>
+    <string name="drive_work_places">Places</string>
+    <string name="drive_work_places_none">None yet – learned from photos with a location taken in the “Company” or “Home” WLAN and from your assignments</string>
+    <string name="drive_work_places_learned">Company: %1$d · Home: %2$d – photos from there are sorted automatically</string>
 </resources>

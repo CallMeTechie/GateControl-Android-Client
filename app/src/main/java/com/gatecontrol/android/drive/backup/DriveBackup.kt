@@ -257,6 +257,8 @@ class DriveBackup @Inject constructor(
             remove(KEY_ERROR)
         }
         _stats.value = readStats()
+        // work photos apart: learn from the work folder, then the marked photos again (in the background)
+        work.afterRun()
         return Outcome.DONE
     }
 
@@ -305,14 +307,16 @@ class DriveBackup @Inject constructor(
             return "read"
         }
         if (length == 0L) return "empty"
-        // when it was taken — EXIF (with its time zone), else the media store's date: its year and month are its folder
-        val own = dates.of(item.uri, item.mime, item.name)
+        // when it was taken — EXIF (with its time zone), else the media store's date: its year and month are its folder;
+        // where (EXIF GPS of the original, for work photos apart) from the same read
+        val shot = dates.shot(item.uri, item.mime, item.name)
+        val own = shot.takenAt
         val path = DriveBackupLogic.cameraPath(own, item.taken, item.modified, item.added * 1000, ZoneId.systemDefault())
-        // work photos apart: where this one goes (the WLAN it was taken in, else the AI on the phone); null: Kamera-Uploads
+        // work photos apart: where this one goes (the WLAN it was taken in, its place, else the AI on the phone); null: Kamera-Uploads
         var placed = try {
             // the plain URI: the thumbnail does not need the original's location data
             val plain = ContentUris.withAppendedId(if (item.video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, item.id)
-            work.placeNew(plain, DriveBackupLogic.takenMs(own, item.taken, item.modified), item.video)
+            work.placeNew(plain, DriveBackupLogic.takenMs(own, item.taken, item.modified), item.video, shot.at)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

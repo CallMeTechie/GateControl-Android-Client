@@ -156,6 +156,9 @@ class DrivePhotosViewModel @Inject constructor(
         if (started) return
         started = true
         refresh()
+        // marked photos the phone sorted alone (in the background): shown as they are now
+        viewModelScope.launch { work.autoSorted.collect { if (it != null) load(quiet = true) } }
+        viewModelScope.launch { work.learnedNow() }
     }
 
     fun refresh() = load(quiet = true)
@@ -193,10 +196,11 @@ class DrivePhotosViewModel @Inject constructor(
 
     fun more() = pager.more()
 
-    /** "Alle | Privat | Arbeit | Prüfen": the timeline of that class. */
+    /** "Alle | Privat | Arbeit | Prüfen": the timeline of that class ("Prüfen": the marked photos looked at again). */
     fun setClass(c: String?) {
         if (c == _cls.value) return
         _cls.value = c
+        if (c == "review") work.reviewOpened(unmetered = unmetered())
         bulk.clear()
         if (work.serverClasses(live.me.value)) {
             _months.value = emptyMap()
@@ -232,6 +236,22 @@ class DrivePhotosViewModel @Inject constructor(
                 load(quiet = true)
             }
         }
+    }
+
+    /** "N Fotos selbst einsortiert" was shown. */
+    fun autoSortedShown() = work.autoSortedShown()
+
+    /** Its "Rückgängig": back as they were, marked; the phone leaves them to the person from then on. */
+    fun undoAutoSorted(u: DriveWorkPhotos.Undo) {
+        viewModelScope.launch {
+            _message.value = work.undoAutoSorted(u) ?: "work_undone"
+            load(quiet = true)
+        }
+    }
+
+    private fun unmetered(): Boolean {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return false
+        return !cm.isActiveNetworkMetered
     }
 
     fun undoWork(u: DriveWorkPhotos.Undo) {

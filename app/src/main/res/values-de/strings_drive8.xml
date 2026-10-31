@@ -117,14 +117,14 @@
     <string name="drive_work_ai_progress_label">Lernfortschritt</string>
     <string name="drive_work_ai_learned">Gelernt aus %1$d Arbeitsfotos (davon %2$d aus dem Firmen-WLAN) und %3$d privaten Fotos</string>
     <string name="drive_work_ai_auto">Selbst einsortieren, wenn sicher</string>
-    <string name="drive_work_ai_auto_desc">Erst nach der Lernphase; unsichere Fotos bekommen weiter den Prüfen-Marker</string>
+    <string name="drive_work_ai_auto_desc">Erst nach der Lernphase, auch für schon markierte Fotos; unsichere behalten den Prüfen-Marker</string>
     <string name="drive_work_ai_local">Läuft nur auf diesem Handy</string>
     <string name="drive_work_ai_local_desc">Kein Foto geht für die KI an einen Dienst</string>
     <string name="drive_work_ai_cleanup">Aufräumen</string>
     <string name="drive_work_ai_cleanup_desc">Vorschläge für schon gesicherte Fotos</string>
     <string name="drive_work_ai_open">Öffnen</string>
     <string name="drive_work_ai_reset">Neu lernen</string>
-    <string name="drive_work_ai_reset_desc">Vergisst alle Beispiele</string>
+    <string name="drive_work_ai_reset_desc">Vergisst alle Beispiele und Orte</string>
     <string name="drive_work_ai_reset_button">Zurücksetzen</string>
     <string name="drive_work_ai_reset_title">Alles Gelernte vergessen?</string>
     <string name="drive_work_ai_reset_text">Die KI beginnt wieder mit der Lernphase. Fotos und Ordner bleiben, wie sie sind.</string>
@@ -165,4 +165,17 @@
         <item quantity="other">%1$d Fotos nach Arbeit verschoben</item>
     </plurals>
     <string name="drive_work_cleanup_left">Nichts verschoben – die KI lernt daraus</string>
+    <plurals name="drive_work_auto_sorted">
+        <item quantity="one">%1$d Foto selbst einsortiert</item>
+        <item quantity="other">%1$d Fotos selbst einsortiert</item>
+    </plurals>
+    <string name="drive_work_learning_band">Die KI lernt noch: %1$d von %2$d Beispielen (Arbeit %3$d, Privat %4$d) – ordne ein paar Fotos zu, dann sortiert sie selbst</string>
+    <plurals name="drive_work_old_private">
+        <item quantity="one">%1$d älteres Foto ohne Ortsangabe wurde privat gesichert – „Aufräumen“ macht später Vorschläge</item>
+        <item quantity="other">%1$d ältere Fotos ohne Ortsangabe wurden privat gesichert – „Aufräumen“ macht später Vorschläge</item>
+    </plurals>
+    <string name="drive_work_old_ok">Verstanden</string>
+    <string name="drive_work_places">Orte</string>
+    <string name="drive_work_places_none">Noch keine – gelernt aus Fotos mit Ortsangabe aus dem WLAN „Firma“ oder „Zuhause“ und aus deinen Zuordnungen</string>
+    <string name="drive_work_places_learned">Firma: %1$d · Zuhause: %2$d – Fotos von dort landen von selbst richtig</string>
 </resources>
