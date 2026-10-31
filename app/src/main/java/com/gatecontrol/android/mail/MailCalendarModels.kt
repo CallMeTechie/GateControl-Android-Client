@@ -75,7 +75,7 @@ data class MCalPrefs(
     val reminders: Boolean,
     /** Minutes before, null: none. */
     val defaultReminder: Int?,
-    /** Minutes before midnight of an all-day event (1080 → 18:00 the day before), null: none. */
+    /** Minutes before midnight of an all-day event (360 → 18:00 the day before, 1080 → 06:00 the day before), null: none. */
     val allDayReminder: Int?,
 ) {
     companion object {
@@ -85,7 +85,7 @@ data class MCalPrefs(
         const val VIEW_MONTH = "month"
         const val VIEW_LIST = "list"
         val VIEWS = listOf(VIEW_DAY, VIEW_3DAY, VIEW_WEEK, VIEW_MONTH, VIEW_LIST)
-        val DEFAULT = MCalPrefs(null, VIEW_3DAY, 1, false, null, true, 15, 1080)
+        val DEFAULT = MCalPrefs(null, VIEW_3DAY, 1, false, null, true, 15, 360)
     }
 }
 
