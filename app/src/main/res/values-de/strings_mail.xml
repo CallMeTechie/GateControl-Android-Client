@@ -250,6 +250,11 @@
     <string name="mail_folders_hide">Ordner ausblenden</string>
     <string name="mail_folders_shown">Ordner aufgeklappt</string>
     <string name="mail_folders_hidden">Ordner zugeklappt</string>
+    <string name="mail_subfolders_expand">%1$s aufklappen</string>
+    <string name="mail_subfolders_collapse">%1$s zuklappen</string>
+    <string name="mail_subfolders_shown">Unterordner aufgeklappt</string>
+    <string name="mail_subfolders_hidden">Unterordner zugeklappt</string>
+    <string name="mail_subfolders_unread">%1$d ungelesen in Unterordnern</string>
     <string name="mail_thread_show">Alle Mails der Unterhaltung zeigen</string>
     <string name="mail_thread_hide">Unterhaltung zuklappen</string>
     <string name="mail_thread_shown">Aufgeklappt</string>

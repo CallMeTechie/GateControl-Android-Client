@@ -55,6 +55,8 @@ class MailHomeViewModel @Inject constructor(
     val undo: StateFlow<MUndo?> = repository.undo
     /** The menu's folded accounts ([MailLogic.foldOpen]). */
     val folds: StateFlow<Map<Long, Boolean>> = repository.folds
+    /** The menu's folded folders ([MailLogic.folderOpen]). */
+    val folderFolds: StateFlow<Map<Long, Boolean>> = repository.folderFolds
 
     private val _box = MutableStateFlow(MailLogic.Box(saved.get<Long>(KEY_ACCOUNT)?.takeIf { it > 0 }, saved.get<Long>(KEY_FOLDER)?.takeIf { it > 0 }))
     val box: StateFlow<MailLogic.Box> = _box.asStateFlow()
@@ -112,9 +114,13 @@ class MailHomeViewModel @Inject constructor(
     /** A tap on an account in the menu: its folders open or close, the menu stays. */
     fun toggleFold(accountId: Long) = repository.toggleFold(accountId, _box.value)
 
+    /** A tap on a folder's arrow in the menu: its children open or close, the menu stays. */
+    fun toggleFolder(accountId: Long, folderId: Long) = repository.toggleFolder(accountId, folderId, _box.value)
+
     fun selectBox(box: MailLogic.Box) {
         if (box == _box.value) return
         _box.value = box
+        repository.revealFolder(box)
         saved[KEY_ACCOUNT] = box.accountId ?: 0L
         saved[KEY_FOLDER] = box.folderId ?: 0L
         _list.value = MailListState()

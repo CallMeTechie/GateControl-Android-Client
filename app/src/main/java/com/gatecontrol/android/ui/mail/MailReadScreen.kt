@@ -311,7 +311,8 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
 
     if (move && m != null) {
         FolderPicker(
-            folders = folders[m.summary.accountId].orEmpty().filter { it.id != m.summary.folderId },
+            folders = folders[m.summary.accountId].orEmpty(),
+            current = m.summary.folderId,
             onPick = { f -> move = false; viewModel.act("move", f.id) },
             onDismiss = { move = false },
         )

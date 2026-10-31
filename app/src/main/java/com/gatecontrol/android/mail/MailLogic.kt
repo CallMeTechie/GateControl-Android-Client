@@ -86,6 +86,104 @@ object MailLogic {
     fun toggleFold(folds: Map<Long, Boolean>, accountId: Long, box: Box): Map<Long, Boolean> =
         folds + (accountId to !foldOpen(folds, accountId, box))
 
+    // ─── the menu: an account's folders as a tree ───────────────────
+
+    /** The menu's order of the folders with a role; the own ones ([MFolder.role] null) stand between archive and junk. */
+    val FOLDER_ORDER = listOf(MFolder.ROLE_INBOX, MFolder.ROLE_SENT, MFolder.ROLE_DRAFTS, MFolder.ROLE_ARCHIVE, null, MFolder.ROLE_JUNK, MFolder.ROLE_TRASH)
+
+    /** From this depth on the rows are not indented any further. */
+    const val FOLDER_MAX_INDENT = 4
+
+    /** A folder in the tree: the folder it hangs below ([parent], null on top), its children and the unread mail below it. */
+    data class FolderNode(val folder: MFolder, val depth: Int, val parent: Long?, val kids: List<Long>, val unreadBelow: Int)
+
+    /** An account's folders as a tree: [nodes] in the menu's order (each parent before its children). */
+    class FolderTree(val nodes: List<FolderNode>) {
+        val byId: Map<Long, FolderNode> = nodes.associateBy { it.folder.id }
+    }
+
+    /** A row of the menu: [indent] the depth up to [FOLDER_MAX_INDENT]; [unreadBelow] only for a closed parent. */
+    data class FolderRow(val folder: MFolder, val depth: Int, val indent: Int, val hasKids: Boolean, val open: Boolean, val unreadBelow: Int)
+
+    private fun folderRank(f: MFolder): Int = FOLDER_ORDER.indexOf(f.role).let { if (it < 0) FOLDER_ORDER.indexOf(null) else it }
+
+    private val folderSort: Comparator<MFolder> = compareBy<MFolder>({ folderRank(it) }, { it.name.lowercase() }, { it.id })
+
+    /**
+     * The tree of an account's folders (`parentId`): the folders with a role always on top in [FOLDER_ORDER], the own
+     * ones by name; children below their parent, by name. A parent the list does not hold (not synced) leaves its
+     * children on top, so does a loop of parents.
+     */
+    fun folderTree(folders: List<MFolder>): FolderTree {
+        val ids = folders.associateBy { it.id }
+        fun parentOf(f: MFolder): Long? = if (f.role != null) null else f.parentId?.takeIf { it != f.id && it in ids }
+        val kids = folders.groupBy { parentOf(it) }
+        val nodes = ArrayList<FolderNode>(folders.size)
+        val seen = HashSet<Long>()
+        // → the unread of the folder and all below it
+        fun walk(f: MFolder, depth: Int, parent: Long?): Int {
+            val at = nodes.size
+            nodes.add(FolderNode(f, depth, parent, emptyList(), 0))
+            val mine = ArrayList<Long>()
+            var below = 0
+            for (c in kids[f.id].orEmpty().sortedWith(folderSort)) {
+                if (!seen.add(c.id)) continue
+                mine.add(c.id)
+                below += walk(c, depth + 1, f.id)
+            }
+            nodes[at] = FolderNode(f, depth, parent, mine, below)
+            return f.unread + below
+        }
+        for (f in kids[null].orEmpty().sortedWith(folderSort)) if (seen.add(f.id)) walk(f, 0, null)
+        for (f in folders.sortedWith(folderSort)) if (seen.add(f.id)) walk(f, 0, null)
+        return FolderTree(nodes)
+    }
+
+    /** The folders above [folderId] in the tree, its parent first. */
+    fun folderAncestors(tree: FolderTree, folderId: Long?): List<Long> {
+        val out = ArrayList<Long>()
+        var n = folderId?.let { tree.byId[it] }
+        while (n?.parent != null && n.parent !in out) {
+            out.add(n.parent!!)
+            n = tree.byId[n.parent!!]
+        }
+        return out
+    }
+
+    /**
+     * Whether a folder shows its children: as the person folded it ([folderFolds], kept on the device), else closed —
+     * open when the folder shown ([current]) lies below it.
+     */
+    fun folderOpen(tree: FolderTree, folderFolds: Map<Long, Boolean>, folderId: Long, current: Long?): Boolean =
+        folderFolds[folderId] ?: (folderId in folderAncestors(tree, current))
+
+    /** [folderFolds] after a tap on a folder's arrow (it opens or closes; nothing else changes). */
+    fun toggleFolder(tree: FolderTree, folderFolds: Map<Long, Boolean>, folderId: Long, current: Long?): Map<Long, Boolean> =
+        folderFolds + (folderId to !folderOpen(tree, folderFolds, folderId, current))
+
+    /** [folderFolds] with every folder above [folderId] open (a folder picked or pointed at is never hidden). */
+    fun revealFolder(tree: FolderTree, folderFolds: Map<Long, Boolean>, folderId: Long?): Map<Long, Boolean> {
+        val up = folderAncestors(tree, folderId)
+        return if (up.all { folderFolds[it] == true }) folderFolds else folderFolds + up.associateWith { true }
+    }
+
+    /** The rows the menu shows: the children of a closed folder are left out. */
+    fun folderRows(tree: FolderTree, folderFolds: Map<Long, Boolean>, current: Long?): List<FolderRow> {
+        val out = ArrayList<FolderRow>(tree.nodes.size)
+        var hiddenBelow = -1
+        for (n in tree.nodes) {
+            if (hiddenBelow >= 0) {
+                if (n.depth > hiddenBelow) continue
+                hiddenBelow = -1
+            }
+            val has = n.kids.isNotEmpty()
+            val open = has && folderOpen(tree, folderFolds, n.folder.id, current)
+            out.add(FolderRow(n.folder, n.depth, minOf(n.depth, FOLDER_MAX_INDENT), has, open, if (has && !open) n.unreadBelow else 0))
+            if (has && !open) hiddenBelow = n.depth
+        }
+        return out
+    }
+
     // ─── a conversation ─────────────────────────────────────────────
 
     /**

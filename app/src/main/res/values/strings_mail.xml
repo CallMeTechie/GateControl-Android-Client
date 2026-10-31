@@ -250,6 +250,11 @@
     <string name="mail_folders_hide">Hide folders</string>
     <string name="mail_folders_shown">Folders shown</string>
     <string name="mail_folders_hidden">Folders hidden</string>
+    <string name="mail_subfolders_expand">Expand %1$s</string>
+    <string name="mail_subfolders_collapse">Collapse %1$s</string>
+    <string name="mail_subfolders_shown">Subfolders shown</string>
+    <string name="mail_subfolders_hidden">Subfolders hidden</string>
+    <string name="mail_subfolders_unread">%1$d unread in subfolders</string>
     <string name="mail_thread_show">Show all mails of the conversation</string>
     <string name="mail_thread_hide">Hide the conversation</string>
     <string name="mail_thread_shown">Unfolded</string>
