@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.72.0] - 2026-10-31
+
+### Features
+- GC-Kontakt als Master, Favoriten und Termin-Widget auf Start (Mail 1.4.0) (#167)
+
+---
+
 ## [1.71.0] - 2026-10-31
 
 ### Features
