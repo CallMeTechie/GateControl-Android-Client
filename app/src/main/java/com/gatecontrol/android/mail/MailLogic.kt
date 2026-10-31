@@ -371,22 +371,39 @@ object MailLogic {
      * links and preformatted text stay inside the screen. What is still wider (a newsletter's table of a fixed 600 px)
      * is made smaller as a whole with [zoom] (CSS `zoom` on the mail, as mail apps do), measured from outside by
      * [fitZoom] — the page itself never runs a script. Pinching still zooms in.
+     *
+     * [dark]: the app's dark page around a mail whose colours [darkMail] changed already (as the Outlook app shows
+     * mails while it is dark); else the light page the mail was made for.
      */
     fun page(html: String, dark: Boolean = false, zoom: Double = 1.0): String {
         val csp = "default-src 'none'; img-src $BASE_URL data:; style-src 'unsafe-inline'; font-src data:; " +
             "script-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'"
-        val colors = if (dark) "color-scheme: light;" else ""
+        val colors = if (dark) MailDark.pageCss() else ":root{color-scheme:light}html,body{background:#FFFFFF;color:#1A1D22}"
         val z = zoom.coerceIn(MIN_ZOOM, 1.0)
         val fit = if (z < 1.0) "#gc-fit{zoom:${String.format(java.util.Locale.ROOT, "%.3f", z)}}" else ""
         return "<!doctype html><html><head><meta charset=\"utf-8\">" +
             "<meta http-equiv=\"Content-Security-Policy\" content=\"$csp\">" +
+            "<meta name=\"color-scheme\" content=\"${if (dark) "dark" else "light"}\">" +
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
-            "<style>html,body{margin:0;padding:0;$colors}body{padding:${PAGE_PADDING}px;font-family:sans-serif;font-size:15px;line-height:1.5;" +
-            "word-wrap:break-word;overflow-wrap:anywhere;background:#FFFFFF;color:#1A1D22}" +
+            "<style>html,body{margin:0;padding:0}${colors}body{padding:${PAGE_PADDING}px;font-family:sans-serif;font-size:15px;line-height:1.5;" +
+            "word-wrap:break-word;overflow-wrap:anywhere}" +
             "img{max-width:100%;height:auto}table{max-width:100%}td,th{overflow-wrap:anywhere}" +
             "a{overflow-wrap:anywhere;word-break:break-word}pre{white-space:pre-wrap;overflow-wrap:anywhere}$fit</style></head><body>" +
             "<div id=\"gc-fit\">" + html + "</div></body></html>"
     }
+
+    /**
+     * A mail's (cleaned) HTML in the dark ([MailDark]): light backgrounds dark, dark text light, the hue kept, text
+     * readable (at least 4.5 : 1), pictures never touched. The original stays what the server sent (answering and
+     * forwarding use the server's copy).
+     */
+    fun darkMail(html: String): String = MailDark.html(html)
+
+    /**
+     * Whether a mail is shown dark: the app is dark, "Mails dunkel darstellen" is on and the mail was not switched to
+     * light ("Hell anzeigen").
+     */
+    fun showDark(appDark: Boolean, setting: Boolean, shownLight: Boolean): Boolean = appDark && setting && !shownLight
 
     /**
      * The [page]'s zoom so the mail fits without scrolling sideways, from what the WebView measured: [viewCss] its

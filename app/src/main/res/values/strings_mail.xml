@@ -152,6 +152,11 @@
     <string name="mail_settings_list">List</string>
     <string name="mail_settings_threads">Group conversations</string>
     <string name="mail_settings_threads_text">Replies are shown together with the mail they answer.</string>
+    <string name="mail_settings_display">Appearance</string>
+    <string name="mail_settings_dark_mails">Show mails dark</string>
+    <string name="mail_settings_dark_mails_text">While the app is dark, mails are shown dark too: light backgrounds turn dark and dark text light, pictures stay unchanged. The sun at the top of a mail shows it light.</string>
+    <string name="mail_show_light">Show light</string>
+    <string name="mail_show_dark">Show dark</string>
     <string name="mail_settings_swipe_left">Swipe left</string>
     <string name="mail_settings_swipe_right">Swipe right</string>
     <string name="mail_swipe_read">Read</string>

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.graphics.toColorInt
 import com.gatecontrol.android.mail.MailLogic
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
@@ -30,7 +31,9 @@ import java.io.ByteArrayInputStream
  * file or content access, no forms, storage or windows; the page's requests are answered by the app — the plugin's
  * pictures (`img/<token>`, `cid/<mail>/<attachment>`) loaded with the app's own sign-in through [loader], everything
  * else answered empty, so the mail never reaches the network by itself. A tap on a link leaves the app ([onLink]).
- * Shown on a light sheet: mails are made for one (the app has no dark rendering of mails).
+ * Shown on a light sheet as the mail was made, or [dark]: its colours changed before it is shown ([MailLogic.darkMail]
+ * — light backgrounds dark, dark text light, the hue kept, pictures never) on the app's dark page, as the Outlook app
+ * does while it is dark. No algorithmic darkening of the WebView: not on every phone, and it spoils pictures.
  *
  * Wide mails (a newsletter's table of a fixed width) fit the screen: the page keeps pictures and tables inside it,
  * and what is still wider is measured from outside (the WebView's content width, no script) and laid out again
@@ -45,20 +48,25 @@ internal fun MailHtmlView(
     modifier: Modifier = Modifier,
     /** Counts up when the page is to load its pictures again (an embedded one the provider was still sending came). */
     round: Int = 0,
+    /** The mail dark ([MailLogic.showDark]). */
+    dark: Boolean = false,
 ) {
     val load = rememberUpdatedState(loader)
     val link = rememberUpdatedState(onLink)
     // the zoom that makes the mail fit (1 until measured), and how often it was laid out again
     val zoom = remember(html) { mutableDoubleStateOf(1.0) }
     val rounds = remember(html) { intArrayOf(0) }
-    val page = remember(html, zoom.doubleValue) { MailLogic.page(html, zoom = zoom.doubleValue) }
-    Box(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color.White)) {
+    // the colours in the dark once per mail (the zoom does not change them)
+    val body = remember(html, dark) { if (dark) MailLogic.darkMail(html) else html }
+    val page = remember(body, dark, zoom.doubleValue) { MailLogic.page(body, dark = dark, zoom = zoom.doubleValue) }
+    val sheet = if (dark) DARK_SHEET else Color.WHITE
+    Box(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color(sheet))) {
         AndroidView(
             modifier = Modifier.fillMaxWidth(),
             factory = { ctx ->
                 MailWebView(ctx).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                    setBackgroundColor(Color.WHITE)
+                    setBackgroundColor(sheet)
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
                     settings.apply {
@@ -121,6 +129,7 @@ internal fun MailHtmlView(
                         zoom.doubleValue = next
                     }
                 }
+                web.setBackgroundColor(sheet)
                 val key = page to round
                 if (web.tag != key) {
                     web.tag = key
@@ -130,6 +139,9 @@ internal fun MailHtmlView(
         )
     }
 }
+
+/** The dark page behind a mail (the app's panel, [com.gatecontrol.android.mail.MailDark.BG]). */
+private val DARK_SHEET = com.gatecontrol.android.mail.MailDark.BG.toColorInt()
 
 /** Answers of the page's requests are never kept by the WebView. */
 private val NO_STORE = mapOf("Cache-Control" to "no-store")

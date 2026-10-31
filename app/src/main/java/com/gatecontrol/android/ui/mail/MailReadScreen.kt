@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,14 +79,19 @@ data class MailReadNav(
 )
 
 /**
- * A mail (mockup "Mail lesen mit KI und Anhang nach Drive"): archive, delete and more on top; subject, the
+ * A mail (mockup "Mail lesen mit KI und Anhang nach Drive"): archive, delete and more on top — while the app is dark
+ * also the sun / moon that shows this mail light as it was made ("Hell anzeigen", as in the Outlook app) or dark
+ * again ("Mails dunkel darstellen" in the settings); subject, the
  * conversation ("Unterhaltung · n Mails": a tap shows all its mails, oldest first, each unfolding), sender (a tap
  * opens the sender's page) and account; the AI bar ("Kurz gesagt", to-dos as chips); the attachments with Drive's
  * suggestion; "Bilder laden"; the body; answer suggestions, "Antworten" and "Weiterleiten" below.
  */
 @Composable
-fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewModel()) {
+fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewModel(), display: MailDisplayViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val darkMails by display.darkMails.collectAsStateWithLifecycle()
+    // "Hell anzeigen": this mail light as it was made (until it is closed)
+    var shownLight by rememberSaveable(viewModel.id) { mutableStateOf(false) }
     val me by viewModel.me.collectAsStateWithLifecycle()
     val event by viewModel.event.collectAsStateWithLifecycle()
     val folders by viewModel.folders.collectAsStateWithLifecycle()
@@ -107,6 +113,8 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
 
     val m = state.message
     val account = me?.account(m?.summary?.accountId)
+    val canDark = extra.isDark && darkMails
+    val dark = MailLogic.showDark(extra.isDark, darkMails, shownLight)
     val onLink: (String) -> Unit = { url ->
         val to = MailLogic.mailtoAddress(url)
         if (to != null) nav.mailTo(to.email) else openExternal(context, url)
@@ -117,6 +125,14 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
             GcIconButton(GcIcons.Back, contentDescription = stringResource(R.string.mail_back), onClick = nav.back, tint = MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.weight(1f))
             if (m != null) {
+                if (canDark && (m.html != null || state.conversation.any { it.html != null })) {
+                    GcIconButton(
+                        if (shownLight) GcIcons.Moon else GcIcons.Sun,
+                        contentDescription = stringResource(if (shownLight) R.string.mail_show_dark else R.string.mail_show_light),
+                        onClick = { shownLight = !shownLight },
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
                 GcIconButton(GcIcons.Archive, contentDescription = stringResource(R.string.mail_archive), onClick = { viewModel.act(MailLogic.SWIPE_ARCHIVE) }, tint = MaterialTheme.colorScheme.onBackground)
                 GcIconButton(GcIcons.Trash, contentDescription = stringResource(R.string.mail_delete), onClick = { viewModel.act(MailLogic.SWIPE_DELETE) }, tint = MaterialTheme.colorScheme.onBackground)
                 Box {
@@ -169,6 +185,7 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                             onOpen = { nav.open(t.id) },
                             loader = viewModel::picture,
                             onLink = onLink,
+                            dark = dark,
                         )
                     }
                     if (thread) {
@@ -232,7 +249,7 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                     val html = m.html
                     if (html != null) {
                         val page = remember(html, m.attachments) { MailLogic.rewriteCid(html, m.id, m.attachments) }
-                        MailHtmlView(page, loader = viewModel::picture, onLink = onLink, round = state.pictureRound)
+                        MailHtmlView(page, loader = viewModel::picture, onLink = onLink, round = state.pictureRound, dark = dark)
                     } else {
                         SelectionContainer {
                             Text(m.text.orEmpty(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f))
@@ -390,6 +407,7 @@ private fun ThreadMail(
     onOpen: () -> Unit,
     loader: suspend (String) -> Pair<ByteArray, String>?,
     onLink: (String) -> Unit,
+    dark: Boolean,
 ) {
     val extra = GateControlTheme.extraColors
     val s = t.summary
@@ -429,7 +447,7 @@ private fun ThreadMail(
                 val html = t.html
                 if (html != null) {
                     val page = remember(html, t.attachments) { MailLogic.rewriteCid(html, t.id, t.attachments) }
-                    MailHtmlView(page, loader = loader, onLink = onLink)
+                    MailHtmlView(page, loader = loader, onLink = onLink, dark = dark)
                 } else {
                     SelectionContainer {
                         Text(t.text.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f), modifier = Modifier.padding(horizontal = 6.dp))

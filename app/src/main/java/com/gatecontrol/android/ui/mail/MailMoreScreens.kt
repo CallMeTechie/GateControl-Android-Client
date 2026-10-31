@@ -277,10 +277,17 @@ private fun swipeLabel(v: String): String = stringResource(
     },
 )
 
-/** "Mail-Einstellungen": conversations, the swipes, the accounts and the storage. */
+/** "Mail-Einstellungen": conversations, the swipes, "Darstellung" (mails dark), the accounts and the storage. */
 @Composable
-fun MailSettingsScreen(onBack: () -> Unit, onAccount: (Long) -> Unit, onAdd: () -> Unit, viewModel: MailSettingsViewModel = hiltViewModel()) {
+fun MailSettingsScreen(
+    onBack: () -> Unit,
+    onAccount: (Long) -> Unit,
+    onAdd: () -> Unit,
+    viewModel: MailSettingsViewModel = hiltViewModel(),
+    display: MailDisplayViewModel = hiltViewModel(),
+) {
     val me by viewModel.me.collectAsStateWithLifecycle()
+    val darkMails by display.darkMails.collectAsStateWithLifecycle()
     val toastText by viewModel.toast.collectAsStateWithLifecycle()
     val context = mailContext()
     LaunchedEffect(toastText) {
@@ -312,6 +319,15 @@ fun MailSettingsScreen(onBack: () -> Unit, onAccount: (Long) -> Unit, onAdd: () 
                     options = MSettings.SWIPES.map { it to swipeLabel(it) },
                     selected = if (left) m.settings.swipeLeft else m.settings.swipeRight,
                     onSelect = { v -> if (left) viewModel.put(swipeLeft = v) else viewModel.put(swipeRight = v) },
+                )
+            }
+            GcSectionLabel(stringResource(R.string.mail_settings_display))
+            GcCard(contentPadding = PaddingValues(vertical = 4.dp)) {
+                GcSwitchRow(
+                    label = stringResource(R.string.mail_settings_dark_mails),
+                    description = stringResource(R.string.mail_settings_dark_mails_text),
+                    checked = darkMails,
+                    onCheckedChange = display::setDarkMails,
                 )
             }
             GcSectionLabel(stringResource(R.string.mail_accounts))
