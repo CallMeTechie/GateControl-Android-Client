@@ -139,6 +139,27 @@ class DriveWorkLogicTest {
     }
 
     @Test
+    fun `an old marked photo nothing can tell loses the mark`() {
+        // no hint, also in the learning phase: back to private, without the mark
+        val none = DriveWorkLogic.resort(null, null, ready = false, autoSort = true, old = true)
+        assertEquals(DriveWorkLogic.Resorted(Dest.PRIVATE, byPlace = false, old = true), none)
+        assertEquals(Dest.PRIVATE, DriveWorkLogic.resort(0.49, null, ready = false, autoSort = true, old = true)?.dest)
+        assertNull(DriveWorkLogic.learnsFrom(none!!), "not an example")
+        // the AI thinks it rather work: it stays marked
+        assertNull(DriveWorkLogic.resort(0.5, null, ready = false, autoSort = true, old = true))
+        assertNull(DriveWorkLogic.resort(0.84, null, ready = true, autoSort = true, old = true))
+        // a new photo stays marked
+        assertNull(DriveWorkLogic.resort(null, null, ready = false, autoSort = true, old = false))
+        assertNull(DriveWorkLogic.resort(0.3, null, ready = true, autoSort = true, old = false))
+        // "Selbst einsortieren" off: nothing
+        assertNull(DriveWorkLogic.resort(null, null, ready = true, autoSort = false, old = true))
+        // a place or a sure AI still decide first
+        assertEquals(DriveWorkLogic.Resorted(Dest.WORK, byPlace = true), DriveWorkLogic.resort(null, WifiZone.WORK, ready = false, autoSort = true, old = true))
+        assertEquals(DriveWorkLogic.Resorted(Dest.WORK, byPlace = false), DriveWorkLogic.resort(0.9, null, ready = true, autoSort = true, old = true))
+        assertEquals(DriveWorkLogic.Resorted(Dest.PRIVATE, byPlace = false), DriveWorkLogic.resort(0.1, null, ready = true, autoSort = true, old = true))
+    }
+
+    @Test
     fun `the AI never learns from its own sorting`() {
         assertNull(DriveWorkLogic.learnsFrom(DriveWorkLogic.Resorted(Dest.WORK, byPlace = false)))
         assertNull(DriveWorkLogic.learnsFrom(DriveWorkLogic.Resorted(Dest.PRIVATE, byPlace = false)))

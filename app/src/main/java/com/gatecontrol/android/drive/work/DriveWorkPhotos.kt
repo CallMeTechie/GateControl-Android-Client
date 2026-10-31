@@ -477,35 +477,66 @@ class DriveWorkPhotos @Inject constructor(
                     resortWaits = 0L
                 }
                 runCatching { resort() }.onFailure { if (it is CancellationException) throw it }
+                // the old photos in portions, one after the other
+                while (resortMore) {
+                    resortMore = false
+                    delay(OLD_NEXT_MS)
+                    runCatching { resort() }.onFailure { if (it is CancellationException) throw it }
+                }
             }
         }
     }
 
     /**
      * The photos marked "zu prüfen" looked at again ("Selbst einsortieren, wenn sicher" on): the place they were taken
-     * at (still on the phone, or noted at the backup), else the AI once it learned and is sure. Sorted through [assign]
-     * — work into the work folder, private loses the mark; only a place's sorting is an example, the AI's never.
-     * Photos whose sorting the person took back stay. The number sorted ([autoSorted] then).
+     * at (still on the phone, or noted at the backup), else the AI once it learned and is sure; an old photo (taken
+     * before the setup — marked by an earlier version) that neither can tell loses the mark unless the AI thinks it
+     * rather work. Sorted through [assign] — work into the work folder, private loses the mark; only a place's sorting
+     * is an example, the AI's never. Photos whose sorting the person took back stay. Old photos [OLD_BATCH] a run (the
+     * next run follows soon). The number sorted ([autoSorted] then).
      */
     suspend fun resort(): Int {
         val s = store.settings.value
         if (!s.active || !s.autoSort) return 0
         if (!resortLock.tryLock()) return 0
+        var more = false
         try {
             resortedAt = System.currentTimeMillis()
             store.examples()
-            val ready = store.learned.value.ready
+            val learned = store.learned.value
+            val ready = learned.ready
             val places = placesNow()
-            if (!ready && places.isEmpty()) return 0
-            val m = if (ready) model() else null
+            // the model as soon as it can tell a little (an old photo's hint), deciding alone only once ready
+            val m = if (learned.usable) model() else null
             val held = store.placeBook().held
+            val since = store.since()
             val groups = LinkedHashMap<DriveWorkLogic.Resorted, MutableList<DNode>>()
-            for (n in markedPhotos(RESORT_LOOK)) {
-                if (!isImage(n) || n.id in held) continue
-                val at = if (places.isEmpty()) null else runCatching { geoOf(n) }.getOrNull()?.let { DriveWorkPlaces.zoneAt(places, it) }
-                val score = if (at == null && m != null) runCatching { featuresOf(n) }.getOrNull()?.let { m.predict(it) } else null
-                val r = DriveWorkLogic.resort(score, at, ready, autoSort = true) ?: continue
-                groups.getOrPut(r) { mutableListOf() } += n
+            var old = 0
+            forMarked { n, i ->
+                if (!isImage(n) || n.id in held) return@forMarked true
+                val isOld = DriveWorkLogic.isOld(takenMs(n), since)
+                // beyond the newest few only old photos, and only from what is known already (nothing labeled anew)
+                if (!isOld && i >= RESORT_LOOK) return@forMarked true
+                val cheap = i >= RESORT_LOOK
+                val geo = when {
+                    places.isEmpty() -> null
+                    cheap -> store.geo(n.id)
+                    else -> runCatching { geoOf(n) }.getOrNull()
+                }
+                val at = geo?.let { DriveWorkPlaces.zoneAt(places, it) }
+                val score = if (at != null) null else {
+                    val f = if (cheap) store.features(key(n)) else runCatching { featuresOf(n) }.getOrNull()
+                    f?.let { m?.predict(it) } ?: if (isOld) DriveWorkLogic.hintOf(n, store.localReview.value)?.let { it / 100.0 } else null
+                }
+                val r = DriveWorkLogic.resort(score, at, ready, autoSort = true, old = isOld)
+                if (r != null) {
+                    groups.getOrPut(r) { mutableListOf() } += n
+                    if (r.old && ++old >= OLD_BATCH) {
+                        more = true
+                        return@forMarked false
+                    }
+                }
+                true
             }
             var count = 0
             var undo: Undo? = null
@@ -522,25 +553,39 @@ class DriveWorkPhotos @Inject constructor(
                 Timber.i("Drive work: %d marked photos sorted", count)
                 _autoSorted.value = AutoSorted(count, undo)
             }
+            if (count == 0) more = false
             return count
         } finally {
             resortLock.unlock()
+            // a full batch of old photos: the next one soon
+            resortMore = more
         }
     }
 
-    /** The photos marked "zu prüfen", the newest [limit]: Drive's (1.13), else this phone's marks. */
-    private suspend fun markedPhotos(limit: Int): List<DNode> {
+    // [resort] stopped after a full batch of old photos
+    @Volatile private var resortMore = false
+
+    /**
+     * Each photo marked "zu prüfen", the newest first, with its index, until [each] says stop: Drive's (1.13,
+     * `class=review`, at most [RESORT_SCAN]), else this phone's marks (the newest [RESORT_LOOK], each fetched).
+     */
+    private suspend fun forMarked(each: suspend (DNode, Int) -> Boolean) {
+        var i = 0
         if (!live.supports(DMe.FEATURE_PHOTO_CLASSES)) {
-            return store.localReview.value.keys.toList().takeLast(limit).mapNotNull { id -> resolver.resolve(id) }
+            for (id in store.localReview.value.keys.toList().takeLast(RESORT_LOOK).reversed()) {
+                val n = resolver.resolve(id) ?: continue
+                if (!each(n, i++)) return
+            }
+            return
         }
-        val out = ArrayList<DNode>()
         var before: String? = null
-        while (out.size < limit) {
-            val page = api.photos(before = before, limit = 120, cls = "review").valueOrNull() ?: break
-            out += page.items
-            before = page.next ?: break
+        while (i < RESORT_SCAN) {
+            val page = api.photos(before = before, limit = 120, cls = "review").valueOrNull() ?: return
+            for (n in page.items) {
+                if (i >= RESORT_SCAN || !each(n, i++)) return
+            }
+            before = page.next ?: return
         }
-        return out.take(limit)
     }
 
     /** "Rückgängig" of [resort]: as [undo]; the photos wait for the person from then on. */
@@ -661,8 +706,13 @@ class DriveWorkPhotos @Inject constructor(
     }
 
     private companion object {
-        /** Marked photos looked at again per run. */
+        /** Marked photos looked at again per run (labeled if need be). */
         const val RESORT_LOOK = 400
+        /** Beyond them old photos only, of at most this many marked photos per run. */
+        const val RESORT_SCAN = 3000
+        /** Old photos unmarked per run at most; the next run follows after [OLD_NEXT_MS]. */
+        const val OLD_BATCH = 200
+        const val OLD_NEXT_MS = 60L * 1000
         /** After something was learned, not sooner than this after the last look. */
         const val LEARNED_GAP_MS = 5L * 60 * 1000
         /** After a backup run, not sooner than this after the last look. */

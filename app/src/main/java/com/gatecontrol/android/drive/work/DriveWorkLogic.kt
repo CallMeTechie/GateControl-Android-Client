@@ -95,23 +95,30 @@ object DriveWorkLogic {
     /** Taken ([takenMs]) before the work photos were set up on this phone ([since]): no WLAN timeline tells where. */
     fun isOld(takenMs: Long?, since: Long?): Boolean = takenMs != null && takenMs > 0 && since != null && takenMs < since
 
-    /** A marked photo sorted again: to [dest]; [byPlace] the place said so (an example then), else the AI (never one). */
-    data class Resorted(val dest: Dest, val byPlace: Boolean)
+    /**
+     * A marked photo sorted again: to [dest]; [byPlace] the place said so (an example then), else the AI or — [old] —
+     * an old photo nothing can tell, back to private without the mark (never an example).
+     */
+    data class Resorted(val dest: Dest, val byPlace: Boolean, val old: Boolean = false)
 
     /**
      * A photo marked "zu prüfen" looked at again ("Selbst einsortieren, wenn sicher" on — [autoSort]): its place
-     * ([at]) first, else the AI when [ready] and sure ([score] from [SURE_WORK], up to [SURE_PRIVATE]); null: it stays.
+     * ([at]) first, else the AI when [ready] and sure ([score] from [SURE_WORK], up to [SURE_PRIVATE]); else an [old]
+     * photo (taken before the setup, [isOld]) the AI does not think rather work ([score] null or below [OLD_HINT]) loses
+     * the mark and stays private, as a new backup would place it now; null: it stays.
      */
-    fun resort(score: Double?, at: WifiZone?, ready: Boolean, autoSort: Boolean): Resorted? {
+    fun resort(score: Double?, at: WifiZone?, ready: Boolean, autoSort: Boolean, old: Boolean = false): Resorted? {
         if (!autoSort) return null
         when (at) {
             WifiZone.WORK -> return Resorted(Dest.WORK, byPlace = true)
             WifiZone.HOME -> return Resorted(Dest.PRIVATE, byPlace = true)
             WifiZone.NEITHER, null -> Unit
         }
-        if (!ready || score == null) return null
-        if (score >= SURE_WORK) return Resorted(Dest.WORK, byPlace = false)
-        if (score <= SURE_PRIVATE) return Resorted(Dest.PRIVATE, byPlace = false)
+        if (ready && score != null) {
+            if (score >= SURE_WORK) return Resorted(Dest.WORK, byPlace = false)
+            if (score <= SURE_PRIVATE) return Resorted(Dest.PRIVATE, byPlace = false)
+        }
+        if (old && (score == null || score < OLD_HINT)) return Resorted(Dest.PRIVATE, byPlace = false, old = true)
         return null
     }
 
