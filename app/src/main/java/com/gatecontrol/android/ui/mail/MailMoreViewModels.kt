@@ -12,6 +12,7 @@ import com.gatecontrol.android.mail.MOutboxItem
 import com.gatecontrol.android.mail.MResult
 import com.gatecontrol.android.mail.MSettings
 import com.gatecontrol.android.mail.MSummary
+import com.gatecontrol.android.mail.MailDisplaySettings
 import com.gatecontrol.android.mail.MailJson
 import com.gatecontrol.android.mail.MailRepository
 import com.gatecontrol.android.navigation.Screen
@@ -218,6 +219,14 @@ class MailSearchViewModel @Inject constructor(private val repository: MailReposi
             }
         }
     }
+}
+
+/** "Mails dunkel darstellen" (kept on this phone): the reading screen and "Mail-Einstellungen › Darstellung". */
+@HiltViewModel
+class MailDisplayViewModel @Inject constructor(private val settings: MailDisplaySettings) : ViewModel() {
+    val darkMails: StateFlow<Boolean> = settings.darkMails
+
+    fun setDarkMails(on: Boolean) = settings.setDarkMails(on)
 }
 
 /** "Mail-Einstellungen": the list settings (`PUT settings`) and the accounts. */

@@ -152,6 +152,11 @@
     <string name="mail_settings_list">Liste</string>
     <string name="mail_settings_threads">Unterhaltungen gruppieren</string>
     <string name="mail_settings_threads_text">Antworten erscheinen zusammen mit der Mail, auf die sie antworten.</string>
+    <string name="mail_settings_display">Darstellung</string>
+    <string name="mail_settings_dark_mails">Mails dunkel darstellen</string>
+    <string name="mail_settings_dark_mails_text">Ist die App dunkel, erscheinen auch Mails dunkel: Helle Hintergründe werden dunkel, dunkle Schrift wird hell, Bilder bleiben unverändert. Die Sonne oben an einer Mail zeigt sie hell.</string>
+    <string name="mail_show_light">Hell anzeigen</string>
+    <string name="mail_show_dark">Dunkel anzeigen</string>
     <string name="mail_settings_swipe_left">Wischen nach links</string>
     <string name="mail_settings_swipe_right">Wischen nach rechts</string>
     <string name="mail_swipe_read">Gelesen</string>
