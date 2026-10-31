@@ -53,6 +53,8 @@
     <string name="mail_accounts">Konten</string>
     <string name="mail_add_account">Konto hinzufügen</string>
     <string name="mail_settings">Mail-Einstellungen</string>
+    <string name="mail_calendar">Kalender</string>
+    <string name="mail_contacts">Kontakte</string>
     <string name="mail_quota">%1$s von %2$s belegt</string>
     <string name="mail_offline_copy">Offline – du siehst den zuletzt geladenen Stand.</string>
     <string name="mail_account_auth_failed">%1$s: Anmeldung abgelehnt. Tippen, um dich neu anzumelden.</string>

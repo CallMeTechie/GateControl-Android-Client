@@ -30,7 +30,11 @@ private class MailNavigation(private val navController: NavHostController) {
         draft = { go(Screen.MailCompose.create(draft = it)) },
         search = { go(Screen.MailSearch.route) },
         filing = { go(Screen.MailFiling.route) },
-        addAccount = { go(Screen.MailAddAccount.create()) },
+        addAccount = {
+            // an account is added in the settings: back from adding leads there
+            go(Screen.MailSettings.route)
+            go(Screen.MailAddAccount.create())
+        },
         settings = { go(Screen.MailSettings.route) },
         account = { go(Screen.MailAccount.create(it)) },
         outbox = { go(Screen.MailOutbox.route) },
