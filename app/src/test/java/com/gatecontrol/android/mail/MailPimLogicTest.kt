@@ -214,7 +214,11 @@ class MailPimLogicTest {
         assertEquals(1 to "w", MailPimLogic.reminderParts(10080))
         assertEquals(0 to null, MailPimLogic.reminderParts(0))
         assertEquals(1 to 18 * 60, MailPimLogic.allDayReminder(360))
-        // the server's default 1080: 06:00 the day before
+        // the default (like the server's since Mail 1.3.1): 18:00 the day before
+        assertEquals(1 to 18 * 60, MailPimLogic.allDayReminder(MCalPrefs.DEFAULT.allDayReminder!!))
+        // the choices: 18:00 and 9:00 the day before, 9:00 two days and a week before
+        assertEquals(listOf(1 to 18 * 60, 1 to 9 * 60, 2 to 9 * 60, 7 to 9 * 60), MailPimLogic.ALL_DAY_REMINDERS.map(MailPimLogic::allDayReminder))
+        // the old default 1080 (stored by the server before Mail 1.3.1): 06:00 the day before
         assertEquals(1 to 6 * 60, MailPimLogic.allDayReminder(1080))
         assertEquals(0 to 0, MailPimLogic.allDayReminder(0))
         assertEquals(2 to 9 * 60, MailPimLogic.allDayReminder(2340))

@@ -87,7 +87,10 @@ class MailPimJsonTest {
         assertEquals("week", c.prefs.view)
         assertEquals(0, c.prefs.weekStart)
         assertNull(c.prefs.defaultReminder)
+        // a stored value stays as it is; without one (or without prefs) the default 360 = 18:00 the day before
         assertEquals(1080, c.prefs.allDayReminder)
+        assertEquals(360, MailPimJson.calPrefs(o("""{"view":"week"}""")).allDayReminder)
+        assertEquals(360, MailPimJson.calPrefs(null).allDayReminder)
         assertEquals(3L, c.consent.single().accountId)
     }
 
