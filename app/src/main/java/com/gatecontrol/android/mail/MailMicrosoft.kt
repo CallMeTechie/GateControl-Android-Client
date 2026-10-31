@@ -22,6 +22,9 @@ object MailMicrosoft {
     const val HOST = "com.gatecontrol.client"
     const val DEFAULT_AUTHORITY = "https://login.microsoftonline.com/common"
     val DEFAULT_SCOPES = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send")
+    /** Since Mail 1.2.0: the rights of calendars and contacts (`Account.missingScopes`). */
+    const val CALENDAR_SCOPE = "Calendars.ReadWrite"
+    const val CONTACTS_SCOPE = "Contacts.ReadWrite"
 
     private val random = SecureRandom()
     private val VERIFIER = Regex("^[A-Za-z0-9._~-]{43,128}$")

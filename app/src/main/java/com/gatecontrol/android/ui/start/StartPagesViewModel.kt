@@ -26,7 +26,11 @@ import javax.inject.Inject
 class StartPagesViewModel @Inject constructor(
     private val store: StartPagesStore,
     arrangement: StartArrangement,
+    mail: com.gatecontrol.android.mail.MailRepository,
 ) : ViewModel() {
+
+    /** Mail's `me` (its calendar and contacts can be pages beside Start). */
+    val mailMe: StateFlow<com.gatecontrol.android.mail.MMe?> = mail.me
 
     /** All page ids in their order (StartPages.visible picks those shown). */
     val pages: StateFlow<List<String>> = store.pages

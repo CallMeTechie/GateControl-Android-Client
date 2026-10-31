@@ -45,6 +45,8 @@ data class MUndo(val outboxId: Long, val draftId: Long?, val untilElapsed: Long,
 class MailRepository @Inject constructor(
     val api: MailApi,
     val cache: MailCache,
+    /** Calendars and contacts (since Mail 1.2.0): their live events and their copy go with Mail's. */
+    val pim: MailPimRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
@@ -120,6 +122,8 @@ class MailRepository @Inject constructor(
 
     /** `event: plugin` of Mail (`mail { kind: 'changed', accountId, folderId }`): the lists and the counts load again. */
     fun onPluginEvent(type: String, data: JsonElement?) {
+        // `calendar` and `contacts` (since Mail 1.2.0) belong to the calendar and the contacts
+        if (pim.onPluginEvent(type, data)) return
         val changed = MailJson.changed(data) ?: if (type == "mail" || type == "changed") MChanged(null, null) else return
         _changed.tryEmit(changed)
         if (refreshJob?.isActive != true) {
@@ -132,6 +136,7 @@ class MailRepository @Inject constructor(
 
     /** (Re)connected: what changed meanwhile. */
     fun onStreamOpen() {
+        pim.onStreamOpen()
         if (_me.value == null) return
         _changed.tryEmit(MChanged(null, null))
     }
@@ -160,6 +165,7 @@ class MailRepository @Inject constructor(
         _me.value = null
         _folders.value = emptyMap()
         _undo.value = null
+        pim.forget()
         cache.wipe()
     }
 
@@ -221,4 +227,5 @@ class MailStartup @Inject constructor(
 interface MailEntryPoint {
     fun mailStartup(): MailStartup
     fun mailAvatars(): MailAvatars
+    fun mailPim(): MailPimRepository
 }

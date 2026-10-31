@@ -195,7 +195,7 @@ fun StartPagesArrangeScreen(
                     grip = !locked,
                     trailing = {
                         GcOutlineButton(
-                            text = stringResource(if (StartPages.isWidgets(id)) R.string.pages_remove_short else R.string.pages_as_tab_short),
+                            text = stringResource(if (StartPages.isWidgets(id) || StartPages.isPageOnly(id)) R.string.pages_remove_short else R.string.pages_as_tab_short),
                             onClick = { remove(id) },
                             enabled = !locked,
                             fillWidth = false,
@@ -323,9 +323,10 @@ fun StartPagesSettingsScreen(
     val actions = rememberPageActions(viewModel)
     val locked = access.locked
     val pinned = StartPages.visible(all, available)
-    val tabs = listOf(START_PAGE) + available.filter { it !in all }
+    val tabs = listOf(START_PAGE) + available.filter { it !in all && !StartPages.isPageOnly(it) }
     val tabLabel = stringResource(R.string.pages_tab)
     val pageLabel = stringResource(R.string.pages_page)
+    val inMailLabel = stringResource(R.string.pages_in_mail)
 
     Column(
         Modifier
@@ -397,7 +398,7 @@ fun StartPagesSettingsScreen(
                         Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                         Box(Modifier.width(168.dp).semantics { contentDescription = groupLabel }) {
                             GcSegmented(
-                                options = listOf(false to tabLabel, true to pageLabel),
+                                options = listOf(false to if (StartPages.isPageOnly(id)) inMailLabel else tabLabel, true to pageLabel),
                                 selected = asPage,
                                 onSelect = { page ->
                                     if (!locked && page != asPage) {

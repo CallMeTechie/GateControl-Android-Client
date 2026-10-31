@@ -27,9 +27,17 @@ object StartPages {
     const val DRIVE = "drive"
     const val NETWORK = "network"
     const val FAMILIE = "familie"
+    /** Mail's calendar and contacts (since Mail 1.2.0): pages beside Start, never a tab of their own. */
+    const val CALENDAR = "calendar"
+    const val CONTACTS = "contacts"
 
-    /** Functions that can be pages, in the order of the tab bar. */
-    val FEATURES = listOf(CHATS, MAIL, VAULT, DRIVE, NETWORK, FAMILIE)
+    /** Functions that can be pages, in the order of the tab bar (calendar and contacts after Mail). */
+    val FEATURES = listOf(CHATS, MAIL, CALENDAR, CONTACTS, VAULT, DRIVE, NETWORK, FAMILIE)
+
+    /** Functions that are a page or nothing (no tab): taking them off leaves them in their tab (Mail). */
+    val PAGE_ONLY = setOf(CALENDAR, CONTACTS)
+
+    fun isPageOnly(id: String): Boolean = id in PAGE_ONLY
 
     private val WIDGETS = Regex("^w([0-9]{1,3})$")
 

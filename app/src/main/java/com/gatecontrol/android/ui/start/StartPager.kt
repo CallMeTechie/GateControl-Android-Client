@@ -202,6 +202,8 @@ fun StartPager(
     val unpinNow: (String) -> Unit = { id ->
         val message = if (StartPages.isWidgets(id)) {
             resources.getString(R.string.pages_snack_removed)
+        } else if (StartPages.isPageOnly(id)) {
+            resources.getString(R.string.pages_snack_in_mail, startPageLabel(resources, id))
         } else {
             resources.getString(R.string.pages_snack_unpinned, startPageLabel(resources, id))
         }
@@ -217,6 +219,7 @@ fun StartPager(
         locked = locked,
         onUnpin = { unpin(id) },
         onArrange = onArrangePages,
+        pageOnly = StartPages.isPageOnly(id),
     )
 
     Column(Modifier.fillMaxSize()) {

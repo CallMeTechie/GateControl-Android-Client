@@ -151,6 +151,98 @@ class MailCache @Inject constructor(
         }
     }
 
+    // ─── calendars and contacts (since Mail 1.2.0) ──────────────────
+
+    suspend fun putCalendars(raw: JsonObject) { io { write(File(it, "pim/calendars.json"), raw) } }
+
+    suspend fun calendars(): MCalendars? = io { dir -> read(File(dir, "pim/calendars.json"))?.let(MailPimJson::calendars) }
+
+    /** The occurrences of `[from, to)` as the server gave them (only ranges near today are kept, D7: −30 … +90 days). */
+    suspend fun putEvents(from: Long, to: Long, raw: JsonObject, now: Long = System.currentTimeMillis()) {
+        io { dir ->
+            val events = File(dir, "pim/events").apply { mkdirs() }
+            write(File(events, "$from-$to.json"), raw)
+            events.listFiles()?.forEach { f ->
+                val range = MailPimCacheLogic.rangeOf(f.name)
+                if (range == null || !MailPimCacheLogic.keep(range.first, range.second, now)) f.delete()
+            }
+        }
+    }
+
+    /** The copy of `[from, to)`: every kept range that overlaps it, the newest copy of an occurrence winning. */
+    suspend fun events(from: Long, to: Long): MEvents? = io { dir ->
+        val files = File(dir, "pim/events").listFiles()?.mapNotNull { f -> MailPimCacheLogic.rangeOf(f.name)?.let { f to it } }
+            ?.filter { (_, r) -> r.first < to && r.second > from }?.sortedBy { it.first.lastModified() }.orEmpty()
+        if (files.isEmpty()) return@io null
+        val items = LinkedHashMap<String, MOccurrence>()
+        val overlays = LinkedHashMap<String, MOverlayItem>()
+        files.forEach { (f, _) ->
+            read(f)?.let(MailPimJson::events)?.let { e ->
+                e.items.filter { it.start < to && it.end >= from }.forEach { items[it.key] = it }
+                e.overlays.filter { it.start < to && it.end >= from }.forEach { overlays[it.key] = it }
+            }
+        }
+        MEvents(items.values.sortedBy { it.start }, overlays.values.toList(), emptyList())
+    }
+
+    suspend fun putEvent(id: Long, occurrence: String?, raw: JsonObject, now: Long = System.currentTimeMillis()) {
+        io { dir ->
+            write(File(dir, "pim/event/${name("$id:${occurrence.orEmpty()}")}.json"), raw)
+            MailCacheLogic.overflow(File(dir, "pim/event").listFiles()?.map { it.name to it.lastModified() }.orEmpty(), now)
+                .forEach { File(dir, "pim/event/$it").delete() }
+        }
+    }
+
+    suspend fun event(id: Long, occurrence: String?): MEvent? = io { dir ->
+        read(File(dir, "pim/event/${name("$id:${occurrence.orEmpty()}")}.json"))?.let(MailPimJson::event)
+    }
+
+    suspend fun putBooks(raw: JsonObject) { io { write(File(it, "pim/books.json"), raw) } }
+
+    suspend fun books(): MBooks? = io { dir -> read(File(dir, "pim/books.json"))?.let(MailPimJson::books) }
+
+    /** Every contact's summary and the version they are of (`since`). */
+    suspend fun putCards(items: List<MCardSummary>, version: Long) {
+        io { dir -> write(File(dir, "pim/cards.json"), MailPimCacheLogic.cardsJson(items, version)) }
+    }
+
+    suspend fun cards(): Pair<List<MCardSummary>, Long>? = io { dir ->
+        read(File(dir, "pim/cards.json"))?.let { o -> MailPimJson.cardPage(o)?.let { it.items to it.version } }
+    }
+
+    suspend fun putCard(id: Long, raw: JsonObject, now: Long = System.currentTimeMillis()) {
+        io { dir ->
+            write(File(dir, "pim/card/$id.json"), raw)
+            MailCacheLogic.overflow(File(dir, "pim/card").listFiles()?.map { it.name to it.lastModified() }.orEmpty(), now)
+                .forEach { File(dir, "pim/card/$it").delete() }
+        }
+    }
+
+    suspend fun card(id: Long): MCard? = io { dir -> read(File(dir, "pim/card/$id.json"))?.let(MailPimJson::fullCard) }
+
+    suspend fun forgetCard(id: Long) {
+        io { dir -> File(dir, "pim/card/$id.json").delete() }
+    }
+
+    /** A contact's photo (the etag changes with it); the 500 used last stay. */
+    suspend fun putPhoto(id: Long, etag: String, p: MPhoto) {
+        io { dir ->
+            val photos = File(dir, "pim/photos").apply { mkdirs() }
+            File(photos, name("$id:$etag") + if (p.mime == "image/png") ".png" else ".jpg").writeBytes(p.bytes)
+            photos.listFiles()?.sortedByDescending { it.lastModified() }?.drop(MailPimCacheLogic.MAX_PHOTOS)?.forEach { it.delete() }
+        }
+    }
+
+    suspend fun photo(id: Long, etag: String): MPhoto? = io { dir ->
+        val base = name("$id:$etag")
+        listOf(".jpg" to "image/jpeg", ".png" to "image/png").firstNotNullOfOrNull { (ext, mime) ->
+            File(dir, "pim/photos/$base$ext").takeIf { it.isFile }?.let { f ->
+                f.setLastModified(System.currentTimeMillis())
+                MPhoto(mime, f.readBytes())
+            }
+        }
+    }
+
     /** Everything of the Mail tab on this device: the copies of every login and the files opened from mails. */
     suspend fun wipe() = withContext(Dispatchers.IO) {
         mutex.withLock {

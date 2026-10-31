@@ -280,10 +280,11 @@ class MailComposeViewModel @Inject constructor(
         if (parsed.addresses.isNotEmpty()) changed()
     }
 
+    /** A suggestion picked: its address, or a group's members (since Mail 1.2.0). */
     fun pick(f: RecipientField, c: MContact) {
         _state.update { s ->
-            val a = MAddress(c.name, c.email)
-            val list = (s.recipients(f) + a).distinctBy { it.email.lowercase() }
+            val add = if (c.group) c.members else listOf(MAddress(c.name, c.email))
+            val list = (s.recipients(f) + add).distinctBy { it.email.lowercase() }
             val next = when (f) {
                 RecipientField.TO -> s.copy(to = list)
                 RecipientField.CC -> s.copy(cc = list)
