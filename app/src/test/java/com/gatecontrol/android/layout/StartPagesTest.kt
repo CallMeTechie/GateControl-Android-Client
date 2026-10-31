@@ -200,4 +200,15 @@ class StartPagesTest {
         assertEquals(emptyList<String>(), StartPages.pages(gone))
         assertTrue("widget:other/phone" in StartPages.entriesOf(gone, null))
     }
+
+    @Test
+    fun `Mail's pins stand where they were put, a new one joins the page it was pinned from`() {
+        val extras = StartExtras(contacts = listOf(5, 6), agenda = true)
+        val saved = listOf("tile:$door", "info", "usage", "page:w2", "agenda", "contact:6")
+        val pages = StartPages.merge(saved, listOf(door), emptyList(), extras)
+        assertEquals(listOf("tile:$door", "contact:5", "info", "usage"), pages[null]!!.map { it.key })
+        assertEquals(listOf("contact:6", "agenda"), pages["w2"]!!.map { it.key })
+        val synced = StartPages.syncPins(saved, listOf(door), emptyList(), target = "w2", extras = StartExtras(listOf(6, 7), agenda = false))
+        assertEquals(listOf("tile:$door", "info", "usage", "page:w2", "contact:6", "contact:7"), synced)
+    }
 }

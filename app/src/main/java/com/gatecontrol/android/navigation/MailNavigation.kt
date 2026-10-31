@@ -232,6 +232,9 @@ internal fun NavGraphBuilder.mailRoutes(
             )
         }
     }
+    composable(Screen.MailCalendar.route) {
+        GcContentWidth { MailHomeScreen(nav.nav, initialArea = MailDrawerFoot.CALENDAR) }
+    }
     composable(Screen.MailContactDuplicates.route) {
         GcContentWidth { MailDuplicatesScreen(onBack = back, onContact = nav.nav.contact) }
     }

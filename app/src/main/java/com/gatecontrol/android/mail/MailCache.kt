@@ -237,6 +237,20 @@ class MailCache @Inject constructor(
         io { dir -> File(dir, "pim/card/$id.json").delete() }
     }
 
+    // ─── Start (Mail 1.4.0): favourites, the calendar widget, what is pinned ───
+
+    suspend fun putFavorites(raw: JsonObject) { io { write(File(it, "pim/favorites.json"), raw) } }
+
+    suspend fun favorites(): List<MFavorite>? = io { dir -> read(File(dir, "pim/favorites.json"))?.let(MailPimJson::favorites) }
+
+    suspend fun putUpcoming(raw: JsonObject) { io { write(File(it, "pim/upcoming.json"), raw) } }
+
+    suspend fun upcoming(): MUpcoming? = io { dir -> read(File(dir, "pim/upcoming.json"))?.let(MailPimJson::upcoming) }
+
+    suspend fun putStartPins(p: MailStartPins) { io { write(File(it, "pim/start.json"), MailContactLogic.pinsJson(p)) } }
+
+    suspend fun startPins(): MailStartPins? = io { dir -> read(File(dir, "pim/start.json"))?.let(MailContactLogic::pinsOf) }
+
     /** A contact's photo (the etag changes with it); the 500 used last stay. */
     suspend fun putPhoto(id: Long, etag: String, p: MPhoto) {
         io { dir ->

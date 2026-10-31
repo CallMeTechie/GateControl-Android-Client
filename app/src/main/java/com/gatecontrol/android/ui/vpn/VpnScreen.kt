@@ -568,7 +568,7 @@ fun VpnScreen(
     // [withUsage] false: the usage card stands in the other pane.
     val cardsSection: @Composable ColumnScope.(withUsage: Boolean) -> Unit = { withUsage ->
         com.gatecontrol.android.ui.quickactions.StartCards(
-            cards = startEntries.filter { it !is StartEntry.Tile && (withUsage || it != StartEntry.Usage) },
+            cards = startEntries.filter { it !is StartEntry.Tile && it !is StartEntry.Contact && (withUsage || it != StartEntry.Usage) },
             info = infoCard,
             usage = usageCard,
             onOpenDoor = onOpenDoor,

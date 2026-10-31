@@ -133,6 +133,10 @@ fun QuickActionsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
+        // Mail (1.4.0): the calendar widget and favourites as tiles
+        item(key = "mail") {
+            com.gatecontrol.android.ui.mail.start.MailStartChooser(page, Modifier.padding(horizontal = 16.dp))
+        }
         val notice = when (load) {
             QuickActionsLoad.Unsupported -> R.string.quick_actions_unsupported
             QuickActionsLoad.NotConfigured -> R.string.quick_actions_not_configured
@@ -352,13 +356,17 @@ fun StartTiles(
     val running by viewModel.running.collectAsStateWithLifecycle()
     val extra = GateControlTheme.extraColors
     val hasWidgets = widgetPins.any { it.resolve(devices) != null }
-    val order = pages[page].orEmpty().filterIsInstance<StartEntry.Tile>().map { it.action }
+    val tileEntries = pages[page].orEmpty().filter { it is StartEntry.Tile || it is StartEntry.Contact }
+    val order = tileEntries.filterIsInstance<StartEntry.Tile>().map { it.action }
     val settingsLabel = stringResource(R.string.start_tile_settings)
     // Only this page's buttons (a button on another page beside Start is not shown here).
     val here = order.toSet()
     val shown = StartLayout.ordered(pins.filter { it.key in here }, order) { it.key }
+    // Mail's favourites pinned here (Mail 1.4.0), among the buttons in the arranged order.
+    val contacts = com.gatecontrol.android.ui.mail.start.rememberStartContacts()
+    val contactsHere = tileEntries.any { it is StartEntry.Contact && it.id in contacts }
 
-    when (val row = QuickActionsRow.of(shown, actions, hasWidgets || page != null)) {
+    when (val row = QuickActionsRow.of(shown, actions, hasWidgets || page != null || contactsHere)) {
         QuickActionsRow.Hidden -> Unit
         QuickActionsRow.Choose -> Text(
             stringResource(R.string.start_edit_hint),
@@ -367,7 +375,7 @@ fun StartTiles(
             textAlign = TextAlign.Center,
             modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
         )
-        is QuickActionsRow.Tiles -> if (row.items.isNotEmpty()) BoxWithConstraints(modifier.fillMaxWidth()) {
+        is QuickActionsRow.Tiles -> if (row.items.isNotEmpty() || contactsHere) BoxWithConstraints(modifier.fillMaxWidth()) {
             // In whole pixels, rounded down: the row lays the gaps out in whole
             // pixels, and a width rounded up pushes the last tile into the next row.
             val density = LocalDensity.current
@@ -377,7 +385,13 @@ fun StartTiles(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 maxItemsInEachRow = TILES_PER_ROW,
             ) {
-                row.items.forEach { item ->
+                val byKey = row.items.associateBy { it.key }
+                tileEntries.forEach { entry ->
+                    if (entry is StartEntry.Contact) {
+                        contacts[entry.id]?.let { com.gatecontrol.android.ui.mail.start.ContactTile(it, tile) }
+                        return@forEach
+                    }
+                    val item = byKey[(entry as StartEntry.Tile).action] ?: return@forEach
                     val door = longPress(item, onOpenDoor)
                     QuickActionTile(
                         item = item,
@@ -462,6 +476,7 @@ fun StartCards(
                     Spacer(Modifier.weight(1f))
                 }
                 first is StartEntry.Widget -> WidgetFor(first, Modifier.fillMaxWidth(), fill = false)
+                first == StartEntry.Agenda -> com.gatecontrol.android.ui.mail.start.MailAgendaCard(page = page)
                 first == StartEntry.Info -> info()
                 first == StartEntry.Usage -> usage()
             }

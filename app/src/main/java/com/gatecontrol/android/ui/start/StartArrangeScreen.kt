@@ -126,8 +126,9 @@ fun StartArrangeScreen(
         if (StartLayout.canMove(list, key, 1)) add(CustomAccessibilityAction(downLabel) { working = StartLayout.moveBy(list, key, 1); true })
     }
 
-    val tiles = list.filterIsInstance<StartEntry.Tile>()
-    val cards = list.filter { it !is StartEntry.Tile }
+    val tiles = list.filter { it is StartEntry.Tile || it is StartEntry.Contact }
+    val cards = list.filter { it !is StartEntry.Tile && it !is StartEntry.Contact }
+    val mailPins by viewModel.mailPins.collectAsStateWithLifecycle()
     val resolved = widgetPins.mapNotNull { pin -> pin.resolve(devices)?.let { pin.device to it } }.toMap()
 
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -149,16 +150,21 @@ fun StartArrangeScreen(
                 GcSectionLabel(stringResource(R.string.arrange_tiles), Modifier.padding(start = 4.dp))
             }
             items(tiles, key = { it.key }, span = { GridItemSpan(2) }) { tile ->
-                val item = pins.firstOrNull { it.key == tile.action }
-                val title = item?.title ?: tile.action
+                val contact = (tile as? StartEntry.Contact)?.let { c -> mailPins.contacts.firstOrNull { it.id == c.id } }
+                val item = (tile as? StartEntry.Tile)?.let { t -> pins.firstOrNull { it.key == t.action } }
+                val title = contact?.name ?: item?.title ?: (tile as? StartEntry.Tile)?.action ?: ""
                 ReorderableItem(reorderState, key = tile.key) { dragging ->
                     TileBlock(
                         title = title,
-                        icon = remember(item?.displayIcon) { QuickActionIcons.vector(item?.displayIcon) },
+                        icon = if (tile is StartEntry.Contact) GcIcons.User else remember(item?.displayIcon) { QuickActionIcons.vector(item?.displayIcon) },
                         dragging = dragging,
                         onRemove = {
                             working = list.filter { it.key != tile.key }
-                            viewModel.unpinTile(tile.action)
+                            when (tile) {
+                                is StartEntry.Contact -> viewModel.unpinContact(tile.id)
+                                is StartEntry.Tile -> viewModel.unpinTile(tile.action)
+                                else -> Unit
+                            }
                         },
                         removeLabel = stringResource(R.string.arrange_remove, title),
                         modifier = Modifier
@@ -191,6 +197,7 @@ fun StartArrangeScreen(
                         Triple(device?.title ?: card.device, remember(device?.icon) { QuickActionIcons.vector(device?.icon) }, true)
                     }
                     StartEntry.Info -> Triple(stringResource(R.string.arrange_info), GcIcons.Sliders, false)
+                    StartEntry.Agenda -> Triple(stringResource(R.string.agenda_title), GcIcons.Calendar, true)
                     else -> Triple(stringResource(R.string.arrange_usage), GcIcons.Activity, false)
                 }
                 ReorderableItem(reorderState, key = card.key) { dragging ->

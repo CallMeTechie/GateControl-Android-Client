@@ -592,6 +592,21 @@ object MailPimCacheLogic {
                     add("linked", com.google.gson.JsonArray().apply { c.linked.forEach { add(it) } })
                     c.gcUserId?.let { addProperty("gcUserId", it) }
                     c.updatedAt?.let { addProperty("updatedAt", it) }
+                    // Mail 1.4.0
+                    c.favorite?.let { addProperty("favorite", it) }
+                    if (c.conflicts > 0) addProperty("conflicts", c.conflicts)
+                    c.masterId?.let { addProperty("masterId", it) }
+                    if (c.sources.isNotEmpty()) {
+                        add("sources", com.google.gson.JsonArray().apply {
+                            c.sources.forEach { x ->
+                                add(com.google.gson.JsonObject().apply {
+                                    addProperty("addressbookId", x.addressbookId)
+                                    addProperty("source", x.source)
+                                    x.accountId?.let { addProperty("accountId", it) }
+                                })
+                            }
+                        })
+                    }
                 })
             }
         })

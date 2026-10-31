@@ -2,6 +2,7 @@ package com.gatecontrol.android.mail
 
 import com.gatecontrol.android.support.CrashReports
 import com.google.gson.JsonElement
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -57,12 +58,41 @@ class MailPimRepository @Inject constructor(
     private val _relogins = MutableStateFlow<Set<Long>>(emptySet())
     val relogins: StateFlow<Set<Long>> = _relogins.asStateFlow()
 
+    /** The favourites (Mail 1.4.0, by their position); null: not known yet. */
+    private val _favorites = MutableStateFlow<List<MFavorite>?>(null)
+    val favorites: StateFlow<List<MFavorite>?> = _favorites.asStateFlow()
+
+    /** The calendar widget's events (Mail 1.4.0); null: not known yet. */
+    private val _upcoming = MutableStateFlow<MUpcoming?>(null)
+    val upcoming: StateFlow<MUpcoming?> = _upcoming.asStateFlow()
+
+    /** Whether the server has favourites / the widget's events (false: older than Mail 1.4.0 or switched off; null: not asked yet). */
+    private val _favoritesSupported = MutableStateFlow<Boolean?>(null)
+    val favoritesSupported: StateFlow<Boolean?> = _favoritesSupported.asStateFlow()
+    private val _upcomingSupported = MutableStateFlow<Boolean?>(null)
+    val upcomingSupported: StateFlow<Boolean?> = _upcomingSupported.asStateFlow()
+
+    /** What Mail pins to Start on this device (favourite tiles, the calendar widget). */
+    private val _startPins = MutableStateFlow(MailStartPins())
+    val startPins: StateFlow<MailStartPins> = _startPins.asStateFlow()
+    private val pinsLoaded = CompletableDeferred<Unit>()
+    private val pinsMutex = Mutex()
+
     private var cardsVersion = 0L
     private val cardsMutex = Mutex()
     private var calJob: Job? = null
     private var booksJob: Job? = null
 
     init {
+        scope.launch {
+            try {
+                cache.startPins()?.let { _startPins.value = it }
+                cache.favorites()?.let { if (_favorites.value == null) _favorites.value = it }
+                cache.upcoming()?.let { if (_upcoming.value == null) _upcoming.value = it }
+            } finally {
+                pinsLoaded.complete(Unit)
+            }
+        }
         scope.launch {
             if (_calendars.value == null) cache.calendars()?.let { if (_calendars.value == null) _calendars.value = it }
             if (_books.value == null) cache.books()?.let { if (_books.value == null) _books.value = it }
@@ -250,6 +280,89 @@ class MailPimRepository @Inject constructor(
         scope.launch { cache.forgetCard(id) }
     }
 
+    // ─── Start: favourites and the calendar widget (Mail 1.4.0) ─────
+
+    /** Whether [r] says the server has no such path (older than Mail 1.4.0) or the function is off. */
+    private fun missing(r: MResult<*>): Boolean = r is MResult.Failed && (r.http == 404 || r.code == "feature_off" || r.code == "not_found")
+
+    /** `GET cards/favorites` (the copy when offline); the tiles on Start follow (a contact no favourite any more leaves). */
+    suspend fun refreshFavorites(): MResult<List<MFavorite>> = when (val r = api.favorites()) {
+        is MResult.Ok -> {
+            _favorites.value = r.value.first
+            _favoritesSupported.value = true
+            cache.putFavorites(r.value.second)
+            updateStartPins { MailContactLogic.syncedPins(it, r.value.first) }
+            MResult.Ok(r.value.first)
+        }
+        MResult.Offline -> {
+            if (_favorites.value == null) cache.favorites()?.let { _favorites.value = it }
+            r.notOk()
+        }
+        else -> {
+            if (missing(r)) _favoritesSupported.value = false
+            r.notOk()
+        }
+    }
+
+    private var favJob: Job? = null
+
+    fun refreshFavoritesSoon() {
+        if (favJob?.isActive == true) return
+        favJob = scope.launch { refreshFavorites() }
+    }
+
+    /** A favourite switched here (shown at once; the server's list follows). */
+    fun putFavorite(c: MCard) {
+        val on = c.favorite ?: return
+        _cards.update { l -> l.map { if (it.id == c.id) it.copy(favorite = on) else it } }
+        refreshFavoritesSoon()
+    }
+
+    /** `GET events/upcoming` (the copy when offline). */
+    suspend fun refreshUpcoming(): MResult<MUpcoming> = when (val r = api.upcoming()) {
+        is MResult.Ok -> {
+            _upcoming.value = r.value.first
+            _upcomingSupported.value = true
+            cache.putUpcoming(r.value.second)
+            MResult.Ok(r.value.first)
+        }
+        MResult.Offline -> {
+            if (_upcoming.value == null) cache.upcoming()?.let { _upcoming.value = it }
+            r.notOk()
+        }
+        else -> {
+            if (missing(r)) _upcomingSupported.value = false
+            r.notOk()
+        }
+    }
+
+    private var upcomingJob: Job? = null
+
+    fun refreshUpcomingSoon() {
+        if (upcomingJob?.isActive == true) return
+        upcomingJob = scope.launch { refreshUpcoming() }
+    }
+
+    /** The pins as stored (waits for the copy to be read). */
+    suspend fun currentStartPins(): MailStartPins {
+        pinsLoaded.await()
+        return _startPins.value
+    }
+
+    /** Changes what Mail pins to Start; kept in the offline copy. */
+    suspend fun updateStartPins(change: (MailStartPins) -> MailStartPins): MailStartPins {
+        pinsLoaded.await()
+        return pinsMutex.withLock {
+            val before = _startPins.value
+            val next = change(before)
+            if (next != before) {
+                _startPins.value = next
+                cache.putStartPins(next)
+            }
+            next
+        }
+    }
+
     // ─── Microsoft ──────────────────────────────────────────────────
 
     /** The person goes to sign in again for [accountId] (the hint about the company's consent follows if it stays). */
@@ -261,7 +374,10 @@ class MailPimRepository @Inject constructor(
     fun onPluginEvent(type: String, data: JsonElement?): Boolean {
         when (type) {
             "calendar" -> {
-                val c = MailPimJson.calChanged(data) ?: return true
+                val c = MailPimJson.calChanged(data)
+                // the widget on Start: any change of the calendars may move its events
+                if (_upcoming.value != null || _startPins.value.agenda) refreshUpcomingSoon()
+                c ?: return true
                 _calChanged.tryEmit(c)
                 if (c.kind == MCalChanged.CALENDARS || c.kind == MCalChanged.CHANGED) refreshCalendarsSoon()
                 return true
@@ -269,8 +385,18 @@ class MailPimRepository @Inject constructor(
             "contacts" -> {
                 val c = MailPimJson.contactsChanged(data) ?: return true
                 _contactsChanged.tryEmit(c)
-                if (c.kind != MContactsChanged.CHANGED) refreshBooksSoon()
-                if (c.kind == MContactsChanged.CHANGED && _cards.value.isNotEmpty()) syncCardsSoon()
+                when (c.kind) {
+                    MContactsChanged.CHANGED -> if (_cards.value.isNotEmpty()) syncCardsSoon()
+                    // Mail 1.4.0: cards became one GC contact (the list), the favourites (the tiles), a hint (the contact's page)
+                    MContactsChanged.MERGED -> if (_cards.value.isNotEmpty()) syncCardsSoon()
+                    MContactsChanged.FAVORITES -> Unit
+                    MContactsChanged.CONFLICTS -> if (_cards.value.isNotEmpty()) syncCardsSoon()
+                    else -> refreshBooksSoon()
+                }
+                if (_favorites.value != null && (c.kind != MContactsChanged.CONFLICTS)) {
+                    val favIds = _favorites.value.orEmpty().map { it.id }.toSet()
+                    if (c.kind != MContactsChanged.CHANGED || c.contactIds.isEmpty() || c.contactIds.any { it in favIds }) refreshFavoritesSoon()
+                }
                 return true
             }
         }
@@ -290,5 +416,10 @@ class MailPimRepository @Inject constructor(
         _cards.value = emptyList()
         cardsVersion = 0L
         _relogins.value = emptySet()
+        _favorites.value = null
+        _upcoming.value = null
+        _favoritesSupported.value = null
+        _upcomingSupported.value = null
+        _startPins.value = MailStartPins()
     }
 }

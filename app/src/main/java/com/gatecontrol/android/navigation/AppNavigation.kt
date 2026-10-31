@@ -440,7 +440,23 @@ fun AppNavigation(
         onSettings = { openSettingsPane(SettingsPane.Pages) },
     )
 
-    CompositionLocalProvider(LocalGcWindowLayout provides layout, LocalPageSnack provides showSnack) {
+    // Mail's favourites and calendar widget on Start (Mail 1.4.0): the contact, the event, the calendar
+    val mailStartNav = remember(navController) {
+        com.gatecontrol.android.ui.mail.start.MailStartNav(
+            contact = { id -> navController.navigate(Screen.MailContact.create(id)) { launchSingleTop = true } },
+            event = { id, occ -> navController.navigate(Screen.MailEvent.create(id, occ)) { launchSingleTop = true } },
+            calendar = {
+                if (StartPages.CALENDAR in pinnedNow) showStart(StartPageRequest(StartPages.CALENDAR))
+                else navController.navigate(Screen.MailCalendar.route) { launchSingleTop = true }
+            },
+        )
+    }
+
+    CompositionLocalProvider(
+        LocalGcWindowLayout provides layout,
+        LocalPageSnack provides showSnack,
+        com.gatecontrol.android.ui.mail.start.LocalMailStartNav provides mailStartNav,
+    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },

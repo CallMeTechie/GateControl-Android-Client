@@ -446,6 +446,12 @@ object MailPimJson {
             linked = o.arr("linked")?.longs().orEmpty(),
             gcUserId = o.id("gcUserId"),
             updatedAt = o.long("updatedAt"),
+            favorite = o.bool("favorite"),
+            conflicts = o.int("conflicts")?.coerceAtLeast(0) ?: 0,
+            masterId = o.id("masterId"),
+            sources = o.arr("sources")?.objects()?.mapNotNull { x ->
+                MSourceRef(x.id("addressbookId") ?: return@mapNotNull null, x.str("source") ?: MAddressbook.SOURCE_LOCAL, x.id("accountId"))
+            }.orEmpty(),
         )
     }
 
@@ -476,22 +482,11 @@ object MailPimJson {
                 val v = e.text("value")?.takeIf { it.contains('@') } ?: return@mapNotNull null
                 MCardEmail(v, e.str("type")?.takeIf { it in MCard.EMAIL_TYPES } ?: "other", e.bool("primary") ?: false)
             }.orEmpty(),
-            phones = o.arr("phones")?.objects()?.mapNotNull { p ->
-                MCardPhone(p.text("value") ?: return@mapNotNull null, p.str("type")?.takeIf { it in MCard.PHONE_TYPES } ?: "other")
-            }.orEmpty(),
+            phones = o.arr("phones")?.objects()?.mapNotNull(::phone).orEmpty(),
             company = o.text("company"),
             department = o.text("department"),
             title = o.text("title"),
-            addresses = o.arr("addresses")?.objects()?.map { a ->
-                MCardAddress(
-                    type = a.str("type")?.takeIf { it in MCard.ADDRESS_TYPES } ?: "other",
-                    street = a.str("street")?.trim().orEmpty(),
-                    postalCode = a.str("postalCode")?.trim().orEmpty(),
-                    city = a.str("city")?.trim().orEmpty(),
-                    region = a.str("region")?.trim().orEmpty(),
-                    country = a.str("country")?.trim().orEmpty(),
-                )
-            }?.filter { !it.empty }.orEmpty(),
+            addresses = o.arr("addresses")?.objects()?.mapNotNull(::address).orEmpty(),
             birthday = o.str("birthday")?.takeIf { BIRTHDAY.matches(it) },
             note = o.str("note") ?: "",
             urls = o.arr("urls")?.strings()?.filter { it.startsWith("https://", true) || it.startsWith("http://", true) }.orEmpty(),
@@ -503,6 +498,159 @@ object MailPimJson {
             }.orEmpty(),
             gcUserId = o.id("gcUserId"),
             updatedAt = o.long("updatedAt"),
+            favorite = o.bool("favorite"),
+            mainPhone = o.obj("mainPhone")?.let(::phone),
+            mainPhoneChosen = o.bool("mainPhoneChosen") ?: false,
+            masterId = o.id("masterId"),
+            conflicts = o.arr("conflicts")?.objects()?.mapNotNull(::conflict).orEmpty(),
+            sources = o.arr("sources")?.objects()?.mapNotNull(::source).orEmpty(),
+        )
+    }
+
+    private fun phone(p: JsonObject): MCardPhone? =
+        MCardPhone(p.text("value") ?: return null, p.str("type")?.takeIf { it in MCard.PHONE_TYPES } ?: "other")
+
+    private fun address(a: JsonObject): MCardAddress? = MCardAddress(
+        type = a.str("type")?.takeIf { it in MCard.ADDRESS_TYPES } ?: "other",
+        street = a.str("street")?.trim().orEmpty(),
+        postalCode = a.str("postalCode")?.trim().orEmpty(),
+        city = a.str("city")?.trim().orEmpty(),
+        region = a.str("region")?.trim().orEmpty(),
+        country = a.str("country")?.trim().orEmpty(),
+    ).takeIf { !it.empty }
+
+    /** A card of a contact (Mail 1.4.0 `Source`). */
+    fun source(o: JsonObject): MSource? {
+        val id = o.id("id") ?: return null
+        return MSource(
+            id = id,
+            addressbookId = o.id("addressbookId") ?: 0L,
+            addressbook = o.str("addressbook")?.trim().orEmpty(),
+            source = o.str("source")?.takeIf { it in setOf(MAddressbook.SOURCE_LOCAL, MAddressbook.SOURCE_GRAPH, MAddressbook.SOURCE_CARDDAV) } ?: MAddressbook.SOURCE_LOCAL,
+            accountId = o.id("accountId"),
+            account = o.text("account"),
+        )
+    }
+
+    /** A value of [field] in its form: a number, a postal address or a text. */
+    private fun fieldValue(field: String, e: JsonElement?): MFieldValue? {
+        e ?: return null
+        if (e is JsonNull) return null
+        return when (field) {
+            MCardConflict.PHONES -> e.takeIf { it.isJsonObject }?.asJsonObject?.let(::phone)?.let { MFieldValue.Phone(it) }
+            MCardConflict.ADDRESSES -> e.takeIf { it.isJsonObject }?.asJsonObject?.let(::address)?.let { MFieldValue.Address(it) }
+            MCardConflict.BIRTHDAY -> e.takeIf { it.isJsonPrimitive }?.asString?.takeIf { BIRTHDAY.matches(it) }?.let { MFieldValue.Text(it) }
+            else -> e.takeIf { it.isJsonPrimitive }?.asString?.trim()?.takeIf { it.isNotEmpty() }?.let { MFieldValue.Text(it.take(500)) }
+        }
+    }
+
+    /** A conflict of a GC contact (Mail 1.4.0); an unknown field or an unreadable value leaves it out. */
+    fun conflict(o: JsonObject): MCardConflict? {
+        val id = o.id("id") ?: return null
+        val field = o.str("field")?.takeIf { it in MCardConflict.FIELDS } ?: return null
+        val value = fieldValue(field, o.el("value")) ?: return null
+        return MCardConflict(id, field, o.str("type"), value, fieldValue(field, o.el("replaces")), o.obj("source")?.let(::source), o.long("at"))
+    }
+
+    /** `PATCH cards/<id>` → the contact and `writeBack` (Mail 1.4.0; empty before). */
+    fun cardSaved(o: JsonObject): MCardSaved? {
+        val card = cardAnswer(o) ?: return null
+        return MCardSaved(card, o.arr("writeBack")?.objects()?.mapNotNull { w ->
+            MWriteBack(w.id("id") ?: return@mapNotNull null, w.id("addressbookId") ?: 0L, w.bool("ok") ?: false, w.str("code"))
+        }.orEmpty())
+    }
+
+    /** A `Preview` (Mail 1.4.0): the Card fields of the result and where they come from. */
+    fun preview(o: JsonObject): MPreview? {
+        val c = card(o) ?: return null
+        if (c.label.isBlank() && c.emails.isEmpty() && c.phones.isEmpty()) return null
+        return MPreview(
+            id = o.id("id"),
+            card = c.copy(id = o.id("id") ?: 0L, mainPhone = o.obj("mainPhone")?.let(::phone)),
+            photoFrom = o.id("photoFrom"),
+            sources = o.arr("sources")?.objects()?.mapNotNull(::source).orEmpty(),
+            losers = o.arr("conflicts")?.objects()?.mapNotNull { x ->
+                val field = x.str("field") ?: return@mapNotNull null
+                val v = x.el("value")?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                MPreviewLoser(field, v.take(500), x.obj("source")?.let(::source))
+            }.orEmpty(),
+        )
+    }
+
+    /** `POST cards/merge/preview`. */
+    fun previewAnswer(o: JsonObject): MPreview? = o.obj("preview")?.let(::preview)
+
+    /** A merge of the protocol (Mail 1.4.0). */
+    fun merge(o: JsonObject): MMerge? {
+        val id = o.id("id") ?: return null
+        val master = o.id("masterId") ?: return null
+        return MMerge(
+            id = id,
+            masterId = master,
+            mode = o.str("mode")?.takeIf { it in setOf(MMerge.AUTO, MMerge.MANUAL, MMerge.MIGRATED) } ?: MMerge.MANUAL,
+            created = o.bool("created") ?: false,
+            reason = o.str("reason"),
+            at = o.long("at") ?: 0L,
+            undoneAt = o.long("undoneAt"),
+            cards = o.arr("cards")?.objects()?.mapNotNull { c ->
+                MMergeCard(
+                    id = c.id("id") ?: return@mapNotNull null,
+                    name = c.str("name")?.trim().orEmpty(),
+                    addressbookId = c.id("addressbookId") ?: 0L,
+                    addressbook = c.str("addressbook")?.trim().orEmpty(),
+                    source = c.str("source") ?: MAddressbook.SOURCE_LOCAL,
+                    removed = c.bool("removed") ?: false,
+                )
+            }.orEmpty(),
+        )
+    }
+
+    /** `GET cards/merges`. */
+    fun merges(o: JsonObject): List<MMerge>? = o.arr("items")?.objects()?.mapNotNull(::merge)
+
+    /** `POST cards/merges/<id>/undo`, `POST cards/<id>/unmerge` (the contact may be gone: `card: null`). */
+    fun unmerge(o: JsonObject): MUnmerge? {
+        if (!o.has("unlinked") && !o.has("card")) return null
+        return MUnmerge(o.obj("card")?.let(::card)?.takeIf { it.id > 0 }, o.arr("unlinked")?.longs().orEmpty(), o.arr("restored")?.longs().orEmpty())
+    }
+
+    /** `GET cards/favorites` / `PUT cards/favorites` (by their position). */
+    fun favorites(o: JsonObject): List<MFavorite>? = o.arr("items")?.objects()?.mapNotNull { f ->
+        MFavorite(
+            id = f.id("id") ?: return@mapNotNull null,
+            name = f.str("name")?.trim().orEmpty(),
+            photoEtag = f.str("photoEtag")?.takeIf { it.isNotEmpty() && it.length <= 200 && f.bool("photo") != false },
+            phone = f.obj("phone")?.let(::phone) ?: f.text("phone")?.let { MCardPhone(it, "other") },
+            email = f.text("email")?.takeIf { it.contains('@') },
+        )
+    }
+
+    /** `GET events/upcoming` (Mail 1.4.0, the calendar widget on Start). */
+    fun upcoming(o: JsonObject): MUpcoming? {
+        val items = o.arr("items") ?: return null
+        val today = o.date("today") ?: return null
+        return MUpcoming(
+            timeZone = o.zone("timeZone"),
+            today = today,
+            items = items.objects().mapNotNull { x ->
+                val start = x.long("start") ?: return@mapNotNull null
+                val key = x.str("key")?.takeIf { it.isNotEmpty() && it.length <= 120 } ?: return@mapNotNull null
+                MUpcomingItem(
+                    key = key,
+                    eventId = x.id("eventId"),
+                    calendarId = x.id("calendarId"),
+                    overlayId = x.text("overlayId"),
+                    color = x.color("color"),
+                    title = x.str("title")?.trim().orEmpty(),
+                    start = start,
+                    end = (x.long("end") ?: start).coerceAtLeast(start),
+                    allDay = x.bool("allDay") ?: false,
+                    day = x.date("day") ?: x.date("startDate") ?: today,
+                    location = x.text("location"),
+                    tentative = x.bool("tentative") ?: false,
+                )
+            },
+            more = o.int("more")?.coerceAtLeast(0) ?: 0,
         )
     }
 
@@ -543,7 +691,17 @@ object MailPimJson {
     fun duplicates(o: JsonObject): List<MDuplicate>? = o.arr("items")?.objects()?.mapNotNull { d ->
         val cards = d.arr("cards")?.objects()?.mapNotNull(::cardSummary).orEmpty()
         if (cards.size < 2) return@mapNotNull null
-        MDuplicate(d.str("key") ?: cards.joinToString("-") { it.id.toString() }, d.str("reason") ?: "name", cards)
+        MDuplicate(
+            key = d.str("key") ?: cards.joinToString("-") { it.id.toString() },
+            reason = d.str("reason") ?: "name",
+            cards = cards,
+            certain = d.bool("certain"),
+            details = d.arr("details")?.objects()?.mapNotNull { x ->
+                val c = x.obj("card")?.let(::card)?.takeIf { it.id > 0 } ?: return@mapNotNull null
+                MDuplicateCard(c, x.obj("source")?.let(::source))
+            }.orEmpty(),
+            preview = d.obj("preview")?.let(::preview),
+        )
     }
 
     fun importAnswer(o: JsonObject): MImport? {
@@ -581,8 +739,8 @@ object MailPimJson {
     fun contactsChanged(data: JsonElement?): MContactsChanged? {
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         val root = o.obj("contacts") ?: o
-        val kind = root.str("kind")?.takeIf { it in setOf(MContactsChanged.CHANGED, MContactsChanged.ADDRESSBOOKS, MContactsChanged.GROUPS) } ?: return null
-        return MContactsChanged(kind, root.id("addressbookId"), root.arr("contactIds")?.longs()?.take(50).orEmpty())
+        val kind = root.str("kind")?.takeIf { it in MContactsChanged.KINDS } ?: return null
+        return MContactsChanged(kind, root.id("addressbookId"), root.arr("contactIds")?.longs()?.take(50).orEmpty(), root.id("masterId"))
     }
 
     // ─── request bodies ─────────────────────────────────────────────
@@ -735,9 +893,10 @@ object MailPimJson {
 
     fun bookPatch(visible: Boolean): JsonObject = JsonObject().apply { addProperty("visible", visible) }
 
-    fun mergeBody(ids: List<Long>, primaryId: Long, pick: MMergePick?, joinNotes: Boolean): JsonObject = JsonObject().apply {
+    /** `POST cards/merge`; [primaryId] null: the server picks (Mail 1.4.0, as its preview shows; older ones need it). */
+    fun mergeBody(ids: List<Long>, primaryId: Long?, pick: MMergePick?, joinNotes: Boolean): JsonObject = JsonObject().apply {
         add("ids", JsonArray().apply { ids.distinct().forEach { add(it) } })
-        addProperty("primaryId", primaryId)
+        primaryId?.let { addProperty("primaryId", it) }
         val p = JsonObject().apply {
             pick?.name?.let { addProperty("name", it) }
             pick?.company?.let { addProperty("company", it) }
@@ -747,6 +906,23 @@ object MailPimJson {
             if (joinNotes) addProperty("note", "join")
         }
         if (p.size() > 0) add("pick", p)
+    }
+
+    fun idsBody(ids: List<Long>): JsonObject = JsonObject().apply { add("ids", JsonArray().apply { ids.distinct().forEach { add(it) } }) }
+
+    /** `PATCH cards/<id>` of GateControl's own fields only (never to the provider): favourite, main number (null: none chosen). */
+    fun ownBody(favorite: Boolean? = null, mainPhone: String? = null, clearMainPhone: Boolean = false): JsonObject = JsonObject().apply {
+        favorite?.let { addProperty("favorite", it) }
+        if (clearMainPhone) add("mainPhone", JsonNull.INSTANCE) else mainPhone?.let { addProperty("mainPhone", it) }
+    }
+
+    /** `POST cards/<id>/conflicts/<cid>/accept`: `replace` or `add` (null: the server's default). */
+    fun acceptBody(mode: String?): JsonObject = JsonObject().apply { mode?.let { addProperty("mode", it) } }
+
+    /** `POST cards/<id>/unmerge` ([ids] null: all links) and `POST cards/merges/<id>/undo`. */
+    fun unmergeBody(ids: List<Long>?, keepMaster: Boolean): JsonObject = JsonObject().apply {
+        ids?.let { add("ids", JsonArray().apply { it.distinct().forEach { id -> add(id) } }) }
+        if (keepMaster) addProperty("keepMaster", true)
     }
 
     fun importBody(vcf: String, addressbookId: Long?): JsonObject = JsonObject().apply {

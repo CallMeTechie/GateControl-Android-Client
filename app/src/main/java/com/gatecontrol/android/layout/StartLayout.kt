@@ -25,6 +25,23 @@ sealed interface StartEntry {
     data object Usage : StartEntry {
         override val key: String get() = StartLayout.USAGE
     }
+
+    /** A favourite contact of Mail as a tile (Mail 1.4.0): a tap calls its main number. [id]: the GC contact. */
+    data class Contact(val id: Long) : StartEntry {
+        override val key: String get() = StartLayout.CONTACT + id
+    }
+
+    /** Mail's calendar widget: the next events of today and tomorrow (Mail 1.4.0). */
+    data object Agenda : StartEntry {
+        override val key: String get() = StartLayout.AGENDA
+    }
+}
+
+/** What Mail pins to Start on this device (Mail 1.4.0): favourite contacts as tiles, the calendar widget. */
+data class StartExtras(val contacts: List<Long> = emptyList(), val agenda: Boolean = false) {
+    companion object {
+        val NONE = StartExtras()
+    }
 }
 
 /**
@@ -40,12 +57,17 @@ object StartLayout {
     const val WIDGET_WIDE = "widget2:"
     const val INFO = "info"
     const val USAGE = "usage"
+    const val CONTACT = "contact:"
+    const val AGENDA = "agenda"
+    private val CONTACT_ID = Regex("^[1-9][0-9]{0,15}$")
 
     fun encode(entry: StartEntry): String = when (entry) {
         is StartEntry.Tile -> TILE + entry.action
         is StartEntry.Widget -> (if (entry.wide) WIDGET_WIDE else WIDGET) + entry.device
         StartEntry.Info -> INFO
         StartEntry.Usage -> USAGE
+        is StartEntry.Contact -> CONTACT + entry.id
+        StartEntry.Agenda -> AGENDA
     }
 
     fun encodeAll(entries: List<StartEntry>): List<String> = entries.map(::encode)
@@ -53,6 +75,8 @@ object StartLayout {
     fun decode(raw: String): StartEntry? = when {
         raw == INFO -> StartEntry.Info
         raw == USAGE -> StartEntry.Usage
+        raw == AGENDA -> StartEntry.Agenda
+        raw.startsWith(CONTACT) -> raw.removePrefix(CONTACT).takeIf { CONTACT_ID.matches(it) }?.toLongOrNull()?.let { StartEntry.Contact(it) }
         raw.startsWith(TILE) -> raw.removePrefix(TILE).takeIf { it.isNotEmpty() }?.let { StartEntry.Tile(it) }
         raw.startsWith(WIDGET_WIDE) -> raw.removePrefix(WIDGET_WIDE).takeIf { it.isNotEmpty() }?.let { StartEntry.Widget(it, wide = true) }
         raw.startsWith(WIDGET) -> raw.removePrefix(WIDGET).takeIf { it.isNotEmpty() }?.let { StartEntry.Widget(it, wide = false) }
@@ -76,9 +100,16 @@ object StartLayout {
      * not have are skipped. [cards] false (a widget page beside Start,
      * [StartPages]): no Info and usage card.
      */
-    fun merge(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>, cards: Boolean = true): List<StartEntry> {
+    fun merge(
+        saved: List<String>,
+        tiles: List<String>,
+        widgets: List<StartEntry.Widget>,
+        cards: Boolean = true,
+        extras: StartExtras = StartExtras.NONE,
+    ): List<StartEntry> {
         val widgetByDevice = widgets.associateBy { it.device }
         val tileSet = tiles.toSet()
+        val contactSet = extras.contacts.toSet()
         val withCards = cards
         val orderedTiles = ArrayList<StartEntry>()
         val blocks = ArrayList<StartEntry>()
@@ -88,17 +119,23 @@ object StartLayout {
             if (!seen.add(entry.key)) continue
             when (entry) {
                 is StartEntry.Tile -> if (entry.action in tileSet) orderedTiles += entry
+                is StartEntry.Contact -> if (entry.id in contactSet) orderedTiles += entry
                 // The width is the pin's: arranging and the pin sheet keep both in step.
                 is StartEntry.Widget -> widgetByDevice[entry.device]?.let { blocks += it }
+                StartEntry.Agenda -> if (extras.agenda) blocks += entry
                 StartEntry.Info, StartEntry.Usage -> if (withCards) blocks += entry
             }
         }
         tiles.filter { seen.add(TILE + it) }.forEach { orderedTiles += StartEntry.Tile(it) }
+        // Favourites after the plugins' buttons.
+        extras.contacts.filter { seen.add(CONTACT + it) }.forEach { orderedTiles += StartEntry.Contact(it) }
         for (widget in widgets) {
             if (!seen.add(widget.key)) continue
             val lastWidget = blocks.indexOfLast { it is StartEntry.Widget }
             blocks.add(if (lastWidget >= 0) lastWidget + 1 else 0, widget)
         }
+        // Mail's calendar widget, pinned just now: on top of the cards.
+        if (extras.agenda && seen.add(AGENDA)) blocks.add(0, StartEntry.Agenda)
         if (withCards && seen.add(INFO)) blocks += StartEntry.Info
         if (withCards && seen.add(USAGE)) blocks += StartEntry.Usage
         return orderedTiles + blocks
@@ -112,7 +149,7 @@ object StartLayout {
         val from = entries.indexOfFirst { it.key == fromKey }
         val to = entries.indexOfFirst { it.key == toKey }
         if (from < 0 || to < 0 || from == to) return entries
-        if ((entries[from] is StartEntry.Tile) != (entries[to] is StartEntry.Tile)) return entries
+        if (entries[from].isTile != entries[to].isTile) return entries
         return entries.toMutableList().apply { add(to, removeAt(from)) }
     }
 
@@ -121,7 +158,7 @@ object StartLayout {
         val from = entries.indexOfFirst { it.key == key }
         if (from < 0) return entries
         val to = from + delta
-        if (to !in entries.indices || (entries[to] is StartEntry.Tile) != (entries[from] is StartEntry.Tile)) return entries
+        if (to !in entries.indices || entries[to].isTile != entries[from].isTile) return entries
         return TabLayout.moveBy(entries, from, delta)
     }
 
@@ -164,4 +201,7 @@ object StartLayout {
 
     /** A widget of half width (the only blocks that share a row). */
     val StartEntry.isHalf: Boolean get() = this is StartEntry.Widget && !wide
+
+    /** A block of the tiles' row: a plugin's button or a favourite contact (they move among each other only). */
+    val StartEntry.isTile: Boolean get() = this is StartEntry.Tile || this is StartEntry.Contact
 }

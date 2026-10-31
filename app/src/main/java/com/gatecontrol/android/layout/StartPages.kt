@@ -176,8 +176,8 @@ object StartPages {
      * only ever stand on Start. Every widget page of [saved] is in the map,
      * an empty one with no blocks.
      */
-    fun merge(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>): Map<String?, List<StartEntry>> =
-        assign(saved, tiles, widgets, target = null)
+    fun merge(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>, extras: StartExtras = StartExtras.NONE): Map<String?, List<StartEntry>> =
+        assign(saved, tiles, widgets, target = null, extras)
 
     /**
      * The start list after pins changed (pinned, unpinned, another width):
@@ -186,9 +186,9 @@ object StartPages {
      * where [StartLayout.merge] puts new blocks; gone blocks drop out.
      * Markers, function pages and unknown pages stay as they are.
      */
-    fun syncPins(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>, target: String?): List<String> {
+    fun syncPins(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>, target: String?, extras: StartExtras = StartExtras.NONE): List<String> {
         val split = split(saved)
-        val blocks = assign(saved, tiles, widgets, target)
+        val blocks = assign(saved, tiles, widgets, target, extras)
         return join(
             Split(
                 start = StartLayout.encodeAll(blocks[null].orEmpty()),
@@ -199,7 +199,7 @@ object StartPages {
         )
     }
 
-    private fun assign(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>, target: String?): Map<String?, List<StartEntry>> {
+    private fun assign(saved: List<String>, tiles: List<String>, widgets: List<StartEntry.Widget>, target: String?, extras: StartExtras): Map<String?, List<StartEntry>> {
         val split = split(saved)
         val widgetPages = split.pages.filter { isWidgets(it.id) }
         // Which page names a block first (start before the pages, in their order).
@@ -214,10 +214,15 @@ object StartPages {
         val newHome = target?.takeIf { t -> widgetPages.any { it.id == t } }
         fun pageOf(key: String): String? = if (key in home) home[key] else newHome
         val result = LinkedHashMap<String?, List<StartEntry>>()
+        fun extrasOf(page: String?) = StartExtras(
+            contacts = extras.contacts.filter { pageOf(StartLayout.CONTACT + it) == page },
+            agenda = extras.agenda && pageOf(StartLayout.AGENDA) == page,
+        )
         result[null] = StartLayout.merge(
             split.start,
             tiles.filter { pageOf(StartLayout.TILE + it) == null },
             widgets.filter { pageOf(it.key) == null },
+            extras = extrasOf(null),
         )
         for (page in widgetPages) {
             result[page.id] = StartLayout.merge(
@@ -225,6 +230,7 @@ object StartPages {
                 tiles.filter { pageOf(StartLayout.TILE + it) == page.id },
                 widgets.filter { pageOf(it.key) == page.id },
                 cards = false,
+                extras = extrasOf(page.id),
             )
         }
         return result

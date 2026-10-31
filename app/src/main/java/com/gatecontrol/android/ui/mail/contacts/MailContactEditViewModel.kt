@@ -9,6 +9,9 @@ import com.gatecontrol.android.mail.MCardAddress
 import com.gatecontrol.android.mail.MCardEmail
 import com.gatecontrol.android.mail.MCardName
 import com.gatecontrol.android.mail.MCardPhone
+import com.gatecontrol.android.mail.MCardSaved
+import com.gatecontrol.android.mail.notOk
+import com.gatecontrol.android.mail.MailContactLogic
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MResult
 import com.gatecontrol.android.mail.MailPimJson
@@ -46,6 +49,8 @@ data class ContactEditState(
     val message: String? = null,
     /** Saved: the contact's id (the screen closes). */
     val done: Long? = null,
+    /** Mail 1.4.0: the providers the change went back to, and the ones it did not reach (by name). */
+    val writeBack: Pair<List<String>, List<String>>? = null,
 )
 
 /**
@@ -189,17 +194,28 @@ class MailContactEditViewModel @Inject constructor(
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {
             val cardId = id
-            val r = if (cardId == null) api.createCard(MailPimJson.cardBody(form(s), addressbookId = s.addressbookId))
-            else api.patchCard(cardId, MailPimJson.cardBody(form(s), etag = etag))
+            // the whole form: what was removed stays removed (Mail 1.3.6); a value taken over from a linked card goes
+            // back to it (Mail 1.4.0, `writeBack`)
+            val r: MResult<MCardSaved> = if (cardId == null) {
+                when (val c = api.createCard(MailPimJson.cardBody(form(s), addressbookId = s.addressbookId))) {
+                    is MResult.Ok -> MResult.Ok(MCardSaved(c.value, emptyList()))
+                    is MResult.Failed -> c
+                    else -> c.notOk()
+                }
+            } else {
+                api.patchCard(cardId, MailPimJson.cardBody(form(s), etag = etag))
+            }
             when (r) {
                 is MResult.Ok -> {
+                    val card = r.value.card
                     when (val p = s.photo) {
-                        is PhotoChange.Set -> api.putCardPhoto(r.value.id, "image/jpeg", p.bytes)
-                        PhotoChange.Remove -> if (r.value.photo) api.deleteCardPhoto(r.value.id)
+                        is PhotoChange.Set -> api.putCardPhoto(card.id, "image/jpeg", p.bytes)
+                        PhotoChange.Remove -> if (card.photo) api.deleteCardPhoto(card.id)
                         null -> Unit
                     }
                     pim.syncCardsSoon()
-                    _state.update { it.copy(saving = false, done = r.value.id) }
+                    val wb = MailContactLogic.writeBack(r.value.writeBack) { b -> pim.books.value?.book(b) }.takeIf { it.first.isNotEmpty() || it.second.isNotEmpty() }
+                    _state.update { it.copy(saving = false, done = card.id, writeBack = wb) }
                 }
                 is MResult.Failed -> {
                     val current = if (r.code == "conflict") MailPimJson.conflictCard(r.error) else null
@@ -224,10 +240,11 @@ class MailContactEditViewModel @Inject constructor(
         start(current)
     }
 
-    fun delete() {
+    /** Deletes the contact; [linkedToo] (a GC contact with links, Mail 1.4.0): its linked cards at their provider too. */
+    fun delete(linkedToo: Boolean = false) {
         val cardId = id ?: return
         viewModelScope.launch {
-            when (val r = api.deleteCard(cardId)) {
+            when (val r = api.deleteCard(cardId, linkedToo)) {
                 is MResult.Ok -> {
                     pim.forgetCard(cardId)
                     _state.update { it.copy(done = 0L) }

@@ -1,5 +1,8 @@
 package com.gatecontrol.android.layout
 
+import com.gatecontrol.android.mail.MailContactLogic
+import com.gatecontrol.android.mail.MailPimRepository
+import com.gatecontrol.android.mail.StartContactPin
 import com.gatecontrol.android.quickactions.QuickActionRepository
 import com.gatecontrol.android.support.CrashReports
 import kotlinx.coroutines.CoroutineScope
@@ -26,13 +29,14 @@ import javax.inject.Singleton
 class StartArrangement @Inject constructor(
     private val quickActions: QuickActionRepository,
     private val tabLayout: TabLayoutRepository,
+    private val mail: MailPimRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
-    /** The blocks of the start tab (key null) and of each widget page beside it ([StartPages]). */
+    /** The blocks of the start tab (key null) and of each widget page beside it ([StartPages]); Mail's favourites and calendar widget too. */
     val pages: StateFlow<Map<String?, List<StartEntry>>> =
-        combine(tabLayout.layout, quickActions.pins, quickActions.widgets) { layout, pins, widgets ->
-            StartPages.merge(layout.start, pins.map { it.key }, widgets.map { StartEntry.Widget(it.device, it.wide) })
+        combine(tabLayout.layout, quickActions.pins, quickActions.widgets, mail.startPins) { layout, pins, widgets, mailPins ->
+            StartPages.merge(layout.start, pins.map { it.key }, widgets.map { StartEntry.Widget(it.device, it.wide) }, mailPins.extras)
         }.stateIn(scope, SharingStarted.Eagerly, StartPages.merge(emptyList(), emptyList(), emptyList()))
 
     /** The start tab's blocks. */
@@ -40,6 +44,9 @@ class StartArrangement @Inject constructor(
         .stateIn(scope, SharingStarted.Eagerly, pages.value[null].orEmpty())
 
     val access: StateFlow<LayoutAccess> = tabLayout.access
+
+    /** What Mail pins to Start on this device. */
+    val mailPins: StateFlow<com.gatecontrol.android.mail.MailStartPins> = mail.startPins
 
     init {
         // An order from the account (or arranged here): the pins take its order and widths
@@ -69,7 +76,24 @@ class StartArrangement @Inject constructor(
     suspend fun syncFromPins(page: String? = null) {
         val tiles = quickActions.currentPins().map { it.key }
         val widgets = quickActions.currentWidgets().map { StartEntry.Widget(it.device, it.wide) }
-        tabLayout.updateStart { StartPages.syncPins(it, tiles, widgets, page) }
+        val extras = mail.currentStartPins().extras
+        tabLayout.updateStart { StartPages.syncPins(it, tiles, widgets, page, extras) }
+    }
+
+    /**
+     * A favourite on Start ([on]) or off it; it joins [page] (a widget page, null: the start tab). Mail's pins are kept
+     * on this device like the plugins' ones.
+     */
+    suspend fun pinContact(pin: StartContactPin, on: Boolean, page: String? = null) {
+        mail.updateStartPins { MailContactLogic.withPin(it, pin, on) }
+        syncFromPins(page)
+    }
+
+    /** The calendar widget on Start ([on]) or off it. */
+    suspend fun pinAgenda(on: Boolean, page: String? = null) {
+        mail.updateStartPins { it.copy(agenda = on) }
+        if (on) mail.refreshUpcomingSoon()
+        syncFromPins(page)
     }
 
     /** Asks the server for the account's order (throttled). */

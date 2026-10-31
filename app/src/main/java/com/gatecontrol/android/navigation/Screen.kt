@@ -242,6 +242,8 @@ sealed class Screen(val route: String) {
             "id" to id?.toString(), "message" to message?.toString(), "email" to email, "name" to name?.take(200), "group" to group?.toString(),
         )
     }
+    /** Mail's calendar on its own (the calendar widget on Start, while the calendar is no page beside Start). */
+    data object MailCalendar : Screen("mail/calendar")
     /** "Dubletten": contacts that may be one person. */
     data object MailContactDuplicates : Screen("mail/contacts/duplicates")
     /** A group of contacts: its members, "Mail an alle". */

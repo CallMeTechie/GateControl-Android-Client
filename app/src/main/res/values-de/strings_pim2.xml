@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GateControl Mail 1.4.0: der GC-Kontakt als Master, Favoriten, das Termin-Widget auf Start -->
+    <string name="fav_add">Als Favorit markieren</string>
+    <string name="fav_remove">Aus den Favoriten entfernen</string>
+    <string name="fav_limit">Höchstens %1$d Favoriten</string>
+    <string name="fav_open">Kontakt öffnen</string>
+    <string name="fav_pin">Auf Start anheften</string>
+    <string name="fav_unpin">Von Start entfernen</string>
+    <string name="fav_pinned">Auf Start angeheftet</string>
+    <string name="fav_unpinned">Von Start entfernt</string>
+    <string name="fav_none_hint">Markiere Kontakte mit dem Stern als Favoriten, um sie auf Start zu legen.</string>
+    <string name="fav_no_phone">Keine Nummer: ein Tipp öffnet den Kontakt</string>
+    <plurals name="con_conflicts_n">
+        <item quantity="one">%d abweichender Wert</item>
+        <item quantity="other">%d abweichende Werte</item>
+    </plurals>
+    <string name="con_main_phone">Hauptnummer</string>
+    <string name="con_main_phone_choose">Als Hauptnummer</string>
+    <string name="con_main_phone_set">Hauptnummer geändert</string>
+    <string name="con_sources">Quellen</string>
+    <string name="con_source_gc">Meine Kontakte</string>
+    <string name="con_unlink">Verknüpfung lösen</string>
+    <string name="con_unlink_title">Verknüpfung lösen?</string>
+    <string name="con_unlink_text">Der Kontakt aus %1$s erscheint wieder einzeln. Beim Anbieter ändert sich nichts.</string>
+    <string name="con_unlinked">Verknüpfung gelöst</string>
+    <string name="con_writeback_ok">Auch in %1$s geändert</string>
+    <string name="con_writeback_failed">Nicht bei %1$s geändert</string>
+    <string name="con_delete_linked_too">Verknüpfte Kontakte bei %1$s auch löschen</string>
+    <string name="con_hint">%1$s hat %2$s: %3$s</string>
+    <string name="con_hint_before">(bisher %1$s)</string>
+    <string name="con_hint_linked">Ein verknüpfter Kontakt</string>
+    <string name="con_hint_mobile">eine andere Mobilnummer</string>
+    <string name="con_hint_phone">eine andere Nummer</string>
+    <string name="con_hint_address">eine andere Anschrift</string>
+    <string name="con_hint_company">eine andere Firma</string>
+    <string name="con_hint_department">eine andere Abteilung</string>
+    <string name="con_hint_title">eine andere Position</string>
+    <string name="con_hint_birthday">einen anderen Geburtstag</string>
+    <string name="con_hint_accept">Übernehmen</string>
+    <string name="con_hint_add">Zusätzlich</string>
+    <string name="con_hint_dismiss">Verwerfen</string>
+    <string name="dup_auto">Automatisch zusammengeführt (%1$d)</string>
+    <plurals name="dup_open">
+        <item quantity="one">%d Fall zum Prüfen</item>
+        <item quantity="other">%d Fälle zum Prüfen</item>
+    </plurals>
+    <string name="dup_undo">Rückgängig</string>
+    <string name="dup_undo_title">Zusammenführen rückgängig machen?</string>
+    <string name="dup_undo_text">Die Kontakte erscheinen wieder einzeln. Bei den Anbietern ändert sich nichts.</string>
+    <string name="dup_undo_text_created">Die Kontakte erscheinen wieder einzeln, und der zusammengeführte Kontakt wird entfernt, samt deiner Änderungen daran. Bei den Anbietern ändert sich nichts.</string>
+    <string name="dup_undone">Zusammenführen rückgängig gemacht</string>
+    <string name="dup_result">So wird der Kontakt</string>
+    <string name="dup_loser">Bleibt als Hinweis: %1$s (%2$s)</string>
+    <string name="dup_nothing">Keine Nummern oder Adressen</string>
+    <string name="agenda_title">Termine</string>
+    <string name="agenda_pin_desc">Die nächsten Termine heute und morgen</string>
+    <string name="agenda_open_calendar">Kalender öffnen</string>
+    <string name="agenda_menu">Optionen</string>
+    <string name="agenda_remove">Von Start entfernen</string>
+    <string name="agenda_loading">Termine werden geladen …</string>
+    <string name="agenda_none">Heute und morgen keine weiteren Termine</string>
+    <string name="agenda_today">Heute</string>
+    <string name="agenda_tomorrow">Morgen</string>
+    <string name="agenda_all_day">ganztägig</string>
+    <string name="agenda_no_title">(ohne Titel)</string>
+    <plurals name="agenda_more">
+        <item quantity="one">%d weiterer Termin</item>
+        <item quantity="other">%d weitere Termine</item>
+    </plurals>
+</resources>

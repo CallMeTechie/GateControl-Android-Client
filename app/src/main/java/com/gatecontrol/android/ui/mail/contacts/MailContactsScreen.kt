@@ -120,7 +120,14 @@ fun MailContactsContent(nav: ContactsNav, viewModel: MailContactsViewModel) {
     LaunchedEffect(state.message) {
         val m = state.message ?: return@LaunchedEffect
         val parts = m.split(':')
-        toast(context, if (parts[0] == "import" && parts.size == 4) context.getString(R.string.con_imported, parts[1].toInt(), parts[2].toInt(), parts[3].toInt()) else mailText(context, m))
+        toast(
+            context,
+            when {
+                parts[0] == "import" && parts.size == 4 -> context.getString(R.string.con_imported, parts[1].toInt(), parts[2].toInt(), parts[3].toInt())
+                m == "fav_limit" -> context.getString(R.string.fav_limit, com.gatecontrol.android.mail.MailContactLogic.FAVORITES_MAX)
+                else -> mailText(context, m)
+            },
+        )
         viewModel.clearMessage()
     }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -202,7 +209,7 @@ fun MailContactsContent(nav: ContactsNav, viewModel: MailContactsViewModel) {
             if (state.tab == ContactsState.TAB_GROUPS) {
                 GroupsList(books?.groups.orEmpty(), all, onGroup = nav.group, onNew = { newGroup = true }, offline = offline)
             } else {
-                ContactsList(shown, me, books, state, nav, viewModel)
+                ContactsList(shown, me, books, state, nav, viewModel, offline)
             }
         }
         if (state.tab == ContactsState.TAB_CONTACTS && !offline) {
@@ -290,7 +297,7 @@ private fun TabsRow(tab: String, groups: Int, onTab: (String) -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ContactsList(shown: List<MCardSummary>, me: MMe?, books: com.gatecontrol.android.mail.MBooks?, state: ContactsState, nav: ContactsNav, viewModel: MailContactsViewModel) {
+private fun ContactsList(shown: List<MCardSummary>, me: MMe?, books: com.gatecontrol.android.mail.MBooks?, state: ContactsState, nav: ContactsNav, viewModel: MailContactsViewModel, offline: Boolean) {
     val extra = GateControlTheme.extraColors
     val context = mailContext()
     val sections = remember(shown) { MailPimLogic.sections(shown) }
@@ -333,8 +340,7 @@ private fun ContactsList(shown: List<MCardSummary>, me: MMe?, books: com.gatecon
                     Text(letter, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = extra.accentText, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp).semantics { heading() })
                 }
                 items(list, key = { "c${it.id}" }) { c ->
-                    val book = books?.book(c.addressbookId)
-                    ContactRow(c, sourceColor(me, book?.accountId), accountLabel(me, book?.accountId)) { nav.contact(c.id) }
+                    ContactRow(c, me, books, onStar = if (offline) null else ({ viewModel.toggleFavorite(c) })) { nav.contact(c.masterId ?: c.id) }
                 }
             }
         }
@@ -359,23 +365,49 @@ private fun ContactsList(shown: List<MCardSummary>, me: MMe?, books: com.gatecon
     }
 }
 
-/** A contact in the list (mockup): photo or initials, name, position · company or the first address, the source's dot. */
+/**
+ * A contact in the list (mockup): photo or initials, name, position · company or the first address, the dots of the
+ * accounts it comes from (Mail 1.4.0: its linked cards' too), a quiet dot when a linked card has another value, and
+ * the favourite's star ([onStar] null: none, an older server).
+ */
 @Composable
-internal fun ContactRow(c: MCardSummary, source: Color?, sourceName: String?, onClick: () -> Unit) {
+internal fun ContactRow(c: MCardSummary, me: MMe?, books: com.gatecontrol.android.mail.MBooks?, onStar: (() -> Unit)? = null, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClick = onClick).padding(start = 16.dp, end = 24.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClick = onClick).padding(start = 16.dp, end = if (onStar != null) 20.dp else 24.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         ContactAvatar(c.name, c.emails.firstOrNull(), c.id.takeIf { c.photo }, c.photoEtag)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(c.name.ifBlank { c.emails.firstOrNull() ?: "–" }, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    c.name.ifBlank { c.emails.firstOrNull() ?: "–" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (c.conflicts > 0) {
+                    val hint = pluralStringResource(R.plurals.con_conflicts_n, c.conflicts, c.conflicts)
+                    Box(Modifier.size(7.dp).clip(RoundedCornerShape(99.dp)).background(extra.warn).semantics { contentDescription = hint })
+                }
+            }
             val sub = MailPimLogic.subline(c)
             if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (source != null) {
-            Box(Modifier.size(8.dp).clip(RoundedCornerShape(99.dp)).background(source).semantics { sourceName?.let { contentDescription = it } })
+        SourceDots(me, com.gatecontrol.android.mail.MailContactLogic.sourceAccounts(c) { b -> books?.book(b)?.accountId })
+        if (onStar != null && c.favorite != null) {
+            val on = c.favorite == true
+            GcIconButton(
+                if (on) GcIcons.StarFilled else GcIcons.Star,
+                contentDescription = stringResource(if (on) R.string.fav_remove else R.string.fav_add),
+                onClick = onStar,
+                tint = if (on) extra.warn else extra.faint,
+                size = 36.dp,
+                iconSize = 18.dp,
+            )
         }
     }
 }
