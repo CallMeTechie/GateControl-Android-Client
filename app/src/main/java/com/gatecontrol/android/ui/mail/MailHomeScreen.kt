@@ -142,6 +142,7 @@ fun MailHomeScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
     val reopen by viewModel.reopen.collectAsStateWithLifecycle()
     val folds by viewModel.folds.collectAsStateWithLifecycle()
+    val folderFolds by viewModel.folderFolds.collectAsStateWithLifecycle()
     val context = mailContext()
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -213,6 +214,8 @@ fun MailHomeScreen(
                     outbox = outbox,
                     folds = folds,
                     onFold = viewModel::toggleFold,
+                    folderFolds = folderFolds,
+                    onFolderFold = viewModel::toggleFolder,
                     onBox = { close(); viewModel.selectBox(it) },
                     onFiling = { close(); nav.filing() },
                     onOutbox = { close(); nav.outbox() },
@@ -259,7 +262,8 @@ fun MailHomeScreen(
     }
     moveFor?.let { item ->
         FolderPicker(
-            folders = folders[item.accountId].orEmpty().filter { it.id != item.folderId },
+            folders = folders[item.accountId].orEmpty(),
+            current = item.folderId,
             onPick = { f ->
                 moveFor = null
                 viewModel.act(item, "move", f.id)
@@ -610,22 +614,37 @@ internal fun SheetRow(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
     }
 }
 
-/** "Verschieben": the account's folders. */
+/**
+ * "Verschieben": the account's folders as a tree like the menu ([MailLogic.folderRows]): the arrow opens or closes a
+ * folder's children (here only, closed at first but for the folders above the mail's own), a tap on the name moves.
+ * The mail's own folder ([current]) stays in the tree, dimmed, so that its children can be reached.
+ */
 @Composable
-internal fun FolderPicker(folders: List<MFolder>, onPick: (MFolder) -> Unit, onDismiss: () -> Unit) {
+internal fun FolderPicker(folders: List<MFolder>, current: Long?, onPick: (MFolder) -> Unit, onDismiss: () -> Unit) {
+    val tree = remember(folders) { MailLogic.folderTree(folders) }
+    var folds by remember { mutableStateOf<Map<Long, Boolean>>(emptyMap()) }
+    val extra = GateControlTheme.extraColors
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mail_move_title)) },
         text = {
             LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                items(MailFolders.ordered(folders), key = { it.id }) { f ->
+                items(MailLogic.folderRows(tree, folds, current), key = { it.folder.id }) { r ->
+                    val f = r.folder
+                    val here = f.id == current
+                    val label = MailFolders.label(f)
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onPick(f) }.padding(horizontal = 4.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable(enabled = !here) { onPick(f) }
+                            .padding(start = (r.indent * 16).dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(MailFolders.icon(f.role), contentDescription = null, modifier = Modifier.size(20.dp), tint = GateControlTheme.extraColors.muted)
-                        Text(MailFolders.label(f), style = MaterialTheme.typography.bodyLarge)
+                        FolderArrow(r, label, Modifier.size(width = 32.dp, height = 48.dp)) { folds = MailLogic.toggleFolder(tree, folds, f.id, current) }
+                        Icon(MailFolders.icon(f.role), contentDescription = null, modifier = Modifier.size(20.dp), tint = if (here) extra.faint else extra.muted)
+                        Spacer(Modifier.width(12.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge, color = if (here) extra.faint else MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -635,12 +654,34 @@ internal fun FolderPicker(folders: List<MFolder>, onPick: (MFolder) -> Unit, onD
     )
 }
 
-/** The folders of an account in the menu's order: inbox, sent, drafts, archive, the own ones, junk, trash. */
+/**
+ * The arrow of a folder with children (in the menu and in "Verschieben"): a tap opens or closes them, nothing else. A
+ * folder without children keeps the room empty, so that the names stay in line.
+ */
+@Composable
+private fun FolderArrow(r: MailLogic.FolderRow, label: String, modifier: Modifier, onToggle: () -> Unit) {
+    if (!r.hasKids) {
+        Box(modifier)
+        return
+    }
+    val action = stringResource(if (r.open) R.string.mail_subfolders_collapse else R.string.mail_subfolders_expand, label)
+    val state = stringResource(if (r.open) R.string.mail_subfolders_shown else R.string.mail_subfolders_hidden)
+    Box(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(role = Role.Button, onClickLabel = action, onClick = onToggle)
+            .semantics {
+                contentDescription = action
+                stateDescription = state
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(if (r.open) GcIcons.ChevronDown else GcIcons.ChevronRight, contentDescription = null, tint = GateControlTheme.extraColors.muted, modifier = Modifier.size(16.dp))
+    }
+}
+
+/** The folders of an account: their icons and names; the order and the tree are [MailLogic.folderTree]'s. */
 internal object MailFolders {
-    private val ORDER = listOf(MFolder.ROLE_INBOX, MFolder.ROLE_SENT, MFolder.ROLE_DRAFTS, MFolder.ROLE_ARCHIVE, null, MFolder.ROLE_JUNK, MFolder.ROLE_TRASH)
-
-    fun ordered(folders: List<MFolder>): List<MFolder> = folders.sortedWith(compareBy({ ORDER.indexOf(it.role) }, { it.path.lowercase() }))
-
     fun icon(role: String?) = when (role) {
         MFolder.ROLE_INBOX -> MailIcons.Inbox
         MFolder.ROLE_SENT -> MailIcons.Send
@@ -668,8 +709,9 @@ internal object MailFolders {
  * The menu (mockups "Seitenmenü" and "Seitenmenü neu"): "Mail", "Alle Posteingänge", "Zum Ablegen" (with Drive),
  * "Postausgang" (when something waits), the accounts with their folders, the storage bar and the foot: the settings
  * on the left, contacts and calendar on the right ([MailDrawerFoot]). A tap on an account opens or closes its folders
- * (the menu stays, [folds] keeps it for the session); picking its "Posteingang" or a folder closes the menu. An
- * account is added in the settings only (no "+" here since phase 2).
+ * (the menu stays, [folds] keeps it for the session); picking its "Posteingang" or a folder closes the menu. The folders
+ * are a tree ([MailLogic.folderRows]): the arrow of a parent opens or closes its children, the menu stays
+ * ([folderFolds], kept on the device). An account is added in the settings only (no "+" here since phase 2).
  */
 @Composable
 private fun MailDrawer(
@@ -680,6 +722,8 @@ private fun MailDrawer(
     outbox: Int,
     folds: Map<Long, Boolean>,
     onFold: (Long) -> Unit,
+    folderFolds: Map<Long, Boolean>,
+    onFolderFold: (Long, Long) -> Unit,
     onBox: (MailLogic.Box) -> Unit,
     onFiling: () -> Unit,
     onOutbox: () -> Unit,
@@ -725,7 +769,7 @@ private fun MailDrawer(
                     onDuplicates = onDuplicates,
                 )
             } else {
-                mailDrawerItems(me, folders, box, filing, outbox, folds, onFold, onBox, onFiling, onOutbox)
+                mailDrawerItems(me, folders, box, filing, outbox, folds, onFold, folderFolds, onFolderFold, onBox, onFiling, onOutbox)
             }
             me?.limits?.let { l ->
                 MailLogic.quotaPercent(l.usedBytes, l.quotaBytes)?.let { p ->
@@ -751,6 +795,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mailDrawerItems(
     outbox: Int,
     folds: Map<Long, Boolean>,
     onFold: (Long) -> Unit,
+    folderFolds: Map<Long, Boolean>,
+    onFolderFold: (Long, Long) -> Unit,
     onBox: (MailLogic.Box) -> Unit,
     onFiling: () -> Unit,
     onOutbox: () -> Unit,
@@ -774,20 +820,25 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mailDrawerItems(
                     DrawerAccount(a, me?.unreadByAccount?.get(a.id) ?: 0, on = !open && box.accountId == a.id, open = open) { onFold(a.id) }
                 }
                 if (open) {
-                    val list = MailFolders.ordered(folders[a.id].orEmpty())
+                    val list = folders[a.id].orEmpty()
+                    // the folders as a tree: a parent's children only when it is open ([folderFolds], kept on the device)
+                    val rows = MailLogic.folderRows(MailLogic.folderTree(list), folderFolds, box.folderId.takeIf { box.accountId == a.id })
                     // the account's inbox is always there (also before its folders came)
                     if (list.none { it.role == MFolder.ROLE_INBOX }) {
                         item(key = "i${a.id}") {
                             DrawerFolder(stringResource(R.string.mail_inbox), 0, on = box.accountId == a.id && box.folderId == null) { onBox(MailLogic.Box(a.id)) }
                         }
                     }
-                    list.forEach { f ->
+                    rows.forEach { r ->
+                        val f = r.folder
                         item(key = "f${f.id}") {
                             val inbox = f.role == MFolder.ROLE_INBOX
                             DrawerFolder(
                                 MailFolders.label(f),
                                 f.unread,
                                 on = if (inbox) box.accountId == a.id && box.folderId == null else box.folderId == f.id,
+                                row = r,
+                                onToggle = { onFolderFold(a.id, f.id) },
                             ) { onBox(MailLogic.Box(a.id, f.id.takeIf { !inbox })) }
                         }
                     }
@@ -869,10 +920,16 @@ private fun DrawerItem(icon: androidx.compose.ui.graphics.vector.ImageVector?, l
     }
 }
 
-/** A folder of an account in the menu (indented below it). */
+/**
+ * A folder of an account in the menu (indented below it, a level further per depth up to [MailLogic.FOLDER_MAX_INDENT]):
+ * the arrow of a parent opens or closes its children ([onToggle], the menu stays), a tap on the name opens the folder.
+ * A closed parent shows the unread mail below it, quietly.
+ */
 @Composable
-private fun DrawerFolder(label: String, unread: Int, on: Boolean, onClick: () -> Unit) {
+private fun DrawerFolder(label: String, unread: Int, on: Boolean, row: MailLogic.FolderRow? = null, onToggle: () -> Unit = {}, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
+    val indent = row?.indent ?: 0
+    val below = row?.unreadBelow ?: 0
     Row(
         Modifier
             .fillMaxWidth()
@@ -880,11 +937,22 @@ private fun DrawerFolder(label: String, unread: Int, on: Boolean, onClick: () ->
             .clip(RoundedCornerShape(12.dp))
             .background(if (on) extra.accentBg else Color.Transparent)
             .selectable(selected = on, role = Role.Tab, onClick = onClick)
-            .padding(start = 58.dp, end = 12.dp),
+            .padding(start = (28 + indent * 16).dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val arrow = Modifier.size(width = 30.dp, height = 40.dp)
+        if (row != null) FolderArrow(row, label, arrow, onToggle) else Box(arrow)
         Text(label, style = MaterialTheme.typography.bodyMedium, color = if (on) extra.accentText else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (unread > 0) Text(unread.toString(), style = MaterialTheme.typography.labelMedium, color = extra.muted, fontWeight = FontWeight.Bold)
+        if (below > 0) {
+            val text = stringResource(R.string.mail_subfolders_unread, below)
+            Text(
+                (if (unread > 0) "+" else "") + below,
+                style = MaterialTheme.typography.labelMedium,
+                color = extra.faint,
+                modifier = Modifier.padding(start = 4.dp).semantics { contentDescription = text },
+            )
+        }
     }
 }
 

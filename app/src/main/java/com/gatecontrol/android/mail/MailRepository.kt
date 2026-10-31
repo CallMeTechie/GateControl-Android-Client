@@ -75,6 +75,33 @@ class MailRepository @Inject constructor(
         _folds.update { MailLogic.toggleFold(it, accountId, box) }
     }
 
+    /** The menu's folded folders (folder id → children shown), kept on the device ([MailCache.putFolderFolds]). */
+    private val _folderFolds = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    val folderFolds: StateFlow<Map<Long, Boolean>> = _folderFolds.asStateFlow()
+    @Volatile private var folderFoldsChanged = false
+
+    /** A tap on a folder's arrow in the menu: its children open or close ([MailLogic.toggleFolder]). */
+    fun toggleFolder(accountId: Long, folderId: Long, box: MailLogic.Box) {
+        val tree = MailLogic.folderTree(_folders.value[accountId].orEmpty())
+        val current = box.folderId.takeIf { box.accountId == accountId }
+        setFolderFolds(MailLogic.toggleFolder(tree, _folderFolds.value, folderId, current))
+    }
+
+    /** A folder picked or pointed at: the folders above it open ([MailLogic.revealFolder]). */
+    fun revealFolder(box: MailLogic.Box) {
+        val accountId = box.accountId ?: return
+        val folderId = box.folderId ?: return
+        val now = _folderFolds.value
+        val next = MailLogic.revealFolder(MailLogic.folderTree(_folders.value[accountId].orEmpty()), now, folderId)
+        if (next != now) setFolderFolds(next)
+    }
+
+    private fun setFolderFolds(folds: Map<Long, Boolean>) {
+        folderFoldsChanged = true
+        _folderFolds.value = folds
+        scope.launch { cache.putFolderFolds(_folderFolds.value) }
+    }
+
     @Volatile private var meAt = 0L
     private var refreshJob: Job? = null
 
@@ -82,6 +109,7 @@ class MailRepository @Inject constructor(
         scope.launch {
             if (_me.value == null) cache.me()?.let { if (_me.value == null) _me.value = it }
             if (_folders.value.isEmpty()) cache.folders()?.let { if (_folders.value.isEmpty()) _folders.value = it }
+            cache.folderFolds()?.let { if (!folderFoldsChanged) _folderFolds.value = it }
         }
     }
 
@@ -164,6 +192,7 @@ class MailRepository @Inject constructor(
     suspend fun forget() {
         _me.value = null
         _folders.value = emptyMap()
+        _folderFolds.value = emptyMap()
         _undo.value = null
         pim.forget()
         cache.wipe()

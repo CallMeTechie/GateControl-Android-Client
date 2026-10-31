@@ -71,6 +71,19 @@ class MailCache @Inject constructor(
 
     suspend fun folders(): Map<Long, List<MFolder>>? = io { dir -> read(File(dir, "folders.json"))?.let(MailJson::folders) }
 
+    /** The menu's folded folders (folder id → children shown), as the person left them ([MailLogic.folderOpen]). */
+    suspend fun putFolderFolds(folds: Map<Long, Boolean>) {
+        io { write(File(it, "folds.json"), JsonObject().apply { folds.forEach { (id, open) -> addProperty(id.toString(), open) } }) }
+    }
+
+    suspend fun folderFolds(): Map<Long, Boolean>? = io { dir ->
+        read(File(dir, "folds.json"))?.entrySet()?.mapNotNull { (k, v) ->
+            val id = k.toLongOrNull() ?: return@mapNotNull null
+            val open = v.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean ?: return@mapNotNull null
+            id to open
+        }?.toMap()
+    }
+
     // ─── account pictures ───────────────────────────────────────────
 
     /** An account's picture as it came ([MAccount.avatar]); the media id changes with the picture. */
