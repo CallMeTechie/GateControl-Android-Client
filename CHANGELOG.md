@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.70.1] - 2026-10-31
+
+### Changes
+- Kalender und Kontakte im Mail-Tab (Phase 2) (#164)
+
+---
+
 ## [1.70.0] - 2026-10-31
 
 ### Features
