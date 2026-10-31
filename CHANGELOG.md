@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.70.0] - 2026-10-31
+
+### Features
+- Seitenleiste mit neuem Fuß (Einstellungen links, Kontakte/Kalender rechts) (#163)
+
+---
+
 ## [1.69.0] - 2026-10-31
 
 ### Features
