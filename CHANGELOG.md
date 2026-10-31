@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.70.2] - 2026-10-31
+
+### Fixes
+- Erinnerung für ganztägige Termine standardmäßig 18:00 am Vortag (#165)
+
+---
+
 ## [1.70.1] - 2026-10-31
 
 ### Changes
