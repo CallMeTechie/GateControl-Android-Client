@@ -111,4 +111,37 @@ class StartLayoutTest {
         assertEquals(listOf("c", "a", "b", "d"), StartLayout.ordered(items, listOf("c", "a", "x")) { it })
         assertEquals(items, StartLayout.ordered(items, emptyList()) { it })
     }
+
+    @Test
+    fun `Mail's favourites are tiles after the buttons, its calendar widget tops the cards`() {
+        val extras = StartExtras(contacts = listOf(5, 6), agenda = true)
+        val raw = StartLayout.encodeAll(listOf(StartEntry.Contact(5), StartEntry.Agenda))
+        assertEquals(listOf("contact:5", "agenda"), raw)
+        assertEquals(listOf(StartEntry.Contact(5), StartEntry.Agenda), raw.map { StartLayout.decode(it) })
+        assertTrue(raw.all { TabLayout.isValidEntry(it) })
+        assertNull(StartLayout.decode("contact:"))
+        assertNull(StartLayout.decode("contact:0"))
+        assertNull(StartLayout.decode("contact:x"))
+
+        val fresh = StartLayout.merge(emptyList(), listOf(door), listOf(widget(car)), extras = extras)
+        assertEquals(listOf("tile:$door", "contact:5", "contact:6", "agenda", "widget:$car", "info", "usage"), fresh.map { it.key })
+        // the stored order wins; a contact no longer pinned (or another device's) is skipped
+        val saved = listOf("contact:6", "tile:$door", "contact:9", "widget:$car", "agenda", "info", "usage")
+        assertEquals(
+            listOf("contact:6", "tile:$door", "contact:5", "widget:$car", "agenda", "info", "usage"),
+            StartLayout.merge(saved, listOf(door), listOf(widget(car)), extras = extras).map { it.key },
+        )
+        // nothing pinned by Mail: the stored entries do nothing
+        assertEquals(listOf("tile:$door", "widget:$car", "info", "usage"), StartLayout.merge(saved, listOf(door), listOf(widget(car))).map { it.key })
+    }
+
+    @Test
+    fun `favourites move among the tiles, the calendar widget among the cards`() {
+        val entries = StartLayout.merge(emptyList(), listOf(door), listOf(widget(car)), extras = StartExtras(listOf(5), agenda = true))
+        assertEquals(listOf("contact:5", "tile:$door"), StartLayout.move(entries, "contact:5", "tile:$door").take(2).map { it.key })
+        assertSame(entries, StartLayout.move(entries, "contact:5", "agenda"))
+        assertFalse(StartLayout.canMove(entries, "contact:5", 1))
+        assertTrue(StartLayout.canMove(entries, "agenda", 1))
+        assertEquals(listOf(listOf(StartEntry.Agenda)), StartLayout.rows(listOf(StartEntry.Agenda)))
+    }
 }

@@ -3,6 +3,7 @@ package com.gatecontrol.android.ui.mail.contacts
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -107,25 +108,59 @@ fun MailContactScreen(nav: ContactNav, viewModel: MailContactViewModel = hiltVie
     LaunchedEffect(state.gone) { if (state.gone) nav.back() }
     LaunchedEffect(state.message) {
         state.message?.let {
-            toast(context, mailText(context, it))
+            toast(
+                context,
+                when (it) {
+                    "main_phone" -> context.getString(R.string.con_main_phone_set)
+                    "unlinked" -> context.getString(R.string.con_unlinked)
+                    "pinned" -> context.getString(R.string.fav_pinned)
+                    "unpinned" -> context.getString(R.string.fav_unpinned)
+                    "fav_limit" -> context.getString(R.string.fav_limit, com.gatecontrol.android.mail.MailContactLogic.FAVORITES_MAX)
+                    else -> mailText(context, it)
+                },
+            )
             viewModel.clearMessage()
         }
     }
+    val startPins by viewModel.startPins.collectAsStateWithLifecycle()
+    var unlinking by remember { mutableStateOf<com.gatecontrol.android.mail.MSource?>(null) }
     val c = state.card
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             GcIconButton(GcIcons.Back, contentDescription = stringResource(R.string.mail_back), onClick = nav.back, tint = MaterialTheme.colorScheme.onBackground)
             Box(Modifier.weight(1f))
-            if (c != null && !c.readOnly) {
+            // Mail 1.4.0: the star (a favourite; GateControl's own, also for read-only sources)
+            if (c != null && c.favorite != null) {
+                val on = c.favorite == true
+                GcIconButton(
+                    if (on) GcIcons.StarFilled else GcIcons.Star,
+                    contentDescription = stringResource(if (on) R.string.fav_remove else R.string.fav_add),
+                    onClick = viewModel::toggleFavorite,
+                    enabled = !offline,
+                    tint = if (on) extra.warn else MaterialTheme.colorScheme.onBackground,
+                )
+            }
+            val pinnable = c != null && c.favorite == true
+            if (c != null && (!c.readOnly || pinnable)) {
                 Box {
                     GcIconButton(GcIcons.MoreVertical, contentDescription = stringResource(R.string.con_more), onClick = { menu = true }, tint = MaterialTheme.colorScheme.onBackground)
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.con_delete), color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(GcIcons.Trash, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
-                            enabled = !offline,
-                            onClick = { menu = false; deleting = true },
-                        )
+                        if (pinnable) {
+                            val pinned = startPins.has(c.id)
+                            DropdownMenuItem(
+                                text = { Text(stringResource(if (pinned) R.string.fav_unpin else R.string.fav_pin)) },
+                                leadingIcon = { Icon(GcIcons.Pin, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                onClick = { menu = false; viewModel.pinToStart(!pinned) },
+                            )
+                        }
+                        if (!c.readOnly) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.con_delete), color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(GcIcons.Trash, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                                enabled = !offline,
+                                onClick = { menu = false; deleting = true },
+                            )
+                        }
                     }
                 }
             }
@@ -141,21 +176,36 @@ fun MailContactScreen(nav: ContactNav, viewModel: MailContactViewModel = hiltVie
                     val job = listOfNotNull(c.title, c.department, c.company).joinToString(" · ")
                     if (job.isNotEmpty()) Text(job, style = MaterialTheme.typography.bodyMedium, color = extra.muted, textAlign = TextAlign.Center)
                     val book = books?.book(c.addressbookId)
-                    val linked = c.linked.mapNotNull { l -> books?.book(l.addressbookId)?.name }.distinct()
-                    val src = listOfNotNull(accountLabel(me, book?.accountId) ?: book?.name) + linked.map { stringResource(R.string.con_linked_with, it) }
-                    if (src.isNotEmpty()) {
+                    if (c.sources.size > 1) {
+                        // Mail 1.4.0: the GC contact with the cards linked to it ("verknüpft mit Outlook (…)")
+                        val linked = c.sources.filter { it.id != c.id }.map { com.gatecontrol.android.mail.MailContactLogic.originLabel(it) }.filter { it.isNotBlank() }.distinct()
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            me?.account(book?.accountId)?.let { MailDot(accountColor(it)) }
-                            Text(src.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = extra.muted, textAlign = TextAlign.Center)
+                            SourceDots(me, c.sources.mapNotNull { it.accountId }.distinct())
+                            Text(stringResource(R.string.con_linked_with, linked.joinToString(", ")), style = MaterialTheme.typography.bodySmall, color = extra.muted, textAlign = TextAlign.Center)
+                        }
+                    } else {
+                        val linked = c.linked.mapNotNull { l -> books?.book(l.addressbookId)?.name }.distinct()
+                        val src = listOfNotNull(accountLabel(me, book?.accountId) ?: book?.name) + linked.map { stringResource(R.string.con_linked_with, it) }
+                        if (src.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                me?.account(book?.accountId)?.let { MailDot(accountColor(it)) }
+                                Text(src.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = extra.muted, textAlign = TextAlign.Center)
+                            }
                         }
                     }
+                }
+                // Mail 1.4.0: a linked card has another value — take it over or let it go (online only)
+                if (!offline) {
+                    c.conflicts.forEach { x -> ConflictBand(x, busy = state.busy, onAccept = { add -> viewModel.accept(x, add) }, onDismiss = { viewModel.dismiss(x) }) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionTile(GcIcons.Mail, stringResource(R.string.con_mail), enabled = c.emails.isNotEmpty(), modifier = Modifier.weight(1f)) {
                         if (c.emails.size == 1) nav.mailTo(c.emails[0].value) else pickMail = true
                     }
                     ActionTile(GcIcons.Phone, stringResource(R.string.con_call), enabled = c.phones.isNotEmpty(), modifier = Modifier.weight(1f)) {
-                        if (c.phones.size == 1) call(context, c.phones[0].value) else pickCall = true
+                        // a chosen main number is called straight away (Mail 1.4.0)
+                        val main = c.mainPhone?.takeIf { c.mainPhoneChosen }
+                        if (c.phones.size == 1) call(context, c.phones[0].value) else if (main != null) call(context, main.value) else pickCall = true
                     }
                     ActionTile(GcIcons.Edit, stringResource(R.string.con_edit), enabled = !c.readOnly && !offline, modifier = Modifier.weight(1f)) { nav.edit(c.id) }
                 }
@@ -164,7 +214,16 @@ fun MailContactScreen(nav: ContactNav, viewModel: MailContactViewModel = hiltVie
                 }
                 GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
                     c.emails.forEach { e -> Field(stringResource(R.string.con_email) + " · " + typeName(e.type), e.value, link = true) { nav.mailTo(e.value) } }
-                    c.phones.forEach { p -> Field(typeName(p.type), p.value, link = true) { call(context, p.value) } }
+                    c.phones.forEach { p ->
+                        val main = c.favorite != null && c.phones.size > 1 && com.gatecontrol.android.mail.MailContactLogic.isMain(c, p)
+                        val choose = !offline && com.gatecontrol.android.mail.MailContactLogic.canChooseMain(c, p)
+                        Field(
+                            typeName(p.type) + if (main) " · " + stringResource(R.string.con_main_phone) else "",
+                            p.value,
+                            link = true,
+                            menu = if (choose) listOf(stringResource(R.string.con_main_phone_choose) to { viewModel.setMainPhone(p) }) else emptyList(),
+                        ) { call(context, p.value) }
+                    }
                     c.addresses.forEach { a ->
                         val text = listOf(a.street, listOf(a.postalCode, a.city).filter { it.isNotBlank() }.joinToString(" "), a.region, a.country).filter { it.isNotBlank() }.joinToString("\n")
                         Field(typeName(a.type) + " · " + stringResource(R.string.con_address), text, action = GcIcons.Map) { openExternal(context, "geo:0,0?q=" + Uri.encode(text.replace('\n', ' '))) }
@@ -181,6 +240,29 @@ fun MailContactScreen(nav: ContactNav, viewModel: MailContactViewModel = hiltVie
                                     val col = calColor(g.color, extra.accentText)
                                     Text(g.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = col,
                                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(col.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 6.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+                // Mail 1.4.0: where the contact comes from, each linked card with "Verknüpfung lösen"
+                if (c.sources.size > 1) {
+                    GcSectionLabel(stringResource(R.string.con_sources), Modifier.padding(horizontal = 4.dp))
+                    GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+                        c.sources.forEach { src ->
+                            Row(
+                                Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 14.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                SourceDots(me, listOfNotNull(src.accountId))
+                                Column(Modifier.weight(1f)) {
+                                    val label = com.gatecontrol.android.mail.MailContactLogic.originLabel(src).ifBlank { src.addressbook }
+                                    Text(if (src.local) stringResource(R.string.con_source_gc) else label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(src.addressbook, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                if (src.id != c.id) {
+                                    TextButton(onClick = { unlinking = src }, enabled = !offline && !state.busy) { Text(stringResource(R.string.con_unlink)) }
                                 }
                             }
                         }
@@ -227,12 +309,15 @@ fun MailContactScreen(nav: ContactNav, viewModel: MailContactViewModel = hiltVie
     if (pickMail && c != null) Picker(c.emails.map { it.value }, onPick = { pickMail = false; nav.mailTo(it) }, onDismiss = { pickMail = false })
     if (pickCall && c != null) Picker(c.phones.map { it.value }, onPick = { pickCall = false; call(context, it) }, onDismiss = { pickCall = false })
     if (deleting && c != null) {
+        DeleteContactDialog(c, onDelete = { linkedToo -> deleting = false; viewModel.delete(linkedToo) }, onDismiss = { deleting = false })
+    }
+    unlinking?.let { src ->
         AlertDialog(
-            onDismissRequest = { deleting = false },
-            title = { Text(stringResource(R.string.con_delete_title, c.label)) },
-            text = { Text(stringResource(if (c.source == "local") R.string.con_delete_text else R.string.con_delete_text_account)) },
-            confirmButton = { TextButton(onClick = { deleting = false; viewModel.delete() }) { Text(stringResource(R.string.mail_delete), color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.mail_cancel)) } },
+            onDismissRequest = { unlinking = null },
+            title = { Text(stringResource(R.string.con_unlink_title)) },
+            text = { Text(stringResource(R.string.con_unlink_text, com.gatecontrol.android.mail.MailContactLogic.originLabel(src).ifBlank { src.addressbook })) },
+            confirmButton = { TextButton(onClick = { unlinking = null; viewModel.unlink(src) }) { Text(stringResource(R.string.con_unlink), fontWeight = FontWeight.Bold) } },
+            dismissButton = { TextButton(onClick = { unlinking = null }) { Text(stringResource(R.string.mail_cancel)) } },
         )
     }
 }
@@ -255,20 +340,77 @@ private fun ActionTile(icon: ImageVector, label: String, enabled: Boolean, modif
     }
 }
 
+/** A field of the contact; [menu] (label → action) opens on a long press ("Als Hauptnummer"). */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun Field(label: String, value: String, link: Boolean = false, action: ImageVector? = null, onClick: (() -> Unit)? = null) {
+private fun Field(label: String, value: String, link: Boolean = false, action: ImageVector? = null, menu: List<Pair<String, () -> Unit>> = emptyList(), onClick: (() -> Unit)? = null) {
     val extra = GateControlTheme.extraColors
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 52.dp)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = MaterialTheme.typography.bodySmall, color = extra.muted)
-            SelectionContainer { Text(value, style = MaterialTheme.typography.bodyLarge, color = if (link) extra.accentText else MaterialTheme.colorScheme.onSurface) }
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                .then(
+                    when {
+                        menu.isNotEmpty() -> Modifier.combinedClickable(
+                            role = Role.Button,
+                            onLongClickLabel = menu.first().first,
+                            onLongClick = { open = true },
+                            onClick = { onClick?.invoke() },
+                        )
+                        onClick != null -> Modifier.clickable(role = Role.Button, onClick = onClick)
+                        else -> Modifier
+                    },
+                )
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                if (menu.isNotEmpty()) {
+                    Text(value, style = MaterialTheme.typography.bodyLarge, color = if (link) extra.accentText else MaterialTheme.colorScheme.onSurface)
+                } else {
+                    SelectionContainer { Text(value, style = MaterialTheme.typography.bodyLarge, color = if (link) extra.accentText else MaterialTheme.colorScheme.onSurface) }
+                }
+            }
+            if (action != null) Icon(action, contentDescription = null, tint = extra.muted, modifier = Modifier.size(20.dp))
         }
-        if (action != null) Icon(action, contentDescription = null, tint = extra.muted, modifier = Modifier.size(20.dp))
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            menu.forEach { (text, run) -> DropdownMenuItem(text = { Text(text) }, onClick = { open = false; run() }) }
+        }
+    }
+}
+
+/**
+ * A linked card has another value (Mail 1.4.0): "Outlook (…) hat eine andere Mobilnummer: 0171 … (bisher 0170 …)",
+ * "Übernehmen" (replaces), "Zusätzlich" where it fits (adds), "Verwerfen" (the value stays away).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ConflictBand(x: com.gatecontrol.android.mail.MCardConflict, busy: Boolean, onAccept: (add: Boolean) -> Unit, onDismiss: () -> Unit) {
+    val logic = com.gatecontrol.android.mail.MailContactLogic
+    val what = stringResource(
+        when (logic.hintKind(x)) {
+            "mobile" -> R.string.con_hint_mobile
+            "phone" -> R.string.con_hint_phone
+            "address" -> R.string.con_hint_address
+            "company" -> R.string.con_hint_company
+            "department" -> R.string.con_hint_department
+            "title" -> R.string.con_hint_title
+            else -> R.string.con_hint_birthday
+        },
+    )
+    val origin = logic.originLabel(x.source).ifBlank { stringResource(R.string.con_hint_linked) }
+    val text = stringResource(R.string.con_hint, origin, what, logic.valueText(x.value)) +
+        (x.replaces?.let { " " + stringResource(R.string.con_hint_before, logic.valueText(it)) } ?: "")
+    com.gatecontrol.android.ui.components.GcBanner(tone = com.gatecontrol.android.ui.components.GcTone.Warn, icon = GcIcons.Info) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(text, style = MaterialTheme.typography.bodySmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { onAccept(false) }, enabled = !busy) { Text(stringResource(R.string.con_hint_accept), fontWeight = FontWeight.Bold) }
+                if (logic.canAdd(x)) TextButton(onClick = { onAccept(true) }, enabled = !busy) { Text(stringResource(R.string.con_hint_add)) }
+                TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.con_hint_dismiss)) }
+            }
+        }
     }
 }
 

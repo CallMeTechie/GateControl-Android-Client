@@ -236,7 +236,7 @@ private fun AddMemberDialog(cards: List<MCardSummary>, onContact: (Long) -> Unit
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 GcTextField(q, { q = it.take(100) }, stringResource(R.string.con_search), placeholder = stringResource(R.string.con_search_hint))
-                if (q.isNotBlank()) found.forEach { c -> ContactRow(c, null, null) { onContact(c.id) } }
+                if (q.isNotBlank()) found.forEach { c -> ContactRow(c, null, null) { onContact(c.masterId ?: c.id) } }
                 if (typed != null) TextButton(onClick = { onAddress(typed) }) { Text(stringResource(R.string.con_add_address_member, typed.email)) }
             }
         },

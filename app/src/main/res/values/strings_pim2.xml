@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GateControl Mail 1.4.0: the GC contact as the master, favourites, the calendar widget on Start -->
+    <string name="fav_add">Mark as favourite</string>
+    <string name="fav_remove">Remove from favourites</string>
+    <string name="fav_limit">At most %1$d favourites</string>
+    <string name="fav_open">Open contact</string>
+    <string name="fav_pin">Pin to Start</string>
+    <string name="fav_unpin">Remove from Start</string>
+    <string name="fav_pinned">Pinned to Start</string>
+    <string name="fav_unpinned">Removed from Start</string>
+    <string name="fav_none_hint">Mark contacts with the star as favourites to put them on Start.</string>
+    <string name="fav_no_phone">No number: a tap opens the contact</string>
+    <plurals name="con_conflicts_n">
+        <item quantity="one">%d different value</item>
+        <item quantity="other">%d different values</item>
+    </plurals>
+    <string name="con_main_phone">main number</string>
+    <string name="con_main_phone_choose">Set as main number</string>
+    <string name="con_main_phone_set">Main number changed</string>
+    <string name="con_sources">Sources</string>
+    <string name="con_source_gc">My contacts</string>
+    <string name="con_unlink">Unlink</string>
+    <string name="con_unlink_title">Unlink?</string>
+    <string name="con_unlink_text">The contact from %1$s will be shown on its own again. Nothing changes at the provider.</string>
+    <string name="con_unlinked">Unlinked</string>
+    <string name="con_writeback_ok">Also changed in %1$s</string>
+    <string name="con_writeback_failed">Not changed in %1$s</string>
+    <string name="con_delete_linked_too">Also delete the linked contacts at %1$s</string>
+    <string name="con_hint">%1$s has %2$s: %3$s</string>
+    <string name="con_hint_before">(so far %1$s)</string>
+    <string name="con_hint_linked">A linked contact</string>
+    <string name="con_hint_mobile">a different mobile number</string>
+    <string name="con_hint_phone">a different number</string>
+    <string name="con_hint_address">a different address</string>
+    <string name="con_hint_company">a different company</string>
+    <string name="con_hint_department">a different department</string>
+    <string name="con_hint_title">a different position</string>
+    <string name="con_hint_birthday">a different birthday</string>
+    <string name="con_hint_accept">Take over</string>
+    <string name="con_hint_add">Add</string>
+    <string name="con_hint_dismiss">Dismiss</string>
+    <string name="dup_auto">Merged automatically (%1$d)</string>
+    <plurals name="dup_open">
+        <item quantity="one">%d case to check</item>
+        <item quantity="other">%d cases to check</item>
+    </plurals>
+    <string name="dup_undo">Undo</string>
+    <string name="dup_undo_title">Undo merging?</string>
+    <string name="dup_undo_text">The contacts are shown on their own again. Nothing changes at the providers.</string>
+    <string name="dup_undo_text_created">The contacts are shown on their own again and the merged contact goes, with your own changes to it. Nothing changes at the providers.</string>
+    <string name="dup_undone">Merging undone</string>
+    <string name="dup_result">This is the contact</string>
+    <string name="dup_loser">Stays as a hint: %1$s (%2$s)</string>
+    <string name="dup_nothing">No numbers or addresses</string>
+    <string name="agenda_title">Events</string>
+    <string name="agenda_pin_desc">The next events of today and tomorrow</string>
+    <string name="agenda_open_calendar">Open calendar</string>
+    <string name="agenda_menu">Options</string>
+    <string name="agenda_remove">Remove from Start</string>
+    <string name="agenda_loading">Loading events …</string>
+    <string name="agenda_none">No more events today and tomorrow</string>
+    <string name="agenda_today">Today</string>
+    <string name="agenda_tomorrow">Tomorrow</string>
+    <string name="agenda_all_day">all day</string>
+    <string name="agenda_no_title">(no title)</string>
+    <plurals name="agenda_more">
+        <item quantity="one">%d more event</item>
+        <item quantity="other">%d more events</item>
+    </plurals>
+</resources>

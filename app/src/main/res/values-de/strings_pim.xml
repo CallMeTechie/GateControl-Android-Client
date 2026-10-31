@@ -199,7 +199,6 @@
     <string name="con_family">Nachname</string>
     <string name="con_company">Firma</string>
     <string name="con_position">Position</string>
-    <string name="con_name">Name</string>
     <string name="con_add_email">E-Mail-Adresse hinzufügen</string>
     <string name="con_add_phone">Telefonnummer hinzufügen</string>
     <string name="con_add_address">Anschrift hinzufügen</string>
@@ -220,9 +219,6 @@
     <string name="con_reason_email">Gleiche Adresse</string>
     <string name="con_reason_phone">Gleiche Nummer</string>
     <string name="con_reason_name">Gleicher Name</string>
-    <string name="con_merge_link">Sie stammen aus verschiedenen Adressbüchern: sie werden verknüpft, beim Anbieter bleibt beides.</string>
-    <string name="con_merge_keep">Welcher Kontakt bleibt</string>
-    <string name="con_merge_result">Zusammen: %1$d Adressen, %2$d Nummern</string>
     <string name="con_merged">Zusammengeführt</string>
     <string name="con_mail_all">Mail an alle</string>
     <string name="con_add_member">Hinzufügen</string>

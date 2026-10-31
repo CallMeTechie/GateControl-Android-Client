@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -142,4 +146,71 @@ private fun sourceLabel(source: String): String? = when (source) {
     MContact.SOURCE_PERSON -> stringResource(R.string.pim_source_person)
     MContact.SOURCE_RECENT -> stringResource(R.string.pim_source_recent)
     else -> null
+}
+
+/** "Auch in Outlook geändert" / "Nicht bei <Konto> geändert" after saving a GC contact (Mail 1.4.0 `writeBack`). */
+internal fun writeBackToast(context: android.content.Context, ok: List<String>, failed: List<String>) {
+    val parts = listOfNotNull(
+        ok.takeIf { it.isNotEmpty() }?.let { context.getString(R.string.con_writeback_ok, it.joinToString(", ")) },
+        failed.takeIf { it.isNotEmpty() }?.let { context.getString(R.string.con_writeback_failed, it.joinToString(", ")) },
+    )
+    if (parts.isNotEmpty()) android.widget.Toast.makeText(context, parts.joinToString("\n"), android.widget.Toast.LENGTH_SHORT).show()
+}
+
+/**
+ * Delete a contact: a GC contact with linked cards (Mail 1.4.0) asks whether they go at their provider too (off by
+ * default: they stay there and are no longer linked).
+ */
+@Composable
+internal fun DeleteContactDialog(c: com.gatecontrol.android.mail.MCard, onDelete: (linkedToo: Boolean) -> Unit, onDismiss: () -> Unit) {
+    val links = c.sources.filter { it.id != c.id }
+    val ask = com.gatecontrol.android.mail.MailContactLogic.masterModel(c) && c.linked.isNotEmpty() && c.source == "local"
+    var linkedToo by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.con_delete_title, c.label)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(if (c.source == "local") R.string.con_delete_text else R.string.con_delete_text_account))
+                if (ask) {
+                    val names = links.map { com.gatecontrol.android.mail.MailContactLogic.originLabel(it) }.filter { it.isNotBlank() }.distinct()
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp))
+                            .toggleable(value = linkedToo, role = Role.Checkbox, onValueChange = { linkedToo = it }),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        androidx.compose.material3.Checkbox(checked = linkedToo, onCheckedChange = null)
+                        Text(
+                            stringResource(R.string.con_delete_linked_too, names.joinToString(", ").ifEmpty { c.linked.size.toString() }),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onDelete(ask && linkedToo) }) {
+                Text(stringResource(R.string.mail_delete), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.mail_cancel)) } },
+    )
+}
+
+/** The dots of the accounts a contact comes from (one each; own contacts none). */
+@Composable
+internal fun SourceDots(me: MMe?, accountIds: List<Long>) {
+    if (accountIds.isEmpty()) return
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        accountIds.take(4).forEach { a ->
+            val color = sourceColor(me, a) ?: return@forEach
+            val label = accountLabel(me, a)
+            Box(
+                Modifier.size(8.dp).clip(CircleShape).background(color)
+                    .then(if (label != null) Modifier.semantics { contentDescription = label } else Modifier),
+            )
+        }
+    }
 }

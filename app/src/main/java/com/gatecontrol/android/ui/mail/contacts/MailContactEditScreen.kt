@@ -107,7 +107,9 @@ fun MailContactEditScreen(onClose: () -> Unit, onSaved: (Long) -> Unit, viewMode
     var deleting by remember { mutableStateOf(false) }
     val c = state.card
     LaunchedEffect(state.done) {
-        state.done?.let { if (it > 0) onSaved(it) else onClose() }
+        val done = state.done ?: return@LaunchedEffect
+        state.writeBack?.let { (ok, failed) -> writeBackToast(context, ok, failed) }
+        if (done > 0) onSaved(done) else onClose()
     }
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -299,13 +301,7 @@ fun MailContactEditScreen(onClose: () -> Unit, onSaved: (Long) -> Unit, viewMode
         }
     }
     if (deleting) {
-        AlertDialog(
-            onDismissRequest = { deleting = false },
-            title = { Text(stringResource(R.string.con_delete_title, c.label)) },
-            text = { Text(stringResource(if (c.source == "local") R.string.con_delete_text else R.string.con_delete_text_account)) },
-            confirmButton = { TextButton(onClick = { deleting = false; viewModel.delete() }) { Text(stringResource(R.string.mail_delete), color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.mail_cancel)) } },
-        )
+        DeleteContactDialog(c, onDelete = { linkedToo -> deleting = false; viewModel.delete(linkedToo) }, onDismiss = { deleting = false })
     }
     state.conflict?.let {
         AlertDialog(

@@ -543,7 +543,7 @@ private fun WidgetPage(
         } else {
             StartTiles(onOpenDoor = onOpenDoor, page = id, viewModel = viewModel)
             StartCards(
-                cards = entries.filter { it !is StartEntry.Tile },
+                cards = entries.filter { it !is StartEntry.Tile && it !is StartEntry.Contact },
                 info = {},
                 usage = {},
                 onOpenDoor = onOpenDoor,

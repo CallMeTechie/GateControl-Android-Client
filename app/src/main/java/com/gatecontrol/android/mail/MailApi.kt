@@ -425,10 +425,47 @@ class MailApi @Inject constructor(
 
     suspend fun createCard(body: JsonObject): MResult<MCard> = post("cards", body, parse = MailPimJson::cardAnswer)
 
-    /** `PATCH cards/<id>`: `409 conflict { current }` ([MailPimJson.conflictCard]), `409 read_only`. */
-    suspend fun patchCard(id: Long, body: JsonObject): MResult<MCard> = patchNulls("cards/$id", body, MailPimJson::cardAnswer)
+    /**
+     * `PATCH cards/<id>`: `409 conflict { current }` ([MailPimJson.conflictCard]), `409 read_only`; since Mail 1.4.0
+     * with `writeBack` (the linked cards the change went back to).
+     */
+    suspend fun patchCard(id: Long, body: JsonObject): MResult<MCardSaved> = patchNulls("cards/$id", body, MailPimJson::cardSaved)
 
-    suspend fun deleteCard(id: Long): MResult<Unit> = del("cards/$id", unit)
+    /** `DELETE cards/<id>`; [linkedToo] (Mail 1.4.0, `linked=delete`): the linked cards go at their provider too. */
+    suspend fun deleteCard(id: Long, linkedToo: Boolean = false): MResult<Unit> =
+        call(request = { pluginDelete(MAIL_PLUGIN, "cards/$id", (if (linkedToo) mapOf("linked" to "delete") else emptyMap()) + langQuery()) }, parse = unit)
+
+    // ─── the GC contact as the master (Mail 1.4.0; an older server answers 404) ───
+
+    suspend fun mergePreview(ids: List<Long>): MResult<MPreview> = post("cards/merge/preview", MailPimJson.idsBody(ids), parse = MailPimJson::previewAnswer)
+
+    suspend fun merges(limit: Int = 50): MResult<List<MMerge>> = get("cards/merges", mapOf("limit" to limit.coerceIn(1, 200).toString()), MailPimJson::merges)
+
+    suspend fun undoMerge(id: Long, keepMaster: Boolean): MResult<MUnmerge> =
+        post("cards/merges/$id/undo", MailPimJson.unmergeBody(null, keepMaster), timeoutMs = 60_000L, parse = MailPimJson::unmerge)
+
+    /** "Verknüpfung lösen": the linked cards [ids] of the GC contact [id] (null: all). */
+    suspend fun unmerge(id: Long, ids: List<Long>?, keepMaster: Boolean = false): MResult<MUnmerge> =
+        post("cards/$id/unmerge", MailPimJson.unmergeBody(ids, keepMaster), timeoutMs = 60_000L, parse = MailPimJson::unmerge)
+
+    /** "Übernehmen" ([mode] `replace` | `add`, null: the server's default). */
+    suspend fun acceptConflict(id: Long, conflictId: Long, mode: String?): MResult<MCard> =
+        post("cards/$id/conflicts/$conflictId/accept", MailPimJson.acceptBody(mode), parse = MailPimJson::cardAnswer)
+
+    /** "Verwerfen": the value stays away until it changes at the provider. */
+    suspend fun dismissConflict(id: Long, conflictId: Long): MResult<MCard> =
+        post("cards/$id/conflicts/$conflictId/dismiss", JsonObject(), parse = MailPimJson::cardAnswer)
+
+    /** Favourite and main number only (GateControl's own, never to the provider). */
+    suspend fun patchOwn(id: Long, body: JsonObject): MResult<MCardSaved> = patchNulls("cards/$id", body, MailPimJson::cardSaved)
+
+    suspend fun favorites(): MResult<Pair<List<MFavorite>, JsonObject>> = get("cards/favorites") { o -> MailPimJson.favorites(o)?.let { it to o } }
+
+    suspend fun putFavorites(ids: List<Long>): MResult<List<MFavorite>> = put("cards/favorites", MailPimJson.idsBody(ids), MailPimJson::favorites)
+
+    /** The calendar widget on Start: today and the next [days] − 1 days. */
+    suspend fun upcoming(days: Int = 2, limit: Int = 8): MResult<Pair<MUpcoming, JsonObject>> =
+        get("events/upcoming", mapOf("days" to days.coerceIn(1, 7).toString(), "limit" to limit.coerceIn(1, 20).toString())) { o -> MailPimJson.upcoming(o)?.let { it to o } }
 
     suspend fun cardPhoto(id: Long): MResult<MPhoto> = get("cards/$id/photo", parse = MailPimJson::photo)
 
@@ -446,7 +483,9 @@ class MailApi @Inject constructor(
             put("email", email.trim().take(320))
         }, MailPimJson::cardDraft)
 
-    suspend fun duplicates(): MResult<List<MDuplicate>> = get("cards/duplicates", parse = MailPimJson::duplicates)
+    /** `GET cards/duplicates` ([details]: each card in full and the preview, Mail 1.4.0). */
+    suspend fun duplicates(details: Boolean = false): MResult<List<MDuplicate>> =
+        get("cards/duplicates", if (details) mapOf("details" to "1") else emptyMap(), MailPimJson::duplicates)
 
     suspend fun merge(body: JsonObject): MResult<MCard> = post("cards/merge", body, timeoutMs = 60_000L, parse = MailPimJson::cardAnswer)
 

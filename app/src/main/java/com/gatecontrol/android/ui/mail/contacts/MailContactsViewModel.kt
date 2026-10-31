@@ -7,6 +7,8 @@ import com.gatecontrol.android.mail.MCardSummary
 import com.gatecontrol.android.mail.MExport
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MResult
+import com.gatecontrol.android.mail.MailContactLogic
+import com.gatecontrol.android.mail.MailPimJson
 import com.gatecontrol.android.mail.MailPimLogic
 import com.gatecontrol.android.mail.MailRepository
 import com.gatecontrol.android.ui.mail.MailHomeViewModel
@@ -69,10 +71,11 @@ class MailContactsViewModel @Inject constructor(
 
     /** The list shown: filtered by address book or group, searched on the device. */
     val shown: StateFlow<List<MCardSummary>> = combine(pim.cards, _state) { cards, s ->
+        // the GC contacts stand for their linked cards (Mail 1.4.0): an account's address book shows the ones linked from it
         val list = when {
-            s.filter.group != null -> cards.filter { s.filter.group in it.groups }
-            s.filter.book != null -> cards.filter { it.addressbookId == s.filter.book }
-            else -> cards
+            s.filter.group != null -> MailContactLogic.listed(cards).filter { s.filter.group in it.groups }
+            s.filter.book != null -> cards.filter { c -> c.addressbookId == s.filter.book || (c.masterId == null && c.sources.any { it.addressbookId == s.filter.book }) }
+            else -> MailContactLogic.listed(cards)
         }
         if (s.query.isBlank()) list else (s.remote?.takeIf { cards.isEmpty() } ?: MailPimLogic.search(list, s.query))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -107,7 +110,8 @@ class MailContactsViewModel @Inject constructor(
 
     private fun refreshDuplicates() {
         viewModelScope.launch {
-            api.duplicates().valueOrNull()?.let { d -> _state.update { it.copy(duplicates = d.size) } }
+            // the certain ones the server merges by itself (Mail 1.4.0): only the ones to look at count
+            api.duplicates().valueOrNull()?.let { d -> _state.update { it.copy(duplicates = d.count { x -> x.certain != true }) } }
         }
     }
 
@@ -183,4 +187,16 @@ class MailContactsViewModel @Inject constructor(
     fun clearMessage() = _state.update { it.copy(message = null) }
 
     fun relogin(accountId: Long) = pim.markRelogin(accountId)
+
+    /** The star (Mail 1.4.0): a favourite or not; shown at once. */
+    fun toggleFavorite(c: MCardSummary) {
+        val on = c.favorite != true
+        viewModelScope.launch {
+            when (val r = api.patchOwn(c.id, MailPimJson.ownBody(favorite = on))) {
+                is MResult.Ok -> pim.putFavorite(r.value.card)
+                is MResult.Failed -> _state.update { it.copy(message = if (r.code == "limit") "fav_limit" else r.code) }
+                else -> _state.update { it.copy(message = MailHomeViewModel.code(r)) }
+            }
+        }
+    }
 }

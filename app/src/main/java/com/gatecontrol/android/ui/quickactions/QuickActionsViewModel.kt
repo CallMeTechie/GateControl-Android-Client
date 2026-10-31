@@ -176,6 +176,14 @@ class QuickActionsViewModel @Inject constructor(
     }
 
     /** "−" on a tile while arranging: the button leaves the start tab. */
+    /** What Mail pins to Start (favourite tiles, the calendar widget; Mail 1.4.0). */
+    val mailPins: StateFlow<com.gatecontrol.android.mail.MailStartPins> = arrangement.mailPins
+
+    /** Takes the favourite [id] off Start. */
+    fun unpinContact(id: Long) {
+        viewModelScope.launch { arrangement.pinContact(com.gatecontrol.android.mail.StartContactPin(id, ""), on = false) }
+    }
+
     fun unpinTile(key: String) {
         viewModelScope.launch {
             repository.removePin(key)
