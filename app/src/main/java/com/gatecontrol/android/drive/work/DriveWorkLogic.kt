@@ -35,8 +35,11 @@ object DriveWorkLogic {
     /** Where a photo goes: the work folder or the private one (Kamera-Uploads). */
     enum class Dest { WORK, PRIVATE }
 
-    /** Why it goes there. */
-    enum class Why { WIFI_WORK, WIFI_HOME, AI_WORK, AI_PRIVATE, REVIEW }
+    /**
+     * Why it goes there: the WLAN, the place (EXIF GPS, [DriveWorkPlaces]), the AI, an old photo nobody can tell
+     * (private without the mark), or to be reviewed.
+     */
+    enum class Why { WIFI_WORK, WIFI_HOME, PLACE_WORK, PLACE_HOME, AI_WORK, AI_PRIVATE, OLD_PRIVATE, REVIEW }
 
     /**
      * Where a new photo goes: [dest]; [review] it gets the mark "zu prüfen" with [hint] (the AI's "work" in percent);
@@ -58,16 +61,26 @@ object DriveWorkLogic {
     const val CLEANUP_SHOW = 0.5
     const val CLEANUP_PRESELECT = 0.70
 
+    /** An old photo the AI thinks is rather work (from this much) gets the review mark, the others go private without it. */
+    const val OLD_HINT = 0.5
+
     /**
      * Where a new photo goes. [zone]: the WLAN it was taken in (null: none, not assigned, or unknown — no permission);
-     * [score]: the AI's probability "work" (null: no answer); [ready]: past the learning phase; [autoSort]: "Selbst
-     * einsortieren, wenn sicher". Firma → work, Zuhause → private, both are examples to learn from; else the AI when it
-     * is sure and may, otherwise private with the review mark.
+     * [at]: the place it was taken at ([DriveWorkPlaces.zoneAt]: Firma, Zuhause, null); [score]: the AI's probability
+     * "work" (null: no answer); [ready]: past the learning phase; [autoSort]: "Selbst einsortieren, wenn sicher"; [old]:
+     * taken before the work photos were set up ([isOld]), so no WLAN can tell. Firma → work, Zuhause → private (WLAN
+     * first, then the place), all of them examples to learn from; else the AI when it is sure and may; else an old photo
+     * private without the mark (with it, and the hint, when the AI thinks it rather work); else private with the mark.
      */
-    fun place(zone: WifiZone?, score: Double?, ready: Boolean, autoSort: Boolean): Placement {
+    fun place(zone: WifiZone?, score: Double?, ready: Boolean, autoSort: Boolean, at: WifiZone? = null, old: Boolean = false): Placement {
         when (zone) {
             WifiZone.WORK -> return Placement(Dest.WORK, review = false, hint = null, learn = true, why = Why.WIFI_WORK)
             WifiZone.HOME -> return Placement(Dest.PRIVATE, review = false, hint = null, learn = false, why = Why.WIFI_HOME)
+            WifiZone.NEITHER, null -> Unit
+        }
+        when (at) {
+            WifiZone.WORK -> return Placement(Dest.WORK, review = false, hint = null, learn = true, why = Why.PLACE_WORK)
+            WifiZone.HOME -> return Placement(Dest.PRIVATE, review = false, hint = null, learn = false, why = Why.PLACE_HOME)
             WifiZone.NEITHER, null -> Unit
         }
         val hint = score?.let { percent(it) }
@@ -75,8 +88,55 @@ object DriveWorkLogic {
             if (score >= SURE_WORK) return Placement(Dest.WORK, review = false, hint = null, learn = null, why = Why.AI_WORK)
             if (score <= SURE_PRIVATE) return Placement(Dest.PRIVATE, review = false, hint = null, learn = null, why = Why.AI_PRIVATE)
         }
+        if (old && (score == null || score < OLD_HINT)) return Placement(Dest.PRIVATE, review = false, hint = null, learn = null, why = Why.OLD_PRIVATE)
         return Placement(Dest.PRIVATE, review = true, hint = hint, learn = null, why = Why.REVIEW)
     }
+
+    /** Taken ([takenMs]) before the work photos were set up on this phone ([since]): no WLAN timeline tells where. */
+    fun isOld(takenMs: Long?, since: Long?): Boolean = takenMs != null && takenMs > 0 && since != null && takenMs < since
+
+    /**
+     * A marked photo sorted again: to [dest]; [byPlace] the place said so (an example then), else the AI or — [old] —
+     * an old photo nothing can tell, back to private without the mark (never an example).
+     */
+    data class Resorted(val dest: Dest, val byPlace: Boolean, val old: Boolean = false)
+
+    /**
+     * A photo marked "zu prüfen" looked at again ("Selbst einsortieren, wenn sicher" on — [autoSort]): its place
+     * ([at]) first, else the AI when [ready] and sure ([score] from [SURE_WORK], up to [SURE_PRIVATE]); else an [old]
+     * photo (taken before the setup, [isOld]) the AI does not think rather work ([score] null or below [OLD_HINT]) loses
+     * the mark and stays private, as a new backup would place it now; null: it stays.
+     */
+    fun resort(score: Double?, at: WifiZone?, ready: Boolean, autoSort: Boolean, old: Boolean = false): Resorted? {
+        if (!autoSort) return null
+        when (at) {
+            WifiZone.WORK -> return Resorted(Dest.WORK, byPlace = true)
+            WifiZone.HOME -> return Resorted(Dest.PRIVATE, byPlace = true)
+            WifiZone.NEITHER, null -> Unit
+        }
+        if (ready && score != null) {
+            if (score >= SURE_WORK) return Resorted(Dest.WORK, byPlace = false)
+            if (score <= SURE_PRIVATE) return Resorted(Dest.PRIVATE, byPlace = false)
+        }
+        if (old && (score == null || score < OLD_HINT)) return Resorted(Dest.PRIVATE, byPlace = false, old = true)
+        return null
+    }
+
+    /** What a sorting of [r] teaches: the place's is an example ([WorkExample.Source.PLACE]); the AI's own never is. */
+    fun learnsFrom(r: Resorted): WorkExample.Source? = if (r.byPlace) WorkExample.Source.PLACE else null
+
+    /**
+     * The photos of the work folder ([nodes], `class=work`) that become examples of work: pictures, not marked, not
+     * learned yet ([known] keys), not sorted there by this phone alone ([auto]: else the AI learned from itself); the
+     * first [limit].
+     */
+    fun stockExamples(nodes: List<DNode>, known: Set<String>, auto: Set<Long>, limit: Int): List<DNode> =
+        nodes.asSequence()
+            .filter { !it.isDir && !it.encrypted && it.mime?.startsWith("image/") == true }
+            .filter { it.work && it.review == null && it.id !in auto && "n:${it.id}" !in known }
+            .distinctBy { it.id }
+            .take(limit)
+            .toList()
 
     fun percent(p: Double): Int = (p.coerceIn(0.0, 1.0) * 100).roundToInt()
 

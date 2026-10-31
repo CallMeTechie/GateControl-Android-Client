@@ -10,6 +10,7 @@ import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DReview
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLive
+import com.gatecontrol.android.drive.DriveNodeResolver
 import com.gatecontrol.android.drive.DriveOps
 import com.gatecontrol.android.drive.backup.DriveCameraUploads
 import com.gatecontrol.android.drive.work.DriveWorkLogic.Dest
@@ -17,7 +18,13 @@ import com.gatecontrol.android.support.CrashReports
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,7 +39,8 @@ import javax.inject.Singleton
  * "Arbeitsfotos getrennt sichern" (Drive 1.13, feature `photoClasses`; without it the same on this phone only): the work
  * folder and its settings, where a new photo goes ([placeNew], for the photo backup), the review mark, "Arbeit" /
  * "Privat" / "Zum Prüfen markieren" for photos in Drive ([assign], with [undo]), what the AI learns from (all on the
- * phone: [DriveWorkLabeler], [DriveWorkModel]) and the suggestions of "Aufräumen" ([suggest]).
+ * phone: [DriveWorkLabeler], [DriveWorkModel]; the places "Firma" and "Zuhause": [DriveWorkPlaces]; the work folder:
+ * [learnFromStock]), marked photos sorted again once it is sure ([resort]) and the suggestions of "Aufräumen" ([suggest]).
  */
 @Singleton
 class DriveWorkPhotos @Inject constructor(
@@ -42,12 +50,22 @@ class DriveWorkPhotos @Inject constructor(
     private val labeler: DriveWorkLabeler,
     private val camera: DriveCameraUploads,
     private val ops: DriveOps,
+    private val geoLook: DriveWorkGeo,
+    private val resolver: DriveNodeResolver,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
     val settings: StateFlow<WorkSettings> = store.settings
     val learned: StateFlow<DriveWorkLogic.Learned> = store.learned
     val localReview: StateFlow<Map<Long, Int?>> = store.localReview
+
+    /** The places "Firma" and "Zuhause" learned so far ([placesNow] reads them). */
+    val places: StateFlow<List<WorkPlace>> = store.places
+
+    /** Old photos backed up private without the mark (for the hint in the Photos tab). */
+    val oldPrivate: StateFlow<Int> = store.oldPrivate
+
+    fun clearOldPrivate() = store.clearOldPrivate()
 
     /** Drive 1.13 keeps the settings and the marks; without it this phone does. */
     fun serverClasses(me: DMe? = live.me.value): Boolean = me?.has(DMe.FEATURE_PHOTO_CLASSES) == true
@@ -153,6 +171,9 @@ class DriveWorkPhotos @Inject constructor(
     /** What was learned, read from the phone if not yet. */
     suspend fun learnedNow(): DriveWorkLogic.Learned = withContext(Dispatchers.IO) { DriveWorkFeatures.learned(store.examples()) }
 
+    /** The places learned, read from the phone if not yet. */
+    suspend fun placesNow(): List<WorkPlace> = withContext(Dispatchers.IO) { store.placeBook(); store.places.value }
+
     /** The features of a photo in Drive (labeled once, then kept). */
     private suspend fun featuresOf(node: DNode): Map<Int, Float>? {
         val key = key(node)
@@ -177,36 +198,53 @@ class DriveWorkPhotos @Inject constructor(
         val images = nodes.filter { isImage(it) }
         if (images.isEmpty()) return
         images.forEach { undone.remove(key(it)) }
+        // where the person put it teaches the places too (not what "Aufräumen" left, not what a place said itself)
+        val teachesPlaces = source != WorkExample.Source.PLACE && (work || source != WorkExample.Source.CLEANUP)
         scope.launch {
             for (n in images) {
-                val f = runCatching { featuresOf(n) }.getOrNull() ?: continue
+                val f = runCatching { featuresOf(n) }.getOrNull()
                 if (undone.remove(key(n))) continue
-                store.learn(WorkExample(key(n), work, source, f, System.currentTimeMillis()))
+                f?.let { store.learn(WorkExample(key(n), work, source, it, System.currentTimeMillis())) }
+                if (teachesPlaces) runCatching { geoOf(n) }.getOrNull()?.let { store.addPoint(PlacePoint(key(n), it, work, System.currentTimeMillis())) }
             }
+            // something new learned: the marked photos again, a little later
+            resortSoon(LEARNED_GAP_MS)
         }
+    }
+
+    /** Where a photo in Drive was taken: noted at the backup or looked up once on the phone ([DriveWorkGeo]). */
+    private suspend fun geoOf(node: DNode): GeoPoint? {
+        if (store.hasGeo(node.id)) return store.geo(node.id)
+        val look = geoLook.of(node)
+        if (look.known) store.putGeo(node.id, look.at)
+        return look.at
     }
 
     private fun isImage(n: DNode) = !n.isDir && !n.encrypted && n.mime?.startsWith("image/") == true
 
     // ─── the photo backup ───────────────────────────────────────────
 
-    /** Where a new photo goes, and what was found to get there ([features] of the photo, the WLAN [ssid]). */
-    data class NewPhoto(val placement: DriveWorkLogic.Placement, val features: Map<Int, Float>?, val ssid: String?)
+    /** Where a new photo goes, and what was found to get there ([features] of the photo, the WLAN [ssid], the place [at]). */
+    data class NewPhoto(val placement: DriveWorkLogic.Placement, val features: Map<Int, Float>?, val ssid: String?, val at: GeoPoint? = null)
 
     /**
-     * Where the photo [uri] taken at [takenMs] goes; null while no work folder is chosen (all to Kamera-Uploads). The
-     * WLAN at the time it was taken first; else the AI (labels of the phone's thumbnail).
+     * Where the photo [uri] taken at [takenMs] (at [at], its EXIF location) goes; null while no work folder is chosen
+     * (all to Kamera-Uploads). The WLAN at the time it was taken first, then the place; else the AI (labels of the
+     * phone's thumbnail); a photo older than the setup that nothing can tell goes private without the mark.
      */
-    suspend fun placeNew(uri: Uri, takenMs: Long?, video: Boolean): NewPhoto? {
+    suspend fun placeNew(uri: Uri, takenMs: Long?, video: Boolean, at: GeoPoint? = null): NewPhoto? {
         val s = store.settings.value
         if (!s.active) return null
         val ssid = takenMs?.takeIf { it > 0 }?.let { store.wifiAt(it) }
         val zone = s.zones.zoneOf(ssid)
+        val byWifi = zone == WifiZone.WORK || zone == WifiZone.HOME
+        val place = if (byWifi || at == null) null else { store.placeBook(); DriveWorkPlaces.zoneAt(store.places.value, at) }
         val features = if (video) null else runCatching { labeler.ofUri(uri) }.getOrNull()?.let { DriveWorkFeatures.of(it, takenMs) }
-        val needAi = zone == null || zone == WifiZone.NEITHER
+        val needAi = !byWifi && place == null
         val score = if (needAi && features != null) model()?.predict(features) else null
-        val learned = store.examples().let { DriveWorkFeatures.learned(it) }
-        return NewPhoto(DriveWorkLogic.place(zone, score, learned.ready, s.autoSort), features, ssid)
+        store.examples()
+        val old = DriveWorkLogic.isOld(takenMs, store.since())
+        return NewPhoto(DriveWorkLogic.place(zone, score, store.learned.value.ready, s.autoSort, at = place, old = old), features, ssid, at)
     }
 
     /** The folder of a work photo: the work folder, by year and month when set ([path] from the backup). */
@@ -222,11 +260,24 @@ class DriveWorkPhotos @Inject constructor(
      */
     suspend fun afterBackup(node: DNode?, p: NewPhoto, mediaStoreId: Long, video: Boolean) {
         if (node != null) {
+            val why = p.placement.why
+            val source = if (why == DriveWorkLogic.Why.PLACE_WORK || why == DriveWorkLogic.Why.PLACE_HOME) WorkExample.Source.PLACE else WorkExample.Source.WIFI
             p.features?.let { f ->
                 store.putFeatures(key(node), f)
-                p.placement.learn?.let { work -> store.learn(WorkExample(key(node), work, WorkExample.Source.WIFI, f, System.currentTimeMillis())) }
+                p.placement.learn?.let { work -> store.learn(WorkExample(key(node), work, source, f, System.currentTimeMillis())) }
             }
-            if (p.placement.review) mark(listOf(node.id), true, p.placement.hint)
+            // the WLAN "Firma" / "Zuhause" teaches the places (a place does not teach itself)
+            val now = System.currentTimeMillis()
+            if (p.at != null && (why == DriveWorkLogic.Why.WIFI_WORK || why == DriveWorkLogic.Why.WIFI_HOME)) {
+                store.addPoint(PlacePoint(key(node), p.at, why == DriveWorkLogic.Why.WIFI_WORK, now))
+            }
+            if (p.placement.review) {
+                // where a marked photo was taken, so it can be sorted again without reading it once more
+                if (!video && (p.at != null || geoLook.canLook())) store.putGeo(node.id, p.at)
+                mark(listOf(node.id), true, p.placement.hint)
+            }
+            if (p.placement.dest == Dest.WORK && p.placement.learn == null) store.addAuto(listOf(node.id))
+            if (why == DriveWorkLogic.Why.OLD_PRIVATE) store.addOldPrivate()
         }
         if (p.placement.dest == Dest.WORK && store.settings.value.removeAfter) store.addRemoval(mediaStoreId, video)
     }
@@ -254,7 +305,10 @@ class DriveWorkPhotos @Inject constructor(
         val back: List<Pair<Long, Long>>,
         val marks: Map<Long, DReview?>,
         val learned: List<String>,
-    )
+    ) {
+        /** Both taken back at once. */
+        operator fun plus(o: Undo) = Undo(back + o.back, marks + o.marks, learned + o.learned)
+    }
 
     /** Of "Arbeit" / "Privat" / "Zum Prüfen markieren": [count] photos to [to]; [undo] takes it back; [error] a code. */
     data class Assigned(val to: Target, val count: Int, val undo: Undo?, val error: String? = null)
@@ -266,9 +320,9 @@ class DriveWorkPhotos @Inject constructor(
     /**
      * [nodes] are work photos ([Target.WORK]: into the work folder by month, the mark gone), private ([Target.PRIVATE]:
      * out of the work folder into Kamera-Uploads by month, else where they are, the mark gone) or to be reviewed (the
-     * mark, with the AI's hint). The AI learns from the first two ([source]).
+     * mark, with the AI's hint). The AI learns from the first two ([source]; null: nothing — the phone's own sorting).
      */
-    suspend fun assign(nodes: List<DNode>, to: Target, source: WorkExample.Source = WorkExample.Source.ASSIGN): Assigned = assignLock.withLock {
+    suspend fun assign(nodes: List<DNode>, to: Target, source: WorkExample.Source? = WorkExample.Source.ASSIGN): Assigned = assignLock.withLock {
         val list = nodes.filter { !it.isDir && !it.encrypted }.distinctBy { it.id }
         if (list.isEmpty()) return@withLock Assigned(to, 0, null, "invalid")
         val s = store.settings.value
@@ -296,7 +350,7 @@ class DriveWorkPhotos @Inject constructor(
                     }
                 }
                 mark(list.filter { marksBefore[it.id] != null }.map { it.id }, false, null)
-                learnLater(list, work = dest == Dest.WORK, source = source)
+                if (source != null) learnLater(list, work = dest == Dest.WORK, source = source)
             }
             Target.REVIEW -> {
                 val hints = HashMap<Long, Int?>()
@@ -306,7 +360,7 @@ class DriveWorkPhotos @Inject constructor(
                 }
             }
         }
-        Assigned(to, list.size, Undo(back, marksBefore, if (to == Target.REVIEW) emptyList() else list.map { key(it) }))
+        Assigned(to, list.size, Undo(back, marksBefore, if (to == Target.REVIEW || source == null) emptyList() else list.map { key(it) }))
     }
 
     /** "Rückgängig": the photos back where they were, their marks as before, the examples forgotten. */
@@ -387,6 +441,216 @@ class DriveWorkPhotos @Inject constructor(
         }
     }
 
+    // ─── sorting the marked photos again ────────────────────────────
+
+    /** "N Fotos selbst einsortiert" ([undo]: "Rückgängig"); the Photos tab shows it and clears it. */
+    data class AutoSorted(val count: Int, val undo: Undo?, val stamp: Long = System.nanoTime())
+
+    private val _autoSorted = MutableStateFlow<AutoSorted?>(null)
+    val autoSorted: StateFlow<AutoSorted?> = _autoSorted.asStateFlow()
+
+    fun autoSortedShown() { _autoSorted.value = null }
+
+    private val resortLock = Mutex()
+    @Volatile private var resortedAt = 0L
+    private var resortLater: Job? = null
+    // when the waiting [resortLater] runs (0: it runs now, or there is none)
+    private var resortWaits = 0L
+
+    /**
+     * [resort] in the background: at once when the last was [gapMs] ago, else that long after it. One at a time; a
+     * sooner one replaces one still waiting.
+     */
+    fun resortSoon(gapMs: Long = 0L) {
+        synchronized(this) {
+            val at = maxOf(System.currentTimeMillis(), resortedAt + gapMs)
+            val pending = resortLater
+            if (pending?.isActive == true) {
+                if (resortWaits == 0L || resortWaits <= at) return
+                pending.cancel()
+            }
+            resortWaits = at
+            resortLater = scope.launch {
+                delay(at - System.currentTimeMillis())
+                synchronized(this@DriveWorkPhotos) {
+                    if (!isActive) return@launch
+                    resortWaits = 0L
+                }
+                runCatching { resort() }.onFailure { if (it is CancellationException) throw it }
+                // the old photos in portions, one after the other
+                while (resortMore) {
+                    resortMore = false
+                    delay(OLD_NEXT_MS)
+                    runCatching { resort() }.onFailure { if (it is CancellationException) throw it }
+                }
+            }
+        }
+    }
+
+    /**
+     * The photos marked "zu prüfen" looked at again ("Selbst einsortieren, wenn sicher" on): the place they were taken
+     * at (still on the phone, or noted at the backup), else the AI once it learned and is sure; an old photo (taken
+     * before the setup — marked by an earlier version) that neither can tell loses the mark unless the AI thinks it
+     * rather work. Sorted through [assign] — work into the work folder, private loses the mark; only a place's sorting
+     * is an example, the AI's never. Photos whose sorting the person took back stay. Old photos [OLD_BATCH] a run (the
+     * next run follows soon). The number sorted ([autoSorted] then).
+     */
+    suspend fun resort(): Int {
+        val s = store.settings.value
+        if (!s.active || !s.autoSort) return 0
+        if (!resortLock.tryLock()) return 0
+        var more = false
+        try {
+            resortedAt = System.currentTimeMillis()
+            store.examples()
+            val learned = store.learned.value
+            val ready = learned.ready
+            val places = placesNow()
+            // the model as soon as it can tell a little (an old photo's hint), deciding alone only once ready
+            val m = if (learned.usable) model() else null
+            val held = store.placeBook().held
+            val since = store.since()
+            val groups = LinkedHashMap<DriveWorkLogic.Resorted, MutableList<DNode>>()
+            var old = 0
+            forMarked { n, i ->
+                if (!isImage(n) || n.id in held) return@forMarked true
+                val isOld = DriveWorkLogic.isOld(takenMs(n), since)
+                // beyond the newest few only old photos, and only from what is known already (nothing labeled anew)
+                if (!isOld && i >= RESORT_LOOK) return@forMarked true
+                val cheap = i >= RESORT_LOOK
+                val geo = when {
+                    places.isEmpty() -> null
+                    cheap -> store.geo(n.id)
+                    else -> runCatching { geoOf(n) }.getOrNull()
+                }
+                val at = geo?.let { DriveWorkPlaces.zoneAt(places, it) }
+                val score = if (at != null) null else {
+                    val f = if (cheap) store.features(key(n)) else runCatching { featuresOf(n) }.getOrNull()
+                    f?.let { m?.predict(it) } ?: if (isOld) DriveWorkLogic.hintOf(n, store.localReview.value)?.let { it / 100.0 } else null
+                }
+                val r = DriveWorkLogic.resort(score, at, ready, autoSort = true, old = isOld)
+                if (r != null) {
+                    groups.getOrPut(r) { mutableListOf() } += n
+                    if (r.old && ++old >= OLD_BATCH) {
+                        more = true
+                        return@forMarked false
+                    }
+                }
+                true
+            }
+            var count = 0
+            var undo: Undo? = null
+            for ((r, nodes) in groups) {
+                if (!store.settings.value.autoSort) break
+                val a = assign(nodes, if (r.dest == Dest.WORK) Target.WORK else Target.PRIVATE, DriveWorkLogic.learnsFrom(r))
+                a.undo?.let { u -> undo = undo?.plus(u) ?: u }
+                if (a.error == null) {
+                    count += a.count
+                    if (r.dest == Dest.WORK) store.addAuto(nodes.map { it.id })
+                }
+            }
+            if (count > 0) {
+                Timber.i("Drive work: %d marked photos sorted", count)
+                _autoSorted.value = AutoSorted(count, undo)
+            }
+            if (count == 0) more = false
+            return count
+        } finally {
+            resortLock.unlock()
+            // a full batch of old photos: the next one soon
+            resortMore = more
+        }
+    }
+
+    // [resort] stopped after a full batch of old photos
+    @Volatile private var resortMore = false
+
+    /**
+     * Each photo marked "zu prüfen", the newest first, with its index, until [each] says stop: Drive's (1.13,
+     * `class=review`, at most [RESORT_SCAN]), else this phone's marks (the newest [RESORT_LOOK], each fetched).
+     */
+    private suspend fun forMarked(each: suspend (DNode, Int) -> Boolean) {
+        var i = 0
+        if (!live.supports(DMe.FEATURE_PHOTO_CLASSES)) {
+            for (id in store.localReview.value.keys.toList().takeLast(RESORT_LOOK).reversed()) {
+                val n = resolver.resolve(id) ?: continue
+                if (!each(n, i++)) return
+            }
+            return
+        }
+        var before: String? = null
+        while (i < RESORT_SCAN) {
+            val page = api.photos(before = before, limit = 120, cls = "review").valueOrNull() ?: return
+            for (n in page.items) {
+                if (i >= RESORT_SCAN || !each(n, i++)) return
+            }
+            before = page.next ?: return
+        }
+    }
+
+    /** "Rückgängig" of [resort]: as [undo]; the photos wait for the person from then on. */
+    suspend fun undoAutoSorted(u: Undo): String? {
+        store.hold(u.marks.keys)
+        return undo(u)
+    }
+
+    // ─── learning from the work folder ──────────────────────────────
+
+    /**
+     * The newest photos of the work folder (Drive 1.13, `class=work`) are examples of work — also those put there in the
+     * portal or on another device; not those this phone put there alone. One per photo, at most [STOCK_LABEL] new ones a
+     * time, every [STOCK_EVERY_MS] (or [force]). Their places too, when they are still on the phone.
+     */
+    suspend fun learnFromStock(force: Boolean = false): Int {
+        if (!store.settings.value.active || !live.supports(DMe.FEATURE_PHOTO_CLASSES)) return 0
+        if (!force && System.currentTimeMillis() - store.stockAt() < STOCK_EVERY_MS) return 0
+        if (!stockLock.tryLock()) return 0
+        try {
+            val seen = ArrayList<DNode>()
+            var before: String? = null
+            while (seen.size < STOCK_LOOK) {
+                val page = api.photos(before = before, limit = 120, cls = "work").valueOrNull() ?: break
+                seen += page.items
+                before = page.next ?: break
+            }
+            if (seen.isEmpty()) return 0
+            store.setStockAt(System.currentTimeMillis())
+            val known = store.examples().map { it.key }.toSet()
+            val take = DriveWorkLogic.stockExamples(seen.take(STOCK_LOOK), known, store.placeBook().auto, STOCK_LABEL)
+            var learned = 0
+            for (n in take) {
+                val f = runCatching { featuresOf(n) }.getOrNull() ?: continue
+                store.learn(WorkExample(key(n), true, WorkExample.Source.FOLDER, f, System.currentTimeMillis()))
+                runCatching { geoOf(n) }.getOrNull()?.let { store.addPoint(PlacePoint(key(n), it, true, System.currentTimeMillis())) }
+                learned++
+            }
+            if (learned > 0) Timber.i("Drive work: learned from %d photos of the work folder", learned)
+            return learned
+        } finally {
+            stockLock.unlock()
+        }
+    }
+
+    private val stockLock = Mutex()
+
+    /** After a backup run: learn from the work folder (from time to time), then the marked photos again. */
+    fun afterRun() {
+        if (!store.settings.value.active) return
+        scope.launch {
+            runCatching { learnFromStock() }.onFailure { if (it is CancellationException) throw it }
+            resortSoon(AFTER_RUN_GAP_MS)
+        }
+    }
+
+    /** "Prüfen" opened: learn from the work folder ([unmetered] only; from time to time), the marked photos at once. */
+    fun reviewOpened(unmetered: Boolean) {
+        if (!store.settings.value.active) return
+        scope.launch {
+            if (unmetered) runCatching { learnFromStock() }.onFailure { if (it is CancellationException) throw it }
+            resortSoon()
+        }
+    }
+
     // ─── Aufräumen ──────────────────────────────────────────────────
 
     /**
@@ -439,5 +703,23 @@ class DriveWorkPhotos @Inject constructor(
         DResult.Offline -> "offline"
         DResult.NotConfigured -> "not_configured"
         is DResult.Ok -> "invalid"
+    }
+
+    private companion object {
+        /** Marked photos looked at again per run (labeled if need be). */
+        const val RESORT_LOOK = 400
+        /** Beyond them old photos only, of at most this many marked photos per run. */
+        const val RESORT_SCAN = 3000
+        /** Old photos unmarked per run at most; the next run follows after [OLD_NEXT_MS]. */
+        const val OLD_BATCH = 200
+        const val OLD_NEXT_MS = 60L * 1000
+        /** After something was learned, not sooner than this after the last look. */
+        const val LEARNED_GAP_MS = 5L * 60 * 1000
+        /** After a backup run, not sooner than this after the last look. */
+        const val AFTER_RUN_GAP_MS = 2L * 60 * 1000
+        /** The work folder's newest photos looked at, and labeled at most per time. */
+        const val STOCK_LOOK = 300
+        const val STOCK_LABEL = 80
+        const val STOCK_EVERY_MS = 6L * 60 * 60 * 1000
     }
 }

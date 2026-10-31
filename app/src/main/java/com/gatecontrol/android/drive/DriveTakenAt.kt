@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
+import com.gatecontrol.android.drive.work.DriveWorkPlaces
+import com.gatecontrol.android.drive.work.GeoPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import timber.log.Timber
 import java.io.File
@@ -28,6 +30,29 @@ class DriveTakenAt @Inject constructor(@ApplicationContext private val context: 
         name,
         image = { context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd -> fromExif(ExifInterface(pfd.fileDescriptor)) } },
     ) { it.setDataSource(context, uri) }
+
+    /** When and where a photo was taken: [takenAt] as [of], [at] its EXIF location (null: none, or stripped). */
+    data class Shot(val takenAt: String?, val at: GeoPoint?)
+
+    /**
+     * [of] with the location of a picture, from one read of its EXIF (the backup's: [uri] the original, with
+     * `ACCESS_MEDIA_LOCATION`; else Android strips it). A video's location is not read.
+     */
+    fun shot(uri: Uri, mime: String?, name: String): Shot {
+        var at: GeoPoint? = null
+        val takenAt = read(
+            mime,
+            name,
+            image = {
+                context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                    val e = ExifInterface(pfd.fileDescriptor)
+                    at = runCatching { DriveWorkPlaces.of(e.latLong) }.getOrNull()
+                    fromExif(e)
+                }
+            },
+        ) { it.setDataSource(context, uri) }
+        return Shot(takenAt, at)
+    }
 
     private fun read(mime: String?, name: String, image: () -> String?, video: (MediaMetadataRetriever) -> Unit): String? =
         try {

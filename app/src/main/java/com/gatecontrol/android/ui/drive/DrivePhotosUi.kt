@@ -200,6 +200,8 @@ internal fun DrivePhotosContent(
     val learned by viewModel.learned.collectAsStateWithLifecycle()
     val suggested by viewModel.work.suggested.collectAsStateWithLifecycle()
     val workSnack by viewModel.workSnack.collectAsStateWithLifecycle()
+    val autoSorted by viewModel.work.autoSorted.collectAsStateWithLifecycle()
+    val oldPrivate by viewModel.work.oldPrivate.collectAsStateWithLifecycle()
     val serverClasses = viewModel.work.serverClasses(me)
     val workOn = workSettings.active || serverClasses
     var moreOpen by remember { mutableStateOf(false) }
@@ -245,6 +247,14 @@ internal fun DrivePhotosContent(
         val text = if (w.to == DriveWorkPhotos.Target.REVIEW) line else line + "\n" + workSnackLearns
         val result = snackbar.showSnackbar(text, actionLabel = if (w.undo != null) undoLabel else null, withDismissAction = w.undo == null, duration = SnackbarDuration.Long)
         if (result == SnackbarResult.ActionPerformed) w.undo?.let(viewModel::undoWork)
+    }
+    // marked photos the phone sorted alone ("Selbst einsortieren, wenn sicher"), now or since the last time
+    LaunchedEffect(autoSorted) {
+        val a = autoSorted ?: return@LaunchedEffect
+        viewModel.autoSortedShown()
+        val text = resources.getQuantityString(R.plurals.drive_work_auto_sorted, a.count, a.count)
+        val result = snackbar.showSnackbar(text, actionLabel = if (a.undo != null) undoLabel else null, withDismissAction = a.undo == null, duration = SnackbarDuration.Long)
+        if (result == SnackbarResult.ActionPerformed) a.undo?.let(viewModel::undoAutoSorted)
     }
     val where = DriveBulk.Where(
         writable = { n -> me?.areas?.firstOrNull { it.id == n.areaId }?.writable == true },
@@ -311,6 +321,27 @@ internal fun DrivePhotosContent(
                     button = if (cls != "review") stringResource(R.string.drive_work_banner_show) else null,
                     warn = true,
                     onClick = { viewModel.setClass("review") },
+                )
+            }
+            // "Prüfen" while the AI still learns: how far, and what helps
+            if (cls == "review" && reviewCount > 0 && workSettings.active && !learned.ready) {
+                WorkBand(
+                    stringResource(R.string.drive_work_learning_band, learned.progress, DriveWorkLogic.MIN_EXAMPLES, learned.work, learned.private),
+                    button = null,
+                    warn = false,
+                    onClick = null,
+                )
+            }
+            // old photos nothing could place went private without the mark: "Aufräumen" suggests later
+            if (workSettings.active && oldPrivate > 0 && cls != "review") {
+                WorkBand(
+                    pluralStringResource(R.plurals.drive_work_old_private, oldPrivate, oldPrivate),
+                    button = stringResource(if (learned.usable) R.string.drive_work_cleanup_open else R.string.drive_work_old_ok),
+                    warn = false,
+                    onClick = {
+                        viewModel.work.clearOldPrivate()
+                        if (learned.usable) onCleanup()
+                    },
                 )
             }
             if (workSettings.active && learned.usable && suggested > 0 && cls != "review") {

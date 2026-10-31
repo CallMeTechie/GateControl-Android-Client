@@ -39,8 +39,8 @@ data class WorkSettings(
 }
 
 /**
- * Everything of the work photos that stays on this phone: the settings ([WorkSettings]), the WLAN timeline and what the
- * AI learned (both in `noBackupFilesDir`, never in a backup), the review marks of a Drive without 1.13, the work photos
+ * Everything of the work photos that stays on this phone: the settings ([WorkSettings]), the WLAN timeline, what the
+ * AI learned and the places (all in `noBackupFilesDir`, never in a backup), the review marks of a Drive without 1.13, the work photos
  * waiting to be removed from the phone.
  */
 @Singleton
@@ -99,6 +99,8 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
     fun update(f: (WorkSettings) -> WorkSettings) = synchronized(lock) {
         val next = f(_settings.value)
         prefs.edit {
+            // the moment it was set up: photos taken before are "old" (no WLAN timeline tells where)
+            if (next.active && !_settings.value.active && !prefs.contains(KEY_SINCE)) putLong(KEY_SINCE, System.currentTimeMillis())
             if (next.workFolder != null) putLong(KEY_FOLDER, next.workFolder) else remove(KEY_FOLDER)
             if (next.folderLabel != null) putString(KEY_FOLDER_LABEL, next.folderLabel) else remove(KEY_FOLDER_LABEL)
             putBoolean(KEY_SUBFOLDERS, next.subfolders)
@@ -144,6 +146,80 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
     /** The WLAN at [t] (ms). */
     fun wifiAt(t: Long): String? = DriveWifiTimeline.wifiAt(timeline(), t, session)
 
+    /**
+     * Since when the work photos are set up on this phone (ms; [DriveWorkLogic.isOld]). Set up before this was kept:
+     * the start of the WLAN timeline (else now), kept from then on.
+     */
+    fun since(): Long = synchronized(lock) {
+        if (prefs.contains(KEY_SINCE)) return@synchronized prefs.getLong(KEY_SINCE, 0L)
+        val t = timeline().firstOrNull()?.at ?: System.currentTimeMillis()
+        prefs.edit { putLong(KEY_SINCE, t) }
+        t
+    }
+
+    private val _oldPrivate = MutableStateFlow(prefs.getInt(KEY_OLD_PRIVATE, 0))
+    /** Old photos backed up private without the mark (nothing could tell where they were taken), for the hint. */
+    val oldPrivate: StateFlow<Int> = _oldPrivate.asStateFlow()
+
+    fun addOldPrivate() = _oldPrivate.update { (it + 1).also { n -> prefs.edit { putInt(KEY_OLD_PRIVATE, n) } } }
+
+    fun clearOldPrivate() {
+        prefs.edit { remove(KEY_OLD_PRIVATE) }
+        _oldPrivate.value = 0
+    }
+
+    // ─── the places ─────────────────────────────────────────────────
+
+    private var book: PlaceBook? = null
+
+    private val _places = MutableStateFlow<List<WorkPlace>>(emptyList())
+    /** The places "Firma" and "Zuhause" learned so far (read at the first look, [placeBook]). */
+    val places: StateFlow<List<WorkPlace>> = _places.asStateFlow()
+
+    fun placeBook(): PlaceBook = synchronized(lock) {
+        book ?: DriveWorkPlaces.decode(read(FILE_PLACES)).also {
+            book = it
+            _places.value = DriveWorkPlaces.cluster(it.points)
+        }
+    }
+
+    private fun setBook(f: (PlaceBook) -> PlaceBook) = synchronized(lock) {
+        val before = placeBook()
+        val next = f(before)
+        if (next == before) return@synchronized
+        book = next
+        if (next.points !== before.points) _places.value = DriveWorkPlaces.cluster(next.points)
+        write(FILE_PLACES, DriveWorkPlaces.encode(next))
+    }
+
+    fun addPoint(p: PlacePoint) = setBook { it.copy(points = DriveWorkPlaces.add(it.points, p)) }
+
+    /** Where photo [id] in Drive was taken, if looked up ([hasGeo]). */
+    fun geo(id: Long): GeoPoint? = placeBook().geo[id]
+
+    fun hasGeo(id: Long): Boolean = id in placeBook().geo
+
+    fun putGeo(id: Long, at: GeoPoint?) = setBook {
+        val next = LinkedHashMap(it.geo).apply { remove(id); put(id, at) }
+        while (next.size > DriveWorkPlaces.MAX_GEO) next.remove(next.keys.first())
+        it.copy(geo = next)
+    }
+
+    /** Photos this phone sorted into the work folder alone (the AI or a place): never examples of "Bestand". */
+    fun addAuto(ids: Collection<Long>) {
+        if (ids.isNotEmpty()) setBook { it.copy(auto = (it.auto + ids).toList().takeLast(DriveWorkPlaces.MAX_IDS).toSet()) }
+    }
+
+    /** Photos whose sorting alone the person took back: they wait for the person. */
+    fun hold(ids: Collection<Long>) {
+        if (ids.isNotEmpty()) setBook { it.copy(held = (it.held + ids).toList().takeLast(DriveWorkPlaces.MAX_IDS).toSet()) }
+    }
+
+    /** When "Bestand" was last learned from (ms). */
+    fun stockAt(): Long = prefs.getLong(KEY_STOCK_AT, 0L)
+
+    fun setStockAt(t: Long) = prefs.edit { putLong(KEY_STOCK_AT, t) }
+
     // ─── what the AI learned ────────────────────────────────────────
 
     fun examples(): List<WorkExample> = synchronized(lock) {
@@ -157,16 +233,19 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
 
     fun learn(e: WorkExample) = setExamples(DriveWorkFeatures.add(examples(), e))
 
-    /** Takes back what was learned of [keys] (an undone assignment). */
+    /** Takes back what was learned of [keys] (an undone assignment): the examples and the places' photos. */
     fun forget(keys: Collection<String>) {
         if (keys.isEmpty()) return
         val set = keys.toSet()
         setExamples(examples().filter { it.key !in set })
+        setBook { b -> b.copy(points = b.points.filter { it.key !in set }) }
     }
 
-    /** "Neu lernen": every example goes. */
+    /** "Neu lernen": every example goes, the places too. */
     fun resetLearning() {
         setExamples(emptyList())
+        setBook { it.copy(points = emptyList()) }
+        prefs.edit { remove(KEY_STOCK_AT) }
         synchronized(lock) {
             features.clear()
             File(dir, FILE_FEATURES).delete()
@@ -270,6 +349,10 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
         const val FILE_WIFI = "drive-work-wifi.json"
         const val FILE_AI = "drive-work-ai.json"
         const val FILE_FEATURES = "drive-work-features.json"
+        const val FILE_PLACES = "drive-work-places.json"
+        const val KEY_SINCE = "since"
+        const val KEY_OLD_PRIVATE = "old_private"
+        const val KEY_STOCK_AT = "stock_at"
         const val KEY_FOLDER = "folder"
         const val KEY_FOLDER_LABEL = "folder_label"
         const val KEY_SUBFOLDERS = "subfolders"

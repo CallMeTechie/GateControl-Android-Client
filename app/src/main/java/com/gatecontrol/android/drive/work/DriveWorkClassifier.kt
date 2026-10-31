@@ -30,6 +30,10 @@ data class WorkExample(
         MOVE("move"),
         /** "Aufräumen": ticked = work, unticked = private. */
         CLEANUP("cleanup"),
+        /** Taken at the place "Firma" or "Zuhause" ([DriveWorkPlaces]). */
+        PLACE("place"),
+        /** In the work folder in Drive (assigned in the portal or on another device). */
+        FOLDER("folder"),
         ;
 
         companion object {
