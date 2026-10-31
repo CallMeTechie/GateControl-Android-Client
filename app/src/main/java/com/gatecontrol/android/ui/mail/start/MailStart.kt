@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -163,7 +164,7 @@ private object DirectCallPrefs {
 
     fun setDeniedForGood(context: Context, on: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_DENIED, false) != on) prefs.edit().putBoolean(KEY_DENIED, on).apply()
+        if (prefs.getBoolean(KEY_DENIED, false) != on) prefs.edit { putBoolean(KEY_DENIED, on) }
     }
 }
 
