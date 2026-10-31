@@ -90,6 +90,7 @@ data class MailNav(
     val draft: (Long) -> Unit,
     val search: () -> Unit,
     val filing: () -> Unit,
+    /** "Konto hinzufügen" of the empty tab: the settings with "Konto hinzufügen" on top (the menu has no "+"). */
     val addAccount: () -> Unit,
     val settings: () -> Unit,
     val account: (Long) -> Unit,
@@ -172,7 +173,6 @@ fun MailHomeScreen(nav: MailNav, viewModel: MailHomeViewModel = hiltViewModel())
                     onBox = { close(); viewModel.selectBox(it) },
                     onFiling = { close(); nav.filing() },
                     onOutbox = { close(); nav.outbox() },
-                    onAdd = { close(); nav.addAccount() },
                     onSettings = { close(); nav.settings() },
                 )
             }
@@ -576,10 +576,11 @@ internal object MailFolders {
 }
 
 /**
- * The menu (mockup "Seitenmenü"): "Mail", "Alle Posteingänge", "Zum Ablegen" (with Drive), "Postausgang" (when
- * something waits), the accounts with their folders and below "Konto hinzufügen" and the settings. A tap on an
- * account opens or closes its folders (the menu stays, [folds] keeps it for the session); picking its "Posteingang"
- * or a folder closes the menu. Calendar and resources come later (phase 2/3).
+ * The menu (mockups "Seitenmenü" and "Seitenmenü neu"): "Mail", "Alle Posteingänge", "Zum Ablegen" (with Drive),
+ * "Postausgang" (when something waits), the accounts with their folders, the storage bar and the foot: the settings
+ * on the left, contacts and calendar on the right ([MailDrawerFoot]). A tap on an account opens or closes its folders
+ * (the menu stays, [folds] keeps it for the session); picking its "Posteingang" or a folder closes the menu. An
+ * account is added in the settings only (no "+" here since phase 2).
  */
 @Composable
 private fun MailDrawer(
@@ -593,8 +594,10 @@ private fun MailDrawer(
     onBox: (MailLogic.Box) -> Unit,
     onFiling: () -> Unit,
     onOutbox: () -> Unit,
-    onAdd: () -> Unit,
     onSettings: () -> Unit,
+    onContacts: (() -> Unit)? = null,
+    onCalendar: (() -> Unit)? = null,
+    area: String = MailDrawerFoot.MAIL,
 ) {
     val extra = GateControlTheme.extraColors
     Column(Modifier.fillMaxHeight().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp)) {
@@ -653,11 +656,48 @@ private fun MailDrawer(
                 }
             }
         }
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DrawerIcon(GcIcons.Plus, stringResource(R.string.mail_add_account), onAdd)
-            DrawerIcon(GcIcons.Settings, stringResource(R.string.mail_settings), onSettings)
+        MailDrawerFoot(me = me, area = area, onSettings = onSettings, onContacts = onContacts, onCalendar = onCalendar)
+    }
+}
+
+/**
+ * The menu's foot (mockup "Seitenmenü neu"): the settings on the left; contacts and calendar on the right, each only
+ * when the server offers it (`features.contacts` / `features.calendar`) and the app can open it, the active area in the
+ * accent. A tap on the active one goes back to the mail.
+ */
+@Composable
+internal fun MailDrawerFoot(
+    me: MMe?,
+    area: String,
+    onSettings: () -> Unit,
+    onContacts: (() -> Unit)?,
+    onCalendar: (() -> Unit)?,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DrawerIcon(GcIcons.Settings, stringResource(R.string.mail_settings), on = false, onClick = onSettings)
+        Spacer(Modifier.weight(1f))
+        if (onContacts != null && MailDrawerFoot.contacts(me)) {
+            DrawerIcon(GcIcons.User, stringResource(R.string.mail_contacts), on = area == MailDrawerFoot.CONTACTS, onClick = onContacts)
+        }
+        if (onCalendar != null && MailDrawerFoot.calendar(me)) {
+            DrawerIcon(GcIcons.Calendar, stringResource(R.string.mail_calendar), on = area == MailDrawerFoot.CALENDAR, onClick = onCalendar)
         }
     }
+}
+
+/** What the menu's foot shows (pure, unit-tested). */
+internal object MailDrawerFoot {
+    const val MAIL = "mail"
+    const val CALENDAR = "calendar"
+    const val CONTACTS = "contacts"
+
+    fun calendar(me: MMe?): Boolean = me?.has(MMe.FEATURE_CALENDAR) == true
+
+    fun contacts(me: MMe?): Boolean = me?.has(MMe.FEATURE_CONTACTS) == true
 }
 
 @Composable
@@ -740,18 +780,20 @@ private fun DrawerAccount(a: MAccount, count: Int, on: Boolean, open: Boolean, o
     }
 }
 
+/** A square button of the menu's foot (44×44); [on]: the area shown now, in the accent (`aria-pressed`). */
 @Composable
-private fun DrawerIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+private fun DrawerIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
     val extra = GateControlTheme.extraColors
+    val shape = RoundedCornerShape(12.dp)
     Box(
         Modifier
             .size(44.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, extra.border, RoundedCornerShape(12.dp))
-            .clickable(role = Role.Button, onClick = onClick)
+            .clip(shape)
+            .then(if (on) Modifier.background(extra.accentBg) else Modifier.border(1.dp, extra.border, shape))
+            .selectable(selected = on, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = extra.muted, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = if (on) extra.accentText else extra.muted, modifier = Modifier.size(20.dp))
     }
 }

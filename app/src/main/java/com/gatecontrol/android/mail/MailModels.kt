@@ -44,6 +44,9 @@ data class MMe(
         const val FEATURE_DRIVE = "drive"
         const val FEATURE_FAMILY_CALENDAR = "familyCalendar"
         const val FEATURE_IMAGES = "images"
+        /** Since Mail 1.2.0: calendars and contacts (the administrator switched them on). */
+        const val FEATURE_CALENDAR = "calendar"
+        const val FEATURE_CONTACTS = "contacts"
     }
 }
 

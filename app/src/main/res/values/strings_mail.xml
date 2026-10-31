@@ -53,6 +53,8 @@
     <string name="mail_accounts">Accounts</string>
     <string name="mail_add_account">Add account</string>
     <string name="mail_settings">Mail settings</string>
+    <string name="mail_calendar">Calendar</string>
+    <string name="mail_contacts">Contacts</string>
     <string name="mail_quota">%1$s of %2$s used</string>
     <string name="mail_offline_copy">Offline – showing what was loaded last.</string>
     <string name="mail_account_auth_failed">%1$s: sign-in refused. Tap to sign in again.</string>
