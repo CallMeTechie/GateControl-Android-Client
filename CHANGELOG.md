@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.68.1] - 2026-10-31
+
+### Changes
+- breite Mails passen, Bilder sofort, Ordner auf- und zuklappen, Unterhaltung, Absender (#161)
+
+---
+
 ## [1.68.0] - 2026-10-30
 
 ### Features
