@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.69.0] - 2026-10-31
+
+### Features
+- Mails im dunklen Modus dunkel darstellen (wie die Outlook-App) (#162)
+
+---
+
 ## [1.68.1] - 2026-10-31
 
 ### Changes
