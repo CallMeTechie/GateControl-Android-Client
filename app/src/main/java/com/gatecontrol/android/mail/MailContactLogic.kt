@@ -25,11 +25,17 @@ data class AgendaView(val days: List<AgendaDay>, val more: Int) {
     val empty: Boolean get() = days.isEmpty()
 }
 
-/** What a tap on a favourite's tile does: call [tel] (a `tel:` uri) or, without a number, open the contact. */
+/**
+ * What a tap on a favourite's tile does: call [number] (checked by [MailContactLogic.callNumber]: digits, a leading
+ * `+`, `*` and `#`) or, without a usable number, open the contact.
+ */
 sealed interface TileTap {
-    data class Call(val tel: String) : TileTap
+    data class Call(val number: String) : TileTap
     data class Open(val id: Long) : TileTap
 }
+
+/** How a tile's call goes: [CALL] straight away, [DIAL] the dialer with the number, [ASK] the hint and Android's question first. */
+enum class CallStep { CALL, DIAL, ASK }
 
 /**
  * The rules of the GC contact as the master (Mail 1.4.0, pure, unit-tested): which contacts the list shows and with
@@ -201,14 +207,56 @@ object MailContactLogic {
         else -> pins.copy(contacts = (pins.contacts + pin).take(PINS_MAX))
     }
 
-    /** A tap on a favourite's tile: its main number, else (none) the contact. */
-    fun tap(pin: StartContactPin): TileTap = pin.phone?.let(MailPimLogic::telUri)?.let { TileTap.Call(it) } ?: TileTap.Open(pin.id)
+    /** A tap on a favourite's tile: its main number, else (none or not a number to call) the contact. */
+    fun tap(pin: StartContactPin): TileTap = pin.phone?.let(::callNumber)?.let { TileTap.Call(it) } ?: TileTap.Open(pin.id)
+
+    /** Separators a number may contain (left out of the number called). */
+    private const val SEPARATORS = " \u00A0-./()"
 
     /**
-     * How a tile calls: straight away (`ACTION_CALL`) only while the app holds the permission to place calls (the
-     * person allowed it), else the dialer with the number (`ACTION_DIAL`, no permission needed).
+     * The number a tile calls, from a stored [raw] number: only digits, `+` (at the start), `*`, `#` and separators
+     * (space, `-`, `.`, `/`, brackets) are allowed, the separators are dropped. Anything else (letters, `,`/`;` pauses,
+     * a `+` inside) or fewer than 3 digits: null, the tile opens the contact.
      */
-    fun callAction(callPermission: Boolean): String = if (callPermission) ACTION_CALL else ACTION_DIAL
+    fun callNumber(raw: String): String? {
+        val t = raw.trim()
+        if (t.isEmpty() || t.length > 64) return null
+        if (t.any { !(it.isAsciiDigit() || it == '+' || it == '*' || it == '#' || it in SEPARATORS) }) return null
+        val n = t.filter { it !in SEPARATORS }
+        if (n.lastIndexOf('+') > 0) return null
+        return n.takeIf { c -> c.count { it.isAsciiDigit() } >= 3 }
+    }
+
+    private fun Char.isAsciiDigit() = this in '0'..'9'
+
+    /**
+     * Whether [number] looks like a service code (MMI/USSD: `*#06#`, `**21*…#`, `#31#…`, a `#` at the end): any
+     * `*` or `#`. Such a number is never called straight away, only put into the dialer.
+     */
+    fun serviceCode(number: String): Boolean = number.any { it == '*' || it == '#' }
+
+    /**
+     * How a tile calls [number]: straight away only with the permission to place calls (the person allowed it) and
+     * never a service code; else the dialer with the number (`ACTION_DIAL`, no permission needed).
+     */
+    fun callAction(number: String, callPermission: Boolean): String = if (callPermission && !serviceCode(number)) ACTION_CALL else ACTION_DIAL
+
+    /**
+     * The step for a tap on a tile calling [number]: a service code or a device without telephony always the dialer;
+     * with the permission the call; denied for good the dialer without asking again; else the hint and the question.
+     */
+    fun callStep(number: String, telephony: Boolean, granted: Boolean, deniedForGood: Boolean): CallStep = when {
+        serviceCode(number) || !telephony -> CallStep.DIAL
+        granted -> CallStep.CALL
+        deniedForGood -> CallStep.DIAL
+        else -> CallStep.ASK
+    }
+
+    /**
+     * Whether Android's answer means "don't ask again": denied, and Android showed an explanation before the question
+     * but would show none any more. A first denial leaves the explanation on, a dismissed question never had it.
+     */
+    fun deniedForGood(granted: Boolean, rationaleBefore: Boolean, rationaleAfter: Boolean): Boolean = !granted && rationaleBefore && !rationaleAfter
 
     /** The pins as kept in the offline copy (read without reflection). */
     fun pinsJson(p: MailStartPins): JsonObject = JsonObject().apply {

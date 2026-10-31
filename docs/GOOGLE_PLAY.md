@@ -91,6 +91,8 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 - *Warum im Hintergrund:* „Netzwechsel passieren, während die App geschlossen ist (Heimkommen, Verlassen der Wohnung). Ohne Hintergrund-Zugriff erkennt die App das vertrauenswürdige WLAN erst beim nächsten Öffnen.“
 - *Video (30–60 s, Bildschirmaufnahme):* Einstellungen → Vertrauenswürdige WLANs → einschalten → „Aktuelles WLAN hinzufügen“ → Hinweisdialog zeigen → Standort „Bei Nutzung der App“ erlauben → Hinweis „Immer zulassen“ → in den Android-Einstellungen „Immer zulassen“ → App schließen → WLAN trennen/wechseln → VPN verbindet bzw. trennt sich automatisch (Benachrichtigung/Kachel zeigen). Als YouTube-Link (nicht gelistet) angeben.
 
+**Anrufe tätigen** (`CALL_PHONE`, keine eingeschränkte Berechtigung, kein Formular): Ein Tipp auf einen Kontakt-Favoriten auf Start ruft dessen Hauptnummer direkt an. Gefragt erst beim ersten Tipp, mit einem Hinweis vor der System-Abfrage; abgelehnt öffnet sich die Telefon-App mit der Nummer. Servicecodes (mit `*` oder `#`) gehen nie direkt raus. Telefonie bleibt optional (`android.hardware.telephony` mit `required="false"`), Tablets ohne Telefon installieren die App weiter. Datensicherheit: keine neue Datenart (die App liest keine Anrufliste und sendet keine Nummern).
+
 **VPN-Dienst** (Formular „VPN-Dienst“, falls abgefragt):
 - Kernfunktion der App ist ein VPN-Tunnel (WireGuard) zum eigenen GateControl-Server des Nutzers; kein Werbe-/Tracking-Zweck, keine Umleitung zu Dritten, keine Datenerhebung über den Tunnel.
 

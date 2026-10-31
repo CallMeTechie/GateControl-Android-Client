@@ -181,6 +181,15 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `favourites may call straight away, telephony stays optional for tablets`() {
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        assertTrue("android.permission.CALL_PHONE" in permissions)
+        val telephony = components("uses-feature").firstOrNull { it.androidAttr("name") == "android.hardware.telephony" }
+        assertNotNull(telephony, "CALL_PHONE implies telephony: declare it optional")
+        assertEquals("false", telephony!!.androidAttr("required"))
+    }
+
+    @Test
     fun `chat bubble activity is not exported and can be embedded as a bubble`() {
         val bubble = components("activity").first { it.androidAttr("name").endsWith("ChatBubbleActivity") }
         assertEquals("false", bubble.androidAttr("exported"))
