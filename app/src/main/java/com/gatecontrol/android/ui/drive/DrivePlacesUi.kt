@@ -9,12 +9,14 @@ import android.graphics.Typeface
 import android.location.LocationManager
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas as ComposeCanvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,13 +34,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -55,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.view.drawToBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -67,14 +74,16 @@ import com.gatecontrol.android.drive.DPlaceSummary
 import com.gatecontrol.android.drive.DrivePlacesLogic
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.familie.OsmAttribution
+import com.gatecontrol.android.ui.familie.OsmFitter
 import com.gatecontrol.android.ui.familie.configureOsm
+import com.gatecontrol.android.ui.familie.showBox
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import org.osmdroid.events.DelayedMapListener
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
+import org.osmdroid.tileprovider.BitmapPool
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
@@ -192,22 +201,42 @@ internal fun PeopleBar(named: List<DPerson>, unnamed: DPerson?, onPerson: (DPers
     }
 }
 
-/** "Orte": a small map of the places (a tap opens the map), the places with most photos as chips below. */
+/**
+ * "Orte": a small map of the places (a tap opens the map), the places with most photos as chips below. The list
+ * builds this item again whenever it scrolls back: once the map's tiles were all there it is a still picture of it
+ * ([PhotoMapStills]), no map of its own.
+ */
 @Composable
 internal fun PlacesCard(places: List<DPlaceSummary>, clusters: List<DCluster>, onMap: () -> Unit, onPlace: (DPlaceSummary) -> Unit) {
     val x = GateControlTheme.extraColors
+    val scheme = MaterialTheme.colorScheme
     val desc = stringResource(R.string.drive_pp_map_open)
-    Box(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)).background(x.panel2)) {
-        PhotoMap(
-            clusters = clusters,
-            selected = null,
-            fit = DrivePlacesLogic.around(places.take(12).map { it.lat to it.lon }),
-            interactive = false,
-            onCluster = { onMap() },
-            onMoved = { _, _ -> },
-            contentDescription = desc,
-            modifier = Modifier.fillMaxWidth().height(120.dp),
-        )
+    val fit = remember(places) { DrivePlacesLogic.around(places.take(12).map { it.lat to it.lon }) }
+    BoxWithConstraints(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)).background(x.panel2)) {
+        val w = constraints.maxWidth
+        val h = constraints.maxHeight
+        val key = remember(fit, clusters, w, h, scheme) {
+            val bundles = clusters.joinToString(";") { "${it.lat},${it.lon},${it.count}" }
+            "$fit|$bundles|${w}x$h|${scheme.primary.toArgb()},${scheme.surface.toArgb()},${scheme.background.toArgb()}"
+        }
+        val still = PhotoMapStills[key]
+        if (still != null) {
+            Image(still, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            OsmAttribution(Modifier.align(Alignment.BottomEnd))
+        } else {
+            PhotoMap(
+                clusters = clusters,
+                selected = null,
+                fit = fit,
+                interactive = false,
+                onCluster = { onMap() },
+                onMoved = { _, _ -> },
+                contentDescription = desc,
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                stillKey = key,
+                onStill = PhotoMapStills::put,
+            )
+        }
         // a still picture: a tap anywhere opens the map
         Box(Modifier.matchParentSize().clickable(role = Role.Button, onClickLabel = desc, onClick = onMap).semantics { contentDescription = desc })
     }
@@ -247,7 +276,8 @@ internal fun PhotosSearchField(onClick: () -> Unit, modifier: Modifier = Modifie
 /**
  * OpenStreetMap with the photos' bundles (osmdroid, the same tiles, User-Agent and cache as Familie's maps;
  * the attribution always shows). [fit] is shown first; [onMoved] hears the box and zoom after moving (osmdroid's
- * delay, the view model throttles further); a tap on a bundle picks it. Not [interactive]: a still picture.
+ * delay, the view model throttles further); a tap on a bundle picks it. Not [interactive]: a still picture. With a
+ * [stillKey], [onStill] gets a picture of the map once its tiles are all there (again for a new key).
  */
 @Composable
 internal fun PhotoMap(
@@ -260,6 +290,8 @@ internal fun PhotoMap(
     contentDescription: String,
     modifier: Modifier = Modifier,
     center: GeoPoint? = null,
+    stillKey: String? = null,
+    onStill: (String, ImageBitmap) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -267,6 +299,8 @@ internal fun PhotoMap(
     val scheme = MaterialTheme.colorScheme
     val tap = rememberUpdatedState(onCluster)
     val moved = rememberUpdatedState(onMoved)
+    val stillFor = rememberUpdatedState(stillKey)
+    val still = rememberUpdatedState(onStill)
     val overlay = remember { ClusterOverlay(density) }
     val map = remember {
         configureOsm(context)
@@ -297,6 +331,14 @@ internal fun PhotoMap(
             )
         }
     }
+    // the first view (and a new one) once, posted after a layout with a size: never in the layout pass itself
+    val fitter = remember(map) {
+        OsmFitter(map).apply {
+            // the view's box once shown (moving reports it from then on)
+            onShown = { map.post { map.boundingBox?.let { b -> moved.value(DBbox(b.lonWest, b.latSouth, b.lonEast, b.latNorth), map.zoomLevelDouble.roundToInt()) } } }
+        }
+    }
+    DisposableEffect(fitter) { onDispose { fitter.release() } }
     overlay.onTap = { c -> tap.value(c) }
     overlay.colors(scheme.primary.toArgb(), scheme.onPrimary.toArgb(), scheme.onSurface.toArgb(), scheme.surface.toArgb(), scheme.background.toArgb())
 
@@ -310,10 +352,29 @@ internal fun PhotoMap(
         }
         lifecycle.addObserver(observer)
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) map.onResume()
+        livePhotoMaps++
+        // the still picture: after a frame whose tiles are all loaded (osmdroid runs this after drawing them)
+        val tiles = map.overlayManager.tilesOverlay.tileStates
+        var alive = true
+        var taken: String? = null
+        val capture = Runnable {
+            val k = stillFor.value ?: return@Runnable
+            if (k == taken || !fitter.shown || tiles.total == 0 || tiles.upToDate + tiles.expired < tiles.total) return@Runnable
+            taken = k
+            map.post {
+                if (!alive || stillFor.value != k || map.width <= 0 || map.height <= 0) return@post
+                runCatching { map.drawToBitmap() }.getOrNull()?.let { still.value(k, it.asImageBitmap()) }
+            }
+        }
+        tiles.runAfters.add(capture)
         onDispose {
+            alive = false
+            tiles.runAfters.remove(capture)
             lifecycle.removeObserver(observer)
             map.onPause()
             map.onDetach()
+            // the tiles osmdroid keeps for reuse (it never lets them go): emptied after the last of these maps
+            if (--livePhotoMaps == 0) BitmapPool.getInstance().clearBitmapPool()
         }
     }
 
@@ -325,28 +386,44 @@ internal fun PhotoMap(
                 overlay.clusters = clusters
                 overlay.selected = selected
                 // the first box (and a new one) is shown once; moving by hand is not undone
-                val target = center?.let { "c:${it.latitude},${it.longitude}" } ?: fit?.let { "b:${it.west},${it.south},${it.east},${it.north}" }
-                if (target != null && view.tag != target) {
-                    view.tag = target
-                    val go = {
-                        if (center != null) {
-                            view.controller.setZoom(14.0)
-                            view.controller.setCenter(center)
-                        } else if (fit != null) {
-                            view.zoomToBoundingBox(BoundingBox(fit.north, fit.east, fit.south, fit.west), false, (24 * density).roundToInt())
-                        }
+                if (center != null) {
+                    fitter.request("c:${center.latitude},${center.longitude}") { m ->
+                        m.controller.setZoom(CLOSE_ZOOM)
+                        m.controller.setCenter(center)
+                        true
                     }
-                    // the view's box once shown (moving reports it from then on)
-                    val shown = {
-                        go()
-                        view.post { view.boundingBox?.let { b -> moved.value(DBbox(b.lonWest, b.latSouth, b.lonEast, b.latNorth), view.zoomLevelDouble.roundToInt()) } }
+                } else if (fit != null) {
+                    fitter.request("b:${fit.west},${fit.south},${fit.east},${fit.north}") { m ->
+                        m.showBox(fit.north, fit.east, fit.south, fit.west, (24 * density).roundToInt(), CLOSE_ZOOM)
                     }
-                    if (view.width > 0 && view.height > 0) shown() else view.addOnFirstLayoutListener { _, _, _, _, _ -> shown() }
                 }
                 view.invalidate()
             },
         )
         OsmAttribution(Modifier.align(Alignment.BottomEnd))
+    }
+}
+
+/** A single place or a tiny box: this close (a town's streets). */
+private const val CLOSE_ZOOM = 14.0
+
+/** PhotoMaps on the screen (main thread): the last one gone empties osmdroid's bitmap pool. */
+private var livePhotoMaps = 0
+
+/**
+ * The head map of Fotos as still pictures, by what they show (places, bundles, size, colours); the newest few are kept.
+ * Main thread; a new one recomposes the card, which then lets its map go.
+ */
+internal object PhotoMapStills {
+    private const val MAX = 3
+    private val stills = mutableStateMapOf<String, ImageBitmap>()
+    private val order = ArrayDeque<String>()
+
+    operator fun get(key: String): ImageBitmap? = stills[key]
+
+    fun put(key: String, still: ImageBitmap) {
+        if (stills.put(key, still) == null) order.addLast(key)
+        while (order.size > MAX) stills.remove(order.removeFirst())
     }
 }
 
