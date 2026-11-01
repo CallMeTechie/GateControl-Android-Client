@@ -116,6 +116,8 @@ data class DMe(
         const val FEATURE_PHOTO_PLACES = "photoPlaces"
         /** Drive 1.16: people in the photos (faces found on the phones, `people`, `person=`). */
         const val FEATURE_PHOTO_PEOPLE = "photoPeople"
+        /** Drive 1.17: deadlines into a calendar of the mail plugin too (`deadlines/calendars`, `deadlines/targets`). */
+        const val FEATURE_DEADLINE_MAIL_CALENDAR = "deadlineMailCalendar"
     }
 }
 
@@ -463,8 +465,8 @@ data class DDeadline(
     val nodeId: Long? = null,
 )
 
-/** A deadline's entry in the family calendar (Drive 1.14). */
-data class DCalendarEntry(val eventId: String?, val at: String?)
+/** A deadline's entry in the family calendar (Drive 1.14) or, Drive 1.17, in a mail calendar ([target]; null: the family's). */
+data class DCalendarEntry(val eventId: String?, val at: String?, val target: DDeadlineTarget? = null)
 
 data class DReminder(val at: String?, val daysBefore: Int, val sent: Boolean)
 

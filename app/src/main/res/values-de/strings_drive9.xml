@@ -11,8 +11,6 @@
     <string name="drive_ki_deadline_warranty">Garantieende</string>
     <string name="drive_ki_deadline_renewal">Vertragsverlängerung</string>
     <string name="drive_ki_renewal_until">kündigen bis %1$s</string>
-    <string name="drive_ki_area_calendar">Neue Fristen in den Familienkalender</string>
-    <string name="drive_ki_area_calendar_desc">In „%1$s“ erkannte Fristen kommen von selbst in den Familienkalender</string>
     <string name="drive_ki_new">neu</string>
     <string name="drive_ki_calendar_add">In den Familienkalender</string>
     <string name="drive_ki_calendar_done">Im Familienkalender</string>

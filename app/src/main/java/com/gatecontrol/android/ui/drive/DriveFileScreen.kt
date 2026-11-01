@@ -46,12 +46,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DDeadline
+import com.gatecontrol.android.drive.DDeadlineCalendars
+import com.gatecontrol.android.drive.DDeadlineTarget
+import com.gatecontrol.android.drive.DDeadlineTargetRow
 import com.gatecontrol.android.drive.DInsight
 import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DOffice
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
+import com.gatecontrol.android.drive.DriveDeadlineTargets
 import com.gatecontrol.android.drive.DriveJson
 import com.gatecontrol.android.drive.DriveKi
 import com.gatecontrol.android.drive.DriveLive
@@ -517,6 +521,12 @@ class DriveDeadlinesViewModel @Inject constructor(
     private val _calendarBusy = MutableStateFlow<Long?>(null)
     val calendarBusy: StateFlow<Long?> = _calendarBusy.asStateFlow()
 
+    /** Drive 1.17 (`deadlineMailCalendar`): the calendars a deadline can go to, and my target per area (the preselection). */
+    private val _calendars = MutableStateFlow(DDeadlineCalendars.NONE)
+    val calendars: StateFlow<DDeadlineCalendars> = _calendars.asStateFlow()
+    private val _targets = MutableStateFlow<List<DDeadlineTargetRow>>(emptyList())
+    val targets: StateFlow<List<DDeadlineTargetRow>> = _targets.asStateFlow()
+
     private var seen: Set<Long>? = DriveViewPref.deadlinesSeen(context)
 
     init {
@@ -538,6 +548,12 @@ class DriveDeadlinesViewModel @Inject constructor(
             }
             _state.value = r
         }
+        viewModelScope.launch {
+            val me = live.me.value ?: live.current()
+            if (me?.has(DMe.FEATURE_DEADLINE_MAIL_CALENDAR) != true) return@launch
+            api.deadlineCalendars().valueOrNull()?.let { _calendars.value = it }
+            api.deadlineTargets().valueOrNull()?.let { _targets.value = it }
+        }
     }
 
     fun remind(d: DDeadline, days: Int?) {
@@ -547,16 +563,19 @@ class DriveDeadlinesViewModel @Inject constructor(
         }
     }
 
-    /** "In den Familienkalender" (Drive 1.14, feature `deadlineCalendar`). */
-    fun calendar(d: DDeadline) {
+    /**
+     * "In den Familienkalender" (Drive 1.14, feature `deadlineCalendar`); Drive 1.17 (`deadlineMailCalendar`): "In
+     * Kalender eintragen" into [target], a mail calendar or the family calendar.
+     */
+    fun calendar(d: DDeadline, target: DDeadlineTarget? = null) {
         if (_calendarBusy.value != null) return
         viewModelScope.launch {
             _calendarBusy.value = d.id
-            val r = api.deadlineToCalendar(d.id)
+            val r = if (target == null) api.deadlineToCalendar(d.id) else api.deadlineToCalendar(d.id, target)
             _calendarBusy.value = null
             if (r is DResult.Ok) {
                 took(d, r.value)
-                _message.value = "done_calendar"
+                _message.value = if (target?.mail == true) "done_calendar_any" else "done_calendar"
             } else {
                 _message.value = r.errorCode()
             }
@@ -576,6 +595,11 @@ fun DriveDeadlinesScreen(onBack: () -> Unit, onFile: (Long) -> Unit, viewModel: 
     val busy by viewModel.calendarBusy.collectAsStateWithLifecycle()
     val me by viewModel.live.me.collectAsStateWithLifecycle()
     val calendar = me?.has(DMe.FEATURE_DEADLINE_CALENDAR) == true
+    val calendars by viewModel.calendars.collectAsStateWithLifecycle()
+    val rows by viewModel.targets.collectAsStateWithLifecycle()
+    // Drive 1.17: the family calendar and / or the mail calendars; more than one: "In Kalender eintragen" asks
+    val targets = DriveDeadlineTargets.targets(calendars, mailFeature = me?.has(DMe.FEATURE_DEADLINE_MAIL_CALENDAR) == true)
+    var pick by remember { mutableStateOf<DDeadline?>(null) }
     val context = LocalContext.current
     var shown by remember { mutableStateOf(false) }
     LifecycleResumeEffect(viewModel) {
@@ -611,15 +635,30 @@ fun DriveDeadlinesScreen(onBack: () -> Unit, onFile: (Long) -> Unit, viewModel: 
                                 fresh = d.id in fresh,
                                 calendar = calendar,
                                 calendarBusy = busy == d.id,
-                                onCalendar = { viewModel.calendar(d) },
+                                onCalendar = {
+                                    if (DriveDeadlineTargets.ask(targets)) pick = d else viewModel.calendar(d, targets.singleOrNull())
+                                },
                                 onRemind = viewModel::remind,
                                 onFile = d.node?.let { n -> { onFile(n.id) } },
+                                calendarLabel = stringResource(
+                                    if (targets.any { it.mail }) R.string.drive_dl_calendar_add else R.string.drive_ki_calendar_add,
+                                ),
                             )
                         }
                     }
                 }
             }
         }
+    }
+    pick?.let { d ->
+        DeadlineTargetDialog(
+            title = stringResource(R.string.drive_dl_calendar_pick),
+            groups = DriveDeadlineTargets.groups(calendars, mailFeature = true, off = false),
+            selected = DriveDeadlineTargets.preselect(rows, d.node?.areaId, targets),
+            onSelect = { t -> pick = null; viewModel.calendar(d, t) },
+            onDismiss = { pick = null },
+            confirm = stringResource(R.string.drive_dl_calendar_go),
+        )
     }
 }
 

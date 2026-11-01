@@ -371,6 +371,8 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "done_scan_doc" -> context.getString(R.string.drive_ki_done_scan_doc)
     "done_calendar" -> context.getString(R.string.drive_ki_done_calendar)
     "familie_unavailable" -> context.getString(R.string.drive_ki_familie_unavailable)
+    "done_calendar_any" -> context.getString(R.string.drive_dl_done_calendar)
+    "mail_unavailable" -> context.getString(R.string.drive_dl_mail_unavailable)
     "rate_limited" -> context.getString(R.string.drive_ki_rate_limited)
     "ai_unavailable", "no_ai" -> context.getString(R.string.drive_ki_ai_unavailable)
     "no_text" -> context.getString(R.string.drive_insight_no_text)

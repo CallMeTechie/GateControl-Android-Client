@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.17: Fristen auch in einen Kalender des Mail-Plugins -->
+<resources>
+    <string name="drive_dl_from">Fristen aus %1$s</string>
+    <string name="drive_dl_from_switch_desc">Neu erkannte Fristen kommen von selbst in den Familienkalender</string>
+    <string name="drive_dl_from_desc">Wohin neu erkannte Fristen aus deinen Uploads kommen</string>
+    <string name="drive_dl_target_off">Nicht eintragen</string>
+    <string name="drive_dl_target_family">Familienkalender</string>
+    <string name="drive_dl_target_mail">Mail-Kalender</string>
+    <string name="drive_dl_calendar_add">In Kalender eintragen</string>
+    <string name="drive_dl_calendar_pick">In welchen Kalender?</string>
+    <string name="drive_dl_calendar_go">Eintragen</string>
+    <string name="drive_dl_calendar_done">Im Kalender</string>
+    <string name="drive_dl_calendar_done_in">Im Kalender · %1$s</string>
+    <string name="drive_dl_done_calendar">In den Kalender eingetragen.</string>
+    <string name="drive_dl_mail_unavailable">Der Mail-Kalender ist gerade nicht erreichbar (Konto getrennt oder Anmeldung abgelaufen). Bitte das Konto in Mail neu anmelden.</string>
+</resources>
