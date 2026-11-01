@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -42,6 +44,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
+import com.gatecontrol.android.drive.DDeadlineCalendars
+import com.gatecontrol.android.drive.DDeadlineTarget
+import com.gatecontrol.android.drive.DDeadlineTargetRow
+import com.gatecontrol.android.drive.DriveDeadlineTargets
 import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
@@ -106,6 +112,12 @@ class DriveSettingsViewModel @Inject constructor(
     private val _areas = MutableStateFlow<List<DArea>>(emptyList())
     val areas: StateFlow<List<DArea>> = _areas.asStateFlow()
 
+    /** Drive 1.17 (`deadlineMailCalendar`): my target per area for new deadlines; null while not known (then the switch). */
+    private val _targets = MutableStateFlow<List<DDeadlineTargetRow>?>(null)
+    val targets: StateFlow<List<DDeadlineTargetRow>?> = _targets.asStateFlow()
+    private val _calendars = MutableStateFlow(DDeadlineCalendars.NONE)
+    val calendars: StateFlow<DDeadlineCalendars> = _calendars.asStateFlow()
+
     private val _cacheSize = MutableStateFlow<Long?>(null)
     val cacheSize: StateFlow<Long?> = _cacheSize.asStateFlow()
 
@@ -135,6 +147,15 @@ class DriveSettingsViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch { api.areas().valueOrNull()?.let { _areas.value = DriveLogic.sortAreas(it) } }
         viewModelScope.launch { _cacheSize.value = cache.size() }
+        viewModelScope.launch {
+            val me = live.me.value ?: live.current()
+            if (me?.has(DMe.FEATURE_DEADLINE_MAIL_CALENDAR) != true) {
+                _targets.value = null
+                return@launch
+            }
+            api.deadlineCalendars().valueOrNull()?.let { _calendars.value = it }
+            api.deadlineTargets().valueOrNull()?.let { _targets.value = it }
+        }
         viewModelScope.launch {
             val safety = withContext(Dispatchers.IO) { runCatching { session.safetyNumber() }.getOrNull() }
             _vaultInfo.value = VaultInfo(safety, _vaultInfo.value.approved)
@@ -205,7 +226,11 @@ class DriveSettingsViewModel @Inject constructor(
         put(on)
         viewModelScope.launch {
             when (val r = api.setAreaDocAi(area.id, on)) {
-                is DResult.Ok -> put(r.value)
+                is DResult.Ok -> {
+                    put(r.value)
+                    // the targets follow the areas with AI for documents
+                    if (_targets.value != null) api.deadlineTargets().valueOrNull()?.let { _targets.value = it }
+                }
                 else -> {
                     put(before)
                     _message.value = r.errorCode()
@@ -214,7 +239,22 @@ class DriveSettingsViewModel @Inject constructor(
         }
     }
 
-    /** "Neue Fristen in den Familienkalender" of [area] (Drive 1.14, `deadlineCalendar`, the write right). */
+    /** "Fristen aus <Bereich>" (Drive 1.17, `deadlineMailCalendar`): my target of [areaId], shown at once. */
+    fun setDeadlineTarget(areaId: String, target: DDeadlineTarget?) {
+        val before = _targets.value ?: return
+        _targets.value = DriveDeadlineTargets.put(before, areaId, target)
+        viewModelScope.launch {
+            when (val r = api.setDeadlineTarget(areaId, target)) {
+                is DResult.Ok -> _targets.value = r.value.ifEmpty { _targets.value }
+                else -> {
+                    _targets.value = before
+                    _message.value = r.errorCode()
+                }
+            }
+        }
+    }
+
+    /** "Fristen aus <Bereich>" as a switch into the family calendar of [area] (Drive 1.14, `deadlineCalendar`, the write right). */
     fun setDeadlinesToCalendar(area: DArea, on: Boolean) {
         val before = area.deadlinesToCalendar
         fun put(value: Boolean?) = _areas.update { list -> list.map { if (it.id == area.id) it.copy(deadlinesToCalendar = value) else it } }
@@ -257,6 +297,9 @@ fun DriveSettingsScreen(
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     val grid by viewModel.grid.collectAsStateWithLifecycle()
     val cameraOnly by viewModel.cameraOnly.collectAsStateWithLifecycle()
+    val targets by viewModel.targets.collectAsStateWithLifecycle()
+    val calendars by viewModel.calendars.collectAsStateWithLifecycle()
+    var pickTarget by remember { mutableStateOf<String?>(null) }
     val auth = rememberGcDeviceAuth()
     var secure by remember { mutableStateOf(viewModel.deviceSecure()) }
     var askOff by remember { mutableStateOf(false) }
@@ -425,12 +468,32 @@ fun DriveSettingsScreen(
                             onCheckedChange = { on -> viewModel.setDocAi(a, on) },
                             icon = GcIcons.Receipt,
                         )
-                        // Drive 1.14 (`deadlineCalendar`): new deadlines of the area into the family calendar on their own
-                        if (me?.has(DMe.FEATURE_DEADLINE_CALENDAR) == true && a.docAi == true && a.deadlinesToCalendar != null) {
+                        val row = targets?.firstOrNull { it.areaId == a.id }
+                        if (a.docAi == true && row != null) {
+                            // Drive 1.17 (`deadlineMailCalendar`): my target of the area, the family calendar or a mail calendar
+                            GcRowDivider()
+                            GcListRow(
+                                title = stringResource(R.string.drive_dl_from, a.label),
+                                description = stringResource(R.string.drive_dl_from_desc),
+                                onClick = { pickTarget = a.id },
+                                leading = { Icon(GcIcons.Calendar, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
+                                trailing = {
+                                    Text(
+                                        deadlineTargetText(row.target, calendars),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = x.muted,
+                                        modifier = Modifier.widthIn(max = 160.dp),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                            )
+                        } else if (me?.has(DMe.FEATURE_DEADLINE_CALENDAR) == true && a.docAi == true && a.deadlinesToCalendar != null) {
+                            // Drive 1.14 (`deadlineCalendar`): new deadlines of the area into the family calendar on their own
                             GcRowDivider()
                             GcSwitchRow(
-                                label = stringResource(R.string.drive_ki_area_calendar),
-                                description = stringResource(R.string.drive_ki_area_calendar_desc, a.label),
+                                label = stringResource(R.string.drive_dl_from, a.label),
+                                description = stringResource(R.string.drive_dl_from_switch_desc),
                                 checked = a.deadlinesToCalendar == true,
                                 onCheckedChange = { on -> viewModel.setDeadlinesToCalendar(a, on) },
                                 icon = GcIcons.Calendar,
@@ -534,6 +597,20 @@ fun DriveSettingsScreen(
             onSelect = { pickLock = false; viewModel.setAutoLock(it) },
             onDismiss = { pickLock = false },
         )
+    }
+    pickTarget?.let { id ->
+        val row = targets?.firstOrNull { it.areaId == id }
+        if (row == null) {
+            pickTarget = null
+        } else {
+            DeadlineTargetDialog(
+                title = stringResource(R.string.drive_dl_from, areas.firstOrNull { it.id == id }?.label ?: row.label),
+                groups = DriveDeadlineTargets.groups(calendars, mailFeature = me?.has(DMe.FEATURE_DEADLINE_MAIL_CALENDAR) == true),
+                selected = row.target,
+                onSelect = { t -> pickTarget = null; viewModel.setDeadlineTarget(id, t) },
+                onDismiss = { pickTarget = null },
+            )
+        }
     }
     if (pickSort) {
         val keys = listOf("name", "mtime", "size", "type")

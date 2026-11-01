@@ -184,7 +184,8 @@ internal fun deadlineTone(kind: String): GcTone = when (kind) {
 
 /**
  * A deadline (mockup "Fristen"): its kind, the day and how far off, what it is about, the file; "In den
- * Familienkalender" (with `deadlineCalendar`) and "Erinnern" (the days before to choose).
+ * Familienkalender" (with `deadlineCalendar`; "In Kalender eintragen" with `deadlineMailCalendar`) and "Erinnern"
+ * (the days before to choose).
  */
 @Composable
 internal fun DeadlineCard(
@@ -195,6 +196,8 @@ internal fun DeadlineCard(
     onCalendar: () -> Unit,
     onRemind: (DDeadline, Int?) -> Unit,
     onFile: (() -> Unit)?,
+    /** "In den Familienkalender", or with a mail calendar to choose (Drive 1.17) "In Kalender eintragen". */
+    calendarLabel: String = stringResource(R.string.drive_ki_calendar_add),
 ) {
     val x = GateControlTheme.extraColors
     val today = remember { LocalDate.now() }
@@ -219,9 +222,9 @@ internal fun DeadlineCard(
             KiFlow {
                 if (calendar && (d.calendar != null || DriveKi.calendarOpen(d, today))) {
                     if (d.calendar != null) {
-                        KiButton(stringResource(R.string.drive_ki_calendar_done), GcIcons.Calendar, done = true, enabled = false) {}
+                        KiButton(calendarDoneText(d.calendar), GcIcons.Calendar, done = true, enabled = false) {}
                     } else {
-                        KiButton(stringResource(R.string.drive_ki_calendar_add), GcIcons.Calendar, busy = calendarBusy, onClick = onCalendar)
+                        KiButton(calendarLabel, GcIcons.Calendar, busy = calendarBusy, onClick = onCalendar)
                     }
                 }
                 RemindButton(d, open, onRemind)
@@ -675,7 +678,7 @@ internal fun AnswerCard(
                     )
                 }
                 if (calendar && deadline.calendar != null) {
-                    KiButton(stringResource(R.string.drive_ki_calendar_done), GcIcons.Calendar, done = true, enabled = false) {}
+                    KiButton(calendarDoneText(deadline.calendar), GcIcons.Calendar, done = true, enabled = false) {}
                 } else if (calendar && DriveKi.calendarOpen(deadline, today)) {
                     KiButton(stringResource(R.string.drive_ki_ask_calendar), GcIcons.Calendar, busy = calendarBusy) { onCalendar(deadline) }
                 }

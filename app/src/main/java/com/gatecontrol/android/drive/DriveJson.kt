@@ -2,6 +2,7 @@ package com.gatecontrol.android.drive
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
+import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -731,7 +732,7 @@ internal object DriveJson {
             label = o.str("label")?.trim()?.take(200)?.ifEmpty { null },
             reminder = r?.let { DReminder(it.str("at")?.take(40), it.int("daysBefore")?.coerceIn(0, 90) ?: 0, it.bool("sent") ?: false) },
             node = node(o.obj("node")),
-            calendar = o.obj("calendar")?.let { c -> DCalendarEntry(c.idString("eventId")?.take(200), c.str("at")?.take(40)) },
+            calendar = o.obj("calendar")?.let { c -> DCalendarEntry(c.idString("eventId")?.take(200), c.str("at")?.take(40), deadlineTarget(c.obj("target"))) },
             nodeId = o.long("nodeId")?.takeIf { it > 0 },
         )
     }
@@ -1274,6 +1275,79 @@ internal object DriveJson {
 
     /** `PATCH areas/<id>` → `{ area { deadlinesToCalendar } }`. */
     fun areaDeadlinesToCalendar(o: JsonObject): Boolean? = o.obj("area")?.bool("deadlinesToCalendar")
+
+    // ─── Drive 1.17: deadlines into a mail calendar (feature `deadlineMailCalendar`) ──
+
+    /** `{ kind: 'family' }` | `{ kind: 'mail', calendarId, label }`; anything else (and `null`) is no target. */
+    fun deadlineTarget(o: JsonObject?): DDeadlineTarget? {
+        if (o == null) return null
+        val label = o.str("label")?.trim()?.take(200)?.ifEmpty { null }
+        return when (o.str("kind")) {
+            DDeadlineTarget.KIND_FAMILY -> DDeadlineTarget(DDeadlineTarget.KIND_FAMILY, label = label)
+            DDeadlineTarget.KIND_MAIL -> o.idString("calendarId")?.take(200)?.ifEmpty { null }?.let { DDeadlineTarget(DDeadlineTarget.KIND_MAIL, it, label) }
+                // the entry of a deadline names only kind and label
+                ?: DDeadlineTarget(DDeadlineTarget.KIND_MAIL, label = label)
+            else -> null
+        }
+    }
+
+    /** A target as the server takes it (`null`: off); a mail target needs its calendar. */
+    fun deadlineTargetJson(t: DDeadlineTarget?): JsonElement = when {
+        t == null -> JsonNull.INSTANCE
+        t.mail -> JsonObject().apply {
+            addProperty("kind", DDeadlineTarget.KIND_MAIL)
+            addProperty("calendarId", t.calendarId)
+            t.label?.let { addProperty("label", it.take(200)) }
+        }
+        else -> JsonObject().apply { addProperty("kind", DDeadlineTarget.KIND_FAMILY) }
+    }
+
+    /** `GET deadlines/calendars` → `{ family, mail: [{ id, name, account: { id, label, kind }, color }] }`. */
+    fun deadlineCalendars(o: JsonObject): DDeadlineCalendars? {
+        val family = o.bool("family") ?: false
+        val mail = o.arr("mail")?.mapNotNull { e ->
+            val c = e as? JsonObject ?: return@mapNotNull null
+            val id = c.idString("id")?.trim()?.take(200)?.ifEmpty { null } ?: return@mapNotNull null
+            val a = c.obj("account")
+            val accountId = a?.idString("id")?.take(200) ?: ""
+            DMailCalendar(
+                id = id,
+                name = c.str("name")?.trim()?.take(200)?.ifEmpty { null } ?: id,
+                account = DMailAccount(accountId, a?.str("label")?.trim()?.take(200).orEmpty(), a?.str("kind")?.take(40)),
+                color = c.str("color")?.takeIf { COLOR.matches(it) },
+            )
+        }?.distinctBy { it.id }?.take(200).orEmpty()
+        return DDeadlineCalendars(family, mail)
+    }
+
+    /** `GET|PUT deadlines/targets` → `{ targets: [{ areaId, label, target }] }`. */
+    fun deadlineTargets(o: JsonObject): List<DDeadlineTargetRow>? = o.arr("targets")?.mapNotNull { e ->
+        val r = e as? JsonObject ?: return@mapNotNull null
+        val area = areaId(r.str("areaId")) ?: return@mapNotNull null
+        DDeadlineTargetRow(area, r.str("label")?.take(200) ?: area, deadlineTarget(r.obj("target")))
+    }?.distinctBy { it.areaId }
+
+    /** `PUT deadlines/targets { targets: [{ areaId, target }] }`: my target of area [areaId]. */
+    fun deadlineTargetsBody(areaId: String, target: DDeadlineTarget?) = JsonObject().apply {
+        add(
+            "targets",
+            JsonArray().apply {
+                add(
+                    JsonObject().apply {
+                        addProperty("areaId", areaId)
+                        add("target", deadlineTargetJson(target))
+                    },
+                )
+            },
+        )
+    }
+
+    /** `POST deadlines/<id>/calendar { target? }`: without a target (or the family's) as before into the family calendar. */
+    fun deadlineCalendarBody(target: DDeadlineTarget?) = JsonObject().apply {
+        if (target?.mail == true) add("target", deadlineTargetJson(target))
+    }
+
+    private val COLOR = Regex("^#[0-9a-fA-F]{6}$")
 
     /** `PUT nodes/<id>/labels { labels, source: 'device' }`: at most [LABELS_MAX] labels of at most [LABEL_MAX] characters. */
     fun labelsBody(labels: List<String>) = JsonObject().apply {

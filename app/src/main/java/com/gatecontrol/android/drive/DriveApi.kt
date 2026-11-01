@@ -458,6 +458,26 @@ class DriveApi @Inject constructor(
      */
     suspend fun deadlineToCalendar(id: Long): DResult<DDeadline> = post("deadlines/$id/calendar", JsonObject(), DriveJson::deadlineAnswer)
 
+    /**
+     * Deadline [id] into [target] (Drive 1.17, feature `deadlineMailCalendar`): a mail calendar, else the family
+     * calendar → the deadline with `calendar`; the mail calendar not reachable: `mail_unavailable`.
+     */
+    suspend fun deadlineToCalendar(id: Long, target: DDeadlineTarget?): DResult<DDeadline> =
+        post("deadlines/$id/calendar", DriveJson.deadlineCalendarBody(target), DriveJson::deadlineAnswer)
+
+    /** The calendars a deadline can go to (Drive 1.17): the family calendar, and my mail calendars. */
+    suspend fun deadlineCalendars(): DResult<DDeadlineCalendars> = get("deadlines/calendars", parse = DriveJson::deadlineCalendars)
+
+    /** My target per area for new deadlines (Drive 1.17; the areas with AI for documents). */
+    suspend fun deadlineTargets(): DResult<List<DDeadlineTargetRow>> = get("deadlines/targets", parse = DriveJson::deadlineTargets)
+
+    /** My target of area [id] for new deadlines (null: off) → my targets now. */
+    suspend fun setDeadlineTarget(id: String, target: DDeadlineTarget?): DResult<List<DDeadlineTargetRow>> {
+        val area = DriveJson.areaId(id) ?: return bad()
+        if (target?.mail == true && target.calendarId.isNullOrEmpty()) return bad()
+        return put("deadlines/targets", DriveJson.deadlineTargetsBody(area, target), DriveJson::deadlineTargets)
+    }
+
     /** AI for documents in area [id] on or off (`PATCH areas/<id> { docAi }`, the write right) → the setting now. */
     suspend fun setAreaDocAi(id: String, on: Boolean): DResult<Boolean> {
         val area = DriveJson.areaId(id) ?: return bad()

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.17: deadlines into a calendar of the mail plugin too -->
+<resources>
+    <string name="drive_dl_from">Deadlines from %1$s</string>
+    <string name="drive_dl_from_switch_desc">Newly recognised deadlines go into the family calendar on their own</string>
+    <string name="drive_dl_from_desc">Where newly recognised deadlines from your uploads go</string>
+    <string name="drive_dl_target_off">Don’t add</string>
+    <string name="drive_dl_target_family">Family calendar</string>
+    <string name="drive_dl_target_mail">Mail calendar</string>
+    <string name="drive_dl_calendar_add">Add to calendar</string>
+    <string name="drive_dl_calendar_pick">Which calendar?</string>
+    <string name="drive_dl_calendar_go">Add</string>
+    <string name="drive_dl_calendar_done">In the calendar</string>
+    <string name="drive_dl_calendar_done_in">In the calendar · %1$s</string>
+    <string name="drive_dl_done_calendar">Added to the calendar.</string>
+    <string name="drive_dl_mail_unavailable">The mail calendar cannot be reached right now (account disconnected or sign-in expired). Please sign in to the account in Mail again.</string>
+</resources>

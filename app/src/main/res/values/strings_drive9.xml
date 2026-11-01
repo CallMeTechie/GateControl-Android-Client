@@ -11,8 +11,6 @@
     <string name="drive_ki_deadline_warranty">End of warranty</string>
     <string name="drive_ki_deadline_renewal">Contract renewal</string>
     <string name="drive_ki_renewal_until">cancel by %1$s</string>
-    <string name="drive_ki_area_calendar">New deadlines to the family calendar</string>
-    <string name="drive_ki_area_calendar_desc">Deadlines recognised in “%1$s” go into the family calendar on their own</string>
     <string name="drive_ki_new">new</string>
     <string name="drive_ki_calendar_add">To the family calendar</string>
     <string name="drive_ki_calendar_done">In the family calendar</string>
