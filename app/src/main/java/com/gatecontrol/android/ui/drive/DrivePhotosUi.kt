@@ -494,11 +494,7 @@ internal fun DrivePhotosContent(
         NamePersonSheet(
             personId = id,
             onDismiss = { naming = null; header.load(me) },
-            onNext = {
-                val next = DrivePlacesLogic.groups(barPeople?.people.orEmpty()).unnamed.firstOrNull { it.id != id }
-                naming = next?.id
-                if (next == null) header.load(me)
-            },
+            round = true,
         )
     }
     creating?.let { withSelected ->

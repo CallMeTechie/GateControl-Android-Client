@@ -119,6 +119,9 @@
     </plurals>
     <string name="drive_pp_next">Nächste Person</string>
     <string name="drive_pp_close">Fertig</string>
+    <string name="drive_pp_skip">Überspringen</string>
+    <string name="drive_pp_all_seen_title">Alle durchgesehen</string>
+    <string name="drive_pp_all_seen_text">Du hast alle Personen ohne Namen durchgesehen. Übersprungene findest du weiter unter Personen.</string>
 
     <string name="drive_pp_settings_title">Orte und Personen</string>
     <string name="drive_pp_settings_row">Aufnahmeort mitsichern, Gesichter erkennen</string>

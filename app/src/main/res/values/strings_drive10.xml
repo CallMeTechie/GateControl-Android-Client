@@ -119,6 +119,9 @@
     </plurals>
     <string name="drive_pp_next">Next person</string>
     <string name="drive_pp_close">Done</string>
+    <string name="drive_pp_skip">Skip</string>
+    <string name="drive_pp_all_seen_title">All reviewed</string>
+    <string name="drive_pp_all_seen_text">You have gone through everyone without a name. Skipped people stay under People.</string>
 
     <string name="drive_pp_settings_title">Places and people</string>
     <string name="drive_pp_settings_row">Keep where photos were taken, recognise faces</string>

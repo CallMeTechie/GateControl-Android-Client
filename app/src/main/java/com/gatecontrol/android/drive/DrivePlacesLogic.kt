@@ -156,6 +156,12 @@ object DrivePlacesLogic {
         hidden = people.filter { it.hidden },
     )
 
+    /**
+     * "Wer ist das?" one after the other: the next person without a name (most photos first) that this round has not
+     * shown yet. [seen] holds everyone the round has shown (named, hidden, merged or skipped); null ends the round.
+     */
+    fun nextToName(people: List<DPerson>, seen: Set<Long>): DPerson? = groups(people).unnamed.firstOrNull { it.id !in seen }
+
     /** The bar on the Photos page: the named people, then "Wer ist das?" when someone is still without a name. */
     fun bar(people: List<DPerson>, max: Int = 12): Pair<List<DPerson>, DPerson?> {
         val g = groups(people)
