@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.76.0] - 2026-11-01
+
+### Features
+- Fristen auch in einen Mail-Kalender – „Fristen aus …“ und Kalenderauswahl (Drive 1.17) (#171)
+
+---
+
 ## [1.75.0] - 2026-11-01
 
 ### Features
