@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.16: Orte und Personen in den Fotos -->
+<resources>
+    <string name="drive_pp_search_title">Fotos durchsuchen</string>
+    <string name="drive_pp_search_hint">Ort, Person oder Inhalt – z. B. „Lea Strand“</string>
+    <string name="drive_pp_clear">Suche leeren</string>
+    <string name="drive_pp_suggestions">Vorschläge</string>
+    <string name="drive_pp_kind_person">Person</string>
+    <string name="drive_pp_kind_place">Ort</string>
+    <string name="drive_pp_kind_label">Bildinhalt</string>
+    <string name="drive_pp_none">Kein Ort, keine Person und kein Inhalt passt zu „%1$s“.</string>
+    <string name="drive_pp_tip">Tipp: Mehrere Begriffe verbinden – „Mama Hamburg“ findet Fotos mit Mama in Hamburg.</string>
+    <string name="drive_pp_mark_remove">%1$s aus der Suche entfernen</string>
+
+    <string name="drive_pp_people">Personen</string>
+    <string name="drive_pp_all">Alle</string>
+    <string name="drive_pp_who">Wer ist das?</string>
+    <string name="drive_pp_places">Orte</string>
+    <string name="drive_pp_map">Karte</string>
+    <string name="drive_pp_map_open">Karte öffnen</string>
+
+    <string name="drive_pp_map_desc">Karte der Fotos</string>
+    <string name="drive_pp_map_search">Ort suchen</string>
+    <string name="drive_pp_cls_all">Privat und Arbeit</string>
+    <string name="drive_pp_my_location">Mein Standort</string>
+    <string name="drive_pp_see_all">Alle ansehen</string>
+    <string name="drive_pp_on_photos">Auf diesen Fotos:</string>
+    <string name="drive_pp_map_area">Fotos hier</string>
+    <string name="drive_pp_map_hint">Tippe auf eine Zahl, um die Fotos dort zu sehen. Hineinzoomen teilt die Bündel auf.</string>
+    <string name="drive_pp_map_empty">Noch keine Fotos mit Ort. Neue Fotos bekommen ihren Ort bei der Sicherung, ältere über „Orte nachtragen“ in den Einstellungen.</string>
+    <string name="drive_pp_back_map">Zurück</string>
+    <string name="drive_pp_save_album">Als Album speichern</string>
+    <plurals name="drive_pp_days">
+        <item quantity="one">%d Tag</item>
+        <item quantity="other">%d Tage</item>
+    </plurals>
+
+    <string name="drive_pp_people_settings">Einstellungen für Personen</string>
+    <plurals name="drive_pp_people_named">
+        <item quantity="one">%d benannt</item>
+        <item quantity="other">%d benannt</item>
+    </plurals>
+    <plurals name="drive_pp_people_unnamed">
+        <item quantity="one">%d noch ohne Namen</item>
+        <item quantity="other">%d noch ohne Namen</item>
+    </plurals>
+    <string name="drive_pp_progress">Gesichter werden erkannt · %1$s von %2$s Fotos</string>
+    <string name="drive_pp_progress_done">Alle %1$s Fotos angesehen</string>
+    <string name="drive_pp_progress_charging">Läuft auf diesem Handy, wenn es lädt und im WLAN ist. Kein Bild verlässt deinen Server.</string>
+    <string name="drive_pp_progress_wifi">Läuft auf diesem Handy, wenn es im WLAN ist. Kein Bild verlässt deinen Server.</string>
+    <string name="drive_pp_named">Benannt</string>
+    <string name="drive_pp_who_hint">Benennen macht sie suchbar</string>
+    <string name="drive_pp_name_it">Benennen</string>
+    <plurals name="drive_pp_more_unnamed">
+        <item quantity="one">%d weitere ohne Namen</item>
+        <item quantity="other">%d weitere ohne Namen</item>
+    </plurals>
+    <string name="drive_pp_hidden">Ausgeblendet</string>
+    <string name="drive_pp_hidden_hint">Ausgeblendete Gesichter erscheinen nicht in der Suche und werden nicht mehr gefragt. Tippen zeigt sie.</string>
+    <string name="drive_pp_unhide">Wieder zeigen</string>
+    <string name="drive_pp_people_off">„Personen erkennen“ ist aus. Schalte es ein, damit dein Handy Gesichter in deinen Fotos findet.</string>
+    <string name="drive_pp_turn_on">Einschalten</string>
+    <string name="drive_pp_people_empty">Noch keine Personen. Sobald dein Handy Gesichter erkannt hat, erscheinen sie hier.</string>
+
+    <string name="drive_pp_more_actions">Weitere Aktionen</string>
+    <string name="drive_pp_rename">Umbenennen</string>
+    <string name="drive_pp_link">Mit Kontakt verknüpfen</string>
+    <string name="drive_pp_unlink">Verknüpfung lösen</string>
+    <string name="drive_pp_merge">Mit anderer Person zusammenführen</string>
+    <string name="drive_pp_hide">Ausblenden</string>
+    <string name="drive_pp_show">Einblenden</string>
+    <string name="drive_pp_no_name">Ohne Namen</string>
+    <string name="drive_pp_linked_family">Verknüpft mit Familie › %1$s</string>
+    <string name="drive_pp_linked_contact">Verknüpft mit Kontakt › %1$s</string>
+    <string name="drive_pp_is_also">Ist das auch %1$s?</string>
+    <string name="drive_pp_is_same">Ist das dieselbe Person?</string>
+    <plurals name="drive_pp_uncertain_text">
+        <item quantity="one">%d Foto, bei dem die Erkennung unsicher ist – etwa als Kleinkind oder im Profil.</item>
+        <item quantity="other">%d Fotos, bei denen die Erkennung unsicher ist – etwa als Kleinkind oder im Profil.</item>
+    </plurals>
+    <string name="drive_pp_yes_all">Ja, alle</string>
+    <string name="drive_pp_one_by_one">Einzeln prüfen</string>
+    <string name="drive_pp_check_title">Ist das %1$s?</string>
+    <string name="drive_pp_yes">Ja</string>
+    <string name="drive_pp_no">Nein</string>
+    <string name="drive_pp_together">Zusammen mit</string>
+    <string name="drive_pp_together_hint">Fotos mit beiden</string>
+    <string name="drive_pp_merge_pick">Zusammenführen mit …</string>
+    <string name="drive_pp_link_pick">Verknüpfen mit …</string>
+    <string name="drive_pp_merged">Zusammengeführt.</string>
+
+    <string name="drive_pp_name_label">Name</string>
+    <string name="drive_pp_name_example">z. B. Oma Gerda</string>
+    <string name="drive_pp_name_sugs">Aus Familie und Kontakten</string>
+    <string name="drive_pp_sub_family">Familie</string>
+    <string name="drive_pp_sub_contact">Kontakt</string>
+    <plurals name="drive_pp_named_already">
+        <item quantity="one">bereits benannt (%d Foto)</item>
+        <item quantity="other">bereits benannt (%d Fotos)</item>
+    </plurals>
+    <string name="drive_pp_often_with">oft mit %1$s</string>
+    <string name="drive_pp_looks_like">Sieht aus wie %1$s</string>
+    <string name="drive_pp_looks_like_hint">Gleiche Person? Dann werden beide zusammengeführt.</string>
+    <string name="drive_pp_merge_short">Zusammenführen</string>
+    <string name="drive_pp_saved_title">„%1$s“ gespeichert</string>
+    <plurals name="drive_pp_saved_text">
+        <item quantity="one">%1$d Foto findest du jetzt mit der Suche nach „%2$s“. Gibt es den Namen schon, werden beide zusammengeführt.</item>
+        <item quantity="other">%1$d Fotos findest du jetzt mit der Suche nach „%2$s“. Gibt es den Namen schon, werden beide zusammengeführt.</item>
+    </plurals>
+    <string name="drive_pp_merged_title">Mit %1$s zusammengeführt</string>
+    <plurals name="drive_pp_merged_text">
+        <item quantity="one">%1$s hat jetzt %2$d Foto.</item>
+        <item quantity="other">%1$s hat jetzt %2$d Fotos.</item>
+    </plurals>
+    <string name="drive_pp_hidden_title">Ausgeblendet</string>
+    <plurals name="drive_pp_hidden_text">
+        <item quantity="one">Dieses Foto erscheint nicht mehr unter Personen.</item>
+        <item quantity="other">Diese %d Fotos erscheinen nicht mehr unter Personen.</item>
+    </plurals>
+    <string name="drive_pp_next">Nächste Person</string>
+    <string name="drive_pp_close">Fertig</string>
+
+    <string name="drive_pp_settings_title">Orte und Personen</string>
+    <string name="drive_pp_settings_row">Aufnahmeort mitsichern, Gesichter erkennen</string>
+    <string name="drive_pp_keep_geo">Aufnahmeort mitsichern</string>
+    <string name="drive_pp_keep_geo_desc">Die Ortsangabe des Fotos geht mit auf deinen Server – nötig für Karte und Ortssuche.</string>
+    <string name="drive_pp_strip_geo">Ort beim Teilen entfernen</string>
+    <string name="drive_pp_strip_geo_desc">Freigabe-Links und GateDrop verschicken Fotos ohne Ortsangabe.</string>
+    <string name="drive_pp_fill">Orte nachtragen</string>
+    <string name="drive_pp_fill_desc">Gesicherte Fotos ohne Ort, die noch auf diesem Handy liegen, bekommen ihren Ort.</string>
+    <string name="drive_pp_fill_running">Läuft … angesehen: %1$d · Orte gefunden: %2$d</string>
+    <string name="drive_pp_fill_last">Zuletzt angesehen: %1$d · Orte gefunden: %2$d. Tippen trägt erneut nach.</string>
+    <string name="drive_pp_fill_permission">Dafür braucht die App Zugriff auf deine Fotos und deren Standorte. Tippen fragt danach.</string>
+    <string name="drive_pp_fill_started">Orte werden nachgetragen …</string>
+    <string name="drive_pp_delete_places">Alle Orte löschen</string>
+    <string name="drive_pp_delete_places_desc">Die Orte aller Fotos, die du hochgeladen hast – die Fotos bleiben.</string>
+    <string name="drive_pp_delete_places_title">Alle Orte löschen?</string>
+    <string name="drive_pp_delete_places_text">Dein Server vergisst, wo deine Fotos aufgenommen wurden. Karte und Ortssuche zeigen sie danach nicht mehr. Die Fotos bleiben.</string>
+    <string name="drive_pp_delete_places_go">Orte löschen</string>
+    <plurals name="drive_pp_places_deleted">
+        <item quantity="one">Ort von %d Foto gelöscht.</item>
+        <item quantity="other">Orte von %d Fotos gelöscht.</item>
+    </plurals>
+    <string name="drive_pp_people_switch">Personen erkennen</string>
+    <string name="drive_pp_people_switch_desc">Gesichter in deinen Fotos finden, damit du nach Personen suchen kannst.</string>
+    <string name="drive_pp_how">So funktioniert es</string>
+    <string name="drive_pp_how_1">Das Handy erkennt die Gesichter selbst, im WLAN und beim Laden.</string>
+    <string name="drive_pp_how_2">Auf deinem Server landen nur Gesichtsmerkmale (Zahlen), keine Bilder bei Dritten.</string>
+    <string name="drive_pp_how_3">Nur du siehst deine Personen und Namen.</string>
+    <string name="drive_pp_how_5">Beim Einschalten lädt das Handy einmalig das Erkennungsmodell (39 MB) von GitHub, ersatzweise von Hugging Face – dabei geht kein Foto mit.</string>
+    <string name="drive_pp_how_4">Ausschalten löscht alle Gesichtsdaten.</string>
+    <string name="drive_pp_charging">Nur beim Laden</string>
+    <string name="drive_pp_charging_desc">Die erste Erkennung vieler Fotos braucht Akku – so läuft sie nachts. Gilt für dieses Handy.</string>
+    <string name="drive_pp_kids">Kinderordner einbeziehen</string>
+    <string name="drive_pp_kids_desc">Fotos in den Ordnern der Kinder. Standard: aus.</string>
+    <string name="drive_pp_delete_faces">Alle Gesichtsdaten löschen</string>
+    <string name="drive_pp_delete_faces_desc">Namen, Gruppen und Merkmale – die Fotos bleiben. Schaltet „Personen erkennen“ aus.</string>
+    <string name="drive_pp_off_title">Gesichtsdaten löschen?</string>
+    <string name="drive_pp_off_text">„Personen erkennen“ wird ausgeschaltet, und dein Server löscht alle Gesichter, Personen und Namen. Die Fotos bleiben.</string>
+    <string name="drive_pp_off_go">Ausschalten und löschen</string>
+    <string name="drive_pp_faces_deleted">Gesichtsdaten gelöscht.</string>
+    <string name="drive_pp_licenses">Gesichtserkennung auf dem Handy mit YuNet (MIT-Lizenz) und SFace (Apache-Lizenz 2.0) aus OpenCV Zoo, ausgeführt mit ONNX Runtime (MIT-Lizenz).</string>
+    <string name="drive_pp_model_loading">Erkennungsmodell wird geladen · %1$s von %2$s MB</string>
+    <string name="drive_pp_model_waiting">Das Erkennungsmodell (%1$s MB) wird einmalig geladen, sobald das Handy im WLAN ist. Danach beginnt die Erkennung.</string>
+    <string name="drive_pp_model_mobile">Jetzt über mobile Daten laden</string>
+    <string name="drive_pp_model_failed">Das Erkennungsmodell konnte nicht geladen werden.</string>
+    <string name="drive_pp_model_failed_hash">Das geladene Erkennungsmodell war fehlerhaft und wurde verworfen.</string>
+</resources>

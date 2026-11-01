@@ -12,6 +12,22 @@ This product includes software developed at:
   Licensed under the Mozilla Public License, v. 2.0
   (see freerdp/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/domain/*.java)
 
+  YuNet face detection model (face_detection_yunet_2023mar.onnx, OpenCV Zoo)
+  Copyright (c) 2020 Shiqi Yu
+  Licensed under the MIT License
+
+  SFace face recognition model (face_recognition_sface_2021dec.onnx, OpenCV Zoo)
+  Contributed by Yaoyao Zhong, ONNX conversion by Chengrui Wang
+  Licensed under the Apache License, Version 2.0
+
+  ONNX Runtime (com.microsoft.onnxruntime:onnxruntime-android)
+  Copyright (c) Microsoft Corporation
+  Licensed under the MIT License
+
+  YuNet ships unchanged in the app (assets/faces/); SFace is loaded unchanged by the app when
+  "Recognise people" is switched on (attached to each GitHub release by the release workflow).
+  Their licence texts ship in the app under assets/faces/.
+
 The full text of the Apache License 2.0 is available at
   http://www.apache.org/licenses/LICENSE-2.0
 The full text of the Mozilla Public License 2.0 is available at

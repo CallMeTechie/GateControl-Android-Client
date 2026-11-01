@@ -1,3 +1,7 @@
+import java.net.HttpURLConnection
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -114,6 +118,8 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // Robolectric (Compose UI tests) needs the merged resources and manifest
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -207,6 +213,10 @@ dependencies {
     // Drive: work photos apart — image labeling on the phone (Play services, no model in the APK, no picture leaves the phone)
     implementation(libs.mlkit.image.labeling)
 
+    // Drive: people in the photos — faces found and described on the phone (YuNet in the assets, SFace loaded when
+    // switched on; models from OpenCV Zoo), no picture leaves the phone for it
+    implementation(libs.onnxruntime.android)
+
     // Vault: end-to-end encryption (README "Kryptoformat" of gatecontrol-vault) and the recovery key's QR
     implementation(libs.bouncycastle.prov)
     implementation(libs.zxing.core)
@@ -233,6 +243,10 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)
     testImplementation(libs.robolectric)
+    // Compose UI tests on the JVM (Robolectric): the Drive grid must not move when ticking starts
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    testRuntimeOnly(libs.junit.vintage.engine)
     testImplementation(libs.okhttp)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
@@ -261,8 +275,85 @@ gradle.taskGraph.whenReady {
     }
 }
 
+// Drive: SFace, the face feature model (OpenCV Zoo, unchanged, 39 MB), is not in the app: the phone loads it when the
+// person switches on "Personen erkennen" (DriveFaceModel). This task fetches it, checked against its SHA-256, for the
+// release workflow, which attaches it to every GitHub release (the app's first source). YuNet (0.2 MB) is in assets/faces.
+// Kept in Gradle's cache; another mirror is tried when one fails.
+abstract class FaceModelsTask : DefaultTask() {
+    @get:Input abstract val models: MapProperty<String, String>
+    @get:Input abstract val mirrors: ListProperty<String>
+    @get:Internal abstract val cacheDir: DirectoryProperty
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun fetch() {
+        val out = outputDir.get().asFile.apply { deleteRecursively(); mkdirs() }
+        val cache = cacheDir.get().asFile.apply { mkdirs() }
+        for ((path, sha) in models.get()) {
+            val name = path.substringAfterLast('/')
+            val cached = cache.resolve("$sha-$name")
+            if (!cached.isFile || sha256(cached) != sha) {
+                var last: Exception? = null
+                val ok = mirrors.get().any { base ->
+                    try {
+                        val tmp = cache.resolve("$name.part")
+                        val url = base.replace("{dir}", path.substringBeforeLast('/')).replace("{file}", name)
+                        val conn = URI(url).toURL().openConnection() as HttpURLConnection
+                        conn.instanceFollowRedirects = true
+                        conn.connectTimeout = 30_000
+                        conn.readTimeout = 120_000
+                        conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+                        if (sha256(tmp) != sha) throw GradleException("SHA-256 of $name from $base does not match")
+                        tmp.renameTo(cached)
+                    } catch (e: Exception) {
+                        last = e
+                        false
+                    }
+                }
+                if (!ok) throw GradleException("Face model $name could not be fetched", last)
+            }
+            cached.copyTo(out.resolve(name), overwrite = true)
+        }
+    }
+
+    private fun sha256(f: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { input ->
+            val buf = ByteArray(1 shl 16)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                md.update(buf, 0, n)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+}
+
+val faceModels = tasks.register<FaceModelsTask>("faceModels") {
+    // directory/file in OpenCV Zoo → SHA-256 (the same as DriveFaceModel's; licences: assets/faces/NOTICE.txt)
+    models.put("face_recognition_sface/face_recognition_sface_2021dec.onnx", "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79")
+    mirrors.add("https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/{dir}/{file}")
+    mirrors.add("https://huggingface.co/opencv/{dir}/resolve/main/{file}")
+    cacheDir.set(File(gradle.gradleUserHomeDir, "caches/gatecontrol-face-models"))
+    outputDir.set(layout.buildDirectory.dir("faceModels"))
+}
+
+// Robolectric's Android jar (Compose UI tests) through Gradle and its cache, not Robolectric's own downloader
+val robolectricJars: Configuration by configurations.creating
+dependencies {
+    robolectricJars("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
+}
+val robolectricDeps = tasks.register<Sync>("robolectricDeps") {
+    from(robolectricJars)
+    into(layout.buildDirectory.dir("robolectric"))
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
+    dependsOn(robolectricDeps)
+    systemProperty("robolectric.offline", "true")
+    systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric").get().asFile.absolutePath)
     finalizedBy(tasks.named("jacocoTestReport"))
 }
 

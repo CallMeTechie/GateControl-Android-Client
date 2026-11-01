@@ -230,6 +230,12 @@ jobs:
           cp app/build/outputs/mapping/release/mapping.txt "$RUNNER_TEMP/apk-mapping.txt"
           ./gradlew bundleRelease -Pgc.distribution=play
 
+      - name: Fetch the face model for the release
+        if: steps.check_tag.outputs.exists == 'false'
+        # Drive "Personen erkennen": the app loads SFace from this release when switched on (not in the APK/AAB).
+        # faceModels checks its SHA-256 against OpenCV Zoo's file.
+        run: ./gradlew :app:faceModels
+
       - name: Verify 16 KB page alignment of native libs
         if: steps.check_tag.outputs.exists == 'false'
         run: python3 scripts/check_elf_alignment.py app/build/outputs/apk/release/ app/build/outputs/bundle/release/
@@ -303,6 +309,7 @@ jobs:
             app/build/outputs/bundle/release/GateControl-Android-*.aab
             app/build/outputs/mapping/release/GateControl-Android-*-mapping.txt
             app/GateControl-Android-*-native-debug-symbols.zip
+            app/build/faceModels/face_recognition_sface_2021dec.onnx
 
       # ─── Google Play: every release goes to a test track ─────────────
       # Production happens only on request through play-promote.yml.

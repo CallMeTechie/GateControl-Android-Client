@@ -56,6 +56,7 @@ class DriveBackup @Inject constructor(
     private val work: com.gatecontrol.android.drive.work.DriveWorkPhotos,
     private val wifi: com.gatecontrol.android.drive.work.DriveWorkWifi,
     private val labels: DrivePhotoLabels,
+    private val places: com.gatecontrol.android.drive.DrivePlacesPrefs,
 ) {
     /** The run in progress: [done] of [total] photos, [current] the one going up. */
     data class Status(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val current: String? = null)
@@ -221,6 +222,10 @@ class DriveBackup @Inject constructor(
             work.refreshSettings()
             runCatching { wifi.sample() }
         }
+        // Drive 1.16: whether places go with the photos and faces are found ("Aufnahmeort mitsichern", "Personen erkennen")
+        if (live.supports(DMe.FEATURE_PHOTO_PLACES) || live.supports(DMe.FEATURE_PHOTO_PEOPLE)) {
+            api.photoSettings().valueOrNull()?.let(places::took)
+        }
         var done = 0
         while (true) {
             val mark = mark() ?: DriveBackupMark.ALL
@@ -259,6 +264,8 @@ class DriveBackup @Inject constructor(
         _stats.value = readStats()
         // work photos apart: learn from the work folder, then the marked photos again (in the background)
         work.afterRun()
+        // Drive 1.16: the faces of the photos just sent (under its own conditions: WLAN, charging)
+        if (places.pending().isNotEmpty()) com.gatecontrol.android.drive.faces.DrivePeopleWork.request(context)
         return Outcome.DONE
     }
 
@@ -359,8 +366,16 @@ class DriveBackup @Inject constructor(
         previews.uploadOwn(media.value, item.uri, item.mime)
         // Drive 1.7: the commit takes when it was taken
         val takenAt = if (live.supports(DMe.FEATURE_TAKEN_AT)) own ?: DriveLogic.msTakenAt(item.taken) else null
-        return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME, takenAt = takenAt)) {
+        // Drive 1.16 (`photoPlaces`): where it was taken, unless the person keeps places off the server
+        val geo = shot.at?.takeIf { !item.video && places.settings.value.keepGeo && live.supports(DMe.FEATURE_PHOTO_PLACES) }
+        return when (val r = api.commit(media.value, folder, item.name, item.mtime, DriveLogic.ON_CONFLICT_RENAME, takenAt = takenAt, geo = geo)) {
             is DResult.Ok -> {
+                // Drive 1.16 (`photoPeople`): its faces are found later from the original here
+                // (a child's folder only with "Kinderordner einbeziehen")
+                if (!item.video && places.settings.value.people && live.supports(DMe.FEATURE_PHOTO_PEOPLE)) {
+                    val child = live.current()?.areas?.firstOrNull { it.id == r.value.first.areaId }?.kind == "child"
+                    if (!child || places.settings.value.peopleKids) places.addPending(r.value.first.id, item.id)
+                }
                 placed?.let { p -> runCatching { work.afterBackup(r.value.first, p, item.id, item.video) }.onFailure { if (it is CancellationException) throw it } }
                 // Drive 1.14 (`photoSearch`): what is in the photo, found on the phone (the thumbnail, no location data)
                 val plain = ContentUris.withAppendedId(if (item.video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, item.id)

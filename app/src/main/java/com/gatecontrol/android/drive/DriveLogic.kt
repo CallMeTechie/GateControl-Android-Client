@@ -245,6 +245,10 @@ internal object DriveLogic {
      */
     fun cameraFilter(on: Boolean, me: DMe?): Boolean = on && me?.has(DMe.FEATURE_PHOTOS_FOLDER) == true
 
+    /** The Photos page's search finds photos by content (1.14), people or places (1.16): else the files' search. */
+    fun photoSearchable(me: DMe?): Boolean =
+        me != null && (me.has(DMe.FEATURE_PHOTO_SEARCH) || me.has(DMe.FEATURE_PHOTO_PLACES) || me.has(DMe.FEATURE_PHOTO_PEOPLE))
+
     /** Pages of a photo list put together: each node once (a page boundary may repeat one). */
     fun appendPage(have: List<DNode>, page: List<DNode>): List<DNode> {
         val seen = have.mapTo(HashSet()) { it.id }

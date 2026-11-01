@@ -70,9 +70,9 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | **Finanzinformationen → Kaufverlauf** | optional | Familie: Ausgaben im Haushaltsbuch (reine Buchhaltung, keine Zahlungen) |
 | **Finanzinformationen → Sonstige Finanzinformationen** | optional | Familie: Taschengeld (Guthaben, Buchungen, Regeln) |
 | **Standort → Ungefährer Standort** | optional | Familie: Anwesenheit „zuhause/unterwegs“ (Heimnetz-Erkennung, kein GPS) und „angekommen/verlassen“ bei Orten für Regeln (ohne Position) |
-| **Standort → Genauer Standort** | optional | Standortfreigabe auf Tipp (ab 1.26), Standort-Nachricht im Chat (einmalig), Familie: Kind orten auf Anfrage der Eltern, SOS. Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
+| **Standort → Genauer Standort** | optional | Standortfreigabe auf Tipp (ab 1.26), Standort-Nachricht im Chat (einmalig), Familie: Kind orten auf Anfrage der Eltern, SOS, Drive: Aufnahmeort gesicherter Fotos (EXIF, „Aufnahmeort mitsichern“, an den eigenen Server). Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
 | **Nachrichten → Sonstige In-App-Nachrichten** | optional | Chats (ab 1.42): Texte, Antworten, Reaktionen |
-| **Fotos und Videos → Fotos** | optional | Chat-Bilder, eigenes Profilbild (ab 1.33), Drive: Foto-Sicherung (nur eingeschaltet, in den eigenen Drive des Servers) |
+| **Fotos und Videos → Fotos** | optional | Chat-Bilder, eigenes Profilbild (ab 1.33), Drive: Foto-Sicherung (nur eingeschaltet, in den eigenen Drive des Servers); Drive „Personen erkennen“ (nur eingeschaltet): auf dem Gerät berechnete Gesichtsmerkmale (Zahlen, keine Bilder) an den eigenen Server |
 | **Fotos und Videos → Videos** | optional | Chats: Videos, die als Datei gesendet oder aus anderen Apps geteilt werden; Drive: Foto-Sicherung mit „Auch Videos“ |
 | **Audiodateien → Sprach- oder Tonaufnahmen** | optional | Chats: Sprachnachrichten (Mikrofon nur, solange die Taste gehalten wird) |
 | **Gesundheit und Fitness → Gesundheitsinformationen** | optional | Familie: Notfall-Karte (Allergien, Medikamente, Vorerkrankungen, Blutgruppe …) |

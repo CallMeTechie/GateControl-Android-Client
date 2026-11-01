@@ -164,17 +164,19 @@ fun DriveStorageScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: 
     val selecting = selected.isNotEmpty() && report != null
     androidx.activity.compose.BackHandler(enabled = selecting) { viewModel.clearSelection() }
     Column(Modifier.fillMaxSize()) {
-        if (selecting) {
-            SelectionHead(
-                count = selected.size,
-                line = report?.let { DriveLogic.size(DriveLogic.freed(selected, it.duplicates)) },
-                allSelected = false,
-                onClose = viewModel::clearSelection,
-                onAll = null,
-            )
-        } else {
-            GcSubpageBar(stringResource(R.string.drive_storage_title), onBack = onBack, backDescription = stringResource(R.string.drive_back))
-        }
+        SelectionSwap(
+            selecting,
+            bar = { GcSubpageBar(stringResource(R.string.drive_storage_title), onBack = onBack, backDescription = stringResource(R.string.drive_back)) },
+            selection = {
+                SelectionHead(
+                    count = selected.size,
+                    line = report?.let { DriveLogic.size(DriveLogic.freed(selected, it.duplicates)) },
+                    allSelected = false,
+                    onClose = viewModel::clearSelection,
+                    onAll = null,
+                )
+            },
+        )
         Box(Modifier.weight(1f)) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 16.dp),

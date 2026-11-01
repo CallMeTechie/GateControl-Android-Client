@@ -240,6 +240,7 @@ fun DriveSettingsScreen(
     onBack: () -> Unit,
     onBackup: () -> Unit,
     onFolders: () -> Unit,
+    onPlaces: () -> Unit = {},
     viewModel: DriveSettingsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -317,6 +318,19 @@ fun DriveSettingsScreen(
                     leading = { Icon(GcIcons.Folder, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
                     trailing = { GcChevron() },
                 )
+            }
+
+            // Drive 1.16: places and people of the photos
+            if (me?.has(DMe.FEATURE_PHOTO_PLACES) == true || me?.has(DMe.FEATURE_PHOTO_PEOPLE) == true) {
+                SettingsGroup(stringResource(R.string.drive_mode_photos)) {
+                    GcListRow(
+                        title = stringResource(R.string.drive_pp_settings_title),
+                        description = stringResource(R.string.drive_pp_settings_row),
+                        onClick = onPlaces,
+                        leading = { Icon(GcIcons.Pin, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
+                        trailing = { GcChevron() },
+                    )
+                }
             }
 
             // 2. Tresore

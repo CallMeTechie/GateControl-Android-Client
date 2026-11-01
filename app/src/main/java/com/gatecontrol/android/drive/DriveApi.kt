@@ -256,11 +256,76 @@ class DriveApi @Inject constructor(
      * Photos and videos, newest first; [before] is the cursor of the page before. Without [area]: all I can read.
      * [camera]: only the camera uploads (Drive 1.10, feature `photosFolder`).
      */
-    suspend fun photos(area: String? = null, before: String? = null, limit: Int = 120, camera: Boolean = false, cls: String? = null, q: String? = null, unlabeled: Boolean = false): DResult<DPhotos> =
-        get("photos", DriveJson.photosQuery(area, before, limit, camera, cls = cls, q = q, unlabeled = unlabeled) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
+    suspend fun photos(
+        area: String? = null,
+        before: String? = null,
+        limit: Int = 120,
+        camera: Boolean = false,
+        cls: String? = null,
+        q: String? = null,
+        unlabeled: Boolean = false,
+        filter: DPhotoFilter = DPhotoFilter(),
+    ): DResult<DPhotos> =
+        get("photos", DriveJson.photosQuery(area, before, limit, camera, cls = cls, q = q, unlabeled = unlabeled, filter = filter) ?: return bad()) { o -> DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) } }
 
-    suspend fun photoMonths(area: String? = null, camera: Boolean = false, cls: String? = null): DResult<List<DMonth>> =
-        get("photos/months", DriveJson.photosQuery(area, camera = camera, cls = cls) ?: return bad(), DriveJson::months)
+    suspend fun photoMonths(area: String? = null, camera: Boolean = false, cls: String? = null, q: String? = null, filter: DPhotoFilter = DPhotoFilter()): DResult<List<DMonth>> =
+        get("photos/months", DriveJson.photosQuery(area, camera = camera, cls = cls, q = q, filter = filter) ?: return bad(), DriveJson::months)
+
+    // ─── places and people (Drive 1.16, features `photoPlaces`, `photoPeople`) ──
+
+    /** The places of the photos, most photos first (the same filters as `photos`). */
+    suspend fun photoPlaces(camera: Boolean = false, cls: String? = null, q: String? = null, filter: DPhotoFilter = DPhotoFilter()): DResult<List<DPlaceSummary>> =
+        get("photos/places", DriveJson.photosQuery(camera = camera, cls = cls, q = q, filter = filter.copy(bbox = null)) ?: return bad(), DrivePlacesJson::places)
+
+    /** Bundles of photos in [bbox] at [zoom] (0 … 19), at most 200. */
+    suspend fun photoMap(bbox: DBbox, zoom: Int, camera: Boolean = false, cls: String? = null, q: String? = null, filter: DPhotoFilter = DPhotoFilter()): DResult<List<DCluster>> {
+        val query = DriveJson.photosQuery(camera = camera, cls = cls, q = q, filter = filter.copy(bbox = bbox)) ?: return bad()
+        return get("photos/map", query + ("zoom" to zoom.coerceIn(0, 19).toString()), DrivePlacesJson::clusters)
+    }
+
+    /** Where photo [id] was taken (null [at]: looked at, it has no position). */
+    suspend fun putGeo(id: Long, at: com.gatecontrol.android.drive.work.GeoPoint?): DResult<Unit> =
+        put("nodes/$id/geo", if (at == null) DrivePlacesJson.noGeoBody() else DrivePlacesJson.geoBody(at) ?: return bad(), unit)
+
+    /** The places of every photo this person uploaded go → how many. */
+    suspend fun deleteGeo(): DResult<Int> = del("photos/geo", DrivePlacesJson::deleted)
+
+    /** The switches of places and people in `photos/settings`. */
+    suspend fun putPlacesSettings(keepGeo: Boolean? = null, stripGeoOnShare: Boolean? = null, people: Boolean? = null, peopleKids: Boolean? = null): DResult<DPhotoSettings> =
+        put("photos/settings", DrivePlacesJson.settingsBody(keepGeo, stripGeoOnShare, people, peopleKids), DriveJson::photoSettings)
+
+    /** What this phone found on photo [id] for [model] (`[]`: looked at, no faces). */
+    suspend fun putFaces(id: Long, model: String, faces: List<DFaceUpload>): DResult<Unit> =
+        put("nodes/$id/faces", DrivePlacesJson.facesBody(model, faces), unit)
+
+    suspend fun people(): DResult<DPeople> = get("people", parse = DrivePlacesJson::people)
+
+    suspend fun person(id: Long): DResult<DPersonDetail> = get("people/$id", parse = DrivePlacesJson::personDetail)
+
+    suspend fun patchPerson(id: Long, name: String? = null, hidden: Boolean? = null, contact: DPersonContact? = null, clearContact: Boolean = false): DResult<DPersonPatched> =
+        patch("people/$id", DrivePlacesJson.personPatchBody(name, hidden, contact, clearContact), DrivePlacesJson::patched)
+
+    suspend fun mergePerson(id: Long, into: Long): DResult<DPerson> = post("people/$id/merge", DrivePlacesJson.mergeBody(into), DrivePlacesJson::personAnswer)
+
+    suspend fun similarPeople(id: Long): DResult<List<DSimilar>> = get("people/$id/similar", parse = DrivePlacesJson::similar)
+
+    suspend fun uncertainFaces(id: Long, limit: Int = 40): DResult<List<DFaceRef>> =
+        get("people/$id/uncertain", mapOf("limit" to limit.coerceIn(1, 200).toString()), DrivePlacesJson::uncertain)
+
+    /** The unsure faces are this person ([yes]) or never again suggested. */
+    suspend fun confirmFaces(id: Long, faceIds: List<Long>, yes: Boolean): DResult<Unit> {
+        if (faceIds.isEmpty()) return bad()
+        return post("people/$id/confirm", DrivePlacesJson.confirmBody(faceIds, yes), unit)
+    }
+
+    /** One face: "Nicht diese Person" (null) or "Zu … verschieben". */
+    suspend fun moveFace(faceId: Long, person: Long?): DResult<Unit> = post("faces/$faceId/move", DrivePlacesJson.moveBody(person), unit)
+
+    /** What the typed words may mean (people, places, what is in the photos). */
+    suspend fun photoSuggest(q: String): DResult<DSuggest> {
+        val t = q.trim().take(DriveJson.PHOTO_Q_MAX).ifEmpty { return bad() }
+        return get("photos/suggest", mapOf("q" to t), DrivePlacesJson::suggest)
+    }
 
     // ─── work photos (Drive 1.13, feature `photoClasses`) ───────────
 
@@ -621,8 +686,9 @@ class DriveApi @Inject constructor(
         onConflict: String,
         text: String? = null,
         takenAt: String? = null,
+        geo: com.gatecontrol.android.drive.work.GeoPoint? = null,
     ): DResult<Pair<DNode, Boolean>> =
-        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text, takenAt), DriveJson::commit)
+        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text, takenAt, geo), DriveJson::commit)
 
     /** An empty file `name` in [parentId] without media (feature `emptyFiles`, Drive 1.5+). */
     suspend fun commitEmpty(parentId: Long, name: String, mime: String?, onConflict: String): DResult<Pair<DNode, Boolean>> =

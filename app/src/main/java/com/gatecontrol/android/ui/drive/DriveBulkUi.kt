@@ -192,7 +192,8 @@ internal fun SelectionHead(count: Int, line: String?, allSelected: Boolean, onCl
                 // TalkBack says the new count when it changes
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() },
             )
-            if (!line.isNullOrBlank()) Text(line, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // one line: the head is as high whatever it says (SelectionSwap keeps the page below in place)
+            if (!line.isNullOrBlank()) Text(line, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (onAll != null) {
             val desc = stringResource(if (allSelected) R.string.drive_sel_none_desc else R.string.drive_sel_all_desc)

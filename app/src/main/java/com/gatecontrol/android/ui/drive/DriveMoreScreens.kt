@@ -189,22 +189,25 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            if (selecting) {
-                SelectionHead(
-                    count = chosen.size,
-                    line = summaryText(DriveBulk.summary(chosen)),
-                    allSelected = DriveBulk.allSelected(selected, hits.map { it.id }),
-                    onClose = viewModel.bulk::clear,
-                    onAll = viewModel.bulk::allOrNone,
-                )
-            } else {
-                GcSubpageBar(stringResource(R.string.drive_search), onBack = onBack, backDescription = stringResource(R.string.drive_back))
-            }
+            // ticking changes the title row only (as high either way); the search field stays, dimmed
+            SelectionSwap(
+                selecting,
+                bar = { GcSubpageBar(stringResource(R.string.drive_search), onBack = onBack, backDescription = stringResource(R.string.drive_back)) },
+                selection = {
+                    SelectionHead(
+                        count = chosen.size,
+                        line = summaryText(DriveBulk.summary(chosen)),
+                        allSelected = DriveBulk.allSelected(selected, hits.map { it.id }),
+                        onClose = viewModel.bulk::clear,
+                        onAll = viewModel.bulk::allOrNone,
+                    )
+                },
+            )
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (!selecting) {
+                Column(Modifier.inert(selecting), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     GcTextField(
                         value = q,
                         onValueChange = {

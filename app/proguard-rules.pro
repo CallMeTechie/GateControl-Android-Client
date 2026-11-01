@@ -141,3 +141,7 @@
 # ── General ───────────────────────────────────────────────
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# ── ONNX Runtime (Drive: faces) ───────────────────────────
+# The native library creates and calls the Java API classes by name (JNI).
+-keep class ai.onnxruntime.** { *; }
