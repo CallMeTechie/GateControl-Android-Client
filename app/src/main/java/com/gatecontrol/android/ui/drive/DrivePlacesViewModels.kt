@@ -395,6 +395,8 @@ class DriveNameViewModel @Inject constructor(
     private val mail: MailPimRepository,
 ) : ViewModel() {
     data class State(
+        /** The person on the sheet now (in a round the start person, then each next one). */
+        val id: Long? = null,
         val person: DPersonDetail? = null,
         val similar: DSimilar? = null,
         val family: List<DrivePlacesLogic.NameOption> = emptyList(),
@@ -404,6 +406,8 @@ class DriveNameViewModel @Inject constructor(
         /** What was done: `save` | `merge` | `hide`, the person it ended in and how many photos it has. */
         val done: Done? = null,
         val error: String? = null,
+        /** The round is through: nobody without a name is left that it has not shown ("Alle durchgesehen"). */
+        val finished: Boolean = false,
     )
 
     data class Done(val what: String, val name: String?, val into: Long?, val count: Int, val undo: (() -> Unit)?)
@@ -412,25 +416,61 @@ class DriveNameViewModel @Inject constructor(
     val state: StateFlow<State> = _state.asStateFlow()
     private var loading: Job? = null
 
-    /** The person [id] afresh (each time the sheet opens). */
+    /**
+     * Everyone this round has shown: named, hidden, merged or skipped. "Nächste Person" and "Überspringen" never come
+     * back to them, even while the list of people is not yet up to date.
+     */
+    private val seen = mutableSetOf<Long>()
+    private var everyone: List<DPerson> = emptyList()
+
+    /** A round of "Wer ist das?" from [id] (each time the sheet opens). */
+    fun start(id: Long) {
+        seen.clear()
+        seen += id
+        load(id)
+    }
+
+    /**
+     * The next person without a name from `GET people` afresh, leaving out everyone the round has shown; at the end
+     * [State.finished]. Also "Überspringen": the person on the sheet stays in [seen].
+     */
+    fun next() {
+        if (_state.value.busy) return
+        loading?.cancel()
+        loading = viewModelScope.launch {
+            api.people().valueOrNull()?.people?.let { everyone = it }
+            val next = DrivePlacesLogic.nextToName(everyone, seen)
+            if (next == null) {
+                _state.value = State(finished = true)
+            } else {
+                seen += next.id
+                fetch(next.id)
+            }
+        }
+    }
+
+    /** The person [id] afresh. */
     fun load(id: Long) {
         loading?.cancel()
-        _state.value = State()
-        loading = viewModelScope.launch {
-            val detail = api.person(id).valueOrNull()
-            val similar = api.similarPeople(id).valueOrNull()?.filter { !it.name.isNullOrBlank() }?.maxByOrNull { it.score }
-            val everyone = api.people().valueOrNull()?.people.orEmpty()
-            val profile = runCatching { familie.cachedProfile() }.getOrNull()
-            val family = profile?.members.orEmpty().map { m -> DrivePlacesLogic.NameOption(DrivePlacesJson.CONTACT_FAMILY, m.userId.toString(), m.name, null) }
-            val contacts = mail.cards.value.map { c -> DrivePlacesLogic.NameOption(DrivePlacesJson.CONTACT_MAIL, c.id.toString(), c.name, c.company) }
-            _state.value = State(
-                person = detail,
-                similar = similar,
-                family = family,
-                contacts = contacts,
-                named = everyone.filter { it.named && it.id != id }.associate { DrivePlacesLogic.fold(it.name!!) to it.count },
-            )
-        }
+        loading = viewModelScope.launch { fetch(id) }
+    }
+
+    private suspend fun fetch(id: Long) {
+        _state.value = State(id = id)
+        val detail = api.person(id).valueOrNull()
+        val similar = api.similarPeople(id).valueOrNull()?.filter { !it.name.isNullOrBlank() }?.maxByOrNull { it.score }
+        api.people().valueOrNull()?.people?.let { everyone = it }
+        val profile = runCatching { familie.cachedProfile() }.getOrNull()
+        val family = profile?.members.orEmpty().map { m -> DrivePlacesLogic.NameOption(DrivePlacesJson.CONTACT_FAMILY, m.userId.toString(), m.name, null) }
+        val contacts = mail.cards.value.map { c -> DrivePlacesLogic.NameOption(DrivePlacesJson.CONTACT_MAIL, c.id.toString(), c.name, c.company) }
+        _state.value = State(
+            id = id,
+            person = detail,
+            similar = similar,
+            family = family,
+            contacts = contacts,
+            named = everyone.filter { it.named && it.id != id }.associate { DrivePlacesLogic.fold(it.name!!) to it.count },
+        )
     }
 
     fun options(typed: String): List<DrivePlacesLogic.NameOption> {
@@ -448,6 +488,7 @@ class DriveNameViewModel @Inject constructor(
             when (val r = api.patchPerson(id, name = clean, contact = contact)) {
                 is DResult.Ok -> {
                     val into = r.value.mergedInto
+                    into?.let { seen += it }
                     val count = r.value.person?.count ?: before?.count ?: 0
                     Done("save", clean, into ?: id, count, undo = if (into == null) ({ undo(id) { api.patchPerson(id, name = before?.name.orEmpty()) } }) else null)
                 }
@@ -459,7 +500,7 @@ class DriveNameViewModel @Inject constructor(
     fun merge(id: Long, into: DSimilar) {
         act {
             when (val r = api.mergePerson(id, into.id)) {
-                is DResult.Ok -> Done("merge", r.value.name ?: into.name, r.value.id, r.value.count, undo = null)
+                is DResult.Ok -> Done("merge", r.value.name ?: into.name, r.value.id, r.value.count, undo = null).also { seen += r.value.id }
                 else -> null.also { _state.value = _state.value.copy(error = r.errorCode()) }
             }
         }

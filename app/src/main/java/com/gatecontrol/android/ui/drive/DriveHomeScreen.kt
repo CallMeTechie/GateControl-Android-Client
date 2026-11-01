@@ -415,7 +415,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         NamePersonSheet(
             personId = id,
             onDismiss = { naming = null; overviewViewModel.load() },
-            onNext = { overviewViewModel.nextToName(id) { next -> naming = next; if (next == null) overviewViewModel.load() } },
+            // "Überspringen" and "Nächste Person" (each person at most once, then "Alle durchgesehen")
+            round = true,
         )
     }
     guardAsk?.let { (incident, undo) ->

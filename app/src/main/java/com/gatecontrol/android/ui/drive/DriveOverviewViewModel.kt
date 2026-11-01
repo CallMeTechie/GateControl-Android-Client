@@ -127,14 +127,6 @@ class DriveOverviewViewModel @Inject constructor(
         }
     }
 
-    /** "Nächste Person" after naming [after]: the next one without a name from `GET people` afresh (null: none left). */
-    fun nextToName(after: Long, onNext: (Long?) -> Unit) {
-        viewModelScope.launch {
-            val people = api.people().valueOrNull()?.people.orEmpty()
-            onNext(DrivePlacesLogic.groups(people).unnamed.firstOrNull { it.id != after }?.id)
-        }
-    }
-
     /** A memory full screen: its photos (fetched when the overview only had the cover). */
     fun openMemory(card: DMemoryCard) {
         if (card.items.size >= card.count) {

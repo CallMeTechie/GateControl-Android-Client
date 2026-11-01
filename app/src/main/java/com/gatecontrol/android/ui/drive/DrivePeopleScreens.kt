@@ -266,11 +266,7 @@ fun DrivePeopleScreen(onBack: () -> Unit, onPerson: (Long) -> Unit, onSettings: 
         NamePersonSheet(
             personId = id,
             onDismiss = { naming = null; viewModel.load() },
-            onNext = {
-                val next = groups.unnamed.firstOrNull { it.id != id }
-                naming = next?.id
-                if (next == null) viewModel.load()
-            },
+            round = true,
         )
     }
 }
@@ -390,7 +386,7 @@ fun DrivePersonScreen(onBack: () -> Unit, onPlace: (String, Long) -> Unit, viewM
         }
     }
     if (naming) {
-        NamePersonSheet(personId = id, onDismiss = { naming = false; viewModel.load() }, onNext = null, onDone = { into -> viewModel.renamed(into) })
+        NamePersonSheet(personId = id, onDismiss = { naming = false; viewModel.load() }, round = false, onDone = { into -> viewModel.renamed(into) })
     }
     if (merging) {
         PersonPicker(
@@ -531,18 +527,21 @@ private fun NameOptionRow(o: DrivePlacesLogic.NameOption, onClick: () -> Unit) {
 
 /**
  * "Wer ist das?": the person's faces, a name typed or picked from family and contacts, "Sieht aus wie …" to merge,
- * "Ausblenden"; then a short note with "Rückgängig" and — on the list of people — "Nächste Person".
+ * "Ausblenden"; then a short note with "Rückgängig". As a [round] (from the people and the Photos page) also
+ * "Überspringen" and "Nächste Person": each person comes at most once, at the end "Alle durchgesehen".
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun NamePersonSheet(personId: Long, onDismiss: () -> Unit, onNext: (() -> Unit)?, onDone: (Long?) -> Unit = {}) {
+internal fun NamePersonSheet(personId: Long, onDismiss: () -> Unit, round: Boolean, onDone: (Long?) -> Unit = {}) {
     val context = LocalContext.current
     val x = GateControlTheme.extraColors
     val vm: DriveNameViewModel = hiltViewModel(key = "name-$personId")
     val state by vm.state.collectAsStateWithLifecycle()
-    var name by rememberSaveable(personId) { mutableStateOf("") }
-    var picked by remember(personId) { mutableStateOf<DrivePlacesLogic.NameOption?>(null) }
-    LaunchedEffect(personId) { vm.load(personId) }
+    // the person on the sheet now: in a round the next one after each "Nächste Person"
+    val current = state.id ?: personId
+    var name by rememberSaveable(current) { mutableStateOf("") }
+    var picked by remember(current) { mutableStateOf<DrivePlacesLogic.NameOption?>(null) }
+    LaunchedEffect(personId) { vm.start(personId) }
     LaunchedEffect(state.person?.person?.name) { if (name.isEmpty()) state.person?.person?.name?.let { name = it } }
     LaunchedEffect(state.error) {
         state.error?.let {
@@ -556,7 +555,16 @@ internal fun NamePersonSheet(personId: Long, onDismiss: () -> Unit, onNext: (() 
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             val done = state.done
             val detail = state.person
-            if (done == null) {
+            if (state.finished) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(56.dp).clip(CircleShape).background(x.accentBg), contentAlignment = Alignment.Center) {
+                        Icon(GcIcons.Check, contentDescription = null, tint = x.accentText, modifier = Modifier.size(26.dp))
+                    }
+                    Text(stringResource(R.string.drive_pp_all_seen_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text(stringResource(R.string.drive_pp_all_seen_text), style = MaterialTheme.typography.bodySmall, color = x.muted, textAlign = TextAlign.Center, modifier = Modifier.width(300.dp))
+                    GcPrimaryButton(stringResource(R.string.drive_back), onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                }
+            } else if (done == null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val p = detail?.person
                     if (p != null) PersonFace(p, 56.dp) else Box(Modifier.size(56.dp).clip(CircleShape).background(x.panel2))
@@ -600,12 +608,17 @@ internal fun NamePersonSheet(personId: Long, onDismiss: () -> Unit, onNext: (() 
                             Text(stringResource(R.string.drive_pp_looks_like, sim.name.orEmpty()), style = MaterialTheme.typography.titleSmall)
                             Text(stringResource(R.string.drive_pp_looks_like_hint), style = MaterialTheme.typography.bodySmall, color = x.muted)
                         }
-                        TextButton(onClick = { vm.merge(personId, sim) }, enabled = !state.busy) { Text(stringResource(R.string.drive_pp_merge_short)) }
+                        TextButton(onClick = { vm.merge(current, sim) }, enabled = !state.busy) { Text(stringResource(R.string.drive_pp_merge_short)) }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GcOutlineButton(stringResource(R.string.drive_pp_hide), onClick = { vm.hide(personId) }, modifier = Modifier.weight(1f), enabled = !state.busy)
-                    GcPrimaryButton(stringResource(R.string.drive_save), onClick = { vm.save(personId, name, picked) }, modifier = Modifier.weight(1f), enabled = !state.busy && name.isNotBlank())
+                    GcOutlineButton(stringResource(R.string.drive_pp_hide), onClick = { vm.hide(current) }, modifier = Modifier.weight(1f), enabled = !state.busy)
+                    GcPrimaryButton(stringResource(R.string.drive_save), onClick = { vm.save(current, name, picked) }, modifier = Modifier.weight(1f), enabled = !state.busy && name.isNotBlank())
+                }
+                if (round) {
+                    TextButton(onClick = vm::next, enabled = !state.busy, modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 44.dp)) {
+                        Text(stringResource(R.string.drive_pp_skip), color = x.muted)
+                    }
                 }
                 if (state.busy) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp)) }
             } else {
@@ -629,8 +642,8 @@ internal fun NamePersonSheet(personId: Long, onDismiss: () -> Unit, onNext: (() 
                         val undo = done.undo
                         if (undo != null) GcOutlineButton(stringResource(R.string.drive_snack_undo), onClick = { undo(); name = "" }, modifier = Modifier.weight(1f))
                         GcPrimaryButton(
-                            stringResource(if (onNext != null) R.string.drive_pp_next else R.string.drive_pp_close),
-                            onClick = { if (onNext != null) onNext() else onDismiss() },
+                            stringResource(if (round) R.string.drive_pp_next else R.string.drive_pp_close),
+                            onClick = { if (round) vm.next() else onDismiss() },
                             modifier = Modifier.weight(1f),
                         )
                     }
