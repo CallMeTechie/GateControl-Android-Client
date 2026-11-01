@@ -93,15 +93,6 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** Where the Photos page's places and people lead (Drive 1.16). */
-internal data class PhotosPlacesNav(
-    val search: () -> Unit,
-    val map: () -> Unit,
-    val place: (String) -> Unit,
-    val people: () -> Unit,
-    val person: (Long) -> Unit,
-)
-
 // ─── faces ─────────────────────────────────────────────────────────
 
 /** A person's colour while no face is shown (from the id, the avatar palette). */
@@ -150,7 +141,7 @@ internal fun PersonFace(p: DPerson, size: Dp, modifier: Modifier = Modifier) {
 
 /** "Wer ist das?" as a dashed circle with a question mark. */
 @Composable
-private fun WhoCircle(size: Dp) {
+internal fun WhoCircle(size: Dp) {
     val x = GateControlTheme.extraColors
     Box(
         Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surface).border(1.dp, x.warn, CircleShape),
@@ -158,118 +149,8 @@ private fun WhoCircle(size: Dp) {
     ) { Text("?", color = x.warn, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
 }
 
-// ─── the Photos page: people and places ─────────────────────────────
-
-/** A heading of the Photos page with a link on the right ("Alle", "Karte"). */
-@Composable
-internal fun PhotosSectionHead(title: String, link: String?, onLink: (() -> Unit)?) {
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).semantics { heading() })
-        if (link != null && onLink != null) {
-            TextButton(onClick = onLink, modifier = Modifier.heightIn(min = 44.dp)) {
-                Text(link, color = GateControlTheme.extraColors.accentText, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-/** "Personen": the named people as round faces, then "Wer ist das?" for someone without a name. */
-@Composable
-internal fun PeopleBar(named: List<DPerson>, unnamed: DPerson?, onPerson: (DPerson) -> Unit, onWho: (DPerson) -> Unit) {
-    val x = GateControlTheme.extraColors
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        named.forEach { p ->
-            Column(
-                Modifier.width(66.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { onPerson(p) }.padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                PersonFace(p, 58.dp)
-                Text(p.name.orEmpty(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        if (unnamed != null) {
-            Column(
-                Modifier.width(72.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { onWho(unnamed) }.padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                WhoCircle(58.dp)
-                Text(stringResource(R.string.drive_pp_who), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = x.warn, maxLines = 1)
-            }
-        }
-    }
-}
-
-/**
- * "Orte": a small map of the places (a tap opens the map), the places with most photos as chips below. The list
- * builds this item again whenever it scrolls back: once the map's tiles were all there it is a still picture of it
- * ([PhotoMapStills]), no map of its own.
- */
-@Composable
-internal fun PlacesCard(places: List<DPlaceSummary>, clusters: List<DCluster>, onMap: () -> Unit, onPlace: (DPlaceSummary) -> Unit) {
-    val x = GateControlTheme.extraColors
-    val scheme = MaterialTheme.colorScheme
-    val desc = stringResource(R.string.drive_pp_map_open)
-    val fit = remember(places) { DrivePlacesLogic.around(places.take(12).map { it.lat to it.lon }) }
-    BoxWithConstraints(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)).background(x.panel2)) {
-        val w = constraints.maxWidth
-        val h = constraints.maxHeight
-        val key = remember(fit, clusters, w, h, scheme) {
-            val bundles = clusters.joinToString(";") { "${it.lat},${it.lon},${it.count}" }
-            "$fit|$bundles|${w}x$h|${scheme.primary.toArgb()},${scheme.surface.toArgb()},${scheme.background.toArgb()}"
-        }
-        val still = PhotoMapStills[key]
-        if (still != null) {
-            Image(still, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-            OsmAttribution(Modifier.align(Alignment.BottomEnd))
-        } else {
-            PhotoMap(
-                clusters = clusters,
-                selected = null,
-                fit = fit,
-                interactive = false,
-                onCluster = { onMap() },
-                onMoved = { _, _ -> },
-                contentDescription = desc,
-                modifier = Modifier.fillMaxWidth().height(120.dp),
-                stillKey = key,
-                onStill = PhotoMapStills::put,
-            )
-        }
-        // a still picture: a tap anywhere opens the map
-        Box(Modifier.matchParentSize().clickable(role = Role.Button, onClickLabel = desc, onClick = onMap).semantics { contentDescription = desc })
-    }
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        places.take(8).forEach { p ->
-            Box(
-                Modifier.height(36.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, x.border2, RoundedCornerShape(10.dp))
-                    .clickable(role = Role.Button) { onPlace(p) }.padding(horizontal = 14.dp),
-                contentAlignment = Alignment.Center,
-            ) { Text("${p.name} · ${countText(p.count)}", style = MaterialTheme.typography.titleSmall, maxLines = 1) }
-        }
-    }
-}
-
 /** 1.204 in the phone's language. */
 internal fun countText(n: Int): String = java.text.NumberFormat.getIntegerInstance().format(n)
-
-/** The search field of the Photos page: a tap opens the search with suggestions. */
-@Composable
-internal fun PhotosSearchField(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val x = GateControlTheme.extraColors
-    val hint = stringResource(R.string.drive_pp_search_hint)
-    Row(
-        modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(14.dp)).background(x.panel2)
-            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.drive_pp_search_title), onClick = onClick)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(GcIcons.Search, contentDescription = null, tint = x.muted, modifier = Modifier.size(18.dp))
-        Text(hint, color = x.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
 
 // ─── the map ───────────────────────────────────────────────────────
 
@@ -411,8 +292,9 @@ private const val CLOSE_ZOOM = 14.0
 private var livePhotoMaps = 0
 
 /**
- * The head map of Fotos as still pictures, by what they show (places, bundles, size, colours); the newest few are kept.
- * Main thread; a new one recomposes the card, which then lets its map go.
+ * The small map of the overview (Drive 1.18; until then the head of Fotos) as still pictures, by what they show
+ * (places, bundles, size, colours); the newest few are kept. Main thread; a new one recomposes the list, which then
+ * lets the map that drew it go.
  */
 internal object PhotoMapStills {
     private const val MAX = 3

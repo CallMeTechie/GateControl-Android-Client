@@ -438,6 +438,15 @@ class DriveApi @Inject constructor(
     suspend fun insightApply(id: Long, name: Boolean, folder: Boolean): DResult<DInsightApplied> =
         post("nodes/$id/insight/apply", DriveJson.applyBody(name, folder), DriveJson::insightApplied)
 
+    /**
+     * Drive 1.18 (`overview`): a file opened from this phone's cache, without `content` (for "Zuletzt geöffnet";
+     * `POST nodes/<id>/opened` → 204).
+     */
+    suspend fun opened(id: Long): DResult<Unit> = post("nodes/$id/opened", JsonObject(), unit)
+
+    /** Drive 1.18 (`overview`): everything the overview shows, in one call. */
+    suspend fun overview(): DResult<DOverview> = get("overview", parse = DriveOverviewJson::overview)
+
     /** The deadlines of the files I read, [from]..[to] (`YYYY-MM-DD`; default today to a year on). */
     suspend fun deadlines(from: String? = null, to: String? = null): DResult<List<DDeadline>> {
         val q = buildMap {

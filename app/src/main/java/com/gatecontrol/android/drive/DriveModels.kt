@@ -118,6 +118,8 @@ data class DMe(
         const val FEATURE_PHOTO_PEOPLE = "photoPeople"
         /** Drive 1.17: deadlines into a calendar of the mail plugin too (`deadlines/calendars`, `deadlines/targets`). */
         const val FEATURE_DEADLINE_MAIL_CALENDAR = "deadlineMailCalendar"
+        /** Drive 1.18: the overview of Drive in one call (`GET overview`); without it the app builds it from the rest. */
+        const val FEATURE_OVERVIEW = "overview"
     }
 }
 

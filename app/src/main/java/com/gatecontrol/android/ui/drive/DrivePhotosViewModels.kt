@@ -158,9 +158,6 @@ class DrivePhotosViewModel @Inject constructor(
     /** Photos per month ("2026-10" → 120) for the headings. */
     val months: StateFlow<Map<String, Int>> = _months.asStateFlow()
 
-    private val _memories = MutableStateFlow<List<DMemories>>(emptyList())
-    val memories: StateFlow<List<DMemories>> = _memories.asStateFlow()
-
     private val _albums = MutableStateFlow<DriveLoad<List<DAlbum>>?>(null)
     val albums: StateFlow<DriveLoad<List<DAlbum>>?> = _albums.asStateFlow()
 
@@ -215,18 +212,16 @@ class DrivePhotosViewModel @Inject constructor(
         pager.reload(quiet = quiet)
         viewModelScope.launch { _months.value = api.photoMonths(camera = camera, cls = cls).valueOrNull()?.associate { it.month to it.count }.orEmpty() }
         if (work.serverClasses(live.me.value)) viewModelScope.launch { _classes.value = api.photoClasses(camera = camera).valueOrNull() } else _classes.value = null
-        viewModelScope.launch { _memories.value = api.memories(LocalDate.now().toString(), camera = camera).valueOrNull().orEmpty() }
         if (_albums.value != null) loadAlbums()
     }
 
-    /** "Nur Kamera-Uploads" on or off: the timeline, its months and the memories again. */
+    /** "Nur Kamera-Uploads" on or off: the timeline and its months again. */
     fun setCameraOnly(on: Boolean) {
         if (on == _cameraOnly.value) return
         _cameraOnly.value = on
         DriveViewPref.setCameraOnly(context, on)
         bulk.clear()
         _months.value = emptyMap()
-        _memories.value = emptyList()
         load(quiet = false)
     }
 

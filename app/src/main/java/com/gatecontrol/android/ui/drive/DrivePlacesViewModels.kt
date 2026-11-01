@@ -48,57 +48,6 @@ import javax.inject.Inject
 private fun names(people: DPeople?): Map<Long, String> =
     people?.people.orEmpty().filter { !it.hidden && it.named }.associate { it.id to it.name!! }
 
-/**
- * The places and people on the Photos page (Drive 1.16): the bar of people with "Wer ist das?", the places card with
- * its chips. Only loaded while Drive has the features.
- */
-@HiltViewModel
-class DrivePlacesHeaderViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val api: DriveApi,
-    val live: DriveLive,
-    private val prefs: DrivePlacesPrefs,
-) : ViewModel() {
-    private val _people = MutableStateFlow<DPeople?>(null)
-    val people: StateFlow<DPeople?> = _people.asStateFlow()
-    private val _places = MutableStateFlow<List<DPlaceSummary>>(emptyList())
-    val places: StateFlow<List<DPlaceSummary>> = _places.asStateFlow()
-    private val _clusters = MutableStateFlow<List<DCluster>>(emptyList())
-    val clusters: StateFlow<List<DCluster>> = _clusters.asStateFlow()
-    val settings: StateFlow<PlacesSettings> = prefs.settings
-
-    private var job: Job? = null
-
-    fun load(me: DMe?) {
-        job?.cancel()
-        val placesOn = me?.has(DMe.FEATURE_PHOTO_PLACES) == true
-        val peopleOn = me?.has(DMe.FEATURE_PHOTO_PEOPLE) == true
-        if (!placesOn) { _places.value = emptyList(); _clusters.value = emptyList() }
-        if (!peopleOn) _people.value = null
-        if (!placesOn && !peopleOn) return
-        job = viewModelScope.launch {
-            api.photoSettings().valueOrNull()?.let(prefs::took)
-            if (peopleOn) {
-                _people.value = api.people().valueOrNull()
-                // new photos' faces, old ones' (in the background, WLAN and — by default — charging)
-                DrivePeopleWork.request(context)
-            }
-            if (placesOn) {
-                val list = api.photoPlaces().valueOrNull().orEmpty()
-                _places.value = list
-                val box = DrivePlacesLogic.around(list.take(12).map { it.lat to it.lon })
-                _clusters.value = if (box == null) emptyList() else api.photoMap(box, zoomFor(box)).valueOrNull().orEmpty()
-            }
-        }
-    }
-
-    /** A zoom that shows [b] in about 360 dp. */
-    private fun zoomFor(b: DBbox): Int {
-        val span = maxOf(b.east - b.west, (b.north - b.south) * 1.5).coerceAtLeast(0.0001)
-        return (kotlin.math.ln(360.0 / span) / kotlin.math.ln(2.0) + 1).toInt().coerceIn(2, 14)
-    }
-}
-
 /** "Karte" (Drive 1.16, `photoPlaces`): bundles of photos on OpenStreetMap, one chosen with its photos below. */
 @HiltViewModel
 class DriveMapViewModel @Inject constructor(
