@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.76.1] - 2026-11-01
+
+### Fixes
+- Fotos-Karte hängt nicht mehr beim Scrollen (ANR in osmdroid bei 0×0) (#173)
+
+---
+
 ## [1.76.0] - 2026-11-01
 
 ### Features
