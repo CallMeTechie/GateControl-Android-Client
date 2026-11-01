@@ -308,22 +308,26 @@ internal object DriveLogic {
     /** The doc kind of a file in a list (a small symbol): only when the AI is done. */
     fun docKind(node: DNode): String? = node.insight?.takeIf { it.status == "ready" && !node.isDir }?.kind
 
-    // ─── the Files and Photos tabs ───────────────────────────────────
+    // ─── the pages of the Drive tab ──────────────────────────────────
 
-    /** The Drive tab's pages: the files, then (feature `photos`) the photos; swiping goes from one to the other. */
-    const val TAB_FILES = 0
-    const val TAB_PHOTOS = 1
+    /**
+     * The Drive tab's pages (Drive 1.18): the overview, the files, then (feature `photos`) the photos. Drive always
+     * opens on the overview (the page is not kept); a folder or a photo opened from elsewhere has a page of its own.
+     */
+    enum class Tab { OVERVIEW, FILES, PHOTOS }
 
-    fun tabCount(hasPhotos: Boolean): Int = if (hasPhotos) 2 else 1
+    fun tabs(hasPhotos: Boolean): List<Tab> = if (hasPhotos) listOf(Tab.OVERVIEW, Tab.FILES, Tab.PHOTOS) else listOf(Tab.OVERVIEW, Tab.FILES)
 
-    /** The page to show for the saved choice "photos" ([photos]); without the Photos tab always the files. */
-    fun tabOf(photos: Boolean, hasPhotos: Boolean): Int = if (photos && hasPhotos) TAB_PHOTOS else TAB_FILES
+    fun tabCount(hasPhotos: Boolean): Int = tabs(hasPhotos).size
 
-    /** Whether [page] is the photos (what is saved as the tab's choice). */
-    fun isPhotosTab(page: Int, hasPhotos: Boolean): Boolean = hasPhotos && page == TAB_PHOTOS
+    /** The page of [tab]; the photos without the Photos tab: the files. */
+    fun pageOf(tab: Tab, hasPhotos: Boolean): Int = tabs(hasPhotos).indexOf(tab).takeIf { it >= 0 } ?: tabs(hasPhotos).indexOf(Tab.FILES)
 
-    /** Swiping between the pages: only when there are two, not while photos are ticked (that bar belongs to the page). */
-    fun tabSwipe(hasPhotos: Boolean, selecting: Boolean): Boolean = hasPhotos && !selecting
+    /** The tab at [page] (a page beyond the last: the last). */
+    fun tabAt(page: Int, hasPhotos: Boolean): Tab = tabs(hasPhotos).let { it[page.coerceIn(0, it.size - 1)] }
+
+    /** Swiping between the pages: not while items are ticked (that bar belongs to the page). */
+    fun tabSwipe(selecting: Boolean): Boolean = !selecting
 
     // ─── sorting a folder ───────────────────────────────────────────
 

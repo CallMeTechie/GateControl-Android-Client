@@ -115,11 +115,15 @@ data class DriveNav(
     val cleanup: () -> Unit = {},
     /** The folder the Files page shows now (null: none, or the photos) — a folder page's path goes back to it. */
     val shown: (Long?) -> Unit = {},
+    /** The photo backup (the overview's "Fotos gesichert", Drive 1.18). */
+    val backup: () -> Unit = {},
+    /** Mail › "Zum Ablegen" (the overview's attachments to file); null: no mail here. */
+    val mailFiling: (() -> Unit)? = null,
 )
 
 /**
- * The Drive tab: the chosen area's files, the areas and the trash in the menu top left. The
- * photo backup is in the settings.
+ * The Drive tab (Drive 1.18): "Übersicht" | "Dateien" | "Fotos", always opening on the overview; the areas and the
+ * trash in the menu top left. The photo backup is in the settings.
  */
 @Composable
 fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel()) {
@@ -131,6 +135,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     }
     val folderViewModel: DriveFolderViewModel = hiltViewModel(key = "drive-tab")
     val photosViewModel: DrivePhotosViewModel = hiltViewModel(key = "drive-photos")
+    val overviewViewModel: DriveOverviewViewModel = hiltViewModel(key = "drive-overview")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -168,37 +173,29 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         }
     }
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }
-    // Drive 1.7 (feature `photos`): the tab has two pages, the files and the photos; a swipe goes from one to the other.
+    // Drive 1.18: Übersicht | Dateien | Fotos (feature `photos`); a swipe goes from one to the next. Drive opens on the
+    // overview: the page is not kept (only while the tab is on the back stack, e.g. back from a folder)
     val hasPhotos = me?.has(DMe.FEATURE_PHOTOS) == true
+    val tabs = DriveLogic.tabs(hasPhotos)
     val ticked by photosViewModel.selected.collectAsStateWithLifecycle()
     val folderTicked by folderViewModel.bulk.selected.collectAsStateWithLifecycle()
     /** Items are ticked on one of the pages: its own bar shows instead of the tab's, swiping stays off. */
     val selecting = ticked.isNotEmpty() || folderTicked.isNotEmpty()
-    val pager = rememberPagerState(initialPage = DriveLogic.tabOf(DriveViewPref.photos(context), hasPhotos)) { DriveLogic.tabCount(hasPhotos) }
-    val onPhotosPage = DriveLogic.isPhotosTab(pager.currentPage, hasPhotos)
-    val showPage: (Boolean) -> Unit = { photos -> scope.launch { pager.animateScrollToPage(DriveLogic.tabOf(photos, hasPhotos)) } }
+    val pager = rememberPagerState(initialPage = DriveLogic.pageOf(DriveLogic.Tab.OVERVIEW, hasPhotos)) { DriveLogic.tabCount(hasPhotos) }
+    val tab = DriveLogic.tabAt(pager.currentPage, hasPhotos)
+    val onPhotosPage = tab == DriveLogic.Tab.PHOTOS
+    val onFilesPage = tab == DriveLogic.Tab.FILES
+    val showTab: (DriveLogic.Tab) -> Unit = { t -> scope.launch { pager.animateScrollToPage(DriveLogic.pageOf(t, hasPhotos)) } }
     // the folder on the Files page: the path of a folder page goes back here when it names this one
-    val shownId = shown?.id?.takeIf { !onPhotosPage }
+    val shownId = shown?.id?.takeIf { onFilesPage }
     // Drive 1.14 (`photoSearch`): photos without words get them now (in the background, under the backup's conditions)
     val photoSearch = me?.has(DMe.FEATURE_PHOTO_SEARCH) == true
     LaunchedEffect(onPhotosPage, photoSearch) {
         if (onPhotosPage && photoSearch) com.gatecontrol.android.drive.backup.DrivePhotoLabelsWork.request(context)
     }
     LaunchedEffect(shownId) { nav.shown(shownId) }
-    // the page the person ends on is kept, and shown again when the person comes back to the tab
-    var synced by remember { mutableStateOf(false) }
-    LaunchedEffect(hasPhotos) {
-        if (!hasPhotos) return@LaunchedEffect
-        val want = DriveLogic.tabOf(DriveViewPref.photos(context), true)
-        if (pager.currentPage != want) pager.scrollToPage(want)
-        synced = true
-    }
-    LaunchedEffect(pager.settledPage, synced) { if (synced && hasPhotos) DriveViewPref.setPhotos(context, DriveLogic.isPhotosTab(pager.settledPage, true)) }
-    LifecycleResumeEffect(pager, hasPhotos, synced) {
-        val want = DriveLogic.tabOf(DriveViewPref.photos(context), hasPhotos)
-        if (synced && pager.currentPage != want && !pager.isScrollInProgress) scope.launch { pager.scrollToPage(want) }
-        onPauseOrDispose { }
-    }
+    /** "Wer ist das?" of the overview: the person being named. */
+    var naming by remember { mutableStateOf<Long?>(null) }
     val vaults by viewModel.vaults.collectAsStateWithLifecycle()
     val expanded by viewModel.expanded.collectAsStateWithLifecycle()
     val children by viewModel.children.collectAsStateWithLifecycle()
@@ -210,7 +207,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     }
     val grid = rememberDriveGrid()
     // a folder below the area's top (opened from the menu): back goes up a level
-    BackHandler(enabled = !drawer.isOpen && !selecting && !onPhotosPage && shown != null && shown.parentId != null && shown.areaId == current?.id) {
+    BackHandler(enabled = !drawer.isOpen && !selecting && onFilesPage && shown != null && shown.parentId != null && shown.areaId == current?.id) {
         shown?.parentId?.let(folderViewModel::open)
     }
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
@@ -232,7 +229,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     areas = areas,
                     personal = personal,
                     shared = shared,
-                    selected = shown?.id?.takeIf { !onPhotosPage },
+                    selected = shown?.id?.takeIf { onFilesPage },
                     onToggle = viewModel::toggle,
                     onOpen = { row ->
                         val area = areas.firstOrNull { it.id == row.areaId }
@@ -244,7 +241,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                 folderViewModel.open(row.id)
                             }
                         }
-                        if (onPhotosPage) showPage(false)
+                        if (!onFilesPage) showTab(DriveLogic.Tab.FILES)
                         close()
                     },
                     // Drive 1.9 (`vault`): the vaults are opened from here only (Drive 1.11)
@@ -285,40 +282,79 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     bar = {
                     TabBar(
                         when {
+                            tab == DriveLogic.Tab.OVERVIEW -> stringResource(R.string.drive_title)
                             onPhotosPage -> stringResource(R.string.drive_mode_photos)
                             shown != null && shown.parentId != null && shown.areaId == current.id -> shown.name
                             else -> current.label
                         },
                         onMenu = openMenu,
-                        onSearch = if (onPhotosPage && DriveLogic.photoSearchable(me)) nav.photoSearch else nav.search,
+                        // the overview has its own search field
+                        onSearch = when {
+                            tab == DriveLogic.Tab.OVERVIEW -> null
+                            onPhotosPage && DriveLogic.photoSearchable(me) -> nav.photoSearch
+                            else -> nav.search
+                        },
                         actions = {
-                            if (!onPhotosPage) {
-                                FolderViewActions(folderViewModel, grid)
-                            } else if (me?.has(DMe.FEATURE_PHOTO_PLACES) == true) {
-                                // Drive 1.16: the photos on the map
-                                GcIconButton(GcIcons.Map, contentDescription = stringResource(R.string.drive_pp_map), onClick = nav.photoMap, tint = MaterialTheme.colorScheme.onBackground)
+                            when (tab) {
+                                DriveLogic.Tab.OVERVIEW ->
+                                    GcIconButton(GcIcons.Settings, contentDescription = stringResource(R.string.drive_settings_title), onClick = nav.settings, tint = MaterialTheme.colorScheme.onBackground)
+                                DriveLogic.Tab.FILES -> FolderViewActions(folderViewModel, grid)
+                                DriveLogic.Tab.PHOTOS -> {
+                                    // Drive 1.16: the photos on the map, the people (Drive 1.18: the symbols of the page's head)
+                                    if (me?.has(DMe.FEATURE_PHOTO_PLACES) == true) {
+                                        GcIconButton(GcIcons.Map, contentDescription = stringResource(R.string.drive_pp_map), onClick = nav.photoMap, tint = MaterialTheme.colorScheme.onBackground)
+                                    }
+                                    if (me?.has(DMe.FEATURE_PHOTO_PEOPLE) == true) {
+                                        GcIconButton(GcIcons.Family, contentDescription = stringResource(R.string.drive_pp_people), onClick = nav.people, tint = MaterialTheme.colorScheme.onBackground)
+                                    }
+                                }
                             }
                         },
                     )
                     },
                 )
-                if (hasPhotos) Box(Modifier.inert(selecting)) { DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage) }
+                Box(Modifier.inert(selecting)) { DriveModeSwitch(tabs = tabs, tab = tab, onTab = showTab) }
                 HorizontalPager(
                     state = pager,
                     modifier = Modifier.weight(1f),
                     // ticked items keep their page (the selection's bars belong to it)
                     // As a page beside Start, swiping changes the page: Dateien and Fotos by tapping only.
-                    userScrollEnabled = DriveLogic.tabSwipe(hasPhotos, selecting) && !com.gatecontrol.android.ui.start.LocalInStartPager.current,
-                    key = { it },
+                    userScrollEnabled = DriveLogic.tabSwipe(selecting) && !com.gatecontrol.android.ui.start.LocalInStartPager.current,
+                    key = { DriveLogic.tabAt(it, hasPhotos) },
                 ) { page ->
-                    if (DriveLogic.isPhotosTab(page, hasPhotos)) {
+                    val pageTab = DriveLogic.tabAt(page, hasPhotos)
+                    if (pageTab == DriveLogic.Tab.OVERVIEW) {
+                        DriveOverviewContent(
+                            viewModel = overviewViewModel,
+                            areas = home.areas,
+                            naming = { naming = it },
+                            actions = OverviewActions(
+                                search = nav.search,
+                                backup = nav.backup,
+                                storage = if (me?.has(DMe.FEATURE_STORAGE) == true) nav.storage else null,
+                                deadline = { d -> d.node?.id?.let(nav.file) ?: nav.deadlines() },
+                                deadlines = nav.deadlines,
+                                review = { photosViewModel.setClass("review"); showTab(DriveLogic.Tab.PHOTOS) },
+                                toFile = nav.mailFiling,
+                                file = nav.file,
+                                folder = nav.folder,
+                                files = { showTab(DriveLogic.Tab.FILES) },
+                                photos = { showTab(DriveLogic.Tab.PHOTOS) },
+                                memory = {},
+                                people = nav.people,
+                                person = nav.person,
+                                who = {},
+                                map = nav.photoMap,
+                                place = nav.place,
+                            ),
+                        )
+                    } else if (pageTab == DriveLogic.Tab.PHOTOS) {
                         DrivePhotosContent(
                             viewModel = photosViewModel,
                             topBar = {},
                             onAlbum = nav.album,
                             onCleanup = nav.cleanup,
                             onFile = nav.file,
-                            places = PhotosPlacesNav(search = nav.photoSearch, map = nav.photoMap, place = nav.place, people = nav.people, person = nav.person),
                             ownHead = false,
                         )
                     } else {
@@ -374,6 +410,13 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                 }
             }
         }
+    }
+    naming?.let { id ->
+        NamePersonSheet(
+            personId = id,
+            onDismiss = { naming = null; overviewViewModel.load() },
+            onNext = { overviewViewModel.nextToName(id) { next -> naming = next; if (next == null) overviewViewModel.load() } },
+        )
     }
     guardAsk?.let { (incident, undo) ->
         GuardConfirm(

@@ -577,19 +577,11 @@ internal fun UploadsSheet(
 internal object DriveViewPref {
     private const val PREFS = "drive_ui"
     private const val KEY = "grid"
-    private const val KEY_PHOTOS = "photos"
 
     fun grid(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY, false)
 
     fun setGrid(context: Context, grid: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY, grid).apply()
-    }
-
-    /** The Drive tab shows the photos (Drive 1.7), not the files. */
-    fun photos(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_PHOTOS, false)
-
-    fun setPhotos(context: Context, photos: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_PHOTOS, photos).apply()
     }
 
     private const val KEY_CAMERA = "photos_camera"

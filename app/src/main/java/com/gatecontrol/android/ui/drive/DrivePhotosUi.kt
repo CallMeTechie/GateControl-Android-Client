@@ -24,14 +24,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -95,11 +93,9 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DAlbum
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DMe
-import com.gatecontrol.android.drive.DMemories
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
-import com.gatecontrol.android.drive.DrivePlacesLogic
 import com.gatecontrol.android.drive.work.DriveWorkLogic
 import com.gatecontrol.android.drive.work.DriveWorkPhotos
 import androidx.compose.material3.SnackbarDuration
@@ -152,13 +148,21 @@ internal fun photoDate(node: DNode): String? = (node.takenAt ?: node.mtime)?.let
     }.getOrNull()
 }
 
-/** "Dateien" | "Fotos" on top of the Drive tab (only when Drive has photos). */
+/** "Übersicht" | "Dateien" | "Fotos" on top of the Drive tab (Drive 1.18; "Fotos" only when Drive has photos). */
 @Composable
-internal fun DriveModeSwitch(photos: Boolean, onPhotos: (Boolean) -> Unit) {
+internal fun DriveModeSwitch(tabs: List<DriveLogic.Tab>, tab: DriveLogic.Tab, onTab: (DriveLogic.Tab) -> Unit) {
     GcSegmented(
-        options = listOf(false to stringResource(R.string.drive_mode_files), true to stringResource(R.string.drive_mode_photos)),
-        selected = photos,
-        onSelect = onPhotos,
+        options = tabs.map { t ->
+            t to stringResource(
+                when (t) {
+                    DriveLogic.Tab.OVERVIEW -> R.string.drive_mode_overview
+                    DriveLogic.Tab.FILES -> R.string.drive_mode_files
+                    DriveLogic.Tab.PHOTOS -> R.string.drive_mode_photos
+                },
+            )
+        },
+        selected = tab,
+        onSelect = onTab,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
     )
 }
@@ -181,8 +185,8 @@ internal fun PhotosSelectionHead(viewModel: DrivePhotosViewModel) {
 }
 
 /**
- * The photos of Drive (Drive 1.7): the timeline by month with "Vor einem Jahr" on top, loading on while scrolling, and
- * the albums. Long press ticks photos for an album; a tap shows them full screen.
+ * The photos of Drive (Drive 1.7): the timeline by month, loading on while scrolling, and the albums. Long press ticks
+ * photos for an album; a tap shows them full screen. Memories, people and places are on the overview (Drive 1.18).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -192,8 +196,6 @@ internal fun DrivePhotosContent(
     onAlbum: (String) -> Unit,
     onCleanup: () -> Unit = {},
     onFile: ((Long) -> Unit)? = null,
-    /** Drive 1.16: where the search, the map, a place and the people lead (null: not shown). */
-    places: PhotosPlacesNav? = null,
     /** The page shows its own selection head in place of [topBar] (false: the Drive tab shows it, [PhotosSelectionHead]). */
     ownHead: Boolean = true,
 ) {
@@ -202,7 +204,6 @@ internal fun DrivePhotosContent(
     val me by viewModel.live.me.collectAsStateWithLifecycle()
     val timeline by viewModel.timeline.collectAsStateWithLifecycle()
     val months by viewModel.months.collectAsStateWithLifecycle()
-    val memories by viewModel.memories.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -211,8 +212,8 @@ internal fun DrivePhotosContent(
     val hasCamera = me?.has(DMe.FEATURE_PHOTOS_FOLDER) == true
     val cameraOnly by viewModel.cameraOnly.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf("timeline") }
-    /** Full screen: the timeline (null) or the memories of so many years ago, from that photo on. */
-    var viewing by remember { mutableStateOf<Pair<Int?, Int>?>(null) }
+    /** Full screen: the timeline from this photo on. */
+    var viewing by remember { mutableStateOf<Int?>(null) }
     var choosing by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf<Boolean?>(null) }
 
@@ -229,16 +230,6 @@ internal fun DrivePhotosContent(
     val serverClasses = viewModel.work.serverClasses(me)
     val workOn = workSettings.active || serverClasses
     var moreOpen by remember { mutableStateOf(false) }
-
-    // Drive 1.16: the people and the places above the timeline
-    val header: DrivePlacesHeaderViewModel = androidx.hilt.navigation.compose.hiltViewModel(key = "drive-places")
-    val barPeople by header.people.collectAsStateWithLifecycle()
-    val topPlaces by header.places.collectAsStateWithLifecycle()
-    val placeClusters by header.clusters.collectAsStateWithLifecycle()
-    val peopleOn = places != null && me?.has(DMe.FEATURE_PHOTO_PEOPLE) == true
-    val placesOn = places != null && me?.has(DMe.FEATURE_PHOTO_PLACES) == true
-    var naming by remember { mutableStateOf<Long?>(null) }
-    LaunchedEffect(me?.features) { if (places != null) header.load(me) }
 
     LaunchedEffect(Unit) {
         viewModel.start()
@@ -300,7 +291,6 @@ internal fun DrivePhotosContent(
         // ticking changes the title row only (as high either way); everything below stays, dimmed — the grid must not
         // move under the finger of the long press
         if (ownHead) SelectionSwap(selecting, bar = topBar, selection = { PhotosSelectionHead(viewModel) }) else topBar()
-        if (places != null && (placesOn || peopleOn)) PhotosSearchField(onClick = places.search, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).inert(selecting))
         if (workOn) {
             val why = if (serverClasses) null else stringResource(R.string.drive_work_needs_1130)
             val reviewDesc = stringResource(R.string.drive_work_review_count, reviewCount)
@@ -342,15 +332,8 @@ internal fun DrivePhotosContent(
                 BulkBusyCard(busy, viewModel.bulk::cancelBusy)
             }
         }
+        // "N zu prüfen" is the count of the chip "Prüfen" (Drive 1.18: no band of its own)
         if (workOn && tab != "albums") Column(Modifier.inert(selecting)) {
-            if (reviewCount > 0) {
-                WorkBand(
-                    pluralStringResource(R.plurals.drive_work_banner, reviewCount, reviewCount),
-                    button = if (cls != "review") stringResource(R.string.drive_work_banner_show) else null,
-                    warn = true,
-                    onClick = { viewModel.setClass("review") },
-                )
-            }
             // "Prüfen" while the AI still learns: how far, and what helps
             if (cls == "review" && reviewCount > 0 && workSettings.active && !learned.ready) {
                 WorkBand(
@@ -385,39 +368,11 @@ internal fun DrivePhotosContent(
                     selected = selected,
                     months = if (shown !== timeline) emptyMap() else months,
                     badge = if (workOn) ({ n -> TileBadge(review = DriveWorkLogic.isReview(n, localReview), work = n.work && cls == null) }) else null,
-                    onOpen = { i -> viewing = null to i },
+                    onOpen = { i -> viewing = i },
                     onToggle = viewModel::toggle,
                     onMore = viewModel::more,
                     onRetry = viewModel::refresh,
                     empty = stringResource(R.string.drive_photos_empty),
-                    // the header stays while ticking (else the photos below it would move up)
-                    header = ({
-                        // Drive 1.16: "Personen" with "Wer ist das?", "Orte" with the map — on "Alle" only
-                        if (places != null && cls == null) {
-                            val (named, unnamed) = DrivePlacesLogic.bar(barPeople?.people.orEmpty())
-                            if (peopleOn && (named.isNotEmpty() || unnamed != null)) {
-                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                    Column {
-                                        PhotosSectionHead(stringResource(R.string.drive_pp_people), stringResource(R.string.drive_pp_all), places.people)
-                                        PeopleBar(named, unnamed, onPerson = { places.person(it.id) }, onWho = { naming = it.id })
-                                    }
-                                }
-                            }
-                            if (placesOn && topPlaces.isNotEmpty()) {
-                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                    Column(Modifier.padding(bottom = 4.dp)) {
-                                        PhotosSectionHead(stringResource(R.string.drive_pp_places), stringResource(R.string.drive_pp_map), places.map)
-                                        PlacesCard(topPlaces, placeClusters, onMap = places.map, onPlace = { places.place(it.key) })
-                                    }
-                                }
-                            }
-                        }
-                        if (memories.isNotEmpty()) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                MemoriesRow(memories, onOpen = { m -> viewing = m.yearsAgo to 0 })
-                            }
-                        }
-                    }),
                     onSelect = viewModel.bulk::set,
                 )
             }
@@ -472,12 +427,12 @@ internal fun DrivePhotosContent(
         )
     }
 
-    viewing?.let { (years, start) ->
+    viewing?.let { start ->
         PhotoViewer(
-            items = if (years == null) timeline.items else memories.firstOrNull { it.yearsAgo == years }?.items.orEmpty(),
+            items = timeline.items,
             start = start,
             fetch = viewModel::fetch,
-            onMore = if (years == null) viewModel::more else null,
+            onMore = viewModel::more,
             onClose = { viewing = null },
         )
     }
@@ -490,17 +445,6 @@ internal fun DrivePhotosContent(
             )
         }
     }
-    naming?.let { id ->
-        NamePersonSheet(
-            personId = id,
-            onDismiss = { naming = null; header.load(me) },
-            onNext = {
-                val next = DrivePlacesLogic.groups(barPeople?.people.orEmpty()).unnamed.firstOrNull { it.id != id }
-                naming = next?.id
-                if (next == null) header.load(me)
-            },
-        )
-    }
     creating?.let { withSelected ->
         AlbumNameDialog(
             title = stringResource(R.string.drive_album_new),
@@ -510,38 +454,6 @@ internal fun DrivePhotosContent(
             onConfirm = { name, area -> creating = null; viewModel.createAlbum(name, area, withSelected) },
             onDismiss = { creating = null },
         )
-    }
-}
-
-/** "Vor einem Jahr", "Vor 3 Jahren": a card per year with the day's photos. */
-@Composable
-private fun MemoriesRow(memories: List<DMemories>, onOpen: (DMemories) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(memories, key = { it.yearsAgo }) { m ->
-                val cover = m.items.first()
-                val picture = rememberDrivePreview(cover, large = true) ?: rememberDrivePreview(cover)
-                Box(
-                    Modifier
-                        .width(220.dp)
-                        .height(150.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(GateControlTheme.extraColors.blueBg)
-                        .clickable(role = Role.Button) { onOpen(m) },
-                ) {
-                    if (picture != null) Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
-                    Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-                        Text(
-                            if (m.yearsAgo <= 0) stringResource(R.string.drive_photos_memories) else pluralStringResource(R.plurals.drive_photos_years_ago, m.yearsAgo, m.yearsAgo),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                        )
-                        Text(pluralStringResource(R.plurals.drive_photos_count, m.items.size, m.items.size), style = MaterialTheme.typography.bodySmall, color = Color.White)
-                    }
-                }
-            }
-        }
     }
 }
 

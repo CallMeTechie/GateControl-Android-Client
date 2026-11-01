@@ -1,22 +1,12 @@
 package com.gatecontrol.android.ui.drive
 
 import android.app.Application
-import android.view.View
-import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.SubcomposeLayout
-import androidx.compose.ui.layout.SubcomposeLayoutState
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.unit.Constraints
-import com.gatecontrol.android.drive.DCluster
-import com.gatecontrol.android.drive.DPlaceSummary
 import com.gatecontrol.android.ui.familie.OsmFitter
 import com.gatecontrol.android.ui.familie.configureOsm
 import com.gatecontrol.android.ui.familie.showBox
-import com.gatecontrol.android.ui.theme.GateControlTheme
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -34,6 +24,7 @@ import org.robolectric.shadows.ShadowLooper
 /**
  * ANR in Drive › Fotos (1.76): the list measures the "Orte" item ahead while scrolling back, Compose lays its map out
  * at 0 × 0 before placing it, and osmdroid's zoomToBoundingBox then never returned. The map has to wait for its size.
+ * (Drive 1.18: the small map is on the overview, as a still picture — DriveOverviewScrollTest.)
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class, qualifiers = "w411dp-h891dp")
@@ -60,42 +51,11 @@ class PhotoMapPrefetchTest {
     @After
     fun stop() = watchdog.interrupt()
 
-    private val places = listOf(DPlaceSummary("geonames:2911298", "Hamburg", null, "DE", 12, 53.55, 10.0, null, null, null))
-    private val clusters = listOf(DCluster(53.55, 10.0, 12, "geonames:2911298", null))
-
-    private fun maps(v: View): List<MapView> = when (v) {
-        is MapView -> listOf(v)
-        is ViewGroup -> (0 until v.childCount).flatMap { maps(v.getChildAt(it)) }
-        else -> emptyList()
-    }
-
     @Test
     fun `osmdroid's zoom of a box in a view smaller than its border is NaN`() {
         // what zoomToBoundingBox computes at 0 × 0 with 2 × 63 px border; its Projection then loops on this
         val zoom = TileSystemWebMercator().getBoundingBoxZoom(BoundingBox(53.6, 10.1, 53.5, 9.9), -126, -126)
         assertTrue(zoom.isNaN())
-    }
-
-    @Test
-    fun `the places card measured ahead lays its map out at 0 x 0 and does not zoom there`() {
-        val sub = SubcomposeLayoutState()
-        rule.setContent {
-            GateControlTheme {
-                SubcomposeLayout(sub, Modifier.fillMaxSize()) { c -> layout(c.maxWidth, c.maxHeight) {} }
-            }
-        }
-        rule.waitForIdle()
-        rule.runOnIdle {
-            // what the lazy grid's prefetch does with the item before it is placed
-            val handle = sub.precompose("places") { GateControlTheme { PlacesCard(places, clusters, onMap = {}, onPlace = {}) } }
-            handle.premeasure(0, Constraints(maxWidth = 1080))
-        }
-        rule.waitForIdle()
-        val map = rule.runOnIdle { maps(rule.activity.window.decorView).single() }
-        rule.runOnIdle {
-            assertEquals(0, map.width)
-            assertEquals(3.0, map.zoomLevelDouble, 0.0)
-        }
     }
 
     @Test

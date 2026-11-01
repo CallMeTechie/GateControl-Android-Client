@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,7 +22,6 @@ import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.drive.DNode
-import com.gatecontrol.android.drive.DPerson
 import com.gatecontrol.android.drive.DriveBulk
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcSubpageBar
@@ -36,8 +34,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * The Photos page as it is built (title row, search field, chips, band, people and places above the months, the bar
- * below while ticking): a long press ticks a photo — no photo on the screen may move, at the top of the list and
+ * The Photos page as it is built (title row, chips with the count of "Prüfen", the months, the bar below while
+ * ticking; Drive 1.18: people, places and memories are on the overview): a long press ticks a photo — no photo on the screen may move, at the top of the list and
  * scrolled into it.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -53,7 +51,6 @@ class DrivePhotosSelectionJumpTest {
         val year = 2026 - ((id - 1) / 84)
         DNode(id, "mine:7", 2, "p$id.jpg", false, 10, "image/jpeg", null, 1, null, null, null, takenAt = "%04d-%02d-15T10:00:00Z".format(year, month))
     }
-    private val people = (1L..6L).map { DPerson(it, "Person $it", 10, false, null, null) }
 
     private fun page(selected: () -> Set<Long>, onSelect: (Set<Long>) -> Unit) {
         val pages = PhotoPages(items = nodes, loaded = true)
@@ -68,12 +65,10 @@ class DrivePhotosSelectionJumpTest {
                             bar = { GcSubpageBar("Fotos", onBack = {}, backDescription = "Zurück") },
                             selection = { SelectionHead(count = selected().size, line = "Zu prüfen – wohin gehört es? Tippe auf Arbeit oder Privat.", allSelected = false, onClose = {}, onAll = null) },
                         )
-                        PhotosSearchField(onClick = {}, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).inert(selecting))
                         Row(Modifier.inert(selecting).padding(horizontal = 12.dp)) {
                             WorkChip("Alle", selected = true, onClick = {})
                             WorkChip("Prüfen", selected = false, count = 3, onClick = {})
                         }
-                        Column(Modifier.inert(selecting)) { WorkBand("3 Fotos zu prüfen", button = "Zeigen", warn = true, onClick = {}) }
                         Box(Modifier.weight(1f)) {
                             PhotoGrid(
                                 pages = pages,
@@ -84,15 +79,6 @@ class DrivePhotosSelectionJumpTest {
                                 onRetry = {},
                                 empty = "",
                                 months = months,
-                                header = {
-                                    item(span = { GridItemSpan(maxLineSpan) }) {
-                                        Column {
-                                            PhotosSectionHead("Personen", "Alle", {})
-                                            PeopleBar(people, null, onPerson = {}, onWho = {})
-                                        }
-                                    }
-                                    item(span = { GridItemSpan(maxLineSpan) }) { PhotosSectionHead("Orte", "Karte", {}) }
-                                },
                                 onSelect = onSelect,
                             )
                         }

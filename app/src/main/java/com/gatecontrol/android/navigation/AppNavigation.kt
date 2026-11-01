@@ -1893,6 +1893,9 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 vault = nav.vault,
                 settings = { nav.go(Screen.DriveSettings.route) },
                 cleanup = { nav.go(Screen.DriveCleanup.route) },
+                backup = { nav.go(Screen.DriveBackup.route) },
+                // Mail › "Zum Ablegen" (only where Mail's routes are there)
+                mailFiling = { runCatching { navController.navigate(Screen.MailFiling.route) } },
             ),
         )
     }

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.18: die Übersicht des Drive-Tabs (Übersicht | Dateien | Fotos). -->
+<resources>
+    <string name="drive_mode_overview">Übersicht</string>
+    <string name="drive_ov_search">In Drive suchen</string>
+    <string name="drive_ov_search_hint">Dateien, Fotos, Personen, Orte</string>
+    <string name="drive_ov_backup_saved">Fotos gesichert · %1$s</string>
+    <string name="drive_ov_backup_running">Fotos werden gesichert · %1$d von %2$d</string>
+    <string name="drive_ov_backup_running_start">Fotos werden gesichert</string>
+    <string name="drive_ov_backup_waiting">Foto-Sicherung wartet</string>
+    <string name="drive_ov_backup_stopped">Foto-Sicherung angehalten</string>
+    <string name="drive_ov_storage">%1$s von %2$s</string>
+    <string name="drive_ov_storage_used">%1$s belegt</string>
+    <string name="drive_ov_storage_desc">Speicher: %1$s</string>
+    <string name="drive_ov_todo">Zu erledigen</string>
+    <plurals name="drive_ov_more_deadlines">
+        <item quantity="one">%1$d weitere Frist</item>
+        <item quantity="other">%1$d weitere Fristen</item>
+    </plurals>
+    <plurals name="drive_ov_review">
+        <item quantity="one">%1$d Foto prüfen</item>
+        <item quantity="other">%1$d Fotos prüfen</item>
+    </plurals>
+    <string name="drive_ov_review_hint">Arbeit oder privat?</string>
+    <plurals name="drive_ov_to_file">
+        <item quantity="one">%1$d Mail-Anhang zum Ablegen</item>
+        <item quantity="other">%1$d Mail-Anhänge zum Ablegen</item>
+    </plurals>
+    <string name="drive_ov_to_file_hint">Vorschlag: %1$s</string>
+    <string name="drive_ov_recent">Zuletzt geöffnet</string>
+    <string name="drive_ov_memories">Erinnerungen</string>
+    <plurals name="drive_ov_memory_today">
+        <item quantity="one">Heute vor einem Jahr</item>
+        <item quantity="other">Heute vor %1$d Jahren</item>
+    </plurals>
+    <string name="drive_ov_activity_in">Neu in %1$s</string>
+    <string name="drive_ov_activity_shared">Neu in geteilten Bereichen</string>
+    <string name="drive_ov_someone">Jemand</string>
+    <plurals name="drive_ov_act_photos">
+        <item quantity="one">%1$s hat ein Foto hinzugefügt</item>
+        <item quantity="other">%1$s hat %2$d Fotos hinzugefügt</item>
+    </plurals>
+    <plurals name="drive_ov_act_files">
+        <item quantity="one">%1$s hat eine Datei abgelegt</item>
+        <item quantity="other">%1$s hat %2$d Dateien abgelegt</item>
+    </plurals>
+    <string name="drive_ov_act_file">%1$s hat „%2$s“ abgelegt</string>
+    <plurals name="drive_ov_act_changed">
+        <item quantity="one">%1$s hat eine Datei geändert</item>
+        <item quantity="other">%1$s hat %2$d Dateien geändert</item>
+    </plurals>
+    <string name="drive_ov_act_changed_one">%1$s hat „%2$s“ geändert</string>
+    <string name="drive_ov_empty">Gerade gibt es nichts Neues.</string>
+</resources>

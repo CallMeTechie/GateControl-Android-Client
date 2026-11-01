@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/** The two pages of the Drive tab, sorting by file type (photos and videos are files like any other). */
+/** The pages of the Drive tab, sorting by file type (photos and videos are files like any other). */
 class DriveLogicTabsTest {
 
     private fun file(id: Long, name: String, mime: String?, vault: String? = null) =
@@ -15,23 +15,29 @@ class DriveLogicTabsTest {
         DNode(id, "mine:7", 1, name, true, 0, null, null, 1, null, null, null, vaultId = vault)
 
     @Test
-    fun `the pages of the Drive tab`() {
-        assertEquals(1, DriveLogic.tabCount(hasPhotos = false))
-        assertEquals(2, DriveLogic.tabCount(hasPhotos = true))
-        assertEquals(DriveLogic.TAB_PHOTOS, DriveLogic.tabOf(photos = true, hasPhotos = true))
-        assertEquals(DriveLogic.TAB_FILES, DriveLogic.tabOf(photos = false, hasPhotos = true))
-        // the saved "photos" without the Photos tab: the files
-        assertEquals(DriveLogic.TAB_FILES, DriveLogic.tabOf(photos = true, hasPhotos = false))
-        assertTrue(DriveLogic.isPhotosTab(DriveLogic.TAB_PHOTOS, hasPhotos = true))
-        assertFalse(DriveLogic.isPhotosTab(DriveLogic.TAB_FILES, hasPhotos = true))
-        assertFalse(DriveLogic.isPhotosTab(DriveLogic.TAB_PHOTOS, hasPhotos = false))
-        // swiping: two pages, nothing ticked
-        assertTrue(DriveLogic.tabSwipe(hasPhotos = true, selecting = false))
-        assertFalse(DriveLogic.tabSwipe(hasPhotos = true, selecting = true))
-        assertFalse(DriveLogic.tabSwipe(hasPhotos = false, selecting = false))
-        // round trip page → saved choice → page
-        for (page in 0 until DriveLogic.tabCount(true)) {
-            assertEquals(page, DriveLogic.tabOf(DriveLogic.isPhotosTab(page, true), true))
+    fun `the pages of the Drive tab - Uebersicht, Dateien, Fotos`() {
+        assertEquals(listOf(DriveLogic.Tab.OVERVIEW, DriveLogic.Tab.FILES), DriveLogic.tabs(hasPhotos = false))
+        assertEquals(listOf(DriveLogic.Tab.OVERVIEW, DriveLogic.Tab.FILES, DriveLogic.Tab.PHOTOS), DriveLogic.tabs(hasPhotos = true))
+        assertEquals(2, DriveLogic.tabCount(hasPhotos = false))
+        assertEquals(3, DriveLogic.tabCount(hasPhotos = true))
+        // Drive opens on the overview, with or without photos
+        assertEquals(0, DriveLogic.pageOf(DriveLogic.Tab.OVERVIEW, hasPhotos = true))
+        assertEquals(0, DriveLogic.pageOf(DriveLogic.Tab.OVERVIEW, hasPhotos = false))
+        // the files keep their page when the photos come (me loads later)
+        assertEquals(DriveLogic.pageOf(DriveLogic.Tab.FILES, false), DriveLogic.pageOf(DriveLogic.Tab.FILES, true))
+        assertEquals(2, DriveLogic.pageOf(DriveLogic.Tab.PHOTOS, hasPhotos = true))
+        // the photos without the Photos page: the files
+        assertEquals(1, DriveLogic.pageOf(DriveLogic.Tab.PHOTOS, hasPhotos = false))
+        assertEquals(DriveLogic.Tab.PHOTOS, DriveLogic.tabAt(2, hasPhotos = true))
+        // a page beyond the last (the photos went away): the last
+        assertEquals(DriveLogic.Tab.FILES, DriveLogic.tabAt(2, hasPhotos = false))
+        assertEquals(DriveLogic.Tab.OVERVIEW, DriveLogic.tabAt(-1, hasPhotos = false))
+        // swiping: not while items are ticked
+        assertTrue(DriveLogic.tabSwipe(selecting = false))
+        assertFalse(DriveLogic.tabSwipe(selecting = true))
+        // round trip page → tab → page
+        for (photos in listOf(false, true)) {
+            for (page in 0 until DriveLogic.tabCount(photos)) assertEquals(page, DriveLogic.pageOf(DriveLogic.tabAt(page, photos), photos))
         }
     }
 

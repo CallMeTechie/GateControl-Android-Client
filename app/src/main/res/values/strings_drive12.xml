@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.18: the overview of the Drive tab (Overview | Files | Photos). -->
+<resources>
+    <string name="drive_mode_overview">Overview</string>
+    <string name="drive_ov_search">Search Drive</string>
+    <string name="drive_ov_search_hint">Files, photos, people, places</string>
+    <string name="drive_ov_backup_saved">Photos backed up · %1$s</string>
+    <string name="drive_ov_backup_running">Backing up photos · %1$d of %2$d</string>
+    <string name="drive_ov_backup_running_start">Backing up photos</string>
+    <string name="drive_ov_backup_waiting">Photo backup is waiting</string>
+    <string name="drive_ov_backup_stopped">Photo backup stopped</string>
+    <string name="drive_ov_storage">%1$s of %2$s</string>
+    <string name="drive_ov_storage_used">%1$s used</string>
+    <string name="drive_ov_storage_desc">Storage: %1$s</string>
+    <string name="drive_ov_todo">To do</string>
+    <plurals name="drive_ov_more_deadlines">
+        <item quantity="one">%1$d more deadline</item>
+        <item quantity="other">%1$d more deadlines</item>
+    </plurals>
+    <plurals name="drive_ov_review">
+        <item quantity="one">Review %1$d photo</item>
+        <item quantity="other">Review %1$d photos</item>
+    </plurals>
+    <string name="drive_ov_review_hint">Work or private?</string>
+    <plurals name="drive_ov_to_file">
+        <item quantity="one">%1$d mail attachment to file</item>
+        <item quantity="other">%1$d mail attachments to file</item>
+    </plurals>
+    <string name="drive_ov_to_file_hint">Suggestion: %1$s</string>
+    <string name="drive_ov_recent">Recently opened</string>
+    <string name="drive_ov_memories">Memories</string>
+    <plurals name="drive_ov_memory_today">
+        <item quantity="one">Today one year ago</item>
+        <item quantity="other">Today %1$d years ago</item>
+    </plurals>
+    <string name="drive_ov_activity_in">New in %1$s</string>
+    <string name="drive_ov_activity_shared">New in shared areas</string>
+    <string name="drive_ov_someone">Someone</string>
+    <plurals name="drive_ov_act_photos">
+        <item quantity="one">%1$s added a photo</item>
+        <item quantity="other">%1$s added %2$d photos</item>
+    </plurals>
+    <plurals name="drive_ov_act_files">
+        <item quantity="one">%1$s added a file</item>
+        <item quantity="other">%1$s added %2$d files</item>
+    </plurals>
+    <string name="drive_ov_act_file">%1$s added “%2$s”</string>
+    <plurals name="drive_ov_act_changed">
+        <item quantity="one">%1$s changed a file</item>
+        <item quantity="other">%1$s changed %2$d files</item>
+    </plurals>
+    <string name="drive_ov_act_changed_one">%1$s changed “%2$s”</string>
+    <string name="drive_ov_empty">Nothing new right now.</string>
+</resources>
