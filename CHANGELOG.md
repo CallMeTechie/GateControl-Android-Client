@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.0] - 2026-11-01
+
+### Features
+- Übersicht | Dateien | Fotos – neue Übersicht, Fotos nur noch Bilder (Drive 1.18) (#175)
+
+---
+
 ## [1.76.2] - 2026-11-01
 
 ### Fixes
