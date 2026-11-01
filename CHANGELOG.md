@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.76.2] - 2026-11-01
+
+### Fixes
+- „Wer ist das?“ zeigt jede Person nur einmal pro Runde (#174)
+
+---
+
 ## [1.76.1] - 2026-11-01
 
 ### Fixes
