@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.75.0] - 2026-11-01
+
+### Features
+- Orte und Personen in den Fotos (Drive 1.16) (#170)
+
+---
+
 ## [1.74.0] - 2026-11-01
 
 ### Features
