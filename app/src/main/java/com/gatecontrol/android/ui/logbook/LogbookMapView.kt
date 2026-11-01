@@ -32,11 +32,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gatecontrol.android.logbook.LogbookLogic
 import com.gatecontrol.android.logbook.LogbookPoint
 import com.gatecontrol.android.ui.familie.OsmAttribution
+import com.gatecontrol.android.ui.familie.OsmFitter
 import com.gatecontrol.android.ui.familie.configureOsm
+import com.gatecontrol.android.ui.familie.showBox
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
@@ -134,11 +135,13 @@ internal fun LogbookMapView(
         }
     }
 
+    val fitter = remember(map) { OsmFitter(map) }
+    DisposableEffect(fitter) { onDispose { fitter.release() } }
     LaunchedEffect(map, fitKey) {
         val points = lines.flatMap { it.points } + dots.map { it.point }
-        // After the layout pass: a map that just grew (trip map made large) fits its new size.
-        if (map.width > 0 && map.height > 0) map.post { fit(map, points, padTopDp, padBottomDp) }
-        else map.addOnFirstLayoutListener { _, _, _, _, _ -> fit(map, points, padTopDp, padBottomDp) }
+        // After the layout pass, never inside it (the preview is a list item, laid out at 0 × 0 when measured
+        // ahead): a map that just grew (trip map made large) fits its new size.
+        fitter.request(fitKey ?: Unit) { fit(it, points, padTopDp, padBottomDp) }
     }
 
     Box(modifier.semantics { this.contentDescription = contentDescription }) {
@@ -295,13 +298,13 @@ private fun badgeBitmap(res: Resources, label: String, color: Int): Bitmap {
  * Shows all [points]: a close-up for (almost) one point, else their box
  * with a border, stretched so [padTopDp] / [padBottomDp] stay free.
  */
-private fun fit(map: MapView, points: List<LogbookPoint>, padTopDp: Int, padBottomDp: Int) {
-    val bounds = LogbookLogic.bounds(points) ?: return
+private fun fit(map: MapView, points: List<LogbookPoint>, padTopDp: Int, padBottomDp: Int): Boolean {
+    val bounds = LogbookLogic.bounds(points) ?: return true
     val (sw, ne) = bounds
     if (LogbookLogic.isTiny(bounds)) {
         map.controller.setZoom(15.0)
         map.controller.setCenter(GeoPoint((sw.lat + ne.lat) / 2, (sw.lon + ne.lon) / 2))
-        return
+        return true
     }
     val d = map.resources.displayMetrics.density
     val border = (32 * d).toInt()
@@ -309,5 +312,5 @@ private fun fit(map: MapView, points: List<LogbookPoint>, padTopDp: Int, padBott
     val span = ne.lat - sw.lat
     val north = (ne.lat + span * padTopDp * d / usable).coerceAtMost(85.0)
     val south = (sw.lat - span * padBottomDp * d / usable).coerceAtLeast(-85.0)
-    map.zoomToBoundingBox(BoundingBox(north, ne.lon, south, sw.lon), false, border, 17.0, null)
+    return map.showBox(north, ne.lon, south, sw.lon, border, closeZoom = 17.0)
 }
