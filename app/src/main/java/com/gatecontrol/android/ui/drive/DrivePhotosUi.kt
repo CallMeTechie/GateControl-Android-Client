@@ -61,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -68,6 +69,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -573,7 +575,11 @@ internal fun PhotoGrid(
             (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 24
         }
     }
-    LaunchedEffect(nearEnd, pages.items.size, pages.next) { if (nearEnd && !pages.end) onMore() }
+    // near the end: the next page — again once a load ended (a reload in between, the same size), and after a failure
+    // when the end is reached anew (the pager tried a few times already)
+    val latest by rememberUpdatedState(pages)
+    LaunchedEffect(nearEnd) { if (nearEnd && !latest.end) onMore() }
+    LaunchedEffect(pages.items.size, pages.next, pages.loading) { if (nearEnd && !pages.end && !pages.loading && pages.error == null) onMore() }
     val index = remember(pages.items) { pages.items.withIndex().associate { it.value.id to it.index } }
     val ids = remember(pages.items) { pages.items.map { it.id } }
     val x = GateControlTheme.extraColors
@@ -642,19 +648,23 @@ internal fun PhotoGrid(
                     val section = sections?.getOrNull(g)
                     val count = month?.let { months?.get(it) }
                     val title = section?.title ?: monthTitle(month) ?: stringResource(R.string.drive_photos_undated)
+                    // one line, as high while ticking as before: "Alle" / "Keine" take no height of their own (the photos
+                    // below must not move under the finger of the long press)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                         Text(
                             if (count != null && count > 0) "$title · ${pluralStringResource(R.plurals.drive_photos_count, count, count)}" else title,
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).padding(top = 8.dp, bottom = 4.dp, start = 4.dp).semantics { heading() },
                         )
-                        section?.trailing?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp, end = 4.dp)) }
+                        section?.trailing?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp, end = 4.dp)) }
                         if (selecting && onSelect != null) {
                             val monthIds = list.map { it.id }
                             val all = DriveBulk.allSelected(selected, monthIds)
                             val desc = stringResource(if (all) R.string.drive_sel_none_of else R.string.drive_sel_all_of, title)
-                            TextButton(onClick = { onSelect(DriveBulk.allOrNone(selected, monthIds)) }, modifier = Modifier.heightIn(min = 44.dp).semantics { contentDescription = desc }) {
+                            TextButton(onClick = { onSelect(DriveBulk.allOrNone(selected, monthIds)) }, modifier = Modifier.noHeight().heightIn(min = 44.dp).semantics { contentDescription = desc }) {
                                 Text(stringResource(if (all) R.string.drive_sel_none else R.string.drive_sel_all), color = x.accentText, fontWeight = FontWeight.SemiBold)
                             }
                         }
@@ -686,6 +696,15 @@ internal fun PhotoGrid(
             }
         }
     }
+}
+
+/**
+ * Takes no height in its row (drawn centred on it, taps still reach it): a button that appears while ticking does not
+ * make the row higher.
+ */
+internal fun Modifier.noHeight(): Modifier = layout { measurable, constraints ->
+    val p = measurable.measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+    layout(p.width, 0) { p.placeRelative(0, -p.height / 2) }
 }
 
 /** A heading of [PhotoGrid] with its photos (Drive 1.16: a place's day with its district, a person's year). */
@@ -925,7 +944,8 @@ internal fun PhotoViewer(
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), key = { items.getOrNull(it)?.id ?: it }) { page ->
-                val n = items[page]
+                // the list may have changed under the pager (a reload): no page beyond it
+                val n = items.getOrNull(page) ?: return@HorizontalPager
                 val large = rememberDrivePreview(n, large = true)
                 val small = rememberDrivePreview(n)
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

@@ -280,7 +280,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                 // below stays (dimmed), so the page does not move under the finger of the long press
                 SelectionSwap(
                     selecting,
-                    selection = { if (ticked.isNotEmpty()) PhotosSelectionHead(photosViewModel) else FolderSelectionHead(folderViewModel) },
+                    // the head of the page shown, also before ticking starts (it is measured then: the row keeps its height)
+                    selection = { if (ticked.isNotEmpty() || (onPhotosPage && folderTicked.isEmpty())) PhotosSelectionHead(photosViewModel) else FolderSelectionHead(folderViewModel) },
                     bar = {
                     TabBar(
                         when {

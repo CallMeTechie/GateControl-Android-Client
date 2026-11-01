@@ -129,11 +129,14 @@ class GateControlApp : Application() {
             }
         }
 
-        // Crash reports of earlier runs go to the server as a support bundle.
+        // Crash reports of earlier runs go to the server as a support bundle — with the exits Android recorded that
+        // the handler never saw (ANR, native crash, ended for memory).
         try {
             val uploader = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).crashReportUploader()
-            if (CrashReports.pending().isNotEmpty()) {
-                appScope.launch { uploader.uploadPending(BuildConfig.VERSION_NAME, Locale.getDefault().language) }
+            val main = getProcessName() == packageName
+            appScope.launch {
+                if (main) CrashReports.recordExits(this@GateControlApp)
+                if (CrashReports.pending().isNotEmpty()) uploader.uploadPending(BuildConfig.VERSION_NAME, Locale.getDefault().language)
             }
         } catch (e: Throwable) {
             Timber.e(e, "Failed to start the crash report upload")
