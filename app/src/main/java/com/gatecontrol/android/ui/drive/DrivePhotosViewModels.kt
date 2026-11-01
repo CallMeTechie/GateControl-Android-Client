@@ -21,6 +21,7 @@ import com.gatecontrol.android.drive.work.WorkSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,20 +43,42 @@ data class PhotoPages(
     val end: Boolean get() = loaded && next == null
 }
 
-/** Loads [PhotoPages] with [fetch] (`before` → a page); one load at a time. */
-internal class PhotoPager(private val scope: kotlinx.coroutines.CoroutineScope, private val fetch: suspend (before: String?) -> DResult<DPhotos>) {
+/**
+ * Loads [PhotoPages] with [fetch] (`before` → a page); one load at a time. Each photo once, whatever the pages repeat.
+ * A page that failed is tried again a few times ([retryMs], doubling) before the list says so.
+ */
+internal class PhotoPager(
+    private val scope: kotlinx.coroutines.CoroutineScope,
+    private val retryMs: Long = RETRY_MS,
+    private val fetch: suspend (before: String?) -> DResult<DPhotos>,
+) {
     private val _state = MutableStateFlow(PhotoPages())
     val state: StateFlow<PhotoPages> = _state.asStateFlow()
     private var job: Job? = null
 
+    /**
+     * The first page again. [quiet] (after a change: sorted, moved, deleted): what is shown stays until the new pages
+     * are there, as many as were loaded — the list does not fall back to its first page under the finger.
+     */
     fun reload(quiet: Boolean = false) {
         job?.cancel()
+        val depth = if (quiet) _state.value.items.size else 0
         _state.update { if (quiet && it.loaded) it.copy(loading = true, error = null) else PhotoPages(loading = true) }
         job = scope.launch {
-            val r = fetch(null)
-            _state.value = when (r) {
-                is DResult.Ok -> PhotoPages(r.value.items, r.value.next, loaded = true)
-                else -> _state.value.copy(loading = false, error = r.errorCode())
+            when (val r = fetch(null)) {
+                is DResult.Ok -> {
+                    var items = DriveLogic.appendPage(emptyList(), r.value.items)
+                    var next = r.value.next
+                    while (next != null && items.size < depth) {
+                        val p = fetch(next) as? DResult.Ok ?: break
+                        items = DriveLogic.appendPage(items, p.value.items)
+                        // a page that does not go on (never: the server's `next` is always older) ends it
+                        if (p.value.next == next) break
+                        next = p.value.next
+                    }
+                    _state.value = PhotoPages(items, next, loaded = true)
+                }
+                else -> _state.value = _state.value.copy(loading = false, error = r.errorCode())
             }
         }
     }
@@ -65,11 +88,19 @@ internal class PhotoPager(private val scope: kotlinx.coroutines.CoroutineScope, 
         if (s.loading || !s.loaded || s.next == null) return
         _state.value = s.copy(loading = true, error = null)
         job = scope.launch {
-            val r = fetch(s.next)
+            var r = fetch(s.next)
+            var wait = retryMs
+            repeat(RETRIES) {
+                if (r is DResult.Ok || r is DResult.NotConfigured) return@repeat
+                delay(wait)
+                wait *= 2
+                r = fetch(s.next)
+            }
+            val page = r
             _state.update { cur ->
-                when (r) {
-                    is DResult.Ok -> cur.copy(items = DriveLogic.appendPage(cur.items, r.value.items), next = r.value.next, loading = false)
-                    else -> cur.copy(loading = false, error = r.errorCode())
+                when (page) {
+                    is DResult.Ok -> cur.copy(items = DriveLogic.appendPage(cur.items, page.value.items), next = page.value.next, loading = false)
+                    else -> cur.copy(loading = false, error = page.errorCode())
                 }
             }
         }
@@ -79,6 +110,11 @@ internal class PhotoPager(private val scope: kotlinx.coroutines.CoroutineScope, 
     fun retry() = if (_state.value.loaded) more() else reload()
 
     fun drop(ids: Set<Long>) = _state.update { it.copy(items = it.items.filter { n -> n.id !in ids }) }
+
+    private companion object {
+        const val RETRIES = 3
+        const val RETRY_MS = 1_500L
+    }
 }
 
 /** The Drive tab's photos (Drive 1.7): the timeline by month, "Vor einem Jahr", the albums. */
