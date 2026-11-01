@@ -344,6 +344,14 @@ internal object DriveOverviewLogic {
     /** The last folder name of a path ("Familie/Urlaub 2026" → "Urlaub 2026"). */
     fun folderName(path: String?): String? = path?.trim('/')?.substringAfterLast('/')?.ifEmpty { null }
 
+    /**
+     * A file served from this phone's cache is told to Drive as opened ("Zuletzt geöffnet" counts what `content`
+     * loads; a cached copy loads nothing): only with `overview`, the file itself (no older version), no folder, vault
+     * file, photo or video (Drive leaves those out).
+     */
+    fun reportOpen(me: DMe?, node: DNode, versionId: Long?): Boolean =
+        me?.has(DMe.FEATURE_OVERVIEW) == true && versionId == null && !node.isDir && !node.encrypted && !isMedia(node)
+
     /** Live events reload the overview at most this often. */
     const val LIVE_THROTTLE_MS = 15_000L
 }

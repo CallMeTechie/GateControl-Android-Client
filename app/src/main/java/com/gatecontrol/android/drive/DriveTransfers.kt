@@ -412,6 +412,8 @@ class DriveTransfers @Inject constructor(
         val target = File(dir, name)
         if (target.isFile && (versionId != null || target.length() == node.size)) {
             target.setLastModified(System.currentTimeMillis())
+            // Drive 1.18: "Zuletzt geöffnet" — the copy here loaded nothing from Drive, so it is told (errors stay quiet)
+            if (DriveOverviewLogic.reportOpen(live.me.value, node, versionId)) scope.launch { api.opened(node.id) }
             return@withContext DResult.Ok(target)
         }
         _downloading.update { it + (node.id to 0f) }

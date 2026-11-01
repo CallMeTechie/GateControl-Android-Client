@@ -222,6 +222,20 @@ class DriveOverviewTest {
     }
 
     @Test
+    fun `a file from the cache is told to Drive as opened - only with overview, only the file itself`() {
+        val me = DMe(1, "Marc", "family", true, null, emptyList(), 0, null, null, emptyMap(), features = setOf(DMe.FEATURE_OVERVIEW))
+        val pdf = node(1, "Rechnung.pdf", mime = "application/pdf")
+        assertTrue(DriveOverviewLogic.reportOpen(me, pdf, versionId = null))
+        // an older version, a photo, a folder, a vault file, a Drive without overview: nothing
+        assertFalse(DriveOverviewLogic.reportOpen(me, pdf, versionId = 7))
+        assertFalse(DriveOverviewLogic.reportOpen(me, node(2, "a.jpg"), null))
+        assertFalse(DriveOverviewLogic.reportOpen(me, node(3, "Ordner", dir = true), null))
+        assertFalse(DriveOverviewLogic.reportOpen(me, pdf.copy(vaultId = "v1"), null))
+        assertFalse(DriveOverviewLogic.reportOpen(me.copy(features = emptySet()), pdf, null))
+        assertFalse(DriveOverviewLogic.reportOpen(null, pdf, null))
+    }
+
+    @Test
     fun `small helpers`() {
         assertTrue(DriveOverviewLogic.isMedia(node(1, "a.JPG")))
         assertTrue(DriveOverviewLogic.isMedia(node(2, "clip", mime = "video/mp4")))
