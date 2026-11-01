@@ -117,6 +117,22 @@ fun DriveFolderScreen(
     )
 }
 
+/** "N ausgewählt" of a folder: the summary of what is ticked, "Alle" / "Keine". */
+@Composable
+internal fun FolderSelectionHead(viewModel: DriveFolderViewModel) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selected by viewModel.bulk.selected.collectAsStateWithLifecycle()
+    val items = (state as? DriveLoad.Ready)?.value?.items.orEmpty()
+    val chosen = remember(selected, items) { items.filter { it.id in selected } }
+    SelectionHead(
+        count = chosen.size,
+        line = summaryText(DriveBulk.summary(chosen)),
+        allSelected = DriveBulk.allSelected(selected, items.map { it.id }),
+        onClose = viewModel.bulk::clear,
+        onAll = viewModel.bulk::allOrNone,
+    )
+}
+
 /**
  * A folder: its content, upload, new folder, and per item open, send, link, rename, move, versions, trash. [topBar]
  * gets the title and the sort button; [header] goes above the items (the Drive tab: "Zuletzt").
@@ -136,6 +152,8 @@ internal fun DriveFolderContent(
     gridState: androidx.compose.runtime.MutableState<Boolean> = rememberDriveGrid(),
     /** A tap on the path above (the Drive tab: the folder shows in the tab itself); else [onFolder]. */
     onCrumb: ((Long) -> Unit)? = null,
+    /** The page shows its own selection head in place of [topBar] (false: the Drive tab shows it, [FolderSelectionHead]). */
+    ownHead: Boolean = true,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val area by viewModel.area.collectAsStateWithLifecycle()
@@ -214,14 +232,8 @@ internal fun DriveFolderContent(
 
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
-        if (selecting) {
-            SelectionHead(
-                count = chosen.size,
-                line = summaryText(DriveBulk.summary(chosen)),
-                allSelected = DriveBulk.allSelected(selected, items.map { it.id }),
-                onClose = viewModel.bulk::clear,
-                onAll = viewModel.bulk::allOrNone,
-            )
+        if (ownHead) {
+            SelectionSwap(selecting, bar = { topBar(title) { FolderViewActions(viewModel, gridState) } }, selection = { FolderSelectionHead(viewModel) })
         } else {
             topBar(title) { FolderViewActions(viewModel, gridState) }
         }

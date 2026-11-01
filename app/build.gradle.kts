@@ -118,6 +118,8 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // Robolectric (Compose UI tests) needs the merged resources and manifest
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -241,6 +243,10 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)
     testImplementation(libs.robolectric)
+    // Compose UI tests on the JVM (Robolectric): the Drive grid must not move when ticking starts
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    testRuntimeOnly(libs.junit.vintage.engine)
     testImplementation(libs.okhttp)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
@@ -333,8 +339,21 @@ val faceModels = tasks.register<FaceModelsTask>("faceModels") {
     outputDir.set(layout.buildDirectory.dir("faceModels"))
 }
 
+// Robolectric's Android jar (Compose UI tests) through Gradle and its cache, not Robolectric's own downloader
+val robolectricJars: Configuration by configurations.creating
+dependencies {
+    robolectricJars("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
+}
+val robolectricDeps = tasks.register<Sync>("robolectricDeps") {
+    from(robolectricJars)
+    into(layout.buildDirectory.dir("robolectric"))
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
+    dependsOn(robolectricDeps)
+    systemProperty("robolectric.offline", "true")
+    systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric").get().asFile.absolutePath)
     finalizedBy(tasks.named("jacocoTestReport"))
 }
 

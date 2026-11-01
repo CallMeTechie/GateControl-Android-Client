@@ -67,11 +67,12 @@ fun DriveAlbumScreen(onBack: () -> Unit, viewModel: DriveAlbumViewModel = hiltVi
     // back ends the selection first
     BackHandler(enabled = selecting) { viewModel.clearSelection() }
     Column(Modifier.fillMaxSize()) {
-        if (selecting) {
-            SelectionHead(count = selected.size, line = null, allSelected = false, onClose = viewModel::clearSelection, onAll = null)
-        } else {
-            AlbumBar(a?.name ?: stringResource(R.string.drive_photos_albums), canEdit, onBack, onAdd = viewModel::openPicker, onRename = { renaming = true }, onDelete = { deleting = true })
-        }
+        // the title row only, as high either way: the photos do not move when ticking starts
+        SelectionSwap(
+            selecting,
+            bar = { AlbumBar(a?.name ?: stringResource(R.string.drive_photos_albums), canEdit, onBack, onAdd = viewModel::openPicker, onRename = { renaming = true }, onDelete = { deleting = true }) },
+            selection = { SelectionHead(count = selected.size, line = null, allSelected = false, onClose = viewModel::clearSelection, onAll = null) },
+        )
         when (val s = album) {
             DriveLoad.Loading -> if (!photos.loaded) DriveLoading()
             is DriveLoad.Error -> DriveErrorBox(s.code, onRetry = viewModel::refresh)

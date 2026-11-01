@@ -276,7 +276,12 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         if (home != null && current != null) {
             Column(Modifier.fillMaxSize()) {
                 // while ticking, the page's own bar ("N ausgewählt") is on top
-                if (!selecting) {
+                // while ticking, the page's head ("N ausgewählt") takes the title row only, as high as it; the switch
+                // below stays (dimmed), so the page does not move under the finger of the long press
+                SelectionSwap(
+                    selecting,
+                    selection = { if (ticked.isNotEmpty()) PhotosSelectionHead(photosViewModel) else FolderSelectionHead(folderViewModel) },
+                    bar = {
                     TabBar(
                         when {
                             onPhotosPage -> stringResource(R.string.drive_mode_photos)
@@ -294,8 +299,9 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                             }
                         },
                     )
-                    if (hasPhotos) DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage)
-                }
+                    },
+                )
+                if (hasPhotos) Box(Modifier.inert(selecting)) { DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage) }
                 HorizontalPager(
                     state = pager,
                     modifier = Modifier.weight(1f),
@@ -312,6 +318,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                             onCleanup = nav.cleanup,
                             onFile = nav.file,
                             places = PhotosPlacesNav(search = nav.photoSearch, map = nav.photoMap, place = nav.place, people = nav.people, person = nav.person),
+                            ownHead = false,
                         )
                     } else {
                         DriveFilesPage(
@@ -398,6 +405,8 @@ private fun DriveFilesPage(
         topBar = { _, _ -> },
         header = header,
         onCrumb = onCrumb,
+        // the tab shows the selection head in its own title row
+        ownHead = false,
     )
 }
 

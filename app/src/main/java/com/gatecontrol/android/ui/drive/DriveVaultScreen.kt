@@ -585,40 +585,47 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val where = DriveBulk.Where(writable = { ready?.folder?.writable == true }, vault = true)
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            if (selecting) {
-                SelectionHead(
-                    count = chosen.size,
-                    line = summaryText(DriveBulk.summary(chosen.map { it.first })),
-                    allSelected = DriveBulk.allSelected(selected, vaultItems.map { it.first.id }),
-                    onClose = viewModel.bulk::clear,
-                    onAll = { viewModel.touch(); viewModel.bulk.allOrNone() },
-                )
-            } else GcSubpageBar(barTitle, onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
-                if (ready != null) {
-                    GcIconButton(GcIcons.Lock, contentDescription = stringResource(R.string.drive_vault_lock_now), onClick = viewModel::lockNow, tint = MaterialTheme.colorScheme.onBackground)
-                    GcIconButton(GcIcons.Users, contentDescription = stringResource(R.string.drive_vault_requests), onClick = viewModel::openRequests, tint = MaterialTheme.colorScheme.onBackground)
-                    // a new key and a new recovery key: the write right (the server's rule)
-                    if (ready.folder.writable) {
-                        Box {
-                            GcIconButton(GcIcons.Key, contentDescription = stringResource(R.string.drive_vault_keys), onClick = { keysOpen = true }, tint = MaterialTheme.colorScheme.onBackground)
-                            DropdownMenu(expanded = keysOpen, onDismissRequest = { keysOpen = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.drive_vault_rotate)) },
-                                    leadingIcon = { Icon(GcIcons.Refresh, contentDescription = null) },
-                                    onClick = { keysOpen = false; confirmRotate = true },
-                                    enabled = !busy,
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.drive_vault_new_recovery)) },
-                                    leadingIcon = { Icon(GcIcons.Lifebuoy, contentDescription = null) },
-                                    onClick = { keysOpen = false; confirmRecovery = true },
-                                    enabled = !busy,
-                                )
+            // ticking changes the title row only (as high either way)
+            SelectionSwap(
+                selecting,
+                bar = {
+                    GcSubpageBar(barTitle, onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
+                        if (ready != null) {
+                            GcIconButton(GcIcons.Lock, contentDescription = stringResource(R.string.drive_vault_lock_now), onClick = viewModel::lockNow, tint = MaterialTheme.colorScheme.onBackground)
+                            GcIconButton(GcIcons.Users, contentDescription = stringResource(R.string.drive_vault_requests), onClick = viewModel::openRequests, tint = MaterialTheme.colorScheme.onBackground)
+                            // a new key and a new recovery key: the write right (the server's rule)
+                            if (ready.folder.writable) {
+                                Box {
+                                    GcIconButton(GcIcons.Key, contentDescription = stringResource(R.string.drive_vault_keys), onClick = { keysOpen = true }, tint = MaterialTheme.colorScheme.onBackground)
+                                    DropdownMenu(expanded = keysOpen, onDismissRequest = { keysOpen = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.drive_vault_rotate)) },
+                                            leadingIcon = { Icon(GcIcons.Refresh, contentDescription = null) },
+                                            onClick = { keysOpen = false; confirmRotate = true },
+                                            enabled = !busy,
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.drive_vault_new_recovery)) },
+                                            leadingIcon = { Icon(GcIcons.Lifebuoy, contentDescription = null) },
+                                            onClick = { keysOpen = false; confirmRecovery = true },
+                                            enabled = !busy,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
+                },
+                selection = {
+                    SelectionHead(
+                        count = chosen.size,
+                        line = summaryText(DriveBulk.summary(chosen.map { it.first })),
+                        allSelected = DriveBulk.allSelected(selected, vaultItems.map { it.first.id }),
+                        onClose = viewModel.bulk::clear,
+                        onAll = { viewModel.touch(); viewModel.bulk.allOrNone() },
+                    )
+                },
+            )
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

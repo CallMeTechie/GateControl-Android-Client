@@ -161,6 +161,23 @@ internal fun DriveModeSwitch(photos: Boolean, onPhotos: (Boolean) -> Unit) {
     )
 }
 
+/** "N ausgewählt" of the photos, with the hint of what can be done (work photos apart: "Arbeit" / "Privat"). */
+@Composable
+internal fun PhotosSelectionHead(viewModel: DrivePhotosViewModel) {
+    val me by viewModel.live.me.collectAsStateWithLifecycle()
+    val selected by viewModel.selected.collectAsStateWithLifecycle()
+    val timeline by viewModel.timeline.collectAsStateWithLifecycle()
+    val workSettings by viewModel.workSettings.collectAsStateWithLifecycle()
+    val localReview by viewModel.localReview.collectAsStateWithLifecycle()
+    val chosen = remember(selected, timeline.items) { timeline.items.filter { it.id in selected } }
+    val line = when {
+        DriveWorkLogic.reviewBar(chosen, localReview) -> stringResource(R.string.drive_work_sel_review)
+        workSettings.active || viewModel.work.serverClasses(me) -> stringResource(R.string.drive_work_sel_normal)
+        else -> stringResource(R.string.drive_photos_sel_hint)
+    }
+    SelectionHead(count = selected.size, line = line, allSelected = false, onClose = viewModel::clearSelection, onAll = null)
+}
+
 /**
  * The photos of Drive (Drive 1.7): the timeline by month with "Vor einem Jahr" on top, loading on while scrolling, and
  * the albums. Long press ticks photos for an album; a tap shows them full screen.
@@ -175,6 +192,8 @@ internal fun DrivePhotosContent(
     onFile: ((Long) -> Unit)? = null,
     /** Drive 1.16: where the search, the map, a place and the people lead (null: not shown). */
     places: PhotosPlacesNav? = null,
+    /** The page shows its own selection head in place of [topBar] (false: the Drive tab shows it, [PhotosSelectionHead]). */
+    ownHead: Boolean = true,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -276,21 +295,14 @@ internal fun DrivePhotosContent(
 
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
-        if (selecting) {
-            val line = when {
-                reviewBar -> stringResource(R.string.drive_work_sel_review)
-                workOn -> stringResource(R.string.drive_work_sel_normal)
-                else -> stringResource(R.string.drive_photos_sel_hint)
-            }
-            SelectionHead(count = selected.size, line = line, allSelected = false, onClose = viewModel::clearSelection, onAll = null)
-        } else {
-            topBar()
-            if (places != null && (placesOn || peopleOn)) PhotosSearchField(onClick = places.search, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-        }
-        if (!selecting && workOn) {
+        // ticking changes the title row only (as high either way); everything below stays, dimmed — the grid must not
+        // move under the finger of the long press
+        if (ownHead) SelectionSwap(selecting, bar = topBar, selection = { PhotosSelectionHead(viewModel) }) else topBar()
+        if (places != null && (placesOn || peopleOn)) PhotosSearchField(onClick = places.search, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).inert(selecting))
+        if (workOn) {
             val why = if (serverClasses) null else stringResource(R.string.drive_work_needs_1130)
             val reviewDesc = stringResource(R.string.drive_work_review_count, reviewCount)
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 0.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.inert(selecting).horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 0.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 val onTimeline = tab == "timeline" || !hasAlbums
                 WorkChip(stringResource(R.string.drive_work_all), selected = onTimeline && cls == null, onClick = { tab = "timeline"; viewModel.setClass(null) })
                 WorkChip(stringResource(R.string.drive_work_private), selected = onTimeline && cls == "private", why = why, onClick = { tab = "timeline"; viewModel.setClass("private") })
@@ -307,8 +319,8 @@ internal fun DrivePhotosContent(
                     GcFilterChip(stringResource(R.string.drive_photos_camera_only), selected = cameraOnly, onClick = { viewModel.setCameraOnly(!cameraOnly) }, modifier = Modifier.padding(start = 8.dp))
                 }
             }
-        } else if (!selecting && (hasAlbums || hasCamera)) {
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        } else if (hasAlbums || hasCamera) {
+            Row(Modifier.inert(selecting).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hasAlbums) {
                     GcFilterChip(stringResource(R.string.drive_photos_timeline), selected = tab == "timeline", onClick = { tab = "timeline" })
                     GcFilterChip(stringResource(R.string.drive_photos_albums), selected = tab == "albums", onClick = { tab = "albums" })
@@ -328,7 +340,7 @@ internal fun DrivePhotosContent(
                 BulkBusyCard(busy, viewModel.bulk::cancelBusy)
             }
         }
-        if (!selecting && workOn && tab != "albums") {
+        if (workOn && tab != "albums") Column(Modifier.inert(selecting)) {
             if (reviewCount > 0) {
                 WorkBand(
                     pluralStringResource(R.plurals.drive_work_banner, reviewCount, reviewCount),
@@ -376,7 +388,8 @@ internal fun DrivePhotosContent(
                     onMore = viewModel::more,
                     onRetry = viewModel::refresh,
                     empty = stringResource(R.string.drive_photos_empty),
-                    header = if (selecting) null else ({
+                    // the header stays while ticking (else the photos below it would move up)
+                    header = ({
                         // Drive 1.16: "Personen" with "Wer ist das?", "Orte" with the map — on "Alle" only
                         if (places != null && cls == null) {
                             val (named, unnamed) = DrivePlacesLogic.bar(barPeople?.people.orEmpty())
