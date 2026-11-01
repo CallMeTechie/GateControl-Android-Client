@@ -101,6 +101,12 @@ data class DriveNav(
     val deadlines: () -> Unit = {},
     /** Photos by what is in them (Drive 1.14, `photoSearch`): the search of the Photos page. */
     val photoSearch: () -> Unit = {},
+    /** Drive 1.16 (`photoPlaces`): the map of the photos, a place. */
+    val photoMap: () -> Unit = {},
+    val place: (String) -> Unit = {},
+    /** Drive 1.16 (`photoPeople`): the people, one person. */
+    val people: () -> Unit = {},
+    val person: (Long) -> Unit = {},
     /** A vault folder (Drive 1.9). */
     val vault: (String, Long) -> Unit = { _, _ -> },
     /** "Drive-Einstellungen" (Drive 1.11, the gear of the menu). */
@@ -278,8 +284,15 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                             else -> current.label
                         },
                         onMenu = openMenu,
-                        onSearch = if (onPhotosPage && me?.has(DMe.FEATURE_PHOTO_SEARCH) == true) nav.photoSearch else nav.search,
-                        actions = { if (!onPhotosPage) FolderViewActions(folderViewModel, grid) },
+                        onSearch = if (onPhotosPage && DriveLogic.photoSearchable(me)) nav.photoSearch else nav.search,
+                        actions = {
+                            if (!onPhotosPage) {
+                                FolderViewActions(folderViewModel, grid)
+                            } else if (me?.has(DMe.FEATURE_PHOTO_PLACES) == true) {
+                                // Drive 1.16: the photos on the map
+                                GcIconButton(GcIcons.Map, contentDescription = stringResource(R.string.drive_pp_map), onClick = nav.photoMap, tint = MaterialTheme.colorScheme.onBackground)
+                            }
+                        },
                     )
                     if (hasPhotos) DriveModeSwitch(photos = onPhotosPage, onPhotos = showPage)
                 }
@@ -292,7 +305,14 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     key = { it },
                 ) { page ->
                     if (DriveLogic.isPhotosTab(page, hasPhotos)) {
-                        DrivePhotosContent(viewModel = photosViewModel, topBar = {}, onAlbum = nav.album, onCleanup = nav.cleanup, onFile = nav.file)
+                        DrivePhotosContent(
+                            viewModel = photosViewModel,
+                            topBar = {},
+                            onAlbum = nav.album,
+                            onCleanup = nav.cleanup,
+                            onFile = nav.file,
+                            places = PhotosPlacesNav(search = nav.photoSearch, map = nav.photoMap, place = nav.place, people = nav.people, person = nav.person),
+                        )
                     } else {
                         DriveFilesPage(
                             folderViewModel = folderViewModel,

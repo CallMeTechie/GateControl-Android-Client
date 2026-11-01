@@ -38,23 +38,46 @@ class DriveWorkGeo @Inject constructor(@ApplicationContext private val context: 
     }
 
     /** Where [node] was taken, if its original is on this phone. */
-    suspend fun of(node: DNode): Look = withContext(Dispatchers.IO) {
-        if (node.isDir || node.encrypted || node.size <= 0 || node.mime?.startsWith("image/") != true) return@withContext Look(true, null)
-        if (!canLook()) return@withContext Look(false, null)
+    suspend fun of(node: DNode): Look = when (val f = find(node)) {
+        Found.Unknown -> Look(false, null)
+        Found.NotHere, Found.NoPosition -> Look(true, null)
+        is Found.At -> Look(true, f.at)
+    }
+
+    /** What a look at the phone found for a photo in Drive (Drive 1.16 "Orte nachtragen" tells these apart). */
+    sealed class Found {
+        /** The phone could not look (no permission, an error): ask again later. */
+        data object Unknown : Found()
+        /** The original is not on this phone (or no picture): another device may know. */
+        data object NotHere : Found()
+        /** The original is here and has no position. */
+        data object NoPosition : Found()
+        data class At(val at: GeoPoint) : Found()
+    }
+
+    /** The original of [node] in the gallery (same name and size); null when it is not on this phone. Throws on errors. */
+    fun original(node: DNode): android.net.Uri? {
+        if (node.isDir || node.encrypted || node.size <= 0 || node.mime?.startsWith("image/") != true) return null
+        return context.contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.MediaColumns._ID),
+            "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.SIZE} = ?",
+            arrayOf(node.name, node.size.toString()),
+            null,
+        )?.use { c -> if (c.moveToFirst()) ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, c.getLong(0)) else null }
+    }
+
+    suspend fun find(node: DNode): Found = withContext(Dispatchers.IO) {
+        if (node.isDir || node.encrypted || node.size <= 0 || node.mime?.startsWith("image/") != true) return@withContext Found.NotHere
+        if (!canLook()) return@withContext Found.Unknown
         try {
-            val id = context.contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.MediaColumns._ID),
-                "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.SIZE} = ?",
-                arrayOf(node.name, node.size.toString()),
-                null,
-            )?.use { c -> if (c.moveToFirst()) c.getLong(0) else null } ?: return@withContext Look(true, null)
-            val uri = MediaStore.setRequireOriginal(ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id))
+            val plain = original(node) ?: return@withContext Found.NotHere
+            val uri = MediaStore.setRequireOriginal(plain)
             val at = context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd -> DriveWorkPlaces.of(ExifInterface(pfd.fileDescriptor).latLong) }
-            Look(true, at)
+            if (at == null) Found.NoPosition else Found.At(at)
         } catch (e: Exception) {
             Timber.d("Drive work: no location (%s)", e.javaClass.simpleName)
-            Look(false, null)
+            Found.Unknown
         }
     }
 }

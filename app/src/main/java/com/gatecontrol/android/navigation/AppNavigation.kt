@@ -1886,6 +1886,10 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 file = nav.file,
                 deadlines = { nav.go(Screen.DriveDeadlines.route) },
                 photoSearch = { nav.go(Screen.DrivePhotoSearch.route) },
+                photoMap = { nav.go(Screen.DrivePhotoMap.route) },
+                place = { key -> nav.go(Screen.DrivePhotoPlace.create(key)) },
+                people = { nav.go(Screen.DrivePeople.route) },
+                person = { id -> nav.go(Screen.DrivePerson.create(id)) },
                 vault = nav.vault,
                 settings = { nav.go(Screen.DriveSettings.route) },
                 cleanup = { nav.go(Screen.DriveCleanup.route) },
@@ -1921,7 +1925,45 @@ private fun NavGraphBuilder.driveRoutes(
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveDeadlinesScreen(onBack = back, onFile = file) }
     }
     composable(Screen.DrivePhotoSearch.route) {
-        GcContentWidth { com.gatecontrol.android.ui.drive.DrivePhotoSearchScreen(onBack = back) }
+        GcContentWidth {
+            com.gatecontrol.android.ui.drive.DrivePhotoSearchScreen(
+                onBack = back,
+                onPerson = { go(Screen.DrivePerson.create(it)) },
+                onPlace = { go(Screen.DrivePhotoPlace.create(it)) },
+            )
+        }
+    }
+    composable(Screen.DrivePhotoMap.route) {
+        com.gatecontrol.android.ui.drive.DrivePhotoMapScreen(
+            onBack = back,
+            onPlace = { key, bbox -> go(Screen.DrivePhotoPlace.create(key, bbox?.let { b -> listOf(b.west, b.south, b.east, b.north).joinToString(",") })) },
+            onPerson = { go(Screen.DrivePerson.create(it)) },
+        )
+    }
+    composable(
+        Screen.DrivePhotoPlace.route,
+        arguments = listOf(
+            navArgument(Screen.DrivePhotoPlace.ARG_KEY) { type = NavType.StringType; nullable = true; defaultValue = null },
+            navArgument(Screen.DrivePhotoPlace.ARG_BBOX) { type = NavType.StringType; nullable = true; defaultValue = null },
+            navArgument(Screen.DrivePhotoPlace.ARG_PERSON) { type = NavType.StringType; nullable = true; defaultValue = null },
+        ),
+    ) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DrivePlaceScreen(onBack = back) }
+    }
+    composable(Screen.DrivePeople.route) {
+        GcContentWidth {
+            com.gatecontrol.android.ui.drive.DrivePeopleScreen(
+                onBack = back,
+                onPerson = { go(Screen.DrivePerson.create(it)) },
+                onSettings = { go(Screen.DrivePlacesSettings.route) },
+            )
+        }
+    }
+    composable(Screen.DrivePerson.route, arguments = listOf(navArgument(Screen.DrivePerson.ARG_ID) { type = NavType.StringType })) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DrivePersonScreen(onBack = back, onPlace = { key, person -> go(Screen.DrivePhotoPlace.create(key, person = person)) }) }
+    }
+    composable(Screen.DrivePlacesSettings.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DrivePlacesSettingsScreen(onBack = back) }
     }
     composable(
         Screen.DriveVault.route,
@@ -1945,6 +1987,7 @@ private fun NavGraphBuilder.driveRoutes(
                 onBack = back,
                 onBackup = { go(Screen.DriveBackup.route) },
                 onFolders = { go(Screen.DriveFolders.route) },
+                onPlaces = { go(Screen.DrivePlacesSettings.route) },
             )
         }
     }

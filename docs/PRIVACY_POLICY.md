@@ -1,6 +1,6 @@
 # GateControl — Datenschutzerklärung / Privacy Policy
 
-*Stand / Last updated: 15. Oktober 2026 / October 15, 2026*
+*Stand / Last updated: 1. November 2026 / November 1, 2026*
 
 [Deutsch](#deutsch) · [English](#english)
 
@@ -60,6 +60,15 @@ Die Tür-Funktionen (Schnellaktionen, Mitteilungen und der Bildschirm „Tür & 
 - **Ring:** Die Verbindung zu Ring (Klingeln, Kamerabilder) stellt dein Server her, nicht die App — über eine inoffizielle Schnittstelle, ohne Gewähr.
 
 Nichts davon geht an CallMeTechie oder andere Dritte.
+
+### Drive: Orte und Personen in den Fotos (Plugin „Drive“ deines Servers)
+
+Nur, wenn dein Server Drive 1.16 oder neuer anbietet.
+
+- **Orte:** Mit „Aufnahmeort mitsichern“ (Drive › Einstellungen › Orte und Personen, standardmäßig an, solange du die Foto-Sicherung nutzt) schickt die Foto-Sicherung die Koordinaten aus den EXIF-Daten des Fotos (Breiten- und Längengrad) an **deinen eigenen Server**. Dafür liest die App die Ortsangaben der Originale (Android-Berechtigung „Zugriff auf Fotostandorte“). „Orte nachtragen“ macht dasselbe für schon gesicherte Fotos, die noch auf dem Handy liegen. Den Ortsnamen ermittelt dein Server selbst, ohne externen Dienst. Ausgeschaltet sendet die App keine Orte mehr; „Alle Orte löschen“ entfernt sie auf dem Server. Die Karte lädt Kartenbilder von OpenStreetMap — dabei erfährt OpenStreetMap den angezeigten Kartenausschnitt, aber keine Fotos.
+- **Personen (Gesichtsmerkmale):** Nur wenn du „Personen erkennen“ einschaltest (standardmäßig aus). Dann findet dein Handy Gesichter in deinen Fotos — **auf dem Gerät**, mit den Modellen YuNet und SFace, im WLAN und standardmäßig nur beim Laden — und schickt je Gesicht nur eine Zahlenreihe (Gesichtsmerkmal), den Bildausschnitt als Position und die Erkennungssicherheit an **deinen eigenen Server**. Fotos verlassen dafür weder das Handy noch deinen Server. Für Fotos, die nicht mehr auf dem Handy liegen, lädt die App die Vorschau von deinem Server. Dein Server gruppiert die Merkmale zu Personen; nur du siehst deine Personen und Namen. Ausschalten löscht alle Gesichtsdaten (Merkmale, Personen, Namen) auf dem Server. Die Ordner von Kindern sind ausgenommen, solange du „Kinderordner einbeziehen“ nicht einschaltest.
+
+Nichts davon geht an CallMeTechie, Google oder andere Dritte.
 
 ### Kamera
 
@@ -148,6 +157,15 @@ The door features (quick actions, notifications and the "Door & camera" screen) 
 - **Ring:** the connection to Ring (rings, camera pictures) is made by your server, not by the app — through an unofficial interface, without warranty.
 
 None of this goes to CallMeTechie or other third parties.
+
+### Drive: places and people in the photos (your server's "Drive" plugin)
+
+Only when your server offers Drive 1.16 or later.
+
+- **Places:** with "Keep where photos were taken" (Drive › Settings › Places and people, on by default while you use the photo backup) the photo backup sends the coordinates from the photo's EXIF data (latitude and longitude) to **your own server**. For this the app reads the location data of the originals (Android permission "Access photo locations"). "Add places" does the same for photos already backed up that are still on the phone. Your server works out the place name itself, without an external service. Switched off, the app sends no places; "Delete all places" removes them on the server. The map loads map images from OpenStreetMap — OpenStreetMap learns the map area shown, but no photos.
+- **People (face features):** only when you switch on "Recognise people" (off by default). Your phone then finds faces in your photos — **on the device**, with the YuNet and SFace models, on Wi-Fi and by default only while charging — and sends for each face only a series of numbers (the face feature), the face's position in the picture and how sure the detection is to **your own server**. No photo leaves the phone or your server for this. For photos no longer on the phone the app loads the preview from your server. Your server groups the features into people; only you see your people and names. Switching off deletes all face data (features, people, names) on the server. Children's folders are left out unless you switch on "Include the children's folders".
+
+None of this goes to CallMeTechie, Google or other third parties.
 
 ### Camera
 

@@ -112,6 +112,10 @@ data class DMe(
         const val FEATURE_PHOTO_SEARCH = "photoSearch"
         /** Drive 1.14: a deadline into the family calendar (`POST deadlines/<id>/calendar`). */
         const val FEATURE_DEADLINE_CALENDAR = "deadlineCalendar"
+        /** Drive 1.16: where photos were taken (`geo` on the commit, `photos/places`, `photos/map`, `place=`, `bbox=`). */
+        const val FEATURE_PHOTO_PLACES = "photoPlaces"
+        /** Drive 1.16: people in the photos (faces found on the phones, `people`, `person=`). */
+        const val FEATURE_PHOTO_PEOPLE = "photoPeople"
     }
 }
 
@@ -214,6 +218,12 @@ data class DNode(
     val work: Boolean = false,
     /** Drive 1.14 (`photoSearch`): a phone looked at the photo and sent what is on it; null when the server says nothing. */
     val labeled: Boolean? = null,
+    /** Drive 1.16 (`photoPlaces`): where it was taken; null without a place. */
+    val geo: DGeo? = null,
+    /** Drive 1.16: Drive has a place for it, or knows there is none (null: the server says nothing). */
+    val located: Boolean? = null,
+    /** Drive 1.16 (`photoPeople`, `with=people`): the named people on it (ids); null when not asked. */
+    val people: List<Long>? = null,
 ) {
     /** In a vault: nothing of it may go to a preview, a link, the office, the AI or a backup. */
     val encrypted: Boolean get() = vaultId != null
@@ -232,6 +242,14 @@ data class DPhotoSettings(
     val workInMemories: Boolean = false,
     val folderPath: String? = null,
     val folderAreaId: String? = null,
+    /** Drive 1.16 (`photoPlaces`): the apps send where photos were taken; null when the server does not say. */
+    val keepGeo: Boolean? = null,
+    /** Drive 1.16: links and GateDrop give photos without GPS data; null: not offered (the switch is hidden). */
+    val stripGeoOnShare: Boolean? = null,
+    /** Drive 1.16 (`photoPeople`): faces are recognised; null when the server does not say. */
+    val people: Boolean? = null,
+    /** Drive 1.16: the children's folders too. */
+    val peopleKids: Boolean? = null,
 )
 
 /** `GET photos/classes`: how many photos are work, private and to be reviewed. */
@@ -308,6 +326,10 @@ data class DPhotos(
     val total: Int? = null,
     /** Drive 1.14 `photos?q=`: the most frequent terms of the hits (the chips). */
     val terms: List<String> = emptyList(),
+    /** Drive 1.16: the people and places the words of `q` were taken as. */
+    val marks: DSearchMarks = DSearchMarks(),
+    /** Drive 1.16 `photos?place=&districts=1`: the place's districts. */
+    val districts: List<DDistrict> = emptyList(),
 )
 
 /** `GET photos/months`: how many photos a month (`2026-10`) has. */

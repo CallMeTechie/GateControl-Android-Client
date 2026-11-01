@@ -199,6 +199,9 @@ internal object DriveJson {
             review = o.obj("review")?.let { DReview(it.int("hint")?.coerceIn(0, 100)) },
             work = o.bool("work") == true,
             labeled = o.bool("labeled"),
+            geo = DrivePlacesJson.geo(o.obj("geo")),
+            located = o.bool("located"),
+            people = o.arr("people")?.mapNotNull { e -> runCatching { e.asLong }.getOrNull() }?.distinct()?.take(50),
         ).let { n ->
             // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
             val vault = vaultId(o.str("vaultId"))
@@ -386,6 +389,7 @@ internal object DriveJson {
         onConflict: String,
         text: String? = null,
         takenAt: String? = null,
+        geo: com.gatecontrol.android.drive.work.GeoPoint? = null,
     ) = JsonObject().apply {
         addProperty("mediaId", mediaId)
         addProperty("parentId", parentId)
@@ -396,6 +400,8 @@ internal object DriveJson {
         if (!text.isNullOrBlank()) addProperty("text", text.take(TEXT_MAX))
         // When a photo was taken (only sent when the server has `takenAt`).
         if (!takenAt.isNullOrBlank()) addProperty("takenAt", takenAt.take(40))
+        // Where it was taken (Drive 1.16, only sent with `photoPlaces` and `keepGeo`).
+        DrivePlacesJson.geoBody(geo)?.let { add("geo", it) }
     }
 
     /** An empty file (feature `emptyFiles`): no media, just its place, name and size 0. */
@@ -429,7 +435,7 @@ internal object DriveJson {
     /** `GET photos` → `{ items, next }`. */
     fun photos(o: JsonObject): DPhotos? {
         if (o.arr("items") == null) return null
-        return DPhotos(nodes(o), o.cursor("next"), o.int("total")?.takeIf { it >= 0 }, terms(o))
+        return DPhotos(nodes(o), o.cursor("next"), o.int("total")?.takeIf { it >= 0 }, terms(o), DrivePlacesJson.marks(o.obj("search")), DrivePlacesJson.districts(o))
     }
 
     /** `GET photos/months` → `{ months: [{ month, count }] }`. */
@@ -460,6 +466,7 @@ internal object DriveJson {
         cls: String? = null,
         q: String? = null,
         unlabeled: Boolean = false,
+        filter: DPhotoFilter = DPhotoFilter(),
     ): Map<String, String>? =
         buildMap {
             if (area != null) put("area", areaId(area) ?: return null)
@@ -470,6 +477,7 @@ internal object DriveJson {
             if (cls != null) put("class", cls.takeIf { it in PHOTO_CLASSES } ?: return null)
             if (q != null) q.trim().take(PHOTO_Q_MAX).takeIf { it.isNotEmpty() }?.let { put("q", it) }
             if (unlabeled) put("unlabeled", "1")
+            putAll(DrivePlacesJson.filterQuery(filter) ?: return null)
         }
 
     /** The values of `class` (Drive 1.13). */
@@ -477,7 +485,7 @@ internal object DriveJson {
 
     /** `GET|PUT photos/settings` → the work folder and its switches (Drive 1.13); null without the switches. */
     fun photoSettings(o: JsonObject): DPhotoSettings? {
-        if (!o.has("workFolder") && !o.has("workSubfolders")) return null
+        if (!o.has("workFolder") && !o.has("workSubfolders") && !o.has("keepGeo") && !o.has("people")) return null
         val folder = o.obj("folder")
         val id = o.long("workFolder")?.takeIf { it > 0 }
         return DPhotoSettings(
@@ -486,6 +494,10 @@ internal object DriveJson {
             workInMemories = o.bool("workInMemories") ?: false,
             folderPath = folder?.takeIf { id != null }?.str("path")?.take(2000),
             folderAreaId = folder?.takeIf { id != null }?.let { areaId(it.str("areaId")) },
+            keepGeo = o.bool("keepGeo"),
+            stripGeoOnShare = o.bool("stripGeoOnShare"),
+            people = o.bool("people"),
+            peopleKids = o.bool("peopleKids"),
         )
     }
 

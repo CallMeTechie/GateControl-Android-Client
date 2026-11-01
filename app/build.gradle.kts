@@ -1,3 +1,7 @@
+import java.net.HttpURLConnection
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -207,6 +211,10 @@ dependencies {
     // Drive: work photos apart — image labeling on the phone (Play services, no model in the APK, no picture leaves the phone)
     implementation(libs.mlkit.image.labeling)
 
+    // Drive: people in the photos — faces found and described on the phone (YuNet, SFace; models from OpenCV Zoo,
+    // fetched by :app:faceModels), no picture leaves the phone for it
+    implementation(libs.onnxruntime.android)
+
     // Vault: end-to-end encryption (README "Kryptoformat" of gatecontrol-vault) and the recovery key's QR
     implementation(libs.bouncycastle.prov)
     implementation(libs.zxing.core)
@@ -258,6 +266,75 @@ gradle.taskGraph.whenReady {
         throw GradleException(
             "Release signing requires KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD",
         )
+    }
+}
+
+// Drive: the face models (OpenCV Zoo, unchanged files) are fetched at build time and checked against their SHA-256,
+// so the repository does not carry 39 MB of weights. Kept in Gradle's cache; another mirror is tried when one fails.
+abstract class FaceModelsTask : DefaultTask() {
+    @get:Input abstract val models: MapProperty<String, String>
+    @get:Input abstract val mirrors: ListProperty<String>
+    @get:Internal abstract val cacheDir: DirectoryProperty
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun fetch() {
+        val out = outputDir.get().asFile.resolve("faces").apply { deleteRecursively(); mkdirs() }
+        val cache = cacheDir.get().asFile.apply { mkdirs() }
+        for ((path, sha) in models.get()) {
+            val name = path.substringAfterLast('/')
+            val cached = cache.resolve("$sha-$name")
+            if (!cached.isFile || sha256(cached) != sha) {
+                var last: Exception? = null
+                val ok = mirrors.get().any { base ->
+                    try {
+                        val tmp = cache.resolve("$name.part")
+                        val url = base.replace("{dir}", path.substringBeforeLast('/')).replace("{file}", name)
+                        val conn = URI(url).toURL().openConnection() as HttpURLConnection
+                        conn.instanceFollowRedirects = true
+                        conn.connectTimeout = 30_000
+                        conn.readTimeout = 120_000
+                        conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+                        if (sha256(tmp) != sha) throw GradleException("SHA-256 of $name from $base does not match")
+                        tmp.renameTo(cached)
+                    } catch (e: Exception) {
+                        last = e
+                        false
+                    }
+                }
+                if (!ok) throw GradleException("Face model $name could not be fetched", last)
+            }
+            cached.copyTo(out.resolve(name), overwrite = true)
+        }
+    }
+
+    private fun sha256(f: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { input ->
+            val buf = ByteArray(1 shl 16)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                md.update(buf, 0, n)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+}
+
+val faceModels = tasks.register<FaceModelsTask>("faceModels") {
+    // directory/file in OpenCV Zoo → SHA-256 (licences: assets/faces/NOTICE.txt)
+    models.put("face_detection_yunet/face_detection_yunet_2023mar.onnx", "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4")
+    models.put("face_recognition_sface/face_recognition_sface_2021dec.onnx", "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79")
+    mirrors.add("https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/{dir}/{file}")
+    mirrors.add("https://huggingface.co/opencv/{dir}/resolve/main/{file}")
+    cacheDir.set(File(gradle.gradleUserHomeDir, "caches/gatecontrol-face-models"))
+    outputDir.set(layout.buildDirectory.dir("generated/faceModels"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(faceModels, FaceModelsTask::outputDir)
     }
 }
 

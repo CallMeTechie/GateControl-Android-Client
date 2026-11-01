@@ -281,6 +281,32 @@ sealed class Screen(val route: String) {
     data object DriveDeadlines : Screen("drive/deadlines")
     /** Photos by what is in them (Drive 1.14, feature `photoSearch`). */
     data object DrivePhotoSearch : Screen("drive/photos/search")
+    /** "Karte": the photos on OpenStreetMap (Drive 1.16, feature `photoPlaces`). */
+    data object DrivePhotoMap : Screen("drive/photos/map")
+    /** "Ort": a place's photos by day ([ARG_KEY]; or a box `w,s,e,n` without a place), optionally with people. */
+    data object DrivePhotoPlace : Screen("drive/photos/place?key={key}&bbox={bbox}&person={person}") {
+        const val ARG_KEY = "key"
+        const val ARG_BBOX = "bbox"
+        const val ARG_PERSON = "person"
+        fun create(key: String?, bbox: String? = null, person: Long? = null): String = buildString {
+            append("drive/photos/place")
+            val args = listOfNotNull(
+                key?.let { "key=" + android.net.Uri.encode(it) },
+                bbox?.let { "bbox=" + android.net.Uri.encode(it) },
+                person?.let { "person=$it" },
+            )
+            if (args.isNotEmpty()) append("?").append(args.joinToString("&"))
+        }
+    }
+    /** "Personen" (Drive 1.16, feature `photoPeople`). */
+    data object DrivePeople : Screen("drive/photos/people")
+    /** One person of the photos. */
+    data object DrivePerson : Screen("drive/photos/person/{id}") {
+        const val ARG_ID = "id"
+        fun create(id: Long) = "drive/photos/person/$id"
+    }
+    /** Drive › Einstellungen › "Orte und Personen". */
+    data object DrivePlacesSettings : Screen("drive/settings/places")
     /** A folder of a vault (Drive 1.9); `requests=1` shows the approval requests at once (a request's push). */
     data object DriveVault : Screen("drive/vault/{vault}/{folder}?requests={requests}") {
         const val ARG_VAULT = "vault"
