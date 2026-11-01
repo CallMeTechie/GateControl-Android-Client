@@ -24,8 +24,9 @@ This product includes software developed at:
   Copyright (c) Microsoft Corporation
   Licensed under the MIT License
 
-  The model files are fetched unchanged at build time (app/build.gradle.kts, task faceModels);
-  their licence texts ship in the app under assets/faces/.
+  YuNet ships unchanged in the app (assets/faces/); SFace is loaded unchanged by the app when
+  "Recognise people" is switched on (attached to each GitHub release by the release workflow).
+  Their licence texts ship in the app under assets/faces/.
 
 The full text of the Apache License 2.0 is available at
   http://www.apache.org/licenses/LICENSE-2.0

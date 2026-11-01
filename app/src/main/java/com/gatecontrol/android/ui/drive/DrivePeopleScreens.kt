@@ -69,6 +69,7 @@ import com.gatecontrol.android.drive.DPerson
 import com.gatecontrol.android.drive.DPersonContact
 import com.gatecontrol.android.drive.DrivePlacesJson
 import com.gatecontrol.android.drive.DrivePlacesLogic
+import com.gatecontrol.android.drive.faces.FaceModelState
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
@@ -108,6 +109,41 @@ internal fun FacesProgress(done: Int?, total: Int?, chargingOnly: Boolean) {
     }
 }
 
+/** "12 von 39 MB". */
+private fun mb(bytes: Long): String = java.text.NumberFormat.getIntegerInstance().format((bytes + 500_000) / 1_000_000)
+
+/**
+ * The feature model while it is not on the phone yet: its download ("Erkennungsmodell wird geladen · 12 von 39 MB"),
+ * waiting for WLAN (with "Jetzt über mobile Daten laden"), or what went wrong with "Erneut versuchen".
+ */
+@Composable
+internal fun FaceModelCard(state: FaceModelState, onMobile: () -> Unit, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    val x = GateControlTheme.extraColors
+    val failed = state.phase == FaceModelState.Phase.FAILED
+    GcCard(modifier = modifier, color = if (failed) x.errorBg else x.panel2, borderColor = androidx.compose.ui.graphics.Color.Transparent, contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when (state.phase) {
+            FaceModelState.Phase.LOADING -> {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(GcIcons.Download, contentDescription = null, tint = x.accentText, modifier = Modifier.size(16.dp))
+                    Text(stringResource(R.string.drive_pp_model_loading, mb(state.done), mb(state.total)), style = MaterialTheme.typography.titleSmall)
+                }
+                LinearProgressIndicator(progress = { (state.done.toFloat() / state.total.coerceAtLeast(1)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)))
+            }
+            FaceModelState.Phase.FAILED -> {
+                Text(
+                    stringResource(if (state.error == "hash") R.string.drive_pp_model_failed_hash else R.string.drive_pp_model_failed),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.drive_retry), color = x.accentText, fontWeight = FontWeight.SemiBold) }
+            }
+            else -> {
+                Text(stringResource(R.string.drive_pp_model_waiting, mb(state.total)), style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = onMobile) { Text(stringResource(R.string.drive_pp_model_mobile), color = x.accentText, fontWeight = FontWeight.SemiBold) }
+            }
+        }
+    }
+}
+
 /** A person in the grid: the face, the name (or "Benennen"), the count. */
 @Composable
 private fun PersonTile(p: DPerson, onClick: () -> Unit) {
@@ -140,6 +176,7 @@ fun DrivePeopleScreen(onBack: () -> Unit, onPerson: (Long) -> Unit, onSettings: 
     val x = GateControlTheme.extraColors
     val people by viewModel.people.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val model by viewModel.model.collectAsStateWithLifecycle(FaceModelState(FaceModelState.Phase.READY))
     var naming by remember { mutableStateOf<Long?>(null) }
     var allUnnamed by rememberSaveable { mutableStateOf(false) }
     var showHidden by rememberSaveable { mutableStateOf(false) }
@@ -174,6 +211,9 @@ fun DrivePeopleScreen(onBack: () -> Unit, onPerson: (Long) -> Unit, onSettings: 
                                 Text(stringResource(R.string.drive_pp_people_off), style = MaterialTheme.typography.bodyMedium)
                                 TextButton(onClick = onSettings) { Text(stringResource(R.string.drive_pp_turn_on), color = x.accentText, fontWeight = FontWeight.SemiBold) }
                             }
+                        } else if (model.phase != FaceModelState.Phase.READY) {
+                            // first the feature model, then the faces
+                            FaceModelCard(model, onMobile = { viewModel.loadModel(true) }, onRetry = { viewModel.loadModel(false) })
                         } else {
                             FacesProgress(p.value.done, p.value.total, settings.chargingOnly)
                         }

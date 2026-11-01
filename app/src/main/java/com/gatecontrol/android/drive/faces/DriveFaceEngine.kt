@@ -20,12 +20,15 @@ import kotlin.math.roundToInt
 
 /**
  * Faces in a picture, on the phone (Drive 1.16, `photoPeople`): YuNet finds them with their 5 points, SFace describes
- * each as 128 numbers (model `sface-2021dec`, ONNX Runtime on the CPU; the models ship in the app's assets, see
- * assets/faces/NOTICE.txt). Only the numbers and the boxes go to the person's own server, never a picture.
+ * each as 128 numbers (model `sface-2021dec`, ONNX Runtime on the CPU; YuNet ships in the app's assets, SFace is
+ * loaded when switched on — [DriveFaceModel]; see assets/faces/NOTICE.txt). Only the numbers and the boxes go to the person's own server, never a picture.
  * [open] loads both models for one run (about 40 MB): close it when the run is done.
  */
 @Singleton
-class DriveFaceEngine @Inject constructor(@ApplicationContext private val context: Context) {
+class DriveFaceEngine @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val model: DriveFaceModel,
+) {
 
     /** Both models, loaded. Not thread safe: one picture at a time. */
     inner class Models internal constructor(private val env: OrtEnvironment, private val detector: OrtSession, private val recognizer: OrtSession) : Closeable {
@@ -94,8 +97,8 @@ class DriveFaceEngine @Inject constructor(@ApplicationContext private val contex
         }
     }
 
-    /** Both models for a run; null when they cannot be loaded (missing, too little memory). */
-    fun open(): Models? = try {
+    /** Both models for a run; null when they cannot be loaded (SFace not loaded yet, too little memory). */
+    fun open(): Models? = if (!model.ready()) null else try {
         val env = OrtEnvironment.getEnvironment()
         val options = OrtSession.SessionOptions().apply {
             setIntraOpNumThreads(THREADS)
@@ -103,7 +106,7 @@ class DriveFaceEngine @Inject constructor(@ApplicationContext private val contex
         }
         val detector = env.createSession(asset(DETECTOR), options)
         val recognizer = try {
-            env.createSession(asset(RECOGNIZER), options)
+            env.createSession(model.file.absolutePath, options)
         } catch (e: Exception) {
             detector.close()
             throw e
@@ -143,7 +146,6 @@ class DriveFaceEngine @Inject constructor(@ApplicationContext private val contex
 
     companion object {
         const val DETECTOR = "face_detection_yunet_2023mar.onnx"
-        const val RECOGNIZER = "face_recognition_sface_2021dec.onnx"
         private const val INPUT_FEATURE = "data"
         private const val THREADS = 2
         /** Originals are read at most this large (long side). */

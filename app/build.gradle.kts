@@ -211,8 +211,8 @@ dependencies {
     // Drive: work photos apart — image labeling on the phone (Play services, no model in the APK, no picture leaves the phone)
     implementation(libs.mlkit.image.labeling)
 
-    // Drive: people in the photos — faces found and described on the phone (YuNet, SFace; models from OpenCV Zoo,
-    // fetched by :app:faceModels), no picture leaves the phone for it
+    // Drive: people in the photos — faces found and described on the phone (YuNet in the assets, SFace loaded when
+    // switched on; models from OpenCV Zoo), no picture leaves the phone for it
     implementation(libs.onnxruntime.android)
 
     // Vault: end-to-end encryption (README "Kryptoformat" of gatecontrol-vault) and the recovery key's QR
@@ -269,8 +269,10 @@ gradle.taskGraph.whenReady {
     }
 }
 
-// Drive: the face models (OpenCV Zoo, unchanged files) are fetched at build time and checked against their SHA-256,
-// so the repository does not carry 39 MB of weights. Kept in Gradle's cache; another mirror is tried when one fails.
+// Drive: SFace, the face feature model (OpenCV Zoo, unchanged, 39 MB), is not in the app: the phone loads it when the
+// person switches on "Personen erkennen" (DriveFaceModel). This task fetches it, checked against its SHA-256, for the
+// release workflow, which attaches it to every GitHub release (the app's first source). YuNet (0.2 MB) is in assets/faces.
+// Kept in Gradle's cache; another mirror is tried when one fails.
 abstract class FaceModelsTask : DefaultTask() {
     @get:Input abstract val models: MapProperty<String, String>
     @get:Input abstract val mirrors: ListProperty<String>
@@ -279,7 +281,7 @@ abstract class FaceModelsTask : DefaultTask() {
 
     @TaskAction
     fun fetch() {
-        val out = outputDir.get().asFile.resolve("faces").apply { deleteRecursively(); mkdirs() }
+        val out = outputDir.get().asFile.apply { deleteRecursively(); mkdirs() }
         val cache = cacheDir.get().asFile.apply { mkdirs() }
         for ((path, sha) in models.get()) {
             val name = path.substringAfterLast('/')
@@ -323,19 +325,12 @@ abstract class FaceModelsTask : DefaultTask() {
 }
 
 val faceModels = tasks.register<FaceModelsTask>("faceModels") {
-    // directory/file in OpenCV Zoo → SHA-256 (licences: assets/faces/NOTICE.txt)
-    models.put("face_detection_yunet/face_detection_yunet_2023mar.onnx", "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4")
+    // directory/file in OpenCV Zoo → SHA-256 (the same as DriveFaceModel's; licences: assets/faces/NOTICE.txt)
     models.put("face_recognition_sface/face_recognition_sface_2021dec.onnx", "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79")
     mirrors.add("https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/{dir}/{file}")
     mirrors.add("https://huggingface.co/opencv/{dir}/resolve/main/{file}")
     cacheDir.set(File(gradle.gradleUserHomeDir, "caches/gatecontrol-face-models"))
-    outputDir.set(layout.buildDirectory.dir("generated/faceModels"))
-}
-
-androidComponents {
-    onVariants { variant ->
-        variant.sources.assets?.addGeneratedSourceDirectory(faceModels, FaceModelsTask::outputDir)
-    }
+    outputDir.set(layout.buildDirectory.dir("faceModels"))
 }
 
 tasks.withType<Test> {

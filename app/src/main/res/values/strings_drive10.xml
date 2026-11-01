@@ -147,6 +147,7 @@
     <string name="drive_pp_how_1">The phone recognises the faces itself, on Wi-Fi and while charging.</string>
     <string name="drive_pp_how_2">Only face features (numbers) reach your server, no pictures go to third parties.</string>
     <string name="drive_pp_how_3">Only you see your people and names.</string>
+    <string name="drive_pp_how_5">When switched on, the phone loads the recognition model (39 MB) once from GitHub, else from Hugging Face – no photo goes with it.</string>
     <string name="drive_pp_how_4">Switching off deletes all face data.</string>
     <string name="drive_pp_charging">Only while charging</string>
     <string name="drive_pp_charging_desc">The first recognition of many photos needs battery – this way it runs at night. Applies to this phone.</string>
@@ -159,4 +160,9 @@
     <string name="drive_pp_off_go">Switch off and delete</string>
     <string name="drive_pp_faces_deleted">Face data deleted.</string>
     <string name="drive_pp_licenses">Face recognition on the phone with YuNet (MIT licence) and SFace (Apache License 2.0) from OpenCV Zoo, run with ONNX Runtime (MIT licence).</string>
+    <string name="drive_pp_model_loading">Loading the recognition model · %1$s of %2$s MB</string>
+    <string name="drive_pp_model_waiting">The recognition model (%1$s MB) is loaded once as soon as the phone is on Wi-Fi. Recognition starts after that.</string>
+    <string name="drive_pp_model_mobile">Load now over mobile data</string>
+    <string name="drive_pp_model_failed">The recognition model could not be loaded.</string>
+    <string name="drive_pp_model_failed_hash">The recognition model loaded was damaged and has been discarded.</string>
 </resources>

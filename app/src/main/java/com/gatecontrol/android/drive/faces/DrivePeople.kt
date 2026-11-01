@@ -57,6 +57,7 @@ class DrivePeople @Inject constructor(
     private val previews: DrivePreviews,
     private val resolver: DriveNodeResolver,
     private val geo: DriveWorkGeo,
+    private val model: DriveFaceModel,
 ) {
     private val lock = Mutex()
 
@@ -76,6 +77,8 @@ class DrivePeople @Inject constructor(
     suspend fun run(budget: Int = BUDGET): Outcome = lock.withLock {
         withContext(Dispatchers.Default) {
             if (!refresh()) return@withContext Outcome.DONE
+            // the feature model first (loaded once; its job starts this one again when it is here)
+            if (!model.ready()) return@withContext Outcome.DONE.also { DriveFaceModelWork.start(context) }
             val models = engine.open() ?: return@withContext Outcome.DONE
             try {
                 pass(models, budget)
@@ -114,7 +117,7 @@ class DrivePeople @Inject constructor(
                 DResult.Offline -> return Outcome.RETRY
                 is DResult.Failed -> {
                     // switched off meanwhile (not just a child's folder, which is left out)
-                    if (off(r)) return Outcome.DONE.also { prefs.took(com.gatecontrol.android.drive.DPhotoSettings(people = false)) }
+                    if (off(r)) return Outcome.DONE.also { switchedOff() }
                     prefs.donePending(p.nodeId)
                 }
                 else -> return Outcome.DONE
@@ -141,7 +144,7 @@ class DrivePeople @Inject constructor(
                 when (val r = api.putFaces(n.id, DriveFacesLogic.MODEL, faces)) {
                     is DResult.Ok -> Unit
                     DResult.Offline -> return Outcome.RETRY
-                    is DResult.Failed -> if (off(r)) return Outcome.DONE
+                    is DResult.Failed -> if (off(r)) return Outcome.DONE.also { switchedOff() }
                     else -> return Outcome.DONE
                 }
                 done++
@@ -155,6 +158,12 @@ class DrivePeople @Inject constructor(
             }
         }
         return Outcome.MORE
+    }
+
+    /** Switched off elsewhere (another device, the portal): no faces any more, the model goes too. */
+    private fun switchedOff() {
+        prefs.took(com.gatecontrol.android.drive.DPhotoSettings(people = false))
+        model.delete()
     }
 
     /** `403 feature_off`: "Personen erkennen" is off — but not for a picture in a child's folder (`reason: kids`). */

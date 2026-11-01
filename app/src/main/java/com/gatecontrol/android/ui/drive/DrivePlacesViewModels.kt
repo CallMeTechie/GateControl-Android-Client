@@ -27,7 +27,10 @@ import com.gatecontrol.android.drive.DrivePlacesLogic
 import com.gatecontrol.android.drive.DrivePlacesPrefs
 import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.drive.PlacesSettings
+import com.gatecontrol.android.drive.faces.DriveFaceModel
+import com.gatecontrol.android.drive.faces.DriveFaceModelWork
 import com.gatecontrol.android.drive.faces.DrivePeopleWork
+import com.gatecontrol.android.drive.faces.FaceModelState
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.mail.MailPimRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -295,10 +298,16 @@ class DrivePlaceViewModel @Inject constructor(
 /** "Personen": how far the faces are, the named people, those without a name, the hidden ones. */
 @HiltViewModel
 class DrivePeopleViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val api: DriveApi,
     val live: DriveLive,
     private val prefs: DrivePlacesPrefs,
 ) : ViewModel() {
+    /** The feature model's download (the banner instead of the progress while it is not here). */
+    val model: kotlinx.coroutines.flow.Flow<FaceModelState> = DriveFaceModelWork.state(context)
+
+    fun loadModel(mobile: Boolean) = if (mobile) DriveFaceModelWork.start(context, mobile = true) else DriveFaceModelWork.retry(context)
+
     private val _people = MutableStateFlow<DriveLoad<DPeople>>(DriveLoad.Loading)
     val people: StateFlow<DriveLoad<DPeople>> = _people.asStateFlow()
     val settings: StateFlow<PlacesSettings> = prefs.settings
@@ -544,6 +553,7 @@ class DrivePlacesSettingsViewModel @Inject constructor(
     val live: DriveLive,
     private val prefs: DrivePlacesPrefs,
     private val backfill: DriveGeoBackfill,
+    private val faceModel: DriveFaceModel,
 ) : ViewModel() {
     val settings: StateFlow<PlacesSettings> = prefs.settings
     val geo: StateFlow<DrivePlacesPrefs.GeoProgress> = prefs.geo
@@ -589,12 +599,20 @@ class DrivePlacesSettingsViewModel @Inject constructor(
     fun setPeople(on: Boolean) = put({ api.putPlacesSettings(people = on) }) { ok ->
         if (!ok) return@put
         if (on) {
-            DrivePeopleWork.restart(context)
+            // the feature model first (in WLAN); its job starts the faces' job
+            if (faceModel.ready()) DrivePeopleWork.restart(context) else DriveFaceModelWork.start(context)
         } else {
             DrivePeopleWork.cancel(context)
+            DriveFaceModelWork.cancelAndDelete(context)
             _message.value = "people_deleted"
         }
     }
+
+    /** The feature model's download (only while "Personen erkennen" is on). */
+    val model: kotlinx.coroutines.flow.Flow<FaceModelState> = DriveFaceModelWork.state(context)
+
+    /** "Jetzt über mobile Daten laden" ([mobile]) or "Erneut versuchen". */
+    fun loadModel(mobile: Boolean) = if (mobile) DriveFaceModelWork.start(context, mobile = true) else DriveFaceModelWork.retry(context)
 
     fun setChargingOnly(on: Boolean) {
         prefs.setChargingOnly(on)

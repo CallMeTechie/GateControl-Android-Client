@@ -5,7 +5,7 @@ YuNet — face_detection_yunet_2023mar.onnx
   https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet
   Copyright (c) 2020 Shiqi Yu. MIT License (LICENSE-YuNet.txt).
 
-SFace — face_recognition_sface_2021dec.onnx
+SFace — face_recognition_sface_2021dec.onnx (loaded by the app when switched on, not part of the package)
   https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface
   Contributed by Yaoyao Zhong; ONNX conversion by Chengrui Wang.
   Apache License 2.0 (LICENSE-SFace.txt).

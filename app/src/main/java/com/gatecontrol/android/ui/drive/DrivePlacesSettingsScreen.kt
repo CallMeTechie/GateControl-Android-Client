@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DMe
+import com.gatecontrol.android.drive.faces.FaceModelState
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
@@ -56,6 +57,7 @@ fun DrivePlacesSettingsScreen(onBack: () -> Unit, viewModel: DrivePlacesSettings
     val s by viewModel.settings.collectAsStateWithLifecycle()
     val geo by viewModel.geo.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val model by viewModel.model.collectAsStateWithLifecycle(FaceModelState(FaceModelState.Phase.READY))
     val message by viewModel.message.collectAsStateWithLifecycle()
     var askPeopleOff by remember { mutableStateOf(false) }
     var askPlacesOff by remember { mutableStateOf(false) }
@@ -145,6 +147,15 @@ fun DrivePlacesSettingsScreen(onBack: () -> Unit, viewModel: DrivePlacesSettings
                         enabled = !busy,
                     )
                     if (s.people) {
+                        // the feature model is loaded once after switching on
+                        if (model.phase != FaceModelState.Phase.READY) {
+                            FaceModelCard(
+                                model,
+                                onMobile = { viewModel.loadModel(true) },
+                                onRetry = { viewModel.loadModel(false) },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
                         GcRowDivider()
                         GcSwitchRow(
                             label = stringResource(R.string.drive_pp_charging),
@@ -173,7 +184,7 @@ fun DrivePlacesSettingsScreen(onBack: () -> Unit, viewModel: DrivePlacesSettings
                 if (!s.people) {
                     GcCard(color = x.panel2, contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.drive_pp_how), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        listOf(R.string.drive_pp_how_1, R.string.drive_pp_how_2, R.string.drive_pp_how_3, R.string.drive_pp_how_4).forEach {
+                        listOf(R.string.drive_pp_how_1, R.string.drive_pp_how_5, R.string.drive_pp_how_2, R.string.drive_pp_how_3, R.string.drive_pp_how_4).forEach {
                             Text("• " + stringResource(it), style = MaterialTheme.typography.bodySmall, color = x.muted)
                         }
                     }

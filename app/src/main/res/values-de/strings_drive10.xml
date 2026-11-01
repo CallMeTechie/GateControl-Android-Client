@@ -147,6 +147,7 @@
     <string name="drive_pp_how_1">Das Handy erkennt die Gesichter selbst, im WLAN und beim Laden.</string>
     <string name="drive_pp_how_2">Auf deinem Server landen nur Gesichtsmerkmale (Zahlen), keine Bilder bei Dritten.</string>
     <string name="drive_pp_how_3">Nur du siehst deine Personen und Namen.</string>
+    <string name="drive_pp_how_5">Beim Einschalten lädt das Handy einmalig das Erkennungsmodell (39 MB) von GitHub, ersatzweise von Hugging Face – dabei geht kein Foto mit.</string>
     <string name="drive_pp_how_4">Ausschalten löscht alle Gesichtsdaten.</string>
     <string name="drive_pp_charging">Nur beim Laden</string>
     <string name="drive_pp_charging_desc">Die erste Erkennung vieler Fotos braucht Akku – so läuft sie nachts. Gilt für dieses Handy.</string>
@@ -159,4 +160,9 @@
     <string name="drive_pp_off_go">Ausschalten und löschen</string>
     <string name="drive_pp_faces_deleted">Gesichtsdaten gelöscht.</string>
     <string name="drive_pp_licenses">Gesichtserkennung auf dem Handy mit YuNet (MIT-Lizenz) und SFace (Apache-Lizenz 2.0) aus OpenCV Zoo, ausgeführt mit ONNX Runtime (MIT-Lizenz).</string>
+    <string name="drive_pp_model_loading">Erkennungsmodell wird geladen · %1$s von %2$s MB</string>
+    <string name="drive_pp_model_waiting">Das Erkennungsmodell (%1$s MB) wird einmalig geladen, sobald das Handy im WLAN ist. Danach beginnt die Erkennung.</string>
+    <string name="drive_pp_model_mobile">Jetzt über mobile Daten laden</string>
+    <string name="drive_pp_model_failed">Das Erkennungsmodell konnte nicht geladen werden.</string>
+    <string name="drive_pp_model_failed_hash">Das geladene Erkennungsmodell war fehlerhaft und wurde verworfen.</string>
 </resources>
