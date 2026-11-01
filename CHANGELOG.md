@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.74.0] - 2026-11-01
+
+### Features
+- Arbeitsfotos selbst einordnen – Orte, Bestand, Neubewertung (#169)
+
+---
+
 ## [1.73.0] - 2026-10-31
 
 ### Features
