@@ -121,7 +121,7 @@ jobs:
             ${{ runner.temp }}/media/screenshots/
             ${{ runner.temp }}/media/fail-*.png
             ${{ runner.temp }}/media/crash-*.txt
-          retention-days: 14
+          retention-days: 3
 
   publish:
     name: Publish to the layout-screens branch

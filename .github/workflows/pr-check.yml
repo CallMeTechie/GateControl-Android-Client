@@ -65,6 +65,7 @@ jobs:
         with:
           name: coverage-report
           path: app/build/reports/jacoco/
+          retention-days: 3
 
       - name: Build debug APK (build check)
         run: ./gradlew assembleDebug
