@@ -14,8 +14,10 @@ import com.gatecontrol.android.mail.MSettings
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MailDisplaySettings
 import com.gatecontrol.android.mail.MailJson
+import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.mail.MailRepository
 import com.gatecontrol.android.navigation.Screen
+import com.gatecontrol.android.ui.scan.scanDriveText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -60,10 +62,13 @@ class MailFilingViewModel @Inject constructor(
         _state.update { it.copy(busy = it.busy + item.id) }
         viewModelScope.launch {
             val r = repository.api.confirmFiling(item.id, folderId ?: item.suggestion?.folderId, if (folderId == null) item.suggestion?.name else null)
-            _state.update { s -> s.copy(busy = s.busy - item.id, items = if (r is MResult.Ok) s.items.filter { it.id != item.id } else s.items) }
+            // held back by the virus scan (Mail 1.8): the toast says why; a blocked one leaves the list (the server's does too)
+            val refusal = (r as? MResult.Failed)?.let(MailLogic::driveRefusal)
+            val gone = r is MResult.Ok || (refusal != null && !refusal.pending)
+            _state.update { s -> s.copy(busy = s.busy - item.id, items = if (gone) s.items.filter { it.id != item.id } else s.items) }
             _toast.value = when (r) {
                 is MResult.Ok -> context.getString(R.string.mail_saved_in, r.value.where)
-                else -> mailText(context, MailHomeViewModel.code(r))
+                else -> refusal?.let { scanDriveText(context, it.code, it.finding, name = item.name) } ?: mailText(context, MailHomeViewModel.code(r))
             }
         }
     }

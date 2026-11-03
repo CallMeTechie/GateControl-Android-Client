@@ -131,6 +131,20 @@ object MediaScanJson {
 
     fun isScanCode(code: String?): Boolean = code != null && code in CODES
 
+    /** A file held back by the scan (not a refused upload): what a hand-over of it fails with. */
+    private val HELD_BACK = setOf(SCAN_PENDING, QUARANTINED, SCAN_BLOCKED, ATTACHMENT_REMOVED)
+
+    /** The host's own codes (`gc.media.handOver`, …), when a plugin passes them on unchanged (Mail: `reason`). */
+    private val HOST = mapOf("ERR_MEDIA_QUARANTINED" to QUARANTINED, "ERR_MEDIA_SCAN_PENDING" to SCAN_PENDING, "ERR_MEDIA_BLOCKED" to SCAN_BLOCKED)
+
+    /**
+     * Why a hand-over failed because of the scan — a GateDrop delivery's `error`, "In Drive speichern" of Mail (`423`,
+     * `failed[].code` of "Alle in Drive", `drive_unavailable { reason }`): quarantined | scan_pending | scan_blocked |
+     * attachment_removed, also from the host's `ERR_MEDIA_*`; null for any other failure.
+     */
+    fun heldBack(code: String?, reason: String? = null): String? =
+        listOf(code, reason).firstNotNullOfOrNull { c -> c?.trim()?.let { if (it in HELD_BACK) it else HOST[it] } }
+
     /** `scan` as an object; null when missing or not understood (then nothing is shown). */
     fun scan(e: JsonElement?): MediaScan? {
         val o = e?.takeIf { it.isJsonObject }?.asJsonObject ?: return null

@@ -182,6 +182,13 @@ object GateDropLogic {
     }
 
     /**
+     * Why a delivery failed because of the virus scan (GateDrop 1.4: the file was held back before it was handed on —
+     * `quarantined`, `scan_pending`, `scan_blocked`): the first such code of a failed delivery; null when none failed so.
+     */
+    fun scanFailure(deliveries: List<GdDelivery>): String? =
+        deliveries.filter { it.status == GdDelivery.FAILED }.firstNotNullOfOrNull { MediaScanJson.heldBack(it.error) }
+
+    /**
      * The server's received sends with this device's saved copies,
      * plus what arrived directly only here; newest first. Pure.
      */

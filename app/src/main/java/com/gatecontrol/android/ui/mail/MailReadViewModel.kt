@@ -23,8 +23,10 @@ import com.gatecontrol.android.mail.notOk
 import com.gatecontrol.android.navigation.Screen
 import com.gatecontrol.android.scan.MediaScan
 import com.gatecontrol.android.scan.MediaScanJson
+import com.gatecontrol.android.scan.ScanRefusal
 import com.gatecontrol.android.ui.scan.scanClosedText
 import com.gatecontrol.android.ui.scan.scanCodeText
+import com.gatecontrol.android.ui.scan.scanDriveText
 import com.google.gson.JsonObject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -362,8 +364,13 @@ class MailReadViewModel @Inject constructor(
                     _event.value = MailReadEvent.Toast(context.getString(R.string.mail_saved_in, r.value.where))
                 }
                 else -> {
-                    updateAttachment(a.attachment.id) { it.copy(busy = false) }
-                    _event.value = MailReadEvent.Toast(mailText(context, MailHomeViewModel.code(r)))
+                    // held back by the virus scan (Mail 1.8, `423 …`): the attachment shows its state, the toast why
+                    val refusal = (r as? MResult.Failed)?.let(MailLogic::driveRefusal)
+                    val scan = refusal?.let(MediaScanJson::scanOf)
+                    updateAttachment(a.attachment.id) { it.copy(busy = false, scan = scan ?: it.scan) }
+                    _event.value = MailReadEvent.Toast(
+                        refusal?.let { scanDriveText(context, it.code, it.finding ?: scan?.finding) } ?: mailText(context, MailHomeViewModel.code(r)),
+                    )
                 }
             }
         }
@@ -375,9 +382,24 @@ class MailReadViewModel @Inject constructor(
             when (val r = api.saveAll(id)) {
                 is MResult.Ok -> {
                     r.value.saved.forEach { (aid, to) -> updateAttachment(aid) { it.copy(savedTo = to) } }
+                    // held back by the virus scan (Mail 1.8): those attachments show their state and the toast names it
+                    val held = r.value.failed.mapNotNull { (aid, code) -> MediaScanJson.heldBack(code)?.let { aid to it } }
+                    val other = r.value.failed.filter { (_, code) -> MediaScanJson.heldBack(code) == null }
+                    held.forEach { (aid, code) -> MediaScanJson.scanOf(ScanRefusal(code, 423))?.let { s -> updateAttachment(aid) { it.copy(scan = s) } } }
+                    val res = context.resources
+                    val heldText = when (held.size) {
+                        0 -> null
+                        1 -> held.single().let { (aid, code) ->
+                            scanDriveText(context, code, name = _state.value.attachments.firstOrNull { it.attachment.id == aid }?.attachment?.name)
+                        }
+                        else -> res.getQuantityString(R.plurals.scan_drive_not_saved_count, held.size, held.size)
+                    }
                     _event.value = MailReadEvent.Toast(
-                        context.resources.getQuantityString(R.plurals.mail_saved_all, r.value.saved.size, r.value.saved.size) +
-                            if (r.value.failed.isNotEmpty()) " · " + context.resources.getQuantityString(R.plurals.mail_saved_failed, r.value.failed.size, r.value.failed.size) else "",
+                        listOfNotNull(
+                            res.getQuantityString(R.plurals.mail_saved_all, r.value.saved.size, r.value.saved.size),
+                            other.takeIf { it.isNotEmpty() }?.let { res.getQuantityString(R.plurals.mail_saved_failed, it.size, it.size) },
+                            heldText,
+                        ).joinToString(" · "),
                     )
                 }
                 else -> _event.value = MailReadEvent.Toast(mailText(context, MailHomeViewModel.code(r)))

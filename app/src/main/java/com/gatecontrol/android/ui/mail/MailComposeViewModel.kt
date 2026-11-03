@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
 import com.gatecontrol.android.mail.MAddress
 import com.gatecontrol.android.mail.MAtt
+import com.gatecontrol.android.mail.MChanged
 import com.gatecontrol.android.mail.MContact
 import com.gatecontrol.android.mail.MDraft
 import com.gatecontrol.android.mail.MDraftAttachment
@@ -141,6 +142,7 @@ class MailComposeViewModel @Inject constructor(
     private val saveMutex = Mutex()
     private var autosave: Job? = null
     private var suggestJob: Job? = null
+    private var scanReload: Job? = null
     /** Something changed since the last save. */
     @Volatile private var dirty = false
     /** The person changed something here (else closing leaves nothing behind). */
@@ -148,6 +150,33 @@ class MailComposeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { start() }
+        viewModelScope.launch { repository.changed.collect(::onChanged) }
+    }
+
+    /**
+     * The live event `mail { kind: 'changed', draftId }` (Mail 1.8): the virus scan of an attachment of the open draft
+     * came to a result (or an administrator released / deleted it) → the draft is read again and its attachments take
+     * the new state. What the person typed, picked or added meanwhile stays (only the scan and its warning change).
+     */
+    private fun onChanged(c: MChanged) {
+        val draftId = _state.value.draftId
+        if (!MailLogic.concernsDraft(c, draftId) || draftId == null) return
+        scanReload?.cancel()
+        scanReload = viewModelScope.launch {
+            // after a save that is under way: its answer carries the attachments as they are now
+            saveMutex.withLock {
+                val fresh = api.draft(draftId).valueOrNull() ?: return@withLock
+                _state.update { s ->
+                    if (s.draftId != draftId) return@update s
+                    val kept = s.attachments.filterIsInstance<ComposeAttachment.Saved>().map { it.a }
+                    val merged = MailLogic.withDraftScans(kept, fresh.attachments).associateBy { it.id }
+                    s.copy(
+                        attachments = s.attachments.map { a -> if (a is ComposeAttachment.Saved) merged[a.a.id]?.let { ComposeAttachment.Saved(it) } ?: a else a },
+                        warnings = MailLogic.withDraftScanWarnings(s.warnings, fresh.warnings),
+                    )
+                }
+            }
+        }
     }
 
     private suspend fun start() {

@@ -189,4 +189,24 @@ class MediaScanTest {
         assertEquals("http_423", MediaScanHttp.get { refused(423, "not json") }!!.code)
         assertNull(MediaScanHttp.get<ResponseBody> { null })
     }
+
+    // ─── hand-overs held back ───────────────────────────────────────
+
+    @Test
+    fun `a hand-over held back by the scan names why, other failures do not`() {
+        assertEquals(MediaScanJson.QUARANTINED, MediaScanJson.heldBack("quarantined"))
+        assertEquals(MediaScanJson.SCAN_PENDING, MediaScanJson.heldBack("scan_pending"))
+        assertEquals(MediaScanJson.SCAN_BLOCKED, MediaScanJson.heldBack("scan_blocked"))
+        assertEquals(MediaScanJson.ATTACHMENT_REMOVED, MediaScanJson.heldBack("attachment_removed"))
+        // the host's own codes, when a plugin passes them on (Mail: drive_unavailable { reason })
+        assertEquals(MediaScanJson.QUARANTINED, MediaScanJson.heldBack("ERR_MEDIA_QUARANTINED"))
+        assertEquals(MediaScanJson.SCAN_PENDING, MediaScanJson.heldBack("drive_unavailable", "ERR_MEDIA_SCAN_PENDING"))
+        assertEquals(MediaScanJson.SCAN_BLOCKED, MediaScanJson.heldBack("drive_unavailable", "ERR_MEDIA_BLOCKED"))
+        // a refused upload or anything else is not a held-back file
+        assertNull(MediaScanJson.heldBack("infected"))
+        assertNull(MediaScanJson.heldBack("scan_unavailable"))
+        assertNull(MediaScanJson.heldBack("drive_unavailable", "handover"))
+        assertNull(MediaScanJson.heldBack("no_seat"))
+        assertNull(MediaScanJson.heldBack(null))
+    }
 }

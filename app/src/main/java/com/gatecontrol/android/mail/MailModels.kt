@@ -410,7 +410,7 @@ data class MSuggest(val suggestion: MSuggestion?, val duplicate: Boolean)
 
 /**
  * Realtime event `mail` `{ kind: 'changed', accountId, folderId }` — since Mail 1.1.2 also with [messageId] (a body
- * the answer did not wait for is there; with [attachmentId]: that attachment) or [threadId].
+ * the answer did not wait for is there; with [attachmentId]: that attachment) or [threadId]; since Mail 1.8 [draftId].
  */
 data class MChanged(
     val accountId: Long?,
@@ -418,4 +418,6 @@ data class MChanged(
     val messageId: Long? = null,
     val threadId: Long? = null,
     val attachmentId: Long? = null,
+    /** Mail 1.8: the scan of an attachment of this draft changed. */
+    val draftId: Long? = null,
 )
