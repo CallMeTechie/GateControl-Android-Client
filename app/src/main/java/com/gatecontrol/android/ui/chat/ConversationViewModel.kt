@@ -86,6 +86,8 @@ sealed interface ConversationNotice {
     data class Done(val res: Int, val arg: String? = null) : ConversationNotice
     /** A live arrival was sent: start sharing the position. */
     data class ArrivalStarted(val messageId: Long, val label: String) : ConversationNotice
+    /** Messenger 1.11: "In Drive speichern" refused, the virus scan holds the file back ([code] as `heldBack` reads it). */
+    data class DriveHeldBack(val code: String, val finding: String?) : ConversationNotice
 }
 
 /**
@@ -662,10 +664,16 @@ class ConversationViewModel @Inject constructor(
     fun toCalendar(m: ChatMessage, date: com.gatecontrol.android.chat.ChatSuggestedDate) =
         viewModelScope.launch { after(extras.toCalendar(m.id, date, m.text?.lineSequence()?.firstOrNull()?.take(60) ?: ""), com.gatecontrol.android.R.string.chat_suggest_calendar_done) }
 
-    /** Messenger 1.10: the file of [m] into the person's Drive folder [folderId]; the notice names where it went. */
+    /**
+     * Messenger 1.10: the file of [m] into the person's Drive folder [folderId]; the notice names where it went — or,
+     * held back by the virus scan (1.11), why not ("Nicht in Drive gespeichert: Gesperrt – Schadsoftware").
+     */
     fun toDrive(m: ChatMessage, folderId: Long) = viewModelScope.launch {
-        when (val r = extras.toDrive(m.id, folderId)) {
-            is ChatResult.Ok -> notices.trySend(ConversationNotice.Done(com.gatecontrol.android.R.string.chat_drive_done, r.value))
+        val r = extras.toDrive(m, folderId)
+        val refusal = com.gatecontrol.android.chat.ChatToolsLogic.driveRefusal(r, m.media)
+        when {
+            r is ChatResult.Ok -> notices.trySend(ConversationNotice.Done(com.gatecontrol.android.R.string.chat_drive_done, r.value))
+            refusal != null -> notices.trySend(ConversationNotice.DriveHeldBack(refusal.code, refusal.finding))
             else -> notices.trySend(ConversationNotice.Error(codeOf(r)))
         }
     }

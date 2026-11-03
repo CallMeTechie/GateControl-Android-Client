@@ -131,6 +131,7 @@ import com.gatecontrol.android.ui.adaptive.LocalInDetailPane
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.scan.rememberScanGate
+import com.gatecontrol.android.ui.scan.scanDriveText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.util.findComponentActivity
 import kotlinx.coroutines.flow.first
@@ -243,6 +244,7 @@ fun ConversationScreen(
         viewModel.notice.collect { n ->
             val text = when (n) {
                 is ConversationNotice.Error -> ChatText.actionError(context, n.code)
+                is ConversationNotice.DriveHeldBack -> scanDriveText(context, n.code, n.finding) ?: ChatText.actionError(context, n.code)
                 is ConversationNotice.PrepareFailed -> when (val e = n.error) {
                     is PrepareError.TooLarge -> resources.getString(R.string.chat_err_file_too_large, ChatText.bytes(e.maxBytes))
                     PrepareError.TypeNotAllowed -> resources.getString(R.string.chat_err_type)

@@ -1,6 +1,9 @@
 package com.gatecontrol.android.chat
 
 import android.net.Uri
+import com.gatecontrol.android.scan.MediaScan
+import com.gatecontrol.android.scan.MediaScanJson
+import com.gatecontrol.android.scan.ScanRefusal
 import com.gatecontrol.android.support.CrashReports
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CoroutineScope
@@ -310,7 +313,18 @@ class ChatExtrasRepository @Inject constructor(
     suspend fun toCalendar(messageId: Long, date: ChatSuggestedDate, fallbackTitle: String): ChatResult<Unit> =
         api.toCalendar(messageId, date.title ?: fallbackTitle, date.startsAt, null)
 
-    suspend fun toDrive(messageId: Long, folderId: Long?): ChatResult<String> = api.toDrive(messageId, folderId)
+    /**
+     * "In Drive speichern" of [message]'s file. Held back by the virus scan (Messenger 1.11, `423`): the cached message
+     * shows the state the refusal tells (no Drive action any more) until `message.update` loads it again.
+     */
+    suspend fun toDrive(message: ChatMessage, folderId: Long?): ChatResult<String> {
+        val r = api.toDrive(message.id, folderId)
+        ChatToolsLogic.driveRefusal(r, message.media)?.let { refusal ->
+            val cached = repository.cachedMessage(message.id) ?: message
+            ChatToolsLogic.withScan(cached, refusal)?.let { repository.storeMessages(listOf(it)) }
+        }
+        return r
+    }
 
     suspend fun refreshPlaces(): ChatResult<List<ChatPlace>> {
         val r = api.places()
@@ -434,6 +448,26 @@ class ChatExtrasRepository @Inject constructor(
 /** Pure helpers of the message tools. Unit-tested. */
 object ChatToolsLogic {
     const val MAX_PINS = 3
+
+    /**
+     * "In Drive speichern" (`to-drive`) refused because the virus scan holds the file back (Messenger 1.11): `423
+     * quarantined | scan_pending | scan_blocked` (the host's `ERR_MEDIA_*` of the hand-over arrive as the same codes)
+     * — the refusal, with the find the message already knows ([media]); null for any other result.
+     */
+    fun driveRefusal(r: ChatResult<*>, media: ChatMedia?): ScanRefusal? {
+        val f = r as? ChatResult.Failed ?: return null
+        val code = MediaScanJson.heldBack(f.code) ?: return null
+        val finding = media?.scan?.takeIf { code == MediaScanJson.QUARANTINED && it.state == MediaScan.INFECTED }?.finding
+        return ScanRefusal(code, f.http, finding = finding)
+    }
+
+    /** [m] with the state [refusal] tells about its file (blocked: no preview); null when there is nothing to change. */
+    fun withScan(m: ChatMessage, refusal: ScanRefusal): ChatMessage? {
+        val media = m.media ?: return null
+        val scan = MediaScanJson.scanOf(refusal)?.let { s -> s.copy(finding = s.finding ?: media.scan?.takeIf { it.state == s.state }?.finding) } ?: return null
+        if (media.scan == scan) return null
+        return m.copy(media = media.copy(scan = scan, thumbId = media.thumbId.takeIf { !scan.blocked }))
+    }
 
     /** [messageId] pinned: at the end, the oldest dropped beyond [MAX_PINS]. */
     fun pinAdd(pinned: List<Long>, messageId: Long): List<Long> = (pinned - messageId + messageId).takeLast(MAX_PINS)
