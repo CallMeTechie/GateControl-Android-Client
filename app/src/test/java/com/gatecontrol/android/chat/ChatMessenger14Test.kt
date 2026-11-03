@@ -36,6 +36,22 @@ class ChatMessenger14Test {
         assertEquals(emptySet<String>(), ChatFeatureHint.unknown(f), "all 1.4 keys are known to this app")
     }
 
+    /** Everything Messenger 1.11.0 can switch on (GET me features, all options on): no update hint. */
+    @Test
+    fun `no update hint for the full feature set of messenger 1_11`() {
+        val all = listOf(
+            "direct", "groups", "voice", "files", "location", "reactions", "edit", "search", "disappearing",
+            "video_meta", "file_thumbs", "scan",
+            "status", "stories", "story_duration", "polls", "events", "arrival", "msg_tools", "privacy2",
+            "actions", "action_requests", "grant_off", "notices", "notice_routes",
+        )
+        val f = ChatJson.features(json(all.joinToString(",", "{", "}") { "\"$it\":true" }))
+        assertEquals(emptySet<String>(), ChatFeatureHint.unknown(f))
+        assertFalse(ChatFeatureHint.show(f, null))
+        val newer = ChatJson.features(json(all.joinToString(",", "{", ",\"later\":true}") { "\"$it\":true" }))
+        assertEquals(setOf("later"), ChatFeatureHint.unknown(newer), "a key of a newer messenger still shows the hint")
+    }
+
     // ─── polls ──────────────────────────────────────────────────────
 
     @Test

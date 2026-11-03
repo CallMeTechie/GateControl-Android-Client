@@ -16,11 +16,17 @@ import javax.inject.Singleton
  * Pure, unit-tested.
  */
 object ChatFeatureHint {
-    /** Every key of the `features` object this app knows (Messenger ≤ 1.4.0). */
+    /** Every key of the `features` object this app knows (Messenger ≤ 1.11.0). */
     val KNOWN: Set<String> = setOf(
         "direct", "groups", "voice", "files", "location", "reactions", "edit", "search", "disappearing",
         "bridges", "e2e",
         ChatFeatures.VIDEO_META, ChatFeatures.FILE_THUMBS,
+        // 1.5.0: Freigaben anfragen (approvers), „Am Ende ausschalten“
+        "action_requests", "grant_off",
+        // 1.6.0: „Wo Mitteilungen erscheinen“ (NotifyRoutesScreen)
+        "notice_routes",
+        // 1.11.0: Virenscan an Dateien (`media.scan`, MediaScan)
+        "scan",
     ) + ChatFeatures14.ALL
 
     /** The keys the server switches on that this app does not know. */
