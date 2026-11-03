@@ -65,6 +65,7 @@ import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.scan.ScanLine
 import com.gatecontrol.android.ui.scan.rememberScanAsk
 import com.gatecontrol.android.ui.scan.scanClosedText
+import com.gatecontrol.android.ui.scan.scanReasonText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.util.Locale
 
@@ -336,10 +337,13 @@ private fun SentList(ui: SharedUi) {
             val overall = GateDropLogic.overallStatus(e.deliveries)
             // The target device was offline: it fetches the send once it is online.
             val waiting = e.deliveries.firstOrNull { it.status == GdDelivery.WAITING }
-            val status = if (overall == GdDelivery.WAITING && waiting != null) {
-                waiting.targetName?.let { stringResource(R.string.gatedrop_status_waiting, it) } ?: statusText(overall)
-            } else {
-                statusText(overall)
+            // failed because the virus scan held the file back (GateDrop 1.4): the reason instead of "fehlgeschlagen"
+            val scanReason = if (overall == GdDelivery.FAILED) scanReasonText(ctx, GateDropLogic.scanFailure(e.deliveries)) else null
+            val status = when {
+                overall == GdDelivery.WAITING && waiting != null ->
+                    waiting.targetName?.let { stringResource(R.string.gatedrop_status_waiting, it) } ?: statusText(overall)
+                scanReason != null -> stringResource(R.string.scan_gatedrop_failed, scanReason)
+                else -> statusText(overall)
             }
             Column {
                 GcListRow(

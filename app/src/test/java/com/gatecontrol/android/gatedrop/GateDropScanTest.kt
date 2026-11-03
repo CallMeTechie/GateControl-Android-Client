@@ -61,4 +61,25 @@ class GateDropScanTest {
         assertNull(GateDropLogic.scanWaitMs(GdResult.Ok(Unit), 0))
         assertNull(GateDropLogic.scanWaitMs(GdResult.Offline, 0))
     }
+
+    @Test
+    fun `a delivery the scan held back says why, other failures stay plain`() {
+        val drive = GdDelivery("drive", "mine", "Mein Drive", GdDelivery.FAILED, error = "quarantined")
+        val ok = GdDelivery("device", "d1", "Pixel", GdDelivery.DELIVERED)
+        assertEquals("quarantined", GateDropLogic.scanFailure(listOf(ok, drive)))
+        assertEquals("scan_pending", GateDropLogic.scanFailure(listOf(drive.copy(error = "scan_pending"))))
+        assertEquals("scan_blocked", GateDropLogic.scanFailure(listOf(drive.copy(error = "scan_blocked"))))
+        assertNull(GateDropLogic.scanFailure(listOf(drive.copy(error = "no_seat"))), "Drive's own refusal")
+        assertNull(GateDropLogic.scanFailure(listOf(drive.copy(error = null))))
+        // informational on a delivered one: not a failure
+        assertNull(GateDropLogic.scanFailure(listOf(drive.copy(status = GdDelivery.DELIVERED))))
+        assertEquals(GdDelivery.FAILED, GateDropLogic.overallStatus(listOf(ok, drive)))
+    }
+
+    @Test
+    fun `a delivery's error is read as the server sends it`() {
+        val d = GateDropJson.delivery(obj("""{"kind":"drive","target":"mine","label":"Mein Drive","status":"failed","error":"scan_pending"}"""))!!
+        assertEquals("scan_pending", d.error)
+        assertEquals("scan_pending", GateDropLogic.scanFailure(listOf(d)))
+    }
 }

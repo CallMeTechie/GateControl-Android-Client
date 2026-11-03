@@ -33,6 +33,9 @@
     <string name="scan_err_attachment_blocked_plain">Ein Anhang ist gesperrt (Schadsoftware).</string>
     <string name="scan_err_not_checkable">%1$s konnte nicht auf Viren geprüft werden.</string>
 
+    <!-- Warum eine Datei nicht weitergegeben wurde (GateDrop-Zustellung, „In Drive speichern“) -->
+    <string name="scan_reason_pending">Wird noch auf Viren geprüft</string>
+
     <!-- Nachfrage, bevor eine markierte Datei sich öffnet -->
     <string name="scan_warn_title">Schadsoftware gefunden</string>
     <string name="scan_warn_open">Trotzdem öffnen</string>
@@ -44,6 +47,17 @@
         <item quantity="one">%d gesperrte Datei fehlt</item>
         <item quantity="other">%d gesperrte Dateien fehlen</item>
     </plurals>
+
+    <!-- „In Drive speichern“ (Mail) vom Virenscan abgelehnt -->
+    <string name="scan_drive_not_saved">Nicht in Drive gespeichert: %1$s</string>
+    <string name="scan_drive_not_saved_named">%1$s nicht in Drive gespeichert: %2$s</string>
+    <plurals name="scan_drive_not_saved_count">
+        <item quantity="one">%d vom Virenscan zurückgehalten</item>
+        <item quantity="other">%d vom Virenscan zurückgehalten</item>
+    </plurals>
+
+    <!-- GateDrop: eine Zustellung, die am Virenscan scheiterte -->
+    <string name="scan_gatedrop_failed">fehlgeschlagen: %1$s</string>
 
     <!-- Mail -->
     <string name="scan_mail_attachment_blocked_title">Anhang gesperrt</string>

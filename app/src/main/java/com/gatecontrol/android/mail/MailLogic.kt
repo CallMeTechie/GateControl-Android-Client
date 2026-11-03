@@ -1,5 +1,8 @@
 package com.gatecontrol.android.mail
 
+import com.gatecontrol.android.scan.MediaScanJson
+import com.gatecontrol.android.scan.ScanRefusal
+import com.google.gson.JsonObject
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -362,6 +365,36 @@ object MailLogic {
     /** Whether a live event `mail` concerns the open mail [messageId] (or its conversation [threadId]). */
     fun concerns(changed: MChanged, messageId: Long, threadId: Long?): Boolean =
         changed.messageId == messageId || (threadId != null && changed.threadId == threadId)
+
+    // ─── the virus scan (Mail 1.8) ──────────────────────────────────
+
+    /**
+     * "In Drive speichern" (also "Zum Ablegen") refused because the virus scan holds the attachment back: `423
+     * quarantined | scan_pending | scan_blocked`, `410 attachment_removed`, or Drive's refusal passed on as
+     * `drive_unavailable { reason: 'ERR_MEDIA_…' }` — the refusal with what it tells about the file; null otherwise.
+     */
+    fun driveRefusal(f: MResult.Failed): ScanRefusal? {
+        val reason = f.error?.get("reason")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+        val code = MediaScanJson.heldBack(f.code, reason) ?: return null
+        val body = (f.error?.deepCopy() ?: JsonObject()).apply { addProperty("code", code) }
+        return MediaScanJson.refusal(f.http, body) ?: ScanRefusal(code, f.http)
+    }
+
+    /** Whether the live event `mail { kind: 'changed', draftId }` concerns the open draft [draftId]. */
+    fun concernsDraft(changed: MChanged, draftId: Long?): Boolean = draftId != null && changed.draftId == draftId
+
+    /**
+     * The live event of a draft (an attachment's scan came to a result): the attachments on the screen take the
+     * server's [fresh] scan, everything else stays as the person left it (one the server does not know any more too).
+     */
+    fun withDraftScans(kept: List<MDraftAttachment>, fresh: List<MDraftAttachment>): List<MDraftAttachment> {
+        val byId = fresh.associateBy { it.id }
+        return kept.map { a -> byId[a.id]?.let { f -> if (f.scan != a.scan) a.copy(scan = f.scan) else a } ?: a }
+    }
+
+    /** The draft's warnings with the server's word on blocked attachments ([fresh]); the person's others stay. */
+    fun withDraftScanWarnings(kept: List<MWarning>, fresh: List<MWarning>): List<MWarning> =
+        kept.filter { it.kind != MediaScanJson.ATTACHMENT_BLOCKED } + fresh.filter { it.kind == MediaScanJson.ATTACHMENT_BLOCKED }
 
     /** The attachment of an embedded picture's path `cid/<mail>/<attachment>`; null for anything else. */
     fun cidAttachment(path: String): Long? {

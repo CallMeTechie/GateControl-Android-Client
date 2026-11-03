@@ -78,6 +78,27 @@ fun scanCodeText(context: Context, code: String?, finding: String? = null, name:
     else -> null
 }
 
+/**
+ * Why a file was not handed on (a GateDrop delivery, "In Drive speichern"): "Gesperrt – Schadsoftware (…)", "Wird noch
+ * auf Viren geprüft", "Gesperrt – nicht prüfbar", "Anhang entfernt (Schadsoftware)"; null when the failure is not the
+ * scan's ([code] and [reason] as [MediaScanJson.heldBack] reads them).
+ */
+fun scanReasonText(context: Context, code: String?, finding: String? = null, reason: String? = null): String? =
+    when (MediaScanJson.heldBack(code, reason)) {
+        MediaScanJson.QUARANTINED -> finding?.let { context.getString(R.string.scan_detail_blocked_malware, it) }
+            ?: context.getString(R.string.scan_badge_blocked_malware)
+        MediaScanJson.SCAN_PENDING -> context.getString(R.string.scan_reason_pending)
+        MediaScanJson.SCAN_BLOCKED -> context.getString(R.string.scan_badge_blocked_unscannable)
+        MediaScanJson.ATTACHMENT_REMOVED -> context.getString(R.string.scan_badge_removed)
+        else -> null
+    }
+
+/** "In Drive speichern" refused by the scan: "Nicht in Drive gespeichert: Gesperrt – Schadsoftware"; null otherwise. */
+fun scanDriveText(context: Context, code: String?, finding: String? = null, reason: String? = null, name: String? = null): String? =
+    scanReasonText(context, code, finding, reason)?.let { why ->
+        name?.let { context.getString(R.string.scan_drive_not_saved_named, it, why) } ?: context.getString(R.string.scan_drive_not_saved, why)
+    }
+
 /** Why a blocked file does not open (from its own scan, without asking the server). */
 fun scanClosedText(context: Context, scan: MediaScan): String? =
     scan.refusalCode?.let { scanCodeText(context, it, scan.finding?.takeIf { scan.state == MediaScan.INFECTED }) }

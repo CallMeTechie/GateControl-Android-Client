@@ -508,7 +508,7 @@ object MailJson {
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         val root = o.obj("mail") ?: o
         if (root.str("kind") != "changed") return null
-        return MChanged(root.id("accountId"), root.id("folderId"), root.id("messageId"), root.id("threadId"), root.id("attachmentId"))
+        return MChanged(root.id("accountId"), root.id("folderId"), root.id("messageId"), root.id("threadId"), root.id("attachmentId"), root.id("draftId"))
     }
 
     /**
