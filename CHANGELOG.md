@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.80.1] - 2026-11-03
+
+### Fixes
+- kein Update-Hinweis für Messenger-Funktionen, die die App kann (#183)
+
+---
+
 ## [1.80.0] - 2026-11-03
 
 ### Features
