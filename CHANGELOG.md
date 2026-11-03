@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.78.0] - 2026-11-03
+
+### Features
+- Virenscan-Zustände anzeigen (#180)
+
+---
+
 ## [1.77.0] - 2026-11-01
 
 ### Features
