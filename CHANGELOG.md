@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.79.0] - 2026-11-03
+
+### Features
+- Virenscan-Gründe bei GateDrop, Mail-Entwurf und Drive-Ablage (#181)
+
+---
+
 ## [1.78.0] - 2026-11-03
 
 ### Features
