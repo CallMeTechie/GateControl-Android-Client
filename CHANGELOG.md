@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.80.0] - 2026-11-03
+
+### Features
+- Messenger nennt den Virenscan-Grund bei „In Drive speichern“ (#182)
+
+---
+
 ## [1.79.0] - 2026-11-03
 
 ### Features
