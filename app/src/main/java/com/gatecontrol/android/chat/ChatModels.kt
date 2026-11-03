@@ -1,5 +1,7 @@
 package com.gatecontrol.android.chat
 
+import com.gatecontrol.android.scan.MediaScan
+
 /** Plugin id of the messenger (README "App-API"). */
 const val MESSENGER_PLUGIN = "gatecontrol-messenger"
 
@@ -138,7 +140,19 @@ data class ChatNotice(val source: String?, val label: String?) {
 }
 
 /** File of a message; [thumbId] a small preview picture (pictures). */
-data class ChatMedia(val id: String, val mime: String?, val bytes: Long?, val thumbId: String?)
+data class ChatMedia(
+    val id: String,
+    val mime: String?,
+    val bytes: Long?,
+    val thumbId: String?,
+    /**
+     * The host's virus scan (Messenger 1.11, `features.scan`); null when the server says nothing. Blocked: no picture,
+     * player or file, the mark instead (the server sends no preview then).
+     */
+    val scan: MediaScan? = null,
+) {
+    val blocked: Boolean get() = scan?.blocked == true
+}
 
 data class ChatMeta(
     val durationMs: Long? = null,

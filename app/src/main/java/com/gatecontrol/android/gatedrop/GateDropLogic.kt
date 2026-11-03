@@ -1,5 +1,8 @@
 package com.gatecontrol.android.gatedrop
 
+import com.gatecontrol.android.scan.MediaScanJson
+import com.gatecontrol.android.scan.ScanRetry
+
 /** What the person picked in the share sheet (multi-select). */
 data class GdSelection(
     val people: Set<String> = emptySet(),
@@ -198,7 +201,8 @@ object GateDropLogic {
                 files = e.items.map { item ->
                     val copy = known?.files?.firstOrNull { it.mediaId != null && it.mediaId == item.mediaId }
                         ?: known?.files?.firstOrNull { it.name == item.name && it.bytes == item.bytes }
-                    GdReceivedFile(item.name, item.mime, item.bytes, item.mediaId, copy?.uri)
+                    // blocked by the virus scan (GateDrop 1.4): nothing to fetch, the mark instead
+                    GdReceivedFile(item.name, item.mime, item.bytes, item.mediaId?.takeIf { item.scan?.blocked != true }, copy?.uri, item.scan)
                 },
             )
         }
@@ -241,8 +245,18 @@ object GateDropLogic {
         handled -> GdPendingAction.SKIP
         local == null -> GdPendingAction.PROCESS
         // Tried before and a download failed: again, once something can be fetched.
-        send.items.any { item -> item.mediaId != null && item.available && local.files.none { it.mediaId == item.mediaId && it.uri != null } } -> GdPendingAction.PROCESS
+        send.items.any { item -> item.mediaId != null && item.available && item.scan?.blocked != true && local.files.none { it.mediaId == item.mediaId && it.uri != null } } -> GdPendingAction.PROCESS
         else -> GdPendingAction.SKIP
+    }
+
+    /**
+     * How long to wait before sending again after [r] (GateDrop 1.4 `423 scan_pending`: a file is still being checked,
+     * nothing was sent), having waited [waitedMs] already; null: do not wait (any other answer, or waited long enough).
+     */
+    fun scanWaitMs(r: GdResult<*>, waitedMs: Long): Long? = when {
+        r !is GdResult.Failed || r.http != 423 || r.code != MediaScanJson.SCAN_PENDING -> null
+        waitedMs >= ScanRetry.SEND_WAIT_MS -> null
+        else -> ScanRetry.SEND_EVERY_MS
     }
 
     /** [ids] with [id] as the newest, at most [max] (the oldest go). */

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.mail
 
+import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonNull
@@ -329,6 +330,7 @@ object MailJson {
             cid = o.str("cid")?.trim()?.removePrefix("<")?.removeSuffix(">")?.takeIf { it.isNotEmpty() },
             savedTo = savedTo(o.obj("savedTo")),
             suggestion = suggestion(o.obj("suggestion")),
+            scan = MediaScanJson.attachment(o),
         )
     }
 
@@ -356,7 +358,7 @@ object MailJson {
     /** `{ mediaId, name, mime, size }`. */
     fun attachmentMedia(o: JsonObject): MAttachmentMedia? {
         val media = o.str("mediaId")?.takeIf { TOKEN.matches(it) } ?: return null
-        return MAttachmentMedia(media, o.str("name") ?: "attachment", o.str("mime") ?: "application/octet-stream", o.long("size") ?: 0L)
+        return MAttachmentMedia(media, o.str("name") ?: "attachment", o.str("mime") ?: "application/octet-stream", o.long("size") ?: 0L, MediaScanJson.of(o))
     }
 
     /** A picture of the HTML: inline bytes (`img/…`) or a media file (`cid/…`). */
@@ -427,6 +429,7 @@ object MailJson {
                     mime = a.str("mime") ?: "application/octet-stream",
                     asLink = a.str("as") == "link",
                     url = a.str("url")?.takeIf { it.startsWith("https://") || it.startsWith("http://") },
+                    scan = MediaScanJson.attachment(a),
                 )
             }.orEmpty(),
             warnings = o.arr("warnings")?.objects()?.mapNotNull { w ->

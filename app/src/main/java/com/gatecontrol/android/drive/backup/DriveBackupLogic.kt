@@ -3,6 +3,7 @@ package com.gatecontrol.android.drive.backup
 import android.provider.MediaStore
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.scan.MediaScanJson
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -79,7 +80,8 @@ internal object DriveBackupLogic {
         dateTakenMs?.takeIf { it > 0 } ?: dateModifiedS?.takeIf { it > 0 }?.let { it * 1000 }
 
     fun next(code: String): Next = when {
-        code == "offline" || code == "busy" || code == "timeout" || code == "http_429" || code.startsWith("http_5") -> Next.RETRY
+        code == "offline" || code == "busy" || code == "timeout" || code == "http_429" || code.startsWith("http_5") ||
+            code == MediaScanJson.SCAN_UNAVAILABLE -> Next.RETRY
         code in STOP_CODES -> Next.STOP
         code in SKIP_CODES -> Next.SKIP
         else -> Next.TRY
@@ -93,7 +95,11 @@ internal object DriveBackupLogic {
         // Drive stopped this device (ransomware protection): the backup waits until the stop is lifted, then goes on.
         "device_locked",
     )
-    private val SKIP_CODES = setOf("too_large", "unsupported_type", "empty", "invalid", "read")
+    private val SKIP_CODES = setOf(
+        "too_large", "unsupported_type", "empty", "invalid", "read",
+        // the virus scan rejected the photo (`422 infected`): it never goes up, the next one does
+        MediaScanJson.INFECTED,
+    )
 
     // ─── Kamera-Uploads ─────────────────────────────────────────────
 

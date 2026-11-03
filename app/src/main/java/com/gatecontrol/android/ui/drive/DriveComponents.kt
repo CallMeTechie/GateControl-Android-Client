@@ -79,12 +79,15 @@ import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveOps
 import androidx.compose.ui.res.pluralStringResource
 import com.gatecontrol.android.drive.DriveTransfers
+import com.gatecontrol.android.scan.MediaScanJson
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcRowDivider
+import com.gatecontrol.android.ui.scan.ScanChip
+import com.gatecontrol.android.ui.scan.scanCodeText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.io.File
 import java.time.Instant
@@ -264,7 +267,9 @@ internal fun NodeRow(
     fresh: Boolean = false,
     title: String? = null,
 ) {
-    if (!selecting && onMore == null && !fresh) {
+    // the virus scan's mark (Drive 1.19) needs the full row; without `scan` the row is as before
+    val scanMark = node.scan?.badge != null
+    if (!selecting && onMore == null && !fresh && !scanMark) {
         Column {
             GcListRow(
                 title = title ?: nodeTitle(node),
@@ -316,6 +321,7 @@ internal fun NodeRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (fresh) NewHereBadge()
+                    if (scanMark) ScanChip(node.scan, Modifier.padding(start = 8.dp))
                 }
                 val d = description ?: nodeLine(node)
                 if (d.isNotBlank()) Text(d, style = MaterialTheme.typography.bodySmall, color = x.muted)
@@ -339,7 +345,7 @@ internal fun driveMessage(code: String?): String? {
 }
 
 /** A Drive code (or `done_*`) as a sentence, outside of composition (toasts). */
-internal fun driveText(context: Context, code: String): String = when (code) {
+internal fun driveText(context: Context, code: String): String = driveScanText(context, code) ?: when (code) {
     "done_folder" -> context.getString(R.string.drive_done_folder)
     "done_rename" -> context.getString(R.string.drive_done_rename)
     "done_move" -> context.getString(R.string.drive_done_move)
@@ -390,6 +396,19 @@ internal fun driveText(context: Context, code: String): String = when (code) {
     "auth_required" -> context.getString(R.string.drive_vault_gate_title)
     "no_screen_lock" -> context.getString(R.string.drive_vault_no_lock)
     else -> context.getString(R.string.drive_error_generic, code)
+}
+
+/** The message a ZIP leaves when the server left blocked files out (`skipped: [{ reason: 'blocked' }]`). */
+internal fun scanSkippedCode(count: Int): String = "$SCAN_SKIPPED$count"
+
+private const val SCAN_SKIPPED = "scan_skipped:"
+
+/** The virus scan's codes (Drive 1.19): a refusal (`423 quarantined`, `422 infected`, …) or blocked files left out. */
+private fun driveScanText(context: Context, code: String): String? {
+    code.removePrefix(SCAN_SKIPPED).takeIf { it != code }?.toIntOrNull()?.let { n ->
+        return context.resources.getQuantityString(R.plurals.scan_drive_skipped, n, n)
+    }
+    return scanCodeText(context, code)
 }
 
 /** Full-width message with an optional retry, for a screen that could not load. */
@@ -540,7 +559,12 @@ internal fun UploadsSheet(
                     DriveTransfers.State.DONE -> stringResource(R.string.drive_upload_done)
                     DriveTransfers.State.SAME -> stringResource(R.string.drive_upload_same)
                     DriveTransfers.State.SKIPPED -> stringResource(R.string.drive_upload_skipped)
-                    DriveTransfers.State.FAILED -> stringResource(R.string.drive_upload_failed, driveMessage(u.code).orEmpty())
+                    // the virus scan rejected it (`422 infected`): "<Name> abgelehnt – Schadsoftware gefunden."
+                    DriveTransfers.State.FAILED -> if (u.code == MediaScanJson.INFECTED) {
+                        scanCodeText(LocalContext.current, u.code, name = u.name).orEmpty()
+                    } else {
+                        stringResource(R.string.drive_upload_failed, driveMessage(u.code).orEmpty())
+                    }
                 }
                 val tint = when {
                     u.state == DriveTransfers.State.FAILED -> MaterialTheme.colorScheme.error

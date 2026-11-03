@@ -1,5 +1,6 @@
 package com.gatecontrol.android.mail
 
+import com.gatecontrol.android.scan.MediaScan
 import com.google.gson.JsonObject
 
 /** Plugin id of GateControl Mail (contract C/D). */
@@ -238,6 +239,8 @@ data class MAttachment(
     val cid: String?,
     val savedTo: MSavedTo?,
     val suggestion: MSuggestion?,
+    /** The host's virus scan of the attachment's copy (Mail 1.8, feature `scan`); null when the server says nothing. */
+    val scan: MediaScan? = null,
 )
 
 data class MUnsubscribe(val url: String?, val mail: String?)
@@ -296,7 +299,16 @@ data class MTodo(
 data class MReply(val label: String, val text: String)
 
 /** One attachment of a draft as the server lists it. */
-data class MDraftAttachment(val id: Long, val name: String, val size: Long, val mime: String, val asLink: Boolean, val url: String?)
+data class MDraftAttachment(
+    val id: Long,
+    val name: String,
+    val size: Long,
+    val mime: String,
+    val asLink: Boolean,
+    val url: String?,
+    /** Mail 1.8 (`scan`): a forwarded attachment the virus scan blocked goes along marked; the send refuses it. */
+    val scan: MediaScan? = null,
+)
 
 data class MWarning(val kind: String, val text: String)
 
@@ -374,7 +386,14 @@ data class MFilingItem(
 )
 
 /** `GET messages/<id>/attachments/<aid>`: where its file lies. */
-data class MAttachmentMedia(val mediaId: String, val name: String, val mime: String, val size: Long)
+data class MAttachmentMedia(
+    val mediaId: String,
+    val name: String,
+    val mime: String,
+    val size: Long,
+    /** Mail 1.8: the virus scan of the copy (e.g. marked: warn); null when the server says nothing. */
+    val scan: MediaScan? = null,
+)
 
 /** A picture of a mail's HTML (`img/…`, `cid/…`) as the app got it. */
 sealed class MPicture {

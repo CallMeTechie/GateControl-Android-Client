@@ -21,6 +21,11 @@ import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.mail.MailRepository
 import com.gatecontrol.android.mail.notOk
 import com.gatecontrol.android.navigation.Screen
+import com.gatecontrol.android.scan.MediaScan
+import com.gatecontrol.android.scan.MediaScanJson
+import com.gatecontrol.android.ui.scan.scanClosedText
+import com.gatecontrol.android.ui.scan.scanCodeText
+import com.google.gson.JsonObject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +59,8 @@ data class MailAttachmentUi(
     val busy: Boolean = false,
     /** The provider still sends it (`409 busy { reason: 'loading' }`): asked again by itself. */
     val loading: Boolean = false,
+    /** The host's virus scan (Mail 1.8): as the mail came, or as a refusal told it since. */
+    val scan: MediaScan? = attachment.scan,
 )
 
 data class MailReadState(
@@ -170,6 +177,10 @@ class MailReadViewModel @Inject constructor(
         }
         val aid = c.attachmentId ?: return
         if (c.messageId != id) return
+        // Mail 1.8: the virus scan of an attachment came to a result (or an admin released / deleted it) → read again
+        if (_state.value.attachments.any { it.attachment.id == aid && it.scan != null }) {
+            if (loadJob?.isActive == true) loadAgain = true else load()
+        }
         if (waitingOpen.containsKey(aid)) {
             openRetry.remove(aid)?.cancel()
             _state.value.attachments.firstOrNull { it.attachment.id == aid }?.let { viewModelScope.launch { openNow(it.attachment) } }
@@ -185,7 +196,7 @@ class MailReadViewModel @Inject constructor(
                 error = null,
                 attachments = m.attachments.filter { !it.inline }.map { a ->
                     // what the screen learned already (a save, a suggestion) stays
-                    s.attachments.firstOrNull { it.attachment.id == a.id }?.copy(attachment = a, savedTo = a.savedTo ?: s.attachments.firstOrNull { it.attachment.id == a.id }?.savedTo)
+                    s.attachments.firstOrNull { it.attachment.id == a.id }?.copy(attachment = a, savedTo = a.savedTo ?: s.attachments.firstOrNull { it.attachment.id == a.id }?.savedTo, scan = a.scan)
                         ?: MailAttachmentUi(a)
                 },
             )
@@ -377,6 +388,11 @@ class MailReadViewModel @Inject constructor(
 
     /** An attachment opened in another app: fetched into `cache/mail-open/<mail>-<attachment>/<name>`. */
     fun open(a: MAttachment) {
+        // blocked or removed by the virus scan (Mail 1.8): never opened, the reason instead
+        _state.value.attachments.firstOrNull { it.attachment.id == a.id }?.scan?.takeIf { it.closed }?.let { s ->
+            _event.value = MailReadEvent.Toast(scanClosedText(context, s) ?: mailText(context, s.refusalCode))
+            return
+        }
         if (waitingOpen.containsKey(a.id)) return
         waitingOpen[a.id] = 0
         viewModelScope.launch { openNow(a) }
@@ -390,14 +406,18 @@ class MailReadViewModel @Inject constructor(
     private suspend fun openNow(a: MAttachment) {
         updateAttachment(a.id) { it.copy(busy = true) }
         val file = fetch(a)
-        val busy = (file as? MResult.Failed)?.takeIf { MailJson.busyRetryAfter(it.code, it.error) != null }
+        // the virus scan refused it (`423`, `410 attachment_removed`): the attachment shows its state from now on
+        val refusal = (file as? MResult.Failed)?.let { MediaScanJson.refusal(it.http, it.error ?: JsonObject().apply { addProperty("code", it.code) }) }
+        refusal?.let(MediaScanJson::scanOf)?.let { s -> updateAttachment(a.id) { it.copy(scan = s) } }
+        // `423 scan_pending` waits like an attachment the provider still sends
+        val busy = (file as? MResult.Failed)?.takeIf { MailJson.busyRetryAfter(it.code, it.error) != null || refusal?.pending == true }
         val tries = waitingOpen[a.id] ?: 0
         if (busy != null && tries < MailLogic.BUSY_RETRIES) {
             waitingOpen[a.id] = tries + 1
             updateAttachment(a.id) { it.copy(busy = false, loading = true) }
             openRetry.remove(a.id)?.cancel()
             openRetry[a.id] = viewModelScope.launch {
-                delay(MailLogic.retryDelayMs(MailJson.busyRetryAfter(busy.code, busy.error)))
+                delay(MailLogic.retryDelayMs(MailJson.busyRetryAfter(busy.code, busy.error) ?: SCAN_RETRY_S))
                 openRetry.remove(a.id)
                 openNow(a)
             }
@@ -409,6 +429,7 @@ class MailReadViewModel @Inject constructor(
         _event.value = when {
             file is MResult.Ok -> MailReadEvent.Open(file.value, a.mime)
             busy != null && MailJson.busyLoading(busy.code, busy.error) -> MailReadEvent.Toast(context.getString(R.string.mail_attachment_still_loading))
+            refusal != null -> MailReadEvent.Toast(scanCodeText(context, refusal.code, refusal.finding) ?: mailText(context, refusal.code))
             else -> MailReadEvent.Toast(mailText(context, MailHomeViewModel.code(file)))
         }
     }
@@ -419,6 +440,8 @@ class MailReadViewModel @Inject constructor(
         if (target.isFile && target.length() > 0) return MResult.Ok(target)
         val media = api.attachmentMedia(id, a.id)
         if (media !is MResult.Ok) return media.notOk()
+        // Mail 1.8: the answer carries the scan (a "being checked" is over; marked: the warning shows)
+        updateAttachment(a.id) { ui -> media.value.scan?.let { ui.copy(scan = it) } ?: if (ui.scan?.blocked == true) ui.copy(scan = null) else ui }
         val body = api.media(media.value.mediaId)
         if (body !is MResult.Ok) return MResult.Failed(MailHomeViewModel.code(body), 0)
         return withContext(Dispatchers.IO) {
@@ -506,6 +529,8 @@ class MailReadViewModel @Inject constructor(
     }
 
     private companion object {
+        /** `423 scan_pending` of an attachment: asked again after this many seconds. */
+        const val SCAN_RETRY_S = 5
         const val MAX_SUGGEST = 5
         const val PICTURES_MAX_BYTES = 16L * 1024 * 1024
     }

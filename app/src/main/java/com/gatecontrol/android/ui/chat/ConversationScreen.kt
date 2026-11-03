@@ -130,6 +130,7 @@ import com.gatecontrol.android.location.LocateResult
 import com.gatecontrol.android.ui.adaptive.LocalInDetailPane
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.scan.rememberScanGate
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.util.findComponentActivity
 import kotlinx.coroutines.flow.first
@@ -389,15 +390,19 @@ fun ConversationScreen(
             }
         }
     }
-    val bubbleActions = remember(viewModel, state.profile?.features?.arrival) {
+    val scanGate = rememberScanGate()
+    val bubbleActions = remember(viewModel, state.profile?.features?.arrival, scanGate) {
         BubbleActions(
             onLongPress = { actionsFor = it },
-            onOpenImage = { m -> m.media?.id?.let(onOpenImage) },
+            // the virus scan (Messenger 1.11): a blocked file says why, a marked one asks first
+            onOpenImage = { m -> scanGate(m.media?.scan) { m.media?.id?.takeIf { it.isNotEmpty() }?.let(onOpenImage) } },
             onOpenFile = { m ->
-                scope.launch {
-                    val f = viewModel.file(m)
-                    if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
-                    else openFile(context, f, m.meta?.fileName ?: "datei", m.media?.mime, share = false)
+                scanGate(m.media?.scan) {
+                    scope.launch {
+                        val f = viewModel.file(m)
+                        if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
+                        else openFile(context, f, m.meta?.fileName ?: "datei", m.media?.mime, share = false)
+                    }
                 }
             },
             onOpenLocation = { m -> m.location?.let { openLocation(context, it.lat, it.lon, it.label) } },
@@ -587,7 +592,7 @@ fun ConversationScreen(
                             is TimelineItem.Day -> DaySeparator(ChatText.day(context, item.date))
                             is TimelineItem.Message -> {
                                 // Automatic download "Alle Medien": pictures, videos and voice load ahead.
-                                val mid = item.message.media?.id
+                                val mid = item.message.media?.takeIf { !it.blocked }?.id
                                 if (look.autoAll && mid != null && (item.message.kind != ChatMessage.KIND_FILE || item.message.isVideo)) {
                                     LaunchedEffect(mid) { viewModel.prefetch(mid) }
                                 }
@@ -1009,19 +1014,22 @@ fun ConversationScreen(
                 viewModel.startEdit(m)
             },
             // Messenger 1.10: pictures, voice messages and files into the person's Drive (a folder they pick).
-            onToDrive = if (state.profile?.drive == true && m.media != null && !m.deleted && m.kind in DRIVE_KINDS) {
+            // not for a file the virus scan blocked (the server refuses it as well)
+            onToDrive = if (state.profile?.drive == true && m.media != null && !m.media.blocked && !m.deleted && m.kind in DRIVE_KINDS) {
                 {
                     actionsFor = null
                     driveFor = m
                 }
             } else null,
-            onShareFile = if (m.media != null) {
+            onShareFile = if (m.media != null && !m.media.blocked) {
                 {
                     actionsFor = null
-                    scope.launch {
+                    scanGate(m.media.scan) {
+                        scope.launch {
                         val f = viewModel.file(m)
                         if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
                         else openFile(context, f, m.meta?.fileName ?: defaultName(m), m.media.mime, share = true)
+                        }
                     }
                 }
             } else null,

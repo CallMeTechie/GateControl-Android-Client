@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import com.gatecontrol.android.mail.MailEntryPoint
+import com.gatecontrol.android.ui.scan.scanCodeText
 import dagger.hilt.android.EntryPointAccessors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -405,8 +406,8 @@ internal fun MailDivider() {
     Box(Modifier.fillMaxWidth().height(1.dp).background(GateControlTheme.extraColors.panel2))
 }
 
-/** A refusal or failure of the Mail plugin as a sentence. */
-internal fun mailText(context: Context, code: String?): String = context.getString(
+/** A refusal or failure of the Mail plugin as a sentence (the virus scan's codes too, Mail 1.8). */
+internal fun mailText(context: Context, code: String?): String = scanCodeText(context, code) ?: context.getString(
     when (code) {
         "offline", "http_0" -> R.string.mail_err_offline
         "not_configured" -> R.string.mail_err_not_configured

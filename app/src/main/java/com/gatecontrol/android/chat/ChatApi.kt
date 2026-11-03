@@ -5,6 +5,7 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.scan.MediaScanHttp
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -449,7 +450,8 @@ class ChatApi @Inject constructor(
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return null
         return try {
-            withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(MESSENGER_PLUGIN, mediaId, range) }
+            // `423 scan_pending` (Messenger 1.11): still being checked — asked again after `Retry-After` (a few times)
+            MediaScanHttp.get { withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(MESSENGER_PLUGIN, mediaId, range) } }?.response
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

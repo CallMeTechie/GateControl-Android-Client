@@ -69,6 +69,7 @@ import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.scan.ScanLine
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.time.LocalDate
 import java.time.LocalTime
@@ -238,6 +239,19 @@ fun MailComposeScreen(onClose: () -> Unit, viewModel: MailComposeViewModel = hil
         )
     }
     if (plan) PlanDialog(onPick = { at -> plan = false; send(at) }, onDismiss = { plan = false })
+    // Mail 1.8: the send was refused, an attachment is blocked by the virus scan — remove it and send again?
+    state.blockedAttachment?.let { b ->
+        AlertDialog(
+            onDismissRequest = viewModel::keepBlocked,
+            icon = { Icon(GcIcons.Alert, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text(stringResource(R.string.scan_mail_attachment_blocked_title)) },
+            text = {
+                Text(b.name?.let { stringResource(R.string.scan_mail_attachment_blocked_ask, it) } ?: stringResource(R.string.scan_err_attachment_blocked_plain))
+            },
+            confirmButton = { TextButton(onClick = viewModel::removeBlocked) { Text(stringResource(R.string.scan_mail_remove), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = viewModel::keepBlocked) { Text(stringResource(R.string.scan_mail_cancel)) } },
+        )
+    }
     if (askDiscard) {
         AlertDialog(
             onDismissRequest = { askDiscard = false },
@@ -263,6 +277,7 @@ private fun warningText(kind: String): String = when (kind) {
     "too_large" -> stringResource(R.string.mail_warn_too_large)
     "password" -> stringResource(R.string.mail_warn_password)
     "no_subject" -> stringResource(R.string.mail_no_subject_text)
+    "attachment_blocked" -> stringResource(R.string.scan_err_attachment_blocked_plain)
     else -> stringResource(R.string.mail_warn_other)
 }
 
@@ -387,6 +402,8 @@ private fun AttachmentRow(a: ComposeAttachment, onRemove: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = extra.muted,
             )
+            // a forwarded attachment the virus scan blocked goes along marked (Mail 1.8); the send refuses it
+            ScanLine((a as? ComposeAttachment.Saved)?.a?.scan)
         }
         if (a is ComposeAttachment.Uploading) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)

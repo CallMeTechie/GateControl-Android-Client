@@ -17,6 +17,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.gatecontrol.android.R
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.push.PushOpenActivity
+import com.gatecontrol.android.ui.scan.scanCodeText
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import java.util.Locale
@@ -197,6 +198,9 @@ class GateDropNotifier @Inject constructor(
     }
 
     /** Not sent (no server, refused): tap opens "Gesendet". */
+    /** The virus scan's refusal of a send as a sentence (GateDrop 1.4), null for any other code. */
+    suspend fun scanReason(code: String?, name: String?): String? = scanCodeText(localized(), code, name = name)
+
     suspend fun sendFailed(key: String, reason: String?) {
         val ctx = localized()
         ensureChannels(ctx)

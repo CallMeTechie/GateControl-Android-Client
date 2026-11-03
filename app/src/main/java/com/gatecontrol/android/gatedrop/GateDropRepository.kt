@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.gatecontrol.android.familie.PluginDirectory
+import com.gatecontrol.android.scan.MediaScanJson
 import com.gatecontrol.android.support.CrashReports
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -36,9 +37,12 @@ sealed interface GdJobState {
     data object Preparing : GdJobState
     data class Uploading(val percent: Int?) : GdJobState
     data object Sending : GdJobState
+    /** GateDrop 1.4 `423 scan_pending`: a file is still being checked for viruses, the send is asked again soon. */
+    data object Checking : GdJobState
     data class Direct(val percent: Int?) : GdJobState
     data class Done(val sendId: String?, val link: GdLinkResult?) : GdJobState
-    data class Failed(val code: String?) : GdJobState
+    /** [name]: the file a virus-scan refusal names (`422 infected`, `423 scan_blocked`). */
+    data class Failed(val code: String?, val name: String? = null) : GdJobState
 }
 
 /** Result of one run of a send job. */
@@ -48,8 +52,8 @@ sealed interface GdJobOutcome {
     /** Worth another try later (offline, server busy). */
     data class Retry(val code: String) : GdJobOutcome
 
-    /** Will not work (refused, files gone). */
-    data class Failed(val code: String) : GdJobOutcome
+    /** Will not work (refused, files gone); [name] the file a virus-scan refusal names. */
+    data class Failed(val code: String, val name: String? = null) : GdJobOutcome
 }
 
 /**
@@ -96,6 +100,21 @@ class GateDropRepository @Inject constructor(
     private fun percent(done: Long, total: Long): Int? = if (total <= 0) null else ((done * 100) / total).toInt().coerceIn(0, 100)
 
     /**
+     * [call] again while GateDrop says `423 scan_pending` (GateDrop 1.4: a file is still being checked, nothing was
+     * sent): every 5 s, at most 10 minutes like the portal ([GateDropLogic.scanWaitMs]).
+     */
+    private suspend fun <T> whileChecking(jobId: String, call: suspend () -> GdResult<T>): GdResult<T> {
+        var waited = 0L
+        while (true) {
+            val r = call()
+            val wait = GateDropLogic.scanWaitMs(r, waited) ?: return r
+            setJobState(jobId, GdJobState.Checking)
+            delay(wait)
+            waited += wait
+        }
+    }
+
+    /**
      * One run of [job]: upload first or send the files as local items,
      * `POST sends`, the direct transfers the server hands out, and the
      * server path for every device a direct transfer did not reach.
@@ -124,7 +143,8 @@ class GateDropRepository @Inject constructor(
                         job = job.copy(uploaded = ids.toList())
                         store.saveJob(job)
                     }
-                    is GdResult.Failed -> return r
+                    // the virus scan rejected it (`422 infected`): the refusal names the file
+                    is GdResult.Failed -> return if (r.name == null && MediaScanJson.isScanCode(r.code)) r.copy(name = f.name) else r
                     GdResult.Offline -> return GdResult.Offline
                     GdResult.NotConfigured -> return GdResult.NotConfigured
                 }
@@ -135,7 +155,7 @@ class GateDropRepository @Inject constructor(
         fun uploadedItems(ids: List<String>) = job.files.mapIndexed { i, f -> GdSendItem(f.name, f.mime, f.size, mediaId = ids[i]) }
 
         fun failure(r: GdResult<*>): GdJobOutcome = when (r) {
-            is GdResult.Failed -> if (r.http >= 500 || r.http == 429) GdJobOutcome.Retry(r.code) else GdJobOutcome.Failed(r.code)
+            is GdResult.Failed -> if (r.http >= 500 || r.http == 429) GdJobOutcome.Retry(r.code) else GdJobOutcome.Failed(r.code, r.name)
             GdResult.NotConfigured -> GdJobOutcome.Failed("not_configured")
             else -> GdJobOutcome.Retry("offline")
         }
@@ -143,7 +163,7 @@ class GateDropRepository @Inject constructor(
         /** Upload (what is not up yet) and hand the files [indexes] to the send (`POST sends/<id>/items`). */
         suspend fun deliverMissing(sendId: String, indexes: List<Int>): GdJobOutcome? {
             val ids = uploadAll().let { if (it is GdResult.Ok) it.value else return failure(it) }
-            val added = api.addItems(sendId, indexes.filter { it in ids.indices }.associateWith { ids[it] })
+            val added = whileChecking(job.id) { api.addItems(sendId, indexes.filter { it in ids.indices }.associateWith { ids[it] }) }
             return if (added is GdResult.Ok) null else failure(added)
         }
 
@@ -168,12 +188,12 @@ class GateDropRepository @Inject constructor(
         }
         setJobState(job.id, GdJobState.Sending)
         onProgress(true, null)
-        var sent = api.send(items, job.text, job.link, job.note, job.to)
+        var sent = whileChecking(job.id) { api.send(items, job.text, job.link, job.note, job.to) }
         // A chosen device is not reachable directly after all: the files go up first.
         if (localItems && sent is GdResult.Failed && GateDropLogic.uploadRequired(sent.code, sent.http)) {
             localItems = false
             val uploaded = uploadedItems().let { if (it is GdResult.Ok) it.value else return failure(it) }
-            sent = api.send(uploaded, job.text, job.link, job.note, job.to)
+            sent = whileChecking(job.id) { api.send(uploaded, job.text, job.link, job.note, job.to) }
         }
         val result = (sent as? GdResult.Ok)?.value ?: return failure(sent)
         job = job.copy(sendId = result.id)
@@ -367,8 +387,9 @@ class GateDropRepository @Inject constructor(
                         item.name,
                         item.mime,
                         item.bytes,
-                        item.mediaId?.takeIf { item.available },
+                        item.mediaId?.takeIf { item.available && item.scan?.blocked != true },
                         known?.files?.firstOrNull { it.mediaId != null && it.mediaId == item.mediaId }?.uri,
+                        item.scan,
                     )
                 },
             )

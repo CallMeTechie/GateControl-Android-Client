@@ -63,6 +63,8 @@ import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.scan.ScanLine
+import com.gatecontrol.android.ui.scan.rememberScanAsk
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.mail.calendar.InviteConsentCard
 import com.gatecontrol.android.ui.mail.calendar.InviteNav
@@ -107,6 +109,7 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
     val event by viewModel.event.collectAsStateWithLifecycle()
     val folders by viewModel.folders.collectAsStateWithLifecycle()
     val context = mailContext()
+    val ask = rememberScanAsk()
     var menu by remember { mutableStateOf(false) }
     var move by remember { mutableStateOf(false) }
     var driveFor by remember { mutableStateOf<Pair<MailAttachmentUi, Boolean>?>(null) }
@@ -238,12 +241,13 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                             a = a,
                             sender = m.summary.from.label,
                             drive = drive,
-                            onOpen = { viewModel.open(a.attachment) },
+                            // marked as malware (not blocked): only after asking
+                            onOpen = { ask(a.scan) { viewModel.open(a.attachment) } },
                             onSave = { remember -> viewModel.saveToDrive(a, null, remember) },
                             onOther = { remember -> driveFor = a to remember },
                         )
                     }
-                    if (drive && state.attachments.count { it.savedTo == null } > 1) {
+                    if (drive && state.attachments.count { it.savedTo == null && it.scan?.closed != true } > 1) {
                         TextButton(onClick = viewModel::saveAll, enabled = !state.savingAll) { Text(stringResource(R.string.mail_save_all)) }
                     }
                     if (m.imagesBlocked) {
@@ -593,14 +597,21 @@ private fun AttachmentCard(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(a.attachment.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (a.loading) stringResource(R.string.mail_attachment_loading) else mailSize(a.attachment.size),
+                    when {
+                        a.loading && a.scan?.blocked == true -> stringResource(R.string.scan_detail_checking)
+                        a.loading -> stringResource(R.string.mail_attachment_loading)
+                        else -> mailSize(a.attachment.size)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = extra.muted,
                 )
+                // the virus scan (Mail 1.8): "Gesperrt – Schadsoftware (…)", "Anhang entfernt (Schadsoftware)", …
+                ScanLine(a.scan)
             }
             if (a.busy || a.loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         }
-        if (!drive) return@Column
+        // blocked or removed: no "In Drive speichern" (the server refuses it as well)
+        if (!drive || a.scan?.closed == true) return@Column
         val saved = a.savedTo
         when {
             saved != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

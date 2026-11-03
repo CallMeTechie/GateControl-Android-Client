@@ -88,21 +88,22 @@ class GateDropSendWorker(appContext: Context, params: WorkerParameters) : Corout
                 Result.success()
             }
             is GdJobOutcome.Retry -> if (runAttemptCount >= MAX_RUNS) {
-                giveUp(repo, notifier, outcome.code)
+                giveUp(repo, notifier, outcome.code, null)
             } else {
                 repo.setJobState(jobId, GdJobState.Uploading(null))
                 Result.retry()
             }
-            is GdJobOutcome.Failed -> giveUp(repo, notifier, outcome.code)
+            is GdJobOutcome.Failed -> giveUp(repo, notifier, outcome.code, outcome.name)
         }
     }
 
-    private suspend fun giveUp(repo: GateDropRepository, notifier: GateDropNotifier, code: String): Result {
+    private suspend fun giveUp(repo: GateDropRepository, notifier: GateDropNotifier, code: String, name: String?): Result {
         Timber.w("GateDrop: send given up (%s)", code)
-        repo.setJobState(jobId, GdJobState.Failed(code))
+        repo.setJobState(jobId, GdJobState.Failed(code, name))
         repo.store.dropJob(jobId)
         notifier.cancel(GateDropNotifier.progressId(jobId))
-        notifier.sendFailed(jobId, null)
+        // the virus scan's refusal says what happened ("<Name> abgelehnt – Schadsoftware gefunden."); else the usual text
+        notifier.sendFailed(jobId, notifier.scanReason(code, name))
         return Result.failure()
     }
 

@@ -21,6 +21,9 @@ import com.gatecontrol.android.mail.MailJson
 import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.mail.MailRepository
 import com.gatecontrol.android.navigation.Screen
+import com.gatecontrol.android.scan.MediaScanJson
+import com.gatecontrol.android.ui.scan.scanCodeText
+import com.google.gson.JsonObject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +64,9 @@ sealed class ComposeAttachment {
 /** The recipient fields. */
 enum class RecipientField { TO, CC, BCC }
 
+/** An attachment the virus scan blocked, named by the refused send ([id]: the draft's attachment, when it says). */
+data class BlockedAttachment(val id: Long?, val name: String?)
+
 data class ComposeState(
     val loading: Boolean = true,
     val accountId: Long? = null,
@@ -81,6 +87,8 @@ data class ComposeState(
     val suggestions: List<MContact> = emptyList(),
     val suggestFor: RecipientField? = null,
     val error: String? = null,
+    /** Mail 1.8: the send was refused, an attachment is blocked by the virus scan (`409 attachment_blocked`) — remove it? */
+    val blockedAttachment: BlockedAttachment? = null,
 ) {
     fun recipients(f: RecipientField): List<MAddress> = when (f) {
         RecipientField.TO -> to
@@ -335,7 +343,9 @@ class MailComposeViewModel @Inject constructor(
                     }
                     else -> {
                         _state.update { s -> s.copy(attachments = s.attachments.filter { it.key != key }) }
-                        _event.value = ComposeEvent.Toast(mailText(context, MailHomeViewModel.code(r)))
+                        // the virus scan rejected it (`422 infected`): "<Name> abgelehnt – Schadsoftware gefunden."
+                        val code = MailHomeViewModel.code(r)
+                        _event.value = ComposeEvent.Toast(scanCodeText(context, code, name = meta.first) ?: mailText(context, code))
                     }
                 }
                 if (r is MResult.Ok) save()
@@ -449,7 +459,7 @@ class MailComposeViewModel @Inject constructor(
             val saved = save()
             if (saved !is MResult.Ok) {
                 _state.update { it.copy(sending = false) }
-                _event.value = ComposeEvent.Toast(mailText(context, MailHomeViewModel.code(saved)))
+                _event.value = ComposeEvent.Toast(failText(saved))
                 return@launch
             }
             val started = SystemClock.elapsedRealtime()
@@ -459,12 +469,56 @@ class MailComposeViewModel @Inject constructor(
                     _event.value = ComposeEvent.Sent
                 }
                 else -> {
-                    _state.update { it.copy(sending = false) }
-                    _event.value = ComposeEvent.Toast(mailText(context, MailHomeViewModel.code(r)))
+                    val blocked = blockedOf(r, saved.value)
+                    _state.update { it.copy(sending = false, blockedAttachment = blocked) }
+                    // the dialog names the attachment and offers to remove it; anything else is a toast
+                    if (blocked == null) _event.value = ComposeEvent.Toast(failText(r))
                 }
             }
         }
     }
+
+    /**
+     * A refusal as a sentence: the virus scan's with the file's name when the server names it (`422 infected` of a
+     * device attachment, Mail 1.8), else the plugin's text.
+     */
+    private fun failText(r: MResult<*>): String {
+        val f = r as? MResult.Failed
+        val refusal = f?.let { MediaScanJson.refusal(it.http, it.error) }
+        return refusal?.let { scanCodeText(context, it.code, it.finding, it.name) } ?: mailText(context, MailHomeViewModel.code(r))
+    }
+
+    /** `409 attachment_blocked { attachmentId, name }` → the attachment to remove; null for any other refusal. */
+    private fun blockedOf(r: MResult<*>, draft: MDraft): BlockedAttachment? {
+        val f = r as? MResult.Failed ?: return null
+        if (f.code != MediaScanJson.ATTACHMENT_BLOCKED) return null
+        val refusal = MediaScanJson.refusal(f.http, f.error ?: JsonObject().apply { addProperty("code", f.code) })
+        val id = refusal?.attachmentId
+        val name = refusal?.name ?: draft.attachments.firstOrNull { it.id == id }?.name
+            ?: draft.attachments.firstOrNull { it.scan?.blocked == true }?.name
+        return BlockedAttachment(id ?: name?.let { n -> draft.attachments.firstOrNull { it.name == n }?.id }, name)
+    }
+
+    /** "Entfernen": the blocked attachment goes from the draft, then the mail is sent again. */
+    fun removeBlocked() {
+        val b = _state.value.blockedAttachment ?: return
+        _state.update { s ->
+            s.copy(
+                blockedAttachment = null,
+                attachments = s.attachments.filterNot { a ->
+                    when {
+                        a is ComposeAttachment.Saved && b.id != null -> a.a.id == b.id
+                        b.name != null -> b.id == null && a.name == b.name
+                        else -> a is ComposeAttachment.Saved && a.a.scan?.blocked == true
+                    }
+                },
+            )
+        }
+        dirty = true
+        send()
+    }
+
+    fun keepBlocked() = _state.update { it.copy(blockedAttachment = null) }
 
     /**
      * Closing: what was written stays as a draft. Nothing written here leaves nothing behind: a draft the server made

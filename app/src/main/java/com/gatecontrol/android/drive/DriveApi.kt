@@ -4,6 +4,7 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.scan.MediaScanHttp
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
@@ -736,11 +737,13 @@ class DriveApi @Inject constructor(
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
         return try {
-            val r = withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(DRIVE_PLUGIN, media.value) }
+            // `423 scan_pending`: the file is still being checked — asked again after `Retry-After` (a few times)
+            val a = MediaScanHttp.get { withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(DRIVE_PLUGIN, media.value) } }
                 ?: return DResult.Offline
+            val r = a.response
             if (r.isSuccessful && r.body() != null) DResult.Ok(r) else {
                 r.errorBody()?.close()
-                DResult.Failed("http_${r.code()}", r.code())
+                DResult.Failed(a.code, r.code())
             }
         } catch (e: CancellationException) {
             throw e

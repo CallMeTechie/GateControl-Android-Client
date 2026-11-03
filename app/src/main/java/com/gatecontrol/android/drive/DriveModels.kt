@@ -1,5 +1,6 @@
 package com.gatecontrol.android.drive
 
+import com.gatecontrol.android.scan.MediaScan
 import com.google.gson.JsonObject
 
 /** Plugin id of Drive (files of the family and the team on the own storage). */
@@ -228,9 +229,14 @@ data class DNode(
     val located: Boolean? = null,
     /** Drive 1.16 (`photoPeople`, `with=people`): the named people on it (ids); null when not asked. */
     val people: List<Long>? = null,
+    /** The host's virus scan (Drive 1.19, feature `scan`); null when the server says nothing (then nothing changes). */
+    val scan: MediaScan? = null,
 ) {
     /** In a vault: nothing of it may go to a preview, a link, the office, the AI or a backup. */
     val encrypted: Boolean get() = vaultId != null
+
+    /** Blocked by the virus scan: not opened, downloaded, previewed, shared or handed on. */
+    val blocked: Boolean get() = scan?.blocked == true
 }
 
 /** The review mark of a photo (Drive 1.13): [hint] the AI's probability "work" in percent, null when it had none. */
@@ -632,4 +638,12 @@ data class DOpFile(
 )
 
 /** `POST zip`: where the ZIP of a selection can be fetched for a short time, its file name. */
-data class DZip(val url: String?, val path: String?, val mediaId: String?, val name: String, val expiresAt: String?)
+data class DZip(
+    val url: String?,
+    val path: String?,
+    val mediaId: String?,
+    val name: String,
+    val expiresAt: String?,
+    /** Files the server left out because the virus scan blocked them (Drive 1.19 `skipped[].reason: 'blocked'`). */
+    val blocked: Int = 0,
+)
