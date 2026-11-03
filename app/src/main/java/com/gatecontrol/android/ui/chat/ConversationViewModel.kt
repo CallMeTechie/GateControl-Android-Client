@@ -472,7 +472,7 @@ class ConversationViewModel @Inject constructor(
 
     /** Plays (or pauses) the voice message [m]. */
     fun togglePlay(m: ChatMessage) {
-        val mediaId = m.media?.id ?: return
+        val mediaId = m.media?.takeIf { !it.blocked }?.id ?: return
         viewModelScope.launch {
             val f = media.file(mediaId)
             if (f == null) notices.trySend(ConversationNotice.Error("offline")) else player.toggle("m:${m.id}", f)
@@ -530,7 +530,7 @@ class ConversationViewModel @Inject constructor(
     fun discard(clientId: String) = repository.discard(clientId)
 
     /** The file of [m], downloaded (for opening, sharing, the picture viewer). */
-    suspend fun file(m: ChatMessage): File? = m.media?.id?.let { media.file(it) }
+    suspend fun file(m: ChatMessage): File? = m.media?.takeIf { !it.blocked }?.id?.let { media.file(it) }
 
     /** The caller left this conversation on this device (no "no longer available" notice). */
     fun leftHere(): Boolean = id.value?.let { repository.leftHere(it) } == true

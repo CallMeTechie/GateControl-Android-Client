@@ -562,6 +562,8 @@ internal class DriveBulkActions(
                 return null
             }
         }
+        // the virus scan's blocked files are not in it: "x gesperrte Dateien fehlen"
+        if (z.blocked > 0) _message.value = scanSkippedCode(z.blocked)
         val body = when (val r = api.zipStream(z)) {
             is DResult.Ok -> r.value
             else -> {

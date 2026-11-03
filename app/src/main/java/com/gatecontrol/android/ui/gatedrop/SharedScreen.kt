@@ -51,6 +51,7 @@ import com.gatecontrol.android.gatedrop.GdEntry
 import com.gatecontrol.android.gatedrop.GdLink
 import com.gatecontrol.android.gatedrop.GdReceiveFrom
 import com.gatecontrol.android.gatedrop.GdReceived
+import com.gatecontrol.android.scan.MediaScan
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -61,6 +62,9 @@ import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.scan.ScanLine
+import com.gatecontrol.android.ui.scan.rememberScanAsk
+import com.gatecontrol.android.ui.scan.scanClosedText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.util.Locale
 
@@ -219,6 +223,7 @@ private fun typeLabel(name: String?, mime: String?): String? {
 private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (GdReceived) -> Unit) {
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
+    val ask = rememberScanAsk()
     if (ui.received.isEmpty()) {
         if (!ui.loading) EmptyCard(stringResource(R.string.gatedrop_empty_received))
         return
@@ -230,18 +235,25 @@ private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (
             val sub = stringResource(R.string.gatedrop_from, from, time(ctx, e.at))
             val saving = e.key in ui.saving
             when {
-                e.files.isNotEmpty() -> {
+                e.files.isNotEmpty() -> Column {
                     val single = e.files.singleOrNull()
                     val saved = e.files.filter { it.uri != null }
+                    // the virus scan (GateDrop 1.4): a blocked file is not downloaded or opened, its mark says why
+                    val scan = MediaScan.worst(e.files.map { it.scan })
                     GcListRow(
                         title = single?.name ?: pluralStringResource(R.plurals.gatedrop_files, e.files.size, e.files.size),
                         description = sub + if (saved.size == e.files.size) " · " + stringResource(R.string.gatedrop_saved_locally) else "",
                         leading = { KindSquare(typeLabel(single?.name, single?.mime)) },
                         onClick = {
                             val uri = single?.uri
-                            if (uri != null) {
-                                onOpened(e)
-                                open(ctx, Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(uri), single.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                            val closed = single?.scan?.takeIf { it.closed }
+                            if (closed != null) {
+                                scanClosedText(ctx, closed)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() }
+                            } else if (uri != null) {
+                                ask(single.scan) {
+                                    onOpened(e)
+                                    open(ctx, Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(uri), single.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                }
                             } else if (saved.isNotEmpty() && saved.size == e.files.size) {
                                 open(ctx, Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS))
                             }
@@ -255,6 +267,7 @@ private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (
                             }
                         },
                     )
+                    ScanLine(scan, Modifier.padding(start = 70.dp, end = 16.dp, bottom = 10.dp))
                 }
                 e.link != null -> GcListRow(
                     title = stringResource(R.string.gatedrop_item_link, e.link),
@@ -328,15 +341,19 @@ private fun SentList(ui: SharedUi) {
             } else {
                 statusText(overall)
             }
-            GcListRow(
-                title = title,
-                description = listOfNotNull(
-                    to.takeIf { it.isNotBlank() }?.let { stringResource(R.string.gatedrop_to, it) },
-                    time(ctx, e.at).takeIf { it.isNotBlank() },
-                    status,
-                ).joinToString(" · "),
-                leading = { KindSquare(typeLabel(single?.name, single?.mime), link = e.items.isEmpty() && e.link != null) },
-            )
+            Column {
+                GcListRow(
+                    title = title,
+                    description = listOfNotNull(
+                        to.takeIf { it.isNotBlank() }?.let { stringResource(R.string.gatedrop_to, it) },
+                        time(ctx, e.at).takeIf { it.isNotBlank() },
+                        status,
+                    ).joinToString(" · "),
+                    leading = { KindSquare(typeLabel(single?.name, single?.mime), link = e.items.isEmpty() && e.link != null) },
+                )
+                // the virus scan (GateDrop 1.4): a file blocked after it went out
+                ScanLine(MediaScan.worst(e.items.map { it.scan }), Modifier.padding(start = 70.dp, end = 16.dp, bottom = 10.dp))
+            }
         }
     }
 }

@@ -126,7 +126,7 @@ fun GateDropShareSheet(
                 GdShareStage.LINK_OPTIONS -> LinkOptions(ui, onLinkDraft, onApplyLink, onRemoveLink, onCloseLink)
                 GdShareStage.PREPARING, GdShareStage.WAITING -> Progress(ui)
                 GdShareStage.RESULT -> LinkResult(ui, onDismiss)
-                GdShareStage.FAILED -> Failed(onDismiss)
+                GdShareStage.FAILED -> Failed(ui.failure, onDismiss)
                 else -> Main(ui, serverUrl, onShareInChat, onTogglePerson, onToggleDevice, onToggleNas, onToggleDrive, onNote, onOpenLink, onRetry, onSend)
             }
         }
@@ -456,6 +456,7 @@ private fun Progress(ui: GdShareUi) {
         Text(
             when {
                 ui.stage == GdShareStage.PREPARING -> stringResource(R.string.gatedrop_preparing)
+                ui.checking -> stringResource(R.string.scan_detail_checking)
                 p != null -> stringResource(R.string.gatedrop_uploading_percent, p)
                 else -> stringResource(R.string.gatedrop_waiting_link)
             },
@@ -509,11 +510,11 @@ private fun LinkResult(ui: GdShareUi, onDone: () -> Unit) {
 }
 
 @Composable
-private fun Failed(onDone: () -> Unit) {
+private fun Failed(reason: String?, onDone: () -> Unit) {
     GcBanner(tone = GcTone.Error, icon = GcIcons.Alert) {
         Column {
             Text(stringResource(R.string.gatedrop_send_failed), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            Text(stringResource(R.string.gatedrop_send_failed_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(reason ?: stringResource(R.string.gatedrop_send_failed_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
         }
     }
     GcSecondaryButton(text = stringResource(R.string.gatedrop_done), onClick = onDone)

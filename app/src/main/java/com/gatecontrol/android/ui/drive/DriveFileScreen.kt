@@ -73,6 +73,9 @@ import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSwitch
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.scan.rememberScanAsk
+import com.gatecontrol.android.ui.scan.scanDetailText
+import com.gatecontrol.android.ui.scan.scanTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -225,6 +228,7 @@ fun DriveFileScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: Dri
     val downloading by viewModel.transfers.downloading.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val ask = rememberScanAsk()
     var shown by remember { mutableStateOf(false) }
     LifecycleResumeEffect(viewModel) {
         if (shown) viewModel.refresh(quiet = true)
@@ -250,13 +254,20 @@ fun DriveFileScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: Dri
                 is DriveLoad.Ready -> {
                     val node = s.value.node
                     FileHeader(node, s.value.areaLabel, downloading[node.id], onFolder = node.parentId?.let { p -> { onFolder(p) } })
-                    if (!node.isDir && !node.encrypted) {
+                    val scan = node.scan
+                    if (scan?.badge != null) {
+                        // the virus scan (Drive 1.19): blocked files say why instead of open / send / office
+                        GcBanner(tone = scanTone(scan.badge!!), icon = GcIcons.Alert) {
+                            Text(scanDetailText(context, scan).orEmpty(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        }
+                    }
+                    if (!node.isDir && !node.encrypted && !node.blocked) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GcPrimaryButton(stringResource(R.string.drive_open_file), icon = GcIcons.External, modifier = Modifier.weight(1f), onClick = {
-                                scope.launch { fetchThen(context, node, { viewModel.fetch(it) }, then = { f -> openFile(context, node, f) }) { Toast.makeText(context, driveText(context, it), Toast.LENGTH_LONG).show() } }
+                                ask(scan) { scope.launch { fetchThen(context, node, { viewModel.fetch(it) }, then = { f -> openFile(context, node, f) }) { Toast.makeText(context, driveText(context, it), Toast.LENGTH_LONG).show() } } }
                             })
                             GcOutlineButton(stringResource(R.string.drive_send), icon = GcIcons.Share, modifier = Modifier.weight(1f), onClick = {
-                                scope.launch { fetchThen(context, node, { viewModel.fetch(it) }, then = { f -> sendFile(context, node, f) }) { Toast.makeText(context, driveText(context, it), Toast.LENGTH_LONG).show() } }
+                                ask(scan) { scope.launch { fetchThen(context, node, { viewModel.fetch(it) }, then = { f -> sendFile(context, node, f) }) { Toast.makeText(context, driveText(context, it), Toast.LENGTH_LONG).show() } } }
                             })
                         }
                         if (DriveLogic.officeAllowed(me, node)) {

@@ -86,6 +86,8 @@ internal object DriveBulk {
         NO_OFFICE,
         /** Albums are off. */
         NO_ALBUMS,
+        /** Blocked by the virus scan (Drive 1.19 `scan`): not sent, saved, zipped, linked or opened in the office. */
+        SCAN_BLOCKED,
     }
 
     data class Can(val ok: Boolean, val why: Why? = null) {
@@ -141,10 +143,13 @@ internal object DriveBulk {
         val one = nodes.size == 1
         val folders = nodes.any { it.isDir }
         val vault = where.vault || nodes.any { it.encrypted }
+        // the virus scan blocked a file (feature detection: without `scan` at the nodes nothing is blocked)
+        val blocked = nodes.any { it.blocked }
         return when (action) {
             // folders go as the server's ZIP: one folder alone
             Action.SEND -> when {
                 vault -> Can.no(Why.VAULT)
+                blocked -> Can.no(Why.SCAN_BLOCKED)
                 !folders -> Can.YES
                 zipOff(me, DMe.FEATURE_ZIP) == Why.NEEDS_BULK -> Can.no(Why.FOLDERS_NEED_ZIP)
                 zipOff(me, DMe.FEATURE_ZIP) != null -> Can.no(zipOff(me, DMe.FEATURE_ZIP)!!)
@@ -162,6 +167,7 @@ internal object DriveBulk {
             // files one by one, each folder as its own ZIP
             Action.SAVE -> when {
                 vault -> Can.no(Why.VAULT)
+                blocked -> Can.no(Why.SCAN_BLOCKED)
                 !folders -> Can.YES
                 zipOff(me, DMe.FEATURE_ZIP) == Why.NEEDS_BULK -> Can.no(Why.FOLDERS_NEED_ZIP)
                 zipOff(me, DMe.FEATURE_ZIP) != null -> Can.no(zipOff(me, DMe.FEATURE_ZIP)!!)
@@ -169,12 +175,15 @@ internal object DriveBulk {
             }
             Action.ZIP -> when {
                 vault -> Can.no(Why.VAULT)
+                // the server leaves blocked files out (`skipped`); only blocked files make no ZIP
+                nodes.all { it.blocked } -> Can.no(Why.SCAN_BLOCKED)
                 zipOff(me, DMe.FEATURE_ZIP) != null -> Can.no(zipOff(me, DMe.FEATURE_ZIP)!!)
                 zipShape(nodes, mixed) != null -> Can.no(zipShape(nodes, mixed)!!)
                 else -> Can.YES
             }
             Action.LINK -> when {
                 vault -> Can.no(Why.VAULT)
+                blocked -> Can.no(Why.SCAN_BLOCKED)
                 !rights(nodes, where).ok -> rights(nodes, where)
                 one -> Can.YES
                 zipOff(me, DMe.FEATURE_MULTI_LINK) != null -> Can.no(zipOff(me, DMe.FEATURE_MULTI_LINK)!!)

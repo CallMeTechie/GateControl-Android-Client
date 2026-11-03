@@ -124,6 +124,7 @@ internal fun whyRes(why: DriveBulk.Why): Int = when (why) {
     DriveBulk.Why.VAULT -> R.string.drive_why_vault
     DriveBulk.Why.NO_OFFICE -> R.string.drive_why_office
     DriveBulk.Why.NO_ALBUMS -> R.string.drive_why_albums
+    DriveBulk.Why.SCAN_BLOCKED -> R.string.scan_drive_why_blocked
 }
 
 /** "2 Dateien, 1 Ordner · 1,6 MB + Ordnerinhalt". */
@@ -163,6 +164,8 @@ private fun reasonText(context: Context, reason: String): String = when (reason)
     "abandoned" -> context.getString(R.string.drive_code_abandoned)
     "job_limit" -> context.getString(R.string.drive_code_job_limit)
     "too_large" -> context.getString(R.string.drive_code_too_large)
+    // the virus scan blocked the file (Drive 1.19): it is not copied, zipped or handed on
+    "blocked" -> context.getString(R.string.scan_drive_why_blocked)
     else -> driveText(context, reason)
 }
 

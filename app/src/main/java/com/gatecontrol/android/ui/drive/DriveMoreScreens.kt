@@ -50,6 +50,7 @@ import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
+import com.gatecontrol.android.ui.scan.rememberScanAsk
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.launch
 
@@ -180,10 +181,13 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     val chosen = remember(selected, hits) { hits.filter { it.id in selected } }
     val areaOf: (DNode) -> com.gatecontrol.android.drive.DArea? = { n -> areas.firstOrNull { it.id == n.areaId } }
     val where = DriveBulk.Where(writable = { n -> areaOf(n)?.writable == true }, child = { n -> areaOf(n)?.via == "parent" })
+    val ask = rememberScanAsk()
     val open: (DNode, Boolean) -> Unit = { n, send ->
-        scope.launch {
-            fetchThen(context, n, viewModel::fetch, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
-                Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+        ask(n.scan) {
+            scope.launch {
+                fetchThen(context, n, viewModel::fetch, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
+                    Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.core.content.edit
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.PluginDirectory
+import com.gatecontrol.android.scan.MediaScan
+import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -23,6 +25,8 @@ data class GdReceivedFile(
     val bytes: Long,
     val mediaId: String? = null,
     val uri: String? = null,
+    /** The host's virus scan (GateDrop 1.4) when the server named one; blocked: not downloaded, a mark instead. */
+    val scan: MediaScan? = null,
 )
 
 /** Something received on this device (direct or over the server). */
@@ -210,6 +214,7 @@ object GateDropStoreJson {
                             addProperty("bytes", f.bytes)
                             f.mediaId?.let { addProperty("mediaId", it) }
                             f.uri?.let { addProperty("uri", it) }
+                            f.scan?.let { add("scan", MediaScanJson.toJson(it)) }
                         })
                     }
                 })
@@ -238,6 +243,7 @@ object GateDropStoreJson {
                         bytes = f.l("bytes") ?: 0L,
                         mediaId = f.s("mediaId"),
                         uri = f.s("uri"),
+                        scan = MediaScanJson.of(f),
                     )
                 }.orEmpty(),
             )

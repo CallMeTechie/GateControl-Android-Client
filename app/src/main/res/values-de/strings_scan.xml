@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Virenscan der Plugin-Dateien (Drive, GateDrop, Mail, Messenger): Kennzeichen, Ablehnungen, Warnungen -->
+
+    <!-- Kennzeichen in Listen (kurz) -->
+    <string name="scan_badge_checking">Wird geprüft …</string>
+    <string name="scan_badge_blocked_malware">Gesperrt – Schadsoftware</string>
+    <string name="scan_badge_blocked_unscannable">Gesperrt – nicht prüfbar</string>
+    <string name="scan_badge_warn_malware">Warnung – Schadsoftware</string>
+    <string name="scan_badge_not_checkable">Nicht prüfbar</string>
+    <string name="scan_badge_removed">Anhang entfernt (Schadsoftware)</string>
+
+    <!-- Details (mit dem Fund) -->
+    <string name="scan_detail_checking">Wird auf Viren geprüft …</string>
+    <string name="scan_detail_checking_open">Wird auf Viren geprüft … Die Datei öffnet sich nach der Prüfung.</string>
+    <string name="scan_detail_blocked_malware">Gesperrt – Schadsoftware (%1$s)</string>
+    <string name="scan_detail_blocked_malware_plain">Gesperrt – Schadsoftware</string>
+    <string name="scan_detail_blocked_unscannable">Gesperrt – konnte nicht geprüft werden</string>
+    <string name="scan_detail_warn_malware">Schadsoftware gefunden (%1$s) – nur öffnen, wenn du vertraust</string>
+    <string name="scan_detail_warn_malware_plain">Schadsoftware gefunden – nur öffnen, wenn du vertraust</string>
+    <string name="scan_detail_not_checkable">Nicht prüfbar</string>
+
+    <!-- Ablehnungen des Servers -->
+    <string name="scan_err_pending">Wird auf Viren geprüft … Bitte gleich noch einmal versuchen.</string>
+    <string name="scan_err_quarantined">Datei gesperrt – Schadsoftware gefunden (%1$s)</string>
+    <string name="scan_err_quarantined_plain">Datei gesperrt – Schadsoftware gefunden</string>
+    <string name="scan_err_blocked">Datei gesperrt – konnte nicht geprüft werden</string>
+    <string name="scan_err_infected">%1$s abgelehnt – Schadsoftware gefunden.</string>
+    <string name="scan_err_infected_plain">Datei abgelehnt – Schadsoftware gefunden.</string>
+    <string name="scan_err_unavailable">Virenscan gerade nicht erreichbar – bitte später erneut versuchen.</string>
+    <string name="scan_err_attachment_removed">Anhang entfernt (Schadsoftware)</string>
+    <string name="scan_err_attachment_blocked">Der Anhang %1$s ist gesperrt (Schadsoftware).</string>
+    <string name="scan_err_attachment_blocked_plain">Ein Anhang ist gesperrt (Schadsoftware).</string>
+    <string name="scan_err_not_checkable">%1$s konnte nicht auf Viren geprüft werden.</string>
+
+    <!-- Nachfrage, bevor eine markierte Datei sich öffnet -->
+    <string name="scan_warn_title">Schadsoftware gefunden</string>
+    <string name="scan_warn_open">Trotzdem öffnen</string>
+    <string name="scan_warn_cancel">Abbrechen</string>
+
+    <!-- Drive -->
+    <string name="scan_drive_why_blocked">Vom Virenscan gesperrt</string>
+    <plurals name="scan_drive_skipped">
+        <item quantity="one">%d gesperrte Datei fehlt</item>
+        <item quantity="other">%d gesperrte Dateien fehlen</item>
+    </plurals>
+
+    <!-- Mail -->
+    <string name="scan_mail_attachment_blocked_title">Anhang gesperrt</string>
+    <string name="scan_mail_attachment_blocked_ask">Der Anhang %1$s ist gesperrt (Schadsoftware) – entfernen?</string>
+    <string name="scan_mail_remove">Entfernen</string>
+    <string name="scan_mail_cancel">Abbrechen</string>
+
+    <!-- Messenger -->
+    <string name="scan_chat_blocked">Datei gesperrt</string>
+    <string name="scan_chat_blocked_malware">Schadsoftware gefunden (%1$s)</string>
+    <string name="scan_chat_blocked_malware_plain">Schadsoftware gefunden</string>
+    <string name="scan_chat_blocked_unscannable">Datei gesperrt – konnte nicht geprüft werden</string>
+    <string name="scan_chat_not_sent_infected">Nicht gesendet – Schadsoftware gefunden</string>
+    <string name="scan_chat_not_sent_unscannable">Nicht gesendet – Datei konnte nicht geprüft werden</string>
+</resources>

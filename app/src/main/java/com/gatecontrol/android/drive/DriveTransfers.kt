@@ -406,6 +406,8 @@ class DriveTransfers @Inject constructor(
      * (`cache-path drive_open`). Reuses a copy of the same revision. Failed(code) when it cannot be fetched.
      */
     suspend fun fetch(node: DNode, versionId: Long? = null): DResult<File> = withContext(Dispatchers.IO) {
+        // Blocked by the virus scan (Drive 1.19): not opened — not even a copy this phone has from before.
+        node.scan?.refusalCode?.let { return@withContext DResult.Failed(it, 423) }
         prune()
         val dir = File(File(context.cacheDir, "drive-open"), "${node.id}-${versionId?.let { "v$it" } ?: "r${node.rev}"}")
         val name = DriveLogic.safeName(node.name) ?: "file"

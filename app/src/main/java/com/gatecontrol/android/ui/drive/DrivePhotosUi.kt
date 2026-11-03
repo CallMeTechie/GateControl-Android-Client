@@ -109,6 +109,9 @@ import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcTextField
+import com.gatecontrol.android.ui.scan.ScanMark
+import com.gatecontrol.android.ui.scan.rememberScanAsk
+import com.gatecontrol.android.ui.scan.scanBadgeText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.launch
 import java.io.File
@@ -651,6 +654,7 @@ private fun PhotoTile(
         photoDate(node),
         if (badge?.review == true) stringResource(R.string.drive_work_tile_review) else null,
         if (badge?.work == true) stringResource(R.string.drive_work_tile_work) else null,
+        node.scan?.badge?.let { scanBadgeText(LocalContext.current, it) },
     ).joinToString(", ")
     Box(
         Modifier
@@ -694,6 +698,8 @@ private fun PhotoTile(
         if (selecting) SelectCheck(ticked, Modifier.align(Alignment.TopStart).padding(6.dp), onImage = true)
         if (badge?.review == true) ReviewMark(Modifier.align(Alignment.TopEnd).padding(6.dp))
         if (badge?.work == true) WorkBag(Modifier.align(Alignment.BottomStart).padding(6.dp))
+        // the virus scan's mark (Drive 1.19): the tile is too small for words
+        node.scan?.badge?.let { ScanMark(it, Modifier.align(Alignment.BottomEnd).padding(6.dp)) }
     }
 }
 
@@ -842,14 +848,17 @@ internal fun PhotoViewer(
     val pager = rememberPagerState(initialPage = start.coerceIn(0, items.size - 1)) { items.size }
     var busy by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage, items.size) { if (onMore != null && pager.currentPage >= items.size - 5) onMore() }
+    val ask = rememberScanAsk()
     val act: (DNode, Boolean) -> Unit = { n, send ->
         if (!busy) {
-            busy = true
-            scope.launch {
-                fetchThen(context, n, fetch, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
-                    Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+            ask(n.scan) {
+                busy = true
+                scope.launch {
+                    fetchThen(context, n, fetch, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
+                        Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+                    }
+                    busy = false
                 }
-                busy = false
             }
         }
     }

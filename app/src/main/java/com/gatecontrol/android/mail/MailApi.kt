@@ -4,6 +4,7 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.scan.MediaScanHttp
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -209,11 +210,14 @@ class MailApi @Inject constructor(
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return MResult.NotConfigured
         return try {
-            val r = withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(MAIL_PLUGIN, mediaId) } ?: return MResult.Offline
+            // `423 scan_pending`: still being checked — asked again after `Retry-After` (a few times)
+            val a = MediaScanHttp.get { withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(MAIL_PLUGIN, mediaId) } }
+                ?: return MResult.Offline
+            val r = a.response
             val body = r.body()
             if (r.isSuccessful && body != null) MResult.Ok(body) else {
                 r.errorBody()?.close()
-                MResult.Failed("http_${r.code()}", r.code())
+                MResult.Failed(a.code, r.code())
             }
         } catch (e: CancellationException) {
             throw e

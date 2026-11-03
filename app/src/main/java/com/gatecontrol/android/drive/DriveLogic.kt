@@ -289,7 +289,7 @@ internal object DriveLogic {
 
     /** "Im Browser bearbeiten / ansehen": the office is set up, an office file, not in a vault. */
     fun officeAllowed(me: DMe?, node: DNode): Boolean =
-        me?.has(DMe.FEATURE_OFFICE) == true && !node.isDir && !node.encrypted && node.name.substringAfterLast('.', "").lowercase() in OFFICE_EXT
+        me?.has(DMe.FEATURE_OFFICE) == true && !node.isDir && !node.encrypted && !node.blocked && node.name.substringAfterLast('.', "").lowercase() in OFFICE_EXT
 
     /** The import from Google Drive / OneDrive runs in the portal only: its direct link (Drive 1.8 `cloudImport`). */
     const val IMPORT_PORTAL_PATH = "/portal?drive=import#plg-gatecontrol-drive"

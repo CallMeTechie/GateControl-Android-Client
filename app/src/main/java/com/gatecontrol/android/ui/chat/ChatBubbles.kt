@@ -59,6 +59,10 @@ import com.gatecontrol.android.chat.ChatPending
 import com.gatecontrol.android.chat.ChatReaction
 import com.gatecontrol.android.chat.VoicePlayer
 import com.gatecontrol.android.chat.VoiceWave
+import com.gatecontrol.android.scan.MediaScan
+import com.gatecontrol.android.scan.ScanBadge
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.scan.ScanLine
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.util.Locale
 
@@ -112,7 +116,9 @@ fun MessageBubble(
     }
     val colors = bubbleColors(m.mine)
     // Pictures and videos fill the bubble up to a small margin.
-    val visual = !m.deleted && !m.undecryptable && (m.kind == ChatMessage.KIND_IMAGE || m.isVideo)
+    // the virus scan blocked the file (Messenger 1.11): a mark instead of the picture, player or file
+    val blocked = !m.deleted && !m.undecryptable && m.media?.blocked == true && m.kind in MEDIA_KINDS
+    val visual = !m.deleted && !m.undecryptable && !blocked && (m.kind == ChatMessage.KIND_IMAGE || m.isVideo)
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start,
@@ -165,6 +171,7 @@ fun MessageBubble(
                         color = colors.meta,
                     )
                     m.undecryptable -> Text(stringResource(R.string.chat_undecryptable), style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic), color = colors.meta)
+                    blocked -> m.media?.scan?.let { ScanBlockedContent(it, colors.fg, colors.meta) }
                     // Without a preview the full picture loads only when automatic downloads allow it (or on tap).
                     m.kind == ChatMessage.KIND_IMAGE -> ImageContent(m.media?.thumbId ?: m.media?.id?.takeIf { LocalChatLook.current.autoPhotos }, null, m.meta?.w, m.meta?.h)
                     m.kind == ChatMessage.KIND_VOICE -> VoiceContent(
@@ -193,6 +200,10 @@ fun MessageBubble(
                     m.action != null -> ActionContent(m, m.action, conversation, myId, actions.rich)
                     m.card != null -> PluginCardContent(m, actions.rich)
                     m.isUnknownKind || m.kind in RICH_KINDS -> UnknownKindContent(m, actions.rich)
+                }
+                // marked as malware (not blocked) or not checkable: a line under the file (beim Empfänger und beim Absender)
+                if (!m.deleted && !blocked && m.kind in MEDIA_KINDS) {
+                    ScanLine(m.media?.scan, Modifier.padding(top = 6.dp, start = if (visual) 6.dp else 0.dp, end = if (visual) 6.dp else 0.dp))
                 }
                 val caption = m.text?.takeIf { !m.deleted && it.isNotBlank() && !m.isUnknownKind && m.kind !in RICH_KINDS }
                 if (caption != null) {
@@ -468,6 +479,40 @@ internal fun VideoContent(thumbId: String?, localThumb: String?, durationMs: Lon
 }
 
 internal val VIDEO_BG = Color(0xFF1B1F24)
+
+/** Kinds that carry a file (the virus scan checks them, Messenger 1.11). */
+private val MEDIA_KINDS = setOf(ChatMessage.KIND_IMAGE, ChatMessage.KIND_VOICE, ChatMessage.KIND_FILE)
+
+/**
+ * A file the virus scan blocked (Messenger 1.11), for receiver and sender alike: "Wird auf Viren geprüft …" (it opens
+ * after the check), "Datei gesperrt" with "Schadsoftware gefunden (…)", or "Datei gesperrt – konnte nicht geprüft werden".
+ */
+@Composable
+private fun ScanBlockedContent(scan: MediaScan, fg: Color, meta: Color) {
+    val checking = scan.badge == ScanBadge.CHECKING
+    val title = when (scan.badge) {
+        ScanBadge.CHECKING -> stringResource(R.string.scan_detail_checking_open)
+        ScanBadge.BLOCKED_MALWARE -> stringResource(R.string.scan_chat_blocked)
+        else -> stringResource(R.string.scan_chat_blocked_unscannable)
+    }
+    val line = if (scan.badge == ScanBadge.BLOCKED_MALWARE) {
+        scan.finding?.let { stringResource(R.string.scan_chat_blocked_malware, it) } ?: stringResource(R.string.scan_chat_blocked_malware_plain)
+    } else {
+        null
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(
+            if (checking) GcIcons.Clock else GcIcons.Alert,
+            contentDescription = null,
+            tint = if (checking) meta else MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(Modifier.widthIn(max = 240.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = fg)
+            line?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = meta) }
+        }
+    }
+}
 
 /** Kinds whose content is an object (no caption of their own). */
 private val RICH_KINDS = setOf(

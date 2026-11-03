@@ -16,6 +16,7 @@ import com.gatecontrol.android.gatedrop.GdLinkResult
 import com.gatecontrol.android.gatedrop.GdResult
 import com.gatecontrol.android.gatedrop.GdSelection
 import com.gatecontrol.android.gatedrop.GdTargets
+import com.gatecontrol.android.ui.scan.scanCodeText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -55,6 +56,10 @@ data class GdShareUi(
     /** Upload / transfer progress while [GdShareStage.WAITING]. */
     val percent: Int? = null,
     val link: GdLinkResult? = null,
+    /** GateDrop 1.4: a file is still being checked for viruses (`423 scan_pending`), the send waits. */
+    val checking: Boolean = false,
+    /** Why the send failed when the virus scan refused it ("<Name> abgelehnt – Schadsoftware gefunden."). */
+    val failure: String? = null,
 ) {
     val totalBytes: Long get() = sources.sumOf { it.size ?: 0L }
     val canSend: Boolean get() = targets != null && GateDropLogic.canSend(selection, targets, sources.size, !text.isNullOrBlank())
@@ -142,14 +147,18 @@ class GateDropShareViewModel @Inject constructor(
             waitJob = launch {
                 repository.jobs.mapNotNull { it[jobId] }.first { st ->
                     when (st) {
-                        is GdJobState.Uploading -> _ui.update { it.copy(percent = st.percent) }
-                        is GdJobState.Direct -> _ui.update { it.copy(percent = st.percent) }
+                        is GdJobState.Uploading -> _ui.update { it.copy(percent = st.percent, checking = false) }
+                        is GdJobState.Direct -> _ui.update { it.copy(percent = st.percent, checking = false) }
+                        GdJobState.Checking -> _ui.update { it.copy(checking = true) }
                         else -> Unit
                     }
                     st is GdJobState.Done || st is GdJobState.Failed
                 }.let { st ->
                     when (st) {
                         is GdJobState.Done -> _ui.update { it.copy(stage = if (st.link != null) GdShareStage.RESULT else GdShareStage.DONE, link = st.link) }
+                        is GdJobState.Failed -> _ui.update {
+                            it.copy(stage = GdShareStage.FAILED, failure = scanCodeText(getApplication(), st.code, name = st.name))
+                        }
                         else -> _ui.update { it.copy(stage = GdShareStage.FAILED) }
                     }
                 }

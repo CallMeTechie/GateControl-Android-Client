@@ -1,5 +1,6 @@
 package com.gatecontrol.android.chat
 
+import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
@@ -61,6 +62,7 @@ object ChatSerializer {
                 put("mime", md.mime)
                 put("bytes", md.bytes)
                 put("thumbId", md.thumbId)
+                md.scan?.let { add("scan", MediaScanJson.toJson(it)) }
             }
         } ?: JsonNull.INSTANCE)
         add("meta", m.meta?.let { mt ->

@@ -76,6 +76,9 @@ import com.gatecontrol.android.chat.VoiceWave
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcSubpageBar
+import com.gatecontrol.android.ui.scan.ScanChip
+import com.gatecontrol.android.ui.scan.ScanLine
+import com.gatecontrol.android.ui.scan.rememberScanGate
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -201,7 +204,7 @@ class ChatMediaViewModel @Inject constructor(
     }
 
     /** The file of [m], downloaded (open, share, play). */
-    suspend fun file(m: ChatMessage): File? = m.media?.id?.let { media.file(it) }
+    suspend fun file(m: ChatMessage): File? = m.media?.takeIf { !it.blocked }?.id?.let { media.file(it) }
 
     fun togglePlay(m: ChatMessage) {
         viewModelScope.launch {
@@ -245,11 +248,15 @@ fun ChatMediaScreen(
         viewModel.error.collect { Toast.makeText(context, ChatText.actionError(context, it), Toast.LENGTH_LONG).show() }
     }
 
+    // the virus scan (Messenger 1.11): a blocked file says why, a marked one asks first
+    val scanGate = rememberScanGate()
     val open: (ChatMessage, Boolean) -> Unit = { m, share ->
-        scope.launch {
-            val f = viewModel.file(m)
-            if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
-            else openFile(context, f, m.meta?.fileName ?: defaultName(m), m.media?.mime, share = share)
+        scanGate(m.media?.scan) {
+            scope.launch {
+                val f = viewModel.file(m)
+                if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
+                else openFile(context, f, m.meta?.fileName ?: defaultName(m), m.media?.mime, share = share)
+            }
         }
     }
 
@@ -283,7 +290,7 @@ fun ChatMediaScreen(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 Tab.Media, Tab.Videos -> MediaGrid(state, onMore = { viewModel.loadMore(tab) }, onOpen = { m ->
-                    if (m.kind == ChatMessage.KIND_IMAGE) m.media?.id?.let(onOpenImage) else open(m, false)
+                    if (m.kind == ChatMessage.KIND_IMAGE) scanGate(m.media?.scan) { m.media?.id?.takeIf { it.isNotEmpty() }?.let(onOpenImage) } else open(m, false)
                 })
                 Tab.Files -> MediaList(state, onMore = { viewModel.loadMore(Tab.Files) }) { m ->
                     FileRow(m, c, profile?.user?.userId, onOpen = { open(m, false) }, onShare = { open(m, true) })
@@ -292,7 +299,7 @@ fun ChatMediaScreen(
                     VoiceRow(
                         m, c, profile?.user?.userId,
                         state = player.takeIf { it.key == "m:${m.id}" },
-                        onToggle = { viewModel.togglePlay(m) },
+                        onToggle = { scanGate(m.media?.scan) { viewModel.togglePlay(m) } },
                         onShare = { open(m, true) },
                     )
                 }
@@ -379,6 +386,8 @@ private fun MediaTile(m: ChatMessage, onClick: () -> Unit) {
             }
             else -> Icon(Icons.Outlined.Image, contentDescription = stringResource(R.string.chat_kind_image), tint = extra.faint, modifier = Modifier.size(28.dp))
         }
+        // the virus scan's mark (Messenger 1.11)
+        ScanChip(m.media?.scan, Modifier.align(Alignment.TopStart).padding(4.dp))
     }
 }
 
@@ -431,8 +440,9 @@ private fun FileRow(m: ChatMessage, c: ChatConversation?, myId: Long?, onOpen: (
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            ScanLine(m.media?.scan)
         }
-        GcIconButton(Icons.Outlined.Share, stringResource(R.string.chat_share_file), onClick = onShare)
+        if (m.media?.blocked != true) GcIconButton(Icons.Outlined.Share, stringResource(R.string.chat_share_file), onClick = onShare)
     }
 }
 
@@ -467,7 +477,8 @@ private fun VoiceRow(m: ChatMessage, c: ChatConversation?, myId: Long?, state: V
                 style = MaterialTheme.typography.bodySmall,
                 color = extra.muted,
             )
+            ScanLine(m.media?.scan)
         }
-        GcIconButton(Icons.Outlined.Share, stringResource(R.string.chat_share_file), onClick = onShare)
+        if (m.media?.blocked != true) GcIconButton(Icons.Outlined.Share, stringResource(R.string.chat_share_file), onClick = onShare)
     }
 }

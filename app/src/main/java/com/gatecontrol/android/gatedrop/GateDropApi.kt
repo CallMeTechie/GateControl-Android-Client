@@ -4,6 +4,8 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.scan.MediaScanHttp
+import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
@@ -77,7 +79,7 @@ class GateDropApi @Inject constructor(
                         ?.let { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }
                 }.getOrNull()
                 Timber.d("GateDrop: HTTP %d", response.code())
-                GdResult.Failed(GateDropJson.errorCode(err) ?: "http_${response.code()}", response.code())
+                GdResult.Failed(GateDropJson.errorCode(err) ?: "http_${response.code()}", response.code(), MediaScanJson.refusal(response.code(), err)?.name)
             }
         } catch (e: CancellationException) {
             throw e
@@ -322,7 +324,8 @@ class GateDropApi @Inject constructor(
             else -> return null
         }
         return try {
-            withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(GATEDROP_PLUGIN, target) }
+            // `423 scan_pending`: still being checked — asked again after `Retry-After` (a few times)
+            MediaScanHttp.get { withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(GATEDROP_PLUGIN, target) } }?.response
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

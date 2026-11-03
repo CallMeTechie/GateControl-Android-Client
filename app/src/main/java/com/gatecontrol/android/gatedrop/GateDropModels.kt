@@ -1,5 +1,7 @@
 package com.gatecontrol.android.gatedrop
 
+import com.gatecontrol.android.scan.MediaScan
+
 /** Plugin id of GateDrop ("Teilen" over the own server, docs: GateDrop contract B). */
 const val GATEDROP_PLUGIN = "gatecontrol-gatedrop"
 
@@ -228,6 +230,8 @@ data class GdItem(
     val bytes: Long,
     /** The file can be fetched from the server now (`available`, GateDrop 1.1; older builds: always). */
     val available: Boolean = true,
+    /** The host's virus scan (GateDrop 1.4); null when the server says nothing. Blocked: no download, a mark instead. */
+    val scan: MediaScan? = null,
 )
 
 /** One entry of `GET inbox?kind=received|sent` or `GET sends/<id>`. */
@@ -275,8 +279,11 @@ enum class GdInboxKind(val wire: String) { RECEIVED("received"), SENT("sent"), L
 sealed interface GdResult<out T> {
     data class Ok<T>(val value: T) : GdResult<T>
 
-    /** The server answered with an error: [code] from `{ok:false, code|error}` or `http_<status>`. */
-    data class Failed(val code: String, val http: Int) : GdResult<Nothing>
+    /**
+     * The server answered with an error: [code] from `{ok:false, code|error}` or `http_<status>`; [name] the file a
+     * virus-scan refusal names (`422 infected`, `423 scan_blocked`, GateDrop 1.4).
+     */
+    data class Failed(val code: String, val http: Int, val name: String? = null) : GdResult<Nothing>
 
     /** No answer (network, VPN, timeout). */
     data object Offline : GdResult<Nothing>

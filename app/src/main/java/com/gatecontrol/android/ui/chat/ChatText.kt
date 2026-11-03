@@ -6,6 +6,7 @@ import com.gatecontrol.android.chat.ChatConversation
 import com.gatecontrol.android.chat.ChatMessage
 import com.gatecontrol.android.chat.ChatPerson
 import com.gatecontrol.android.chat.VoiceWave
+import com.gatecontrol.android.scan.MediaScanJson
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -190,6 +191,10 @@ object ChatText {
             "http_507", "quota_exceeded" -> R.string.chat_err_quota
             "not_found" -> R.string.chat_err_gone
             "blocked" -> R.string.chat_err_blocked
+            // the virus scan (Messenger 1.11): "Nicht gesendet – Schadsoftware gefunden" (never sent again by itself)
+            MediaScanJson.INFECTED, MediaScanJson.QUARANTINED -> R.string.scan_chat_not_sent_infected
+            MediaScanJson.SCAN_BLOCKED -> R.string.scan_chat_not_sent_unscannable
+            MediaScanJson.SCAN_UNAVAILABLE -> R.string.scan_err_unavailable
             else -> R.string.chat_err_generic
         },
     )
@@ -200,6 +205,10 @@ object ChatText {
             "offline" -> R.string.chat_err_offline
             // Drive's ransomware protection stopped this device ("In Drive speichern").
             "device_locked" -> R.string.drive_code_device_locked
+            // the virus scan blocked the file ("In Drive speichern", Messenger 1.11)
+            MediaScanJson.QUARANTINED -> R.string.scan_err_quarantined_plain
+            MediaScanJson.SCAN_BLOCKED -> R.string.scan_err_blocked
+            MediaScanJson.SCAN_PENDING -> R.string.scan_err_pending
             "edit_window" -> R.string.chat_err_window
             "not_sender" -> R.string.chat_err_not_sender
             "not_admin" -> R.string.chat_err_not_admin

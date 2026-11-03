@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Virus scan of plugin files (Drive, GateDrop, Mail, Messenger): marks, refusals, warnings -->
+
+    <!-- Marks in lists (short) -->
+    <string name="scan_badge_checking">Being checked …</string>
+    <string name="scan_badge_blocked_malware">Blocked – malware</string>
+    <string name="scan_badge_blocked_unscannable">Blocked – not checkable</string>
+    <string name="scan_badge_warn_malware">Warning – malware</string>
+    <string name="scan_badge_not_checkable">Not checkable</string>
+    <string name="scan_badge_removed">Attachment removed (malware)</string>
+
+    <!-- Details (with the finding) -->
+    <string name="scan_detail_checking">Being checked for viruses …</string>
+    <string name="scan_detail_checking_open">Being checked for viruses … The file opens once the check is done.</string>
+    <string name="scan_detail_blocked_malware">Blocked – malware (%1$s)</string>
+    <string name="scan_detail_blocked_malware_plain">Blocked – malware</string>
+    <string name="scan_detail_blocked_unscannable">Blocked – could not be checked</string>
+    <string name="scan_detail_warn_malware">Malware found (%1$s) – only open it if you trust it</string>
+    <string name="scan_detail_warn_malware_plain">Malware found – only open it if you trust it</string>
+    <string name="scan_detail_not_checkable">Not checkable</string>
+
+    <!-- Refusals of the server -->
+    <string name="scan_err_pending">Being checked for viruses … Please try again in a moment.</string>
+    <string name="scan_err_quarantined">File blocked – malware found (%1$s)</string>
+    <string name="scan_err_quarantined_plain">File blocked – malware found</string>
+    <string name="scan_err_blocked">File blocked – could not be checked</string>
+    <string name="scan_err_infected">%1$s rejected – malware found.</string>
+    <string name="scan_err_infected_plain">File rejected – malware found.</string>
+    <string name="scan_err_unavailable">The virus scan cannot be reached right now – please try again later.</string>
+    <string name="scan_err_attachment_removed">Attachment removed (malware)</string>
+    <string name="scan_err_attachment_blocked">The attachment %1$s is blocked (malware).</string>
+    <string name="scan_err_attachment_blocked_plain">An attachment is blocked (malware).</string>
+    <string name="scan_err_not_checkable">%1$s could not be checked for viruses.</string>
+
+    <!-- Asking before a marked file opens -->
+    <string name="scan_warn_title">Malware found</string>
+    <string name="scan_warn_open">Open anyway</string>
+    <string name="scan_warn_cancel">Cancel</string>
+
+    <!-- Drive -->
+    <string name="scan_drive_why_blocked">Blocked by the virus scan</string>
+    <plurals name="scan_drive_skipped">
+        <item quantity="one">%d blocked file is missing</item>
+        <item quantity="other">%d blocked files are missing</item>
+    </plurals>
+
+    <!-- Mail -->
+    <string name="scan_mail_attachment_blocked_title">Attachment blocked</string>
+    <string name="scan_mail_attachment_blocked_ask">The attachment %1$s is blocked (malware) – remove it?</string>
+    <string name="scan_mail_remove">Remove</string>
+    <string name="scan_mail_cancel">Cancel</string>
+
+    <!-- Messenger -->
+    <string name="scan_chat_blocked">File blocked</string>
+    <string name="scan_chat_blocked_malware">Malware found (%1$s)</string>
+    <string name="scan_chat_blocked_malware_plain">Malware found</string>
+    <string name="scan_chat_blocked_unscannable">File blocked – could not be checked</string>
+    <string name="scan_chat_not_sent_infected">Not sent – malware found</string>
+    <string name="scan_chat_not_sent_unscannable">Not sent – the file could not be checked</string>
+</resources>

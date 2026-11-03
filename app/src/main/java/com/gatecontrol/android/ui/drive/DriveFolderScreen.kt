@@ -89,6 +89,7 @@ import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.scan.rememberScanAsk
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -208,10 +209,14 @@ internal fun DriveFolderContent(
         folder.node.parentId == null -> area?.label ?: stringResource(R.string.drive_title)
         else -> folder.node.name
     }
+    val ask = rememberScanAsk()
     val open: (DNode, Boolean) -> Unit = { n, send ->
-        scope.launch {
-            fetchThen(context, n, { viewModel.fetch(it) }, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
-                Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+        // a file marked as malware (not blocked) opens only after asking; a blocked one says why (the fetch refuses)
+        ask(n.scan) {
+            scope.launch {
+                fetchThen(context, n, { viewModel.fetch(it) }, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
+                    Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

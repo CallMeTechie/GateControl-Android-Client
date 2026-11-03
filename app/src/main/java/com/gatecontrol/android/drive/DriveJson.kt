@@ -1,5 +1,6 @@
 package com.gatecontrol.android.drive
 
+import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonNull
@@ -203,6 +204,7 @@ internal object DriveJson {
             geo = DrivePlacesJson.geo(o.obj("geo")),
             located = o.bool("located"),
             people = o.arr("people")?.mapNotNull { e -> runCatching { e.asLong }.getOrNull() }?.distinct()?.take(50),
+            scan = MediaScanJson.of(o),
         ).let { n ->
             // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
             val vault = vaultId(o.str("vaultId"))
@@ -1111,7 +1113,8 @@ internal object DriveJson {
         val media = mediaId(z.str("mediaId"))
         if (url == null && path == null && media == null) return null
         val name = DriveLogic.safeName(z.str("name"))?.let { if (it.endsWith(".zip", ignoreCase = true)) it else "$it.zip" } ?: "Drive.zip"
-        return DZip(url, path, media, name, z.str("expiresAt")?.take(40))
+        val blocked = (z.arr("skipped") ?: o.arr("skipped"))?.count { (it as? JsonObject)?.str("reason") == "blocked" } ?: 0
+        return DZip(url, path, media, name, z.str("expiresAt")?.take(40), blocked)
     }
 
     /** How a ZIP is fetched: [url] in full, [auth] with the app's credentials (only for the server's own relative address). */

@@ -1,6 +1,7 @@
 package com.gatecontrol.android.gatedrop
 
 import com.gatecontrol.android.chat.ChatJson
+import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -384,6 +385,7 @@ object GateDropJson {
             mime = mime(o.firstStr("mime", "type")),
             bytes = o.long("bytes") ?: o.long("size") ?: 0L,
             available = o.flag("available") != false,
+            scan = MediaScanJson.of(o),
         )
     }
 

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.chat
 
+import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonNull
@@ -368,12 +369,16 @@ object ChatJson {
 
     private fun media(o: JsonObject?): ChatMedia? {
         if (o == null) return null
-        val id = mediaId(o.str("id")) ?: return null
+        val scan = MediaScanJson.of(o)
+        // a blocked file may come without its id (nothing to load): still a message with the mark
+        val id = mediaId(o.str("id")) ?: if (scan?.blocked == true) "" else return null
         return ChatMedia(
             id = id,
             mime = o.str("mime")?.lowercase()?.takeIf { MIME_RE.matches(it) },
             bytes = o.long("bytes"),
-            thumbId = mediaId(o.str("thumbId")),
+            // blocked (Messenger 1.11): no preview, whatever came
+            thumbId = mediaId(o.str("thumbId"))?.takeIf { scan?.blocked != true },
+            scan = scan,
         )
     }
 
