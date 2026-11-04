@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.81.0] - 2026-11-04
+
+### Features
+- Frei/Gebucht, geteilte Kalender und Ressourcen (#184)
+
+---
+
 ## [1.80.1] - 2026-11-03
 
 ### Fixes
