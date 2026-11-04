@@ -66,4 +66,46 @@ object GateDropWait {
             poller.cancel()
         }
     }
+
+    /** How long a sender asks for the pick-up after its own `ok` (the receiver reports right after saving). */
+    const val PICKUP_WAIT_MS = 30_000L
+
+    /**
+     * GateDrop 1.5: a sender's `ok` alone is no pick-up — the receiving device decides (fewer bytes = `incomplete`, the
+     * delivery then waits for the files). After this device's `ok` for the devices [deviceIds], [send] (`GET
+     * sends/<id>`) is asked every [pollMs] until each is picked up or ended, at most [timeoutMs] → the indexes of the
+     * files the server still needs (empty: nothing to upload). An unanswered poll is asked again.
+     */
+    suspend fun pickup(
+        deviceIds: Set<String>,
+        timeoutMs: Long = PICKUP_WAIT_MS,
+        pollMs: Long = POLL_MS,
+        send: suspend () -> GdEntry?,
+    ): List<Int> {
+        val open = deviceIds.toMutableSet()
+        val missing = sortedSetOf<Int>()
+        var waited = 0L
+        while (open.isNotEmpty() && waited < timeoutMs) {
+            delay(pollMs)
+            waited += pollMs
+            val entry = try {
+                send()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            } ?: continue
+            for (id in open.toList()) {
+                when (val c = GateDropLogic.pickupCheck(entry, id)) {
+                    GdPickupCheck.Wait -> Unit
+                    GdPickupCheck.Done -> open -= id
+                    is GdPickupCheck.Upload -> {
+                        missing += c.missing
+                        open -= id
+                    }
+                }
+            }
+        }
+        return missing.toList()
+    }
 }

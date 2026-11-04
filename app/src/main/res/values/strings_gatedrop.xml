@@ -126,7 +126,15 @@
     <string name="gatedrop_tab_received">Received</string>
     <string name="gatedrop_tab_sent">Sent</string>
     <string name="gatedrop_tab_links">Links</string>
-    <string name="gatedrop_shared_footer">What goes to your own devices lands here and as a notification. What people send arrives in the chat as usual. Received items are deleted from the server after 7 days.</string>
+    <string name="gatedrop_shared_footer">What goes to your own devices lands here and as a notification. What people send arrives in the chat as usual.</string>
+    <!-- GateDrop 1.5: retention as the admin set it (limits.retention) -->
+    <string name="gatedrop_retention">Received items are deleted from the server after %1$s.</string>
+    <string name="gatedrop_retention_at_pickup">Received items are deleted from the server – shortly after pickup, otherwise after %1$s.</string>
+    <string name="gatedrop_retention_after_pickup">Received items are deleted from the server – %1$s after pickup, otherwise after %2$s.</string>
+    <plurals name="gatedrop_retention_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
     <string name="gatedrop_offline">Offline – showing what this device knows.</string>
     <string name="gatedrop_from">from %1$s · %2$s</string>
     <string name="gatedrop_to">to %1$s</string>
@@ -145,6 +153,12 @@
     <string name="gatedrop_status_opened">opened</string>
     <string name="gatedrop_status_failed">failed</string>
     <string name="gatedrop_status_expired">expired</string>
+    <!-- GateDrop 1.5 -->
+    <string name="gatedrop_status_provided">ready to pick up</string>
+    <string name="gatedrop_status_picked">picked up</string>
+    <string name="gatedrop_status_incomplete">not every file arrived</string>
+    <string name="gatedrop_status_removed">removed by an admin</string>
+    <string name="gatedrop_send_gone">The send has expired or was removed by an admin.</string>
     <string name="gatedrop_link_expires">expires %1$s</string>
     <plurals name="gatedrop_link_downloads">
         <item quantity="one">%d download</item>

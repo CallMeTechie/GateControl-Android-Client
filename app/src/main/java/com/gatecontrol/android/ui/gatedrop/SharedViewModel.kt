@@ -13,6 +13,7 @@ import com.gatecontrol.android.gatedrop.GdLink
 import com.gatecontrol.android.gatedrop.GdReceiveFrom
 import com.gatecontrol.android.gatedrop.GdReceived
 import com.gatecontrol.android.gatedrop.GdResult
+import com.gatecontrol.android.gatedrop.GdRetention
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +35,8 @@ data class SharedUi(
     val receiveFrom: String? = null,
     /** Saving it failed: the previous value is shown again. */
     val receiveFromFailed: Boolean = false,
+    /** How long received files stay on the server (GateDrop 1.5 `limits.retention`; else 7 days). */
+    val retention: GdRetention = GdRetention(),
 )
 
 /**
@@ -53,6 +56,11 @@ class SharedViewModel @Inject constructor(
 
     init {
         loadReceiveFrom()
+        // the retention the administrator set (`GET targets` → `limits`); known from the share sheet, asked anew
+        viewModelScope.launch {
+            repository.targets.collect { t -> _ui.update { it.copy(retention = GateDropLogic.retention(t)) } }
+        }
+        viewModelScope.launch { runCatching { repository.refreshTargets() } }
         viewModelScope.launch {
             repository.store.received.collect { local ->
                 _ui.update { it.copy(received = GateDropLogic.mergeReceived(serverReceived, local), saving = it.saving.filter { key -> local.firstOrNull { e -> e.key == key }?.files?.all { f -> f.uri != null } != true }.toSet()) }

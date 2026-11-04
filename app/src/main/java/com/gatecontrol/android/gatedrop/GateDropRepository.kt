@@ -204,18 +204,27 @@ class GateDropRepository @Inject constructor(
         // Direct transfers (own devices in the same network).
         val localFiles = job.files.mapIndexed { i, f -> GdLocalFile(files[i], f.name, f.size) }
         val results = mutableListOf<Pair<Boolean, GdTransferAnswer?>>()
+        // GateDrop 1.5: the receiving device confirms the pick-up itself — these devices are asked after this one's ok
+        val unconfirmed = mutableSetOf<String>()
         if (localFiles.isNotEmpty()) {
             for (d in result.direct) {
                 setJobState(job.id, GdJobState.Direct(0))
                 val outcome = runCatching { transferDirect(d, localFiles) { p -> percent(p, totalBytes).let { onProgress(true, it); setJobState(job.id, GdJobState.Direct(it)) } } }
                     .getOrElse { if (it is CancellationException) throw it else GdDirectOutcome.Failed("error") }
                 val ok = outcome is GdDirectOutcome.Done
-                val answer = api.transferResult(d.transferId, ok, (outcome as? GdDirectOutcome.Done)?.bytes, (outcome as? GdDirectOutcome.Failed)?.reason)
-                results += ok to answer.valueOrNull()
+                val answer = api.transferResult(d.transferId, ok, (outcome as? GdDirectOutcome.Done)?.bytes, (outcome as? GdDirectOutcome.Failed)?.reason).valueOrNull()
+                results += ok to answer
+                if (ok && GateDropLogic.awaitsPickup(answer)) unconfirmed += d.deviceId
                 Timber.i("GateDrop: direct transfer %s %s", d.transferId, if (ok) "done" else "failed (${(outcome as? GdDirectOutcome.Failed)?.reason}), server path")
             }
         }
-        val missing = GateDropLogic.missingAfterDirect(localItems, job.files.size, results)
+        var missing = GateDropLogic.missingAfterDirect(localItems, job.files.size, results)
+        if (localItems && unconfirmed.isNotEmpty()) {
+            // not everything arrived (`incomplete`) and the delivery waits for the files: they go up after all
+            val late = GateDropWait.pickup(unconfirmed) { api.sendDetail(result.id).valueOrNull() }.filter { it in job.files.indices }
+            if (late.isNotEmpty()) Timber.i("GateDrop: %s not picked up completely, %d file(s) go over the server", result.id, late.size)
+            missing = (missing + late).distinct().sorted()
+        }
         if (missing.isNotEmpty()) {
             job = job.copy(fallback = true, missing = missing)
             store.saveJob(job)
@@ -317,22 +326,25 @@ class GateDropRepository @Inject constructor(
             }
         }.getOrElse { if (it is CancellationException) throw it else GdDirectOutcome.Failed("error") }
 
-        if (outcome !is GdDirectOutcome.Done || pendings.size != offer.items.size) {
+        // Published only when every file arrived intact (else nothing is kept).
+        val complete = outcome is GdDirectOutcome.Done && pendings.size == offer.items.size
+        val uris = if (complete) offer.items.indices.map { pendings[it]?.publish()?.toString() } else emptyList()
+        // ok only with every file saved, and then with every byte (GateDrop 1.5: fewer bytes = `incomplete`)
+        val report = GateDropLogic.directReport(offer.items, outcome, uris)
+        if (!report.ok) {
             pendings.values.forEach { it.discard() }
-            val reason = (outcome as? GdDirectOutcome.Failed)?.reason ?: "incomplete"
+            val reason = report.error ?: GdDelivery.ERROR_INCOMPLETE
             // Reported at once: the sender stops waiting and takes the server path.
             api.transferResult(offer.transferId, false, error = reason)
             Timber.i("GateDrop: direct receive of %s failed (%s), the server delivers", offer.transferId, reason)
             return@withLock false
         }
-        val files = offer.items.mapIndexed { i, item ->
-            GdReceivedFile(item.name, item.mime, item.bytes, uri = pendings[i]?.publish()?.toString())
-        }
+        val files = offer.items.mapIndexed { i, item -> GdReceivedFile(item.name, item.mime, item.bytes, uri = uris[i]) }
         val entry = GdReceived(key = key, sendId = offer.sendId, from = offer.from, at = System.currentTimeMillis(), files = files)
         store.upsert(entry)
         // Shown here: a delivery of the same send over the server (push or `pending`) adds nothing.
         offer.sendId?.let { store.markHandled(it) }
-        api.transferResult(offer.transferId, true, bytes = outcome.bytes)
+        api.transferResult(offer.transferId, true, bytes = report.bytes)
         notifier.received(entry)
         true
     }

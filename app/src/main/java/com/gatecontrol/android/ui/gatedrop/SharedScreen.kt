@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.net.Uri
 import android.text.format.DateUtils
 import android.widget.Toast
@@ -35,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +53,8 @@ import com.gatecontrol.android.gatedrop.GdEntry
 import com.gatecontrol.android.gatedrop.GdLink
 import com.gatecontrol.android.gatedrop.GdReceiveFrom
 import com.gatecontrol.android.gatedrop.GdReceived
+import com.gatecontrol.android.gatedrop.GdRetention
+import com.gatecontrol.android.gatedrop.GdSentStatus
 import com.gatecontrol.android.scan.MediaScan
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
@@ -125,7 +129,7 @@ fun SharedScreen(
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
             }
             Text(
-                stringResource(R.string.gatedrop_shared_footer),
+                stringResource(R.string.gatedrop_shared_footer) + " " + retentionText(LocalResources.current, ui.retention),
                 style = MaterialTheme.typography.bodySmall,
                 color = extra.muted,
                 modifier = Modifier.padding(horizontal = 4.dp),
@@ -295,16 +299,35 @@ private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (
     }
 }
 
+/**
+ * How long received files stay on the server: as the administrator set it (GateDrop 1.5 — after the pick-up and for
+ * what is not picked up), else the days of `limits.retentionDays` (7 as before).
+ */
+internal fun retentionText(res: Resources, r: GdRetention): String {
+    val unpicked = res.getQuantityString(R.plurals.gatedrop_retention_days, r.unpickedDays, r.unpickedDays)
+    val after = r.afterPickupDays
+    return when {
+        // a picked-up send never stays longer than one that is not: one span says it all
+        after == null || after >= r.unpickedDays -> res.getString(R.string.gatedrop_retention, unpicked)
+        after == 0 -> res.getString(R.string.gatedrop_retention_at_pickup, unpicked)
+        else -> res.getString(R.string.gatedrop_retention_after_pickup, res.getQuantityString(R.plurals.gatedrop_retention_days, after, after), unpicked)
+    }
+}
+
 @Composable
-private fun statusText(status: String?): String? = when (status) {
-    GdDelivery.PENDING -> stringResource(R.string.gatedrop_status_pending)
-    GdDelivery.WAITING -> stringResource(R.string.gatedrop_status_waiting_any)
-    GdDelivery.DIRECT -> stringResource(R.string.gatedrop_status_direct)
-    GdDelivery.DELIVERED -> stringResource(R.string.gatedrop_status_delivered)
-    GdDelivery.OPENED -> stringResource(R.string.gatedrop_status_opened)
-    GdDelivery.FAILED -> stringResource(R.string.gatedrop_status_failed)
-    GdDelivery.EXPIRED -> stringResource(R.string.gatedrop_status_expired)
-    else -> null
+private fun statusText(status: GdSentStatus?): String? = when (status) {
+    GdSentStatus.PENDING -> stringResource(R.string.gatedrop_status_pending)
+    GdSentStatus.WAITING -> stringResource(R.string.gatedrop_status_waiting_any)
+    GdSentStatus.DIRECT -> stringResource(R.string.gatedrop_status_direct)
+    GdSentStatus.PROVIDED -> stringResource(R.string.gatedrop_status_provided)
+    GdSentStatus.DELIVERED -> stringResource(R.string.gatedrop_status_delivered)
+    GdSentStatus.PICKED -> stringResource(R.string.gatedrop_status_picked)
+    GdSentStatus.OPENED -> stringResource(R.string.gatedrop_status_opened)
+    GdSentStatus.FAILED -> stringResource(R.string.gatedrop_status_failed)
+    GdSentStatus.INCOMPLETE -> stringResource(R.string.gatedrop_status_incomplete)
+    GdSentStatus.EXPIRED -> stringResource(R.string.gatedrop_status_expired)
+    GdSentStatus.REMOVED -> stringResource(R.string.gatedrop_status_removed)
+    null -> null
 }
 
 @Composable
@@ -334,13 +357,14 @@ private fun SentList(ui: SharedUi) {
                 else -> stringResource(R.string.gatedrop_item_text, e.text?.lineSequence()?.firstOrNull().orEmpty().take(60))
             }
             val to = e.deliveries.map { deliveryName(it) }.distinct().take(3).joinToString(", ")
-            val overall = GateDropLogic.overallStatus(e.deliveries)
+            // GateDrop 1.5: "bereitgestellt" / "abgeholt", "Vom Admin entfernt", "Nicht alle Dateien angekommen"
+            val overall = GateDropLogic.sentStatus(e)
             // The target device was offline: it fetches the send once it is online.
             val waiting = e.deliveries.firstOrNull { it.status == GdDelivery.WAITING }
             // failed because the virus scan held the file back (GateDrop 1.4): the reason instead of "fehlgeschlagen"
-            val scanReason = if (overall == GdDelivery.FAILED) scanReasonText(ctx, GateDropLogic.scanFailure(e.deliveries)) else null
+            val scanReason = if (overall == GdSentStatus.FAILED) scanReasonText(ctx, GateDropLogic.scanFailure(e.deliveries)) else null
             val status = when {
-                overall == GdDelivery.WAITING && waiting != null ->
+                overall == GdSentStatus.WAITING && waiting != null ->
                     waiting.targetName?.let { stringResource(R.string.gatedrop_status_waiting, it) } ?: statusText(overall)
                 scanReason != null -> stringResource(R.string.scan_gatedrop_failed, scanReason)
                 else -> statusText(overall)
