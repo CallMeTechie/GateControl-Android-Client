@@ -4,6 +4,8 @@ import com.gatecontrol.android.common.VpnSubnet
 import com.gatecontrol.android.data.MachineFingerprint
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
@@ -20,7 +22,6 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.net.InetAddress
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,20 +38,8 @@ class ApiClientProvider @Inject constructor(
     private val lock = Any()
 
     /**
-     * DNS cache for VPN-safe resolution. When the VPN is active, Android's
-     * system DNS points to the VPN-internal resolver (10.8.0.1). The app's own
-     * traffic goes through the tunnel unless a per-app split tunnel leaves the
-     * GateControl app out; then 10.8.0.1 is unreachable for it and system DNS
-     * lookups fail with EAI_NODATA. Split-horizon DNS may also answer the
-     * server's own name with a VPN-internal address. We cache DNS results
-     * resolved BEFORE the VPN starts and fall back to the cache when system
-     * DNS fails.
-     */
-    private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
-
-    /**
      * VPN-internal subnet of the current server (from the WireGuard config's
-     * Address). Addresses inside it are never usable from outside the tunnel.
+     * Address). Addresses inside it are only reachable through the tunnel.
      * Set by the connect path before the tunnel comes up.
      */
     @Volatile
@@ -59,72 +48,82 @@ class ApiClientProvider @Inject constructor(
     private fun isVpnInternal(addr: InetAddress): Boolean =
         VpnSubnet.contains(vpnSubnet, addr.hostAddress ?: "")
 
-    /**
-     * Resolve and cache the server hostname. Safe to call from any thread.
-     * Re-resolves to pick up DNS changes, but rejects VPN-internal addresses
-     * (inside [vpnSubnet]) that appear when the tunnel's split-horizon DNS is active.
-     * Call clearDnsCache() on disconnect so the next connect starts fresh.
-     */
-    suspend fun preResolveDns(hostname: String) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val addresses = InetAddress.getAllByName(hostname)
-                if (addresses.isNotEmpty()) {
-                    // Reject VPN-internal addresses — when the tunnel is up,
-                    // system DNS may return the VPN gateway (10.8.0.1) instead
-                    // of the real public IP.
-                    if (addresses.all(::isVpnInternal)) {
-                        timber.log.Timber.d("DNS for $hostname returned VPN-internal address — keeping cache")
-                        return@withContext
-                    }
-
-                    val prev = dnsCache[hostname]?.map { it.hostAddress }
-                    dnsCache[hostname] = addresses.toList()
-                    val resolved = addresses.map { it.hostAddress }
-                    if (prev != null && prev != resolved) {
-                        timber.log.Timber.i("DNS changed for $hostname: $prev -> $resolved")
-                    } else {
-                        timber.log.Timber.d("DNS pre-resolved: $hostname -> $resolved")
-                    }
-                }
-            } catch (e: Exception) {
-                if (dnsCache.containsKey(hostname)) {
-                    timber.log.Timber.d("DNS re-resolve failed for $hostname, keeping cached entry: ${e.message}")
-                } else {
-                    timber.log.Timber.w("DNS pre-resolve failed for $hostname: ${e.message}")
-                }
-            }
+    private val connectivity: ConnectivityManager?
+        get() = try {
+            context.getSystemService(ConnectivityManager::class.java)
+        } catch (_: Exception) {
+            null
         }
+
+    /**
+     * Server name resolution that works with and without the tunnel (see
+     * [VpnSafeDns]): whether a VPN-internal answer is usable depends on the
+     * route of this app's own traffic — through the tunnel (no per-app
+     * exception for GateControl) it is the way in, outside it is not.
+     */
+    private val vpnSafeDns = VpnSafeDns(
+        system = Dns.SYSTEM::lookup,
+        isVpnInternal = ::isVpnInternal,
+        routedThroughVpn = ::appUsesVpn,
+        outsideVpn = ::lookupOutsideVpn,
+        lastKnown = PrefsDnsLastKnown { context.getSharedPreferences(PrefsDnsLastKnown.PREFS_NAME, Context.MODE_PRIVATE) },
+    )
+
+    /**
+     * This app's own traffic goes through a VPN: its default network (per
+     * app — a split-tunnel exception makes it the underlying network) is one.
+     */
+    private fun appUsesVpn(): Boolean {
+        val cm = connectivity ?: return false
+        val network = cm.activeNetwork ?: return false
+        return cm.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
     }
 
     /**
-     * Clear the DNS cache. Call on VPN disconnect so the next connect
-     * picks up any DNS changes that occurred while the tunnel was active.
+     * [hostname] resolved by the DNS of a network outside the VPN (validated
+     * networks first). The app owns the VPN and may use the underlying
+     * networks, like the tunnel's own socket does.
      */
-    fun clearDnsCache() {
-        dnsCache.clear()
-        timber.log.Timber.d("DNS cache cleared")
-    }
-
-    private val vpnSafeDns = object : Dns {
-        override fun lookup(hostname: String): List<InetAddress> {
-            // System DNS may return VPN-internal addresses (10.8.x.x) even
-            // when the GateControl app is excluded from the tunnel: Android
-            // caches the WG-internal resolver's answer system-wide. The app
-            // can't reach 10.8.0.1 from outside the tunnel, so OkHttp would
-            // hit SocketTimeout from the local Wi-Fi IP / ECONNREFUSED via
-            // VPN. Filter those out and prefer the pre-resolve cache,
-            // which preResolveDns() guarantees never holds VPN-internal addresses.
-            val systemResults = try {
-                Dns.SYSTEM.lookup(hostname).filterNot(::isVpnInternal)
+    private fun lookupOutsideVpn(hostname: String): List<InetAddress> {
+        val cm = connectivity ?: return emptyList()
+        @Suppress("DEPRECATION")
+        val candidates = cm.allNetworks.mapNotNull { network ->
+            val caps = cm.getNetworkCapabilities(network) ?: return@mapNotNull null
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return@mapNotNull null
+            network to caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }.sortedByDescending { it.second }.map { it.first }
+        for (network in candidates) {
+            val found = try {
+                network.getAllByName(hostname).toList()
             } catch (_: Exception) {
                 emptyList()
             }
-            if (systemResults.isNotEmpty()) return systemResults
-            return dnsCache[hostname] ?: throw java.net.UnknownHostException(
-                "DNS lookup failed for $hostname (system DNS returned only VPN-internal addresses, no cache)"
-            )
+            if (found.isNotEmpty()) return found
         }
+        return emptyList()
+    }
+
+    /**
+     * Resolve and remember the server hostname. Safe to call from any thread.
+     * Re-resolves to pick up DNS changes; a VPN-internal answer (the tunnel's
+     * split-horizon DNS) is never kept — the network outside the VPN is asked
+     * instead. Call clearDnsCache() on disconnect so the next connect starts fresh.
+     */
+    suspend fun preResolveDns(hostname: String) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            vpnSafeDns.preResolve(hostname)
+        }
+    }
+
+    /**
+     * Forget the addresses of this connection. Call on VPN disconnect so the
+     * next connect picks up any DNS changes that occurred while the tunnel was
+     * active. The last known public addresses stay (persisted) as the last
+     * resort after an app restart with the tunnel up.
+     */
+    fun clearDnsCache() {
+        vpnSafeDns.clear()
+        timber.log.Timber.d("DNS cache cleared")
     }
 
     companion object {

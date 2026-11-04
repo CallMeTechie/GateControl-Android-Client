@@ -77,6 +77,8 @@ class GateDropSendWorker(appContext: Context, params: WorkerParameters) : Corout
             }
         } catch (e: CancellationException) {
             repo.setJobState(jobId, GdJobState.Failed("cancelled"))
+            // an earlier run's "will try again" notice must not stay behind
+            notifier.cancel(GateDropNotifier.resultId(jobId))
             throw e
         }
         return when (outcome) {
@@ -90,7 +92,10 @@ class GateDropSendWorker(appContext: Context, params: WorkerParameters) : Corout
             is GdJobOutcome.Retry -> if (runAttemptCount >= MAX_RUNS) {
                 giveUp(repo, notifier, outcome.code, null)
             } else {
-                repo.setJobState(jobId, GdJobState.Uploading(null))
+                Timber.i("GateDrop: send not through yet (%s), tried again later", outcome.code)
+                repo.setJobState(jobId, GdJobState.Retrying)
+                // Without it nothing would say why the send waits (hours of backoff in the worst case).
+                notifier.sendWaiting(jobId, inputData.getString(KEY_NAMES))
                 Result.retry()
             }
             is GdJobOutcome.Failed -> giveUp(repo, notifier, outcome.code, outcome.name)

@@ -40,6 +40,8 @@ sealed interface GdJobState {
     /** GateDrop 1.4 `423 scan_pending`: a file is still being checked for viruses, the send is asked again soon. */
     data object Checking : GdJobState
     data class Direct(val percent: Int?) : GdJobState
+    /** The server was not reachable (or busy): the worker tries again later by itself. */
+    data object Retrying : GdJobState
     data class Done(val sendId: String?, val link: GdLinkResult?) : GdJobState
     /** [name]: the file a virus-scan refusal names (`422 infected`, `423 scan_blocked`). */
     data class Failed(val code: String?, val name: String? = null) : GdJobState

@@ -45,6 +45,7 @@
     <string name="gatedrop_preparing">Preparing …</string>
     <string name="gatedrop_waiting_link">Creating the link …</string>
     <string name="gatedrop_uploading_percent">Uploading … %1$d %%</string>
+    <string name="gatedrop_sending_percent">Sending … %1$d %%</string>
     <string name="gatedrop_progress_background">You can close this – sending continues in the background.</string>
     <string name="gatedrop_sending_toast">Sending …</string>
     <string name="gatedrop_done">Done</string>
@@ -87,6 +88,13 @@
     <string name="gatedrop_link_with_pin">%1$s\nPIN: %2$s</string>
     <string name="gatedrop_send_failed">Not sent</string>
     <string name="gatedrop_send_failed_desc">Your GateControl server could not be reached or refused it.</string>
+    <string name="gatedrop_send_waiting">Not sent yet</string>
+    <string name="gatedrop_send_waiting_desc">Your GateControl server cannot be reached right now – GateControl tries again by itself.</string>
+    <string name="gatedrop_open_shared">Show sent and received</string>
+    <plurals name="gatedrop_unread">
+        <item quantity="one">%d file could not be read and is not sent.</item>
+        <item quantity="other">%d files could not be read and are not sent.</item>
+    </plurals>
     <string name="gatedrop_someone">Someone</string>
     <string name="gatedrop_received_title">%1$s sent you %2$s</string>
     <string name="gatedrop_received_generic">GateDrop: something new for you</string>
@@ -105,7 +113,7 @@
     <string name="gatedrop_receive_failed_from">From %1$s</string>
 
     <!-- Screen "Shared" -->
-    <string name="gatedrop_settings_group">Sharing</string>
+    <string name="gatedrop_settings_group">GateDrop</string>
     <string name="gatedrop_settings_row_desc">Received, sent and links for externals</string>
     <string name="gatedrop_shared_title">Shared</string>
     <string name="gatedrop_receive_from_title">Who may send to this device?</string>

@@ -110,6 +110,8 @@ fun GateDropShareSheet(
     onRetry: () -> Unit,
     onSend: () -> Unit,
     onDismiss: () -> Unit,
+    /** Opens GateDrop's "Geteilt" (Gesendet / Empfangen) in the app. */
+    onOpenShared: () -> Unit = {},
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -126,8 +128,9 @@ fun GateDropShareSheet(
                 GdShareStage.LINK_OPTIONS -> LinkOptions(ui, onLinkDraft, onApplyLink, onRemoveLink, onCloseLink)
                 GdShareStage.PREPARING, GdShareStage.WAITING -> Progress(ui)
                 GdShareStage.RESULT -> LinkResult(ui, onDismiss)
-                GdShareStage.FAILED -> Failed(ui.failure, onDismiss)
-                else -> Main(ui, serverUrl, onShareInChat, onTogglePerson, onToggleDevice, onToggleNas, onToggleDrive, onNote, onOpenLink, onRetry, onSend)
+                GdShareStage.SENT -> Sent(ui, onDismiss, onOpenShared)
+                GdShareStage.FAILED -> Failed(ui.failure, onDismiss, onOpenShared)
+                else -> Main(ui, serverUrl, onShareInChat, onTogglePerson, onToggleDevice, onToggleNas, onToggleDrive, onNote, onOpenLink, onRetry, onSend, onOpenShared)
             }
         }
     }
@@ -167,6 +170,7 @@ private fun Main(
     onOpenLink: () -> Unit,
     onRetry: () -> Unit,
     onSend: () -> Unit,
+    onOpenShared: () -> Unit,
 ) {
     val extra = GateControlTheme.extraColors
     Header(ui)
@@ -278,6 +282,8 @@ private fun Main(
     if (onShareInChat != null) {
         GcSecondaryButton(text = stringResource(R.string.gatedrop_in_chat), onClick = onShareInChat)
     }
+    // GateDrop's history lives in Settings › Geteilt: reachable from where GateDrop is used.
+    TextButton(onClick = onOpenShared, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.gatedrop_open_shared)) }
 }
 
 @Composable
@@ -453,17 +459,23 @@ private fun Progress(ui: GdShareUi) {
     Header(ui)
     Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         val p = ui.percent
+        val toLink = ui.selection.link != null
         Text(
             when {
                 ui.stage == GdShareStage.PREPARING -> stringResource(R.string.gatedrop_preparing)
+                ui.retrying -> stringResource(R.string.gatedrop_send_waiting_desc)
                 ui.checking -> stringResource(R.string.scan_detail_checking)
-                p != null -> stringResource(R.string.gatedrop_uploading_percent, p)
-                else -> stringResource(R.string.gatedrop_waiting_link)
+                p != null && toLink -> stringResource(R.string.gatedrop_uploading_percent, p)
+                p != null -> stringResource(R.string.gatedrop_sending_percent, p)
+                toLink -> stringResource(R.string.gatedrop_waiting_link)
+                else -> stringResource(R.string.gatedrop_progress_sending)
             },
             style = MaterialTheme.typography.bodyMedium,
-            color = extra.muted,
+            color = if (ui.retrying) MaterialTheme.colorScheme.onSurface else extra.muted,
         )
+        ui.targetNames?.let { Text(stringResource(R.string.gatedrop_sent_to, it), style = MaterialTheme.typography.bodySmall, color = extra.muted) }
         if (p != null) LinearProgressIndicator(progress = { p / 100f }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (ui.unread > 0) Text(pluralStringResource(R.plurals.gatedrop_unread, ui.unread, ui.unread), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
         Text(stringResource(R.string.gatedrop_progress_background), style = MaterialTheme.typography.bodySmall, color = extra.faint)
     }
 }
@@ -510,12 +522,27 @@ private fun LinkResult(ui: GdShareUi, onDone: () -> Unit) {
 }
 
 @Composable
-private fun Failed(reason: String?, onDone: () -> Unit) {
+private fun Failed(reason: String?, onDone: () -> Unit, onOpenShared: () -> Unit) {
     GcBanner(tone = GcTone.Error, icon = GcIcons.Alert) {
         Column {
             Text(stringResource(R.string.gatedrop_send_failed), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(reason ?: stringResource(R.string.gatedrop_send_failed_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
         }
     }
+    GcOutlineButton(text = stringResource(R.string.gatedrop_open_shared), onClick = onOpenShared)
     GcSecondaryButton(text = stringResource(R.string.gatedrop_done), onClick = onDone)
+}
+
+/** Delivered (no link for externals): "Gesendet an …", the way to "Geteilt › Gesendet". */
+@Composable
+private fun Sent(ui: GdShareUi, onDone: () -> Unit, onOpenShared: () -> Unit) {
+    GcBanner(tone = GcTone.Ok, icon = GcIcons.Check) {
+        Column {
+            Text(stringResource(R.string.gatedrop_sent_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            ui.targetNames?.let { Text(stringResource(R.string.gatedrop_sent_to, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface) }
+            if (ui.unread > 0) Text(pluralStringResource(R.plurals.gatedrop_unread, ui.unread, ui.unread), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+    GcOutlineButton(text = stringResource(R.string.gatedrop_open_shared), onClick = onOpenShared)
+    GcPrimaryButton(text = stringResource(R.string.gatedrop_done), onClick = onDone)
 }
