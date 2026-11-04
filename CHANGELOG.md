@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.82.0] - 2026-11-04
+
+### Features
+- GateDrop 1.5 – Abholung, vom Admin entfernt, Aufbewahrung (#186)
+
+---
+
 ## [1.81.1] - 2026-11-04
 
 ### Fixes
