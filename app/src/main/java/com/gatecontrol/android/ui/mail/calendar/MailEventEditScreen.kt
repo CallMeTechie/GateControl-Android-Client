@@ -159,60 +159,65 @@ fun MailEventEditScreen(onClose: () -> Unit, viewModel: MailEventEditViewModel =
             OnlineBlock(cal, f.teams, f.onlineUrl, onTeams = { v -> viewModel.editOnline { it.copy(teams = v) } }, onUrl = { v -> viewModel.editOnline { it.copy(onlineUrl = v.take(2000)) } })
             RemindersBlock(f.reminders, f.allDay, max = cal?.maxReminders ?: 3) { list -> viewModel.edit { it.copy(reminders = list) } }
             GcSectionLabel(stringResource(R.string.cal_attendees))
-            if (f.attendees.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    f.attendees.forEach { a ->
-                        // a resource (Mail 1.9.0): lilac, its name only (the address is never shown)
-                        val resource = MailPlanLogic.isResource(a.email, a.role)
-                        Row(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(extra.panel2)
-                                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.mail_remove)) { viewModel.removeAttendee(a) }
-                                .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            if (resource) Icon(GcIcons.Briefcase, contentDescription = stringResource(R.string.cal_resource), tint = PlanColors.resource, modifier = Modifier.size(14.dp))
-                            Text(
-                                if (resource) a.name ?: stringResource(R.string.cal_resource) else a.name ?: a.email,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (resource) PlanColors.resource else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                            )
-                            Icon(GcIcons.Close, contentDescription = null, tint = extra.muted, modifier = Modifier.size(14.dp))
+            // an event of a calendar shared with the person: attendees stay the owner's (Mail 1.9.0)
+            if (state.existing?.occ?.shared != null) {
+                Text(stringResource(R.string.share_no_attendees), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+            } else {
+                if (f.attendees.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        f.attendees.forEach { a ->
+                            // a resource (Mail 1.9.0): lilac, its name only (the address is never shown)
+                            val resource = MailPlanLogic.isResource(a.email, a.role)
+                            Row(
+                                Modifier.clip(RoundedCornerShape(999.dp)).background(extra.panel2)
+                                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.mail_remove)) { viewModel.removeAttendee(a) }
+                                    .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                if (resource) Icon(GcIcons.Briefcase, contentDescription = stringResource(R.string.cal_resource), tint = PlanColors.resource, modifier = Modifier.size(14.dp))
+                                Text(
+                                    if (resource) a.name ?: stringResource(R.string.cal_resource) else a.name ?: a.email,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (resource) PlanColors.resource else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                )
+                                Icon(GcIcons.Close, contentDescription = null, tint = extra.muted, modifier = Modifier.size(14.dp))
+                            }
                         }
                     }
                 }
-            }
-            GcTextField(
-                state.attendeeInput,
-                viewModel::setAttendeeInput,
-                stringResource(R.string.cal_add_attendee),
-                placeholder = stringResource(R.string.cal_add_attendee_hint),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { viewModel.commitAttendees() }),
-            )
-            if (state.suggestions.isNotEmpty()) {
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)) {
-                    state.suggestions.take(6).forEach { c -> SuggestionRow(c) { viewModel.pickAttendee(c) } }
+                GcTextField(
+                    state.attendeeInput,
+                    viewModel::setAttendeeInput,
+                    stringResource(R.string.cal_add_attendee),
+                    placeholder = stringResource(R.string.cal_add_attendee_hint),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { viewModel.commitAttendees() }),
+                )
+                if (state.suggestions.isNotEmpty()) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)) {
+                        state.suggestions.take(6).forEach { c -> SuggestionRow(c) { viewModel.pickAttendee(c) } }
+                    }
                 }
-            }
-            // Mail 1.9.0: „Ressource hinzufügen …“ (GateControl calendars, no series)
-            val resources = state.resources.orEmpty().filter { r -> f.attendees.none { it.email.equals(r.address, ignoreCase = true) } }
-            if (resources.isNotEmpty() && cal?.local == true && f.ruleKind == MailPimLogic.RULE_NONE && state.existing?.occ?.shared == null) {
-                ResourcePicker(resources) { viewModel.addResource(it) }
-            }
-            val people = f.attendees.filter { !MailPlanLogic.isResource(it.email, it.role) }
-            if (people.isEmpty() && f.attendees.isNotEmpty()) {
-                Text(stringResource(R.string.res_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-            }
-            if (people.isNotEmpty()) {
-                val sender = viewModel.sender(me, cal)
-                val text = when {
-                    cal?.source == MCalendar.SOURCE_GRAPH -> stringResource(R.string.cal_invites_provider)
-                    sender != null -> stringResource(R.string.cal_invites_via, sender.label)
-                    else -> null
+                // Mail 1.9.0: „Ressource hinzufügen …“ (GateControl calendars, no series)
+                val resources = state.resources.orEmpty().filter { r -> f.attendees.none { it.email.equals(r.address, ignoreCase = true) } }
+                if (resources.isNotEmpty() && cal?.local == true && f.ruleKind == MailPimLogic.RULE_NONE && state.existing?.occ?.shared == null) {
+                    ResourcePicker(resources) { viewModel.addResource(it) }
                 }
-                if (text != null) GcBanner(tone = GcTone.Info, icon = GcIcons.Mail) { Text(text, style = MaterialTheme.typography.bodySmall) }
+                val people = f.attendees.filter { !MailPlanLogic.isResource(it.email, it.role) }
+                if (people.isEmpty() && f.attendees.isNotEmpty()) {
+                    Text(stringResource(R.string.res_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                }
+                if (people.isNotEmpty()) {
+                    val sender = viewModel.sender(me, cal)
+                    val text = when {
+                        cal?.source == MCalendar.SOURCE_GRAPH -> stringResource(R.string.cal_invites_provider)
+                        sender != null -> stringResource(R.string.cal_invites_via, sender.label)
+                        else -> null
+                    }
+                    if (text != null) GcBanner(tone = GcTone.Info, icon = GcIcons.Mail) { Text(text, style = MaterialTheme.typography.bodySmall) }
+                }
             }
             // Mail 1.9.0: „Frei/Gebucht“ and the suggestions
             state.plan?.let { plan ->
