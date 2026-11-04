@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.81.1] - 2026-11-04
+
+### Fixes
+- Server auch bei aktivem Tunnel erreichbar; GateDrop mit mehreren Bildern (#185)
+
+---
+
 ## [1.81.0] - 2026-11-04
 
 ### Features
