@@ -244,9 +244,28 @@ class MailSettingsViewModel @Inject constructor(
     val me: StateFlow<MMe?> = repository.me
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
+    /** The calendar settings (Mail 1.9.0: „Frei/Gebucht für alle in GateControl“). */
+    val calendars: StateFlow<com.gatecontrol.android.mail.MCalendars?> = repository.pim.calendars
 
     init {
         repository.refreshSoon()
+        if (repository.me.value?.has(MMe.FEATURE_FREE_BUSY) == true) repository.pim.refreshCalendarsSoon()
+    }
+
+    /** „Frei/Gebucht für alle in GateControl“ (the same switch as in „Kalender teilen“). */
+    fun setFreeBusy(on: Boolean) {
+        val pim = repository.pim
+        val before = pim.calendars.value?.prefs ?: return
+        pim.putPrefs(before.copy(freeBusy = on))
+        viewModelScope.launch {
+            when (val r = repository.api.calendarSettings(com.gatecontrol.android.mail.MailPimJson.calSettingsBody(freeBusy = on))) {
+                is MResult.Ok -> pim.putPrefs(r.value)
+                else -> {
+                    pim.putPrefs(before)
+                    _toast.value = mailText(context, MailHomeViewModel.code(r))
+                }
+            }
+        }
     }
 
     fun put(threads: Boolean? = null, swipeLeft: String? = null, swipeRight: String? = null) {

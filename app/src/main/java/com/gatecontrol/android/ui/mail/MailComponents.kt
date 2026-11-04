@@ -437,6 +437,14 @@ internal fun mailText(context: Context, code: String?): String = scanCodeText(co
         "exists" -> R.string.mail_err_exists
         "links_disabled" -> R.string.mail_err_links_disabled
         "busy" -> R.string.mail_err_busy
+        // Mail 1.9.0: free/busy, sharing, resources
+        "feature_off" -> R.string.mail_err_feature_off
+        "not_bookable" -> R.string.mail_err_not_bookable
+        "resource_busy" -> R.string.mail_err_resource_busy
+        "rule_violation" -> R.string.mail_err_rule_violation
+        "already_decided" -> R.string.mail_err_already_decided
+        "read_only" -> R.string.mail_err_read_only
+        "not_supported" -> R.string.mail_err_not_supported
         else -> R.string.mail_err_failed
     },
 )

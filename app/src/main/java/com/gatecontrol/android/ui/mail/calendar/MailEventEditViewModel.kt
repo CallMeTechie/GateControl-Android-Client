@@ -4,18 +4,24 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.mail.MAccount
+import com.gatecontrol.android.mail.MAttendee
 import com.gatecontrol.android.mail.MAttendeeInput
+import com.gatecontrol.android.mail.MBooking
 import com.gatecontrol.android.mail.MCalendar
 import com.gatecontrol.android.mail.MCalendars
 import com.gatecontrol.android.mail.MContact
 import com.gatecontrol.android.mail.MEvent
 import com.gatecontrol.android.mail.MEventInput
 import com.gatecontrol.android.mail.MMe
+import com.gatecontrol.android.mail.MResource
 import com.gatecontrol.android.mail.MResult
+import com.gatecontrol.android.mail.MSlot
+import com.gatecontrol.android.mail.MSuggestions
 import com.gatecontrol.android.mail.MRule
 import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.mail.MailPimJson
 import com.gatecontrol.android.mail.MailPimLogic
+import com.gatecontrol.android.mail.MailPlanLogic
 import com.gatecontrol.android.mail.MailRepository
 import com.gatecontrol.android.navigation.Screen
 import com.gatecontrol.android.ui.mail.MailHomeViewModel
@@ -25,6 +31,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -84,8 +94,16 @@ data class EventEditState(
     val suggestions: List<MContact> = emptyList(),
     val error: String? = null,
     val message: String? = null,
+    /** A refusal of a booking (Mail 1.9.0: its rules, the resource taken …), shown with its details. */
+    val failure: MResult<*>? = null,
     /** Saved: the screen closes. */
     val done: Boolean = false,
+    /** Mail 1.9.0: „Frei/Gebucht“ of the day (null: not offered). */
+    val plan: PlanState? = null,
+    /** Mail 1.9.0: the resources the person may book („Ressource hinzufügen …“; null: none or not offered). */
+    val resources: List<MResource>? = null,
+    /** Mail 1.9.0: the resources' bookings of the saved event („<Name> gebucht“ / „Anfrage für <Name> gesendet“). */
+    val booked: List<MBooking> = emptyList(),
 )
 
 /** A new event or a change (contract D3): the form, the attendees' suggestions, saving with the etag, conflicts. */
@@ -117,6 +135,78 @@ class MailEventEditViewModel @Inject constructor(
     init {
         if (pim.calendars.value == null) viewModelScope.launch { pim.refreshCalendars() }
         if (id != null) load() else newForm(saved)
+        if (repository.me.value?.has(MMe.FEATURE_RESOURCES) == true) {
+            viewModelScope.launch { api.resources().valueOrNull()?.let { r -> _state.update { it.copy(resources = r.items) } } }
+        }
+        if (repository.me.value?.has(MMe.FEATURE_FREE_BUSY) == true) watchPlan()
+    }
+
+    // ─── free/busy (Mail 1.9.0) ─────────────────────────────────────
+
+    /** What „Frei/Gebucht“ depends on: the day, the time, all-day, the people and resources. */
+    private data class PlanKey(val day: LocalDate, val start: Long, val end: Long, val allDay: Boolean, val zone: String, val people: List<String>, val resources: List<Long>)
+
+    private var lastSuggest: Pair<List<Any>, MSuggestions>? = null
+
+    /** Loads „Frei/Gebucht“ again (250 ms after the last change) while the form changes; never kept offline. */
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private fun watchPlan() {
+        viewModelScope.launch {
+            _state.map { s -> if (s.loading) null else planKey(s.form) }
+                .distinctUntilChanged()
+                .debounce(250)
+                .collectLatest { k -> if (k != null) loadPlan(k) }
+        }
+    }
+
+    private fun planKey(f: EventForm): PlanKey {
+        val (a, b) = times(f)
+        val (people, res) = MailPlanLogic.split(f.attendees)
+        return PlanKey(f.startDay, a, b, f.allDay, f.zone, people.sorted(), res.sorted())
+    }
+
+    private suspend fun loadPlan(k: PlanKey) {
+        val zone = MailPimLogic.zone(k.zone) ?: deviceZone
+        val (from, to) = MailPimLogic.range(k.day, k.day, zone)
+        _state.update { s -> s.copy(plan = (s.plan?.takeIf { it.day == k.day } ?: PlanState(k.day)).copy(loading = true, offline = false)) }
+        val dur = MailPlanLogic.duration(k.start, k.end, k.allDay)
+        val sKey = listOf(k.day, k.people, k.resources, dur)
+        val fb = api.freeBusy(from, to, k.people, k.resources)
+        val sg = lastSuggest?.takeIf { it.first == sKey }?.second
+            ?: api.suggest(dur, maxOf(System.currentTimeMillis(), from), k.people, k.resources).valueOrNull()?.also { lastSuggest = sKey to it }
+        _state.update { s ->
+            s.copy(
+                plan = PlanState(
+                    day = k.day,
+                    rows = fb.valueOrNull() ?: s.plan?.rows?.takeIf { s.plan.day == k.day && fb !is MResult.Offline },
+                    suggestions = sg ?: MSuggestions(emptyList(), emptyList(), null, null),
+                    loading = false,
+                    offline = fb is MResult.Offline,
+                    error = fb.takeIf { it !is MResult.Ok },
+                ),
+            )
+        }
+    }
+
+    /** A suggestion taken over: its start, the length stays (all-day becomes a time). */
+    fun pickSlot(slot: MSlot) {
+        val f = _state.value.form
+        val zone = MailPimLogic.zone(f.zone) ?: deviceZone
+        val s = MailPimLogic.local(slot.start, zone)
+        if (f.allDay) {
+            val e = MailPimLogic.local(slot.end, zone)
+            edit { it.copy(allDay = false, startDay = s.toLocalDate(), startTime = s.toLocalTime(), endDay = e.toLocalDate(), endTime = e.toLocalTime()) }
+        } else {
+            setStart(s.toLocalDate(), s.toLocalTime())
+        }
+    }
+
+    /** „Ressource hinzufügen …“: the resource as an attendee (booked when saved, not invited). */
+    fun addResource(r: MResource) {
+        _state.update { s ->
+            if (s.form.attendees.any { it.email.equals(r.address, ignoreCase = true) }) s
+            else s.copy(form = s.form.copy(attendees = (s.form.attendees + MAttendeeInput(r.address, r.name, MAttendee.ROLE_RESOURCE)).take(100)))
+        }
     }
 
     private fun newForm(saved: SavedStateHandle) {
@@ -363,10 +453,12 @@ class MailEventEditViewModel @Inject constructor(
             reminders = f.reminders,
             recurrence = rule(f),
             recurrenceSet = sendRule && (s.existing != null || f.ruleKind != MailPimLogic.RULE_NONE),
-            attendees = f.attendees,
+            // an event of a calendar shared with the person: attendees stay the owner's (Mail 1.9.0)
+            attendees = f.attendees.takeIf { s.existing?.occ?.shared == null },
             busy = if (f.free) "free" else "busy",
             private = f.private,
-            sendInvites = if (f.attendees.isNotEmpty()) true else null,
+            // resources are booked, not invited
+            sendInvites = if (f.attendees.any { !MailPlanLogic.isResource(it.email, it.role) }) true else null,
         )
     }
 
@@ -405,7 +497,7 @@ class MailEventEditViewModel @Inject constructor(
                 api.updateEvent(ev.id, MailPimJson.eventBody(input(s, series = sc == "series"), scope = if (ev.occ.occurrence != null) sc else null, occurrence = occ, etag = etag))
             }
             when (r) {
-                is MResult.Ok -> _state.update { it.copy(saving = false, done = true) }
+                is MResult.Ok -> _state.update { it.copy(saving = false, done = true, booked = r.value.bookings) }
                 is MResult.Failed -> {
                     val current = if (r.code == "conflict") MailPimJson.conflictEvent(r.error) else null
                     // Mail 1.3.0: the series cannot take this move (`invalid { field: 'start', reason: 'series_shift' }`)
@@ -413,7 +505,7 @@ class MailEventEditViewModel @Inject constructor(
                     when {
                         current != null -> _state.update { it.copy(saving = false, conflict = current) }
                         shiftRefused -> _state.update { it.copy(saving = false, message = SERIES_SHIFT) }
-                        else -> _state.update { it.copy(saving = false, message = r.code) }
+                        else -> _state.update { it.copy(saving = false, failure = r) }
                     }
                 }
                 else -> _state.update { it.copy(saving = false, message = MailHomeViewModel.code(r)) }
@@ -436,7 +528,7 @@ class MailEventEditViewModel @Inject constructor(
 
     fun dismissConflict() = _state.update { it.copy(conflict = null) }
 
-    fun clearMessage() = _state.update { it.copy(message = null) }
+    fun clearMessage() = _state.update { it.copy(message = null, failure = null) }
 
     companion object {
         const val SERIES_SHIFT = "series_shift"

@@ -101,6 +101,10 @@ class PushNotifier @Inject constructor(
             // the calendar's reminders and invitations (Mail 1.2.0): "Kalender", whatever the server calls the topics
             ?: ctx.getString(R.string.mail_calendar_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_REMINDER) }
             ?: ctx.getString(R.string.mail_invite_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_INVITE) }
+            // Mail 1.9.0: shared calendars, booking requests and the answers to a booking (the calendar's channels)
+            ?: ctx.getString(R.string.mail_share_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_SHARE) }
+            ?: ctx.getString(R.string.mail_requests_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_RES_REQUEST) }
+            ?: ctx.getString(R.string.mail_bookings_channel).takeIf { spec.id == PushChannels.topicChannelId(com.gatecontrol.android.mail.MailPush.TOPIC_RES_BOOKING) }
             ?: spec.label
             ?: PushText.fallbackLabel(spec.id.removePrefix(PushChannels.topicChannelId("")))
 

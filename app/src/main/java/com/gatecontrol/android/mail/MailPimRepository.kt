@@ -51,6 +51,14 @@ class MailPimRepository @Inject constructor(
     private val _calChanged = MutableSharedFlow<MCalChanged>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val calChanged: SharedFlow<MCalChanged> = _calChanged.asSharedFlow()
 
+    /** Live event `resources` (Mail 1.9.0): requests, the own bookings, the list of resources. */
+    private val _resChanged = MutableSharedFlow<MResChanged>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val resChanged: SharedFlow<MResChanged> = _resChanged.asSharedFlow()
+
+    /** The open booking requests the person decides on („Anfragen · n“, Mail 1.9.0); null: not asked (never kept offline). */
+    private val _openRequests = MutableStateFlow<Int?>(null)
+    val openRequests: StateFlow<Int?> = _openRequests.asStateFlow()
+
     private val _contactsChanged = MutableSharedFlow<MContactsChanged>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val contactsChanged: SharedFlow<MContactsChanged> = _contactsChanged.asSharedFlow()
 
@@ -144,6 +152,11 @@ class MailPimRepository @Inject constructor(
         _calendars.update { cur -> cur?.copy(overlays = cur.overlays.map { if (it.id == o.id) o else it }) }
     }
 
+    /** A shared calendar changed here (Mail 1.9.0). */
+    fun putShared(c: MSharedCalendar) {
+        _calendars.update { cur -> cur?.copy(shared = cur.shared.map { if (it.id == c.id) c else it }) }
+    }
+
     fun putPrefs(p: MCalPrefs) {
         _calendars.update { cur -> cur?.copy(prefs = p) }
     }
@@ -187,6 +200,23 @@ class MailPimRepository @Inject constructor(
         }
         MResult.Offline -> cache.event(id, occurrence)?.let { MResult.Ok(it) } ?: r.notOk()
         else -> r.notOk()
+    }
+
+    /** `GET bookings?state=open` for the count of „Anfragen · n“ (only for people who decide on requests). */
+    suspend fun refreshOpenRequests(): Int? {
+        api.bookings("open").valueOrNull()?.let { _openRequests.value = it.open }
+        return _openRequests.value
+    }
+
+    private var requestsJob: Job? = null
+
+    fun refreshOpenRequestsSoon() {
+        if (requestsJob?.isActive == true) return
+        requestsJob = scope.launch { refreshOpenRequests() }
+    }
+
+    fun putOpenRequests(n: Int) {
+        _openRequests.value = n.coerceAtLeast(0)
     }
 
     // ─── contacts ───────────────────────────────────────────────────
@@ -379,7 +409,18 @@ class MailPimRepository @Inject constructor(
                 if (_upcoming.value != null || _startPins.value.agenda) refreshUpcomingSoon()
                 c ?: return true
                 _calChanged.tryEmit(c)
-                if (c.kind == MCalChanged.CALENDARS || c.kind == MCalChanged.CHANGED) refreshCalendarsSoon()
+                // Mail 1.9.0: a share changed (the shared calendars of `GET calendars`)
+                if (c.kind == MCalChanged.CALENDARS || c.kind == MCalChanged.CHANGED || c.kind == MCalChanged.SHARES) refreshCalendarsSoon()
+                return true
+            }
+            "resources" -> {
+                val r = MailPimJson.resChanged(data) ?: return true
+                _resChanged.tryEmit(r)
+                when (r.kind) {
+                    MResChanged.REQUEST -> if (_openRequests.value != null) refreshOpenRequestsSoon()
+                    // the person's own booking was answered: its event in the calendar changed
+                    MResChanged.BOOKING -> _calChanged.tryEmit(MCalChanged(MCalChanged.CHANGED))
+                }
                 return true
             }
             "contacts" -> {
@@ -421,5 +462,6 @@ class MailPimRepository @Inject constructor(
         _favoritesSupported.value = null
         _upcomingSupported.value = null
         _startPins.value = MailStartPins()
+        _openRequests.value = null
     }
 }
