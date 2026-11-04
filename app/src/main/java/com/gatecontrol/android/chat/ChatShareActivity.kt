@@ -13,7 +13,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.IntentCompat
@@ -33,6 +32,8 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.push.PushNavTarget
 import com.gatecontrol.android.push.PushNavigation
+import com.gatecontrol.android.push.PushOpenActivity
+import com.gatecontrol.android.gatedrop.GateDropNotifier
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -167,12 +168,6 @@ class ChatShareActivity : ComponentActivity() {
             }
             GateControlTheme(darkTheme = dark) {
                 val ui by gateDrop.ui.collectAsStateWithLifecycle()
-                LaunchedEffect(ui.stage) {
-                    if (ui.stage == GdShareStage.DONE) {
-                        Toast.makeText(this@ChatShareActivity, R.string.gatedrop_sending_toast, Toast.LENGTH_SHORT).show()
-                        finish()
-                    }
-                }
                 GateDropShareSheet(
                     ui = ui,
                     serverUrl = serverUrl,
@@ -193,7 +188,17 @@ class ChatShareActivity : ComponentActivity() {
                     onCloseLink = gateDrop::closeLinkOptions,
                     onRetry = gateDrop::loadTargets,
                     onSend = gateDrop::send,
-                    onDismiss = { finish() },
+                    onDismiss = {
+                        // Closed while it still sends: the worker goes on, its notifications tell the rest.
+                        if (ui.stage == GdShareStage.WAITING || ui.stage == GdShareStage.PREPARING) {
+                            Toast.makeText(this@ChatShareActivity, R.string.gatedrop_sending_toast, Toast.LENGTH_SHORT).show()
+                        }
+                        finish()
+                    },
+                    onOpenShared = {
+                        runCatching { startActivity(PushOpenActivity.sharedIntent(this@ChatShareActivity, GateDropNotifier.TAB_SENT)) }
+                        finish()
+                    },
                 )
             }
         }

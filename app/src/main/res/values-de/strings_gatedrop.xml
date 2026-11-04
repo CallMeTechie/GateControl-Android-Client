@@ -45,6 +45,7 @@
     <string name="gatedrop_preparing">Wird vorbereitet …</string>
     <string name="gatedrop_waiting_link">Link wird erstellt …</string>
     <string name="gatedrop_uploading_percent">Wird hochgeladen … %1$d %%</string>
+    <string name="gatedrop_sending_percent">Wird gesendet … %1$d %%</string>
     <string name="gatedrop_progress_background">Du kannst das schließen – das Senden läuft im Hintergrund weiter.</string>
     <string name="gatedrop_sending_toast">Wird gesendet …</string>
     <string name="gatedrop_done">Fertig</string>
@@ -87,6 +88,13 @@
     <string name="gatedrop_link_with_pin">%1$s\nPIN: %2$s</string>
     <string name="gatedrop_send_failed">Nicht gesendet</string>
     <string name="gatedrop_send_failed_desc">Dein GateControl-Server war nicht erreichbar oder hat es abgelehnt.</string>
+    <string name="gatedrop_send_waiting">Noch nicht gesendet</string>
+    <string name="gatedrop_send_waiting_desc">Dein GateControl-Server ist gerade nicht erreichbar – GateControl versucht es von selbst erneut.</string>
+    <string name="gatedrop_open_shared">Gesendet und Empfangen ansehen</string>
+    <plurals name="gatedrop_unread">
+        <item quantity="one">%d Datei konnte nicht gelesen werden und wird nicht gesendet.</item>
+        <item quantity="other">%d Dateien konnten nicht gelesen werden und werden nicht gesendet.</item>
+    </plurals>
     <string name="gatedrop_someone">Jemand</string>
     <string name="gatedrop_received_title">%1$s hat dir %2$s geschickt</string>
     <string name="gatedrop_received_generic">GateDrop: etwas Neues für dich</string>
@@ -105,7 +113,7 @@
     <string name="gatedrop_receive_failed_from">Von %1$s</string>
 
     <!-- Seite „Geteilt“ -->
-    <string name="gatedrop_settings_group">Teilen</string>
+    <string name="gatedrop_settings_group">GateDrop</string>
     <string name="gatedrop_settings_row_desc">Empfangen, Gesendet und Links für Externe</string>
     <string name="gatedrop_shared_title">Geteilt</string>
     <string name="gatedrop_receive_from_title">Wer darf an dieses Gerät senden?</string>

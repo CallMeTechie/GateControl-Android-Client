@@ -176,6 +176,28 @@ class GateDropNotifier @Inject constructor(
         )
     }
 
+    /**
+     * Not through yet (server not reachable, busy): the send waits and is
+     * tried again by itself. Replaced by [sent] / [sendFailed] (same id).
+     */
+    suspend fun sendWaiting(key: String, names: String?) {
+        val ctx = localized()
+        ensureChannels(ctx)
+        val text = ctx.getString(R.string.gatedrop_send_waiting_desc)
+        post(
+            resultId(key),
+            NotificationCompat.Builder(ctx, CHANNEL_PROGRESS)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(ctx.getString(R.string.gatedrop_send_waiting))
+                .setContentText(names?.let { ctx.getString(R.string.gatedrop_sent_to, it) } ?: text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(names?.let { ctx.getString(R.string.gatedrop_sent_to, it) }, text).joinToString("\n")))
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
+                .setContentIntent(sharedTap(TAB_SENT, slot = 17))
+                .build(),
+        )
+    }
+
     /** The link for externals is ready: URL (and PIN) with Kopieren / Teilen. */
     suspend fun linkReady(key: String, link: GdLinkResult) {
         val ctx = localized()

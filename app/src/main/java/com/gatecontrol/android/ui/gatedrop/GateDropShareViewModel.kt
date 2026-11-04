@@ -37,8 +37,8 @@ import javax.inject.Inject
 /** A file shared from another app (read only when sending). */
 data class GdSource(val uri: Uri, val name: String, val mime: String, val size: Long?)
 
-/** What the share sheet shows. */
-enum class GdShareStage { EDIT, LINK_OPTIONS, PREPARING, WAITING, RESULT, DONE, FAILED }
+/** What the share sheet shows ([SENT]: delivered, without a link for externals). */
+enum class GdShareStage { EDIT, LINK_OPTIONS, PREPARING, WAITING, RESULT, SENT, FAILED }
 
 data class GdShareUi(
     val sources: List<GdSource> = emptyList(),
@@ -60,6 +60,12 @@ data class GdShareUi(
     val checking: Boolean = false,
     /** Why the send failed when the virus scan refused it ("<Name> abgelehnt – Schadsoftware gefunden."). */
     val failure: String? = null,
+    /** The server was not reachable: the send waits and is tried again by itself. */
+    val retrying: Boolean = false,
+    /** Shared files that could not be read when sending (left out of the send). */
+    val unread: Int = 0,
+    /** Who it goes to ("FEC Laptop, Mein Drive") for "Gesendet an …". */
+    val targetNames: String? = null,
 ) {
     val totalBytes: Long get() = sources.sumOf { it.size ?: 0L }
     val canSend: Boolean get() = targets != null && GateDropLogic.canSend(selection, targets, sources.size, !text.isNullOrBlank())
@@ -124,6 +130,8 @@ class GateDropShareViewModel @Inject constructor(
                 _ui.update { it.copy(stage = GdShareStage.FAILED) }
                 return@launch
             }
+            val unread = s.sources.size - files.size
+            if (unread > 0) Timber.w("GateDrop: %d of %d shared files not readable, left out", unread, s.sources.size)
             val to = GateDropLogic.recipients(s.selection, targets)
             val shareLink = if (files.isEmpty()) GateDropLogic.asLink(s.text) else null
             val job = GdJob(
@@ -138,24 +146,28 @@ class GateDropShareViewModel @Inject constructor(
             repository.store.saveJob(job)
             repository.setJobState(jobId, GdJobState.Preparing)
             val names = GateDropLogic.chosenNames(s.selection, targets, getApplication<Application>().getString(com.gatecontrol.android.R.string.gatedrop_drive)).joinToString(", ").ifBlank { null }
-            GateDropSendWorker.enqueue(getApplication(), jobId, names)
-            if (to.link == null) {
-                _ui.update { it.copy(stage = GdShareStage.DONE) }
+            if (GateDropSendWorker.enqueue(getApplication(), jobId, names) == null) {
+                repository.store.dropJob(jobId)
+                _ui.update { it.copy(stage = GdShareStage.FAILED) }
                 return@launch
             }
-            _ui.update { it.copy(stage = GdShareStage.WAITING) }
+            // The sheet stays and shows how the send goes (progress, "Gesendet an …", the error); closing it
+            // leaves the send to the worker and its notifications.
+            _ui.update { it.copy(stage = GdShareStage.WAITING, unread = unread, targetNames = names) }
             waitJob = launch {
                 repository.jobs.mapNotNull { it[jobId] }.first { st ->
                     when (st) {
-                        is GdJobState.Uploading -> _ui.update { it.copy(percent = st.percent, checking = false) }
-                        is GdJobState.Direct -> _ui.update { it.copy(percent = st.percent, checking = false) }
-                        GdJobState.Checking -> _ui.update { it.copy(checking = true) }
+                        is GdJobState.Uploading -> _ui.update { it.copy(percent = st.percent, checking = false, retrying = false) }
+                        is GdJobState.Direct -> _ui.update { it.copy(percent = st.percent, checking = false, retrying = false) }
+                        GdJobState.Sending -> _ui.update { it.copy(checking = false, retrying = false) }
+                        GdJobState.Checking -> _ui.update { it.copy(checking = true, retrying = false) }
+                        GdJobState.Retrying -> _ui.update { it.copy(retrying = true, checking = false, percent = null) }
                         else -> Unit
                     }
                     st is GdJobState.Done || st is GdJobState.Failed
                 }.let { st ->
                     when (st) {
-                        is GdJobState.Done -> _ui.update { it.copy(stage = if (st.link != null) GdShareStage.RESULT else GdShareStage.DONE, link = st.link) }
+                        is GdJobState.Done -> _ui.update { it.copy(stage = if (st.link != null) GdShareStage.RESULT else GdShareStage.SENT, link = st.link, retrying = false) }
                         is GdJobState.Failed -> _ui.update {
                             it.copy(stage = GdShareStage.FAILED, failure = scanCodeText(getApplication(), st.code, name = st.name))
                         }

@@ -59,9 +59,9 @@ class TunnelConnector @Inject constructor(
         applyVpnSubnet(config)
 
         // Pre-resolve server hostname before the tunnel comes up. Once the
-        // VPN is established the system DNS points to 10.8.0.1, which is
-        // unreachable from the GateControl app itself when the app is in
-        // the user's exclude list.
+        // VPN is established the system DNS points to 10.8.0.1, which answers
+        // the server's name with its VPN address — unusable when the app is
+        // in the user's exclude list (ApiClientProvider / VpnSafeDns).
         if (serverUrl.isNotEmpty()) {
             try {
                 val host = java.net.URI(serverUrl).host
