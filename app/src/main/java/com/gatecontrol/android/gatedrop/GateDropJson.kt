@@ -231,7 +231,20 @@ object GateDropJson {
             nas = nas,
             linksEnabled = links?.flag("enabled") ?: (root.flag("linksEnabled") == true),
             drive = root.flag("drive") == true,
+            retention = retention(root.obj("limits")),
         )
+    }
+
+    /**
+     * `limits.retention { afterPickupDays, unpickedDays }` (GateDrop 1.5) or `limits.retentionDays`; null when the
+     * server names neither. Days outside 0…365 are ignored.
+     */
+    fun retention(limits: JsonObject?): GdRetention? {
+        if (limits == null) return null
+        fun days(v: Long?) = v?.takeIf { it in 0..365 }?.toInt()
+        val r = limits.obj("retention")
+        val unpicked = days(r?.long("unpickedDays"))?.takeIf { it > 0 } ?: days(limits.long("retentionDays"))?.takeIf { it > 0 } ?: return null
+        return GdRetention(unpickedDays = unpicked, afterPickupDays = days(r?.long("afterPickupDays")))
     }
 
     fun person(o: JsonObject?): GdPerson? {
@@ -346,6 +359,9 @@ object GateDropJson {
             status = o.str("status")?.lowercase()?.takeIf { it.length <= 20 } ?: GdDelivery.PENDING,
             via = o.str("via")?.lowercase()?.takeIf { it == "direct" || it == "server" },
             error = line(o.str("error"), 120),
+            pickedAt = o.time("pickedAt"),
+            // `pickedAt: null` counts too: the server knows pick-ups, this one is not picked up yet
+            knowsPickup = o.has("pickedAt"),
         )
     }
 
@@ -372,6 +388,8 @@ object GateDropJson {
     fun transferAnswer(o: JsonObject?): GdTransferAnswer = GdTransferAnswer(
         fallback = fallbackOf(o),
         missing = o?.arr("missing")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt?.takeIf { it in 0 until MAX_ITEMS } }?.distinct()?.sorted(),
+        // `{ id, kind, target, status, via, error, at, pickedAt }` (pickedAt since GateDrop 1.5)
+        delivery = delivery(o?.obj("delivery")),
     )
 
     fun item(o: JsonObject?): GdItem? {
@@ -386,6 +404,8 @@ object GateDropJson {
             bytes = o.long("bytes") ?: o.long("size") ?: 0L,
             available = o.flag("available") != false,
             scan = MediaScanJson.of(o),
+            index = o.long("index")?.toInt()?.takeIf { it in 0 until MAX_ITEMS },
+            local = o.flag("local") == true,
         )
     }
 
@@ -414,7 +434,9 @@ object GateDropJson {
             items = root.arr("items")?.mapNotNull { item(it.objOrNull()) }?.take(MAX_ITEMS * 5).orEmpty(),
             deliveries = root.arr("deliveries")?.mapNotNull { delivery(it.objOrNull()) }?.take(MAX_LIST).orEmpty(),
             opened = root.flag("opened") == true || root.str("status") == GdDelivery.OPENED,
-            expired = root.flag("expired") == true,
+            expired = root.flag("expired") == true || root.flag("removed") == true,
+            removed = root.flag("removed") == true,
+            pickedAt = root.time("pickedAt"),
         )
     }
 

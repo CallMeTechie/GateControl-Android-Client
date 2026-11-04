@@ -126,7 +126,15 @@
     <string name="gatedrop_tab_received">Empfangen</string>
     <string name="gatedrop_tab_sent">Gesendet</string>
     <string name="gatedrop_tab_links">Links</string>
-    <string name="gatedrop_shared_footer">Was an deine eigenen Geräte geht, landet hier und als Mitteilung. Was Personen schicken, kommt wie gewohnt im Chat an. Empfangenes wird nach 7 Tagen vom Server gelöscht.</string>
+    <string name="gatedrop_shared_footer">Was an deine eigenen Geräte geht, landet hier und als Mitteilung. Was Personen schicken, kommt wie gewohnt im Chat an.</string>
+    <!-- GateDrop 1.5: Aufbewahrung, wie der Admin sie eingestellt hat (limits.retention) -->
+    <string name="gatedrop_retention">Empfangenes wird nach %1$s vom Server gelöscht.</string>
+    <string name="gatedrop_retention_at_pickup">Empfangenes wird vom Server gelöscht – kurz nach dem Abholen, sonst nach %1$s.</string>
+    <string name="gatedrop_retention_after_pickup">Empfangenes wird vom Server gelöscht – abgeholt nach %1$s, sonst nach %2$s.</string>
+    <plurals name="gatedrop_retention_days">
+        <item quantity="one">%d Tag</item>
+        <item quantity="other">%d Tagen</item>
+    </plurals>
     <string name="gatedrop_offline">Offline – zu sehen ist, was dieses Gerät kennt.</string>
     <string name="gatedrop_from">von %1$s · %2$s</string>
     <string name="gatedrop_to">an %1$s</string>
@@ -145,6 +153,12 @@
     <string name="gatedrop_status_opened">geöffnet</string>
     <string name="gatedrop_status_failed">fehlgeschlagen</string>
     <string name="gatedrop_status_expired">abgelaufen</string>
+    <!-- GateDrop 1.5 -->
+    <string name="gatedrop_status_provided">bereitgestellt</string>
+    <string name="gatedrop_status_picked">abgeholt</string>
+    <string name="gatedrop_status_incomplete">nicht alle Dateien angekommen</string>
+    <string name="gatedrop_status_removed">vom Admin entfernt</string>
+    <string name="gatedrop_send_gone">Die Sendung ist abgelaufen oder wurde vom Admin entfernt.</string>
     <string name="gatedrop_link_expires">läuft ab %1$s</string>
     <plurals name="gatedrop_link_downloads">
         <item quantity="one">%d Download</item>

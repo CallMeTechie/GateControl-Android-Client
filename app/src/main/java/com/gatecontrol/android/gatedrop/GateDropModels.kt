@@ -71,6 +71,8 @@ data class GdTargets(
     val linksEnabled: Boolean = false,
     /** "Mein Drive" is offered: Drive is there and the caller has a seat (GateDrop 1.3, `targets.drive`). */
     val drive: Boolean = false,
+    /** How long received files stay on the server (`limits`); null when the server says nothing. */
+    val retention: GdRetention? = null,
 ) {
     /** Own devices and other people's open ones — both go into `to.devices`. */
     val allDevices: List<GdDevice> get() = devices + peopleDevices
@@ -80,6 +82,18 @@ data class GdTargets(
 
     /** "Link für Externe" is offered: allowed for the caller and switched on by the administrator. */
     val linkOffered: Boolean get() = me.canLink && linksEnabled
+}
+
+/**
+ * How long the server keeps received files (`targets.limits`): [unpickedDays] for what is not picked up (counted from
+ * sending, `limits.retentionDays` / `limits.retention.unpickedDays`), [afterPickupDays] once picked up (GateDrop 1.5,
+ * 0 = right away; null on older servers, which keep everything [unpickedDays]).
+ */
+data class GdRetention(val unpickedDays: Int = DEFAULT_DAYS, val afterPickupDays: Int? = null) {
+    companion object {
+        /** Before GateDrop 1.5 (and without `limits`): 7 days after sending. */
+        const val DEFAULT_DAYS = 7
+    }
 }
 
 /** Validity of a link for externals (`to.link.expires`). */
@@ -165,6 +179,10 @@ data class GdDelivery(
     val status: String,
     val via: String? = null,
     val error: String? = null,
+    /** When the recipient confirmed it has the send (GateDrop 1.5); null = not (yet) picked up. */
+    val pickedAt: Long? = null,
+    /** The server names `pickedAt` (GateDrop 1.5): `delivered` without it only means provided. */
+    val knowsPickup: Boolean = false,
 ) {
     companion object {
         const val PENDING = "pending"
@@ -175,6 +193,13 @@ data class GdDelivery(
         const val OPENED = "opened"
         const val FAILED = "failed"
         const val EXPIRED = "expired"
+
+        /** `error` of an `expired` delivery whose send an administrator removed before it was picked up (GateDrop 1.5). */
+        const val ERROR_REMOVED = "removed"
+        /** `error`: the receiving device of a direct transfer did not get every file (GateDrop 1.5). */
+        const val ERROR_INCOMPLETE = "incomplete"
+        /** `error` of a device delivery whose direct transfer failed and that waits for the sender's upload. */
+        const val ERROR_DIRECT_FAILED = "direct_failed"
     }
 }
 
@@ -232,6 +257,10 @@ data class GdItem(
     val available: Boolean = true,
     /** The host's virus scan (GateDrop 1.4); null when the server says nothing. Blocked: no download, a mark instead. */
     val scan: MediaScan? = null,
+    /** Position in the send (`index`); null when the server does not name it. */
+    val index: Int? = null,
+    /** The file is still only on the sender's device (`local`, a direct transfer): the server needs it uploaded. */
+    val local: Boolean = false,
 )
 
 /** One entry of `GET inbox?kind=received|sent` or `GET sends/<id>`. */
@@ -248,6 +277,10 @@ data class GdEntry(
     val opened: Boolean = false,
     /** The send expired: its files are gone from the server. */
     val expired: Boolean = false,
+    /** An administrator removed its files from the server (GateDrop 1.5, "Vom Admin entfernt"). */
+    val removed: Boolean = false,
+    /** Every recipient picked it up (GateDrop 1.5). */
+    val pickedAt: Long? = null,
 )
 
 /** One link for externals (`GET inbox?kind=links`). */
@@ -296,8 +329,11 @@ fun <T> GdResult<T>.valueOrNull(): T? = (this as? GdResult.Ok)?.value
 /** One answered part of a resumable upload ([complete] null: the server does not know resumable uploads). */
 data class GdUploadPart(val complete: Boolean?, val mediaId: String?, val offset: Long?, val code: String? = null)
 
-/** Answer of `POST transfers/<id>/result`. */
-data class GdTransferAnswer(val fallback: String? = null, val missing: List<Int>? = null)
+/**
+ * Answer of `POST transfers/<id>/result`; [delivery] the delivery as it stands now (GateDrop 1.5 adds its `pickedAt`:
+ * the receiving device confirmed every file).
+ */
+data class GdTransferAnswer(val fallback: String? = null, val missing: List<Int>? = null, val delivery: GdDelivery? = null)
 
 /**
  * Where a direct transfer stands (`GET transfers/<id>`), also once it

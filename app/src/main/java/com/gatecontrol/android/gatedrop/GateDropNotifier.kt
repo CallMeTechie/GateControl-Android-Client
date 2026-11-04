@@ -219,9 +219,16 @@ class GateDropNotifier @Inject constructor(
         )
     }
 
+    /**
+     * Why a send failed as a sentence: the virus scan's refusal (GateDrop 1.4), or `410 gone` — the send expired or an
+     * administrator removed it (GateDrop 1.5) before the files that were to go directly got there; null for any other code.
+     */
+    suspend fun scanReason(code: String?, name: String?): String? {
+        val ctx = localized()
+        return scanCodeText(ctx, code, name = name) ?: ctx.getString(R.string.gatedrop_send_gone).takeIf { GateDropLogic.isGone(code) }
+    }
+
     /** Not sent (no server, refused): tap opens "Gesendet". */
-    /** The virus scan's refusal of a send as a sentence (GateDrop 1.4), null for any other code. */
-    suspend fun scanReason(code: String?, name: String?): String? = scanCodeText(localized(), code, name = name)
 
     suspend fun sendFailed(key: String, reason: String?) {
         val ctx = localized()

@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.R
 import com.gatecontrol.android.gatedrop.GateDropJson
 import com.gatecontrol.android.gatedrop.GateDropLogic
 import com.gatecontrol.android.gatedrop.GateDropRepository
@@ -169,7 +170,8 @@ class GateDropShareViewModel @Inject constructor(
                     when (st) {
                         is GdJobState.Done -> _ui.update { it.copy(stage = if (st.link != null) GdShareStage.RESULT else GdShareStage.SENT, link = st.link, retrying = false) }
                         is GdJobState.Failed -> _ui.update {
-                            it.copy(stage = GdShareStage.FAILED, failure = scanCodeText(getApplication(), st.code, name = st.name))
+                            it.copy(stage = GdShareStage.FAILED, failure = scanCodeText(getApplication(), st.code, name = st.name)
+                                ?: getApplication<Application>().getString(R.string.gatedrop_send_gone).takeIf { GateDropLogic.isGone(st.code) })
                         }
                         else -> _ui.update { it.copy(stage = GdShareStage.FAILED) }
                     }

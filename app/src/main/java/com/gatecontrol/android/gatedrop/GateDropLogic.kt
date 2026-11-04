@@ -49,6 +49,44 @@ data class GdSendPlan(
 )
 
 /**
+ * How a sent send (or one of its deliveries) reads in "Gesendet"; the order is the order of importance — the first
+ * state any delivery has wins, so a problem or a waiting device stays visible.
+ */
+enum class GdSentStatus {
+    FAILED,
+    /** The receiving device of a direct transfer did not get every file (GateDrop 1.5 `incomplete`). */
+    INCOMPLETE,
+    /** An administrator removed the files before it was picked up (GateDrop 1.5) — instead of "abgelaufen". */
+    REMOVED,
+    EXPIRED,
+    WAITING,
+    PENDING,
+    DIRECT,
+    /** `delivered` but not picked up yet (GateDrop 1.5 names `pickedAt`): "bereitgestellt". */
+    PROVIDED,
+    /** `delivered` of a server without pick-ups (GateDrop < 1.5), a NAS folder, Drive or a link: "zugestellt". */
+    DELIVERED,
+    OPENED,
+    /** The recipient confirmed it has the send (GateDrop 1.5 `pickedAt`): "abgeholt". */
+    PICKED,
+}
+
+/** How the receiving end reports a direct transfer (`POST transfers/<id>/result`). */
+data class GdDirectReport(val ok: Boolean, val bytes: Long?, val error: String?)
+
+/** What a sender does about a direct transfer it reported `ok` (GateDrop 1.5: only the receiver's `ok` counts). */
+sealed interface GdPickupCheck {
+    /** Picked up, on the server way, ended, or a server without pick-ups: nothing more to do. */
+    data object Done : GdPickupCheck
+
+    /** The receiving device has not confirmed yet. */
+    data object Wait : GdPickupCheck
+
+    /** The receiver did not get everything and the delivery waits for the files (`pending` + `direct_failed`). */
+    data class Upload(val missing: List<Int>) : GdPickupCheck
+}
+
+/**
  * Decisions of GateDrop that do not need Android: which targets are
  * shown and can be sent to, how the files travel, when the server path
  * takes over. Pure, unit-tested.
@@ -180,6 +218,92 @@ object GateDropLogic {
         val order = listOf(GdDelivery.FAILED, GdDelivery.EXPIRED, GdDelivery.WAITING, GdDelivery.PENDING, GdDelivery.DIRECT, GdDelivery.DELIVERED, GdDelivery.OPENED)
         return deliveries.map { it.status }.minByOrNull { s -> order.indexOf(s).let { if (it < 0) order.size else it } }
     }
+
+    /** One delivery as "Gesendet" shows it; [sendRemoved]: an administrator removed the send's files (GateDrop 1.5). */
+    fun sentStatus(d: GdDelivery, sendRemoved: Boolean = false): GdSentStatus? = when (d.status) {
+        GdDelivery.FAILED -> if (d.error == GdDelivery.ERROR_INCOMPLETE) GdSentStatus.INCOMPLETE else GdSentStatus.FAILED
+        GdDelivery.EXPIRED -> if (d.error == GdDelivery.ERROR_REMOVED || sendRemoved) GdSentStatus.REMOVED else GdSentStatus.EXPIRED
+        GdDelivery.WAITING -> GdSentStatus.WAITING
+        GdDelivery.PENDING -> if (d.error == GdDelivery.ERROR_INCOMPLETE) GdSentStatus.INCOMPLETE else GdSentStatus.PENDING
+        GdDelivery.DIRECT -> GdSentStatus.DIRECT
+        GdDelivery.DELIVERED -> when {
+            // saved into the folder / Drive, a link made: delivered is all there is
+            d.kind == KIND_NAS || d.kind == KIND_DRIVE || d.kind == KIND_LINK -> GdSentStatus.DELIVERED
+            // a server without pick-ups (GateDrop < 1.5) says nothing more: as before
+            !d.knowsPickup -> GdSentStatus.DELIVERED
+            d.pickedAt != null -> GdSentStatus.PICKED
+            else -> GdSentStatus.PROVIDED
+        }
+        GdDelivery.OPENED -> GdSentStatus.OPENED
+        else -> null
+    }
+
+    /** A sent entry as "Gesendet" shows it: the most important state of its deliveries ([GdSentStatus] order). */
+    fun sentStatus(e: GdEntry): GdSentStatus? =
+        e.deliveries.mapNotNull { sentStatus(it, e.removed) }.minByOrNull { it.ordinal }
+            ?: GdSentStatus.REMOVED.takeIf { e.removed }
+
+    /** The send is gone from the server (`410 gone`: expired, or GateDrop 1.5: removed by an administrator). */
+    fun isGone(code: String?): Boolean = code == "gone"
+
+    /** How long received files stay on the server: the server's `limits`, else 7 days as always. */
+    fun retention(targets: GdTargets?): GdRetention = targets?.retention ?: GdRetention()
+
+    /**
+     * The receiving end's report of a direct transfer: `ok` only when every file of [items] arrived and was saved
+     * ([saved]: the saved copy per item, null = not saved) — then always with `bytes`, the files' plain size in all
+     * (GateDrop 1.5 counts fewer bytes as `incomplete`).
+     */
+    fun directReport(items: List<GdOfferItem>, outcome: GdDirectOutcome, saved: List<String?>): GdDirectReport {
+        val total = items.sumOf { it.bytes }
+        return when {
+            outcome is GdDirectOutcome.Failed -> GdDirectReport(false, null, outcome.reason)
+            outcome !is GdDirectOutcome.Done || outcome.bytes != total || saved.size != items.size -> GdDirectReport(false, null, GdDelivery.ERROR_INCOMPLETE)
+            saved.any { it == null } -> GdDirectReport(false, null, "save_failed")
+            else -> GdDirectReport(true, total, null)
+        }
+    }
+
+    /**
+     * After this device reported a direct transfer `ok`: does the answer ([GdTransferAnswer.delivery]) leave the
+     * pick-up open — not confirmed yet, or the receiver failed before (`pending` + `direct_failed`, the answer to an
+     * `ok` names no `fallback`)? Only a GateDrop 1.5 server says so (`pickedAt` named); older ones: as before.
+     */
+    fun awaitsPickup(answer: GdTransferAnswer?): Boolean {
+        val d = answer?.delivery ?: return false
+        if (serverWantsUpload(answer.fallback) || !d.knowsPickup || d.pickedAt != null) return false
+        return when (d.status) {
+            GdDelivery.DIRECT -> true
+            GdDelivery.DELIVERED -> d.via != "server"
+            GdDelivery.PENDING -> d.error == GdDelivery.ERROR_DIRECT_FAILED
+            else -> false
+        }
+    }
+
+    /**
+     * Where the delivery of [send] to the device [deviceId] stands after this device's `ok` (`GET sends/<id>`): picked
+     * up, or the receiver did not get everything and the delivery waits for the files still on this device
+     * (`pending` + `direct_failed`, the `local` items) — then they go up and `POST sends/<id>/items`.
+     */
+    fun pickupCheck(send: GdEntry, deviceId: String): GdPickupCheck {
+        if (send.removed || send.expired) return GdPickupCheck.Done
+        val d = send.deliveries.firstOrNull { it.kind == KIND_DEVICE && it.target == deviceId } ?: return GdPickupCheck.Done
+        if (d.status == GdDelivery.PENDING && d.error == GdDelivery.ERROR_DIRECT_FAILED) {
+            val missing = send.items.withIndex().filter { it.value.local }.map { it.value.index ?: it.index }.distinct().sorted()
+            return if (missing.isEmpty()) GdPickupCheck.Done else GdPickupCheck.Upload(missing)
+        }
+        return when {
+            !d.knowsPickup -> GdPickupCheck.Done
+            d.pickedAt != null || d.status == GdDelivery.OPENED -> GdPickupCheck.Done
+            d.status == GdDelivery.DIRECT || (d.status == GdDelivery.DELIVERED && d.via != "server") -> GdPickupCheck.Wait
+            else -> GdPickupCheck.Done
+        }
+    }
+
+    private const val KIND_DEVICE = "device"
+    private const val KIND_NAS = "nas"
+    private const val KIND_DRIVE = "drive"
+    private const val KIND_LINK = "link"
 
     /**
      * Why a delivery failed because of the virus scan (GateDrop 1.4: the file was held back before it was handed on —
