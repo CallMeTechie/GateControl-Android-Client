@@ -8,6 +8,7 @@ import com.gatecontrol.android.mail.MCalendars
 import com.gatecontrol.android.mail.MEvents
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MResult
+import com.gatecontrol.android.mail.MSharedCalendar
 import com.gatecontrol.android.mail.MailPimJson
 import com.gatecontrol.android.mail.MailPimLogic
 import com.gatecontrol.android.mail.MailRepository
@@ -53,6 +54,8 @@ class MailCalendarViewModel @Inject constructor(
     val calendars: StateFlow<MCalendars?> = pim.calendars
     val offline: StateFlow<Boolean> = pim.offline
     val relogins: StateFlow<Set<Long>> = pim.relogins
+    /** „Anfragen · n“ (Mail 1.9.0, only for people who decide on requests). */
+    val openRequests: StateFlow<Int?> = pim.openRequests
 
     /** The device's zone: the grid's days and hours. */
     val zone: ZoneId = ZoneId.systemDefault()
@@ -79,6 +82,12 @@ class MailCalendarViewModel @Inject constructor(
                 load(quiet = true)
             }
         }
+        refreshRequests()
+    }
+
+    /** The count of open booking requests (never kept offline). */
+    private fun refreshRequests() {
+        if (repository.me.value?.has(MMe.FEATURE_BOOKING_REQUESTS) == true) pim.refreshOpenRequestsSoon()
     }
 
     /** The person's zone on the server follows the device's (reminders of all-day events, the overlays' days). */
@@ -91,6 +100,7 @@ class MailCalendarViewModel @Inject constructor(
     fun onShown() {
         pim.refreshCalendarsSoon()
         load(quiet = true)
+        refreshRequests()
     }
 
     /** The days the view shows (the list: from its first day on). */
@@ -165,6 +175,31 @@ class MailCalendarViewModel @Inject constructor(
                     pim.putCalendar(c)
                     fail(r)
                 }
+            }
+            load(quiet = true)
+        }
+    }
+
+    /** A calendar shared with the person shown or hidden (Mail 1.9.0; the first time: „hat angenommen“). */
+    fun toggleShared(c: MSharedCalendar) {
+        pim.putShared(c.copy(visible = !c.visible))
+        viewModelScope.launch {
+            when (val r = api.patchShared(c.id, visible = !c.visible)) {
+                is MResult.Ok -> pim.putShared(r.value)
+                else -> {
+                    pim.putShared(c)
+                    fail(r)
+                }
+            }
+            load(quiet = true)
+        }
+    }
+
+    fun setSharedColor(c: MSharedCalendar, color: String) {
+        viewModelScope.launch {
+            when (val r = api.patchShared(c.id, color = color)) {
+                is MResult.Ok -> pim.putShared(r.value)
+                else -> fail(r)
             }
             load(quiet = true)
         }

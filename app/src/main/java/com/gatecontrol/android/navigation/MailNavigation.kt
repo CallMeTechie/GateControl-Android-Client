@@ -20,11 +20,14 @@ import com.gatecontrol.android.ui.mail.MailSearchScreen
 import com.gatecontrol.android.ui.mail.MailSenderNav
 import com.gatecontrol.android.ui.mail.MailSenderScreen
 import com.gatecontrol.android.ui.mail.MailSettingsScreen
+import com.gatecontrol.android.ui.mail.calendar.BookingRequestsScreen
 import com.gatecontrol.android.ui.mail.calendar.EventNav
 import com.gatecontrol.android.ui.mail.calendar.InviteNav
 import com.gatecontrol.android.ui.mail.calendar.MailEventEditScreen
 import com.gatecontrol.android.ui.mail.calendar.MailEventScreen
 import com.gatecontrol.android.ui.mail.calendar.MailInvitationScreen
+import com.gatecontrol.android.ui.mail.calendar.ResourceBookingScreen
+import com.gatecontrol.android.ui.mail.calendar.ShareCalendarScreen
 import com.gatecontrol.android.ui.mail.contacts.ContactNav
 import com.gatecontrol.android.ui.mail.contacts.MailContactEditScreen
 import com.gatecontrol.android.ui.mail.contacts.MailContactScreen
@@ -56,6 +59,9 @@ private class MailNavigation(private val navController: NavHostController) {
         group = { go(Screen.MailGroup.create(it)) },
         duplicates = { go(Screen.MailContactDuplicates.route) },
         relogin = { go(Screen.MailAddAccount.create(it)) },
+        resources = { start, end -> go(Screen.MailResources.create(start, end)) },
+        bookings = { go(Screen.MailBookings.create()) },
+        share = { go(Screen.MailShareCalendar.create(it)) },
     )
 }
 
@@ -240,5 +246,15 @@ internal fun NavGraphBuilder.mailRoutes(
     }
     composable(Screen.MailGroup.route, arguments = listOf(required(Screen.MailGroup.ARG_ID))) {
         GcContentWidth { MailGroupScreen(onBack = back, onContact = nav.nav.contact, mailTo = mailTo) }
+    }
+    // ─── free/busy, sharing, resources (since Mail 1.9.0) ───
+    composable(Screen.MailResources.route, arguments = listOf(optional(Screen.MailResources.ARG_START), optional(Screen.MailResources.ARG_END))) {
+        GcContentWidth { ResourceBookingScreen(onBack = back) }
+    }
+    composable(Screen.MailBookings.route, arguments = listOf(optional(Screen.MailBookings.ARG_TAB), optional(Screen.MailBookings.ARG_FOCUS))) {
+        GcContentWidth { BookingRequestsScreen(onBack = back, onEvent = { nav.nav.event(it, null) }) }
+    }
+    composable(Screen.MailShareCalendar.route, arguments = listOf(optional(Screen.MailShareCalendar.ARG_CAL))) {
+        GcContentWidth { ShareCalendarScreen(onBack = back) }
     }
 }

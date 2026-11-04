@@ -49,6 +49,8 @@ data class MCalendar(
     val errorCode: String?,
     val syncedAt: Long?,
     val version: Long,
+    /** Since Mail 1.9.0: a Microsoft 365 calendar of another mailbox the account sees (its owner's address). */
+    val sharedBy: String? = null,
 ) {
     val local: Boolean get() = source == SOURCE_LOCAL
 
@@ -77,6 +79,10 @@ data class MCalPrefs(
     val defaultReminder: Int?,
     /** Minutes before midnight of an all-day event (360 → 18:00 the day before, 1080 → 06:00 the day before), null: none. */
     val allDayReminder: Int?,
+    /** Since Mail 1.9.0: „Frei/Gebucht für alle in GateControl“ (default on). */
+    val freeBusy: Boolean = true,
+    /** Since Mail 1.9.0: the working hours (free/busy's window and the suggestions). */
+    val workHours: MWorkHours = MWorkHours.DEFAULT,
 ) {
     companion object {
         const val VIEW_DAY = "day"
@@ -92,9 +98,17 @@ data class MCalPrefs(
 /** A Microsoft account whose calendar needs the person to sign in again. */
 data class MConsent(val accountId: Long, val missing: List<String>)
 
-/** `GET calendars`. */
-data class MCalendars(val calendars: List<MCalendar>, val overlays: List<MOverlay>, val prefs: MCalPrefs, val consent: List<MConsent>) {
+/** `GET calendars` (since Mail 1.9.0 also the GateControl calendars shared with the person, [shared]). */
+data class MCalendars(
+    val calendars: List<MCalendar>,
+    val overlays: List<MOverlay>,
+    val prefs: MCalPrefs,
+    val consent: List<MConsent>,
+    val shared: List<MSharedCalendar> = emptyList(),
+) {
     fun calendar(id: Long?): MCalendar? = id?.let { c -> calendars.firstOrNull { it.id == c } }
+
+    fun sharedCalendar(id: Long?): MSharedCalendar? = id?.let { c -> shared.firstOrNull { it.id == c } }
 }
 
 data class MOnline(val url: String, /** teams | zoom | meet | webex | other */ val provider: String)
@@ -127,8 +141,15 @@ data class MOccurrence(
     val attendees: Int,
     val private: Boolean,
     val reminder: Int?,
+    /**
+     * Since Mail 1.9.0: an entry of a calendar shared with the person — `freebusy` | `read` | `write`; null: an own one.
+     * Free/busy and private entries come as „Gebucht“ / „Vorläufig“ without an event ([eventId] 0, never opened).
+     */
+    val shared: String? = null,
 ) {
     val cancelled: Boolean get() = status == STATUS_CANCELLED
+    /** Only a time („Gebucht“ of a shared calendar): nothing to open. */
+    val busyOnly: Boolean get() = eventId <= 0L
     /** An invitation not answered yet (mockup: dashed). */
     val open: Boolean get() = myResponse == RESPONSE_NEEDS_ACTION
 
@@ -258,8 +279,8 @@ data class MSeries(val start: Long, val end: Long, val allDay: Boolean, val star
 /** The new times of a series moved from one of its occurrences ([MailPimLogic.shiftSeries]). */
 data class MShift(val start: Long? = null, val end: Long? = null, val startDate: String? = null, val endDate: String? = null)
 
-/** `POST/PATCH events` → `{ event, sent }`. */
-data class MEventSaved(val event: MEvent, val sentMail: Int, val sentInternal: Int)
+/** `POST/PATCH events` → `{ event, sent }` (since Mail 1.9.0 with resources among the attendees also their [bookings]). */
+data class MEventSaved(val event: MEvent, val sentMail: Int, val sentInternal: Int, val bookings: List<MBooking> = emptyList())
 
 data class MInviteCounts(val accepted: Int, val tentative: Int, val declined: Int, val needsAction: Int) {
     val total: Int get() = accepted + tentative + declined + needsAction
@@ -365,11 +386,15 @@ data class MCalChanged(
     val invitationId: Long? = null,
     val messageId: Long? = null,
     val eventId: Long? = null,
+    /** Since Mail 1.9.0: a change in a calendar shared with the person. */
+    val shared: Boolean = false,
 ) {
     companion object {
         const val CHANGED = "changed"
         const val CALENDARS = "calendars"
         const val INVITATION = "invitation"
         const val CONFLICT = "conflict"
+        /** Since Mail 1.9.0: the shares of a calendar changed (its owner and the people it is shared with). */
+        const val SHARES = "shares"
     }
 }

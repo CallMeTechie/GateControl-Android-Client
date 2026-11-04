@@ -330,6 +330,19 @@ fun MailSettingsScreen(
                     onCheckedChange = display::setDarkMails,
                 )
             }
+            // Mail 1.9.0: „Frei/Gebucht für alle in GateControl“
+            val cals by viewModel.calendars.collectAsStateWithLifecycle()
+            if (m.has(com.gatecontrol.android.mail.MMe.FEATURE_FREE_BUSY) && cals != null) {
+                GcSectionLabel(stringResource(R.string.share_settings_label))
+                GcCard(contentPadding = PaddingValues(vertical = 4.dp)) {
+                    GcSwitchRow(
+                        label = stringResource(R.string.share_fb_all),
+                        description = stringResource(R.string.share_fb_all_d),
+                        checked = cals?.prefs?.freeBusy ?: true,
+                        onCheckedChange = viewModel::setFreeBusy,
+                    )
+                }
+            }
             GcSectionLabel(stringResource(R.string.mail_accounts))
             GcCard(contentPadding = PaddingValues(vertical = 4.dp)) {
                 m.accounts.forEach { a ->

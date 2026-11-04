@@ -115,6 +115,10 @@ data class MailNav(
     val duplicates: () -> Unit = {},
     /** "Neu anmelden" of a Microsoft account (calendar and contacts rights). */
     val relogin: (Long) -> Unit = {},
+    /** Mail 1.9.0: „Ressource buchen“, the booking requests / own bookings, „Kalender teilen“ of a calendar. */
+    val resources: (start: Long?, end: Long?) -> Unit = { _, _ -> },
+    val bookings: () -> Unit = {},
+    val share: (calendarId: Long) -> Unit = {},
 )
 
 /**
@@ -236,7 +240,7 @@ fun MailHomeScreen(
         val openMenu: () -> Unit = { scope.launch { drawer.open() } }
         when {
             area == MailDrawerFoot.CALENDAR && calendarVm != null -> MailCalendarContent(
-                CalendarNav(menu = openMenu, event = nav.event, newEvent = nav.newEvent, relogin = nav.relogin),
+                CalendarNav(menu = openMenu, event = nav.event, newEvent = nav.newEvent, relogin = nav.relogin, resources = nav.resources, bookings = nav.bookings),
                 calendarVm,
             )
             area == MailDrawerFoot.CONTACTS && contactsVm != null -> MailContactsContent(
@@ -246,7 +250,12 @@ fun MailHomeScreen(
             else -> MailArea(nav, viewModel, me, meError, folders, box, tab, list, undo, accounts, account, inbox, folder, openMenu) { actionsFor = it }
         }
     }
-    calendarVm?.let { CalendarMenuDialogs(calendarMenu, it, it.calendars.collectAsStateWithLifecycle().value) }
+    calendarVm?.let {
+        CalendarMenuDialogs(
+            calendarMenu, it, it.calendars.collectAsStateWithLifecycle().value,
+            onShare = if (me?.has(com.gatecontrol.android.mail.MMe.FEATURE_SHARING) == true) { c -> nav.share(c.id) } else null,
+        )
+    }
 
     actionsFor?.let { item ->
         RowActions(
@@ -759,7 +768,7 @@ private fun MailDrawer(
         val label: @Composable (String) -> Unit = { DrawerLabel(it) }
         LazyColumn(Modifier.weight(1f)) {
             if (area == MailDrawerFoot.CALENDAR && calendarVm != null && calendarMenu != null) {
-                calendarDrawerItems(me, cals, calendarMenu, inboxRow, label, onToggle = calendarVm::toggleCalendar, onToggleOverlay = calendarVm::toggleOverlay)
+                calendarDrawerItems(me, cals, calendarMenu, inboxRow, label, onToggle = calendarVm::toggleCalendar, onToggleOverlay = calendarVm::toggleOverlay, onToggleShared = calendarVm::toggleShared)
             } else if (area == MailDrawerFoot.CONTACTS && contactsVm != null && contactsState != null) {
                 contactsDrawerItems(
                     me, books, contactsTotal, contactsState.duplicates, contactsState.filter, inboxRow, label,

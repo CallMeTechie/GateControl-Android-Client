@@ -48,6 +48,11 @@ data class MMe(
         /** Since Mail 1.2.0: calendars and contacts (the administrator switched them on). */
         const val FEATURE_CALENDAR = "calendar"
         const val FEATURE_CONTACTS = "contacts"
+        /** Since Mail 1.9.0: free/busy in the event form, sharing GateControl calendars, resources, deciding requests. */
+        const val FEATURE_FREE_BUSY = "freeBusy"
+        const val FEATURE_SHARING = "calendarSharing"
+        const val FEATURE_RESOURCES = "resources"
+        const val FEATURE_BOOKING_REQUESTS = "bookingRequests"
     }
 }
 

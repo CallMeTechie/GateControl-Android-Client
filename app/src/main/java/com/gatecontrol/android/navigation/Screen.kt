@@ -251,6 +251,23 @@ sealed class Screen(val route: String) {
         const val ARG_ID = "id"
         fun create(id: Long) = "mail/group/$id"
     }
+    /** „Ressource buchen“ (Mail 1.9.0): the day and time of `start`/`end` (else the next hour). */
+    data object MailResources : Screen("mail/resources?start={start}&end={end}") {
+        const val ARG_START = "start"
+        const val ARG_END = "end"
+        fun create(start: Long? = null, end: Long? = null): String = MailRoutes.build("mail/resources", "start" to start?.toString(), "end" to end?.toString())
+    }
+    /** „Buchungsanfragen“ / „Meine Buchungen“ (Mail 1.9.0): the tab `open` | `done` | `mine`, the booking `focus` shown first. */
+    data object MailBookings : Screen("mail/bookings?tab={tab}&focus={focus}") {
+        const val ARG_TAB = "tab"
+        const val ARG_FOCUS = "focus"
+        fun create(tab: String? = null, focus: Long? = null): String = MailRoutes.build("mail/bookings", "tab" to tab, "focus" to focus?.toString())
+    }
+    /** „Kalender teilen“ of the own GateControl calendar `cal` (Mail 1.9.0); without it only „Mit mir geteilt“. */
+    data object MailShareCalendar : Screen("mail/share?cal={cal}") {
+        const val ARG_CAL = "cal"
+        fun create(calendar: Long? = null): String = MailRoutes.build("mail/share", "cal" to calendar?.toString())
+    }
     /**
      * Tab "Drive" (plugin gatecontrol-drive, only when the server lists it):
      * the areas and the newest files. A folder, the trash and the search are

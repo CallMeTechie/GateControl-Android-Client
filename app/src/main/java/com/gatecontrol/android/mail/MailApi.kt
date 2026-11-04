@@ -408,6 +408,53 @@ class MailApi @Inject constructor(
 
     suspend fun dismissInvitation(id: Long, decline: Boolean): MResult<Unit> = post("invitations/$id/dismiss", MailPimJson.dismissBody(decline), timeoutMs = 60_000L, parse = unit)
 
+    // ─── free/busy, sharing, resources (since Mail 1.9.0) ───────────
+
+    /** `POST freebusy`: the day's free/busy of the person, [attendees] and [resources] (never titles). */
+    suspend fun freeBusy(from: Long, to: Long, attendees: List<String>, resources: List<Long>): MResult<MFreeBusy> =
+        post("freebusy", MailPimJson.freeBusyBody(from, to, attendees, resources), parse = MailPimJson::freeBusy)
+
+    /** `POST freebusy/suggest`: up to [limit] slots of [duration] minutes from [from] when everybody known is free. */
+    suspend fun suggest(duration: Int, from: Long?, attendees: List<String>, resources: List<Long>, limit: Int = 4): MResult<MSuggestions> =
+        post("freebusy/suggest", MailPimJson.suggestBody(duration, from, attendees, resources, limit), parse = MailPimJson::suggestions)
+
+    suspend fun shares(calendarId: Long): MResult<MShares> = get("calendars/$calendarId/shares", parse = MailPimJson::shares)
+
+    suspend fun addShare(calendarId: Long, type: String, principalId: Long, level: String): MResult<MShare> =
+        post("calendars/$calendarId/shares", MailPimJson.shareBody(type, principalId, level), parse = MailPimJson::shareAnswer)
+
+    suspend fun patchShare(calendarId: Long, shareId: Long, level: String): MResult<MShare> =
+        patch("calendars/$calendarId/shares/$shareId", MailPimJson.levelBody(level), parse = MailPimJson::shareAnswer)
+
+    suspend fun deleteShare(calendarId: Long, shareId: Long): MResult<Unit> = del("calendars/$calendarId/shares/$shareId", unit)
+
+    suspend fun shared(): MResult<MSharedList> = get("shared", parse = MailPimJson::sharedList)
+
+    suspend fun patchShared(calendarId: Long, visible: Boolean? = null, color: String? = null): MResult<MSharedCalendar> =
+        patch("shared/$calendarId", MailPimJson.sharedPatch(visible, color), parse = MailPimJson::sharedAnswer)
+
+    /** People (who may use Mail) and groups by name, to share with ([q] ≥ 2 characters). */
+    suspend fun principals(q: String): MResult<List<MPrincipal>> = get("principals", mapOf("q" to q.trim().take(60)), MailPimJson::principals)
+
+    /** `GET resources` (with [from]/[to]: each one's taken times in it, ≤ 31 days). */
+    suspend fun resources(from: Long? = null, to: Long? = null): MResult<MResources> =
+        get("resources", buildMap {
+            if (from != null && to != null) {
+                put("from", from.toString())
+                put("to", to.toString())
+            }
+        }, MailPimJson::resources)
+
+    suspend fun book(resourceId: Long, body: JsonObject): MResult<MEventSaved> = post("resources/$resourceId/book", body, timeoutMs = 60_000L, parse = MailPimJson::eventSaved)
+
+    /** `GET bookings?state=open|done|mine`. */
+    suspend fun bookings(state: String): MResult<MBookings> = get("bookings", mapOf("state" to state), MailPimJson::bookings)
+
+    suspend fun decideBooking(id: Long, approve: Boolean, override: Boolean = false, comment: String? = null): MResult<MBooking> =
+        post("bookings/$id/decide", MailPimJson.decideBody(approve, override, comment), timeoutMs = 60_000L, parse = MailPimJson::bookingAnswer)
+
+    suspend fun cancelBooking(id: Long): MResult<Unit> = del("bookings/$id", unit)
+
     // ─── contacts (since Mail 1.2.0, path `cards`) ──────────────────
 
     suspend fun addressbooks(): MResult<Pair<MBooks, JsonObject>> = get("addressbooks") { o -> MailPimJson.books(o)?.let { it to o } }

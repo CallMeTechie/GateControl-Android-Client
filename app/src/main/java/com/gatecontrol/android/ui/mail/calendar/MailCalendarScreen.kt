@@ -82,6 +82,7 @@ import com.gatecontrol.android.mail.MailPimLogic
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.mail.mailContext
@@ -106,6 +107,9 @@ data class CalendarNav(
     val newEvent: (start: Long?, end: Long?, allDay: Boolean) -> Unit,
     /** "Neu anmelden" of a Microsoft account (calendar and contacts rights). */
     val relogin: (accountId: Long) -> Unit,
+    /** Mail 1.9.0: „Ressource buchen“ (the tapped time, else the next hour), the requests / own bookings. */
+    val resources: (start: Long?, end: Long?) -> Unit = { _, _ -> },
+    val bookings: () -> Unit = {},
 )
 
 /** The grid's height of an hour. */
@@ -141,7 +145,24 @@ fun MailCalendarContent(nav: CalendarNav, viewModel: MailCalendarViewModel) {
         }
     }
 
+    val openRequests by viewModel.openRequests.collectAsStateWithLifecycle()
     val slots = remember(state.events, cals) { slotsOf(state.events, cals) }
+    // a free/busy entry of a shared calendar opens nothing: its time, the calendar and the level
+    val busyInfo: (MailPimLogic.Slot) -> Unit = { s ->
+        val o = s.occurrence
+        if (o != null && o.busyOnly) {
+            val calName = cals?.sharedCalendar(o.calendarId)?.name
+            val parts = listOfNotNull(
+                o.title.ifBlank { null },
+                busyWhen(context, o.start, o.end, o.allDay, zone, locale),
+                calName,
+                context.getString(if (o.shared == com.gatecontrol.android.mail.MShare.FREEBUSY) R.string.share_level_freebusy else R.string.cal_private),
+            )
+            toast(context, parts.joinToString(" · "))
+        } else if (o != null) {
+            nav.event(o.eventId, o.occurrence)
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         CalendarBar(
             title = monthTitle(if (view == MCalPrefs.VIEW_MONTH) state.anchor else viewModel.shownDays(state).firstOrNull() ?: state.anchor, today, locale),
@@ -151,7 +172,19 @@ fun MailCalendarContent(nav: CalendarNav, viewModel: MailCalendarViewModel) {
             onStep = viewModel::step,
             onView = viewModel::setView,
         )
-        CalendarChips(cals, onCalendar = { id -> cals?.calendar(id)?.let(viewModel::toggleCalendar) }, onOverlay = viewModel::toggleOverlay)
+        CalendarChips(
+            cals,
+            onCalendar = { id -> cals?.calendar(id)?.let(viewModel::toggleCalendar) },
+            onOverlay = viewModel::toggleOverlay,
+            onShared = { id -> cals?.sharedCalendar(id)?.let(viewModel::toggleShared) },
+            requests = when {
+                me?.has(MMe.FEATURE_BOOKING_REQUESTS) == true -> stringResource(R.string.res_requests_n, openRequests ?: 0)
+                me?.has(MMe.FEATURE_RESOURCES) == true -> stringResource(R.string.res_mine)
+                else -> null
+            },
+            requestsHot = me?.has(MMe.FEATURE_BOOKING_REQUESTS) == true && (openRequests ?: 0) > 0,
+            onRequests = nav.bookings,
+        )
         CalendarBands(me, cals, offline, relogins, onRelogin = { id ->
             viewModel.relogin(id)
             nav.relogin(id)
@@ -160,14 +193,14 @@ fun MailCalendarContent(nav: CalendarNav, viewModel: MailCalendarViewModel) {
             val swipe = if (LocalInStartPager.current || view == MCalPrefs.VIEW_LIST) Modifier else Modifier.swipeToPage(viewModel::step)
             when (view) {
                 MCalPrefs.VIEW_MONTH -> MonthView(state.anchor, today, cals?.prefs?.weekStart ?: 1, slots, zone, swipe, onDay = viewModel::openDay)
-                MCalPrefs.VIEW_LIST -> AgendaView(state.anchor, state.listDays, today, slots, zone, onSlot = { s -> s.occurrence?.let { nav.event(it.eventId, it.occurrence) } }, onEnd = viewModel::moreList)
+                MCalPrefs.VIEW_LIST -> AgendaView(state.anchor, state.listDays, today, slots, zone, onSlot = busyInfo, onEnd = viewModel::moreList)
                 else -> TimeGrid(
                     days = viewModel.shownDays(state),
                     today = today,
                     slots = slots,
                     zone = zone,
                     modifier = swipe,
-                    onSlot = { s -> s.occurrence?.let { nav.event(it.eventId, it.occurrence) } },
+                    onSlot = busyInfo,
                     onEmpty = { day, minute ->
                         if (!offline) {
                             val (a, b) = MailPimLogic.newAt(day, minute, zone)
@@ -182,16 +215,26 @@ fun MailCalendarContent(nav: CalendarNav, viewModel: MailCalendarViewModel) {
                 Text(mailText(context, it), color = GateControlTheme.extraColors.muted, modifier = Modifier.align(Alignment.Center).padding(24.dp))
             }
         }
-        // "Neuer Termin" (mockup: the primary button in the bar below; "Ressource buchen" comes with phase 3)
+        // "Neuer Termin" (mockup: the primary button in the bar below) and, with resources (Mail 1.9.0), "Ressource buchen"
         Row(
             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             GcPrimaryButton(
                 stringResource(R.string.cal_new_event),
                 onClick = { nav.newEvent(null, null, false) },
                 enabled = !offline && cals?.calendars?.any { it.writable } != false,
                 icon = GcIcons.Plus,
+                modifier = Modifier.weight(1f),
             )
+            if (me?.has(MMe.FEATURE_RESOURCES) == true) {
+                GcOutlineButton(
+                    stringResource(R.string.res_book),
+                    onClick = { nav.resources(null, null) },
+                    enabled = !offline,
+                    fillWidth = false,
+                )
+            }
         }
     }
 }
@@ -199,7 +242,8 @@ fun MailCalendarContent(nav: CalendarNav, viewModel: MailCalendarViewModel) {
 /** The occurrences and overlay entries as the grid's slots, in their calendar's color. */
 internal fun slotsOf(events: MEvents?, cals: MCalendars?): List<MailPimLogic.Slot> {
     events ?: return emptyList()
-    val colors = cals?.calendars?.associate { it.id to it.color }.orEmpty()
+    // the calendars shared with the person keep their own color (Mail 1.9.0)
+    val colors = cals?.shared?.associate { it.id to it.color }.orEmpty() + cals?.calendars?.associate { it.id to it.color }.orEmpty()
     val overlayColors = cals?.overlays?.associate { it.id to it.color }.orEmpty()
     return events.items.map { o ->
         MailPimLogic.Slot(o.key, o.title, o.start, o.end, o.allDay, o.startDate, o.endDate, colors[o.calendarId] ?: "#46E0A0",
@@ -262,7 +306,16 @@ private fun CalendarBar(title: String, view: String, onMenu: () -> Unit, onToday
 
 /** The chips of the calendars and overlays (mockup): the color square, filled when shown; a tap shows or hides. */
 @Composable
-private fun CalendarChips(cals: MCalendars?, onCalendar: (Long) -> Unit, onOverlay: (String) -> Unit) {
+private fun CalendarChips(
+    cals: MCalendars?,
+    onCalendar: (Long) -> Unit,
+    onOverlay: (String) -> Unit,
+    onShared: (Long) -> Unit = {},
+    /** Mail 1.9.0: „Anfragen · n“ / „Meine Buchungen“ first (null: no resources). */
+    requests: String? = null,
+    requestsHot: Boolean = false,
+    onRequests: () -> Unit = {},
+) {
     cals ?: return
     val extra = GateControlTheme.extraColors
     val shown = stringResource(R.string.cal_shown)
@@ -271,10 +324,27 @@ private fun CalendarChips(cals: MCalendars?, onCalendar: (Long) -> Unit, onOverl
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val chips = cals.calendars.map { Triple(it.name, it.color, it.visible) to { onCalendar(it.id) } } +
-            cals.overlays.map { Triple(it.name, it.color, it.visible) to { onOverlay(it.id) } }
+        if (requests != null) {
+            Row(
+                Modifier
+                    .heightIn(min = 36.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .then(if (requestsHot) Modifier.background(extra.warnBg) else Modifier.border(1.dp, extra.border2, RoundedCornerShape(999.dp)))
+                    .clickable(role = Role.Button, onClick = onRequests)
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(GcIcons.Tasks, contentDescription = null, tint = if (requestsHot) extra.warn else extra.muted, modifier = Modifier.size(14.dp))
+                Text(requests, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = if (requestsHot) extra.warn else MaterialTheme.colorScheme.onBackground, maxLines = 1)
+            }
+        }
+        // shared calendars: a frame in their color instead of the surface (mockup)
+        val chips = cals.calendars.map { ChipSpec(it.name, it.color, it.visible) to { onCalendar(it.id) } } +
+            cals.shared.map { ChipSpec(it.name, it.color, it.visible, outlined = true) to { onShared(it.id) } } +
+            cals.overlays.map { ChipSpec(it.name, it.color, it.visible) to { onOverlay(it.id) } }
         chips.forEach { (c, click) ->
-            val (name, color, on) = c
+            val (name, color, on, outlined) = c
             val col = calColor(color)
             Row(
                 Modifier
@@ -289,13 +359,20 @@ private fun CalendarChips(cals: MCalendars?, onCalendar: (Long) -> Unit, onOverl
             ) {
                 Box(
                     Modifier.size(12.dp).clip(RoundedCornerShape(4.dp))
-                        .then(if (on) Modifier.background(col) else Modifier.border(2.dp, col, RoundedCornerShape(4.dp))),
+                        .then(if (on && !outlined) Modifier.background(col) else Modifier.border(2.dp, col, RoundedCornerShape(4.dp))),
                 )
                 Text(name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = if (on) MaterialTheme.colorScheme.onBackground else extra.faint, maxLines = 1)
             }
         }
     }
 }
+
+/** A chip of a calendar: shown or not, a shared one framed. */
+private data class ChipSpec(val name: String, val color: String, val on: Boolean, val outlined: Boolean = false)
+
+/** „10:00–11:00“ or „ganztägig“ of a free/busy entry. */
+private fun busyWhen(context: android.content.Context, start: Long, end: Long, allDay: Boolean, zone: ZoneId, locale: java.util.Locale): String =
+    if (allDay) context.getString(R.string.cal_all_day) else "${clock(start, zone, locale)}–${clock(end, zone, locale)}"
 
 /**
  * The bands above the view: a Microsoft account without the calendar rights ("Neu anmelden"; after that still

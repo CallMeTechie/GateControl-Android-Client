@@ -112,6 +112,7 @@ object MailPimJson {
             errorCode = o.obj("error")?.str("code"),
             syncedAt = o.long("syncedAt"),
             version = o.long("version") ?: 0L,
+            sharedBy = o.obj("sharedBy")?.text("email")?.takeIf { it.length <= 320 },
         )
     }
 
@@ -132,6 +133,8 @@ object MailPimJson {
             reminders = o.bool("reminders") ?: d.reminders,
             defaultReminder = if (o.has("defaultReminder")) o.int("defaultReminder")?.coerceAtLeast(0) else d.defaultReminder,
             allDayReminder = if (o.has("allDayReminder")) o.int("allDayReminder")?.coerceAtLeast(0) else d.allDayReminder,
+            freeBusy = o.bool("freeBusy") ?: d.freeBusy,
+            workHours = o.obj("workHours")?.let(::workHours) ?: d.workHours,
         )
     }
 
@@ -145,6 +148,7 @@ object MailPimJson {
             consent = o.arr("consent")?.objects()?.mapNotNull { c ->
                 MConsent(c.id("accountId") ?: return@mapNotNull null, c.arr("missing")?.strings().orEmpty())
             }.orEmpty(),
+            shared = o.arr("shared")?.objects()?.mapNotNull(::sharedCalendar).orEmpty(),
         )
     }
 
@@ -163,13 +167,15 @@ object MailPimJson {
     }
 
     fun occurrence(o: JsonObject): MOccurrence? {
-        val eventId = o.id("eventId") ?: return null
+        val shared = o.str("shared")?.takeIf { it in MShare.LEVELS }
+        // a free/busy entry of a shared calendar has no event (only its time)
+        val eventId = o.id("eventId") ?: if (shared != null && o.el("eventId") == null) 0L else return null
         val start = o.long("start") ?: return null
         val end = (o.long("end") ?: start).coerceAtLeast(start)
         val occ = o.str("occurrence")?.takeIf { it.isNotEmpty() && it.length <= 40 }
         val allDay = o.bool("allDay") ?: false
         return MOccurrence(
-            key = o.str("key")?.takeIf { it.isNotEmpty() } ?: (if (occ != null) "$eventId:$occ" else "$eventId"),
+            key = o.str("key")?.takeIf { it.isNotEmpty() } ?: (if (occ != null) "$eventId:$occ" else if (eventId > 0) "$eventId" else return null),
             eventId = eventId,
             calendarId = o.id("calendarId") ?: 0L,
             occurrence = occ,
@@ -190,6 +196,7 @@ object MailPimJson {
             attendees = o.int("attendees")?.coerceAtLeast(0) ?: o.arr("attendees")?.size() ?: 0,
             private = o.bool("private") ?: false,
             reminder = o.int("reminder")?.takeIf { it >= 0 },
+            shared = shared,
         )
     }
 
@@ -299,7 +306,10 @@ object MailPimJson {
     fun eventSaved(o: JsonObject): MEventSaved? {
         val ev = o.obj("event")?.let(::event) ?: return null
         val sent = o.obj("sent")
-        return MEventSaved(ev, sent?.int("mail")?.coerceAtLeast(0) ?: 0, sent?.int("internal")?.coerceAtLeast(0) ?: 0)
+        return MEventSaved(
+            ev, sent?.int("mail")?.coerceAtLeast(0) ?: 0, sent?.int("internal")?.coerceAtLeast(0) ?: 0,
+            bookings = o.arr("bookings")?.objects()?.mapNotNull(::booking).orEmpty(),
+        )
     }
 
     /** The newer state a `409 conflict` carries (`error.current`): an Event. */
@@ -725,14 +735,298 @@ object MailPimJson {
         return MPhoto(mime, bytes)
     }
 
+    // ─── free/busy, sharing, resources (Mail 1.9.0) ─────────────────
+
+    private val HHMM = Regex("^([01]\\d|2[0-3]):[0-5]\\d$|^24:00$")
+
+    /** Working hours: days 1…7, `HH:MM` with from < to; null when not readable. */
+    fun workHours(o: JsonObject): MWorkHours? {
+        val days = o.arr("days")?.ints()?.filter { it in 1..7 }?.distinct()?.sorted() ?: return null
+        val from = o.str("from")?.takeIf { HHMM.matches(it) && it != "24:00" } ?: return null
+        val to = o.str("to")?.takeIf { HHMM.matches(it) } ?: return null
+        if (to <= from) return null
+        return MWorkHours(days, from, to)
+    }
+
+    private fun block(o: JsonObject): MBusyBlock? {
+        val start = o.long("start") ?: return null
+        val end = o.long("end")?.takeIf { it > start } ?: return null
+        val status = when (o.str("status")) {
+            MBusyBlock.TENTATIVE -> MBusyBlock.TENTATIVE
+            MBusyBlock.PENDING -> MBusyBlock.PENDING
+            else -> MBusyBlock.BUSY
+        }
+        return MBusyBlock(start, end, status, o.bool("mine") ?: false)
+    }
+
+    private fun slot(o: JsonObject): MSlot? {
+        val start = o.long("start") ?: return null
+        return MSlot(start, o.long("end")?.takeIf { it >= start } ?: return null)
+    }
+
+    fun freeBusyRow(o: JsonObject): MFreeBusyRow? {
+        val kind = o.str("kind")?.takeIf { it in setOf(MFreeBusyRow.SELF, MFreeBusyRow.PERSON, MFreeBusyRow.MICROSOFT, MFreeBusyRow.RESOURCE, MFreeBusyRow.EXTERNAL) } ?: MFreeBusyRow.EXTERNAL
+        val email = o.text("email")
+        val key = o.text("key") ?: email ?: o.id("resourceId")?.let { "r:$it" } ?: if (kind == MFreeBusyRow.SELF) "self" else return null
+        val known = o.str("state") == "ok"
+        return MFreeBusyRow(
+            key = key,
+            kind = kind,
+            email = email,
+            resourceId = o.id("resourceId"),
+            userId = o.id("userId"),
+            name = o.str("name")?.trim().orEmpty(),
+            known = known,
+            blocks = if (known) o.arr("blocks")?.objects()?.mapNotNull(::block)?.map { if (it.status == MBusyBlock.PENDING) it.copy(status = MBusyBlock.TENTATIVE) else it }.orEmpty() else emptyList(),
+        )
+    }
+
+    /** `POST freebusy`. */
+    fun freeBusy(o: JsonObject): MFreeBusy? {
+        val items = o.arr("items") ?: return null
+        return MFreeBusy(o.long("from") ?: 0L, o.long("to") ?: 0L, items.objects().mapNotNull(::freeBusyRow))
+    }
+
+    /** `POST freebusy/suggest`. */
+    fun suggestions(o: JsonObject): MSuggestions? {
+        val items = o.arr("items") ?: return null
+        return MSuggestions(
+            items = items.objects().mapNotNull(::slot),
+            unknown = o.arr("unknown")?.strings().orEmpty(),
+            workHours = o.obj("workHours")?.let(::workHours),
+            timeZone = o.zone("timeZone"),
+        )
+    }
+
+    fun sharedCalendar(o: JsonObject): MSharedCalendar? {
+        val id = o.id("id") ?: return null
+        val owner = o.obj("owner")
+        return MSharedCalendar(
+            id = id,
+            name = o.text("name") ?: return null,
+            color = o.color("color") ?: "#8C96A5",
+            ownerId = owner?.id("userId"),
+            ownerName = owner?.str("name")?.trim().orEmpty(),
+            level = o.str("level")?.takeIf { it in MShare.LEVELS } ?: MShare.FREEBUSY,
+            via = if (o.str("via") == MShare.GROUP) MShare.GROUP else MShare.USER,
+            group = o.text("group"),
+            visible = o.bool("visible") ?: false,
+            accepted = o.bool("accepted") ?: false,
+            writable = o.bool("writable") ?: false,
+        )
+    }
+
+    /** `GET shared`. */
+    fun sharedList(o: JsonObject): MSharedList? {
+        val items = o.arr("items") ?: return null
+        return MSharedList(
+            items = items.objects().mapNotNull(::sharedCalendar),
+            accounts = o.arr("accounts")?.objects()?.mapNotNull { a ->
+                MSharedAccountCalendar(
+                    calendarId = a.id("calendarId") ?: return@mapNotNull null,
+                    accountId = a.id("accountId"),
+                    name = a.text("name") ?: return@mapNotNull null,
+                    color = a.color("color") ?: FALLBACK_COLOR,
+                    ownerEmail = a.obj("owner")?.text("email").orEmpty(),
+                    writable = a.bool("writable") ?: false,
+                    visible = a.bool("visible") ?: true,
+                )
+            }.orEmpty(),
+        )
+    }
+
+    /** `{ item }` of `PATCH shared/<id>`. */
+    fun sharedAnswer(o: JsonObject): MSharedCalendar? = o.obj("item")?.let(::sharedCalendar)
+
+    fun share(o: JsonObject): MShare? {
+        val id = o.id("id") ?: return null
+        val type = if (o.str("type") == MShare.GROUP) MShare.GROUP else MShare.USER
+        return MShare(
+            id = id,
+            type = type,
+            principalId = o.id("principalId") ?: 0L,
+            name = o.str("name")?.trim().orEmpty(),
+            level = o.str("level")?.takeIf { it in MShare.LEVELS } ?: MShare.READ,
+            state = o.str("state") ?: (if (type == MShare.GROUP) MShare.GROUP else MShare.STATE_PENDING),
+            members = o.int("members")?.coerceAtLeast(0),
+        )
+    }
+
+    /** `GET calendars/<id>/shares`. */
+    fun shares(o: JsonObject): MShares? {
+        val items = o.arr("items") ?: return null
+        return MShares(items.objects().mapNotNull(::share), o.bool("freeBusy"))
+    }
+
+    /** `{ share }`. */
+    fun shareAnswer(o: JsonObject): MShare? = o.obj("share")?.let(::share)
+
+    /** `GET principals`. */
+    fun principals(o: JsonObject): List<MPrincipal>? = o.arr("items")?.objects()?.mapNotNull { p ->
+        val type = p.str("type")?.takeIf { it == MShare.USER || it == MShare.GROUP } ?: return@mapNotNull null
+        MPrincipal(
+            type = type,
+            id = p.id("id") ?: return@mapNotNull null,
+            name = p.text("name") ?: return@mapNotNull null,
+            initials = p.text("initials")?.take(3),
+            color = p.color("color"),
+            sub = p.text("sub"),
+            members = p.int("members")?.coerceAtLeast(0),
+        )
+    }
+
+    fun resource(o: JsonObject): MResource? {
+        val id = o.id("id") ?: return null
+        val rules = o.obj("rules")
+        return MResource(
+            id = id,
+            name = o.text("name") ?: return null,
+            kind = o.str("kind")?.takeIf { it in MResource.KINDS } ?: MResource.OTHER,
+            location = o.text("location"),
+            seats = o.int("seats")?.takeIf { it > 0 },
+            equipment = o.text("equipment"),
+            color = o.color("color") ?: "#8C96A5",
+            approval = if (o.str("approval") == MResource.APPROVAL) MResource.APPROVAL else MResource.AUTO,
+            approvers = o.arr("approvers")?.strings()?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty(),
+            rules = MResourceRules(
+                maxMinutes = rules?.int("maxMinutes")?.takeIf { it > 0 },
+                horizonDays = rules?.int("horizonDays")?.takeIf { it > 0 },
+                hours = rules?.obj("hours")?.let(::workHours),
+            ),
+            timeZone = o.zone("timeZone"),
+            address = o.text("address") ?: return null,
+            busy = o.arr("busy")?.objects()?.mapNotNull(::block).orEmpty(),
+        )
+    }
+
+    /** `GET resources`. */
+    fun resources(o: JsonObject): MResources? {
+        val items = o.arr("items") ?: return null
+        return MResources(items.objects().mapNotNull(::resource), o.arr("kinds")?.strings()?.filter { it in MResource.KINDS } ?: MResource.KINDS)
+    }
+
+    fun violation(o: JsonObject): MViolation? {
+        val rule = o.str("rule")?.takeIf { it in setOf(MViolation.MAX_DURATION, MViolation.HORIZON, MViolation.HOURS) } ?: return null
+        return MViolation(rule, o.int("limit"), o.arr("days")?.ints()?.filter { it in 1..7 }.orEmpty(), o.str("from")?.takeIf { HHMM.matches(it) }, o.str("to")?.takeIf { HHMM.matches(it) })
+    }
+
+    /** The rules of a refusal (`409 rule_violation { violations }`). */
+    fun violations(error: JsonObject?): List<MViolation> =
+        (error?.obj("error") ?: error)?.arr("violations")?.objects()?.mapNotNull(::violation).orEmpty()
+
+    /** Who decided first (`409 already_decided { decidedBy }`). */
+    fun decidedBy(error: JsonObject?): String? = (error?.obj("error") ?: error)?.obj("decidedBy")?.text("name")
+
+    fun booking(o: JsonObject): MBooking? {
+        val id = o.id("id") ?: return null
+        val start = o.long("start") ?: return null
+        val r = o.obj("resource")
+        val allDay = o.bool("allDay") ?: false
+        return MBooking(
+            id = id,
+            resourceId = o.id("resourceId") ?: r?.id("id") ?: return null,
+            resourceName = r?.text("name").orEmpty(),
+            resourceKind = r?.str("kind")?.takeIf { it in MResource.KINDS } ?: MResource.OTHER,
+            resourceColor = r?.color("color"),
+            resourceLocation = r?.text("location"),
+            title = o.str("title")?.trim().orEmpty(),
+            start = start,
+            end = (o.long("end") ?: start).coerceAtLeast(start),
+            allDay = allDay,
+            startDate = o.date("startDate"),
+            endDate = o.date("endDate") ?: o.date("startDate"),
+            state = o.str("state")?.takeIf { it in setOf(MBooking.PENDING, MBooking.CONFIRMED, MBooking.DECLINED, MBooking.CANCELLED) } ?: MBooking.PENDING,
+            bookerName = o.obj("booker")?.str("name")?.trim().orEmpty(),
+            eventId = o.id("eventId"),
+            note = o.text("note"),
+            violations = o.arr("violations")?.objects()?.mapNotNull(::violation).orEmpty(),
+            conflicts = o.arr("conflicts")?.objects()?.mapNotNull(::slot).orEmpty(),
+            decidedBy = o.obj("decidedBy")?.text("name"),
+            decidedAt = o.long("decidedAt"),
+            override = o.bool("override") ?: false,
+            comment = o.text("comment"),
+            canDecide = o.bool("canDecide") ?: false,
+            day = o.arr("day")?.objects()?.mapNotNull(::block).orEmpty(),
+        )
+    }
+
+    /** `GET bookings`. */
+    fun bookings(o: JsonObject): MBookings? {
+        val items = o.arr("items") ?: return null
+        return MBookings(items.objects().mapNotNull(::booking), o.obj("counts")?.int("open")?.coerceAtLeast(0) ?: 0)
+    }
+
+    /** `{ booking }` of `POST bookings/<id>/decide`. */
+    fun bookingAnswer(o: JsonObject): MBooking? = o.obj("booking")?.let(::booking)
+
+    fun freeBusyBody(from: Long, to: Long, attendees: List<String>, resources: List<Long>): JsonObject = JsonObject().apply {
+        addProperty("from", from)
+        addProperty("to", to)
+        add("attendees", JsonArray().apply { attendees.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().take(50).forEach { add(it) } })
+        if (resources.isNotEmpty()) add("resources", JsonArray().apply { resources.distinct().take(20).forEach { add(it) } })
+    }
+
+    fun suggestBody(duration: Int, from: Long?, attendees: List<String>, resources: List<Long>, limit: Int = 4): JsonObject = JsonObject().apply {
+        addProperty("duration", duration.coerceIn(5, 1440))
+        from?.let { addProperty("from", it) }
+        add("attendees", JsonArray().apply { attendees.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().take(50).forEach { add(it) } })
+        if (resources.isNotEmpty()) add("resources", JsonArray().apply { resources.distinct().take(20).forEach { add(it) } })
+        addProperty("limit", limit.coerceIn(1, 10))
+    }
+
+    fun shareBody(type: String, id: Long, level: String): JsonObject = JsonObject().apply {
+        addProperty("type", if (type == MShare.GROUP) MShare.GROUP else MShare.USER)
+        addProperty("id", id)
+        addProperty("level", level.takeIf { it in MShare.LEVELS } ?: MShare.READ)
+    }
+
+    fun levelBody(level: String): JsonObject = JsonObject().apply { addProperty("level", level.takeIf { it in MShare.LEVELS } ?: MShare.READ) }
+
+    fun sharedPatch(visible: Boolean? = null, color: String? = null): JsonObject = JsonObject().apply {
+        visible?.let { addProperty("visible", it) }
+        color?.takeIf { COLOR.matches(it) }?.let { addProperty("color", it.uppercase()) }
+    }
+
+    /** `POST resources/<id>/book`: a time (or days), the title, the zone. */
+    fun bookBody(title: String?, start: Long?, end: Long?, startDate: String? = null, endDate: String? = null, timeZone: String?, note: String? = null): JsonObject = JsonObject().apply {
+        title?.trim()?.takeIf { it.isNotEmpty() }?.let { addProperty("title", it.take(255)) }
+        if (startDate != null) {
+            addProperty("allDay", true)
+            addProperty("startDate", startDate)
+            addProperty("endDate", endDate ?: startDate)
+        } else {
+            start?.let { addProperty("start", it) }
+            end?.let { addProperty("end", it) }
+        }
+        timeZone?.let { addProperty("timeZone", it) }
+        note?.trim()?.takeIf { it.isNotEmpty() }?.let { addProperty("note", it.take(500)) }
+    }
+
+    fun decideBody(approve: Boolean, override: Boolean = false, comment: String? = null): JsonObject = JsonObject().apply {
+        addProperty("decision", if (approve) "approve" else "decline")
+        if (override) addProperty("override", true)
+        comment?.trim()?.takeIf { it.isNotEmpty() }?.let { addProperty("comment", it.take(1000)) }
+    }
+
     // ─── live ───────────────────────────────────────────────────────
 
     /** Realtime event `calendar` (or the plugin's data under `calendar`). */
     fun calChanged(data: JsonElement?): MCalChanged? {
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         val root = o.obj("calendar") ?: o
-        val kind = root.str("kind")?.takeIf { it in setOf(MCalChanged.CHANGED, MCalChanged.CALENDARS, MCalChanged.INVITATION, MCalChanged.CONFLICT) } ?: return null
-        return MCalChanged(kind, root.id("calendarId"), root.id("accountId"), root.long("from"), root.long("to"), root.id("invitationId"), root.id("messageId"), root.id("eventId"))
+        val kind = root.str("kind")?.takeIf { it in setOf(MCalChanged.CHANGED, MCalChanged.CALENDARS, MCalChanged.INVITATION, MCalChanged.CONFLICT, MCalChanged.SHARES) } ?: return null
+        return MCalChanged(
+            kind, root.id("calendarId"), root.id("accountId"), root.long("from"), root.long("to"), root.id("invitationId"), root.id("messageId"), root.id("eventId"),
+            shared = root.bool("shared") ?: false,
+        )
+    }
+
+    /** Realtime event `resources` (Mail 1.9.0, or the plugin's data under `resources`). */
+    fun resChanged(data: JsonElement?): MResChanged? {
+        val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        val root = o.obj("resources") ?: o
+        val kind = root.str("kind")?.takeIf { it in setOf(MResChanged.REQUEST, MResChanged.BOOKING, MResChanged.RESOURCES) } ?: return null
+        return MResChanged(kind, root.id("bookingId"), root.id("resourceId"), root.str("state"))
     }
 
     /** Realtime event `contacts` (or the plugin's data under `contacts`). */
@@ -767,11 +1061,12 @@ object MailPimJson {
         name?.trim()?.takeIf { it.isNotEmpty() }?.let { addProperty("name", it) }
     }
 
-    fun calSettingsBody(view: String? = null, timeZone: String? = null, defaultCalendarId: Long? = null, workWeek: Boolean? = null): JsonObject = JsonObject().apply {
+    fun calSettingsBody(view: String? = null, timeZone: String? = null, defaultCalendarId: Long? = null, workWeek: Boolean? = null, freeBusy: Boolean? = null): JsonObject = JsonObject().apply {
         view?.takeIf { it in MCalPrefs.VIEWS }?.let { addProperty("view", it) }
         timeZone?.let { addProperty("timeZone", it) }
         defaultCalendarId?.let { addProperty("defaultCalendarId", it) }
         workWeek?.let { addProperty("workWeek", it) }
+        freeBusy?.let { addProperty("freeBusy", it) }
     }
 
     fun ruleBody(r: MRule): JsonObject = JsonObject().apply {

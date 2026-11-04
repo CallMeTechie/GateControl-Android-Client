@@ -1325,6 +1325,16 @@ private fun openPushTarget(
                     navigateToTab(Screen.Mail.route)
                     navController.navigate(Screen.MailInvitation.create(com.gatecontrol.android.mail.MailPush.invitationOf(target.dest)!!)) { launchSingleTop = true }
                 }
+                // Mail 1.9.0: a booking request (the requests at its card), the own bookings, „Mit mir geteilt“
+                mail && com.gatecontrol.android.mail.MailPush.bookingsOf(target.dest) != null -> {
+                    val (tab, focus) = com.gatecontrol.android.mail.MailPush.bookingsOf(target.dest)!!
+                    navigateToTab(Screen.Mail.route)
+                    navController.navigate(Screen.MailBookings.create(tab, focus)) { launchSingleTop = true }
+                }
+                mail && com.gatecontrol.android.mail.MailPush.isShared(target.dest) -> {
+                    navigateToTab(Screen.Mail.route)
+                    navController.navigate(Screen.MailShareCalendar.create()) { launchSingleTop = true }
+                }
                 target.messageId != null -> navController.navigate(Screen.NotificationDetail.create(target.messageId))
                 else -> navigateToTab(Screen.Vpn.route)
             }

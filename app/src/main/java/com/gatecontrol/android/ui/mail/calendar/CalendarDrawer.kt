@@ -45,6 +45,7 @@ import com.gatecontrol.android.mail.MCalendar
 import com.gatecontrol.android.mail.MCalendars
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MPimSide
+import com.gatecontrol.android.mail.MSharedCalendar
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcSwitch
 import com.gatecontrol.android.ui.components.GcTextField
@@ -63,12 +64,24 @@ class CalendarMenuState {
     var deleting by mutableStateOf<MCalendar?>(null)
     var adding by mutableStateOf(false)
     var subscribing by mutableStateOf(false)
+    /** Mail 1.9.0: a calendar shared with the person (long press): owner, level, color, hide. */
+    var shared by mutableStateOf<MSharedCalendar?>(null)
 }
 
 /** A row of the menu with a check square in [color] (filled: shown), the name and its state or count. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun CheckRow(label: String, color: Color, checked: Boolean, trailing: String?, trailingWarn: Boolean = false, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
+internal fun CheckRow(
+    label: String,
+    color: Color,
+    checked: Boolean,
+    trailing: String?,
+    trailingWarn: Boolean = false,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    /** A calendar shared with the person: a frame in its color instead of the surface, the check in the color. */
+    outlined: Boolean = false,
+) {
     val extra = GateControlTheme.extraColors
     val state = stringResource(if (checked) R.string.cal_shown else R.string.cal_hidden)
     Row(
@@ -84,10 +97,10 @@ internal fun CheckRow(label: String, color: Color, checked: Boolean, trailing: S
     ) {
         Box(
             Modifier.size(18.dp).clip(RoundedCornerShape(5.dp))
-                .then(if (checked) Modifier.background(color) else Modifier.border(2.dp, color, RoundedCornerShape(5.dp))),
+                .then(if (checked && !outlined) Modifier.background(color) else Modifier.border(2.dp, color, RoundedCornerShape(5.dp))),
             contentAlignment = Alignment.Center,
         ) {
-            if (checked) Icon(GcIcons.Check, contentDescription = null, tint = Color(0xFF0D1015), modifier = Modifier.size(13.dp))
+            if (checked) Icon(GcIcons.Check, contentDescription = null, tint = if (outlined) color else Color(0xFF0D1015), modifier = Modifier.size(13.dp))
         }
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (trailing != null) Text(trailing, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = if (trailingWarn) extra.warn else extra.muted)
@@ -116,6 +129,7 @@ internal fun LazyListScope.calendarDrawerItems(
     label: @Composable (String) -> Unit,
     onToggle: (MCalendar) -> Unit,
     onToggleOverlay: (String) -> Unit,
+    onToggleShared: (MSharedCalendar) -> Unit = {},
 ) {
     item(key = "cal-inbox") { inboxRow() }
     cals ?: return
@@ -127,6 +141,23 @@ internal fun LazyListScope.calendarDrawerItems(
     cals.calendars.filter { it.accountId != null }.groupBy { it.accountId }.forEach { (accountId, list) ->
         item(key = "cal-a$accountId") { label(me?.account(accountId)?.label ?: stringResource(R.string.cal_group_account)) }
         list.forEach { c -> item(key = "cal${c.id}") { CalRow(c, menu, onToggle) } }
+    }
+    // Mail 1.9.0: „Mit mir geteilt“ (framed in their color; „neu“ until shown once)
+    if (cals.shared.isNotEmpty()) {
+        item(key = "cal-sh") { label(stringResource(R.string.share_with_me)) }
+        cals.shared.forEach { c ->
+            item(key = "sh${c.id}") {
+                CheckRow(
+                    c.name + if (c.ownerName.isNotBlank()) " · " + c.ownerName else "",
+                    calColor(c.color),
+                    c.visible,
+                    stringResource(R.string.share_new).takeIf { !c.accepted },
+                    onClick = { onToggleShared(c) },
+                    onLongClick = { menu.shared = c },
+                    outlined = true,
+                )
+            }
+        }
     }
     if (cals.overlays.isNotEmpty()) {
         item(key = "cal-ov") { label(stringResource(R.string.cal_group_overlays)) }
@@ -171,7 +202,13 @@ private fun Modifier.combinedClickableCompat(onClick: () -> Unit): Modifier = co
 /** The sheets and dialogs of the calendar menu. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarMenuDialogs(menu: CalendarMenuState, viewModel: MailCalendarViewModel, cals: MCalendars?) {
+fun CalendarMenuDialogs(
+    menu: CalendarMenuState,
+    viewModel: MailCalendarViewModel,
+    cals: MCalendars?,
+    /** Mail 1.9.0: „Teilen“ of an own GateControl calendar (null: sharing is off). */
+    onShare: ((MCalendar) -> Unit)? = null,
+) {
     val extra = GateControlTheme.extraColors
     menu.options?.let { c0 ->
         val c = cals?.calendar(c0.id) ?: c0
@@ -184,6 +221,7 @@ fun CalendarMenuDialogs(menu: CalendarMenuState, viewModel: MailCalendarViewMode
                     Text(stringResource(R.string.cal_reminders_on), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = 16.dp))
                     GcSwitch(checked = c.notify, onCheckedChange = { viewModel.setNotify(c, it) })
                 }
+                if (c.local && onShare != null) SheetRow(GcIcons.Share, stringResource(R.string.share_action)) { menu.options = null; onShare(c) }
                 if (c.local) SheetRow(GcIcons.Edit, stringResource(R.string.cal_rename)) { menu.options = null; menu.renaming = c }
                 if (c.local || c.source == MCalendar.SOURCE_ICS) {
                     SheetRow(GcIcons.Trash, stringResource(R.string.cal_delete), MaterialTheme.colorScheme.error) { menu.options = null; menu.deleting = c }
@@ -203,6 +241,32 @@ fun CalendarMenuDialogs(menu: CalendarMenuState, viewModel: MailCalendarViewMode
                 Column(Modifier.padding(bottom = 24.dp)) {
                     Text(o.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).semantics { heading() })
                     ColorRow(o.color) { viewModel.setOverlayColor(o.id, it) }
+                }
+            }
+        }
+    }
+    menu.shared?.let { c0 ->
+        val c = cals?.sharedCalendar(c0.id)
+        if (c == null) {
+            menu.shared = null
+        } else {
+            ModalBottomSheet(onDismissRequest = { menu.shared = null }, containerColor = MaterialTheme.colorScheme.surface) {
+                Column(Modifier.padding(bottom = 24.dp)) {
+                    Text(c.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).semantics { heading() })
+                    Text(
+                        stringResource(R.string.share_info, c.ownerName.ifBlank { "?" }, levelText(c.level)) + (c.group?.let { " · " + stringResource(R.string.share_via, it) } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extra.muted,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    )
+                    if (c.level == com.gatecontrol.android.mail.MShare.FREEBUSY) {
+                        Text(stringResource(R.string.share_busy_only), style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                    }
+                    ColorRow(c.color) { viewModel.setSharedColor(c, it) }
+                    SheetRow(if (c.visible) GcIcons.EyeOff else GcIcons.Eye, stringResource(if (c.visible) R.string.share_hide else R.string.share_show)) {
+                        menu.shared = null
+                        viewModel.toggleShared(c)
+                    }
                 }
             }
         }
