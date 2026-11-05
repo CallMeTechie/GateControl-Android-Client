@@ -279,6 +279,8 @@ sealed class Screen(val route: String) {
         fun create(id: Long) = "drive/folder/$id"
     }
     data object DriveTrash : Screen("drive/trash")
+    /** "Offline verfügbar" (Drive 1.20): the marked files and folders, kept ready in the home network. */
+    data object DriveOffline : Screen("drive/offline")
     data object DriveSearch : Screen("drive/search")
     data object DriveBackup : Screen("drive/backup")
     /** "Aufräumen" of the work photos (Drive 1.13): the AI's suggestions among the photos backed up. */

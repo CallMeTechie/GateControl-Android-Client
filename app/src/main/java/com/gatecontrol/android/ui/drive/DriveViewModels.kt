@@ -298,6 +298,8 @@ class DriveFolderViewModel @Inject constructor(
     val ops: com.gatecontrol.android.drive.DriveOps,
     private val workPhotos: com.gatecontrol.android.drive.work.DriveWorkPhotos,
     private val filing: com.gatecontrol.android.drive.DriveFiling,
+    /** "Offline verfügbar" (Drive 1.20): the marks of the rows and the menu's entry. */
+    val offline: com.gatecontrol.android.drive.DriveOffline,
 ) : ViewModel() {
 
     /** The route's `id` (a string argument, see Screen.DriveFolder); on the Drive tab the chosen area's top ([open]). */
@@ -357,6 +359,12 @@ class DriveFolderViewModel @Inject constructor(
         if (pref != _sort.value) _sort.value = pref
         if (shown) refresh(quiet = true)
         shown = true
+        viewModelScope.launch { offline.refresh(live.me.value ?: live.current()) }
+    }
+
+    /** "Offline verfügbar" on or off for [node] (Drive 1.20). */
+    fun setOffline(node: DNode, on: Boolean) {
+        viewModelScope.launch { _message.value = offline.set(node, on) ?: if (on) "done_offline_on" else "done_offline_off" }
     }
 
     fun onPause() {
@@ -1001,6 +1009,40 @@ class DriveTrashViewModel @Inject constructor(private val api: DriveApi) : ViewM
     }
 }
 
+/** "Offline verfügbar" (Drive 1.20): what the person marked, to open or to take off the list. */
+@HiltViewModel
+class DriveOfflineViewModel @Inject constructor(
+    private val offline: com.gatecontrol.android.drive.DriveOffline,
+    private val transfers: DriveTransfers,
+    val live: DriveLive,
+) : ViewModel() {
+    private val _state = MutableStateFlow<DriveLoad<List<DNode>>>(DriveLoad.Loading)
+    val state: StateFlow<DriveLoad<List<DNode>>> = _state.asStateFlow()
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    init {
+        refresh()
+        if (live.me.value == null) viewModelScope.launch { live.current() }
+    }
+
+    fun refresh() {
+        viewModelScope.launch { _state.value = offline.list().toLoad { it } }
+    }
+
+    fun clearMessage() { _message.value = null }
+
+    fun unmark(node: DNode) {
+        viewModelScope.launch {
+            val code = offline.set(node, false)
+            _message.value = code ?: "done_offline_off"
+            if (code == null) _state.update { s -> if (s is DriveLoad.Ready) DriveLoad.Ready(s.value.filterNot { it.id == node.id }) else s }
+        }
+    }
+
+    suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
+}
+
 /** Search by name across the areas; the hits can be ticked and handled together (Drive 1.12). */
 @HiltViewModel
 class DriveSearchViewModel @Inject constructor(
@@ -1009,6 +1051,8 @@ class DriveSearchViewModel @Inject constructor(
     private val transfers: DriveTransfers,
     val live: DriveLive,
     val ops: com.gatecontrol.android.drive.DriveOps,
+    /** "Offline verfügbar" (Drive 1.20). */
+    val offline: com.gatecontrol.android.drive.DriveOffline,
 ) : ViewModel() {
     private val _state = MutableStateFlow<DriveLoad<List<DNode>>?>(null)
     val state: StateFlow<DriveLoad<List<DNode>>?> = _state.asStateFlow()
@@ -1072,6 +1116,11 @@ class DriveSearchViewModel @Inject constructor(
             _message.value = r.errorCode() ?: "done_rename"
             if (r is DResult.Ok) again()
         }
+    }
+
+    /** "Offline verfügbar" on or off for [node] (Drive 1.20). */
+    fun setOffline(node: DNode, on: Boolean) {
+        viewModelScope.launch { _message.value = offline.set(node, on) ?: if (on) "done_offline_on" else "done_offline_off" }
     }
 
     suspend fun office(node: DNode): DResult<com.gatecontrol.android.drive.DOffice> = api.office(node.id)

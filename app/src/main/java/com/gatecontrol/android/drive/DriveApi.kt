@@ -22,6 +22,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.BufferedSink
+import okio.buffer
 import okio.source
 import retrofit2.Response
 import timber.log.Timber
@@ -43,6 +44,7 @@ class DriveApi @Inject constructor(
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
     private val settingsRepository: SettingsRepository,
+    private val homeCache: com.gatecontrol.android.homecache.HomeCacheLan,
 ) {
     companion object {
         const val CODE_INVALID = "invalid_answer"
@@ -137,7 +139,13 @@ class DriveApi @Inject constructor(
 
     // ─── who, where ─────────────────────────────────────────────────
 
-    suspend fun me(): DResult<DMe> = get("me", parse = DriveJson::me)
+    suspend fun me(): DResult<DMe> = get("me", parse = DriveJson::me).also { r ->
+        if (r is DResult.Ok) homeCacheOn = r.value.has(DMe.FEATURE_HOME_CACHE)
+    }
+
+    /** The last `GET me` named `homeCache` (Drive 1.20 on GateControl 1.231+): downloads may come from the home gateway. */
+    @Volatile
+    private var homeCacheOn = false
 
     suspend fun areas(): DResult<List<DArea>> = get("areas", parse = DriveJson::areas)
 
@@ -230,6 +238,17 @@ class DriveApi @Inject constructor(
     suspend fun restoreVersion(id: Long, versionId: Long): DResult<DNode> = post("nodes/$id/versions/$versionId/restore", JsonObject(), DriveJson::nodeAnswer)
 
     suspend fun deleteVersion(id: Long, versionId: Long): DResult<Unit> = del("nodes/$id/versions/$versionId", unit)
+
+    // ─── "Offline verfügbar" (Drive 1.20, feature `offline`) ─────────
+
+    /** The files and folders I marked, newest first (only ones I may still read, not in the trash). */
+    suspend fun offline(): DResult<List<DNode>> = get("offline", parse = DriveJson::items)
+
+    /** Marks [id] (a file, or a folder with everything below it); at most 500 a person (`invalid { field: offline }`). */
+    suspend fun markOffline(id: Long): DResult<DNode> = put("nodes/$id/offline", JsonObject(), DriveJson::nodeAnswer)
+
+    /** Takes the mark off [id] (fine for a node that is gone too). */
+    suspend fun unmarkOffline(id: Long): DResult<Unit> = del("nodes/$id/offline", unit)
 
     suspend fun trash(area: String? = null): DResult<List<DNode>> {
         val q = if (area == null) emptyMap() else mapOf("area" to (DriveJson.areaId(area) ?: return bad()))
@@ -727,18 +746,38 @@ class DriveApi @Inject constructor(
     /**
      * The file [nodeId] (or one of its [versionId]s) as a stream. `GET …/content` comes first: it names the media and
      * tells a child that a parent looked into its folder. The caller closes the body; null when unreachable or refused.
+     *
+     * Drive 1.20 with GateControl's home cache (`homeCache`): at home the content request carries the device's LAN
+     * addresses (`X-GC-Local`) and may answer a `lan` hint — then the file comes from the home gateway (pinned
+     * certificate, checked against [expectedSha256] and the hint's hash, [onProgress] while it loads) and the body
+     * reads that copy; any error there takes the normal download, without a word.
      */
-    suspend fun download(nodeId: Long, versionId: Long? = null): DResult<Response<ResponseBody>> {
+    suspend fun download(
+        nodeId: Long,
+        versionId: Long? = null,
+        expectedSha256: String? = null,
+        onProgress: (done: Long, total: Long) -> Unit = { _, _ -> },
+    ): DResult<Response<ResponseBody>> {
         val path = if (versionId == null) "nodes/$nodeId/content" else "nodes/$nodeId/versions/$versionId/content"
-        val media = get(path, parse = DriveJson::contentMediaId)
-        if (media !is DResult.Ok) return media.notOk()
+        // only the current content can come with a hint; the addresses go only while the server says "at home"
+        val local = if (versionId == null && homeCacheOn) homeCache.localHeader() else null
+        val content = if (local == null) {
+            get(path, parse = DriveJson::content)
+        } else {
+            call(request = { pluginGetWithLocal(DRIVE_PLUGIN, path, lang(), local) }, parse = DriveJson::content)
+        }
+        if (content !is DResult.Ok) return content.notOk()
+        val media = content.value
         // An empty file has no media to fetch: hand back an empty body.
-        if (media.value == DriveJson.EMPTY_CONTENT) return DResult.Ok(Response.success(ByteArray(0).toResponseBody(null)))
+        if (media.mediaId == DriveJson.EMPTY_CONTENT) return DResult.Ok(Response.success(ByteArray(0).toResponseBody(null)))
+        media.lan?.let { hint ->
+            homeCache.fetch(hint, expectedSha256, media.size, onProgress)?.let { file -> return DResult.Ok(Response.success(fileBody(file))) }
+        }
         val url = setupRepository.getServerUrl()
         if (url.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
         return try {
             // `423 scan_pending`: the file is still being checked — asked again after `Retry-After` (a few times)
-            val a = MediaScanHttp.get { withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(DRIVE_PLUGIN, media.value) } }
+            val a = MediaScanHttp.get { withTimeoutOrNull(TIMEOUT_MS) { apiClientProvider.mediaClient(url).pluginMediaGet(DRIVE_PLUGIN, media.mediaId) } }
                 ?: return DResult.Offline
             val r = a.response
             if (r.isSuccessful && r.body() != null) DResult.Ok(r) else {
@@ -753,6 +792,28 @@ class DriveApi @Inject constructor(
             Timber.d("Drive: download failed (%s)", e.javaClass.simpleName)
             DResult.Failed(CODE_INVALID, 0)
         }
+    }
+
+    /** A body reading [file] (a copy from the home gateway), which goes when the body is closed. */
+    private fun fileBody(file: File): ResponseBody = object : ResponseBody() {
+        private val source by lazy {
+            object : okio.ForwardingSource(file.source()) {
+                override fun close() {
+                    try {
+                        super.close()
+                    } finally {
+                        file.delete()
+                    }
+                }
+            }.buffer()
+        }
+
+        override fun contentType(): MediaType? = null
+
+        override fun contentLength(): Long = file.length()
+
+        // closing the body closes the source (also when nothing was read): the copy goes
+        override fun source(): okio.BufferedSource = source
     }
 
     /**

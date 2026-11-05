@@ -1890,6 +1890,7 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 shown = onShown,
                 search = { nav.go(Screen.DriveSearch.route) },
                 trash = { nav.go(Screen.DriveTrash.route) },
+                offline = { nav.go(Screen.DriveOffline.route) },
                 storage = { nav.go(Screen.DriveStorage.route) },
                 folders = { nav.go(Screen.DriveFolders.route) },
                 album = { nav.go(Screen.DriveAlbum.create(it)) },
@@ -1990,6 +1991,9 @@ private fun NavGraphBuilder.driveRoutes(
     }
     composable(Screen.DriveTrash.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveTrashScreen(onBack = back) }
+    }
+    composable(Screen.DriveOffline.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveOfflineScreen(onBack = back, onFolder = folder) }
     }
     composable(Screen.DriveSearch.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveSearchScreen(onBack = back, onFolder = folder) }

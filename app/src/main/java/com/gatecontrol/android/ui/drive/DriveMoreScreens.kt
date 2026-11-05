@@ -154,6 +154,7 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     val busy by viewModel.bulk.busy.collectAsStateWithLifecycle()
     val areas by viewModel.areas.collectAsStateWithLifecycle()
     val me by viewModel.live.me.collectAsStateWithLifecycle()
+    val offlineIds by viewModel.offline.ids.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -293,6 +294,7 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                                     selecting = selecting,
                                     selected = n.id in selected,
                                     onMore = { menuFor = n },
+                                    offline = n.id in offlineIds,
                                 )
                             }
                         }
@@ -355,6 +357,8 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                 })
             }
             one?.let { n -> DriveLogic.portalNodeUrl(me, n.id) }?.let { url -> add(MoreItem(GcIcons.Globe, stringResource(R.string.drive_open_portal)) { openPortal(context, url) }) }
+            // Drive 1.20 (feature `offline`): kept ready in the home network's cache
+            if (one != null) offlineItem(me, one, one.id in offlineIds, viewModel::setOffline)?.let(::add)
         }
         val last = if (me?.has(DMe.FEATURE_ALBUMS) == true) {
             listOf(MoreItem(GcIcons.Photo, stringResource(R.string.drive_more_album), can = can(DriveBulk.Action.ALBUM)) { bulk.openAlbums(ns) })

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.20: "Available offline" — kept ready in the home network's cache (GateControl's home gateways). -->
+<resources>
+    <string name="drive_offline_title">Available offline</string>
+    <string name="drive_offline_mark">Available offline</string>
+    <string name="drive_offline_unmark">No longer available offline</string>
+    <string name="drive_offline_mark_desc">Kept ready in the cache at home, opens faster on your home Wi-Fi</string>
+    <string name="drive_offline_mark_desc_later">Marked for the cache in the home network</string>
+    <string name="drive_offline_unmark_desc">No longer kept ready at home first</string>
+    <string name="drive_offline_badge">Available offline</string>
+    <string name="drive_offline_done_on">Kept ready in the home network</string>
+    <string name="drive_offline_done_off">No longer available offline</string>
+    <string name="drive_offline_max">At most 500 files and folders can be available offline.</string>
+    <string name="drive_offline_intro">GateControl keeps these files and folders ready in the cache of your home gateway. On your home Wi-Fi they open faster. Nothing is stored on this phone for good.</string>
+    <string name="drive_offline_intro_later">Drive keeps these marks. As soon as GateControl has a cache in your home network, the files are kept ready there. Nothing is stored on this phone for good.</string>
+    <string name="drive_offline_empty">Nothing is available offline yet. In the ⋮ menu of a file or folder: “Available offline”.</string>
+</resources>

@@ -522,7 +522,8 @@ class DriveVaultSession @Inject constructor(
         val dir = File(openDir(), node.id.toString()).apply { mkdirs() }
         val target = File(dir, DriveLogic.safeName(name) ?: "file")
         val part = File(dir, target.name + ".part")
-        val r = api.download(node.id)
+        // the ciphertext — from the home gateway too, when it holds it (checked against the node's hash)
+        val r = api.download(node.id, expectedSha256 = node.sha256)
         if (r !is DResult.Ok) return@withContext r.notOk()
         try {
             val body = r.value.body() ?: return@withContext DResult.Failed(DriveApi.CODE_INVALID, 0)
