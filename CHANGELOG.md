@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.83.0] - 2026-11-05
+
+### Features
+- Zwischenspeicher im Heimnetz und „Offline verfügbar“ (#187)
+
+---
+
 ## [1.82.0] - 2026-11-04
 
 ### Features
