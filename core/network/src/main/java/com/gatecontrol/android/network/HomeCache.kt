@@ -303,12 +303,26 @@ class HomeCacheFetcher(
             return failed(hint, "unreachable")
         } catch (e: IOException) {
             if (job?.isCancelled == true) throw CancellationException("cancelled")
-            return failed(hint, if (e.cause is CertificateException) "tls" else "io")
+            return failed(hint, if (tlsFailure(e)) "tls" else "io")
         } catch (e: IllegalArgumentException) {
             return failed(hint, "io")
         } finally {
             cancel?.dispose()
         }
+    }
+
+    /** A TLS or certificate error somewhere in [e]'s causes (how it is wrapped differs between platforms). */
+    private fun tlsFailure(e: Throwable): Boolean {
+        val seen = HashSet<Throwable>()
+        val queue = ArrayDeque<Throwable>().apply { add(e) }
+        while (queue.isNotEmpty()) {
+            val t = queue.removeFirst()
+            if (!seen.add(t) || seen.size > 16) continue
+            if (t is SSLException || t is CertificateException) return true
+            t.cause?.let(queue::add)
+            t.suppressed.forEach(queue::add)
+        }
+        return false
     }
 
     private fun failed(hint: LanHint, reason: String): Result.Failed {

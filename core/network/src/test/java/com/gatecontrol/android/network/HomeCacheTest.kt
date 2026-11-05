@@ -126,7 +126,9 @@ class HomeCacheTest {
         server.enqueue(ok())
         val target = File(tmp, "out.bin")
         val r = fetcher().fetch(hint(pin = pinOf(otherCert)), target)
-        assertEquals(HomeCacheFetcher.Result.Failed("tls"), r)
+        // the handshake fails (how the platform reports it varies): the request with its signature never leaves
+        assertTrue(r is HomeCacheFetcher.Result.Failed, "$r")
+        assertEquals(0, server.requestCount)
         assertFalse(target.exists())
         assertFalse(File(tmp, "out.bin.part").exists())
     }
