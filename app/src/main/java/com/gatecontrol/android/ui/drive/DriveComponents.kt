@@ -266,10 +266,12 @@ internal fun NodeRow(
     onMore: (() -> Unit)? = null,
     fresh: Boolean = false,
     title: String? = null,
+    /** "Offline verfügbar" (Drive 1.20): marked by the person, kept ready in the home network. */
+    offline: Boolean = false,
 ) {
     // the virus scan's mark (Drive 1.19) needs the full row; without `scan` the row is as before
     val scanMark = node.scan?.badge != null
-    if (!selecting && onMore == null && !fresh && !scanMark) {
+    if (!selecting && onMore == null && !fresh && !scanMark && !offline) {
         Column {
             GcListRow(
                 title = title ?: nodeTitle(node),
@@ -322,6 +324,7 @@ internal fun NodeRow(
                     Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (fresh) NewHereBadge()
                     if (scanMark) ScanChip(node.scan, Modifier.padding(start = 8.dp))
+                    if (offline) OfflineMark(Modifier.padding(start = 8.dp))
                 }
                 val d = description ?: nodeLine(node)
                 if (d.isNotBlank()) Text(d, style = MaterialTheme.typography.bodySmall, color = x.muted)
@@ -335,6 +338,18 @@ internal fun NodeRow(
             LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(3.dp))
         }
     }
+}
+
+/** The mark of a node that is "offline verfügbar" (Drive 1.20): the house of the home network, read out as such. */
+@Composable
+internal fun OfflineMark(modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.drive_offline_badge)
+    Icon(
+        GcIcons.House,
+        contentDescription = label,
+        tint = GateControlTheme.extraColors.accentText,
+        modifier = modifier.size(16.dp),
+    )
 }
 
 /** A Drive code as a sentence. */
@@ -354,6 +369,9 @@ internal fun driveText(context: Context, code: String): String = driveScanText(c
     "done_version" -> context.getString(R.string.drive_done_version)
     "done_restore" -> context.getString(R.string.drive_done_restore)
     "done_purge" -> context.getString(R.string.drive_done_purge)
+    "done_offline_on" -> context.getString(R.string.drive_offline_done_on)
+    "done_offline_off" -> context.getString(R.string.drive_offline_done_off)
+    "offline_max" -> context.getString(R.string.drive_offline_max)
     "offline" -> context.getString(R.string.drive_error_offline)
     "not_licensed" -> context.getString(R.string.drive_not_licensed)
     "no_seat" -> context.getString(R.string.drive_no_seat)
@@ -672,6 +690,8 @@ internal fun NodeGrid(
     selected: Set<Long> = emptySet(),
     onMore: ((DNode) -> Unit)? = null,
     fresh: (DNode) -> Boolean = { false },
+    /** "Offline verfügbar" (Drive 1.20). */
+    offline: (DNode) -> Boolean = { false },
 ) {
     val selecting = selected.isNotEmpty()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -689,6 +709,7 @@ internal fun NodeGrid(
                             selected = n.id in selected,
                             onMore = onMore?.let { m -> { m(n) } },
                             fresh = fresh(n),
+                            offline = offline(n),
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -711,6 +732,7 @@ private fun NodeTile(
     onMore: (() -> Unit)?,
     fresh: Boolean,
     modifier: Modifier = Modifier,
+    offline: Boolean = false,
 ) {
     val x = GateControlTheme.extraColors
     val look = if (node.encrypted) {
@@ -765,13 +787,17 @@ private fun NodeTile(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = if (onMore != null && !selecting) 0.dp else 8.dp)) {
-                Text(
-                    name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (offline) OfflineMark(Modifier.padding(start = 4.dp))
+                }
                 if (fresh) Text(stringResource(R.string.drive_new_here), style = MaterialTheme.typography.labelSmall, color = x.accentText)
             }
             if (onMore != null && !selecting) {

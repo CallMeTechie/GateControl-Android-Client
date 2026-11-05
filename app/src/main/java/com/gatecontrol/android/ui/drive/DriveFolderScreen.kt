@@ -187,6 +187,7 @@ internal fun DriveFolderContent(
         if (result.resultCode == Activity.RESULT_OK && c != null) viewModel.deletedLocally(c)
     }
     val me by viewModel.live.me.collectAsStateWithLifecycle()
+    val offlineIds by viewModel.offline.ids.collectAsStateWithLifecycle()
 
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
@@ -284,6 +285,7 @@ internal fun DriveFolderContent(
                                 selected = selected,
                                 onMore = { menuFor = it },
                                 fresh = isFresh,
+                                offline = { it.id in offlineIds },
                             )
                         } else {
                             GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
@@ -298,6 +300,7 @@ internal fun DriveFolderContent(
                                         selected = n.id in selected,
                                         onMore = { menuFor = n },
                                         fresh = isFresh(n),
+                                        offline = n.id in offlineIds,
                                     )
                                 }
                             }
@@ -441,6 +444,8 @@ internal fun DriveFolderContent(
             if (one != null && one.isDir && writable && me?.has(DMe.FEATURE_TIME_TRAVEL) == true) add(MoreItem(GcIcons.History, stringResource(R.string.drive_tt_menu)) { viewModel.startTimeTravel(one) })
             // Drive 1.6 (feature `links`): the file or folder in the portal.
             one?.let { n -> DriveLogic.portalNodeUrl(me, n.id) }?.let { url -> add(MoreItem(GcIcons.Globe, stringResource(R.string.drive_open_portal)) { openPortal(context, url) }) }
+            // Drive 1.20 (feature `offline`): kept ready in the home network's cache
+            if (one != null) offlineItem(me, one, one.id in offlineIds, viewModel::setOffline)?.let(::add)
         }
         val last = if (me?.has(DMe.FEATURE_ALBUMS) == true) {
             listOf(MoreItem(GcIcons.Photo, stringResource(R.string.drive_more_album), can = can(DriveBulk.Action.ALBUM)) { bulk.openAlbums(ns) })

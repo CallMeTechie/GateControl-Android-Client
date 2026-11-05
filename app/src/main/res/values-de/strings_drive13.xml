@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.20: „Offline verfügbar“ – im Zwischenspeicher des Heimnetzes bereitgehalten (Heim-Gateways von GateControl). -->
+<resources>
+    <string name="drive_offline_title">Offline verfügbar</string>
+    <string name="drive_offline_mark">Offline verfügbar</string>
+    <string name="drive_offline_unmark">Nicht mehr offline verfügbar</string>
+    <string name="drive_offline_mark_desc">Zu Hause im Zwischenspeicher bereithalten, öffnet im WLAN zu Hause schneller</string>
+    <string name="drive_offline_mark_desc_later">Für den Zwischenspeicher im Heimnetz vormerken</string>
+    <string name="drive_offline_unmark_desc">Zu Hause nicht mehr bevorzugt bereithalten</string>
+    <string name="drive_offline_badge">Offline verfügbar</string>
+    <string name="drive_offline_done_on">Wird im Heimnetz bereitgehalten</string>
+    <string name="drive_offline_done_off">Nicht mehr offline verfügbar</string>
+    <string name="drive_offline_max">Höchstens 500 Dateien und Ordner können offline verfügbar sein.</string>
+    <string name="drive_offline_intro">GateControl hält diese Dateien und Ordner im Zwischenspeicher deines Heim-Gateways bereit. Im WLAN zu Hause öffnen sie schneller. Auf diesem Handy wird nichts dauerhaft gespeichert.</string>
+    <string name="drive_offline_intro_later">Drive merkt sie vor. Sobald GateControl einen Zwischenspeicher im Heimnetz hat, werden sie dort bereitgehalten. Auf diesem Handy wird nichts dauerhaft gespeichert.</string>
+    <string name="drive_offline_empty">Noch nichts offline verfügbar. Im Menü ⋮ einer Datei oder eines Ordners: „Offline verfügbar“.</string>
+</resources>

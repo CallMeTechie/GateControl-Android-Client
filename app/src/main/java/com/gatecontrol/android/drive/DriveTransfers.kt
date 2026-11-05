@@ -419,8 +419,15 @@ class DriveTransfers @Inject constructor(
             return@withContext DResult.Ok(target)
         }
         _downloading.update { it + (node.id to 0f) }
+        // the bar only moves forward: a copy from the home gateway is loaded first, then read here at once
+        val progress: (Long, Long) -> Unit = { done, total ->
+            if (total > 0) {
+                val f = (done.toFloat() / total).coerceIn(0f, 1f)
+                _downloading.update { m -> if ((m[node.id] ?: 0f) < f) m + (node.id to f) else m }
+            }
+        }
         try {
-            when (val r = api.download(node.id, versionId)) {
+            when (val r = api.download(node.id, versionId, expectedSha256 = node.sha256.takeIf { versionId == null }, onProgress = progress)) {
                 is DResult.Ok -> {
                     dir.mkdirs()
                     val part = File(dir, "$name.part")
@@ -436,7 +443,7 @@ class DriveTransfers @Inject constructor(
                                     if (n < 0) break
                                     out.write(buf, 0, n)
                                     done += n
-                                    if (total > 0) _downloading.update { it + (node.id to (done.toFloat() / total).coerceIn(0f, 1f)) }
+                                    progress(done, total)
                                 }
                             }
                         }

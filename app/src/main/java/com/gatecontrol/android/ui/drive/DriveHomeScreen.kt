@@ -117,6 +117,8 @@ data class DriveNav(
     val shown: (Long?) -> Unit = {},
     /** The photo backup (the overview's "Fotos gesichert", Drive 1.18). */
     val backup: () -> Unit = {},
+    /** "Offline verfügbar" (Drive 1.20). */
+    val offline: () -> Unit = {},
     /** Mail › "Zum Ablegen" (the overview's attachments to file); null: no mail here. */
     val mailFiling: (() -> Unit)? = null,
 )
@@ -249,6 +251,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     onVault = { e -> close(); nav.vault(e.vault.id, e.vault.nodeId) },
                     icons = buildList {
                         add(DrawerIcon(GcIcons.Trash, R.string.drive_trash) { close(); nav.trash() })
+                        // Drive 1.20 (`offline`): what is kept ready in the home network
+                        if (me?.has(DMe.FEATURE_OFFLINE) == true) add(DrawerIcon(GcIcons.House, R.string.drive_offline_title) { close(); nav.offline() })
                         if (me?.has(DMe.FEATURE_STORAGE) == true) add(DrawerIcon(GcIcons.Activity, R.string.drive_storage_title) { close(); nav.storage() })
                         add(DrawerIcon(GcIcons.Upload, R.string.drive_folders_title) { close(); nav.folders() })
                         if (me?.has(DMe.FEATURE_DOC_AI) == true) add(DrawerIcon(GcIcons.Calendar, R.string.drive_deadlines) { close(); nav.deadlines() })

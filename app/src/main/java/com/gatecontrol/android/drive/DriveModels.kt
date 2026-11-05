@@ -121,8 +121,18 @@ data class DMe(
         const val FEATURE_DEADLINE_MAIL_CALENDAR = "deadlineMailCalendar"
         /** Drive 1.18: the overview of Drive in one call (`GET overview`); without it the app builds it from the rest. */
         const val FEATURE_OVERVIEW = "overview"
+        /** Drive 1.20: "Offline verfügbar" marks (`GET offline`, `PUT|DELETE nodes/<id>/offline`). */
+        const val FEATURE_OFFLINE = "offline"
+        /**
+         * Drive 1.20 on GateControl 1.231+: files in the home gateways' caches — `GET nodes/<id>/content` may carry a
+         * `lan` hint when the app sends its LAN addresses (`X-GC-Local`).
+         */
+        const val FEATURE_HOME_CACHE = "homeCache"
     }
 }
+
+/** `GET nodes/<id>/content`: the media to load ([DriveJson.EMPTY_CONTENT]: an empty file), its size, the home cache's hint. */
+data class DContent(val mediaId: String, val size: Long?, val lan: com.gatecontrol.android.network.LanHint?)
 
 /** `me.links`: the portal page of a file or folder (template with `{id}`) and of Drive itself. */
 data class DPortalLinks(val node: String?, val drive: String?)

@@ -135,6 +135,8 @@ class ApiClientProvider @Inject constructor(
             "Cookie",
             "Set-Cookie",
             "X-Machine-Fingerprint",
+            // the device's LAN addresses for the home cache's site check
+            HomeCache.HEADER_LOCAL,
         )
     }
 

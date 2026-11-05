@@ -281,6 +281,20 @@ internal object DriveJson {
     /** Stands for "no media, the file is empty" in [contentMediaId]; never a real media id. */
     const val EMPTY_CONTENT = ""
 
+    /**
+     * `GET nodes/<id>/content` → the media id ([contentMediaId]), its size and — Drive 1.20 with GateControl's home
+     * cache, for an app at home — the `lan` hint to load it from the home gateway ([HomeCache.parse]; a hint that is not
+     * right is dropped).
+     */
+    fun content(o: JsonObject): DContent? {
+        val media = contentMediaId(o) ?: return null
+        return DContent(
+            mediaId = media,
+            size = o.long("size")?.takeIf { it >= 0 },
+            lan = if (media == EMPTY_CONTENT) null else com.gatecontrol.android.network.HomeCache.parse(o.get("lan")),
+        )
+    }
+
     fun versions(o: JsonObject): DVersions? {
         val current = node(o.obj("current")) ?: return null
         return DVersions(

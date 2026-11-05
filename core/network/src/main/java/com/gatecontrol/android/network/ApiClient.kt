@@ -141,6 +141,18 @@ interface ApiClient {
         @QueryMap query: Map<String, String> = emptyMap(),
     ): Response<JsonObject>
 
+    /**
+     * [pluginGet] with this device's LAN addresses in [HomeCache.HEADER_LOCAL] (null: no header) — the home cache's
+     * site check for a `lan` hint (e.g. Drive's `nodes/<id>/content`). Only when the device is in its home network.
+     */
+    @GET("api/v1/client/plugins/{id}/api/{path}")
+    suspend fun pluginGetWithLocal(
+        @Path("id") plugin: String,
+        @Path(value = "path", encoded = true) path: String,
+        @QueryMap query: Map<String, String>,
+        @Header(HomeCache.HEADER_LOCAL) local: String?,
+    ): Response<JsonObject>
+
     @POST("api/v1/client/plugins/{id}/api/{path}")
     suspend fun pluginPost(
         @Path("id") plugin: String,
