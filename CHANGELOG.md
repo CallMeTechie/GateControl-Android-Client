@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.84.0] - 2026-11-06
+
+### Features
+- Druckdienst „GateControl“ und „Mit GateControl drucken“ (#188)
+
+---
+
 ## [1.83.0] - 2026-11-05
 
 ### Features
