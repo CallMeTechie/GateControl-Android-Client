@@ -86,6 +86,8 @@ fun SettingsScreen(
     onNavigateToShared: (() -> Unit)? = null,
     /** "Drive-Einstellungen" (backup, vaults, data on this phone …); null hides the row (no Drive on the server). */
     onNavigateToDrive: (() -> Unit)? = null,
+    /** "Drucken über GateControl" (print service, share target); null hides the row (no print plugin for the apps). */
+    onOpenPrinting: (() -> Unit)? = null,
     /** "Leiste und Seiten" (functions as tabs or as pages beside Start). */
     onNavigateToPages: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
@@ -324,6 +326,19 @@ fun SettingsScreen(
                             GcChevron()
                         }
                     },
+                )
+            }
+        }
+
+        // --- Drucken: the print service "GateControl" and "Mit GateControl drucken" ---
+        if (onOpenPrinting != null) {
+            SettingsGroup(stringResource(R.string.print_settings_group)) {
+                GcListRow(
+                    title = stringResource(R.string.print_info_title),
+                    description = stringResource(R.string.print_settings_row_desc),
+                    onClick = onOpenPrinting,
+                    leading = { Icon(GcIcons.Printer, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) },
+                    trailing = { GcChevron() },
                 )
             }
         }

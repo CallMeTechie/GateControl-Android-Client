@@ -777,6 +777,48 @@ wie die anderen Tabs als **Seite neben Start** anheftbar. Ohne Plugin
   wenn das Plugin verschwindet, sich Server/Token ändern oder der Server
   401 antwortet (Fernlöschen), ebenso geöffnete Anhänge (`cache/mail-open`).
 
+## Drucken (Plugin `gatecontrol-print` 1.0, GateControl 1.236+)
+Drucken auf den Druckern zu Hause **über GateControl**: der Auftrag geht
+über die normale Server-Verbindung der App (mit und ohne VPN) an das
+Plugin, das Gateway zu Hause druckt ihn per IPP. Ist der Drucker aus,
+wartet der Auftrag bis zu 24 Stunden. Der eigene WLAN-Druckdienst von
+Android findet den Drucker nur per mDNS im selben Netz – unterwegs und
+durch den Tunnel (kein Multicast, Heimnetz nicht geroutet) also nie.
+
+- **Druckdienst „GateControl“** (`GateControlPrintService`, Einstellungen ›
+  Verbundene Geräte › Drucken, einmal einschalten): listet die Drucker,
+  die die Person nutzen darf (`GET overview`), als „GateControl – <Name>“
+  mit Ort, Zustand („aus – druckt, sobald er an ist“), Seiten heute und
+  „nur schwarz-weiß“. Fähigkeiten: A4 und Letter (Vorgabe nach Land),
+  300 dpi, Farbe nur bei Farbdrucker und ohne „nur s/w“, beidseitig
+  (lange Kante) nur bei Duplex-Druckern. Ein Drucker, der aus ist, ist
+  „beschäftigt“, nie „nicht verfügbar“ – der Auftrag wartet ja.
+- **Auftrag:** das PDF des Druckdialogs → `PUT …/media` → `POST print`
+  (Kopien, Farbe, beidseitig, Name). Die Rechte (drucken, Seiten am Tag,
+  nur s/w) prüft das Plugin; seine Fehlermeldung (z. B. „Das wären 6
+  Seiten – heute gehen noch 4.“) steht am fehlgeschlagenen Auftrag.
+  Zustände: `queued`/`sending`/`printing` → gestartet mit Status,
+  `waiting` → blockiert „Wartet, bis der Drucker an ist“ (bzw. beschäftigt,
+  nimmt nichts an, Zertifikat), `done` → fertig, `failed`/`expired` →
+  fehlgeschlagen mit Grund, `canceled` → abgebrochen. Die Server-Id steht
+  im Tag des Auftrags (nach einem Neustart des Dienstes wird weiter
+  gefragt). Abfragen: 5 s, ab 2 Min. 20 s, ab 15 Min. 60 s, wartend alle
+  2 Min. Ohne Verbindung bleibt der Auftrag bis zu 30 Min. blockiert und
+  wird erneut gesendet. Abbrechen geht, solange er beim Server wartet.
+- **Teilen › „Mit GateControl drucken“** (`PrintShareActivity`, PDF und
+  Bilder – die `media.types` des Plugins; andere Bilder wie GIF/BMP macht
+  die App zu JPEG, die Umwandlung von Bildern für den Drucker macht der
+  Server): Blatt wie im Mockup mit Datei, Drucker, Kopien, Farbe,
+  beidseitig, „Zu Hause drucken“, danach der Zustand je Datei (3 Min.
+  lang). Nur an, solange der Server das Plugin für die App listet.
+- **Hinweis:** Einstellungen › Drucken › „Drucken über GateControl“ (auch
+  als Einstellungen des Druckdienstes und über die Info-Taste am Drucker im
+  Druckdialog) zeigt die Drucker oder warum es keine gibt (Plugin nicht für
+  die App verfügbar, kein Recht, keine Verbindung) und erklärt, dass der
+  Drucker im Druckdialog „GateControl – …“ heißt.
+- **Ohne Plugin, ohne Recht:** der Druckdienst zeigt keine Drucker, das
+  Teilen-Ziel und die Einstellungszeile sind aus.
+
 ## Einstellungen
 
 Seit 1.35 kein Tab mehr: das Zahnrad oben rechts im Profil öffnet sie (mit

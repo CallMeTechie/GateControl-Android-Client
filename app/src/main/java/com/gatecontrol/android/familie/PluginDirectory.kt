@@ -74,6 +74,12 @@ data class PluginAvailability(
      * the tab "Mail" (contract D).
      */
     val mail: Boolean = false,
+    /**
+     * The print plugin ("Drucken & Scannen") is listed for this user (it answers the apps): the share target
+     * "Mit GateControl drucken" and Settings › Drucken. The print service is always there and shows its printers
+     * only when the plugin answers (docs/FEATURES.md "Drucken").
+     */
+    val print: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -94,6 +100,7 @@ data class PluginAvailability(
                 vault = plugins.any { it.id == com.gatecontrol.android.vault.VAULT_PLUGIN },
                 drive = plugins.any { it.id == com.gatecontrol.android.drive.DRIVE_PLUGIN },
                 mail = plugins.any { it.id == com.gatecontrol.android.mail.MAIL_PLUGIN && it.tab != null },
+                print = plugins.any { it.id == com.gatecontrol.android.print.PRINT_PLUGIN },
             )
         }
 

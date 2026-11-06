@@ -389,6 +389,52 @@
             </intent-filter>
         </activity>
 
+        <!-- Share target "Mit GateControl drucken" (PDF files and pictures, the print plugin's
+             media types): the print sheet over the sharing app. Exported for the system's share
+             sheet, but disabled until the server offers the print plugin to the apps
+             (PrintShareActivity.setEnabled). Reads only content:// URIs of other apps
+             (ChatShareRules). -->
+        <activity
+            android:name=".ui.print.PrintShareActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:label="@string/print_share_target_label"
+            android:theme="@style/Theme.GateControl.TileAction">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Printing: "GateControl" in Android's print dialog (Settings › Printing). Only the
+             system binds it (BIND_PRINT_SERVICE); jobs go to the server, the gateway at home
+             prints them. -->
+        <service
+            android:name=".print.GateControlPrintService"
+            android:exported="true"
+            android:label="@string/print_service_label"
+            android:permission="android.permission.BIND_PRINT_SERVICE">
+            <intent-filter>
+                <action android:name="android.printservice.PrintService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.printservice"
+                android:resource="@xml/print_service" />
+        </service>
+
+        <!-- "Drucken über GateControl": settings of the print service (opened by the system's
+             print settings and the printers' info button) and Settings › Drucken in the app. -->
+        <activity
+            android:name=".ui.print.PrintInfoActivity"
+            android:exported="true"
+            android:label="@string/print_info_title"
+            android:theme="@style/Theme.GateControl" />
+
         <!-- Chats: content of a chat bubble (BubbleMetadata of the chat
              notifications). NOT exported: only the app's own bubble
              PendingIntent starts it. Embedded and resizable as bubbles need. -->
