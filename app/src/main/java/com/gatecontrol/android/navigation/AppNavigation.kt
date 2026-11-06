@@ -639,6 +639,7 @@ fun AppNavigation(
                     },
                 ),
             ) { backStackEntry ->
+                val context = LocalContext.current
                 if (layout.twoPane) {
                     val requested = SettingsPane.fromKey(backStackEntry.arguments?.getString(Screen.Settings.ARG_PANE))
                     val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -664,6 +665,7 @@ fun AppNavigation(
                                 onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
                                 onNavigateToShared = if (plugins.gatedrop) { { paneKey = SettingsPane.Shared.key } } else null,
                                 onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
+                                onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                                 onNavigateToPages = { paneKey = SettingsPane.Pages.key },
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
@@ -697,6 +699,7 @@ fun AppNavigation(
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                         onNavigateToShared = if (plugins.gatedrop) { { navController.navigate(Screen.Shared.create()) { launchSingleTop = true } } } else null,
                         onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
+                        onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                         onNavigateToPages = { navController.navigate(Screen.SettingsPages.route) { launchSingleTop = true } },
                     )
                 }

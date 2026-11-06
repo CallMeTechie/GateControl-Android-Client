@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "GateControl" in Android's print services (Settings › Printing): the printers at home through the print plugin.
+     Its settings say which printers there are, or why there are none (PrintInfoActivity). -->
+<print-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.gatecontrol.android.ui.print.PrintInfoActivity"
+    android:vendor="GateControl" />

@@ -145,3 +145,11 @@
 # ── ONNX Runtime (Drive: faces) ───────────────────────────
 # The native library creates and calls the Java API classes by name (JNI).
 -keep class ai.onnxruntime.** { *; }
+
+# ── Printing (plugin gatecontrol-print) ─────────────────────────────
+# The print service and the share sheet read the plugin's answers from the
+# Gson tree (PrintJson), nothing reflective; the models keep their field
+# names like the mail's, in case they are ever (de)serialized by reflection.
+# PluginAvailability.print is covered by the familie rule above. The
+# PrintService subclass is kept through the manifest.
+-keep class com.gatecontrol.android.print.** { <fields>; }

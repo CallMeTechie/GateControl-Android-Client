@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drucken (Plugin gatecontrol-print „Drucken & Scannen“): Druckdienst „GateControl“ und „Mit GateControl drucken“ -->
+    <string name="print_service_label">GateControl</string>
+    <string name="print_share_target_label">Mit GateControl drucken</string>
+
+    <!-- Drucker im Druckdialog von Android -->
+    <string name="print_printer_name">GateControl – %1$s</string>
+    <string name="print_printer_via">Druckt zu Hause über GateControl</string>
+    <string name="print_printer_off">aus – druckt, sobald er an ist</string>
+    <string name="print_printer_busy">druckt gerade</string>
+    <string name="print_printer_stopped">angehalten – am Drucker nachsehen</string>
+    <string name="print_printer_cert">wartet auf einen Admin (Zertifikat geändert)</string>
+    <plurals name="print_pages_left">
+        <item quantity="one">heute noch %d Seite</item>
+        <item quantity="other">heute noch %d Seiten</item>
+    </plurals>
+    <string name="print_bw_only">nur schwarz-weiß</string>
+    <string name="print_resolution_300">300 dpi</string>
+
+    <!-- Zustände der Aufträge -->
+    <string name="print_status_uploading">Geht an GateControl …</string>
+    <string name="print_wait_connection">Keine Verbindung zu GateControl – gleich neuer Versuch</string>
+    <string name="print_wait_printer_off">Wartet, bis der Drucker an ist (bis zu 24 Stunden)</string>
+    <string name="print_wait_busy">Wartet – der Drucker ist beschäftigt</string>
+    <string name="print_wait_not_accepting">Wartet – der Drucker nimmt gerade nichts an</string>
+    <string name="print_wait_cert">Wartet – ein Admin muss das Zertifikat des Druckers bestätigen</string>
+    <string name="print_state_queued">Unterwegs nach Hause</string>
+    <string name="print_state_sending">Geht an den Drucker</string>
+    <string name="print_state_printing">Wird gedruckt</string>
+    <string name="print_state_done">Gedruckt</string>
+    <string name="print_state_done_unconfirmed">Beim Drucker angekommen (Ende nicht bestätigt)</string>
+    <string name="print_state_canceled">Abgebrochen</string>
+    <string name="print_fail_format">Der Drucker kann dieses Format nicht</string>
+    <string name="print_fail_rejected">Der Drucker hat den Auftrag abgelehnt</string>
+    <string name="print_fail_at_printer">Am Drucker abgebrochen</string>
+    <string name="print_fail_expired">Nicht innerhalb von 24 Stunden gedruckt</string>
+    <string name="print_fail_device">Dieses Gerät druckt nicht</string>
+    <string name="print_fail_failed">Drucken fehlgeschlagen</string>
+
+    <!-- Fehler -->
+    <string name="print_err_offline">Keine Verbindung zu GateControl.</string>
+    <string name="print_err_not_configured">GateControl ist auf diesem Handy noch nicht eingerichtet.</string>
+    <string name="print_err_too_large">Die Datei ist zu groß (höchstens 50 MB).</string>
+    <string name="print_err_format">Drucken lassen sich nur PDF-Dateien und Bilder.</string>
+    <string name="print_err_quota">Auf dem Server ist kein Platz mehr für Druckaufträge.</string>
+    <string name="print_err_infected">Der Virenscan hat diese Datei gesperrt.</string>
+    <string name="print_err_scan">Der Virenscan ist gerade nicht erreichbar – später noch einmal versuchen.</string>
+    <string name="print_err_limit">Das wären %1$d Seiten – heute gehen noch %2$d.</string>
+    <string name="print_err_no_right">Du darfst nicht drucken – frag deinen Admin.</string>
+    <string name="print_err_read">Die Datei konnte nicht gelesen werden.</string>
+    <string name="print_err_unavailable">„Drucken &amp; Scannen“ ist auf deinem GateControl-Server für die App nicht verfügbar.</string>
+    <string name="print_err_failed">Drucken hat nicht geklappt.</string>
+
+    <!-- „Drucken über GateControl“ (Einstellungen des Druckdienstes, Einstellungen › Drucken in der App) -->
+    <string name="print_info_title">Drucken über GateControl</string>
+    <string name="print_info_loading">Frage GateControl …</string>
+    <plurals name="print_info_printers">
+        <item quantity="one">%d Drucker zu Hause</item>
+        <item quantity="other">%d Drucker zu Hause</item>
+    </plurals>
+    <string name="print_info_no_printer">Du darfst drucken, aber es ist noch kein Drucker gefunden.</string>
+    <string name="print_info_unavailable_detail">Das Plugin „Drucken &amp; Scannen“ ist nicht installiert, nicht lizenziert oder nicht für die Apps freigegeben. Frag deinen Admin.</string>
+    <string name="print_info_how_title">In anderen Apps</string>
+    <string name="print_info_how">Im Druckdialog anderer Apps (z. B. Galerie › Drucken) heißt der Drucker „GateControl – …“ – nicht so wie zu Hause im WLAN. Nur über GateControl klappt das Drucken auch unterwegs und mit VPN: Der Auftrag geht an deinen Server, das Gateway zu Hause druckt ihn.</string>
+    <string name="print_info_enable">Einmalig: den Druckdienst „GateControl“ einschalten (Einstellungen › Verbundene Geräte › Drucken).</string>
+    <string name="print_info_open_settings">Druckdienste öffnen</string>
+    <string name="print_info_share">Oder eine PDF-Datei oder ein Bild teilen: Teilen › Mit GateControl drucken.</string>
+    <string name="print_info_wait">Ist der Drucker aus, wartet der Auftrag bis zu 24 Stunden.</string>
+    <string name="print_info_retry">Erneut versuchen</string>
+    <string name="print_info_ready">bereit</string>
+    <string name="print_info_off">aus</string>
+    <string name="print_settings_group">Drucken</string>
+    <string name="print_settings_row_desc">Drucker zu Hause – auch unterwegs und mit VPN</string>
+
+    <!-- Teilen-Blatt „Mit GateControl drucken“ -->
+    <string name="print_share_title">Drucken – von unterwegs</string>
+    <string name="print_share_file">Datei</string>
+    <string name="print_share_printer">Drucker</string>
+    <string name="print_share_copies">Kopien</string>
+    <string name="print_share_less">eine Kopie weniger</string>
+    <string name="print_share_more">eine Kopie mehr</string>
+    <string name="print_share_color">Farbe</string>
+    <string name="print_share_duplex">Beidseitig</string>
+    <string name="print_share_bw_printer">Dieser Drucker druckt schwarz-weiß</string>
+    <string name="print_share_go">Zu Hause drucken</string>
+    <string name="print_share_wait_note">Liegt dann im Ausgabefach, wenn du heimkommst. Ist der Drucker aus, wartet der Auftrag bis zu 24 Stunden.</string>
+    <string name="print_share_dialog_hint">Im Druckdialog anderer Apps heißt der Drucker „GateControl – …“.</string>
+    <string name="print_share_nothing">Hier ist nichts zum Drucken dabei – es gehen PDF-Dateien und Bilder.</string>
+    <string name="print_share_close">Schließen</string>
+    <string name="print_share_cancel">Abbrechen</string>
+    <string name="print_share_sending">Wird gesendet …</string>
+    <plurals name="print_share_more_files">
+        <item quantity="one">+ %d weitere Datei</item>
+        <item quantity="other">+ %d weitere Dateien</item>
+    </plurals>
+</resources>

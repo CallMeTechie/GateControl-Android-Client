@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Printing (plugin gatecontrol-print "Print & Scan"): the print service "GateControl" and "Print with GateControl" -->
+    <string name="print_service_label">GateControl</string>
+    <string name="print_share_target_label">Print with GateControl</string>
+
+    <!-- Printers in Android's print dialog -->
+    <string name="print_printer_name">GateControl – %1$s</string>
+    <string name="print_printer_via">Prints at home through GateControl</string>
+    <string name="print_printer_off">off – prints as soon as it is on</string>
+    <string name="print_printer_busy">printing right now</string>
+    <string name="print_printer_stopped">stopped – have a look at the printer</string>
+    <string name="print_printer_cert">waits for an admin (certificate changed)</string>
+    <plurals name="print_pages_left">
+        <item quantity="one">%d page left today</item>
+        <item quantity="other">%d pages left today</item>
+    </plurals>
+    <string name="print_bw_only">black and white only</string>
+    <string name="print_resolution_300">300 dpi</string>
+
+    <!-- Job states -->
+    <string name="print_status_uploading">Going to GateControl …</string>
+    <string name="print_wait_connection">No connection to GateControl – trying again shortly</string>
+    <string name="print_wait_printer_off">Waiting until the printer is on (up to 24 hours)</string>
+    <string name="print_wait_busy">Waiting – the printer is busy</string>
+    <string name="print_wait_not_accepting">Waiting – the printer takes no jobs right now</string>
+    <string name="print_wait_cert">Waiting – an admin has to confirm the printer\'s certificate</string>
+    <string name="print_state_queued">On its way home</string>
+    <string name="print_state_sending">Going to the printer</string>
+    <string name="print_state_printing">Printing</string>
+    <string name="print_state_done">Printed</string>
+    <string name="print_state_done_unconfirmed">At the printer (it did not confirm the end)</string>
+    <string name="print_state_canceled">Canceled</string>
+    <string name="print_fail_format">The printer cannot print this format</string>
+    <string name="print_fail_rejected">The printer refused the job</string>
+    <string name="print_fail_at_printer">Canceled at the printer</string>
+    <string name="print_fail_expired">Not printed within 24 hours</string>
+    <string name="print_fail_device">This device does not print</string>
+    <string name="print_fail_failed">Printing failed</string>
+
+    <!-- Errors -->
+    <string name="print_err_offline">No connection to GateControl.</string>
+    <string name="print_err_not_configured">GateControl is not set up on this phone yet.</string>
+    <string name="print_err_too_large">The file is too large (at most 50 MB).</string>
+    <string name="print_err_format">Only PDF files and pictures can be printed.</string>
+    <string name="print_err_quota">There is no room for print jobs on the server any more.</string>
+    <string name="print_err_infected">The virus scan blocked this file.</string>
+    <string name="print_err_scan">The virus scan cannot be reached right now – try again later.</string>
+    <string name="print_err_limit">That would be %1$d pages – %2$d left today.</string>
+    <string name="print_err_no_right">You may not print – ask your admin.</string>
+    <string name="print_err_read">The file could not be read.</string>
+    <string name="print_err_unavailable">“Print &amp; Scan” is not available for the app on your GateControl server.</string>
+    <string name="print_err_failed">Printing did not work.</string>
+
+    <!-- "Print through GateControl" (settings of the print service, Settings › Printing in the app) -->
+    <string name="print_info_title">Print through GateControl</string>
+    <string name="print_info_loading">Asking GateControl …</string>
+    <plurals name="print_info_printers">
+        <item quantity="one">%d printer at home</item>
+        <item quantity="other">%d printers at home</item>
+    </plurals>
+    <string name="print_info_no_printer">You may print, but no printer has been found yet.</string>
+    <string name="print_info_unavailable_detail">The plugin “Print &amp; Scan” is not installed, not licensed or not open to the apps. Ask your admin.</string>
+    <string name="print_info_how_title">In other apps</string>
+    <string name="print_info_how">In the print dialog of other apps (e.g. Gallery › Print) the printer is called “GateControl – …”, not by its own name as at home in the Wi-Fi. Only through GateControl does printing work away from home and with the VPN on: the job goes to your server and the gateway at home prints it.</string>
+    <string name="print_info_enable">Once: switch on the print service “GateControl” (Settings › Connected devices › Printing).</string>
+    <string name="print_info_open_settings">Open print services</string>
+    <string name="print_info_share">Or share a PDF file or a picture: Share › Print with GateControl.</string>
+    <string name="print_info_wait">If the printer is off, the job waits up to 24 hours.</string>
+    <string name="print_info_retry">Try again</string>
+    <string name="print_info_ready">ready</string>
+    <string name="print_info_off">off</string>
+    <string name="print_settings_group">Printing</string>
+    <string name="print_settings_row_desc">Printers at home – also away from home and with the VPN</string>
+
+    <!-- Share sheet "Print with GateControl" -->
+    <string name="print_share_title">Print – from anywhere</string>
+    <string name="print_share_file">File</string>
+    <string name="print_share_printer">Printer</string>
+    <string name="print_share_copies">Copies</string>
+    <string name="print_share_less">One copy less</string>
+    <string name="print_share_more">One copy more</string>
+    <string name="print_share_color">Colour</string>
+    <string name="print_share_duplex">Double-sided</string>
+    <string name="print_share_bw_printer">This printer prints black and white</string>
+    <string name="print_share_go">Print at home</string>
+    <string name="print_share_wait_note">It will be in the output tray when you get home. If the printer is off, the job waits up to 24 hours.</string>
+    <string name="print_share_dialog_hint">In other apps\' print dialog the printer is called “GateControl – …”.</string>
+    <string name="print_share_nothing">Nothing here can be printed – PDF files and pictures only.</string>
+    <string name="print_share_close">Close</string>
+    <string name="print_share_cancel">Cancel</string>
+    <string name="print_share_sending">Sending …</string>
+    <plurals name="print_share_more_files">
+        <item quantity="one">+ %d more file</item>
+        <item quantity="other">+ %d more files</item>
+    </plurals>
+</resources>
