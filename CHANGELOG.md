@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.92.0] - 2026-11-07
+
+### Features
+- PDFs und Texte normaler Dateien in der App ansehen (#197)
+
+---
+
 ## [1.91.0] - 2026-11-07
 
 ### Features
