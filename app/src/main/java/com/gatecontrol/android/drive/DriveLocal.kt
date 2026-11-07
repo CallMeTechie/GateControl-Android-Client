@@ -30,6 +30,8 @@ import javax.inject.Singleton
 class DriveLocal @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: DriveApi,
+    /** "Offline verfügbar": a file deleted everywhere leaves the offline copies at once. */
+    private val offline: DriveOfflineStore,
 ) {
     /**
      * What this phone has of a file: picked files it was uploaded from ([docs], deleted directly), gallery entries
@@ -138,6 +140,7 @@ class DriveLocal @Inject constructor(
         withContext(Dispatchers.IO) {
             for (w in wipes) {
                 w.nodeId?.let { cache(it) }?.forEach { it.parentFile?.deleteRecursively() }
+                w.nodeId?.let { offline.drop(it) }
                 // Picked files it was uploaded from go at once; what would not go is asked like a gallery copy.
                 val docs = uploaded(w.nodeId ?: -1L, w.sha256)
                 val left = deleteDocs(docs).mapNotNull { mediaUri(it) }

@@ -73,6 +73,7 @@ import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DriveDocLogic
 import com.gatecontrol.android.drive.DriveMediaLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.ui.components.GcBanner
@@ -174,6 +175,8 @@ internal fun DriveFolderContent(
     var menuFor by remember { mutableStateOf<DNode?>(null) }
     /** Drive 1.21: the pictures and videos of the folder in the viewer, and where it starts. */
     var viewing by remember { mutableStateOf<Pair<List<DNode>, Int>?>(null) }
+    /** A PDF, text or Markdown in the viewer of documents (the same pages as in the vault). */
+    var doc by remember { mutableStateOf<DNode?>(null) }
     var renaming by remember { mutableStateOf<DNode?>(null) }
     var deleting by remember { mutableStateOf<DNode?>(null) }
     var newFolder by remember { mutableStateOf(false) }
@@ -277,6 +280,8 @@ internal fun DriveFolderContent(
                                 // a picture or video (Drive 1.21): the viewer with the others of the folder, no download first;
                                 // a blocked one says why (the fetch refuses), as before
                                 DriveMediaLogic.opensInViewer(n) -> viewing = DriveMediaLogic.viewerList(s.value.items, n)
+                                // a PDF, text or Markdown: the viewer of documents (a marked one after asking)
+                                DriveDocLogic.opensInViewer(n) -> ask(n.scan) { doc = n }
                                 else -> open(n, false)
                             }
                         }
@@ -560,6 +565,7 @@ internal fun DriveFolderContent(
             onDetails = { n -> viewing = null; onFile(n.id) },
         )
     }
+    doc?.let { n -> DriveDocViewer(n, onClose = { doc = null }, onDetails = { doc = null; onFile(it.id) }) }
 
     versions?.let { v ->
         ModalBottomSheet(onDismissRequest = viewModel::closeVersions) {

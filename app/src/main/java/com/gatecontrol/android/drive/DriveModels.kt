@@ -128,6 +128,12 @@ data class DMe(
          * `lan` hint when the app sends its LAN addresses (`X-GC-Local`).
          */
         const val FEATURE_HOME_CACHE = "homeCache"
+        /**
+         * Drive 1.24 on GateControl 1.249+: the preview pictures are in the home gateways' caches too — node previews
+         * may carry `lan` / `largeLan` (photo items `previewLan` / `largeLan`) when the app sends its LAN addresses
+         * (`X-GC-Local`) with its lists.
+         */
+        const val FEATURE_HOME_CACHE_PREVIEWS = "homeCachePreviews"
     }
 }
 
@@ -241,6 +247,12 @@ data class DNode(
     val people: List<Long>? = null,
     /** The host's virus scan (Drive 1.19, feature `scan`); null when the server says nothing (then nothing changes). */
     val scan: MediaScan? = null,
+    /**
+     * Drive 1.24 (`homeCachePreviews`): the small / large preview from the home gateway while this device is at home —
+     * loaded pinned and checked like a file's hint, any error takes the preview from the server ([DrivePreviews]).
+     */
+    val previewLan: com.gatecontrol.android.network.LanHint? = null,
+    val largeLan: com.gatecontrol.android.network.LanHint? = null,
 ) {
     /** In a vault: nothing of it may go to a preview, a link, the office, the AI or a backup. */
     val encrypted: Boolean get() = vaultId != null

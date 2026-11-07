@@ -1,17 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Drive 1.20: "Available offline" — kept ready in the home network's cache (GateControl's home gateways). -->
+<!-- Drive 1.20: "Available offline" – a copy on this phone (opens without a connection) and kept ready in the home network's cache (GateControl's home gateways). -->
 <resources>
     <string name="drive_offline_title">Available offline</string>
     <string name="drive_offline_mark">Available offline</string>
     <string name="drive_offline_unmark">No longer available offline</string>
-    <string name="drive_offline_mark_desc">Kept ready in the cache at home, opens faster on your home Wi-Fi</string>
-    <string name="drive_offline_mark_desc_later">Marked for the cache in the home network</string>
-    <string name="drive_offline_unmark_desc">No longer kept ready at home first</string>
+    <string name="drive_offline_mark_desc">Keep a copy on this phone, opens without a connection too. At home the home gateway loads it.</string>
+    <string name="drive_offline_mark_desc_later">Keep a copy on this phone, opens without a connection too</string>
+    <string name="drive_offline_unmark_desc">The copy on this phone is deleted</string>
     <string name="drive_offline_badge">Available offline</string>
-    <string name="drive_offline_done_on">Kept ready in the home network</string>
+    <string name="drive_offline_done_on">Being saved on this phone</string>
     <string name="drive_offline_done_off">No longer available offline</string>
     <string name="drive_offline_max">At most 500 files and folders can be available offline.</string>
-    <string name="drive_offline_intro">GateControl keeps these files and folders ready in the cache of your home gateway. On your home Wi-Fi they open faster. Nothing is stored on this phone for good.</string>
-    <string name="drive_offline_intro_later">Drive keeps these marks. As soon as GateControl has a cache in your home network, the files are kept ready there. Nothing is stored on this phone for good.</string>
+    <string name="drive_offline_intro">These files and folders are kept as a copy on this phone and open without a connection too. At home GateControl loads them from the cache of your home gateway. When a file changes in Drive, the copy is renewed.</string>
+    <string name="drive_offline_intro_later">These files and folders are kept as a copy on this phone and open without a connection too. When a file changes in Drive, the copy is renewed.</string>
     <string name="drive_offline_empty">Nothing is available offline yet. In the ⋮ menu of a file or folder: “Available offline”.</string>
+    <!-- The copies on this phone -->
+    <string name="drive_offline_no_connection">No connection to Drive. These are the copies on this phone – they open as usual.</string>
+    <string name="drive_offline_used">%1$s of %2$s on this phone</string>
+    <string name="drive_offline_running">Updating …</string>
+    <string name="drive_offline_wait_wifi_all">Waiting for Wi-Fi (Drive settings: “Load offline files on Wi-Fi only”)</string>
+    <string name="drive_offline_refresh">Update now</string>
+    <string name="drive_offline_state_stored">On this phone</string>
+    <string name="drive_offline_state_pending">Loading</string>
+    <string name="drive_offline_state_wifi">Waiting for Wi-Fi</string>
+    <string name="drive_offline_state_space">Does not fit into the storage for offline files</string>
+    <string name="drive_offline_state_device_space">Not enough space on this phone</string>
+    <string name="drive_offline_state_outdated">Loading a newer version</string>
+    <string name="drive_offline_state_outdated_wifi">Older version – the new one waits for Wi-Fi</string>
+    <string name="drive_offline_state_failed">Could not be loaded, trying again later</string>
+    <string name="drive_offline_state_vault">Vault: only in the cache at home</string>
+    <plurals name="drive_offline_folder_stored">
+        <item quantity="one">%1$d of %2$d file on this phone</item>
+        <item quantity="other">%1$d of %2$d files on this phone</item>
+    </plurals>
+    <!-- Drive settings › Data on this device -->
+    <string name="drive_settings_offline_wifi">Load offline files on Wi-Fi only</string>
+    <string name="drive_settings_offline_wifi_desc">Copies for “Available offline” do not load over mobile data</string>
+    <string name="drive_settings_offline_limit">Storage for offline files</string>
+    <string name="drive_settings_offline_limit_desc">%1$s used, at most %2$s</string>
 </resources>

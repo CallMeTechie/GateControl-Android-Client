@@ -1009,17 +1009,26 @@ class DriveTrashViewModel @Inject constructor(private val api: DriveApi) : ViewM
     }
 }
 
-/** "Offline verfügbar" (Drive 1.20): what the person marked, to open or to take off the list. */
+/**
+ * "Offline verfügbar" (Drive 1.20): what the person marked, to open or to take off the list, with the state of the
+ * copies on this phone ([DriveOfflineStore]). Without a connection the list is the copies here ([noConnection]).
+ */
 @HiltViewModel
 class DriveOfflineViewModel @Inject constructor(
     private val offline: com.gatecontrol.android.drive.DriveOffline,
     private val transfers: DriveTransfers,
+    val store: com.gatecontrol.android.drive.DriveOfflineStore,
+    private val settings: com.gatecontrol.android.drive.DriveSettings,
     val live: DriveLive,
 ) : ViewModel() {
     private val _state = MutableStateFlow<DriveLoad<List<DNode>>>(DriveLoad.Loading)
     val state: StateFlow<DriveLoad<List<DNode>>> = _state.asStateFlow()
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
+    private val _noConnection = MutableStateFlow(false)
+    /** Drive could not be reached: the screen lists the copies on this phone. */
+    val noConnection: StateFlow<Boolean> = _noConnection.asStateFlow()
+    val values: StateFlow<com.gatecontrol.android.drive.DriveSettingsValues> = settings.values
 
     init {
         refresh()
@@ -1027,7 +1036,13 @@ class DriveOfflineViewModel @Inject constructor(
     }
 
     fun refresh() {
-        viewModelScope.launch { _state.value = offline.list().toLoad { it } }
+        viewModelScope.launch {
+            val r = offline.list()
+            _noConnection.value = r == DResult.Offline && store.copies.value.isNotEmpty()
+            _state.value = if (_noConnection.value) DriveLoad.Ready(emptyList()) else r.toLoad { it }
+            // the copies follow the marks (a run in the background, "nur im WLAN" as set)
+            if (r is DResult.Ok) store.request()
+        }
     }
 
     fun clearMessage() { _message.value = null }
@@ -1040,7 +1055,9 @@ class DriveOfflineViewModel @Inject constructor(
         }
     }
 
-    suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
+    /** The copy here first (also an older one without a connection), else the normal way. */
+    suspend fun fetch(node: DNode): DResult<File> =
+        if (_noConnection.value) store.stored(node.id)?.let { DResult.Ok(it) } ?: DResult.Offline else transfers.fetch(node)
 }
 
 /** Search by name across the areas; the hits can be ticked and handled together (Drive 1.12). */
