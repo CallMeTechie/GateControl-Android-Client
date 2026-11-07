@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.86.1] - 2026-11-07
+
+### Fixes
+- Dateiart am Inhalt beim Teilen, verständliche Gründe für Drucker ohne PDF (#192)
+
+---
+
 ## [1.86.0] - 2026-11-07
 
 ### Features
