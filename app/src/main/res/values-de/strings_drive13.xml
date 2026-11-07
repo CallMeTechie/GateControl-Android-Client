@@ -1,17 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Drive 1.20: „Offline verfügbar“ – im Zwischenspeicher des Heimnetzes bereitgehalten (Heim-Gateways von GateControl). -->
+<!-- Drive 1.20: „Offline verfügbar“ – als Kopie auf diesem Handy (öffnet ohne Verbindung) und im Zwischenspeicher des Heimnetzes bereitgehalten (Heim-Gateways von GateControl). -->
 <resources>
     <string name="drive_offline_title">Offline verfügbar</string>
     <string name="drive_offline_mark">Offline verfügbar</string>
     <string name="drive_offline_unmark">Nicht mehr offline verfügbar</string>
-    <string name="drive_offline_mark_desc">Zu Hause im Zwischenspeicher bereithalten, öffnet im WLAN zu Hause schneller</string>
-    <string name="drive_offline_mark_desc_later">Für den Zwischenspeicher im Heimnetz vormerken</string>
-    <string name="drive_offline_unmark_desc">Zu Hause nicht mehr bevorzugt bereithalten</string>
+    <string name="drive_offline_mark_desc">Als Kopie auf diesem Handy behalten, öffnet auch ohne Verbindung. Zu Hause lädt sie das Heim-Gateway.</string>
+    <string name="drive_offline_mark_desc_later">Als Kopie auf diesem Handy behalten, öffnet auch ohne Verbindung</string>
+    <string name="drive_offline_unmark_desc">Die Kopie auf diesem Handy wird gelöscht</string>
     <string name="drive_offline_badge">Offline verfügbar</string>
-    <string name="drive_offline_done_on">Wird im Heimnetz bereitgehalten</string>
+    <string name="drive_offline_done_on">Wird auf diesem Handy gespeichert</string>
     <string name="drive_offline_done_off">Nicht mehr offline verfügbar</string>
     <string name="drive_offline_max">Höchstens 500 Dateien und Ordner können offline verfügbar sein.</string>
-    <string name="drive_offline_intro">GateControl hält diese Dateien und Ordner im Zwischenspeicher deines Heim-Gateways bereit. Im WLAN zu Hause öffnen sie schneller. Auf diesem Handy wird nichts dauerhaft gespeichert.</string>
-    <string name="drive_offline_intro_later">Drive merkt sie vor. Sobald GateControl einen Zwischenspeicher im Heimnetz hat, werden sie dort bereitgehalten. Auf diesem Handy wird nichts dauerhaft gespeichert.</string>
+    <string name="drive_offline_intro">Diese Dateien und Ordner liegen als Kopie auf diesem Handy und öffnen auch ohne Verbindung. Zu Hause lädt GateControl sie aus dem Zwischenspeicher deines Heim-Gateways. Ändert sich eine Datei in Drive, wird die Kopie erneuert.</string>
+    <string name="drive_offline_intro_later">Diese Dateien und Ordner liegen als Kopie auf diesem Handy und öffnen auch ohne Verbindung. Ändert sich eine Datei in Drive, wird die Kopie erneuert.</string>
     <string name="drive_offline_empty">Noch nichts offline verfügbar. Im Menü ⋮ einer Datei oder eines Ordners: „Offline verfügbar“.</string>
+    <!-- Die Kopien auf diesem Handy -->
+    <string name="drive_offline_no_connection">Keine Verbindung zu Drive. Hier sind die Kopien auf diesem Handy – sie öffnen wie gewohnt.</string>
+    <string name="drive_offline_used">%1$s von %2$s auf diesem Handy</string>
+    <string name="drive_offline_running">Wird gerade aktualisiert …</string>
+    <string name="drive_offline_wait_wifi_all">Wartet auf WLAN (Drive-Einstellungen: „Offline-Dateien nur im WLAN laden“)</string>
+    <string name="drive_offline_refresh">Jetzt aktualisieren</string>
+    <string name="drive_offline_state_stored">Auf dem Handy</string>
+    <string name="drive_offline_state_pending">Wird geladen</string>
+    <string name="drive_offline_state_wifi">Wartet auf WLAN</string>
+    <string name="drive_offline_state_space">Passt nicht in den Speicher für Offline-Dateien</string>
+    <string name="drive_offline_state_device_space">Zu wenig Platz auf dem Handy</string>
+    <string name="drive_offline_state_outdated">Neuere Version wird geladen</string>
+    <string name="drive_offline_state_outdated_wifi">Ältere Version – neue wartet auf WLAN</string>
+    <string name="drive_offline_state_failed">Konnte nicht geladen werden, neuer Versuch folgt</string>
+    <string name="drive_offline_state_vault">Tresor: nur im Zwischenspeicher zu Hause</string>
+    <plurals name="drive_offline_folder_stored">
+        <item quantity="one">%1$d von %2$d Datei auf dem Handy</item>
+        <item quantity="other">%1$d von %2$d Dateien auf dem Handy</item>
+    </plurals>
+    <!-- Drive-Einstellungen › Daten auf diesem Gerät -->
+    <string name="drive_settings_offline_wifi">Offline-Dateien nur im WLAN laden</string>
+    <string name="drive_settings_offline_wifi_desc">Kopien von „Offline verfügbar“ laden nicht über mobile Daten</string>
+    <string name="drive_settings_offline_limit">Speicher für Offline-Dateien</string>
+    <string name="drive_settings_offline_limit_desc">%1$s belegt, höchstens %2$s</string>
 </resources>

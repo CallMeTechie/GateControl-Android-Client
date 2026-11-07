@@ -45,6 +45,8 @@ class DriveTransfers @Inject constructor(
     private val live: DriveLive,
     private val dates: DriveTakenAt,
     private val network: DriveUploadNetwork,
+    /** "Offline verfügbar": the copies kept on this phone open from there. */
+    private val offline: DriveOfflineStore,
 ) {
     enum class State { QUEUED, RUNNING, CONFLICT, DONE, SAME, SKIPPED, FAILED }
 
@@ -408,6 +410,14 @@ class DriveTransfers @Inject constructor(
     suspend fun fetch(node: DNode, versionId: Long? = null): DResult<File> = withContext(Dispatchers.IO) {
         // Blocked by the virus scan (Drive 1.19): not opened — not even a copy this phone has from before.
         node.scan?.refusalCode?.let { return@withContext DResult.Failed(it, 423) }
+        // "Offline verfügbar": the copy on this phone, when it is the version Drive has (an older one loads again soon)
+        if (versionId == null) {
+            offline.current(node)?.let { kept -> offline.handOut(kept, node.id, "r${node.rev}", DriveLogic.safeName(node.name) ?: "file") }?.let { out ->
+                if (DriveOverviewLogic.reportOpen(live.me.value, node, versionId)) scope.launch { api.opened(node.id) }
+                return@withContext DResult.Ok(out)
+            }
+            offline.noticeChanged(node)
+        }
         prune()
         val dir = File(File(context.cacheDir, "drive-open"), "${node.id}-${versionId?.let { "v$it" } ?: "r${node.rev}"}")
         val name = DriveLogic.safeName(node.name) ?: "file"
