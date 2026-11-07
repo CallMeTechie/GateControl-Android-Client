@@ -183,6 +183,9 @@ object GcIcons {
     val Map = icon("Map", 2f, "M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14M15 6v14")
     val Expand = icon("Expand", 2f, "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7")
     val Shrink = icon("Shrink", 2f, "M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7")
+    /** Sound of the camera live picture (door screen, "Ton"). */
+    val Volume = icon("Volume", 2f, "M11 5 6 9H2v6h4l5 4V5z", "M15.5 8.5a5 5 0 0 1 0 7", "M19 5a10 10 0 0 1 0 14")
+    val VolumeOff = icon("VolumeOff", 2f, "M11 5 6 9H2v6h4l5 4V5z", "M22 9l-6 6M16 9l6 6")
     val Briefcase = icon("Briefcase", 2f, rect(3f, 7f, 18f, 13f, 2f), "M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18")
     val House = icon("House", 2f, "M3 11l9-8 9 8", "M5 10v10h14V10")
     val Commute = icon("Commute", 2f, "M3 17l6-6 4 4 8-8", "M14 7h7v7")

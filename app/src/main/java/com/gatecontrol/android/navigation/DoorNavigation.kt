@@ -15,9 +15,11 @@ internal object DoorNavigation {
      * Screens that show [dest], in order. Phones: the door screen, and the
      * history or a ring's detail on top of it (back leads to the door
      * screen, then to where the person was). Wide windows: the door screen
-     * with [dest] beside its list.
+     * with [dest] beside its list. A home camera: the door screen showing it.
      */
     fun steps(dest: DoorDest, twoPane: Boolean): List<DoorStep> = when {
+        // A home camera is shown in the door screen itself ("Kameras"), on every window size.
+        dest is DoorDest.Camera -> listOf(DoorStep.Main(dest))
         twoPane -> listOf(DoorStep.Main(dest.takeIf { it != DoorDest.Home }))
         dest == DoorDest.Home -> listOf(DoorStep.Main())
         else -> listOf(DoorStep.Main(), DoorStep.Page(dest))

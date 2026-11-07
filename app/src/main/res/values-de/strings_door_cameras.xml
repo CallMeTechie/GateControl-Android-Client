@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tür & Kamera: Kameras im Heimnetz (Plugin gatecontrol-door 1.6.0), siehe docs/DOOR.md -->
+<resources>
+    <string name="door_home_title">Kameras</string>
+    <string name="door_home_online">%1$d online</string>
+    <string name="door_home_ring_cameras">Ring-Kameras</string>
+    <string name="door_home_offline_chip">%1$s (offline)</string>
+    <string name="door_home_live">● LIVE</string>
+    <string name="door_home_hd">HD</string>
+    <string name="door_home_sd">SD</string>
+    <string name="door_home_via_vpn">über VPN</string>
+    <string name="door_home_via_lan">im Heimnetz</string>
+    <string name="door_home_still_every">Standbild · alle %1$d s</string>
+    <string name="door_home_name_time">%1$s · %2$s</string>
+    <string name="door_home_live_desc">Live-Bild %1$s</string>
+    <string name="door_home_still_desc">Standbild %1$s</string>
+    <string name="door_home_connecting">Verbinde …</string>
+    <string name="door_home_video_retry">Live-Video gerade nicht verfügbar – Standbilder, gleich ein neuer Versuch.</string>
+    <plurals name="door_home_hint">
+        <item quantity="one">Unterwegs ohne VPN zeigt die App jede Sekunde ein neues Standbild; das Live-Video gibt es mit eingeschaltetem VPN.</item>
+        <item quantity="other">Unterwegs ohne VPN zeigt die App alle %1$d Sekunden ein neues Standbild; das Live-Video gibt es mit eingeschaltetem VPN.</item>
+    </plurals>
+    <string name="door_home_btn_still">Standbild</string>
+    <string name="door_home_btn_fullscreen">Vollbild</string>
+    <string name="door_home_btn_sound">Ton</string>
+    <string name="door_home_sound_on">Ton an</string>
+    <string name="door_home_sound_off">Ton aus</string>
+    <string name="door_home_still_save">In Galerie speichern</string>
+    <string name="door_home_still_share">Teilen</string>
+    <string name="door_home_still_saved">Standbild unter Bilder › GateControl gespeichert.</string>
+    <string name="door_home_still_failed">Das Standbild konnte nicht gespeichert werden.</string>
+    <string name="door_home_close">Schließen</string>
+    <string name="door_home_clips_today">Clips heute</string>
+    <string name="door_home_clips_none">Heute noch keine Clips.</string>
+    <string name="door_home_clip_title">%1$s · %2$s</string>
+    <string name="door_home_clip_no_video">kein Clip</string>
+    <string name="door_home_clip_nobody">Niemand zu Hause</string>
+    <string name="door_home_clip_thumb_desc">Vorschau Clip %1$s</string>
+    <string name="door_home_kind_person">Person</string>
+    <string name="door_home_kind_vehicle">Auto</string>
+    <string name="door_home_kind_animal">Tier</string>
+    <string name="door_home_kind_motion">Bewegung</string>
+    <string name="door_home_state_offline">Kamera nicht erreichbar</string>
+    <string name="door_home_state_auth">Kamera: Benutzer oder Passwort falsch</string>
+    <string name="door_home_state_not_allowed">Adresse der Kamera nicht erlaubt</string>
+    <string name="door_home_state_no_stream">Die Kamera liefert kein Video</string>
+    <string name="door_home_state_error">Kamera gestört</string>
+    <string name="door_error_cam_needs_gc">Kameras im Heimnetz brauchen eine neuere GateControl-Version.</string>
+    <string name="door_error_cam_auth">Die Kamera lehnt Benutzer oder Passwort ab.</string>
+    <string name="door_error_cam_unreachable">Die Kamera ist nicht erreichbar.</string>
+    <string name="door_error_cam_not_allowed">Die Adresse der Kamera ist nicht erlaubt.</string>
+    <string name="door_error_cam_offline">Das Gateway ist gerade nicht erreichbar.</string>
+    <string name="door_error_cam_unsupported">Das Gateway kann keine Kameras (zu alt oder „Kameras“ aus).</string>
+    <string name="door_error_cam_limit">Zu viele Kameras an diesem Gateway.</string>
+    <string name="door_error_cam_not_ready">Die Kamera startet noch – gleich noch einmal.</string>
+    <string name="door_error_cam_service">Am Gateway fehlt der Dienst „kameras“.</string>
+</resources>

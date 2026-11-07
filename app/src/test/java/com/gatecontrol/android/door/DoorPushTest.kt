@@ -40,6 +40,35 @@ class DoorPushTest {
     }
 
     @Test
+    fun `a person at a home camera opens the door screen with that camera`() {
+        val m = msg(
+            "plugin:gatecontrol-door:kamera",
+            """{"door":{"type":"home_camera_event","cameraId":"c3f9a1b2c4d5e6f7","eventId":"e0123456789abcde"}}""",
+            route = null,
+        )
+        val info = DoorPush.parse(m)!!
+        assertTrue(info.isHomeCamera)
+        assertFalse(info.isRing)
+        assertEquals("c3f9a1b2c4d5e6f7", info.homeCameraId)
+        // Home camera ids are not numbers: no Ring camera, no event detail.
+        assertNull(info.cameraId)
+        assertNull(info.eventId)
+        assertEquals(DoorDest.Camera("c3f9a1b2c4d5e6f7"), DoorPush.destination(m))
+        assertEquals("camera:c3f9a1b2c4d5e6f7", DoorPush.destination(m)!!.key)
+        // A malformed camera id: the door screen.
+        val bad = msg("plugin:gatecontrol-door:kamera", """{"door":{"type":"home_camera_event","cameraId":"../x"}}""", route = null)
+        assertFalse(DoorPush.parse(bad)!!.isHomeCamera)
+        assertEquals(DoorDest.Home, DoorPush.destination(bad))
+    }
+
+    @Test
+    fun `camera destinations survive the navigation argument`() {
+        assertEquals(DoorDest.Camera("c3f9a1b2c4d5e6f7"), DoorDest.parse("camera:c3f9a1b2c4d5e6f7"))
+        assertNull(DoorDest.parse("camera:c3F9"))
+        assertNull(DoorDest.parse("camera:"))
+    }
+
+    @Test
     fun `messages of others are not door messages`() {
         val other = msg("plugin:gatecontrol-familie:sos", """{"door":{"type":"ding","eventId":1}}""", route = "plg-gatecontrol-familie")
         assertNull(DoorPush.parse(other))

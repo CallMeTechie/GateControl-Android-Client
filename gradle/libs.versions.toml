@@ -36,6 +36,9 @@ wireguard-tunnel = "1.0.20260102"
 datastore = "1.3.0"
 security-crypto = "1.1.0"
 camerax = "1.6.0"
+# Door: live picture and clips of the home-network cameras (HLS fMP4 / MP4). Same line as the
+# media3-muxer that CameraX (camera-video) pulls, so both stay on one Media3 version.
+media3 = "1.9.4"
 mlkit-barcode = "17.3.0"
 mlkit-document-scanner = "16.0.0"
 mlkit-text-recognition = "19.0.1"
@@ -119,6 +122,12 @@ camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = 
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+
+# Media3 (door: home-network cameras)
+media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "media3" }
+media3-datasource-okhttp = { group = "androidx.media3", name = "media3-datasource-okhttp", version.ref = "media3" }
+media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 
 # ML Kit
 mlkit-barcode = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkit-barcode" }

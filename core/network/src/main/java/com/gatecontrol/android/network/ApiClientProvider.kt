@@ -154,6 +154,26 @@ class ApiClientProvider @Inject constructor(
             cache.clear()
             speedTestCache.clear()
             mediaCache.clear()
+            cameraCache.clear()
+        }
+    }
+
+    private val cameraCache = mutableMapOf<String, OkHttpClient>()
+
+    /**
+     * OkHttp for the live video and clips of the home cameras (`/camera-media/<token>/…` of
+     * the door plugin, played by Media3): the same DNS (VPN-safe) and interceptors as
+     * [getClient] — the media is on the same server —, read timeout long enough for an HLS
+     * segment or a part of a clip on a slow line.
+     */
+    fun cameraMediaClient(baseUrl: String): OkHttpClient {
+        val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        return synchronized(lock) {
+            cameraCache.getOrPut(normalizedUrl) {
+                buildOkHttpClient(normalizedUrl).newBuilder()
+                    .readTimeout(20, TimeUnit.SECONDS)
+                    .build()
+            }
         }
     }
 

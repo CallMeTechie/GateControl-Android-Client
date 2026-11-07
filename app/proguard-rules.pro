@@ -33,8 +33,10 @@
 # named here so a package move cannot silently drop it.
 -keep class com.gatecontrol.android.familie.school.** { <fields>; }
 # Door tab (Tür & Kamera): the plugin's answers are parsed from the Gson tree
-# (DoorJson) and only the raw `me` JSON is cached, but the models keep their
-# field names the same way, in case they are ever (de)serialized by reflection.
+# (DoorJson, HomeCameraJson for the home-network cameras) and only the raw `me`
+# JSON is cached, but the models keep their field names the same way, in case
+# they are ever (de)serialized by reflection. Media3 (live picture and clips of
+# the home cameras) ships its own consumer rules.
 -keep class com.gatecontrol.android.door.** { <fields>; }
 # Logbook (Fahrzeuge plugin): answers are parsed from the Gson tree
 # (LogbookJson), nothing is stored; the models keep their field names like

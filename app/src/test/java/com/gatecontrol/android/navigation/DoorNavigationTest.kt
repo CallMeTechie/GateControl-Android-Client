@@ -33,6 +33,14 @@ class DoorNavigationTest {
     }
 
     @Test
+    fun `a home camera push opens the door screen showing that camera, on every window size`() {
+        val cam = DoorDest.Camera("c3f9a1b2c4d5e6f7")
+        assertEquals(listOf(DoorStep.Main(cam)), DoorNavigation.forPush("camera:c3f9a1b2c4d5e6f7", pluginListed = true, twoPane = false))
+        assertEquals(listOf(DoorStep.Main(cam)), DoorNavigation.forPush("camera:c3f9a1b2c4d5e6f7", pluginListed = true, twoPane = true))
+        assertNull(DoorNavigation.forPush("camera:c3f9a1b2c4d5e6f7", pluginListed = false, twoPane = false))
+    }
+
+    @Test
     fun `other door pushes open the door screen`() {
         assertEquals(listOf(DoorStep.Main()), DoorNavigation.forPush("home", pluginListed = true, twoPane = false))
         assertEquals(listOf(DoorStep.Main()), DoorNavigation.forPush("home", pluginListed = true, twoPane = true))

@@ -8,17 +8,22 @@ import com.google.gson.JsonParser
 
 /** `data.door` of a door push (README "Pushes"). */
 data class DoorPushInfo(
-    /** ding | motion | auto_unlocked | auto_refused | auto_relocked | auto_relock_failed | auto_ask | open_long | jammed | unreachable | battery | night | ring_broken */
+    /** ding | motion | home_camera_event | auto_unlocked | auto_refused | auto_relocked | auto_relock_failed | auto_ask | open_long | jammed | unreachable | battery | night | ring_broken */
     val type: String,
     val eventId: Long?,
     val cameraId: Long?,
     val lockId: Long?,
+    /** `home_camera_event` (topic "Personen an der Kamera"): the home camera (`c` + 15 hex). */
+    val homeCameraId: String? = null,
 ) {
     val isRing: Boolean get() = type == DING || type == MOTION
+
+    val isHomeCamera: Boolean get() = type == HOME_CAMERA_EVENT && homeCameraId != null
 
     companion object {
         const val DING = "ding"
         const val MOTION = "motion"
+        const val HOME_CAMERA_EVENT = "home_camera_event"
     }
 }
 
@@ -43,6 +48,11 @@ sealed interface DoorDest {
         override val key get() = "event:$eventId"
     }
 
+    /** The door screen with this home camera shown in "Kameras" (push "Personen an der Kamera"). */
+    data class Camera(val cameraId: String) : DoorDest {
+        override val key get() = "camera:$cameraId"
+    }
+
     companion object {
         fun parse(key: String?): DoorDest? = when {
             key == null -> null
@@ -50,6 +60,7 @@ sealed interface DoorDest {
             key == History.key -> History
             key.startsWith("event:") -> key.removePrefix("event:").takeIf { it.length in 1..15 && it.all(Char::isDigit) }
                 ?.toLong()?.takeIf { it > 0 }?.let { Event(it) }
+            key.startsWith("camera:") -> key.removePrefix("camera:").takeIf { HomeCameraJson.CAMERA_ID_RE.matches(it) }?.let { Camera(it) }
             else -> null
         }
     }
@@ -71,14 +82,23 @@ object DoorPush {
         val data = message.dataJson ?: return null
         val door = runCatching { JsonParser.parseString(data).asJsonObject.obj("door") }.getOrNull() ?: return null
         val type = door.str("type")?.takeIf { TYPE_RE.matches(it) } ?: return null
-        return DoorPushInfo(type, door.id("eventId"), door.id("cameraId"), door.id("lockId"))
+        val homeCamera = if (type == DoorPushInfo.HOME_CAMERA_EVENT) door.str("cameraId")?.takeIf { HomeCameraJson.CAMERA_ID_RE.matches(it) } else null
+        return DoorPushInfo(type, door.id("eventId"), door.id("cameraId"), door.id("lockId"), homeCamera)
     }
 
-    /** Where a tap on a door message (or its "Ansehen") leads: the ring's detail, else the door screen. */
+    /**
+     * Where a tap on a door message (or its "Ansehen") leads: the ring's detail, the door
+     * screen with the home camera of a "Personen an der Kamera" push, else the door screen.
+     */
     fun destination(message: PushMessage): DoorDest? {
         if (!isDoorMessage(message)) return null
         val info = parse(message)
         val eventId = info?.eventId
-        return if (info != null && info.isRing && eventId != null) DoorDest.Event(eventId) else DoorDest.Home
+        val homeCamera = info?.homeCameraId
+        return when {
+            info != null && info.isRing && eventId != null -> DoorDest.Event(eventId)
+            info != null && info.isHomeCamera && homeCamera != null -> DoorDest.Camera(homeCamera)
+            else -> DoorDest.Home
+        }
     }
 }

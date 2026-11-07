@@ -127,6 +127,16 @@ fun doorErrorText(code: String, retryAfter: Int? = null): String = when (code) {
     "lock_failed", "nuki_error", "failed" -> stringResource(R.string.door_error_lock_failed)
     "not_found", "http_404" -> stringResource(R.string.door_error_not_found)
     "unsupported", "not_configured", "no_target" -> stringResource(R.string.door_error_unsupported)
+    // Kameras im Heimnetz (plugin 1.6.0)
+    "cam_needs_gc" -> stringResource(R.string.door_error_cam_needs_gc)
+    "cam_auth" -> stringResource(R.string.door_error_cam_auth)
+    "cam_unreachable" -> stringResource(R.string.door_error_cam_unreachable)
+    "cam_not_allowed" -> stringResource(R.string.door_error_cam_not_allowed)
+    "cam_offline" -> stringResource(R.string.door_error_cam_offline)
+    "cam_unsupported" -> stringResource(R.string.door_error_cam_unsupported)
+    "cam_limit" -> stringResource(R.string.door_error_cam_limit)
+    "cam_not_ready" -> stringResource(R.string.door_error_cam_not_ready)
+    "cam_service" -> stringResource(R.string.door_error_cam_service)
     else -> stringResource(R.string.door_error_generic, code)
 }
 
@@ -144,6 +154,7 @@ fun doorNoticeText(notice: DoorNotice): String = when (notice) {
 private val KNOWN_CODES = setOf(
     "offline", "no_right", "forbidden", "read_only", "outside_window", "rate_limited", "too_many", "too_soon",
     "ring_rate_limited", "no_image", "ring_not_connected", "lock_unreachable", "lock_failed", "not_found", "unsupported",
+    "cam_needs_gc", "cam_auth", "cam_unreachable", "cam_not_allowed", "cam_offline", "cam_unsupported", "cam_limit", "cam_not_ready", "cam_service",
 )
 
 /** Shows [notices] in [host] (the result snackbar of the door screens). */

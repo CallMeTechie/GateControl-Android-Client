@@ -2,6 +2,8 @@ package com.gatecontrol.android.ui.door
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,10 +74,11 @@ import java.time.format.TextStyle
 /**
  * Door screen "Tür & Kamera" (opened from the start tab's door card or a
  * door push; no tab): the locks of this person with state, door sensor,
- * battery and their buttons, the camera pictures with "Neues Bild" and the
- * push switches, the Ring status and the way to the history. [onBack]
- * returns to the start tab; [selected] marks the screen shown beside it on
- * wide windows.
+ * battery and their buttons, the cameras in the home network (live picture,
+ * stills, clips — [focusCamera] from a push), the Ring camera pictures with
+ * "Neues Bild" and the push switches, the Ring status and the way to the
+ * history. [onBack] returns to the start tab; [selected] marks the screen
+ * shown beside it on wide windows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,7 +87,10 @@ fun DoorHomeScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     selected: DoorDest? = null,
+    /** A home camera to show (push "Personen an der Kamera"). */
+    focusCamera: String? = null,
     viewModel: DoorHomeViewModel = hiltViewModel(),
+    cameras: HomeCameraViewModel = hiltViewModel(),
 ) {
     val overview by viewModel.overview.collectAsStateWithLifecycle()
     val fromCache by viewModel.fromCache.collectAsStateWithLifecycle()
@@ -99,6 +105,23 @@ fun DoorHomeScreen(
     LifecycleResumeEffect(viewModel) {
         viewModel.startPolling()
         onPauseOrDispose { viewModel.stopPolling() }
+    }
+    // Home cameras: list, live picture / stills and clips only while the door screen is in front.
+    LifecycleResumeEffect(cameras) {
+        cameras.start()
+        onPauseOrDispose { cameras.stop() }
+    }
+    val cameraUi by cameras.ui.collectAsStateWithLifecycle()
+    val hasHomeCameras = cameraUi.loaded && cameraUi.cameras.isNotEmpty()
+    val cameraSection = remember { BringIntoViewRequester() }
+    LaunchedEffect(focusCamera) { cameras.focus(focusCamera) }
+    val focusShown = focusCamera != null && cameraUi.selected == focusCamera
+    LaunchedEffect(focusShown) {
+        if (focusShown) {
+            // Let the section lay out first, then scroll it into view.
+            delay(300)
+            cameraSection.bringIntoView()
+        }
     }
     DoorNoticeSnackbar(viewModel.notice, snackbar)
     val start = rememberDoorActionStarter(onRun = viewModel::runAction, onNotice = viewModel::notify)
@@ -126,6 +149,10 @@ fun DoorHomeScreen(
                             onSnapshot = viewModel::loadSnapshot,
                             onPref = viewModel::setPref,
                             onOpen = onOpen,
+                            hasHomeCameras = hasHomeCameras,
+                            homeCameras = {
+                                HomeCamerasSection(cameras, snackbar, Modifier.bringIntoViewRequester(cameraSection))
+                            },
                         )
                     }
                 }
@@ -176,6 +203,8 @@ private fun Content(
     onSnapshot: (Long, Boolean) -> Unit,
     onPref: (DoorCamera, Boolean?, Boolean?) -> Unit,
     onOpen: (DoorDest) -> Unit,
+    hasHomeCameras: Boolean,
+    homeCameras: @Composable () -> Unit,
 ) {
     val extra = GateControlTheme.extraColors
     if (fromCache) {
@@ -191,7 +220,8 @@ private fun Content(
     }
 
     if (o.locks.isEmpty()) {
-        GcCard {
+        // Only cameras for this person: no "no lock yet" card above them.
+        if (!hasHomeCameras) GcCard {
             Text(stringResource(R.string.door_empty), style = MaterialTheme.typography.bodyMedium, color = extra.muted)
         }
     } else {
@@ -201,8 +231,14 @@ private fun Content(
         }
     }
 
+    // Kameras im Heimnetz (plugin 1.6.0): nothing when the server lists none for this person.
+    homeCameras()
+
     if (o.cameras.isNotEmpty()) {
-        GcSectionLabel(stringResource(R.string.door_cameras), Modifier.padding(start = 4.dp, top = 4.dp))
+        GcSectionLabel(
+            stringResource(if (hasHomeCameras) R.string.door_home_ring_cameras else R.string.door_cameras),
+            Modifier.padding(start = 4.dp, top = 4.dp),
+        )
         o.cameras.forEach { cam ->
             CameraCard(cam, snapshots[cam.id], canAct = o.me.canAct, onSnapshot = onSnapshot, onPref = onPref)
         }

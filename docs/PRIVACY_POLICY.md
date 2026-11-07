@@ -58,6 +58,7 @@ Die Tür-Funktionen (Schnellaktionen, Mitteilungen und der Bildschirm „Tür & 
 - **Bilder in Mitteilungen:** Mitteilungen deines Servers können ein Bild enthalten (z. B. wer an der Haustür klingelt). Die App lädt es nur von deinem eigenen Server und zeigt es in der Mitteilung und in „Mitteilungen“; es bleibt nur im Arbeitsspeicher. Je nach Android-Einstellung ist die Mitteilung samt Bild auch auf dem Sperrbildschirm sichtbar. Der Server löscht das Bild, wenn die Mitteilung abläuft (bei der Klingel nach einer Stunde).
 - **„Tür öffnen“ aus der Mitteilung:** Der Knopf verlangt das Entsperren des Geräts, bevor der Befehl an deinen Server geht.
 - **Ring:** Die Verbindung zu Ring (Klingeln, Kamerabilder) stellt dein Server her, nicht die App — über eine inoffizielle Schnittstelle, ohne Gewähr.
+- **Kameras im Heimnetz:** Live-Bild, Standbilder und Clips kommen von **deinem eigenen Server** (über dein GateControl-Gateway zu Hause, ohne Hersteller-Cloud), nur von Kameras, die dir der Betreiber freigegeben hat. Das Live-Video gibt es nur über das VPN. Die App spielt sie ab und hält Bilder nur im Arbeitsspeicher; gespeichert wird ein Standbild nur, wenn du „Standbild › In Galerie speichern“ wählst (Bilder › GateControl), und geteilt nur über „Teilen“ (eine Datei im App-Cache, die mit dem Bildschirm wieder gelöscht wird).
 
 Nichts davon geht an CallMeTechie oder andere Dritte.
 
@@ -155,6 +156,7 @@ The door features (quick actions, notifications and the "Door & camera" screen) 
 - **Pictures in notifications:** messages from your server may carry a picture (e.g. who is ringing at the front door). The app loads it only from your own server and shows it in the notification and in "Notifications"; it is kept in memory only. Depending on your Android settings the notification, picture included, may also be visible on the lock screen. The server deletes the picture when the message expires (for the doorbell after one hour).
 - **"Open door" from a notification:** the button requires unlocking the device before the command goes to your server.
 - **Ring:** the connection to Ring (rings, camera pictures) is made by your server, not by the app — through an unofficial interface, without warranty.
+- **Cameras in the home network:** live picture, stills and clips come from **your own server** (through your GateControl gateway at home, no vendor cloud), only from cameras the operator gave you. The live video is only available through the VPN. The app plays them and keeps pictures in memory only; a still is stored only when you choose "Still › Save to gallery" (Pictures › GateControl), and shared only through "Share" (one file in the app's cache, deleted again with the screen).
 
 None of this goes to CallMeTechie or other third parties.
 

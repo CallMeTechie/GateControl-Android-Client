@@ -29,4 +29,8 @@
          day, removed with Mail's offline copy). Uploads in cacheDir/mail-up
          stay private. -->
     <cache-path name="mail_open" path="mail-open/" />
+    <!-- Tür & Kamera: a still of a home camera the person shares
+         ("Standbild › Teilen"; cacheDir/camera-still, one file at a time,
+         removed with the door screen). -->
+    <cache-path name="camera_still" path="camera-still/" />
 </paths>

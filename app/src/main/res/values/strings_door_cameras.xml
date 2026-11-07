@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tür & Kamera: cameras in the home network (plugin gatecontrol-door 1.6.0), see docs/DOOR.md -->
+<resources>
+    <string name="door_home_title">Cameras</string>
+    <string name="door_home_online">%1$d online</string>
+    <string name="door_home_ring_cameras">Ring cameras</string>
+    <string name="door_home_offline_chip">%1$s (offline)</string>
+    <string name="door_home_live">● LIVE</string>
+    <string name="door_home_hd">HD</string>
+    <string name="door_home_sd">SD</string>
+    <string name="door_home_via_vpn">over VPN</string>
+    <string name="door_home_via_lan">in the home network</string>
+    <string name="door_home_still_every">Still · every %1$d s</string>
+    <string name="door_home_name_time">%1$s · %2$s</string>
+    <string name="door_home_live_desc">Live picture of %1$s</string>
+    <string name="door_home_still_desc">Still of %1$s</string>
+    <string name="door_home_connecting">Connecting …</string>
+    <string name="door_home_video_retry">Live video not available right now – showing stills, trying again shortly.</string>
+    <plurals name="door_home_hint">
+        <item quantity="one">On the go without VPN the app shows a new still every second; the live video needs the VPN switched on.</item>
+        <item quantity="other">On the go without VPN the app shows a new still every %1$d seconds; the live video needs the VPN switched on.</item>
+    </plurals>
+    <string name="door_home_btn_still">Still</string>
+    <string name="door_home_btn_fullscreen">Full screen</string>
+    <string name="door_home_btn_sound">Sound</string>
+    <string name="door_home_sound_on">Sound on</string>
+    <string name="door_home_sound_off">Sound off</string>
+    <string name="door_home_still_save">Save to gallery</string>
+    <string name="door_home_still_share">Share</string>
+    <string name="door_home_still_saved">Still saved to Pictures › GateControl.</string>
+    <string name="door_home_still_failed">The still could not be saved.</string>
+    <string name="door_home_close">Close</string>
+    <string name="door_home_clips_today">Clips today</string>
+    <string name="door_home_clips_none">No clips today yet.</string>
+    <string name="door_home_clip_title">%1$s · %2$s</string>
+    <string name="door_home_clip_no_video">no clip</string>
+    <string name="door_home_clip_nobody">Nobody home</string>
+    <string name="door_home_clip_thumb_desc">Preview of the clip %1$s</string>
+    <string name="door_home_kind_person">Person</string>
+    <string name="door_home_kind_vehicle">Car</string>
+    <string name="door_home_kind_animal">Animal</string>
+    <string name="door_home_kind_motion">Motion</string>
+    <string name="door_home_state_offline">Camera not reachable</string>
+    <string name="door_home_state_auth">Camera: wrong user or password</string>
+    <string name="door_home_state_not_allowed">The camera\'s address is not allowed</string>
+    <string name="door_home_state_no_stream">The camera sends no video</string>
+    <string name="door_home_state_error">Camera fault</string>
+    <string name="door_error_cam_needs_gc">Cameras in the home network need a newer GateControl version.</string>
+    <string name="door_error_cam_auth">The camera refuses the user or password.</string>
+    <string name="door_error_cam_unreachable">The camera is not reachable.</string>
+    <string name="door_error_cam_not_allowed">The camera\'s address is not allowed.</string>
+    <string name="door_error_cam_offline">The gateway is not reachable right now.</string>
+    <string name="door_error_cam_unsupported">The gateway cannot show cameras (too old, or “Cameras” is off).</string>
+    <string name="door_error_cam_limit">Too many cameras on this gateway.</string>
+    <string name="door_error_cam_not_ready">The camera is still starting – try again shortly.</string>
+    <string name="door_error_cam_service">The service “kameras” is missing on the gateway.</string>
+</resources>

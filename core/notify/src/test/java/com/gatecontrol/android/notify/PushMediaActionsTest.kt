@@ -114,4 +114,19 @@ class PushMediaActionsTest {
         assertEquals(ChannelImportance.DEFAULT, PushChannels.topicChannel("plugin:gatecontrol-door:door", "Tür").importance)
         assertEquals(ChannelImportance.HIGH, PushChannels.channelFor(parse(doorbell)).importance)
     }
+
+    @Test
+    fun `a person at a home camera comes with its still, pops up and has no buttons of its own`() {
+        val json = """
+            {"seq":502,"id":89,"event_id":"cam","topic":"plugin:gatecontrol-door:kamera","priority":"high",
+             "title":"Person an der Einfahrt","body":"Niemand ist zu Hause · 14:02","collapse_key":"homecam:c3f9a1b2c4d5e6f7",
+             "imageUrl":"/notify-media/QrStUvWxAbCdEfGhIjKlMnOp.jpg",
+             "data":{"door":{"type":"home_camera_event","cameraId":"c3f9a1b2c4d5e6f7","eventId":"e0123456789abcde"}}}
+        """.trimIndent()
+        val m = parse(json)
+        assertEquals("/notify-media/QrStUvWxAbCdEfGhIjKlMnOp.jpg", m.imageUrl)
+        assertTrue(m.actions.isEmpty())
+        assertEquals(ChannelImportance.HIGH, PushChannels.channelFor(m).importance)
+        assertEquals(ChannelImportance.HIGH, PushChannels.topicChannel(PushChannels.HOME_CAMERA_TOPIC, "Personen an der Kamera").importance)
+    }
 }
