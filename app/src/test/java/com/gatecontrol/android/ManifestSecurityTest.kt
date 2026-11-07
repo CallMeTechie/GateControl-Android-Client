@@ -235,15 +235,18 @@ class ManifestSecurityTest {
             .newDocumentBuilder().parse(moduleFile("src/main/res/xml/shortcuts.xml")).documentElement
         assertEquals(0, xml.getElementsByTagName("shortcut").length, "no static shortcuts")
         val targets = xml.getElementsByTagName("share-target").let { n -> (0 until n.length).map { n.item(it) as Element } }
-        // The share sheet shows a sharing shortcut only under the entry it names: both aliases (one is on).
-        assertEquals(
-            com.gatecontrol.android.chat.ChatShareTarget.entries.map { it.alias }.toSet(),
-            targets.map { it.androidAttr("targetClass") }.toSet(),
-        )
-        targets.forEach { target ->
-            val category = (target.getElementsByTagName("category").item(0) as Element).androidAttr("name")
-            assertEquals(com.gatecontrol.android.chat.ChatShortcutLogic.SHARE_CATEGORY, category)
+        // A sharing shortcut shows up only under the entry it is paired with: one share-target per alias,
+        // each with exactly its own category (the system takes the first share-target whose categories match).
+        val byClass = targets.associate { target ->
+            val categories = target.getElementsByTagName("category").let { n -> (0 until n.length).map { (n.item(it) as Element).androidAttr("name") } }
+            target.androidAttr("targetClass") to categories
         }
+        assertEquals(targets.size, byClass.size)
+        assertEquals(
+            com.gatecontrol.android.chat.ChatShareTarget.entries.associate { it.alias to listOf(it.category) },
+            byClass,
+        )
+        assertEquals(com.gatecontrol.android.chat.ChatShortcutLogic.SHARE_CATEGORY, com.gatecontrol.android.chat.ChatShareTarget.CHAT.category)
     }
 
     @Test

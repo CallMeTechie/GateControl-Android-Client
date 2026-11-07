@@ -28,4 +28,12 @@ class ChatShareTargetsTest {
         assertEquals(aliases.size, aliases.toSet().size)
         aliases.forEach { check(it.startsWith("com.gatecontrol.android.chat.")) { it } }
     }
+
+    @Test
+    fun `sharing shortcuts carry the category of the entry that is on`() {
+        assertEquals(ChatShareTarget.GATEDROP.category, ChatShortcutLogic.shareCategory(ChatShareTarget.GATEDROP))
+        assertEquals(ChatShareTarget.CHAT.category, ChatShortcutLogic.shareCategory(ChatShareTarget.CHAT))
+        assertEquals(ChatShareTarget.CHAT.category, ChatShortcutLogic.shareCategory(null))
+        assertEquals(ChatShareTarget.entries.size, ChatShareTarget.entries.map { it.category }.toSet().size)
+    }
 }

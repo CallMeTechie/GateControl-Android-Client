@@ -307,12 +307,17 @@ class ChatShareActivity : ComponentActivity() {
     }
 }
 
-/** The share sheet entries of [ChatShareActivity] (activity-alias in AndroidManifest.xml, share-target in res/xml/shortcuts.xml). */
-enum class ChatShareTarget(val alias: String) {
+/**
+ * The share sheet entries of [ChatShareActivity] (activity-alias in AndroidManifest.xml) with the
+ * category a chat's sharing shortcut needs to show up under it (share-target in res/xml/shortcuts.xml:
+ * the system pairs a shortcut with the first share-target whose categories it has, so each entry has
+ * its own and a shortcut carries only the one of the entry that is on, [ChatShortcutLogic.shareCategory]).
+ */
+enum class ChatShareTarget(val alias: String, val category: String) {
     /** „GateDrop“: the GateDrop sheet (the chats one tap away). */
-    GATEDROP("com.gatecontrol.android.chat.GateDropShareTarget"),
+    GATEDROP("com.gatecontrol.android.chat.GateDropShareTarget", "com.gatecontrol.android.chat.SHARE_TARGET_GATEDROP"),
     /** „An Chat senden“: pick a chat. */
-    CHAT("com.gatecontrol.android.chat.ChatShareTarget"),
+    CHAT("com.gatecontrol.android.chat.ChatShareTarget", "com.gatecontrol.android.chat.SHARE_TARGET"),
 }
 
 /** Which share sheet entry is on. Pure, unit-tested. */

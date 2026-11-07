@@ -210,8 +210,12 @@ class ChatRepository @Inject constructor(
         scope.launch {
             combine(available, shortcuts.enabled) { on, sc -> on && sc }.distinctUntilChanged().collectLatest { on ->
                 if (!on) return@collectLatest
-                conversations.map { ChatShortcutLogic.recent(it) }
-                    .distinctUntilChanged()
+                // Republished too when the share sheet entry changes ("GateDrop" / "An Chat senden"):
+                // the sharing shortcuts carry its category.
+                combine(
+                    conversations.map { ChatShortcutLogic.recent(it) }.distinctUntilChanged(),
+                    pluginDirectory.state.map { ChatShareTargets.choose(gatedrop = it.gatedrop, chats = it.messengerTab) }.distinctUntilChanged(),
+                ) { recent, _ -> recent }
                     .debounce(SHORTCUT_DEBOUNCE_MS)
                     .collect { runCatching { shortcuts.publish(it) } }
             }
