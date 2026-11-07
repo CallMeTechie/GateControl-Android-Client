@@ -53,6 +53,7 @@ import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcSubpageBar
@@ -341,6 +342,11 @@ fun MailSettingsScreen(
                         checked = cals?.prefs?.freeBusy ?: true,
                         onCheckedChange = viewModel::setFreeBusy,
                     )
+                    // Mail 1.9.0: „Arbeitszeit“ — the window of „Frei/Gebucht“ and of the planner's suggestions
+                    cals?.prefs?.workHours?.let { hours ->
+                        GcRowDivider()
+                        com.gatecontrol.android.ui.mail.calendar.WorkHoursBlock(hours, onChange = viewModel::setWorkHours)
+                    }
                 }
             }
             GcSectionLabel(stringResource(R.string.mail_accounts))

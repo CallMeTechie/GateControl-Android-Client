@@ -29,6 +29,53 @@ object MailPlanLogic {
     private const val HOUR_MS = 3_600_000L
     private val RESOURCE_ADDRESS = Regex("^resource-(\\d{1,15})@resources\\.gatecontrol\\.invalid$", RegexOption.IGNORE_CASE)
 
+    // ─── where a new event can go (Mail 1.9.0) ───────────────────────
+
+    /**
+     * A calendar a new event can be saved in: an own writable one ([calendar] set) or a GateControl calendar shared with
+     * the person at „Bearbeiten“ ([shared] set; saved as its owner, without attendees — the server answers 409
+     * `not_supported { what: 'shared_attendees' }` otherwise).
+     */
+    data class EventTarget(val id: Long, val name: String, val color: String, val calendar: MCalendar?, val shared: MSharedCalendar?) {
+        val isShared: Boolean get() = shared != null
+    }
+
+    /** The own writable calendars first, then those shared with the person at „Bearbeiten“ (as in the portal). */
+    fun eventTargets(cals: MCalendars?): List<EventTarget> {
+        cals ?: return emptyList()
+        val own = cals.calendars.filter { it.writable }.map { EventTarget(it.id, it.name, it.color, it, null) }
+        val ids = own.map { it.id }.toSet()
+        val shared = cals.shared.filter { it.level == MShare.WRITE && it.id !in ids }.map { EventTarget(it.id, it.name, it.color, null, it) }
+        return own + shared
+    }
+
+    /** Whether [calendarId] is a calendar shared with the person (not an own one). */
+    fun isSharedTarget(cals: MCalendars?, calendarId: Long?): Boolean =
+        calendarId != null && cals?.calendar(calendarId) == null && cals?.sharedCalendar(calendarId) != null
+
+    // ─── working hours (`CalPrefs.workHours`) ───────────────────────
+
+    private val HHMM = Regex("^([01]\\d|2[0-3]):[0-5]\\d$")
+
+    /** The working hours as the server takes them (days 1…7 sorted, at least one, `from` < `to`, `to` up to 24:00), else null. */
+    fun workHours(days: Collection<Int>, from: String, to: String): MWorkHours? {
+        val d = days.filter { it in 1..7 }.distinct().sorted()
+        if (d.isEmpty() || !HHMM.matches(from) || !(HHMM.matches(to) || to == END_OF_DAY) || from >= to) return null
+        return MWorkHours(d, from, to)
+    }
+
+    /** A day switched on or off; null when no day would be left. */
+    fun toggleDay(h: MWorkHours, day: Int): MWorkHours? {
+        val next = if (day in h.days) h.days - day else h.days + day
+        return workHours(next, h.from, h.to)
+    }
+
+    /** A picked time as `HH:MM`; midnight as the end of the working day is `24:00`. */
+    fun hhmm(hour: Int, minute: Int, end: Boolean = false): String =
+        if (end && hour == 0 && minute == 0) END_OF_DAY else "%02d:%02d".format(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+
+    const val END_OF_DAY = "24:00"
+
     /** A part of a bar: [status] over [start, end), [fraction] of the whole bar. */
     data class Segment(val status: String, val start: Long, val end: Long, val fraction: Float)
 

@@ -50,7 +50,8 @@ class NotificationSettingsViewModelTest {
     @TempDir lateinit var dir: File
 
     private lateinit var store: PushPrefsStore
-    private val repository: PushRepository = mockk(relaxed = true)
+    private val email = MutableStateFlow(com.gatecontrol.android.notify.model.EmailChannel.UNKNOWN)
+    private val repository: PushRepository = mockk(relaxed = true) { every { email } returns this@NotificationSettingsViewModelTest.email }
     private val controller: PushController = mockk(relaxed = true)
     private val portal: PortalLinkResolver = mockk(relaxed = true)
     private val status = MutableStateFlow<PushStatus>(PushStatus.Off)
@@ -240,5 +241,36 @@ class NotificationSettingsViewModelTest {
             await { vm.effect.first() },
         )
         io.mockk.coVerify(timeout = 10_000) { portal.resolve("/portal#benachrichtigungen") }
+    }
+
+    @Test
+    fun `Auch per E-Mail - a box under the plugin topics that have the channel, saved per person`() {
+        coEvery { repository.setEmailTopic(any(), any()) } returns true
+        val vm = vm()
+        await { store.saveTopics(listOf(PushTopic("devices", "Geräte"), PushTopic("plugin:gatecontrol-mail:resource_request", "Buchungsanfrage"), PushTopic("plugin:gatecontrol-mail:mail", "Neue Mail"))) }
+        // older server: no box anywhere
+        var s = await { vm.uiState.first { it.topics.size == 3 } }
+        assertTrue(s.topics.all { it.email == null })
+
+        email.value = com.gatecontrol.android.notify.model.EmailChannel(true, mapOf("plugin:gatecontrol-mail:resource_request" to true, "plugin:gatecontrol-mail:mail" to false), "anna@example.com", true)
+        s = await { vm.uiState.first { st -> st.topics.any { it.email != null } } }
+        assertEquals(listOf(null, true, false), s.topics.map { it.email })
+        assertEquals("anna@example.com", s.email.to)
+        assertTrue(s.email.usable)
+
+        vm.setTopicEmail("plugin:gatecontrol-mail:mail", true)
+        io.mockk.coVerify(timeout = 10_000) { repository.setEmailTopic("plugin:gatecontrol-mail:mail", true) }
+        s = await { vm.uiState.first { it.email.saving == null } }
+        assertFalse(s.email.failed)
+
+        // not saved: the box stays and the screen says so
+        coEvery { repository.setEmailTopic(any(), any()) } returns false
+        vm.setTopicEmail("plugin:gatecontrol-mail:mail", true)
+        await { vm.uiState.first { it.email.failed && it.email.saving == null } }
+
+        // no mail server: the box is there but cannot be changed
+        email.value = com.gatecontrol.android.notify.model.EmailChannel(true, mapOf("plugin:gatecontrol-mail:mail" to false), null, false)
+        s = await { vm.uiState.first { !it.email.ready } }
+        assertFalse(s.email.usable)
     }
 }

@@ -317,4 +317,49 @@ class MailPlanTest {
         assertTrue(MailPush.isCalendarTopic(MailPush.TOPIC_RES_BOOKING))
         assertNotNull(MailPush.destination(msg(MailPush.TOPIC_SHARE, null)))
     }
+
+    @Test
+    fun `new events - own writable calendars first, then the shared ones at Bearbeiten, never read or free busy`() {
+        val c = MailPimJson.calendars(
+            o(
+                """{"calendars":[{"id":1,"name":"Privat","color":"#46e0a0","writable":true},{"id":2,"name":"Feiertage","source":"ics","writable":false}],
+                "prefs":{},
+                "shared":[{"id":9,"name":"Urlaube","color":"#8C96A5","owner":{"userId":4,"name":"Sabine K."},"level":"read","via":"user","visible":true,"accepted":true,"writable":false},
+                {"id":11,"name":"Team","color":"#5B8DEF","owner":{"userId":5,"name":"Tom B."},"level":"write","via":"group","group":"Vertrieb","visible":false,"accepted":true,"writable":true},
+                {"id":12,"name":"Belegt","color":"#5B8DEF","owner":{"userId":5,"name":"Tom B."},"level":"freebusy","via":"user","visible":true,"accepted":true,"writable":false}]}""",
+            ),
+        )!!
+        val t = MailPlanLogic.eventTargets(c)
+        assertEquals(listOf(1L, 11L), t.map { it.id })
+        assertFalse(t[0].isShared)
+        assertEquals("Privat", t[0].calendar!!.name)
+        assertTrue(t[1].isShared)
+        assertEquals("Tom B.", t[1].shared!!.ownerName)
+        assertNull(t[1].calendar)
+        assertTrue(MailPlanLogic.isSharedTarget(c, 11))
+        assertFalse(MailPlanLogic.isSharedTarget(c, 1))
+        assertFalse(MailPlanLogic.isSharedTarget(c, null))
+        assertTrue(MailPlanLogic.eventTargets(null).isEmpty())
+    }
+
+    @Test
+    fun `working hours - only what the server takes, midnight as the end is 24 00, the body`() {
+        assertEquals(MWorkHours(listOf(1, 3, 5), "07:30", "16:00"), MailPlanLogic.workHours(listOf(5, 1, 3, 3), "07:30", "16:00"))
+        assertEquals(MWorkHours(listOf(6), "20:00", "24:00"), MailPlanLogic.workHours(listOf(6), "20:00", "24:00"))
+        assertNull(MailPlanLogic.workHours(emptyList(), "08:00", "18:00"), "no day")
+        assertNull(MailPlanLogic.workHours(listOf(1), "18:00", "08:00"), "from after to")
+        assertNull(MailPlanLogic.workHours(listOf(1), "08:00", "08:00"), "nothing")
+        assertNull(MailPlanLogic.workHours(listOf(1), "24:00", "24:00"), "24:00 only as the end")
+        assertNull(MailPlanLogic.workHours(listOf(8), "08:00", "18:00"), "no eighth day")
+        val h = MWorkHours.DEFAULT
+        assertEquals(listOf(1, 2, 3, 4, 5, 6), MailPlanLogic.toggleDay(h, 6)!!.days)
+        assertEquals(listOf(2, 3, 4, 5), MailPlanLogic.toggleDay(h, 1)!!.days)
+        assertNull(MailPlanLogic.toggleDay(MWorkHours(listOf(3), "08:00", "18:00"), 3), "the last day stays")
+        assertEquals("24:00", MailPlanLogic.hhmm(0, 0, end = true))
+        assertEquals("00:00", MailPlanLogic.hhmm(0, 0))
+        assertEquals("07:05", MailPlanLogic.hhmm(7, 5, end = true))
+        val b = MailPimJson.calSettingsBody(workHours = MWorkHours(listOf(1, 2), "09:00", "17:30"))
+        assertEquals("""{"workHours":{"days":[1,2],"from":"09:00","to":"17:30"}}""", b.toString())
+        assertFalse(MailPimJson.calSettingsBody(freeBusy = true).has("workHours"))
+    }
 }

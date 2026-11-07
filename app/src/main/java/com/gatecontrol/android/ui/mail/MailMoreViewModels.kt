@@ -268,6 +268,23 @@ class MailSettingsViewModel @Inject constructor(
         }
     }
 
+    /** „Arbeitszeit“ (Mail 1.9.0): the planner's window and its suggestions; at once on the screen, back on failure. */
+    fun setWorkHours(hours: com.gatecontrol.android.mail.MWorkHours) {
+        val pim = repository.pim
+        val before = pim.calendars.value?.prefs ?: return
+        if (before.workHours == hours) return
+        pim.putPrefs(before.copy(workHours = hours))
+        viewModelScope.launch {
+            when (val r = repository.api.calendarSettings(com.gatecontrol.android.mail.MailPimJson.calSettingsBody(workHours = hours))) {
+                is MResult.Ok -> pim.putPrefs(r.value)
+                else -> {
+                    pim.putPrefs(before)
+                    _toast.value = mailText(context, MailHomeViewModel.code(r))
+                }
+            }
+        }
+    }
+
     fun put(threads: Boolean? = null, swipeLeft: String? = null, swipeRight: String? = null) {
         val me = repository.me.value ?: return
         // at once on the screen

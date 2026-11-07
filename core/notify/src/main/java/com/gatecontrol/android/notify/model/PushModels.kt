@@ -182,6 +182,30 @@ data class QuietInfo(val known: Boolean, val hours: QuietHours?) {
 }
 
 /**
+ * The person's e-mail channel of plugin topics (`GET push/prefs` →
+ * `email_topics`, `email_to`, `email_ready`; core 1.225.0+): which topics
+ * also arrive by e-mail to the account address. The same switches as
+ * „Auch per E-Mail an …“ in the portal, per person — not per device.
+ * [known] is false while no server said (older servers): nothing is shown.
+ */
+data class EmailChannel(
+    val known: Boolean,
+    /** Topic id → e-mail on. Only topics with an e-mail channel are listed. */
+    val topics: Map<String, Boolean>,
+    /** The account address the mails go to; null: the account has none. */
+    val to: String?,
+    /** GateControl has an SMTP server set up. */
+    val ready: Boolean,
+) {
+    /** The switch can be changed: there is an address and a mail server. */
+    val usable: Boolean get() = known && ready && !to.isNullOrBlank()
+
+    companion object {
+        val UNKNOWN = EmailChannel(false, emptyMap(), null, false)
+    }
+}
+
+/**
  * `hello.state`: the server's view of this device, sent on every (re)connect
  * by servers that also send `control` events. Every field may be missing
  * (null) — then nothing is known about it. A token without a bound peer

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notifications: "Also by e-mail" per plugin topic (GateControl 1.225.0, as in the portal) -->
+    <string name="push_email">Also by e-mail</string>
+    <string name="push_email_to">Also by e-mail to %1$s</string>
+    <string name="push_email_no_address">Your account has no address for e-mails</string>
+    <string name="push_email_no_smtp">E-mail is not set up on this server</string>
+    <string name="push_email_failed">Not saved – please try again.</string>
+    <!-- Mail 1.9.0: working hours (free/busy and the planner's suggestions) -->
+    <string name="cal_work_hours">Working hours</string>
+    <string name="cal_work_hours_d">Suggestions when everyone can only come from this time</string>
+    <string name="cal_work_from">From</string>
+    <string name="cal_work_to">To</string>
+    <string name="cal_work_bad">“To” has to be after “From”.</string>
+    <string name="cal_work_no_day">At least one day.</string>
+    <!-- Mail 1.9.0: new events in calendars shared at "Edit" -->
+    <string name="cal_shared_section">Shared with me · Edit</string>
+</resources>

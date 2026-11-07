@@ -25,9 +25,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -234,6 +237,18 @@ fun NotificationSettingsScreen(
                         onCheckedChange = { viewModel.setTopicEnabled(topic.id, it) },
                         enabled = !topic.locked,
                     )
+                    // core 1.225.0: „Auch per E-Mail an …“ under the topic's own switch (per person, as in the portal)
+                    topic.email?.let { on ->
+                        EmailTopicRow(on, ui.email, saving = ui.email.saving == topic.id) { viewModel.setTopicEmail(topic.id, it) }
+                    }
+                }
+                if (ui.email.failed) {
+                    Text(
+                        stringResource(R.string.push_email_failed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
                 }
                 if (onOpenRoutes != null) NotifyRoutesEntryRow(onOpenRoutes)
                 GcListRow(
@@ -308,6 +323,41 @@ fun NotificationSettingsScreen(
                 TextButton(onClick = { viewModel.confirmMode(PushMode.VPN_ONLY) }) { Text(stringResource(R.string.push_mode_dialog_vpn)) }
             },
         )
+    }
+}
+
+/**
+ * „Auch per E-Mail an <Adresse>“: the push of this topic also as a mail to the account address, through
+ * GateControl's SMTP server — the person's choice, independent of the switch above (portal: the same box).
+ * Without an address or a mail server the box is greyed and says why.
+ */
+@Composable
+private fun EmailTopicRow(checked: Boolean, email: EmailDisplay, saving: Boolean, onChange: (Boolean) -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val enabled = email.usable && email.saving == null
+    val label = email.to?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.push_email_to, it) } ?: stringResource(R.string.push_email)
+    val note = when {
+        !email.ready -> stringResource(R.string.push_email_no_smtp)
+        email.to.isNullOrBlank() -> stringResource(R.string.push_email_no_address)
+        else -> null
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange)
+            .padding(start = 8.dp, end = 16.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (saving) {
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) }
+        } else {
+            Checkbox(checked = checked, onCheckedChange = null, enabled = enabled, modifier = Modifier.size(48.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = if (email.usable) MaterialTheme.colorScheme.onSurface else extra.muted)
+            if (note != null) Text(note, style = MaterialTheme.typography.bodySmall, color = extra.muted)
+        }
     }
 }
 

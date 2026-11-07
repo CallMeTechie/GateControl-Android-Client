@@ -1061,12 +1061,27 @@ object MailPimJson {
         name?.trim()?.takeIf { it.isNotEmpty() }?.let { addProperty("name", it) }
     }
 
-    fun calSettingsBody(view: String? = null, timeZone: String? = null, defaultCalendarId: Long? = null, workWeek: Boolean? = null, freeBusy: Boolean? = null): JsonObject = JsonObject().apply {
+    fun calSettingsBody(
+        view: String? = null,
+        timeZone: String? = null,
+        defaultCalendarId: Long? = null,
+        workWeek: Boolean? = null,
+        freeBusy: Boolean? = null,
+        workHours: MWorkHours? = null,
+    ): JsonObject = JsonObject().apply {
         view?.takeIf { it in MCalPrefs.VIEWS }?.let { addProperty("view", it) }
         timeZone?.let { addProperty("timeZone", it) }
         defaultCalendarId?.let { addProperty("defaultCalendarId", it) }
         workWeek?.let { addProperty("workWeek", it) }
         freeBusy?.let { addProperty("freeBusy", it) }
+        // Mail 1.9.0: { days: [1…7], from, to } (400 invalid { field: 'workHours' } otherwise)
+        workHours?.let { h ->
+            add("workHours", JsonObject().apply {
+                add("days", JsonArray().apply { h.days.forEach { add(it) } })
+                addProperty("from", h.from)
+                addProperty("to", h.to)
+            })
+        }
     }
 
     fun ruleBody(r: MRule): JsonObject = JsonObject().apply {

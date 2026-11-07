@@ -73,6 +73,21 @@ data class PushPrefsRequest(
     val restricted: Boolean,
 )
 
+/** One switch of the person's e-mail channel (`PUT push/prefs` `email_topics`, core 1.225.0+). */
+data class PushEmailTopicDto(
+    val id: String,
+    val enabled: Boolean,
+)
+
+/**
+ * `PUT push/prefs` with only the e-mail channel: the other fields stay as
+ * the device last sent them. The choice is per person (all their devices
+ * and the portal), not per device.
+ */
+data class PushEmailPrefsRequest(
+    @SerializedName("email_topics") val emailTopics: List<PushEmailTopicDto>,
+)
+
 data class PushInboxResponse(
     val ok: Boolean = false,
     val items: List<PushNotificationDto>? = null,
