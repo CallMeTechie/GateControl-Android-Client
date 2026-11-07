@@ -22,6 +22,13 @@ object DriveMediaLogic {
         return k == DriveLogic.Kind.IMAGE || k == DriveLogic.Kind.VIDEO
     }
 
+    /**
+     * Does a tap on [n] open the viewer (Drive 1.21 — "Dateien", the search, "Öffnen" on a file's page)? A picture or
+     * video the virus scan does not hold back; a blocked one keeps its old way (the fetch refuses and says why), every
+     * other file opens in another app as before.
+     */
+    fun opensInViewer(n: DNode): Boolean = viewable(n) && !n.blocked
+
     fun isVideo(n: DNode): Boolean = !n.isDir && DriveLogic.kind(n) == DriveLogic.Kind.VIDEO
 
     /**

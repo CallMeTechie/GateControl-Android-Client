@@ -276,7 +276,7 @@ internal fun DriveFolderContent(
                                 n.encrypted -> Unit
                                 // a picture or video (Drive 1.21): the viewer with the others of the folder, no download first;
                                 // a blocked one says why (the fetch refuses), as before
-                                DriveMediaLogic.viewable(n) && !n.blocked -> viewing = DriveMediaLogic.viewerList(s.value.items, n)
+                                DriveMediaLogic.opensInViewer(n) -> viewing = DriveMediaLogic.viewerList(s.value.items, n)
                                 else -> open(n, false)
                             }
                         }

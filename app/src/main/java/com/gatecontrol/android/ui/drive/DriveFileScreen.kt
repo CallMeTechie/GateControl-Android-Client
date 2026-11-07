@@ -55,6 +55,7 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DOffice
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
+import com.gatecontrol.android.drive.DriveMediaLogic
 import com.gatecontrol.android.drive.DriveDeadlineTargets
 import com.gatecontrol.android.drive.DriveJson
 import com.gatecontrol.android.drive.DriveKi
@@ -230,6 +231,8 @@ fun DriveFileScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: Dri
     val scope = rememberCoroutineScope()
     val ask = rememberScanAsk()
     var shown by remember { mutableStateOf(false) }
+    /** Drive 1.21: "Öffnen" of a picture or video shows it in the viewer, no download first. */
+    var viewing by remember { mutableStateOf<DNode?>(null) }
     LifecycleResumeEffect(viewModel) {
         if (shown) viewModel.refresh(quiet = true)
         shown = true
@@ -264,7 +267,11 @@ fun DriveFileScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: Dri
                     if (!node.isDir && !node.encrypted && !node.blocked) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GcPrimaryButton(stringResource(R.string.drive_open_file), icon = GcIcons.External, modifier = Modifier.weight(1f), onClick = {
-                                ask(scan) { scope.launch { fetchThen(context, node, { viewModel.fetch(it) }, then = { f -> openFile(context, node, f) }) { Toast.makeText(context, driveText(context, it), Toast.LENGTH_LONG).show() } } }
+                                if (DriveMediaLogic.opensInViewer(node)) {
+                                    viewing = node
+                                } else {
+                                    ask(scan) { scope.launch { fetchThen(context, node, { viewModel.fetch(it) }, then = { f -> openFile(context, node, f) }) { Toast.makeText(context, driveText(context, it), Toast.LENGTH_LONG).show() } } }
+                                }
                             })
                             GcOutlineButton(stringResource(R.string.drive_send), icon = GcIcons.Share, modifier = Modifier.weight(1f), onClick = {
                                 ask(scan) { scope.launch { fetchThen(context, node, { viewModel.fetch(it) }, then = { f -> sendFile(context, node, f) }) { Toast.makeText(context, driveText(context, it), Toast.LENGTH_LONG).show() } } }
@@ -292,6 +299,9 @@ fun DriveFileScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: Dri
                 }
             }
         }
+    }
+    viewing?.let { n ->
+        PhotoViewer(items = listOf(n), start = 0, fetch = { viewModel.fetch(it) }, onMore = null, onClose = { viewing = null })
     }
 }
 

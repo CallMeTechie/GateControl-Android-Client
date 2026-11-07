@@ -30,6 +30,23 @@ class DriveMediaTest {
     }
 
     @Test
+    fun `a tap opens the viewer for pictures and videos - files, search hits, Oeffnen on the file page`() {
+        assertTrue(DriveMediaLogic.opensInViewer(node(1, "a.jpg", "image/jpeg")))
+        assertTrue(DriveMediaLogic.opensInViewer(node(2, "b.mp4", "video/mp4")))
+        val marked = node(3, "c.mp4", "video/mp4", scan = MediaScan(state = MediaScan.INFECTED, blocked = false, finding = "X"))
+        assertTrue(DriveMediaLogic.opensInViewer(marked), "marked: the viewer asks before it plays")
+        val pending = node(4, "d.jpg", "image/jpeg", scan = MediaScan(state = MediaScan.PENDING, blocked = true))
+        assertFalse(DriveMediaLogic.opensInViewer(pending), "blocked: the old way, which says why")
+        assertFalse(DriveMediaLogic.opensInViewer(node(5, "e.pdf", "application/pdf")), "other files open in another app as before")
+        assertFalse(DriveMediaLogic.opensInViewer(node(6, "Fotos", dir = true)))
+        assertFalse(DriveMediaLogic.opensInViewer(node(7, "0f3a", "image/jpeg", vault = "v1")))
+        // a search hit from somewhere else: the viewer goes through the hits, a source of an answer alone
+        val hits = listOf(node(10, "x.jpg", "image/jpeg"), node(11, "Brief.pdf", "application/pdf"), node(12, "y.webm", "video/webm"))
+        assertEquals(listOf(10L, 12L) to 1, DriveMediaLogic.viewerList(hits, hits[2]).let { (l, i) -> l.map { it.id } to i })
+        assertEquals(listOf(99L), DriveMediaLogic.viewerList(hits, node(99, "z.png", "image/png")).first.map { it.id })
+    }
+
+    @Test
     fun `the viewer goes through the pictures and videos of the folder, from the one tapped`() {
         val items = listOf(
             node(1, "Ordner", dir = true), node(2, "a.jpg", "image/jpeg"), node(3, "Brief.pdf", "application/pdf"),
