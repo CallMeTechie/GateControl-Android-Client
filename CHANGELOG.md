@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.93.1] - 2026-11-07
+
+### Fixes
+- Seitenpunkte ohne grauen Streifen über den Karten (#199)
+
+---
+
 ## [1.93.0] - 2026-11-07
 
 ### Features
