@@ -24,8 +24,15 @@ class PrintLogicTest {
         assertEquals(PrintLogic.Upload.AS_JPEG, PrintLogic.upload("image/gif"))
         assertEquals(PrintLogic.Upload.AS_JPEG, PrintLogic.upload("image/bmp"))
         assertNull(PrintLogic.upload("image/svg+xml"))
-        assertNull(PrintLogic.upload("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
-        assertNull(PrintLogic.upload("text/plain"))
+        // plugin 1.1.0: office files and plain text go up as they are (the server or the gateway makes the PDF)
+        assertEquals(PrintLogic.Upload.AS_IS, PrintLogic.upload("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+        assertEquals(PrintLogic.Upload.AS_IS, PrintLogic.upload("application/vnd.oasis.opendocument.spreadsheet"))
+        assertEquals(PrintLogic.Upload.AS_IS, PrintLogic.upload("text/plain; charset=utf-8"))
+        assertEquals(PrintLogic.Upload.AS_IS, PrintLogic.upload("text/rtf"))
+        assertEquals("application/rtf", PrintLogic.uploadType("text/rtf"))
+        assertEquals("text/plain", PrintLogic.uploadType("text/plain"))
+        assertNull(PrintLogic.upload("application/msword"))
+        assertNull(PrintLogic.upload("application/zip"))
         assertNull(PrintLogic.upload(null))
         assertEquals("image/jpeg", PrintLogic.uploadType("image/jpg"))
         assertEquals("image/jpeg", PrintLogic.uploadType("image/gif"))
@@ -107,5 +114,31 @@ class PrintLogicTest {
         assertEquals("GateControl", PrintLogic.jobName("  \n "))
         assertEquals("Bordkarte Mallorca.pdf", PrintLogic.jobName("Bordkarte\nMallorca.pdf"))
         assertEquals(120, PrintLogic.jobName("x".repeat(500)).length)
+    }
+
+    @Test
+    fun `a printer that stops while printing blocks the job with its reason`() {
+        val printing = PJob("pj_1", "x", null, "printing", null, "media-empty", 1, 1)
+        assertEquals("media-empty", PrintLogic.stopReason(printing))
+        assertEquals(PrintLogic.Phase.STOPPED, PrintLogic.phase(printing))
+        assertFalse(PrintLogic.isFinal(PrintLogic.phase(printing)))
+        assertEquals(15_000L, PrintLogic.pollDelayMs(30 * 60_000L, PrintLogic.Phase.STOPPED))
+        // printing on, or a message that is no stop reason: running
+        assertEquals(PrintLogic.Phase.RUNNING, PrintLogic.phase(printing.copy(message = null)))
+        assertEquals(PrintLogic.Phase.RUNNING, PrintLogic.phase(printing.copy(state = "sending", message = "converting_office")))
+        assertNull(PrintLogic.stopReason(printing.copy(state = "waiting")))
+        assertEquals(PrintLogic.Phase.DONE, PrintLogic.phase(printing.copy(state = "done", message = "unconfirmed")))
+    }
+
+    @Test
+    fun `the paper of the print dialog - only what the printer names`() {
+        val p = printer().copy(mediaSizes = listOf("iso_a4_210x297mm", "na_index-4x6_4x6in", "iso_a3_297x420mm"), mediaDefault = "iso_a4_210x297mm")
+        assertEquals(listOf("iso_a4_210x297mm", "na_index-4x6_4x6in"), PrintLogic.dialogMedia(p))
+        assertEquals("na_index-4x6_4x6in", PrintLogic.mediaFor("NA_INDEX_4X6", p))
+        assertEquals("iso_a4_210x297mm", PrintLogic.mediaFor("ISO_A4", p))
+        assertNull(PrintLogic.mediaFor("NA_LETTER", p), "the printer does not name Letter")
+        assertNull(PrintLogic.mediaFor(null, p))
+        assertNull(PrintLogic.mediaFor("ISO_A4", printer()), "an older gateway names no paper: its default")
+        assertEquals("na_5x7_5x7in", PrintLogic.mediaFor("na_5x7_5x7in", p.copy(mediaSizes = listOf("na_5x7_5x7in"))))
     }
 }

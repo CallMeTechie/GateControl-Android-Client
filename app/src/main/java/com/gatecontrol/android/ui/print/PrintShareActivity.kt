@@ -494,7 +494,7 @@ class PrintShareViewModel @Inject constructor(
     private suspend fun follow(t: Context) {
         val started = System.currentTimeMillis()
         while (System.currentTimeMillis() - started < FOLLOW_MS) {
-            val open = _ui.value.sent.orEmpty().filter { s -> s.job != null && !PrintLogic.isFinal(PrintLogic.phase(s.job.state)) }
+            val open = _ui.value.sent.orEmpty().filter { s -> s.job != null && !PrintLogic.isFinal(PrintLogic.phase(s.job)) }
             if (open.isEmpty()) return
             delay(FOLLOW_EVERY_MS)
             val jobs = (sender.overview() as? PResult.Ok)?.value?.jobs ?: continue
@@ -505,10 +505,10 @@ class PrintShareViewModel @Inject constructor(
     }
 
     private fun stateOf(t: Context, job: PJob): Sent {
-        val tone = when (PrintLogic.phase(job.state)) {
+        val tone = when (PrintLogic.phase(job)) {
             PrintLogic.Phase.DONE -> GcTone.Ok
             PrintLogic.Phase.FAILED -> GcTone.Error
-            PrintLogic.Phase.WAITING -> GcTone.Warn
+            PrintLogic.Phase.WAITING, PrintLogic.Phase.STOPPED -> GcTone.Warn
             else -> GcTone.Neutral
         }
         return Sent(job, PrintTexts.state(t, job), tone)
