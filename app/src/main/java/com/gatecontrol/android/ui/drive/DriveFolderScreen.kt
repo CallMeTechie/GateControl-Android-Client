@@ -73,6 +73,7 @@ import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DriveMediaLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
@@ -171,6 +172,8 @@ internal fun DriveFolderContent(
     val scope = rememberCoroutineScope()
 
     var menuFor by remember { mutableStateOf<DNode?>(null) }
+    /** Drive 1.21: the pictures and videos of the folder in the viewer, and where it starts. */
+    var viewing by remember { mutableStateOf<Pair<List<DNode>, Int>?>(null) }
     var renaming by remember { mutableStateOf<DNode?>(null) }
     var deleting by remember { mutableStateOf<DNode?>(null) }
     var newFolder by remember { mutableStateOf(false) }
@@ -271,6 +274,9 @@ internal fun DriveFolderContent(
                                 n.isDir -> onFolder(n.id)
                                 // a vault's file never opens here (its content is ciphertext)
                                 n.encrypted -> Unit
+                                // a picture or video (Drive 1.21): the viewer with the others of the folder, no download first;
+                                // a blocked one says why (the fetch refuses), as before
+                                DriveMediaLogic.viewable(n) && !n.blocked -> viewing = DriveMediaLogic.viewerList(s.value.items, n)
                                 else -> open(n, false)
                             }
                         }
@@ -543,6 +549,17 @@ internal fun DriveFolderContent(
         }
     }
     conflict?.let { u -> ConflictDialog(u, onChoice = { viewModel.transfers.resolve(u.id, it); conflict = null }, onDismiss = { conflict = null }) }
+
+    viewing?.let { (list, start) ->
+        PhotoViewer(
+            items = list,
+            start = start,
+            fetch = { viewModel.fetch(it) },
+            onMore = null,
+            onClose = { viewing = null },
+            onDetails = { n -> viewing = null; onFile(n.id) },
+        )
+    }
 
     versions?.let { v ->
         ModalBottomSheet(onDismissRequest = viewModel::closeVersions) {
