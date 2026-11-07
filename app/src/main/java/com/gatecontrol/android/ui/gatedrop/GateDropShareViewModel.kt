@@ -73,7 +73,7 @@ data class GdShareUi(
 }
 
 /**
- * The GateDrop share sheet ("Teilen mit GateControl", contract F): loads
+ * The GateDrop share sheet ("Teilen mit GateDrop", contract F): loads
  * the targets, keeps the multi-selection, copies the shared files into the
  * app's cache (streamed) and hands the send to [GateDropSendWorker]. With a
  * link for externals the sheet waits for the link and shows it.
