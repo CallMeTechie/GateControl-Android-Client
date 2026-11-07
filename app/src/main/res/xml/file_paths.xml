@@ -17,7 +17,9 @@
     <cache-path name="school" path="school/" />
     <!-- Drive: a downloaded file the person opens or sends
          (cacheDir/drive-open/<node>-r<rev>/<name>, pruned after a day). The
-         upload copies in cacheDir/drive-up stay private. -->
+         upload copies in cacheDir/drive-up stay private. A copy of
+         "Offline verfügbar" (filesDir/drive-offline, never shared itself) is
+         handed out here as a link or copy of the one file. -->
     <cache-path name="drive_open" path="drive-open/" />
     <!-- Drive vaults: nothing. A vault file is never decrypted into a file;
          the viewer keeps it in memory, "Mit anderer App öffnen" hands out a

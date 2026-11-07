@@ -22,6 +22,10 @@ data class DriveSettingsValues(
     /** Drive pushes shown on this phone: reminders of deadlines, requests to approve a device for a vault. */
     val notifyDeadlines: Boolean = true,
     val notifyVaultRequests: Boolean = true,
+    /** "Offline verfügbar": the copies on this phone load only on an unmetered network (WLAN, Ethernet). */
+    val offlineWifiOnly: Boolean = true,
+    /** "Offline verfügbar": at most this many MB of copies on this phone ([DriveSettingsLogic.OFFLINE_LIMIT_CHOICES]). */
+    val offlineLimitMb: Int = DriveSettingsLogic.DEFAULT_OFFLINE_LIMIT_MB,
 )
 
 /** Pure rules of the settings (unit-tested). */
@@ -31,6 +35,12 @@ internal object DriveSettingsLogic {
 
     /** A stored value that is not one of the choices becomes the default. */
     fun autoLock(raw: Int): Int = raw.takeIf { it in AUTO_LOCK_CHOICES } ?: DEFAULT_AUTO_LOCK
+
+    const val DEFAULT_OFFLINE_LIMIT_MB = 2_000
+    val OFFLINE_LIMIT_CHOICES = listOf(500, 1_000, 2_000, 5_000, 10_000, 20_000)
+
+    /** A stored limit that is not one of the choices becomes the default. */
+    fun offlineLimit(raw: Int): Int = raw.takeIf { it in OFFLINE_LIMIT_CHOICES } ?: DEFAULT_OFFLINE_LIMIT_MB
 
     /** Whether a Drive push of [topic] (`deadline`, `vault`, …; without the plugin prefix) is shown. */
     fun showPush(topic: String, s: DriveSettingsValues): Boolean = when (topic) {
@@ -58,11 +68,15 @@ class DriveSettings @Inject constructor(@ApplicationContext context: Context) {
         wifiOnly = prefs.getBoolean(KEY_WIFI, false),
         notifyDeadlines = prefs.getBoolean(KEY_NOTIFY_DEADLINES, true),
         notifyVaultRequests = prefs.getBoolean(KEY_NOTIFY_VAULT, true),
+        offlineWifiOnly = prefs.getBoolean(KEY_OFFLINE_WIFI, true),
+        offlineLimitMb = DriveSettingsLogic.offlineLimit(prefs.getInt(KEY_OFFLINE_LIMIT, DriveSettingsLogic.DEFAULT_OFFLINE_LIMIT_MB)),
     )
 
     fun update(change: (DriveSettingsValues) -> DriveSettingsValues) {
         synchronized(this) {
-            val next = change(_values.value).let { it.copy(autoLockMinutes = DriveSettingsLogic.autoLock(it.autoLockMinutes)) }
+            val next = change(_values.value).let {
+                it.copy(autoLockMinutes = DriveSettingsLogic.autoLock(it.autoLockMinutes), offlineLimitMb = DriveSettingsLogic.offlineLimit(it.offlineLimitMb))
+            }
             prefs.edit()
                 .putBoolean(KEY_BIOMETRIC, next.vaultBiometric)
                 .putInt(KEY_AUTO_LOCK, next.autoLockMinutes)
@@ -70,6 +84,8 @@ class DriveSettings @Inject constructor(@ApplicationContext context: Context) {
                 .putBoolean(KEY_WIFI, next.wifiOnly)
                 .putBoolean(KEY_NOTIFY_DEADLINES, next.notifyDeadlines)
                 .putBoolean(KEY_NOTIFY_VAULT, next.notifyVaultRequests)
+                .putBoolean(KEY_OFFLINE_WIFI, next.offlineWifiOnly)
+                .putInt(KEY_OFFLINE_LIMIT, next.offlineLimitMb)
                 .apply()
             _values.value = next
         }
@@ -83,8 +99,13 @@ class DriveSettings @Inject constructor(@ApplicationContext context: Context) {
         private const val KEY_WIFI = "upload_wifi_only"
         private const val KEY_NOTIFY_DEADLINES = "notify_deadlines"
         private const val KEY_NOTIFY_VAULT = "notify_vault"
+        private const val KEY_OFFLINE_WIFI = "offline_wifi_only"
+        private const val KEY_OFFLINE_LIMIT = "offline_limit_mb"
 
         /** "Hochladen nur im WLAN", for the backups' scheduling (outside of injection). */
         fun wifiOnly(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_WIFI, false)
+
+        /** "Offline-Dateien nur im WLAN laden", for the offline copies' scheduling (outside of injection). */
+        fun offlineWifiOnly(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_OFFLINE_WIFI, true)
     }
 }
