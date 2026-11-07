@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.90.0] - 2026-11-07
+
+### Features
+- „Auch per E-Mail“ je Thema, Termine in geteilten Kalendern, Arbeitszeit (#195)
+
+---
+
 ## [1.89.0] - 2026-11-07
 
 ### Features
