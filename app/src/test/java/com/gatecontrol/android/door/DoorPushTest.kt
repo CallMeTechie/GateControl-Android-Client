@@ -3,7 +3,12 @@ package com.gatecontrol.android.door
 import com.gatecontrol.android.familie.PluginAvailability
 import com.gatecontrol.android.network.ClientPlugin
 import com.gatecontrol.android.network.ClientPluginTab
+import com.gatecontrol.android.notify.model.PushAction
+import com.gatecontrol.android.notify.model.PushActionType
 import com.gatecontrol.android.notify.model.PushMessage
+import com.gatecontrol.android.push.ButtonKind
+import com.gatecontrol.android.push.NotificationQuickActions
+import com.gatecontrol.android.push.PushNavTarget
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -59,6 +64,24 @@ class DoorPushTest {
         val bad = msg("plugin:gatecontrol-door:kamera", """{"door":{"type":"home_camera_event","cameraId":"../x"}}""", route = null)
         assertFalse(DoorPush.parse(bad)!!.isHomeCamera)
         assertEquals(DoorDest.Home, DoorPush.destination(bad))
+    }
+
+    @Test
+    fun `plugin 1_7_0 the button Ansehen of a person push opens that camera`() {
+        val view = PushAction(id = "open", label = "Ansehen", type = PushActionType.OPEN_APP_ROUTE, target = DoorPush.ROUTE)
+        val m = msg(
+            "plugin:gatecontrol-door:kamera",
+            """{"door":{"type":"home_camera_event","cameraId":"c3f9a1b2c4d5e6f7","eventId":"e0123456789abcde"}}""",
+        ).copy(actions = listOf(view))
+        // The notification: "Ansehen" first (it opens the app), "Gesehen" after it.
+        val seen = PushAction(id = "seen", label = "Gesehen", type = PushActionType.ACK)
+        val plan = NotificationQuickActions.plan(m.actions, seen)
+        assertEquals(ButtonKind.OPEN, plan.first().kind)
+        assertEquals("Ansehen", plan.first().action.label)
+        // Its intent carries the camera; the route opens the door screen showing it.
+        val dest = DoorPush.destination(m)!!.key
+        assertEquals("camera:c3f9a1b2c4d5e6f7", dest)
+        assertEquals(PushNavTarget.Door(dest, 1), PushNavTarget.forRoute(view.target, m.id, dest))
     }
 
     @Test
