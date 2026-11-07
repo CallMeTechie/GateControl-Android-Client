@@ -8,7 +8,7 @@ package com.gatecontrol.android.print
 object PrintLogic {
 
     /**
-     * Office files (plugin 1.1.0, GateControl 1.246.0): printed where the printer's gateway turns them into a PDF
+     * Office files (plugin 1.1.0, GateControl 1.247.0): printed where the printer's gateway turns them into a PDF
      * („Office-Dateien drucken“) – else the plugin says why.
      */
     val OFFICE_TYPES: Set<String> = setOf(

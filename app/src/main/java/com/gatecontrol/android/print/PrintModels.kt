@@ -18,7 +18,7 @@ data class PPrinter(
     val color: Boolean,
     val duplex: Boolean,
     val copiesMax: Int,
-    /** Its gateway turns office files into PDF („Office-Dateien drucken“, plugin 1.1.0 / GateControl 1.246.0). */
+    /** Its gateway turns office files into PDF („Office-Dateien drucken“, plugin 1.1.0 / GateControl 1.247.0). */
     val office: Boolean = false,
     /** The paper sizes it names (PWG names, e.g. `iso_a4_210x297mm`); empty: an older gateway or none named. */
     val mediaSizes: List<String> = emptyList(),

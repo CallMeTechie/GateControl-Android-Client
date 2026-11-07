@@ -316,7 +316,7 @@ class GateControlPrintService : PrintService() {
         val color = PrintLogic.colorAllowed(p, overview.rights)
         val letter = Locale.getDefault().country.uppercase() in LETTER_COUNTRIES
         val builder = PrinterCapabilitiesInfo.Builder(id)
-        // the paper the printer names (plugin 1.1.0, gateway 1.32.0) – else A4 and Letter as before
+        // the paper the printer names (plugin 1.1.0, gateway 1.33.0) – else A4 and Letter as before
         val named = PrintLogic.dialogMedia(p)
         if (named.isNotEmpty()) {
             val dflt = p.mediaDefault?.takeIf { it in named } ?: named.first()
