@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.91.0] - 2026-11-07
+
+### Features
+- Vorschaubilder aus dem Zwischenspeicher im Heimnetz laden (#196)
+
+---
+
 ## [1.90.0] - 2026-11-07
 
 ### Features
