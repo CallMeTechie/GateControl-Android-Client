@@ -1,7 +1,10 @@
 package com.gatecontrol.android.notify
 
 import com.gatecontrol.android.network.PushAckRequest
+import com.gatecontrol.android.network.PushEmailPrefsRequest
+import com.gatecontrol.android.network.PushEmailTopicDto
 import com.gatecontrol.android.network.PushPrefsRequest
+import com.gatecontrol.android.notify.model.EmailChannel
 import com.gatecontrol.android.notify.model.PushAction
 import com.gatecontrol.android.notify.model.PushActionType
 import com.gatecontrol.android.notify.model.PushMessage
@@ -10,6 +13,10 @@ import com.gatecontrol.android.notify.model.PushState
 import com.gatecontrol.android.notify.model.PushTopic
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
@@ -46,6 +53,15 @@ class PushRepository @Inject constructor(
 
     private val ackMutex = Mutex()
     private val gson = Gson()
+
+    private val _email = MutableStateFlow(EmailChannel.UNKNOWN)
+
+    /**
+     * The person's e-mail channel of plugin topics as `GET push/prefs` last
+     * said (in memory only: per person and server, read again whenever the
+     * settings open). Unknown on servers before 1.225.0.
+     */
+    val email: StateFlow<EmailChannel> = _email.asStateFlow()
 
     // ─── Stream events ──────────────────────────────────────────────────
 
@@ -267,19 +283,43 @@ class PushRepository @Inject constructor(
     /**
      * Reads the person's quiet hours (`GET push/prefs`, read only) for the
      * settings screen. Older servers without them (404, no `quiet` field)
-     * leave what is known unchanged.
+     * leave what is known unchanged. The same answer carries the e-mail
+     * channel of plugin topics ([email]; core 1.225.0+).
      */
     suspend fun refreshQuiet(): Boolean {
         val url = endpoint.serverUrl()
         if (url.isEmpty()) return false
         return try {
-            val info = PushEventParser.quietInfo(endpoint.api(url).getPushPrefs())
+            val prefs = endpoint.api(url).getPushPrefs()
+            val info = PushEventParser.quietInfo(prefs)
             store.saveQuiet(info)
+            _email.value = PushEventParser.emailChannel(prefs)
             info.known
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Timber.d("Push: prefs not read (%s)", e.javaClass.simpleName)
+            false
+        }
+    }
+
+    /**
+     * „Auch per E-Mail“ of one plugin topic for the person
+     * (`PUT push/prefs { email_topics }`). On success [email] holds the new
+     * choice; on failure (offline, 400 for a topic without e-mail channel,
+     * 403 for a token without a person) nothing changes and false comes back.
+     */
+    suspend fun setEmailTopic(topic: String, enabled: Boolean): Boolean {
+        val url = endpoint.serverUrl()
+        if (url.isEmpty() || !_email.value.known || topic !in _email.value.topics) return false
+        return try {
+            val r = endpoint.api(url).pushEmailPrefs(PushEmailPrefsRequest(listOf(PushEmailTopicDto(topic, enabled))))
+            if (r.ok) _email.update { it.copy(topics = it.topics + (topic to enabled)) }
+            r.ok
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Push: e-mail channel not changed (%s)", e.javaClass.simpleName)
             false
         }
     }

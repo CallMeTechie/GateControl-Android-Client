@@ -9,6 +9,7 @@ import com.gatecontrol.android.notify.PushPlatform
 import com.gatecontrol.android.notify.PushPrefsStore
 import com.gatecontrol.android.notify.PushRepository
 import com.gatecontrol.android.notify.PushStatus
+import com.gatecontrol.android.notify.model.EmailChannel
 import com.gatecontrol.android.notify.model.PushTopic
 import com.gatecontrol.android.notify.model.QuietInfo
 import com.gatecontrol.android.push.PortalLinkResolver
@@ -28,8 +29,25 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
-/** One topic row: switch on = messages of this topic are wanted on this device. */
-data class TopicRow(val id: String, val label: String?, val muted: Boolean, val locked: Boolean)
+/**
+ * One topic row: switch on = messages of this topic are wanted on this device.
+ * [email]: „Auch per E-Mail“ of a plugin topic (per person, core 1.225.0+); null: the topic has no e-mail channel.
+ */
+data class TopicRow(val id: String, val label: String?, val muted: Boolean, val locked: Boolean, val email: Boolean? = null)
+
+/** What the „Auch per E-Mail“ boxes under the topics show (the same switches as in the portal). */
+data class EmailDisplay(
+    /** The account address the mails go to; null: none in the account. */
+    val to: String? = null,
+    /** GateControl has an SMTP server. */
+    val ready: Boolean = false,
+    /** A switch is being saved (all boxes wait). */
+    val saving: String? = null,
+    /** The last change was not saved (the box is back as before). */
+    val failed: Boolean = false,
+) {
+    val usable: Boolean get() = ready && !to.isNullOrBlank()
+}
 
 enum class TestState { Idle, Sending, Sent, Failed }
 
@@ -68,6 +86,7 @@ data class NotificationSettingsUiState(
     val testState: TestState = TestState.Idle,
     val portalAvailable: Boolean = false,
     val quiet: QuietDisplay = QuietDisplay.Unknown,
+    val email: EmailDisplay = EmailDisplay(),
 )
 
 /** One-shot requests to the screen (permissions, system dialogs, browser). */
@@ -98,6 +117,9 @@ class NotificationSettingsViewModel @Inject constructor(
         val notificationsAllowed: Boolean = true,
         val modeDialogVisible: Boolean = false,
         val testState: TestState = TestState.Idle,
+        /** „Auch per E-Mail“: the topic being saved, whether the last change failed. */
+        val emailSaving: String? = null,
+        val emailFailed: Boolean = false,
     )
 
     private val local = MutableStateFlow(Local(batteryRestricted = platform.isBatteryRestricted()))
@@ -113,20 +135,21 @@ class NotificationSettingsViewModel @Inject constructor(
     private val deviceZone: String = runCatching { java.time.ZoneId.systemDefault().id }.getOrDefault("")
 
     val uiState: StateFlow<NotificationSettingsUiState> = combine(
-        store.settings, store.topics, client.status, local, store.quiet,
-    ) { s, topics, status, l, quiet ->
+        store.settings, store.topics, client.status, local, combine(store.quiet, repository.email, ::Pair),
+    ) { s, topics, status, l, (quiet, email) ->
         NotificationSettingsUiState(
             enabled = s.enabled,
             mode = s.mode,
             status = status,
             host = host,
-            topics = topicRows(topics, s.mutedTopics),
+            topics = topicRows(topics, s.mutedTopics, email),
             batteryRestricted = l.batteryRestricted,
             notificationsAllowed = l.notificationsAllowed,
             modeDialogVisible = l.modeDialogVisible,
             testState = l.testState,
             portalAvailable = setupRepository.getPortalUrl()?.startsWith("https://") == true,
             quiet = QuietDisplay.from(quiet, deviceZone),
+            email = EmailDisplay(email.to, email.ready, l.emailSaving, l.emailFailed),
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, NotificationSettingsUiState())
 
@@ -135,8 +158,16 @@ class NotificationSettingsViewModel @Inject constructor(
         viewModelScope.launch { repository.refreshQuiet() }
     }
 
-    private fun topicRows(topics: List<PushTopic>, muted: Set<String>): List<TopicRow> =
-        topics.map { TopicRow(it.id, if (it.isPlugin) it.label else null, it.id in muted && !it.isLocked, it.isLocked) }
+    private fun topicRows(topics: List<PushTopic>, muted: Set<String>, email: EmailChannel): List<TopicRow> =
+        topics.map {
+            TopicRow(
+                it.id,
+                if (it.isPlugin) it.label else null,
+                it.id in muted && !it.isLocked,
+                it.isLocked,
+                email = if (email.known) email.topics[it.id] else null,
+            )
+        }
 
     /** Screen resumed: Android state may have changed in the system settings. */
     fun refreshSystemState(notificationsAllowed: Boolean) {
@@ -203,6 +234,20 @@ class NotificationSettingsViewModel @Inject constructor(
     fun setTopicEnabled(topic: String, enabled: Boolean) {
         if (topic == PushTopic.ADMIN_NOTICE) return
         viewModelScope.launch { store.setTopicMuted(topic, !enabled) }
+    }
+
+    /**
+     * „Auch per E-Mail an …“ of a plugin topic: the person's choice on the
+     * server (all their devices and the portal). One at a time; a failure
+     * leaves the box as it was and says so.
+     */
+    fun setTopicEmail(topic: String, enabled: Boolean) {
+        if (local.value.emailSaving != null) return
+        local.update { it.copy(emailSaving = topic, emailFailed = false) }
+        viewModelScope.launch {
+            val ok = repository.setEmailTopic(topic, enabled)
+            local.update { it.copy(emailSaving = null, emailFailed = !ok) }
+        }
     }
 
     fun requestTest() {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Benachrichtigungen: „Auch per E-Mail“ je Plugin-Thema (GateControl 1.225.0, wie im Portal) -->
+    <string name="push_email">Auch per E-Mail</string>
+    <string name="push_email_to">Auch per E-Mail an %1$s</string>
+    <string name="push_email_no_address">Für E-Mails fehlt eine Adresse in deinem Konto</string>
+    <string name="push_email_no_smtp">E-Mail ist auf diesem Server nicht eingerichtet</string>
+    <string name="push_email_failed">Nicht gespeichert – bitte noch einmal versuchen.</string>
+    <!-- Mail 1.9.0: Arbeitszeit (Frei/Gebucht und die Vorschläge im Planer) -->
+    <string name="cal_work_hours">Arbeitszeit</string>
+    <string name="cal_work_hours_d">Vorschläge, bei denen alle können, kommen nur aus dieser Zeit</string>
+    <string name="cal_work_from">Von</string>
+    <string name="cal_work_to">Bis</string>
+    <string name="cal_work_bad">„Bis“ muss nach „Von“ liegen.</string>
+    <string name="cal_work_no_day">Mindestens ein Tag.</string>
+    <!-- Mail 1.9.0: neue Termine in Kalendern, die mit „Bearbeiten“ geteilt sind -->
+    <string name="cal_shared_section">Mit mir geteilt · Bearbeiten</string>
+</resources>
