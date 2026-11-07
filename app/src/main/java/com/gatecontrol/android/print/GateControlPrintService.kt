@@ -142,13 +142,16 @@ class GateControlPrintService : PrintService() {
             val copies = info.copies.coerceIn(1, 99)
             val name = PrintLogic.jobName(info.label.ifBlank { job.document.info.name })
             val since = System.currentTimeMillis()
-            var sent = sender.send(file, "application/pdf", deviceId, copies, color, duplex, name)
+            // the paper chosen in the dialog, when the printer names it (plugin 1.1.0) – else its own default
+            val printer = lastOverview?.printers?.firstOrNull { it.id == deviceId }
+            val media = printer?.let { PrintLogic.mediaFor(attrs.mediaSize?.id, it) }
+            var sent = sender.send(file, "application/pdf", deviceId, copies, color, duplex, name, media)
             // no connection: the job stays in Android's queue and is tried again for a while
             while (sent is PResult.Offline && System.currentTimeMillis() - since < OFFLINE_RETRY_MAX_MS) {
                 if (job.isCancelled) return
                 job.block(t.getString(R.string.print_wait_connection))
                 delay(OFFLINE_RETRY_MS)
-                sent = sender.send(file, "application/pdf", deviceId, copies, color, duplex, name)
+                sent = sender.send(file, "application/pdf", deviceId, copies, color, duplex, name, media)
             }
             sent
         } finally {
@@ -160,7 +163,7 @@ class GateControlPrintService : PrintService() {
                 if (job.isBlocked) job.start()
                 job.setTag(r.value.job.id)
                 apply(job, r.value.job, t)
-                if (!PrintLogic.isFinal(PrintLogic.phase(r.value.job.state))) followNow(job, r.value.job.id)
+                if (!PrintLogic.isFinal(PrintLogic.phase(r.value.job))) followNow(job, r.value.job.id)
             }
             else -> failJob(job, PrintTexts.failure(t, r))
         }
@@ -224,7 +227,7 @@ class GateControlPrintService : PrintService() {
                         }
                     } else {
                         missing = 0
-                        phase = PrintLogic.phase(j.state)
+                        phase = PrintLogic.phase(j)
                         apply(job, j, texts())
                         if (PrintLogic.isFinal(phase)) return
                     }
@@ -239,7 +242,12 @@ class GateControlPrintService : PrintService() {
     /** A server state onto the framework's job. */
     private fun apply(job: PrintJob, j: PJob, t: Context) {
         if (job.isCancelled || job.isCompleted || job.isFailed) return
-        when (PrintLogic.phase(j.state)) {
+        when (PrintLogic.phase(j)) {
+            // the printer stopped while printing (paper out, cover open …): blocked with the reason until it goes on
+            PrintLogic.Phase.STOPPED -> {
+                if (job.isQueued) job.start()
+                job.block(PrintTexts.stopped(t, PrintLogic.stopReason(j)))
+            }
             PrintLogic.Phase.RUNNING -> {
                 if (job.isBlocked || job.isQueued) job.start()
                 job.setStatus(PrintTexts.state(t, j))
@@ -307,9 +315,17 @@ class GateControlPrintService : PrintService() {
         }
         val color = PrintLogic.colorAllowed(p, overview.rights)
         val letter = Locale.getDefault().country.uppercase() in LETTER_COUNTRIES
-        val caps = PrinterCapabilitiesInfo.Builder(id)
-            .addMediaSize(PrintAttributes.MediaSize.ISO_A4, !letter)
-            .addMediaSize(PrintAttributes.MediaSize.NA_LETTER, letter)
+        val builder = PrinterCapabilitiesInfo.Builder(id)
+        // the paper the printer names (plugin 1.1.0, gateway 1.32.0) – else A4 and Letter as before
+        val named = PrintLogic.dialogMedia(p)
+        if (named.isNotEmpty()) {
+            val dflt = p.mediaDefault?.takeIf { it in named } ?: named.first()
+            named.forEach { m -> mediaSize(m, t)?.let { builder.addMediaSize(it, m == dflt) } }
+        } else {
+            builder.addMediaSize(PrintAttributes.MediaSize.ISO_A4, !letter)
+            builder.addMediaSize(PrintAttributes.MediaSize.NA_LETTER, letter)
+        }
+        val caps = builder
             .addResolution(PrintAttributes.Resolution("r300", t.getString(R.string.print_resolution_300), 300, 300), true)
             .setColorModes(
                 if (color) PrintAttributes.COLOR_MODE_COLOR or PrintAttributes.COLOR_MODE_MONOCHROME else PrintAttributes.COLOR_MODE_MONOCHROME,
@@ -343,6 +359,19 @@ class GateControlPrintService : PrintService() {
             .setCapabilities(caps)
             .setInfoIntent(infoIntent)
             .build()
+    }
+
+    /** Android's paper for a PWG name ([PrintLogic.ANDROID_MEDIA]); photo sizes Android has no constant for are built here. */
+    private fun mediaSize(pwg: String, t: Context): PrintAttributes.MediaSize? = when (pwg) {
+        "iso_a4_210x297mm" -> PrintAttributes.MediaSize.ISO_A4
+        "iso_a5_148x210mm" -> PrintAttributes.MediaSize.ISO_A5
+        "iso_a6_105x148mm" -> PrintAttributes.MediaSize.ISO_A6
+        "na_letter_8.5x11in" -> PrintAttributes.MediaSize.NA_LETTER
+        "na_legal_8.5x14in" -> PrintAttributes.MediaSize.NA_LEGAL
+        "na_index-4x6_4x6in" -> PrintAttributes.MediaSize.NA_INDEX_4X6
+        "na_5x7_5x7in" -> PrintAttributes.MediaSize(pwg, t.getString(R.string.print_paper_5x7), 5000, 7000)
+        "oe_photo-l_3.5x5in" -> PrintAttributes.MediaSize(pwg, t.getString(R.string.print_paper_3_5x5), 3500, 5000)
+        else -> null
     }
 
     private companion object {

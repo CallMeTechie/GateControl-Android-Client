@@ -15,8 +15,11 @@ object PrintJson {
     private val JOB_ID_RE = Regex("^[A-Za-z0-9_-]{1,80}$")
     private val MEDIA_ID_RE = Regex("^[A-Za-z0-9_.~-]{1,200}$")
     private val CODE_RE = Regex("^[a-z][a-z0-9_]{0,40}$")
+    /** A job's `message`: a code, or a printer's stop reason with hyphens (`media-empty`, plugin 1.1.0). */
+    private val MESSAGE_RE = Regex("^[a-z][a-z0-9_-]{0,40}$")
     private val CONTROL_RE = Regex("[\\u0000-\\u001F\\u007F]")
     private val PRINTER_STATES = setOf("idle", "processing", "stopped", "offline")
+    private val MEDIA_RE = Regex("^[a-z0-9]+_[a-z0-9.-]+_[0-9.]+x[0-9.]+(mm|in)$")
 
     private fun JsonObject.obj(key: String): JsonObject? = get(key)?.takeIf { it.isJsonObject }?.asJsonObject
 
@@ -76,8 +79,17 @@ object PrintJson {
             color = p.flag("color") ?: false,
             duplex = p.flag("duplex") ?: false,
             copiesMax = (p.int("copiesMax") ?: 99).coerceIn(1, 99),
+            office = p.flag("office") ?: false,
+            mediaSizes = mediaSizes(p.obj("media")),
+            mediaDefault = p.obj("media")?.str("default")?.takeIf { it in mediaSizes(p.obj("media")) },
         )
     }
+
+    /** `printer.media.sizes` (plugin 1.1.0): PWG names only, at most 12. */
+    private fun mediaSizes(m: JsonObject?): List<String> =
+        m?.get("sizes")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString?.takeIf { it.length <= 64 && MEDIA_RE.matches(it) } }
+            ?.distinct()?.take(12).orEmpty()
 
     fun job(o: JsonObject?): PJob? {
         if (o == null) return null
@@ -89,11 +101,17 @@ object PrintJson {
             device = text(o.str("device"), 120),
             state = state,
             error = code(o.str("error")),
-            message = code(o.str("message")),
+            message = o.str("message")?.takeIf { MESSAGE_RE.matches(it) },
             pages = (o.int("pages") ?: 1).coerceAtLeast(1),
             copies = (o.int("copies") ?: 1).coerceAtLeast(1),
+            media = o.str("media")?.takeIf { it.length <= 64 && MEDIA_RE.matches(it) },
         )
     }
+
+    /** `GET jobs/<id>` (plugin 1.1.0) → `{ job }`. */
+    fun jobAnswer(o: JsonObject): PJob? = job(o.obj("job"))
+
+    fun validMedia(m: String?): Boolean = m != null && m.length <= 64 && MEDIA_RE.matches(m)
 
     /** `GET overview`: rights, pages left, printers (only with the print right), the last jobs. */
     fun overview(o: JsonObject): POverview? {

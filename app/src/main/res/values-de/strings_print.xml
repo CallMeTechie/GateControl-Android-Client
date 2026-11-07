@@ -45,7 +45,7 @@
     <string name="print_err_offline">Keine Verbindung zu GateControl.</string>
     <string name="print_err_not_configured">GateControl ist auf diesem Handy noch nicht eingerichtet.</string>
     <string name="print_err_too_large">Die Datei ist zu groß (höchstens 50 MB).</string>
-    <string name="print_err_format">Diese Datei lässt sich nicht drucken: Es gehen PDF-Dateien und Bilder.</string>
+    <string name="print_err_format">Diese Datei lässt sich nicht drucken: Es gehen PDF-Dateien, Bilder, Text und Office-Dateien (Office-Dateien, wenn ein Administrator das für das Gateway eingeschaltet hat).</string>
     <string name="print_err_quota">Auf dem Server ist kein Platz mehr für Druckaufträge.</string>
     <string name="print_err_infected">Der Virenscan hat diese Datei gesperrt.</string>
     <string name="print_err_scan">Der Virenscan ist gerade nicht erreichbar – später noch einmal versuchen.</string>
@@ -89,7 +89,7 @@
     <string name="print_share_go">Zu Hause drucken</string>
     <string name="print_share_wait_note">Liegt dann im Ausgabefach, wenn du heimkommst. Ist der Drucker aus, wartet der Auftrag bis zu 24 Stunden.</string>
     <string name="print_share_dialog_hint">Im Druckdialog anderer Apps heißt der Drucker „GateControl – …“.</string>
-    <string name="print_share_nothing">Hier ist nichts zum Drucken dabei – es gehen PDF-Dateien und Bilder.</string>
+    <string name="print_share_nothing">Hier ist nichts zum Drucken dabei – es gehen PDF-Dateien, Bilder, Text und Office-Dateien.</string>
     <string name="print_share_close">Schließen</string>
     <string name="print_share_cancel">Abbrechen</string>
     <string name="print_share_sending">Wird gesendet …</string>
@@ -97,4 +97,18 @@
         <item quantity="one">+ %d weitere Datei</item>
         <item quantity="other">+ %d weitere Dateien</item>
     </plurals>
+    <string name="print_state_converting_office">Wird in ein PDF umgewandelt (Office-Datei)</string>
+    <string name="print_wait_office">Wartet, bis der Office-Dienst des Gateways läuft</string>
+    <string name="print_fail_office">Die Office-Datei ließ sich nicht in ein PDF umwandeln (beschädigt oder mit Kennwort geschützt?)</string>
+    <string name="print_fail_office_timeout">Das Umwandeln der Office-Datei hat zu lange gedauert</string>
+    <string name="print_stop_paper">Papier fehlt – bitte nachlegen</string>
+    <string name="print_stop_jam">Papierstau am Drucker</string>
+    <string name="print_stop_open">Eine Klappe des Druckers ist offen</string>
+    <string name="print_stop_ink">Tinte oder Toner ist leer</string>
+    <string name="print_stop_tray">Das Papierfach fehlt</string>
+    <string name="print_stop_full">Das Ausgabefach ist voll</string>
+    <string name="print_stop_held">Wartet am Drucker (z. B. auf eine PIN)</string>
+    <string name="print_stop_stopped">Der Drucker hat angehalten</string>
+    <string name="print_paper_5x7">Foto 13 × 18 cm</string>
+    <string name="print_paper_3_5x5">Foto 9 × 13 cm</string>
 </resources>

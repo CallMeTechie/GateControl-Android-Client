@@ -45,7 +45,7 @@
     <string name="print_err_offline">No connection to GateControl.</string>
     <string name="print_err_not_configured">GateControl is not set up on this phone yet.</string>
     <string name="print_err_too_large">The file is too large (at most 50 MB).</string>
-    <string name="print_err_format">This file cannot be printed: PDF files and pictures work.</string>
+    <string name="print_err_format">This file cannot be printed: PDF files, pictures, text and office files work (office files when an admin switched that on for the gateway).</string>
     <string name="print_err_quota">There is no room for print jobs on the server any more.</string>
     <string name="print_err_infected">The virus scan blocked this file.</string>
     <string name="print_err_scan">The virus scan cannot be reached right now – try again later.</string>
@@ -89,7 +89,7 @@
     <string name="print_share_go">Print at home</string>
     <string name="print_share_wait_note">It will be in the output tray when you get home. If the printer is off, the job waits up to 24 hours.</string>
     <string name="print_share_dialog_hint">In other apps\' print dialog the printer is called “GateControl – …”.</string>
-    <string name="print_share_nothing">Nothing here can be printed – PDF files and pictures only.</string>
+    <string name="print_share_nothing">Nothing here can be printed – PDF files, pictures, text and office files only.</string>
     <string name="print_share_close">Close</string>
     <string name="print_share_cancel">Cancel</string>
     <string name="print_share_sending">Sending …</string>
@@ -97,4 +97,18 @@
         <item quantity="one">+ %d more file</item>
         <item quantity="other">+ %d more files</item>
     </plurals>
+    <string name="print_state_converting_office">Being turned into a PDF (office file)</string>
+    <string name="print_wait_office">Waiting until the gateway\'s office service runs</string>
+    <string name="print_fail_office">The office file could not be turned into a PDF (damaged or password-protected?)</string>
+    <string name="print_fail_office_timeout">Turning the office file into a PDF took too long</string>
+    <string name="print_stop_paper">Out of paper – please add some</string>
+    <string name="print_stop_jam">Paper jam at the printer</string>
+    <string name="print_stop_open">A cover of the printer is open</string>
+    <string name="print_stop_ink">Ink or toner is empty</string>
+    <string name="print_stop_tray">The paper tray is missing</string>
+    <string name="print_stop_full">The output tray is full</string>
+    <string name="print_stop_held">Held at the printer (e.g. for a PIN)</string>
+    <string name="print_stop_stopped">The printer stopped</string>
+    <string name="print_paper_5x7">Photo 5 × 7 in (13 × 18 cm)</string>
+    <string name="print_paper_3_5x5">Photo 3.5 × 5 in (9 × 13 cm)</string>
 </resources>

@@ -95,7 +95,7 @@ class PrintApi @Inject constructor(
     }
 
     /** `POST print`: the plugin checks the rights, counts the pages and hands the job to the gateway. */
-    suspend fun print(deviceId: String, mediaId: String, copies: Int, color: Boolean, duplex: Boolean, name: String): PResult<PPrinted> {
+    suspend fun print(deviceId: String, mediaId: String, copies: Int, color: Boolean, duplex: Boolean, name: String, media: String? = null): PResult<PPrinted> {
         if (!PrintJson.validDeviceId(deviceId)) return PResult.Failed("invalid", 0)
         val body = JsonObject().apply {
             addProperty("deviceId", deviceId)
@@ -104,8 +104,19 @@ class PrintApi @Inject constructor(
             addProperty("color", color)
             addProperty("duplex", duplex)
             addProperty("name", PrintLogic.jobName(name))
+            // the paper chosen in the print dialog (plugin 1.1.0; only one the printer names)
+            if (PrintJson.validMedia(media)) addProperty("media", media)
         }
         return call(timeoutMs = 60_000L, request = { pluginPost(PRINT_PLUGIN, "print", body, lang()) }, parse = PrintJson::printed)
+    }
+
+    /**
+     * `GET jobs/<id>` (plugin 1.1.0): one job of the person, fresh from GateControl – with the printer's stop reason
+     * (`message`) and the pages after converting. An older plugin answers `not_found`.
+     */
+    suspend fun job(jobId: String): PResult<PJob> {
+        if (!PrintJson.validJobId(jobId)) return PResult.Failed("invalid", 0)
+        return call(request = { pluginGet(PRINT_PLUGIN, "jobs/$jobId", lang()) }, parse = PrintJson::jobAnswer)
     }
 
     /** `POST jobs/<id>/cancel` (only while queued or waiting) → whether it was canceled. */

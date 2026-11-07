@@ -124,4 +124,33 @@ class PrintJsonTest {
         assertNotNull(PluginAvailability.NONE)
         assertFalse(PluginAvailability.NONE.print)
     }
+
+    @Test
+    fun `plugin 1_1 - office, paper sizes and GET jobs id`() {
+        val o = json(
+            """
+            {"ok":true,"rights":{"print":true},"printers":[
+              {"id":"u:1","name":"HP","online":true,"printer":{"state":"idle","office":true,
+               "media":{"sizes":["iso_a4_210x297mm","na_index-4x6_4x6in","../x","A4"],"default":"na_index-4x6_4x6in","sources":["main"]}}},
+              {"id":"u:2","name":"Brother","online":true,"printer":{"state":"idle","media":{"sizes":"nope","default":"iso_a4_210x297mm"}}}],
+             "jobs":[]}
+            """,
+        )
+        val ov = PrintJson.overview(o)!!
+        val hp = ov.printers[0]
+        assertTrue(hp.office)
+        assertEquals(listOf("iso_a4_210x297mm", "na_index-4x6_4x6in"), hp.mediaSizes)
+        assertEquals("na_index-4x6_4x6in", hp.mediaDefault)
+        val bro = ov.printers[1]
+        assertFalse(bro.office)
+        assertEquals(emptyList<String>(), bro.mediaSizes)
+        assertNull(bro.mediaDefault, "a default not among the sizes is dropped")
+        val j = PrintJson.jobAnswer(json("""{"ok":true,"job":{"id":"pj_9","name":"Brief.docx","state":"printing","message":"media-empty","pages":4,"copies":1,"media":"iso_a5_148x210mm"}}"""))!!
+        assertEquals(listOf("printing", "media-empty", "iso_a5_148x210mm"), listOf(j.state, j.message, j.media))
+        assertEquals(4, j.pages)
+        assertNull(PrintJson.jobAnswer(json("""{"ok":true,"job":{"id":"../x","state":"done"}}""")))
+        assertNull(PrintJson.job(json("""{"id":"pj_1","state":"done","media":"bad name"}"""))!!.media)
+        assertTrue(PrintJson.validMedia("na_letter_8.5x11in"))
+        assertFalse(PrintJson.validMedia("A4"))
+    }
 }

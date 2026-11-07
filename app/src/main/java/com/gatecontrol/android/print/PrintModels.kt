@@ -18,6 +18,12 @@ data class PPrinter(
     val color: Boolean,
     val duplex: Boolean,
     val copiesMax: Int,
+    /** Its gateway turns office files into PDF („Office-Dateien drucken“, plugin 1.1.0 / GateControl 1.246.0). */
+    val office: Boolean = false,
+    /** The paper sizes it names (PWG names, e.g. `iso_a4_210x297mm`); empty: an older gateway or none named. */
+    val mediaSizes: List<String> = emptyList(),
+    /** Its default paper (one of [mediaSizes]) or null. */
+    val mediaDefault: String? = null,
 )
 
 /** The person's rights (`overview.rights`): [pagesPerDay] 0 = no limit. */
@@ -33,6 +39,8 @@ data class PJob(
     val message: String?,
     val pages: Int,
     val copies: Int,
+    /** The paper of the job (PWG name) or null (the printer's default). */
+    val media: String? = null,
 )
 
 /** `GET overview` as far as printing needs it. [pagesLeft] null = no limit today. */

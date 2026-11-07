@@ -7,8 +7,22 @@ package com.gatecontrol.android.print
  */
 object PrintLogic {
 
-    /** The plugin's `media.types` (plugin.json of gatecontrol-print 1.0): uploads of other types are refused (415). */
-    val UPLOAD_TYPES: Set<String> = setOf("application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif")
+    /**
+     * Office files (plugin 1.1.0, GateControl 1.246.0): printed where the printer's gateway turns them into a PDF
+     * („Office-Dateien drucken“) – else the plugin says why.
+     */
+    val OFFICE_TYPES: Set<String> = setOf(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.spreadsheet",
+        "application/vnd.oasis.opendocument.presentation",
+        "application/rtf",
+    )
+
+    /** The plugin's `media.types` (plugin.json of gatecontrol-print 1.1): uploads of other types are refused (415). */
+    val UPLOAD_TYPES: Set<String> = setOf("application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "text/plain") + OFFICE_TYPES
 
     /** The plugin's `media.maxBytes` (50 MB). */
     const val MAX_BYTES = 50L * 1024 * 1024
@@ -29,6 +43,7 @@ object PrintLogic {
         return when {
             m in UPLOAD_TYPES -> Upload.AS_IS
             m == "image/jpg" -> Upload.AS_IS
+            m == "text/rtf" -> Upload.AS_IS
             m.startsWith("image/") && m != "image/svg+xml" -> Upload.AS_JPEG
             else -> null
         }
@@ -79,6 +94,7 @@ object PrintLogic {
         val m = mime?.lowercase()?.substringBefore(';')?.trim().orEmpty()
         return when {
             m == "image/jpg" -> "image/jpeg"
+            m == "text/rtf" -> "application/rtf"
             m in UPLOAD_TYPES -> m
             else -> "image/jpeg"
         }
@@ -111,8 +127,19 @@ object PrintLogic {
         else -> null
     }
 
-    /** A job's state in the print framework's words. */
-    enum class Phase { RUNNING, WAITING, DONE, FAILED, CANCELED }
+    /** A job's state in the print framework's words. STOPPED: printing, but the printer stopped (paper out …). */
+    enum class Phase { RUNNING, WAITING, STOPPED, DONE, FAILED, CANCELED }
+
+    /** Why the printer stopped while printing (plugin 1.1.0: `printing` + `message`), null when it prints. */
+    private val STOP_REASONS = setOf(
+        "media-empty", "media-needed", "media-jam", "door-open", "cover-open", "toner-empty", "marker-supply-empty",
+        "input-tray-missing", "output-area-full", "paused", "stopped", "held",
+    )
+
+    fun stopReason(job: PJob): String? = job.message?.takeIf { job.state == "printing" && it in STOP_REASONS }
+
+    /** The phase of a job with its message: a stopped printer blocks the job in the print dialog. */
+    fun phase(job: PJob): Phase = if (stopReason(job) != null) Phase.STOPPED else phase(job.state)
 
     /**
      * Job states (docs/plugins.md `gc.print`): `queued` → `sending` → `printing` → `done`; `waiting` while the
@@ -138,6 +165,7 @@ object PrintLogic {
      */
     fun pollDelayMs(elapsedMs: Long, phase: Phase): Long = when {
         phase == Phase.WAITING -> 120_000L
+        phase == Phase.STOPPED -> 15_000L
         elapsedMs < 2 * 60_000L -> 5_000L
         elapsedMs < 15 * 60_000L -> 20_000L
         else -> 60_000L
@@ -148,6 +176,30 @@ object PrintLogic {
 
     /** A job that no longer shows in `overview.jobs` (only the last ten) for this many answers counts as done. */
     const val MISSING_MAX = 3
+
+    /**
+     * Android's paper ids for the PWG names a printer reports (plugin 1.1.0). Sizes Android has no constant for get the
+     * PWG name as their id (the print service builds them itself).
+     */
+    val ANDROID_MEDIA: Map<String, String> = mapOf(
+        "iso_a4_210x297mm" to "ISO_A4",
+        "iso_a5_148x210mm" to "ISO_A5",
+        "iso_a6_105x148mm" to "ISO_A6",
+        "na_letter_8.5x11in" to "NA_LETTER",
+        "na_legal_8.5x14in" to "NA_LEGAL",
+        "na_index-4x6_4x6in" to "NA_INDEX_4X6",
+        "na_5x7_5x7in" to "na_5x7_5x7in",
+        "oe_photo-l_3.5x5in" to "oe_photo-l_3.5x5in",
+    )
+
+    /** The paper sizes to offer in the print dialog for [printer]: the known ones it names, in its order. */
+    fun dialogMedia(printer: PPrinter): List<String> = printer.mediaSizes.filter { it in ANDROID_MEDIA }
+
+    /** The paper for a job: the PWG name of the dialog's choice ([androidId]) when the printer names it, else null. */
+    fun mediaFor(androidId: String?, printer: PPrinter): String? {
+        if (androidId == null) return null
+        return ANDROID_MEDIA.entries.firstOrNull { it.value == androidId }?.key?.takeIf { it in printer.mediaSizes }
+    }
 
     /** The job's name on the printer and in the history: the document's own name, else "GateControl". */
     fun jobName(label: String?): String =

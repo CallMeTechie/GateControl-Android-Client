@@ -33,8 +33,26 @@ class PrintSender @Inject constructor(private val api: PrintApi) {
         r
     }
 
-    /** A job of the person by its id (null: not among the last jobs any more). */
-    suspend fun job(id: String): PResult<PJob?> = when (val r = overview(maxAgeMs = 3_000L)) {
+    /** Whether the plugin answers `GET jobs/<id>` (1.1.0): null until known. */
+    @Volatile private var jobRoute: Boolean? = null
+
+    /**
+     * A job of the person by its id (null: not among the last jobs any more): `GET jobs/<id>` of the plugin 1.1.0 (the
+     * real state, the printer's stop reason), else from the overview's last jobs.
+     */
+    suspend fun job(id: String): PResult<PJob?> {
+        if (jobRoute != false) {
+            when (val r = api.job(id)) {
+                is PResult.Ok -> { jobRoute = true; return PResult.Ok(r.value) }
+                PResult.Offline -> return PResult.Offline
+                PResult.NotConfigured -> return PResult.NotConfigured
+                is PResult.Failed -> if (r.code == "not_found" && jobRoute == null) jobRoute = false else if (r.code == "not_found") return PResult.Ok(null)
+            }
+        }
+        return fromOverview(id)
+    }
+
+    private suspend fun fromOverview(id: String): PResult<PJob?> = when (val r = overview(maxAgeMs = 3_000L)) {
         is PResult.Ok -> PResult.Ok(r.value.jobs.firstOrNull { it.id == id })
         is PResult.Failed -> r
         PResult.Offline -> PResult.Offline
@@ -45,7 +63,7 @@ class PrintSender @Inject constructor(private val api: PrintApi) {
      * [file] ([mime] one of the plugin's media types) → a print job on [deviceId]. A file the virus scan of the
      * server still checks cannot be read for a moment (`print_failed`): asked twice more after a short wait.
      */
-    suspend fun send(file: File, mime: String, deviceId: String, copies: Int, color: Boolean, duplex: Boolean, name: String): PResult<PPrinted> {
+    suspend fun send(file: File, mime: String, deviceId: String, copies: Int, color: Boolean, duplex: Boolean, name: String, media: String? = null): PResult<PPrinted> {
         if (file.length() > PrintLogic.MAX_BYTES) return PResult.Failed("too_large", 413)
         if (file.length() <= 0L) return PResult.Failed("read", 0)
         val mediaId = when (val u = api.upload(file, PrintLogic.uploadType(mime))) {
@@ -56,7 +74,7 @@ class PrintSender @Inject constructor(private val api: PrintApi) {
         }
         var attempt = 0
         while (true) {
-            val r = api.print(deviceId, mediaId, copies, color, duplex, name)
+            val r = api.print(deviceId, mediaId, copies, color, duplex, name, media)
             if (r is PResult.Failed && r.code == "print_failed" && attempt < RETRIES) {
                 attempt++
                 delay(RETRY_MS * attempt)
@@ -91,7 +109,9 @@ object PrintTexts {
             "too_large" -> r.text ?: context.getString(R.string.print_err_too_large)
             // the plugin (1.0.3+) names the real reason: not a PDF or picture, damaged, a printer without PDF whose
             // gateway is too old / has converting off / knows no format to convert to — its own sentence
-            "unsupported_type", "format", "damaged", "printer_format", "gateway_update", "convert_off" -> r.text ?: context.getString(R.string.print_err_format)
+            // … and (1.1.0) an office file whose printer's gateway does not convert them (off / service not running yet)
+            "unsupported_type", "format", "damaged", "printer_format", "gateway_update", "convert_off", "office_off", "office_missing" ->
+                r.text ?: context.getString(R.string.print_err_format)
             "quota_exceeded" -> context.getString(R.string.print_err_quota)
             "infected", "quarantined" -> context.getString(R.string.print_err_infected)
             "scan_unavailable", "scan_pending" -> context.getString(R.string.print_err_scan)
@@ -104,20 +124,40 @@ object PrintTexts {
     }
 
     /** A job's state in words (sheet and print dialog). */
-    fun state(context: Context, job: PJob): String = when (PrintLogic.phase(job.state)) {
+    fun state(context: Context, job: PJob): String = when (PrintLogic.phase(job)) {
         PrintLogic.Phase.RUNNING -> context.getString(
             when (job.state) {
                 // the gateway turns the PDF into the printer's own format first (a printer without PDF)
-                "sending" -> if (job.message == "converting") R.string.print_state_converting else R.string.print_state_sending
+                "sending" -> when (job.message) {
+                    "converting" -> R.string.print_state_converting
+                    // the gateway makes a PDF of an office file first (its service office)
+                    "converting_office" -> R.string.print_state_converting_office
+                    else -> R.string.print_state_sending
+                }
                 "printing" -> R.string.print_state_printing
                 else -> R.string.print_state_queued
             },
         )
         PrintLogic.Phase.WAITING -> waiting(context, job.error)
+        PrintLogic.Phase.STOPPED -> stopped(context, PrintLogic.stopReason(job))
         PrintLogic.Phase.DONE -> context.getString(if (job.message == "unconfirmed") R.string.print_state_done_unconfirmed else R.string.print_state_done)
         PrintLogic.Phase.FAILED -> reason(context, PrintLogic.failReason(job))
         PrintLogic.Phase.CANCELED -> context.getString(R.string.print_state_canceled)
     }
+
+    /** Why the printer stopped while printing (gateway docs/print.md "Zustände beim Drucken"). */
+    fun stopped(context: Context, reason: String?): String = context.getString(
+        when (reason) {
+            "media-empty", "media-needed" -> R.string.print_stop_paper
+            "media-jam" -> R.string.print_stop_jam
+            "door-open", "cover-open" -> R.string.print_stop_open
+            "toner-empty", "marker-supply-empty" -> R.string.print_stop_ink
+            "input-tray-missing" -> R.string.print_stop_tray
+            "output-area-full" -> R.string.print_stop_full
+            "held" -> R.string.print_stop_held
+            else -> R.string.print_stop_stopped
+        },
+    )
 
     /** "Wartet, bis der Drucker an ist" and its other reasons (gateway docs/print.md, states → waiting). */
     fun waiting(context: Context, error: String?): String = context.getString(
@@ -125,6 +165,7 @@ object PrintTexts {
             "printer_busy" -> R.string.print_wait_busy
             "printer_not_accepting" -> R.string.print_wait_not_accepting
             "cert_changed" -> R.string.print_wait_cert
+            "office_starting" -> R.string.print_wait_office
             else -> R.string.print_wait_printer_off
         },
     )
@@ -135,6 +176,8 @@ object PrintTexts {
             "format_unsupported" -> R.string.print_fail_format
             "convert_failed" -> R.string.print_fail_convert
             "convert_too_large" -> R.string.print_fail_convert_large
+            "office_failed" -> R.string.print_fail_office
+            "office_timeout" -> R.string.print_fail_office_timeout
             "printer_rejected" -> R.string.print_fail_rejected
             "canceled_at_printer", "aborted_at_printer" -> R.string.print_fail_at_printer
             "expired", "printer_offline" -> R.string.print_fail_expired
