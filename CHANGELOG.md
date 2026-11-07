@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.93.0] - 2026-11-07
+
+### Features
+- „Offline verfügbar“ mit echter Kopie auf dem Handy – öffnet ohne Verbindung, erneuert sich bei Änderungen (#198)
+
+---
+
 ## [1.92.0] - 2026-11-07
 
 ### Features
