@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -82,6 +83,7 @@ import com.gatecontrol.android.door.HomeClip
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChip
 import com.gatecontrol.android.ui.components.GcFilterChip
+import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
@@ -252,6 +254,19 @@ fun HomeCamerasSection(viewModel: HomeCameraViewModel, snackbar: SnackbarHostSta
             modifier = Modifier.padding(horizontal = 4.dp),
         )
 
+        // Plugin 1.7.0: this person's own push "Personen an der Kamera" (only when the camera pushes at all)
+        val mine = camera.myPush
+        if (mine != null && camera.push) {
+            GcCard(contentPadding = PaddingValues(vertical = 4.dp)) {
+                GcSwitchRow(
+                    label = stringResource(R.string.door_home_my_push),
+                    description = stringResource(R.string.door_home_my_push_desc),
+                    checked = mine,
+                    onCheckedChange = { viewModel.setMyPush(camera.id, it) },
+                )
+            }
+        }
+
         ClipsCard(camera, clips, viewModel)
     }
 
@@ -388,7 +403,7 @@ private fun BoxScope.PictureOverlay(camera: HomeCamera, live: HomeCameraViewMode
         val right = when {
             l == null -> null
             l.isLive && showingVideo -> {
-                val q = stringResource(if (HomeCameraLogic.isHd(videoHeight.takeIf { it > 0 }, camera.settings.stream)) R.string.door_home_hd else R.string.door_home_sd)
+                val q = stringResource(if (HomeCameraLogic.isHd(videoHeight.takeIf { it > 0 } ?: camera.height, camera.settings.stream)) R.string.door_home_hd else R.string.door_home_sd)
                 val via = when (l.via) {
                     "vpn" -> stringResource(R.string.door_home_via_vpn)
                     "lan" -> stringResource(R.string.door_home_via_lan)
@@ -447,6 +462,7 @@ private fun cameraProblem(camera: HomeCamera, live: HomeCameraViewModel.LiveUi):
             "not_allowed" -> R.string.door_home_state_not_allowed
             "no_stream" -> R.string.door_home_state_no_stream
             "error" -> R.string.door_home_state_error
+            "tls_untrusted" -> R.string.door_home_state_tls
             else -> R.string.door_home_state_offline
         },
     )

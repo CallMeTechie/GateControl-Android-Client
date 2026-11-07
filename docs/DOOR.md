@@ -86,6 +86,14 @@ bottom bar; back returns to where the person was) reached only by:
   (`QuickActionLongPress.target`, pure): an action of plugin
   `gatecontrol-door` opens the door screen; other plugins' actions have no
   long press. Accessibility label of the long press: "Tür & Kamera öffnen".
+- **the row "Tür & Kamera · Kameras ansehen" on Start** for people without
+  any door quick action — someone who may only see cameras (home cameras of
+  plugin 1.6.0, or Ring cameras without a lock) has nothing to long-press.
+  `DoorEntry.show` (pure): the door plugin is listed, it is Start (not a page
+  beside it), the quick actions came from the server at least once (no
+  flicker for people with locks) and none of them is the door plugin's. A
+  card in the app's list-row style (camera icon, chevron) below the tiles; a
+  tap opens the door screen.
 
 - `PluginAvailability.from()` (`familie/PluginDirectory.kt`, same cache as
   the Familie tab): `door` when `gatecontrol-door` is listed at all. The
@@ -183,6 +191,14 @@ itself is unchanged.
   and refuses anything that is not a live file of the own server. A player
   error (ring not ready yet: 409) shows stills and tries again after 3, 6, …
   ≤ 60 s.
+- **Own push (plugin 1.7.0):** a card with the switch **"Push bei Personen"**
+  ("Mitteilung mit Standbild, wenn diese Kamera eine Person sieht – nur für
+  dich") under the picture — `PUT cameras/home/<id>/prefs { push }`,
+  optimistic, reverted with the error on refusal (e.g. `read_only`). Only when
+  the list has `prefs.push` (older plugins: no row) and the camera pushes at
+  all (`push`). The list also carries `width`/`height` (HD before the first
+  frame), `audio`, `hasAudio`; state `tls_untrusted` and error `cam_tls` have
+  their own texts.
 - **Buttons:** **Standbild** → `GET …/still` (JPEG ≤ 700 KB) → "In Galerie
   speichern" (MediaStore, Pictures/GateControl, no permission) or "Teilen"
   (one file in `cacheDir/camera-still`, FileProvider, removed with the
@@ -211,7 +227,10 @@ itself is unchanged.
   with the still as push picture — shown like every push picture, see above):
   a tap opens the door screen showing that camera (`DoorDest.Camera`,
   `camera:<id>`; phones and wide windows alike) and scrolls "Kameras" into
-  view; an open door screen reloads the clips.
+  view; an open door screen reloads the clips. Plugin 1.7.0 adds the button
+  **"Ansehen"** (`open_app_route` → `plg-gatecontrol-door`): the notification
+  shows it first, its intent carries the same `camera:<id>`
+  (`PushNavTarget.forRoute`), so it opens that camera too.
 - Channels: `plugin:gatecontrol-door:doorbell` and
   `plugin:gatecontrol-door:kamera` get a **high importance** channel
   (`PushChannels.HIGH_TOPICS`), so a ring or a person pops up; the other door

@@ -75,8 +75,21 @@ object HomeCameraJson {
             settings = settings(o.obj("settings")),
             snapshotAt = time(o.str("snapshotAt")),
             lastEventAt = time(o.str("lastEventAt")),
+            width = dimension(o, "width"),
+            height = dimension(o, "height"),
+            audio = o.flag("audio") == true,
+            hasAudio = o.flag("hasAudio"),
+            push = o.flag("push") != false,
+            myPush = o.obj("prefs")?.flag("push"),
         )
     }
+
+    /** A side of the resolution: a whole number of pixels, 16…16384, else unknown. */
+    private fun dimension(o: JsonObject, key: String): Int? =
+        o.num(key)?.takeIf { it == Math.floor(it) }?.toInt()?.takeIf { it in 16..16384 }
+
+    /** `{ prefs: { push } }` of `PUT cameras/home/<id>/prefs` (plugin 1.7.0) → the own push. */
+    fun prefs(o: JsonObject): Boolean? = o.obj("prefs")?.flag("push")
 
     fun settings(o: JsonObject?): HomeCameraSettings = HomeCameraSettings(
         record = o?.str("record")?.takeIf { it in RECORD } ?: "motion",

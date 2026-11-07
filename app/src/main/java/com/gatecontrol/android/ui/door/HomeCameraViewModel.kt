@@ -212,6 +212,28 @@ class HomeCameraViewModel @Inject constructor(
         _sound.update { !it }
     }
 
+    /**
+     * Plugin 1.7.0: this person's push "Personen an der Kamera" for [cameraId] — optimistic,
+     * reverted (with the error in the snackbar) when the server refuses.
+     */
+    fun setMyPush(cameraId: String, on: Boolean) {
+        val before = _ui.value.cameras.firstOrNull { it.id == cameraId }?.myPush ?: return
+        setMine(cameraId, on)
+        viewModelScope.launch {
+            when (val r = api.setHomePush(cameraId, on)) {
+                is DoorResult.Ok -> setMine(cameraId, r.value)
+                else -> {
+                    setMine(cameraId, before)
+                    events.trySend(HomeCameraEvent.Error(r.errorCode() ?: DoorApi.CODE_INVALID))
+                }
+            }
+        }
+    }
+
+    private fun setMine(cameraId: String, on: Boolean) {
+        _ui.update { ui -> ui.copy(cameras = ui.cameras.map { if (it.id == cameraId) it.copy(myPush = on) else it }) }
+    }
+
     private fun startCamera(cameraId: String) {
         restartLive(cameraId)
         clipsJob?.cancel()

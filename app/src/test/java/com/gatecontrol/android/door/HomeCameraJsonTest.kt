@@ -157,4 +157,45 @@ class HomeCameraJsonTest {
         assertNull(c.clips[2].clipPath)
         assertNull(HomeCameraJson.clips(json("""{"day":"2026-11-07"}""")))
     }
+
+    @Test
+    fun `plugin 1_7_0 resolution, sound and the own push`() {
+        val l = HomeCameraJson.list(
+            json(
+                """
+                {"supported":true,"cameras":[
+                  {"id":"$cam","kind":"home","name":"Einfahrt","online":true,"width":2560,"height":1440,"audio":true,"hasAudio":true,
+                   "push":true,"prefs":{"push":false},"settings":{"audio":true}},
+                  {"id":"c0000000000000aa","name":"Garten","width":2.5,"height":99999,"hasAudio":"yes","push":false},
+                  {"id":"c0000000000000bb","name":"Alt"}
+                ]}
+                """,
+            ),
+        )!!
+        val (a, b, old) = l.cameras
+        assertEquals(2560, a.width)
+        assertEquals(1440, a.height)
+        assertTrue(a.audio)
+        assertEquals(true, a.hasAudio)
+        assertTrue(a.push)
+        assertEquals(false, a.myPush)
+        // Not whole pixels, out of range or not a flag: unknown.
+        assertNull(b.width)
+        assertNull(b.height)
+        assertNull(b.hasAudio)
+        assertFalse(b.audio)
+        assertFalse(b.push)
+        // An older plugin: no own switch (no row), the admin's push counts as on.
+        assertNull(old.myPush)
+        assertTrue(old.push)
+        assertNull(old.width)
+        assertEquals(true, HomeCameraJson.prefs(json("""{"ok":true,"prefs":{"push":true}}""")))
+        assertNull(HomeCameraJson.prefs(json("""{"ok":true}""")))
+    }
+
+    @Test
+    fun `plugin 1_7_0 the resolution decides HD before the first frame`() {
+        assertTrue(HomeCameraLogic.isHd(1440, "sub"))
+        assertFalse(HomeCameraLogic.isHd(360, "main"))
+    }
 }
