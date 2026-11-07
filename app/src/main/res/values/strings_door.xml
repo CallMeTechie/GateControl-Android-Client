@@ -3,6 +3,7 @@
 <resources>
     <string name="door_screen_title">Door &amp; camera</string>
     <string name="door_open_screen">Open door &amp; camera</string>
+    <string name="door_entry_desc">View cameras</string>
     <string name="door_ring_unofficial">Ring: unofficial connection</string>
     <string name="door_ring_broken">Ring: connection disturbed</string>
     <string name="door_ring_off">Ring: not connected</string>

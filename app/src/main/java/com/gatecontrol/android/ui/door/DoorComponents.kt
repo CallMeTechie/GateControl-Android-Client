@@ -137,6 +137,7 @@ fun doorErrorText(code: String, retryAfter: Int? = null): String = when (code) {
     "cam_limit" -> stringResource(R.string.door_error_cam_limit)
     "cam_not_ready" -> stringResource(R.string.door_error_cam_not_ready)
     "cam_service" -> stringResource(R.string.door_error_cam_service)
+    "cam_tls" -> stringResource(R.string.door_error_cam_tls)
     else -> stringResource(R.string.door_error_generic, code)
 }
 
@@ -154,7 +155,7 @@ fun doorNoticeText(notice: DoorNotice): String = when (notice) {
 private val KNOWN_CODES = setOf(
     "offline", "no_right", "forbidden", "read_only", "outside_window", "rate_limited", "too_many", "too_soon",
     "ring_rate_limited", "no_image", "ring_not_connected", "lock_unreachable", "lock_failed", "not_found", "unsupported",
-    "cam_needs_gc", "cam_auth", "cam_unreachable", "cam_not_allowed", "cam_offline", "cam_unsupported", "cam_limit", "cam_not_ready", "cam_service",
+    "cam_needs_gc", "cam_auth", "cam_unreachable", "cam_not_allowed", "cam_offline", "cam_unsupported", "cam_limit", "cam_not_ready", "cam_service", "cam_tls",
 )
 
 /** Shows [notices] in [host] (the result snackbar of the door screens). */

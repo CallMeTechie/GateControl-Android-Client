@@ -77,6 +77,8 @@ import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcIconSquare
+import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
@@ -366,6 +368,14 @@ fun StartTiles(
     val contacts = com.gatecontrol.android.ui.mail.start.rememberStartContacts()
     val contactsHere = tileEntries.any { it is StartEntry.Contact && it.id in contacts }
 
+    // People who may only see cameras have no door quick action: the row "Tür & Kamera" on Start (DoorEntry).
+    val load by viewModel.load.collectAsStateWithLifecycle()
+    var actionsSeen by remember { mutableStateOf(false) }
+    if (load == com.gatecontrol.android.quickactions.QuickActionsLoad.Loaded) actionsSeen = true
+    if (onOpenDoor != null && com.gatecontrol.android.quickactions.DoorEntry.show(doorListed = true, page = page, loaded = actionsSeen, actions = actions)) {
+        DoorEntryRow(onOpenDoor, modifier)
+    }
+
     when (val row = QuickActionsRow.of(shown, actions, hasWidgets || page != null || contactsHere)) {
         QuickActionsRow.Hidden -> Unit
         QuickActionsRow.Choose -> Text(
@@ -404,6 +414,21 @@ fun StartTiles(
                 }
             }
         }
+    }
+}
+
+/** "Tür & Kamera · Kameras ansehen" on Start for people without a door quick action (DoorEntry). */
+@Composable
+private fun DoorEntryRow(onOpenDoor: () -> Unit, modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    GcCard(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 4.dp)) {
+        GcListRow(
+            title = stringResource(R.string.door_screen_title),
+            description = stringResource(R.string.door_entry_desc),
+            onClick = onOpenDoor,
+            leading = { GcIconSquare { Icon(GcIcons.Camera, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp)) } },
+            trailing = { GcChevron() },
+        )
     }
 }
 

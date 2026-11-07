@@ -54,4 +54,8 @@
     <string name="door_error_cam_limit">Zu viele Kameras an diesem Gateway.</string>
     <string name="door_error_cam_not_ready">Die Kamera startet noch – gleich noch einmal.</string>
     <string name="door_error_cam_service">Am Gateway fehlt der Dienst „kameras“.</string>
+    <string name="door_error_cam_tls">Das Zertifikat der Kamera ist nicht vertrauenswürdig. Ein Administrator kann im Plugin „Zertifikat nicht prüfen“ setzen.</string>
+    <string name="door_home_state_tls">Zertifikat der Kamera nicht vertrauenswürdig</string>
+    <string name="door_home_my_push">Push bei Personen</string>
+    <string name="door_home_my_push_desc">Mitteilung mit Standbild, wenn diese Kamera eine Person sieht – nur für dich</string>
 </resources>

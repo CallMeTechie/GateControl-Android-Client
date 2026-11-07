@@ -54,4 +54,8 @@
     <string name="door_error_cam_limit">Too many cameras on this gateway.</string>
     <string name="door_error_cam_not_ready">The camera is still starting – try again shortly.</string>
     <string name="door_error_cam_service">The service “kameras” is missing on the gateway.</string>
+    <string name="door_error_cam_tls">The camera\'s certificate is not trusted. An administrator can tick “Do not check the certificate” in the plugin.</string>
+    <string name="door_home_state_tls">The camera\'s certificate is not trusted</string>
+    <string name="door_home_my_push">Push for people</string>
+    <string name="door_home_my_push_desc">Message with a still when this camera sees a person – only for you</string>
 </resources>
