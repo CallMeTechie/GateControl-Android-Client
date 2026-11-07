@@ -79,6 +79,13 @@ import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.vault.DriveVaultCrypto
+import com.gatecontrol.android.drive.vault.DriveVaultHeld
+import com.gatecontrol.android.drive.vault.DriveVaultShares
+import com.gatecontrol.android.drive.vault.DriveVaultView
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.Closeable
 import com.gatecontrol.android.drive.vault.DriveVaultSession
 import com.gatecontrol.android.drive.vault.DriveVaultLock
 import com.gatecontrol.android.drive.DriveSettings
@@ -157,6 +164,13 @@ class DriveVaultViewModel @Inject constructor(
     private val _upload = MutableStateFlow<Pair<String, Float>?>(null)
     val upload: StateFlow<Pair<String, Float>?> = _upload.asStateFlow()
 
+    /** The viewer of a file (Drive plugin 1.22; null: closed) — what it shows lives in memory only. */
+    private val _viewer = MutableStateFlow<VaultViewer?>(null)
+    val viewer: StateFlow<VaultViewer?> = _viewer.asStateFlow()
+    private var viewerJob: Job? = null
+    /** What the open viewer holds (bitmaps, a PDF, a video's ciphertext): released on close and on lock. */
+    private var held = DriveVaultHeld()
+
     /** The requests sheet (null: closed). */
     private val _requests = MutableStateFlow<DriveLoad<List<DVaultDevice>>?>(null)
     val requests: StateFlow<DriveLoad<List<DVaultDevice>>?> = _requests.asStateFlow()
@@ -183,7 +197,8 @@ class DriveVaultViewModel @Inject constructor(
         vaultRoot = { (_ui.value as? Ui.Ready)?.vault?.nodeId },
     ).also { b ->
         b.newVaultFolder = { parent, name -> lock.touch(); session.createFolder(vaultId, parent, name) }
-        b.fetch = { n -> fetch(n, session.nameOf(n) ?: "file") }
+        // sending and saving never apply to a vault (DriveBulk: Why.VAULT); nothing of it is decrypted into a file
+        b.fetch = { DResult.Failed("vault", 0) }
     }
 
     /** The person just confirmed: the next opening may read the device key (and moves it, [DriveVaultSession.protectDeviceKey]). */
@@ -200,6 +215,8 @@ class DriveVaultViewModel @Inject constructor(
                     else -> null
                 } ?: return@collect
                 job?.cancel()
+                // the viewer first: its plaintext goes with the keys
+                closeViewer()
                 confirmed = false
                 _requests.value = null
                 _move.value = null
@@ -500,16 +517,126 @@ class DriveVaultViewModel @Inject constructor(
 
     fun delete(node: DNode) = act("done_trash") { api.delete(node.id).also { if (it is DResult.Ok) refresh(quiet = true) } }
 
-    /** The file decrypted into the cache (removed when the vault closes). */
-    suspend fun fetch(node: DNode, name: String): DResult<File> = lock.busy {
-        val r = session.fetch(node, name)
-        // a key version this device did not hold: loaded now, so once more
-        if (r is DResult.Failed && r.code == "stale_key") session.fetch(node, name) else r
+    /**
+     * Opens [node] in the viewer: decrypted in memory only (a picture, a text, a PDF in a memory file), a video chunk by
+     * chunk while it plays — never a file in plaintext, never another app (Drive plugin 1.22, DriveVaultView).
+     */
+    fun view(node: DNode, name: String) {
+        closeViewer()
+        lock.touch()
+        val kind = DriveVaultView.kindOf(name)
+        val note = when {
+            kind == DriveVaultView.Kind.OFFICE -> "office"
+            kind == DriveVaultView.Kind.OTHER -> "other"
+            DriveVaultView.tooLarge(kind, node.size) -> "too_large"
+            else -> null
+        }
+        if (note != null) {
+            _viewer.value = VaultViewer.Note(node, name, note)
+            return
+        }
+        val mine = held
+        _viewer.value = VaultViewer.Loading(node, name)
+        viewerJob = viewModelScope.launch {
+            val shown = lock.busy { load(node, name, kind, mine) }
+            if (!mine.closed && _viewer.value?.node?.id == node.id) _viewer.value = shown else (shown as? Closeable)?.close()
+        }
+    }
+
+    private suspend fun load(node: DNode, name: String, kind: DriveVaultView.Kind, mine: DriveVaultHeld): VaultViewer {
+        suspend fun <T> twice(f: suspend () -> DResult<T>): DResult<T> = f().let { r -> if (r is DResult.Failed && r.code == "stale_key") f() else r }
+        val limit = DriveVaultView.LIMITS[kind] ?: 0L
+        val failed = { r: DResult<*> -> VaultViewer.Note(node, name, if (r is DResult.Offline) "offline" else r.errorCode() ?: "failed") }
+        return when (kind) {
+            DriveVaultView.Kind.IMAGE -> when (val r = twice { session.decryptToMemory(node, limit) }) {
+                is DResult.Ok -> try {
+                    val bmp = withContext(Dispatchers.Default) { decodeVaultPicture(r.value) }
+                    mine.add(Closeable { bmp.recycle() })
+                    VaultViewer.Picture(node, name, bmp.asImageBitmap())
+                } catch (e: Exception) {
+                    VaultViewer.Note(node, name, "failed")
+                } finally {
+                    r.value.fill(0)
+                }
+                else -> failed(r)
+            }
+            DriveVaultView.Kind.TEXT, DriveVaultView.Kind.MARKDOWN -> when (val r = twice { session.decryptToMemory(node, limit) }) {
+                is DResult.Ok -> {
+                    val text = String(r.value, Charsets.UTF_8)
+                    r.value.fill(0)
+                    VaultViewer.Text(node, name, text, kind == DriveVaultView.Kind.MARKDOWN)
+                }
+                else -> failed(r)
+            }
+            DriveVaultView.Kind.PDF -> when (val r = twice { session.decryptToMemFile(node, limit) }) {
+                is DResult.Ok -> try {
+                    val pdf = withContext(Dispatchers.IO) { VaultPdf.open(r.value) }
+                    mine.add(pdf)
+                    VaultViewer.Pdf(node, name, pdf)
+                } catch (e: Exception) {
+                    r.value.close()
+                    VaultViewer.Note(node, name, "failed")
+                }
+                else -> failed(r)
+            }
+            DriveVaultView.Kind.VIDEO -> when (val r = twice { session.fetchCipher(node) { p -> if (_viewer.value is VaultViewer.Loading && !mine.closed) _viewer.value = VaultViewer.Loading(node, name, p) } }) {
+                is DResult.Ok -> {
+                    mine.add(r.value)
+                    VaultViewer.Video(node, name, r.value)
+                }
+                else -> failed(r)
+            }
+            else -> VaultViewer.Note(node, name, "other")
+        }
+    }
+
+    /** Closes the viewer: what it held is released (bitmaps recycled, the PDF's memory emptied, the ciphertext deleted). */
+    fun closeViewer() {
+        viewerJob?.cancel()
+        viewerJob = null
+        held.close()
+        held = DriveVaultHeld()
+        _viewer.value = null
+        session.wipeViewed()
+    }
+
+    /**
+     * "Mit anderer App öffnen" (asked first, [OpenWithDialog]): [node] decrypted into a memory file and offered to the app
+     * the person picks as a content URI of [DriveVaultShares] — no file in plaintext. It goes when the person comes
+     * back ([backFromOtherApp]) or the vaults lock. [then] gets the URI and the MIME type, or null with a message.
+     */
+    fun openWith(node: DNode, name: String, then: (android.net.Uri, String) -> Unit) {
+        lock.touch()
+        viewModelScope.launch {
+            _busy.value = true
+            val r = lock.busy {
+                session.decryptToMemFile(node, DriveVaultView.SHARE_LIMIT).let { x ->
+                    if (x is DResult.Failed && x.code == "stale_key") session.decryptToMemFile(node, DriveVaultView.SHARE_LIMIT) else x
+                }
+            }
+            _busy.value = false
+            when (r) {
+                is DResult.Ok -> {
+                    if (!session.unlocked(vaultId)) { r.value.close(); return@launch }
+                    val mime = DriveVaultView.mimeOf(name)
+                    val uri = DriveVaultShares.add(context.packageName, r.value, DriveLogic.safeName(name) ?: "file", mime)
+                    lock.away()
+                    then(uri, mime)
+                }
+                else -> _message.value = if (r is DResult.Failed && r.code == "too_large") "vault_share_too_large" else r.errorCode() ?: "failed"
+            }
+        }
+    }
+
+    /** Back from the other app: what it was given goes (it keeps only what it already read). */
+    fun backFromOtherApp() {
+        if (!DriveVaultShares.isEmpty()) DriveVaultShares.clear()
     }
 
     override fun onCleared() {
-        // decrypted copies only while the vault is open
-        session.wipeOpened()
+        // the viewer's plaintext and what another app was given go with the page
+        closeViewer()
+        DriveVaultShares.clear()
         super.onCleared()
     }
 }
@@ -543,11 +670,13 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         if (shown) viewModel.refresh(quiet = true)
         shown = true
         viewModel.touch()
+        // back from "Mit anderer App öffnen": the memory file it was given goes
+        viewModel.backFromOtherApp()
         onPauseOrDispose { }
     }
     LaunchedEffect(message) {
         message?.let {
-            Toast.makeText(context, driveText(context, it), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, vaultViewText(context, it) ?: driveText(context, it), Toast.LENGTH_SHORT).show()
             viewModel.clearMessage()
         }
     }
@@ -559,15 +688,18 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         versionFor = null
         if (uri != null && target != null) viewModel.uploadVersion(target.first, target.second, uri)
     }
-    val open: (DNode, String) -> Unit = { n, name ->
-        scope.launch {
-            when (val r = viewModel.fetch(n, name)) {
-                is DResult.Ok -> {
-                    // the viewer is another app: leaving for it does not lock the vault (the time without use does)
-                    viewModel.away()
-                    openFile(context, n.copy(name = name, mime = null), r.value)
-                }
-                else -> Toast.makeText(context, driveText(context, r.errorCode() ?: "failed"), Toast.LENGTH_LONG).show()
+    // Drive plugin 1.22: a file opens in the viewer of this app, decrypted in memory only
+    val open: (DNode, String) -> Unit = { n, name -> viewModel.view(n, name) }
+    val viewer by viewModel.viewer.collectAsStateWithLifecycle()
+    var openWithFor by remember { mutableStateOf<Pair<DNode, String>?>(null) }
+    val openWith: (DNode, String) -> Unit = { n, name ->
+        viewModel.openWith(n, name) { uri, mime ->
+            val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                context.startActivity(Intent.createChooser(intent, name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: android.content.ActivityNotFoundException) {
+                Toast.makeText(context, R.string.drive_open_none, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -726,6 +858,16 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             )
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 84.dp))
+        // the viewer of a file, over everything of the vault page (Drive plugin 1.22)
+        viewer?.let { v ->
+            DriveVaultViewerScreen(
+                v,
+                onClose = viewModel::closeViewer,
+                onUse = viewModel::touch,
+                onLock = viewModel::lockNow,
+                onOpenWith = { openWith(v.node, v.name) },
+            )
+        }
     }
     DriveBulkHost(viewModel.bulk, snackbar)
 
@@ -763,7 +905,11 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             MoreItem(GcIcons.Link, stringResource(R.string.drive_share_link), null, can(DriveBulk.Action.LINK)) {},
         )
         val single = buildList {
-            if (one != null && !one.first.isDir) add(MoreItem(GcIcons.External, stringResource(R.string.drive_open)) { open(one.first, one.second) })
+            if (one != null && !one.first.isDir) {
+                add(MoreItem(GcIcons.Eye, stringResource(R.string.drive_vault_view)) { open(one.first, one.second) })
+                // the explicit way out of the vault, asked first
+                add(MoreItem(GcIcons.External, stringResource(R.string.drive_vault_open_with)) { openWithFor = one })
+            }
             add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = can(DriveBulk.Action.RENAME)) { one?.let { renaming = it } })
             if (one == null || !one.first.isDir) {
                 add(
@@ -785,6 +931,9 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     }
     menuFor?.let { m -> moreSheet(listOf(m), true) { menuFor = null } }
     if (moreOpen && chosen.isNotEmpty()) moreSheet(chosen, false) { moreOpen = false }
+    openWithFor?.let { (n, name) ->
+        OpenWithDialog(onConfirm = { openWithFor = null; openWith(n, name) }, onDismiss = { openWithFor = null })
+    }
     if (newFolder) {
         NameDialog(
             title = stringResource(R.string.drive_new_folder),

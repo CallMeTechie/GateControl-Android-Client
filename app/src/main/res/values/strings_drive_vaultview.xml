@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive vaults: the viewer of vault files in the app (Drive plugin 1.22) — decrypted in memory only. -->
+<resources>
+    <string name="drive_vault_view">View</string>
+    <string name="drive_vault_view_more">More</string>
+    <string name="drive_vault_view_decrypting">Decrypting …</string>
+    <string name="drive_vault_view_in_memory">Decrypted in memory only</string>
+    <string name="drive_vault_view_page">Page %1$d</string>
+    <string name="drive_vault_view_office">Office files cannot be shown safely inside the vault. Open the file with another app on purpose if you need it.</string>
+    <string name="drive_vault_view_other">There is no view for this kind of file. You can open it with another app on purpose.</string>
+    <string name="drive_vault_view_too_large">Too large to view (at most %1$d MB are decrypted in memory). You can open it with another app on purpose.</string>
+    <string name="drive_vault_view_unreadable">This file cannot be decrypted with the keys of this device.</string>
+    <string name="drive_vault_view_failed">This file cannot be shown.</string>
+    <string name="drive_vault_view_offline">No connection to the server.</string>
+    <string name="drive_vault_view_no_space">Not enough free space for the encrypted video.</string>
+    <string name="drive_vault_view_unsupported">This device cannot keep the file in memory only.</string>
+    <string name="drive_vault_open_with">Open with another app</string>
+    <string name="drive_vault_open_with_title">Leave the vault?</string>
+    <string name="drive_vault_open_with_text">The other app gets the content unencrypted. What it keeps of it (history, previews, copies) is no longer protected by the vault. GateControl itself writes no unencrypted file and withdraws the file as soon as you come back or the vault locks.</string>
+    <string name="drive_vault_open_with_go">Open anyway</string>
+    <string name="drive_vault_open_with_too_large">Too large for another app (at most %1$d MB).</string>
+</resources>
