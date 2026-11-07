@@ -382,7 +382,9 @@ wird die Tür über die Schnellaktionen (Kacheln auf dem Start-Tab, Widget,
 App-Verknüpfungen) und die Mitteilungen. Den Bildschirm **„Tür & Kamera“**
 öffnet ein Tippen auf eine Tür-Mitteilung oder **langes Drücken auf eine
 Tür-Schnellaktion** (auf dem Start-Tab oder in der Liste „Schnellaktionen“);
-zurück geht es dorthin, wo man war.
+zurück geht es dorthin, wo man war. Wer nur Kameras sehen darf (kein Schloss,
+keine Tür-Schnellaktion), findet auf dem Start-Tab unter den Kacheln die Zeile
+**„Tür & Kamera · Kameras ansehen“**.
 
 - **Schlösser** (Nuki Smart Lock / Opener): Zustand mit Symbol
   (zugesperrt, aufgesperrt, geöffnet, blockiert, nicht erreichbar …),
@@ -407,6 +409,10 @@ zurück geht es dorthin, wo man war.
   **Clips heute** mit Vorschaubild, Länge und Art (Person / Auto / Tier);
   ein Tipp spielt den Clip. Die Medien-Tokens (10 Min.) erneuert die App vor
   dem Ablauf, das Video läuft dabei weiter.
+  Plugin 1.7.0: Schalter **„Push bei Personen“** je Kamera (nur für dich),
+  die Mitteilung „Person an der …“ hat den Knopf **„Ansehen“**, der genau
+  diese Kamera öffnet; HD steht schon vor dem ersten Bild fest (Auflösung aus
+  der Liste).
 - **Verlauf** mit Filter Alle / Aktionen / Klingeln; ein Klingeln öffnet
   das Bild und — mit dem Recht „öffnen“ — „Tür öffnen“.
 - **Klingel-Push** mit Bild auf einem eigenen Kanal mit hoher Wichtigkeit;

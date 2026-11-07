@@ -34,6 +34,20 @@ data class HomeCamera(
     val settings: HomeCameraSettings,
     val snapshotAt: String?,
     val lastEventAt: String?,
+    /** Resolution of the stream (plugin 1.7.0, the gateway's report); null unknown. */
+    val width: Int? = null,
+    val height: Int? = null,
+    /** Plugin 1.7.0: the app offers "Ton" (sound switched on and the stream not known to have none). */
+    val audio: Boolean = false,
+    /** Plugin 1.7.0: the stream has a sound track; null unknown (older GateControl / gateway). */
+    val hasAudio: Boolean? = null,
+    /** The administrator's push switch of the camera ("Push mit Standbild bei Personen"). */
+    val push: Boolean = true,
+    /**
+     * Plugin 1.7.0: this person's own push "Personen an der Kamera" for this camera
+     * (`prefs.push`); null: an older plugin without the switch (no row in the app).
+     */
+    val myPush: Boolean? = null,
 )
 
 /** Answer of `GET cameras/home`. [supported] false: GateControl before 1.240.0 (nothing to show). */

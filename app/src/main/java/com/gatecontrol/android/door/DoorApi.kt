@@ -167,6 +167,13 @@ class DoorApi @Inject constructor(
         return call({ lang -> pluginGet(DOOR_PLUGIN, "cameras/home/$cameraId/still", query(lang)) }, HomeCameraJson::still, ACTION_TIMEOUT_MS)
     }
 
+    /** `PUT cameras/home/<id>/prefs { push }` (plugin 1.7.0): this person's own push of the camera. */
+    suspend fun setHomePush(cameraId: String, push: Boolean): DoorResult<Boolean> {
+        if (!HomeCameraJson.CAMERA_ID_RE.matches(cameraId)) return DoorResult.Failed(CODE_INVALID, 0)
+        val body = JsonObject().apply { addProperty("push", push) }
+        return call({ lang -> pluginPut(DOOR_PLUGIN, "cameras/home/$cameraId/prefs", body, query(lang)) }, HomeCameraJson::prefs)
+    }
+
     /** `GET cameras/home/<id>/clips[?day=YYYY-MM-DD]` (without [day]: today on the server). */
     suspend fun homeClips(cameraId: String, day: String? = null): DoorResult<HomeClips> {
         if (!HomeCameraJson.CAMERA_ID_RE.matches(cameraId)) return DoorResult.Failed(CODE_INVALID, 0)
