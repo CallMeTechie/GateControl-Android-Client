@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
+import com.gatecontrol.android.drive.DriveDocLogic
 import com.gatecontrol.android.drive.DriveMediaLogic
 import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DriveBulk
@@ -186,10 +187,15 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     val ask = rememberScanAsk()
     /** Drive 1.21: the pictures and videos of the hits in the viewer, and where it starts. */
     var viewing by remember { mutableStateOf<Pair<List<DNode>, Int>?>(null) }
+    /** A PDF, text or Markdown in the viewer of documents. */
+    var doc by remember { mutableStateOf<DNode?>(null) }
     val open: (DNode, Boolean) -> Unit = { n, send ->
         // a picture or video (Drive 1.21): the viewer with the other hits, no download first
         if (!send && DriveMediaLogic.opensInViewer(n)) {
             viewing = DriveMediaLogic.viewerList(hits, n)
+        } else if (!send && DriveDocLogic.opensInViewer(n)) {
+            // a PDF, text or Markdown: the viewer of documents (a marked one after asking)
+            ask(n.scan) { doc = n }
         } else {
             ask(n.scan) {
                 scope.launch {
@@ -389,5 +395,6 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     viewing?.let { (list, start) ->
         PhotoViewer(items = list, start = start, fetch = viewModel::fetch, onMore = null, onClose = { viewing = null })
     }
+    doc?.let { n -> DriveDocViewer(n, onClose = { doc = null }) }
     DriveBulkHost(viewModel.bulk, snackbar)
 }

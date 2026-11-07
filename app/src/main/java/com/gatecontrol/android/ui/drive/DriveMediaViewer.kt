@@ -117,6 +117,12 @@ class DriveMediaViewModel @Inject constructor(
 
     fun sourceFactory(): DataSource.Factory? = api.streamSourceFactory()
 
+    /** A file as "Öffnen" fetches it (the copy here, else a download) — the PDF / text viewer (DriveDocViewer.kt) shows it. */
+    suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
+
+    /** How far the downloads are (file id → 0…1), for the viewer's bar. */
+    val downloading = transfers.downloading
+
     /** The original of the picture [node], decoded to at most [DriveMediaLogic.ORIGINAL_SIDE_PX]; null when it cannot be. */
     suspend fun original(node: DNode): ImageBitmap? {
         if (node.size > DriveMediaLogic.ORIGINAL_MAX_BYTES || node.blocked) return null

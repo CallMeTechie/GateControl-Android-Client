@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.graphics.pdf.PdfRenderer
 import android.os.Build
 import android.view.SurfaceView
 import android.view.WindowManager
@@ -16,29 +15,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,28 +35,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
@@ -80,21 +56,13 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DNode
-import com.gatecontrol.android.drive.vault.DriveVaultMemFile
 import com.gatecontrol.android.drive.vault.DriveVaultSession
 import com.gatecontrol.android.drive.vault.DriveVaultVideoSource
 import com.gatecontrol.android.drive.vault.DriveVaultView
-import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
-import com.gatecontrol.android.ui.theme.MonoFontFamily
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import java.io.Closeable
 import java.nio.ByteBuffer
 
 /**
@@ -109,46 +77,12 @@ sealed class VaultViewer {
 
     data class Loading(override val node: DNode, override val name: String, val progress: Float? = null) : VaultViewer()
     data class Picture(override val node: DNode, override val name: String, val bitmap: ImageBitmap) : VaultViewer()
-    data class Pdf(override val node: DNode, override val name: String, val doc: VaultPdf) : VaultViewer()
+    data class Pdf(override val node: DNode, override val name: String, val doc: DrivePdf) : VaultViewer()
     data class Text(override val node: DNode, override val name: String, val text: String, val markdown: Boolean) : VaultViewer()
     data class Video(override val node: DNode, override val name: String, val cipher: DriveVaultSession.Cipher) : VaultViewer()
 
     /** Nothing to show here: [why] `video_unsupported`, `office`, `other`, `too_large`, `decrypt`, `failed`, `offline`, … */
     data class Note(override val node: DNode, override val name: String, val why: String) : VaultViewer()
-}
-
-/** A PDF of a vault for PdfRenderer, from an anonymous memory file; one page at a time (PdfRenderer is not thread-safe). */
-class VaultPdf private constructor(private val file: DriveVaultMemFile, private val renderer: PdfRenderer) : Closeable {
-    private val lock = Mutex()
-    @Volatile private var closed = false
-    val pages: Int = renderer.pageCount
-
-    /** Page [i] (0-based) as a bitmap [width] pixels wide, null once closed. */
-    suspend fun page(i: Int, width: Int): Bitmap? = withContext(Dispatchers.Default) {
-        lock.withLock {
-            if (closed) return@withLock null
-            renderer.openPage(i).use { p ->
-                val w = width.coerceIn(200, 2400)
-                val h = (w.toLong() * p.height / p.width.coerceAtLeast(1)).toInt().coerceIn(1, 4 * w)
-                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                bmp.eraseColor(android.graphics.Color.WHITE)
-                p.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                bmp
-            }
-        }
-    }
-
-    override fun close() {
-        if (closed) return
-        closed = true
-        // waits for a page being rendered; then the renderer, its descriptor and the memory file go
-        kotlinx.coroutines.runBlocking { lock.withLock { runCatching { renderer.close() } } }
-        file.close()
-    }
-
-    companion object {
-        fun open(file: DriveVaultMemFile): VaultPdf = VaultPdf(file, PdfRenderer(file.openRead()))
-    }
 }
 
 /** A picture's bytes → a bitmap of at most [maxSide] pixels (orientation of its EXIF applied by ImageDecoder). */
@@ -216,26 +150,15 @@ internal fun DriveVaultViewerScreen(
         },
     ) {
         when (state) {
-            is VaultViewer.Loading -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                CircularProgressIndicator(Modifier.size(36.dp), color = Color.White)
-                Text(stringResource(R.string.drive_vault_view_decrypting), color = Color.White)
-                state.progress?.let { LinearProgressIndicator(progress = { it }, modifier = Modifier.fillMaxWidth(0.6f)) }
-            }
+            is VaultViewer.Loading -> DocLoading(stringResource(R.string.drive_vault_view_decrypting), state.progress)
             is VaultViewer.Picture -> ZoomablePicture(state.bitmap, state.name)
-            is VaultViewer.Pdf -> PdfPages(state.doc, onUse)
-            is VaultViewer.Text -> TextPage(state.text, state.markdown)
+            is VaultViewer.Pdf -> DocPdfPages(state.doc, onUse)
+            // not selectable: copying would put the plaintext into the clipboard
+            is VaultViewer.Text -> DocTextPage(state.text, state.markdown, selectable = false)
             is VaultViewer.Video -> VaultVideo(state.cipher, onUse)
             is VaultViewer.Note -> NotePage(state, onOpenWith = { askOpenWith = true })
         }
-        Row(
-            Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.55f)).windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            GcIconButton(GcIcons.Back, stringResource(R.string.drive_back), onClick = onClose, tint = Color.White)
-            Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-                Text(state.name, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(stringResource(R.string.drive_vault_view_in_memory), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, maxLines = 1)
-            }
+        DocTopBar(state.name, stringResource(R.string.drive_vault_view_in_memory), onBack = onClose) {
             GcIconButton(GcIcons.Lock, stringResource(R.string.drive_vault_lock_now), onClick = onLock, tint = Color.White)
             Box {
                 GcIconButton(GcIcons.MoreVertical, stringResource(R.string.drive_vault_view_more), onClick = { menu = true }, tint = Color.White)
@@ -292,75 +215,6 @@ private fun ZoomablePicture(bitmap: ImageBitmap, name: String) {
     )
 }
 
-@Composable
-private fun PdfPages(doc: VaultPdf, onUse: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        LazyColumn(
-            Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).padding(top = 56.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(doc.pages) { i ->
-                val page by produceState<Bitmap?>(null, doc, i, widthPx) {
-                    value = doc.page(i, widthPx)
-                    onUse()
-                    awaitDispose { value?.recycle(); value = null }
-                }
-                val bmp = page
-                if (bmp != null && !bmp.isRecycled) {
-                    Image(bmp.asImageBitmap(), contentDescription = stringResource(R.string.drive_vault_view_page, i + 1), contentScale = ContentScale.FillWidth, modifier = Modifier.fillMaxWidth())
-                } else {
-                    Box(Modifier.fillMaxWidth().aspectRatio(0.707f).background(Color.White.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(28.dp), color = Color.White)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TextPage(text: String, markdown: Boolean) {
-    val blocks = remember(text, markdown) { if (markdown) DriveVaultView.markdown(text) else null }
-    Column(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(WindowInsets.statusBars)
-            .padding(top = 56.dp).verticalScroll(rememberScrollState()).padding(16.dp)
-            .windowInsetsPadding(WindowInsets.navigationBars),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        // not selectable: copying would put the plaintext into the clipboard
-        if (blocks == null) {
-            Text(text, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = MonoFontFamily))
-        } else {
-            blocks.forEach { b ->
-                when (b) {
-                    is DriveVaultView.Block.Heading -> Text(inline(b.text), style = when (b.level) {
-                        1 -> MaterialTheme.typography.headlineSmall
-                        2 -> MaterialTheme.typography.titleLarge
-                        else -> MaterialTheme.typography.titleMedium
-                    })
-                    is DriveVaultView.Block.Paragraph -> Text(inline(b.text), style = MaterialTheme.typography.bodyMedium)
-                    is DriveVaultView.Block.Item -> Row { Text(b.marker + "  "); Text(inline(b.text), style = MaterialTheme.typography.bodyMedium) }
-                    is DriveVaultView.Block.Quote -> Text(inline(b.text), style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic), modifier = Modifier.padding(start = 12.dp))
-                    is DriveVaultView.Block.Code -> GcCard { Text(b.text, style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFontFamily)) }
-                    DriveVaultView.Block.Rule -> Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).size(1.dp).background(MaterialTheme.colorScheme.outline))
-                }
-            }
-        }
-    }
-}
-
-private fun inline(text: String): AnnotatedString = buildAnnotatedString {
-    DriveVaultView.spans(text).forEach { s ->
-        when (s) {
-            is DriveVaultView.Span.Plain -> append(s.text)
-            is DriveVaultView.Span.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(s.text) }
-            is DriveVaultView.Span.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(s.text) }
-            is DriveVaultView.Span.Mono -> withStyle(SpanStyle(fontFamily = MonoFontFamily)) { append(s.text) }
-        }
-    }
-}
-
 @OptIn(UnstableApi::class)
 @Composable
 private fun VaultVideo(cipher: DriveVaultSession.Cipher, onUse: () -> Unit) {
@@ -404,13 +258,9 @@ private fun NotePage(state: VaultViewer.Note, onOpenWith: () -> Unit) {
         "offline" -> stringResource(R.string.drive_vault_view_offline)
         else -> stringResource(R.string.drive_vault_view_failed)
     }
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Icon(GcIcons.Lock, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
-            Text(text, color = Color.White, style = MaterialTheme.typography.bodyMedium)
-            if (state.why in setOf("office", "other", "too_large", "unsupported")) {
-                GcOutlineButton(stringResource(R.string.drive_vault_open_with), onClick = onOpenWith, icon = GcIcons.External)
-            }
+    DocNote(GcIcons.Lock, text) {
+        if (state.why in setOf("office", "other", "too_large", "unsupported")) {
+            GcOutlineButton(stringResource(R.string.drive_vault_open_with), onClick = onOpenWith, icon = GcIcons.External)
         }
     }
 }

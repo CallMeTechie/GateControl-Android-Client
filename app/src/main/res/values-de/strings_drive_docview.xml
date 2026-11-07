@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive: PDFs, Texte und Markdown normaler Dateien in der App ansehen (dieselbe Ansicht wie im Tresor). -->
+<resources>
+    <string name="drive_doc_open_other">Mit anderer App öffnen</string>
+    <string name="drive_doc_too_large">Diese Datei ist zu groß für die Ansicht in der App (höchstens %1$d MB). Öffne sie mit einer anderen App.</string>
+    <string name="drive_doc_pdf_unreadable">Diese PDF lässt sich hier nicht anzeigen – sie ist beschädigt oder mit einem Passwort geschützt. Öffne sie mit einer anderen App.</string>
+    <string name="drive_doc_failed">Diese Datei lässt sich hier nicht anzeigen. Öffne sie mit einer anderen App.</string>
+    <string name="drive_doc_page_failed">Seite %1$d lässt sich nicht anzeigen.</string>
+</resources>

@@ -570,7 +570,7 @@ class DriveVaultViewModel @Inject constructor(
             }
             DriveVaultView.Kind.PDF -> when (val r = twice { session.decryptToMemFile(node, limit) }) {
                 is DResult.Ok -> try {
-                    val pdf = withContext(Dispatchers.IO) { VaultPdf.open(r.value) }
+                    val pdf = withContext(Dispatchers.IO) { DrivePdf.fromMemory(r.value) }
                     mine.add(pdf)
                     VaultViewer.Pdf(node, name, pdf)
                 } catch (e: Exception) {
