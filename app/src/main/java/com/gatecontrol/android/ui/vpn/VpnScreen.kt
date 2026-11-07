@@ -611,13 +611,18 @@ fun VpnScreen(
         }
         // "Update installiert – VPN wieder verbunden" after an update (Play build).
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
-            com.gatecontrol.android.ui.update.PlayUpdateToastHost(Modifier.align(Alignment.BottomCenter))
+            com.gatecontrol.android.ui.update.PlayUpdateToastHost(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = com.gatecontrol.android.ui.start.LocalStartPagerDotsInset.current),
+            )
         }
     }
 
 }
 
-/** A scrolling column of home sections; a long press on its free space calls [onLongPress]. */
+/**
+ * A scrolling column of home sections; a long press on its free space calls [onLongPress].
+ * At its end it keeps the page dots' height free (they lie over it), so the last card scrolls above them.
+ */
 @Composable
 internal fun HomeColumn(
     modifier: Modifier = Modifier,
@@ -625,6 +630,7 @@ internal fun HomeColumn(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val label = stringResource(R.string.start_edit_title)
+    val dots = com.gatecontrol.android.ui.start.LocalStartPagerDotsInset.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -638,7 +644,7 @@ internal fun HomeColumn(
                 },
             )
             .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            .padding(start = 16.dp, end = 16.dp, bottom = 24.dp + dots),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         content = content,
     )

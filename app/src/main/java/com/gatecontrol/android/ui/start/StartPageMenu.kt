@@ -58,6 +58,13 @@ val LocalStartPageMenu = compositionLocalOf<StartPageMenu?> { null }
  */
 val LocalInStartPager = staticCompositionLocalOf { false }
 
+/**
+ * The height of Start's page dots, which lie over the lower edge of Start
+ * and its widget pages: a scrolling column there keeps this much free at its
+ * end, so its last card can scroll fully above the dots. 0 elsewhere.
+ */
+val LocalStartPagerDotsInset = compositionLocalOf { 0.dp }
+
 /** Shows a snackbar with [message] and, given [undo], "Rückgängig" (AppNavigation). */
 val LocalPageSnack = staticCompositionLocalOf<(message: String, undo: (() -> Unit)?) -> Unit> { { _, _ -> } }
 
