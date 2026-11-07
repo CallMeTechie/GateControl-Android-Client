@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.85.0] - 2026-11-07
+
+### Features
+- Kameras im Heimnetz – Live-Bild, Standbild, Clips (#189)
+
+---
+
 ## [1.84.0] - 2026-11-06
 
 ### Features
