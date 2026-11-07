@@ -105,7 +105,10 @@ angehefteten Seiten in ihrer Reihenfolge, ganz rechts die **Plus-Seite**
 („Seite anheften“). Wischen wechselt die Seite; die **Seitenpunkte** über
 der Leiste (aktiver Punkt breit in Akzentfarbe, die Plus-Seite als kleines
 „+“) sind antippbar und tragen die Zähler (ungelesene Chats, Remote-Hosts
-online). Eine angeheftete Funktion zeigt ihren echten Bildschirm, ihr
+online). Die Punkte haben keinen eigenen Hintergrund: Start und
+Widget-Seiten laufen bis zur Leiste unter ihnen durch, ein feiner Rand hält
+sie auf Karten erkennbar, und die letzte Karte lässt sich ganz über die
+Punkte scrollen. Eine angeheftete Funktion zeigt ihren echten Bildschirm, ihr
 Symbol verschwindet aus der Leiste (bzw. der Navigationsleiste links).
 
 - **Anheften:** Plus-Seite → „Seite an Start anheften“ (Abschnitte „Aus der
