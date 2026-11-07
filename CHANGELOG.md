@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.87.0] - 2026-11-07
+
+### Features
+- Bilder in „Dateien“ groß ansehen, Videos direkt in Drive abspielen (Drive 1.21) (#191)
+
+---
+
 ## [1.86.1] - 2026-11-07
 
 ### Fixes
