@@ -178,6 +178,13 @@ class ApiClientProvider @Inject constructor(
     }
 
     /**
+     * OkHttp for media a player streams from the own server — Drive's videos in the viewer
+     * (`/api/v1/client/plugins/gatecontrol-drive/media/<id>` with Range, Media3): the same client
+     * as [cameraMediaClient] (DNS, token, client headers, a read timeout for a slow line).
+     */
+    fun mediaStreamClient(baseUrl: String): OkHttpClient = cameraMediaClient(baseUrl)
+
+    /**
      * Client for the diagnosis speed test (`/client/speedtest/…`): the same
      * DNS and interceptors (token, client headers, machine binding) as
      * [getClient], with timeouts long enough for a bulk transfer. The call

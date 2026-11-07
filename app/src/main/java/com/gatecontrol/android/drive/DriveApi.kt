@@ -794,6 +794,39 @@ class DriveApi @Inject constructor(
         }
     }
 
+    /**
+     * Where the viewer's player streams the video [node] from (Drive 1.21): `GET …/content` first — the rights, the note
+     * to a child that a parent looked, "Zuletzt geöffnet" and the virus scan (`423 scan_pending | quarantined |
+     * scan_blocked` → Failed) —, then the app's media route of the own server, which answers Range (only what plays is
+     * loaded). The home gateway's copy is not used here: it is checked whole against its hash, a stream cannot be.
+     */
+    suspend fun stream(node: DNode): DResult<DriveStream> {
+        node.scan?.refusalCode?.let { return DResult.Failed(it, 423) }
+        val content = get("nodes/${node.id}/content", parse = DriveJson::content)
+        if (content !is DResult.Ok) return content.notOk()
+        val c = content.value
+        if (c.mediaId == DriveJson.EMPTY_CONTENT) return DResult.Failed("empty", 0)
+        val server = setupRepository.getServerUrl()
+        if (server.isBlank() || !setupRepository.isConfigured()) return DResult.NotConfigured
+        val url = DriveMediaLogic.mediaUrl(server, c.mediaId) ?: return DResult.Failed(CODE_INVALID, 0)
+        return DResult.Ok(DriveStream(url, node.mime, c.size))
+    }
+
+    /**
+     * Data sources for the viewer's player: OkHttp of the client API (the token, the client headers, VPN-safe DNS),
+     * every address checked first — only a Drive file of the own server ([DriveMediaLogic.allowed]); null while no
+     * server is set up.
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun streamSourceFactory(): androidx.media3.datasource.DataSource.Factory? {
+        val server = setupRepository.getServerUrl().takeIf { it.isNotBlank() && setupRepository.isConfigured() } ?: return null
+        val upstream = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(apiClientProvider.mediaStreamClient(server))
+        return androidx.media3.datasource.ResolvingDataSource.Factory(upstream) { spec ->
+            if (!DriveMediaLogic.allowed(server, spec.uri.toString())) throw IOException("drive media address refused")
+            spec
+        }
+    }
+
     /** A body reading [file] (a copy from the home gateway), which goes when the body is closed. */
     private fun fileBody(file: File): ResponseBody = object : ResponseBody() {
         private val source by lazy {

@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
+import com.gatecontrol.android.drive.DriveMediaLogic
 import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DriveBulk
 import com.gatecontrol.android.drive.DriveLogic
@@ -183,11 +184,18 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     val areaOf: (DNode) -> com.gatecontrol.android.drive.DArea? = { n -> areas.firstOrNull { it.id == n.areaId } }
     val where = DriveBulk.Where(writable = { n -> areaOf(n)?.writable == true }, child = { n -> areaOf(n)?.via == "parent" })
     val ask = rememberScanAsk()
+    /** Drive 1.21: the pictures and videos of the hits in the viewer, and where it starts. */
+    var viewing by remember { mutableStateOf<Pair<List<DNode>, Int>?>(null) }
     val open: (DNode, Boolean) -> Unit = { n, send ->
-        ask(n.scan) {
-            scope.launch {
-                fetchThen(context, n, viewModel::fetch, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
-                    Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+        // a picture or video (Drive 1.21): the viewer with the other hits, no download first
+        if (!send && DriveMediaLogic.opensInViewer(n)) {
+            viewing = DriveMediaLogic.viewerList(hits, n)
+        } else {
+            ask(n.scan) {
+                scope.launch {
+                    fetchThen(context, n, viewModel::fetch, then = { f -> if (send) sendFile(context, n, f) else openFile(context, n, f) }) { code ->
+                        Toast.makeText(context, driveText(context, code), Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
@@ -377,6 +385,9 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
             onConfirm = { renaming = null; if (it != n.name) viewModel.rename(n, it) },
             onDismiss = { renaming = null },
         )
+    }
+    viewing?.let { (list, start) ->
+        PhotoViewer(items = list, start = start, fetch = viewModel::fetch, onMore = null, onClose = { viewing = null })
     }
     DriveBulkHost(viewModel.bulk, snackbar)
 }
