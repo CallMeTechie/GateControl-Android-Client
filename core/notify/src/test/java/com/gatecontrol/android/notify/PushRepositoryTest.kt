@@ -282,4 +282,30 @@ class PushRepositoryTest {
         assertTrue(repo.refreshQuiet())
         assertEquals(com.gatecontrol.android.notify.model.QuietInfo.NONE, store.quiet.first())
     }
+
+    @Test
+    fun `e-mail channel - read with the prefs, one topic changed by PUT email_topics`() = runBlocking {
+        // older server: unknown, nothing is sent
+        assertFalse(repo.email.value.known)
+        assertFalse(repo.setEmailTopic("plugin:gatecontrol-mail:resource_request", false))
+        assertTrue(requests.none { it.first.startsWith("/api/v1/client/push/prefs") })
+
+        prefsGet = MockResponse().setBody(
+            """{"ok":true,"quiet":null,"email_topics":[{"id":"plugin:gatecontrol-mail:resource_request","label":"Mail","enabled":true}],
+               "email_to":"anna@example.com","email_ready":true}""",
+        )
+        repo.refreshQuiet()
+        assertEquals(mapOf("plugin:gatecontrol-mail:resource_request" to true), repo.email.value.topics)
+        assertEquals("anna@example.com", repo.email.value.to)
+
+        assertTrue(repo.setEmailTopic("plugin:gatecontrol-mail:resource_request", false))
+        val put = requests.last { it.first.startsWith("/api/v1/client/push/prefs") }
+        assertEquals("""{"email_topics":[{"id":"plugin:gatecontrol-mail:resource_request","enabled":false}]}""", put.second)
+        assertEquals(false, repo.email.value.topics["plugin:gatecontrol-mail:resource_request"])
+
+        // a topic without an e-mail channel is never sent
+        val before = requests.size
+        assertFalse(repo.setEmailTopic("plugin:gatecontrol-mail:mail", true))
+        assertEquals(before, requests.size)
+    }
 }

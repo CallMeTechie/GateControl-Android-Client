@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive: view PDFs, texts and Markdown of normal files in the app (the same view as in the vault). -->
+<resources>
+    <string name="drive_doc_open_other">Open with another app</string>
+    <string name="drive_doc_too_large">This file is too large to view in the app (at most %1$d MB). Open it with another app.</string>
+    <string name="drive_doc_pdf_unreadable">This PDF cannot be shown here – it is damaged or protected by a password. Open it with another app.</string>
+    <string name="drive_doc_failed">This file cannot be shown here. Open it with another app.</string>
+    <string name="drive_doc_page_failed">Page %1$d cannot be shown.</string>
+</resources>

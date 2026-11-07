@@ -462,6 +462,10 @@ interface ApiClient {
     @PUT("api/v1/client/push/prefs")
     suspend fun pushPrefs(@Body request: PushPrefsRequest): SimpleResponse
 
+    /** „Auch per E-Mail“ of plugin topics (core 1.225.0+; 400 invalid_email_topics, 403 no_user). */
+    @PUT("api/v1/client/push/prefs")
+    suspend fun pushEmailPrefs(@Body request: PushEmailPrefsRequest): SimpleResponse
+
     @POST("api/v1/client/push/test")
     suspend fun pushTest(): PushTestResponse
 

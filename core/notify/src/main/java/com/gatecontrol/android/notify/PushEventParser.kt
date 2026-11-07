@@ -3,6 +3,7 @@ package com.gatecontrol.android.notify
 import com.gatecontrol.android.network.PushHelloDto
 import com.gatecontrol.android.network.PushIdsDto
 import com.gatecontrol.android.network.PushNotificationDto
+import com.gatecontrol.android.notify.model.EmailChannel
 import com.gatecontrol.android.notify.model.PushAction
 import com.gatecontrol.android.notify.model.PushActionType
 import com.gatecontrol.android.notify.model.PushMessage
@@ -95,6 +96,8 @@ object PushEventParser {
     private val TIMESTAMP_RE = Regex("^[0-9TZ:+. -]{1,40}$")
     private val HHMM_RE = Regex("^([01][0-9]|2[0-3]):[0-5][0-9]$")
     private val TZ_RE = Regex("^[A-Za-z0-9_+/-]{1,64}$")
+    /** Only plugin topics have an e-mail channel (core personMail.mailTopic). */
+    private val EMAIL_TOPIC_RE = Regex("^plugin:[a-z0-9]+(?:-[a-z0-9]+)*:[a-z][a-z0-9_-]{0,31}$")
 
     fun parse(type: String?, id: String?, data: String): PushEvent = try {
         when (type) {
@@ -185,6 +188,26 @@ object PushEventParser {
                 criticalBypass = qo.bool("critical_bypass") ?: true,
             ),
         )
+    }
+
+    /**
+     * The e-mail channel of the `GET push/prefs` answer ([o] is the whole
+     * object): unknown when `email_topics` is missing (server before
+     * 1.225.0) or not a list; entries without an id or a boolean are left
+     * out, as are ids that are no plugin topic.
+     */
+    fun emailChannel(o: JsonObject): EmailChannel {
+        val list = o.get("email_topics")?.takeIf { it.isJsonArray }?.asJsonArray ?: return EmailChannel.UNKNOWN
+        val topics = LinkedHashMap<String, Boolean>()
+        for (e in list) {
+            if (!e.isJsonObject) continue
+            val t = e.asJsonObject
+            val id = t.str("id")?.takeIf { EMAIL_TOPIC_RE.matches(it) } ?: continue
+            val on = t.bool("enabled") ?: continue
+            if (topics.size < 200) topics[id] = on
+        }
+        val to = o.str("email_to")?.trim()?.takeIf { it.isNotEmpty() && it.length <= 254 && !CONTROL_RE.containsMatchIn(it) }
+        return EmailChannel(known = true, topics = topics, to = to, ready = o.bool("email_ready") == true)
     }
 
     /**

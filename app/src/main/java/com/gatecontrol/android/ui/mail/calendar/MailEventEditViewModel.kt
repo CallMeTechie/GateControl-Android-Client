@@ -18,6 +18,7 @@ import com.gatecontrol.android.mail.MResult
 import com.gatecontrol.android.mail.MSlot
 import com.gatecontrol.android.mail.MSuggestions
 import com.gatecontrol.android.mail.MRule
+import com.gatecontrol.android.mail.MShare
 import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.mail.MailPimJson
 import com.gatecontrol.android.mail.MailPimLogic
@@ -161,7 +162,7 @@ class MailEventEditViewModel @Inject constructor(
 
     private fun planKey(f: EventForm): PlanKey {
         val (a, b) = times(f)
-        val (people, res) = MailPlanLogic.split(f.attendees)
+        val (people, res) = MailPlanLogic.split(attendeesOf(f))
         return PlanKey(f.startDay, a, b, f.allDay, f.zone, people.sorted(), res.sorted())
     }
 
@@ -365,6 +366,16 @@ class MailEventEditViewModel @Inject constructor(
 
     fun removeAttendee(a: MAttendeeInput) = edit { it.copy(attendees = it.attendees - a) }
 
+    /**
+     * Whether the form's calendar is one shared with the person at „Bearbeiten“ (Mail 1.9.0): saved as its owner,
+     * without attendees and resources.
+     */
+    fun sharedTarget(f: EventForm = _state.value.form): Boolean = MailPlanLogic.isSharedTarget(pim.calendars.value, f.calendarId)
+
+    /** The attendees that go out: none for an event of a calendar shared with the person (they stay the owner's). */
+    private fun attendeesOf(f: EventForm, existing: MEvent? = _state.value.existing): List<MAttendeeInput> =
+        if (existing?.occ?.shared != null || (existing == null && sharedTarget(f))) emptyList() else f.attendees
+
     /** The account the invitations go from ("Einladungen werden gesendet über …"), null when the provider sends them. */
     fun sender(me: MMe?, cal: MCalendar?): MAccount? {
         cal ?: return null
@@ -423,6 +434,7 @@ class MailEventEditViewModel @Inject constructor(
         val sendRule = s.existing == null || (series && s.ruleTouched)
         val sendOnline = s.existing == null || s.onlineTouched
         val ev = s.existing
+        val shared = ev?.occ?.shared ?: if (ev == null && sharedTarget(f)) MShare.WRITE else null
         // the whole series of a shown occurrence: its time only when changed, moved from the series' own times
         val seriesOfOcc = series && ev != null && ev.occ.occurrence != null
         val sendTime = !seriesOfOcc || (timeChanged(s) && ev?.series != null)
@@ -453,12 +465,12 @@ class MailEventEditViewModel @Inject constructor(
             reminders = f.reminders,
             recurrence = rule(f),
             recurrenceSet = sendRule && (s.existing != null || f.ruleKind != MailPimLogic.RULE_NONE),
-            // an event of a calendar shared with the person: attendees stay the owner's (Mail 1.9.0)
-            attendees = f.attendees.takeIf { s.existing?.occ?.shared == null },
+            // an event of a calendar shared with the person (also a new one): attendees stay the owner's (Mail 1.9.0)
+            attendees = attendeesOf(f, s.existing).takeIf { shared == null },
             busy = if (f.free) "free" else "busy",
             private = f.private,
             // resources are booked, not invited
-            sendInvites = if (f.attendees.any { !MailPlanLogic.isResource(it.email, it.role) }) true else null,
+            sendInvites = if (attendeesOf(f, s.existing).any { !MailPlanLogic.isResource(it.email, it.role) }) true else null,
         )
     }
 

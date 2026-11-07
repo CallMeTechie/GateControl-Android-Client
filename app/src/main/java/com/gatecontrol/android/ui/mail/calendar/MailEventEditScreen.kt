@@ -145,7 +145,9 @@ fun MailEventEditScreen(onClose: () -> Unit, viewModel: MailEventEditViewModel =
         ) {
             GcTextField(f.title, { v -> viewModel.edit { it.copy(title = v.take(255)) } }, stringResource(R.string.cal_title))
             if (viewModel.isNew) {
-                CalendarPicker(cals?.calendars.orEmpty().filter { it.writable }, cal) { c -> viewModel.edit { it.copy(calendarId = c.id) } }
+                // Mail 1.9.0: also the calendars shared with the person at „Bearbeiten“
+                val targets = MailPlanLogic.eventTargets(cals)
+                CalendarPicker(targets, targets.firstOrNull { it.id == f.calendarId }) { c -> viewModel.edit { it.copy(calendarId = c.id) } }
             }
             GcCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 GcSwitchRow(label = stringResource(R.string.cal_all_day), description = null, checked = f.allDay, onCheckedChange = { v -> viewModel.edit { it.copy(allDay = v) } })
@@ -159,8 +161,8 @@ fun MailEventEditScreen(onClose: () -> Unit, viewModel: MailEventEditViewModel =
             OnlineBlock(cal, f.teams, f.onlineUrl, onTeams = { v -> viewModel.editOnline { it.copy(teams = v) } }, onUrl = { v -> viewModel.editOnline { it.copy(onlineUrl = v.take(2000)) } })
             RemindersBlock(f.reminders, f.allDay, max = cal?.maxReminders ?: 3) { list -> viewModel.edit { it.copy(reminders = list) } }
             GcSectionLabel(stringResource(R.string.cal_attendees))
-            // an event of a calendar shared with the person: attendees stay the owner's (Mail 1.9.0)
-            if (state.existing?.occ?.shared != null) {
+            // an event of a calendar shared with the person (also a new one there): attendees stay the owner's (Mail 1.9.0)
+            if (state.existing?.occ?.shared != null || (viewModel.isNew && viewModel.sharedTarget(f))) {
                 Text(stringResource(R.string.share_no_attendees), style = MaterialTheme.typography.bodySmall, color = extra.muted)
             } else {
                 if (f.attendees.isNotEmpty()) {
@@ -295,10 +297,12 @@ private fun ResourcePicker(list: List<MResource>, onPick: (MResource) -> Unit) {
     }
 }
 
+/** The calendar of a new event: the own writable ones, then those shared with the person at „Bearbeiten“ („<Name> · von <Besitzerin>“). */
 @Composable
-private fun CalendarPicker(list: List<MCalendar>, current: MCalendar?, onPick: (MCalendar) -> Unit) {
+private fun CalendarPicker(list: List<MailPlanLogic.EventTarget>, current: MailPlanLogic.EventTarget?, onPick: (MailPlanLogic.EventTarget) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val extra = GateControlTheme.extraColors
+    val nameOf: @Composable (MailPlanLogic.EventTarget) -> String = { c -> c.shared?.let { stringResource(R.string.share_from, it.name, it.ownerName) } ?: c.name }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.cal_calendar), style = MaterialTheme.typography.titleSmall, color = extra.muted)
         Box {
@@ -309,13 +313,21 @@ private fun CalendarPicker(list: List<MCalendar>, current: MCalendar?, onPick: (
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 current?.let { Box(Modifier.size(12.dp).clip(RoundedCornerShape(4.dp)).background(calColor(it.color))) }
-                Text(current?.name ?: "–", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Text(current?.let { nameOf(it) } ?: "–", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Icon(GcIcons.ChevronDown, contentDescription = null, tint = extra.muted, modifier = Modifier.size(18.dp))
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                list.forEach { c ->
+                list.forEachIndexed { i, c ->
+                    if (c.isShared && (i == 0 || !list[i - 1].isShared)) {
+                        Text(
+                            stringResource(R.string.cal_shared_section),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = extra.muted,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
                     DropdownMenuItem(
-                        text = { Text(c.name) },
+                        text = { Text(nameOf(c)) },
                         leadingIcon = { Box(Modifier.size(12.dp).clip(RoundedCornerShape(4.dp)).background(calColor(c.color))) },
                         onClick = { open = false; onPick(c) },
                     )

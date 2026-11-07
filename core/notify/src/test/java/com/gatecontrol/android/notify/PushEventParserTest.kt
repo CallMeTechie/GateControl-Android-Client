@@ -334,4 +334,28 @@ class PushEventParserTest {
         )
         assertEquals("Ladestand: 32 %", factsBody("", """[{"label":"Ladestand","value":"32 %"}]"""))
     }
+
+    @Test
+    fun `e-mail channel of push prefs - plugin topics only, older servers unknown`() {
+        val o = com.google.gson.JsonParser.parseString(
+            """{"ok":true,"email_topics":[{"id":"plugin:gatecontrol-mail:resource_request","label":"Mail · Buchungsanfrage","enabled":true},
+               {"id":"plugin:gatecontrol-mail:mail","enabled":false},{"id":"security","enabled":true},{"id":"plugin:x:y"},"kaputt"],
+               "email_to":" anna@example.com ","email_ready":true}""",
+        ).asJsonObject
+        val e = PushEventParser.emailChannel(o)
+        assertTrue(e.known)
+        assertEquals(mapOf("plugin:gatecontrol-mail:resource_request" to true, "plugin:gatecontrol-mail:mail" to false), e.topics)
+        assertEquals("anna@example.com", e.to)
+        assertTrue(e.ready)
+        assertTrue(e.usable)
+
+        val noSmtp = PushEventParser.emailChannel(com.google.gson.JsonParser.parseString("""{"email_topics":[],"email_to":null,"email_ready":false}""").asJsonObject)
+        assertTrue(noSmtp.known)
+        assertNull(noSmtp.to)
+        assertFalse(noSmtp.usable)
+
+        val old = PushEventParser.emailChannel(com.google.gson.JsonParser.parseString("""{"ok":true,"quiet":null}""").asJsonObject)
+        assertFalse(old.known)
+        assertEquals(com.gatecontrol.android.notify.model.EmailChannel.UNKNOWN, old)
+    }
 }
