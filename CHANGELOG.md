@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.86.0] - 2026-11-07
+
+### Features
+- Kameras ohne Schloss auf Start, „Push bei Personen“ je Kamera, „Ansehen“ öffnet die Kamera (#190)
+
+---
+
 ## [1.85.0] - 2026-11-07
 
 ### Features
