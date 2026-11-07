@@ -33,6 +33,30 @@ class PrintLogicTest {
     }
 
     @Test
+    fun `the type by the content - a PDF without type or without pdf in its name is a PDF`() {
+        val pdf = "%PDF-1.7\n".toByteArray()
+        assertEquals("application/pdf", PrintLogic.sniff(pdf))
+        // a BOM or a mail header before %PDF
+        assertEquals("application/pdf", PrintLogic.sniff(byteArrayOf(0xef.toByte(), 0xbb.toByte(), 0xbf.toByte(), 0x0a) + "%PDF-1.4".toByteArray()))
+        assertEquals("image/jpeg", PrintLogic.sniff(byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte())))
+        assertEquals("image/png", PrintLogic.sniff(byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)))
+        assertEquals("image/webp", PrintLogic.sniff("RIFF\u0000\u0000\u0000\u0000WEBPVP8 ".toByteArray(Charsets.ISO_8859_1)))
+        assertEquals("image/heic", PrintLogic.sniff("\u0000\u0000\u0000\u0018ftypheic".toByteArray(Charsets.ISO_8859_1)))
+        assertNull(PrintLogic.sniff("PK\u0003\u0004 docx".toByteArray(Charsets.ISO_8859_1)))
+        assertNull(PrintLogic.sniff(null))
+        assertNull(PrintLogic.sniff(byteArrayOf(1, 2)))
+        // "Digitaler Elternabend" from a provider as application/octet-stream, no extension → goes up as PDF
+        assertEquals("application/pdf", PrintLogic.effectiveType("application/octet-stream", pdf))
+        assertEquals("application/pdf", PrintLogic.effectiveType(null, pdf))
+        assertEquals("application/pdf", PrintLogic.effectiveType("image/jpeg", pdf))
+        assertEquals("image/jpeg", PrintLogic.effectiveType("application/pdf", byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte())))
+        assertEquals("image/gif", PrintLogic.effectiveType("image/gif", "GIF89a....".toByteArray()))
+        // nothing recognised: what was declared (an Office file stays not printable)
+        assertEquals("application/msword", PrintLogic.effectiveType("application/msword", "PK\u0003\u0004".toByteArray(Charsets.ISO_8859_1)))
+        assertEquals(PrintLogic.Upload.AS_IS, PrintLogic.upload(PrintLogic.effectiveType("application/octet-stream", pdf)))
+    }
+
+    @Test
     fun `colour needs a colour printer and no black-and-white rule`() {
         assertTrue(PrintLogic.colorAllowed(printer(), PRights(true, 0, false)))
         assertFalse(PrintLogic.colorAllowed(printer(), PRights(true, 20, true)))

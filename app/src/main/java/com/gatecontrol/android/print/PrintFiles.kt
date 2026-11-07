@@ -19,14 +19,33 @@ object PrintFiles {
 
     fun dir(context: Context): File = File(context.cacheDir, "print-share").apply { mkdirs() }
 
-    /** The type of a shared [uri]: the provider's, else the share's, else from the name's extension. */
+    /**
+     * The type of a shared [uri]: the provider's, else the share's, else from the name's extension — and the file's
+     * first bytes when that is missing, not printable (`application/octet-stream`, a name without ".pdf") or wrong
+     * ([PrintLogic.effectiveType]).
+     */
     fun mimeOf(context: Context, uri: Uri, shared: String?, name: String?): String? {
         val provider = runCatching { context.contentResolver.getType(uri) }.getOrNull()
         val fromName = name?.substringAfterLast('.', "")?.lowercase()?.takeIf { it.isNotEmpty() }
             ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
-        return listOfNotNull(provider, shared?.takeIf { !it.contains('*') }, fromName).firstOrNull { PrintLogic.upload(it) != null }
+        val declared = listOfNotNull(provider, shared?.takeIf { !it.contains('*') }, fromName).firstOrNull { PrintLogic.upload(it) != null }
             ?: provider ?: shared?.takeIf { !it.contains('*') } ?: fromName
+        return PrintLogic.effectiveType(declared, head(context, uri))
     }
+
+    /** The first bytes of [uri] (for [PrintLogic.sniff]); null when it cannot be read. */
+    private fun head(context: Context, uri: Uri): ByteArray? = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val buf = ByteArray(1024)
+            var n = 0
+            while (n < buf.size) {
+                val r = input.read(buf, n, buf.size - n)
+                if (r < 0) break
+                n += r
+            }
+            buf.copyOf(n)
+        }
+    }.getOrNull()
 
     /** [uri] as a file to upload ([upload] as it is, or as a JPEG); null when it cannot be read or is too large. */
     fun copy(context: Context, uri: Uri, upload: PrintLogic.Upload): File? {

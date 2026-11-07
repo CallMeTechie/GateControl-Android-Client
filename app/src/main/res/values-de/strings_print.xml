@@ -27,11 +27,14 @@
     <string name="print_wait_cert">Wartet – ein Admin muss das Zertifikat des Druckers bestätigen</string>
     <string name="print_state_queued">Unterwegs nach Hause</string>
     <string name="print_state_sending">Geht an den Drucker</string>
+    <string name="print_state_converting">Wird für den Drucker umgewandelt</string>
     <string name="print_state_printing">Wird gedruckt</string>
     <string name="print_state_done">Gedruckt</string>
     <string name="print_state_done_unconfirmed">Beim Drucker angekommen (Ende nicht bestätigt)</string>
     <string name="print_state_canceled">Abgebrochen</string>
     <string name="print_fail_format">Der Drucker kann dieses Format nicht</string>
+    <string name="print_fail_convert">Die PDF-Datei ließ sich für den Drucker nicht umwandeln (beschädigt oder mit Kennwort geschützt)</string>
+    <string name="print_fail_convert_large">Umgewandelt für den Drucker zu groß – bitte in Teilen drucken</string>
     <string name="print_fail_rejected">Der Drucker hat den Auftrag abgelehnt</string>
     <string name="print_fail_at_printer">Am Drucker abgebrochen</string>
     <string name="print_fail_expired">Nicht innerhalb von 24 Stunden gedruckt</string>
@@ -42,7 +45,7 @@
     <string name="print_err_offline">Keine Verbindung zu GateControl.</string>
     <string name="print_err_not_configured">GateControl ist auf diesem Handy noch nicht eingerichtet.</string>
     <string name="print_err_too_large">Die Datei ist zu groß (höchstens 50 MB).</string>
-    <string name="print_err_format">Drucken lassen sich nur PDF-Dateien und Bilder.</string>
+    <string name="print_err_format">Diese Datei lässt sich nicht drucken: Es gehen PDF-Dateien und Bilder.</string>
     <string name="print_err_quota">Auf dem Server ist kein Platz mehr für Druckaufträge.</string>
     <string name="print_err_infected">Der Virenscan hat diese Datei gesperrt.</string>
     <string name="print_err_scan">Der Virenscan ist gerade nicht erreichbar – später noch einmal versuchen.</string>
