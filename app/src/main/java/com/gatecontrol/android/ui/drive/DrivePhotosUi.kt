@@ -96,6 +96,8 @@ import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DriveMediaLogic
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.drive.work.DriveWorkLogic
 import com.gatecontrol.android.drive.work.DriveWorkPhotos
 import androidx.compose.material3.SnackbarDuration
@@ -437,6 +439,7 @@ internal fun DrivePhotosContent(
             fetch = viewModel::fetch,
             onMore = viewModel::more,
             onClose = { viewing = null },
+            onDetails = onFile?.let { f -> { n: DNode -> viewing = null; f(n.id) } },
         )
     }
     if (choosing) {
@@ -831,8 +834,11 @@ internal fun AlbumNameDialog(
 }
 
 /**
- * Photos full screen, one after the other by swiping: the large preview (the small one meanwhile), name and date,
- * "Öffnen" and "Senden" as for any file of Drive. Near the end of [items] the next page loads ([onMore]).
+ * Photos and videos full screen, one after the other by swiping (Drive 1.21: also from "Dateien", the pictures and
+ * videos of the folder): a picture zooms (two fingers, a double tap — the original then), a video plays right here
+ * (DriveMediaViewer.kt: streamed, the player's controls, full screen, the place it was left); name and date, "Details"
+ * ([onDetails]), "Öffnen" and "Senden" as for any file of Drive. A tap on a picture hides the bars. Near the end of
+ * [items] the next page loads ([onMore]).
  */
 @Composable
 internal fun PhotoViewer(
@@ -841,13 +847,21 @@ internal fun PhotoViewer(
     fetch: suspend (DNode) -> DResult<File>,
     onMore: (() -> Unit)?,
     onClose: () -> Unit,
+    onDetails: ((DNode) -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val media: DriveMediaViewModel = hiltViewModel()
     val pager = rememberPagerState(initialPage = start.coerceIn(0, items.size - 1)) { items.size }
     var busy by remember { mutableStateOf(false) }
+    var zoomed by remember { mutableStateOf(false) }
+    var chrome by remember { mutableStateOf(true) }
+    var fullscreen by remember { mutableStateOf(false) }
+    var landscape by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage, items.size) { if (onMore != null && pager.currentPage >= items.size - 5) onMore() }
+    // another page: not zoomed, not in full screen
+    LaunchedEffect(pager.settledPage) { zoomed = false; fullscreen = false; landscape = false }
     val ask = rememberScanAsk()
     val act: (DNode, Boolean) -> Unit = { n, send ->
         if (!busy) {
@@ -863,56 +877,57 @@ internal fun PhotoViewer(
         }
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        ViewerFullscreen(fullscreen, landscape)
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), key = { items.getOrNull(it)?.id ?: it }) { page ->
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !zoomed && !fullscreen, key = { items.getOrNull(it)?.id ?: it }) { page ->
                 // the list may have changed under the pager (a reload): no page beyond it
                 val n = items.getOrNull(page) ?: return@HorizontalPager
-                val large = rememberDrivePreview(n, large = true)
-                val small = rememberDrivePreview(n)
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    val picture = large ?: small
-                    if (picture != null) {
-                        Image(picture, contentDescription = n.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-                    } else if (n.preview) {
-                        CircularProgressIndicator(color = Color.White)
-                    } else {
-                        Icon(kindLook(DriveLogic.kind(n)).icon, contentDescription = n.name, tint = Color.White, modifier = Modifier.size(56.dp))
-                    }
-                    if (DriveLogic.kind(n) == DriveLogic.Kind.VIDEO) {
-                        Box(
-                            Modifier.size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.5f)).clickable(role = Role.Button) { act(n, false) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(GcIcons.Play, contentDescription = stringResource(R.string.drive_open), tint = Color.White, modifier = Modifier.size(40.dp))
-                        }
-                    }
+                val active = pager.settledPage == page
+                if (DriveMediaLogic.isVideo(n)) {
+                    DriveVideoPage(
+                        node = n,
+                        active = active,
+                        media = media,
+                        fullscreen = fullscreen,
+                        onFullscreen = { fullscreen = it },
+                        onOpenOther = { act(n, false) },
+                        onLandscape = { landscape = it },
+                    )
+                } else {
+                    DriveImagePage(n, active = active, media = media, onZoomed = { if (active) zoomed = it }, onTap = { chrome = !chrome })
                 }
             }
             val current = items.getOrNull(pager.currentPage)
-            Row(
-                Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                GcIconButton(GcIcons.Close, contentDescription = stringResource(R.string.drive_viewer_close), onClick = onClose, tint = Color.White)
-                Column(Modifier.weight(1f)) {
-                    Text(current?.name.orEmpty(), color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    current?.let { photoDate(it) }?.let { Text(it, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall) }
+            if (chrome && !fullscreen) {
+                Row(
+                    Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GcIconButton(GcIcons.Close, contentDescription = stringResource(R.string.drive_viewer_close), onClick = onClose, tint = Color.White)
+                    Column(Modifier.weight(1f)) {
+                        Text(current?.name.orEmpty(), color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        current?.let { photoDate(it) }?.let { Text(it, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall) }
+                    }
+                    if (items.size > 1) Text("${pager.currentPage + 1} / ${items.size}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 4.dp))
+                    if (onDetails != null && current != null) {
+                        GcIconButton(GcIcons.Info, contentDescription = stringResource(R.string.drive_viewer_details), onClick = { onDetails(current) }, tint = Color.White)
+                    }
                 }
-                Text("${pager.currentPage + 1} / ${items.size}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 12.dp))
-            }
-            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).navigationBarsPadding()) {
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    current?.let { n ->
-                        TextButton(onClick = { act(n, false) }) {
-                            Icon(GcIcons.External, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.drive_open), color = Color.White)
-                        }
-                        TextButton(onClick = { act(n, true) }) {
-                            Icon(GcIcons.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.drive_send), color = Color.White)
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).navigationBarsPadding()) {
+                    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    // a file the virus scan holds back: no "Öffnen" / "Senden" (its page says why)
+                    if (current != null && !current.blocked) {
+                        Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            TextButton(onClick = { act(current, false) }) {
+                                Icon(GcIcons.External, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.drive_open), color = Color.White)
+                            }
+                            TextButton(onClick = { act(current, true) }) {
+                                Icon(GcIcons.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.drive_send), color = Color.White)
+                            }
                         }
                     }
                 }

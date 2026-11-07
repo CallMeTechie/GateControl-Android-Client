@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.21: the viewer of pictures and videos (DriveMediaViewer.kt) -->
+<resources>
+    <string name="drive_viewer_details">Details</string>
+    <string name="drive_viewer_fullscreen">Full screen</string>
+    <string name="drive_viewer_fullscreen_exit">Leave full screen</string>
+    <string name="drive_viewer_play">Play</string>
+    <string name="drive_viewer_play_anyway">Play anyway</string>
+    <string name="drive_viewer_cannot_play">This device cannot play this video (%1$s) – often the case with MKV or HEVC. Open it in another app.</string>
+    <string name="drive_viewer_no_picture">Only the sound plays – this device cannot show the picture of this video (often HEVC). Open it in another app.</string>
+    <string name="drive_viewer_network">The video stopped loading. Check the connection and try again.</string>
+    <string name="drive_viewer_retry">Try again</string>
+    <string name="drive_viewer_open_other">Open in another app</string>
+    <string name="drive_viewer_loading">Loading …</string>
+</resources>

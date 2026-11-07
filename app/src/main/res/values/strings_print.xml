@@ -27,11 +27,14 @@
     <string name="print_wait_cert">Waiting – an admin has to confirm the printer\'s certificate</string>
     <string name="print_state_queued">On its way home</string>
     <string name="print_state_sending">Going to the printer</string>
+    <string name="print_state_converting">Being converted for the printer</string>
     <string name="print_state_printing">Printing</string>
     <string name="print_state_done">Printed</string>
     <string name="print_state_done_unconfirmed">At the printer (it did not confirm the end)</string>
     <string name="print_state_canceled">Canceled</string>
     <string name="print_fail_format">The printer cannot print this format</string>
+    <string name="print_fail_convert">The PDF file could not be converted for the printer (damaged or password-protected)</string>
+    <string name="print_fail_convert_large">Too large once converted for the printer – please print it in parts</string>
     <string name="print_fail_rejected">The printer refused the job</string>
     <string name="print_fail_at_printer">Canceled at the printer</string>
     <string name="print_fail_expired">Not printed within 24 hours</string>
@@ -42,7 +45,7 @@
     <string name="print_err_offline">No connection to GateControl.</string>
     <string name="print_err_not_configured">GateControl is not set up on this phone yet.</string>
     <string name="print_err_too_large">The file is too large (at most 50 MB).</string>
-    <string name="print_err_format">Only PDF files and pictures can be printed.</string>
+    <string name="print_err_format">This file cannot be printed: PDF files and pictures work.</string>
     <string name="print_err_quota">There is no room for print jobs on the server any more.</string>
     <string name="print_err_infected">The virus scan blocked this file.</string>
     <string name="print_err_scan">The virus scan cannot be reached right now – try again later.</string>
