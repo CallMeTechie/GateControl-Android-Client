@@ -205,6 +205,13 @@ dependencies {
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
 
+    // Door: live picture (HLS, only through the VPN) and clips of the home-network cameras, over the
+    // client API's OkHttp (VPN-safe DNS); PlayerView for the clips' controls
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.datasource.okhttp)
+    implementation(libs.media3.ui)
+
     // ML Kit
     implementation(libs.mlkit.barcode)
     // Drive: "Scannen" (Google's document scanner and text recognition, both through Play services: no models in the APK)

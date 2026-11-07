@@ -148,4 +148,29 @@ class DoorApi @Inject constructor(
         if (eventId <= 0) return DoorResult.Failed(CODE_INVALID, 0)
         return call({ lang -> pluginGet(DOOR_PLUGIN, "events/$eventId", query(lang)) }, DoorJson::event)
     }
+
+    // ─── Kameras im Heimnetz (plugin 1.6.0, only the cameras this person sees) ──
+
+    /** `GET cameras/home`; an older plugin answers 404 (nothing to show). */
+    suspend fun homeCameras(): DoorResult<HomeCameraList> =
+        call({ lang -> pluginGet(DOOR_PLUGIN, "cameras/home", query(lang)) }, HomeCameraJson::list)
+
+    /** `GET cameras/home/<id>/live`: the HLS list in the VPN / the server's LAN, else a still every 10 s. */
+    suspend fun homeLive(cameraId: String): DoorResult<HomeLive> {
+        if (!HomeCameraJson.CAMERA_ID_RE.matches(cameraId)) return DoorResult.Failed(CODE_INVALID, 0)
+        return call({ lang -> pluginGet(DOOR_PLUGIN, "cameras/home/$cameraId/live", query(lang)) }, HomeCameraJson::live)
+    }
+
+    /** `GET cameras/home/<id>/still`: a full JPEG to save or share ("Standbild"). */
+    suspend fun homeStill(cameraId: String): DoorResult<DoorImage> {
+        if (!HomeCameraJson.CAMERA_ID_RE.matches(cameraId)) return DoorResult.Failed(CODE_INVALID, 0)
+        return call({ lang -> pluginGet(DOOR_PLUGIN, "cameras/home/$cameraId/still", query(lang)) }, HomeCameraJson::still, ACTION_TIMEOUT_MS)
+    }
+
+    /** `GET cameras/home/<id>/clips[?day=YYYY-MM-DD]` (without [day]: today on the server). */
+    suspend fun homeClips(cameraId: String, day: String? = null): DoorResult<HomeClips> {
+        if (!HomeCameraJson.CAMERA_ID_RE.matches(cameraId)) return DoorResult.Failed(CODE_INVALID, 0)
+        val q = if (day != null && HomeCameraLogic.DAY_RE.matches(day)) mapOf("day" to day) else emptyMap()
+        return call({ lang -> pluginGet(DOOR_PLUGIN, "cameras/home/$cameraId/clips", query(lang, q)) }, HomeCameraJson::clips)
+    }
 }

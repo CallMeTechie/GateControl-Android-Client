@@ -110,6 +110,10 @@ bottom bar; back returns to where the person was) reached only by:
 | `quickactions/QuickActionLongPress.kt` | Pure: long press on a door quick action → door screen |
 | `ui/components/GcDeviceAuth.kt` | androidx.biometric `BiometricPrompt`, `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` |
 | `push/NotifyMediaLoader.kt`, `push/NotificationQuickActions.kt` | Push pictures and quick action buttons (above) |
+| `door/HomeCameraModels.kt`, `door/HomeCameraJson.kt` | Home cameras (plugin 1.6.0): list, live, still, clips — parsed like `DoorJson` |
+| `door/HomeCameraLogic.kt` | Pure: `CameraMediaUrls` (own-server `/camera-media/` paths, token swap for the player), token renewal, retries, which camera, clip length, still file name |
+| `door/HomeCameraMedia.kt` | Stills and thumbnails over the client API's OkHttp (memory only), Media3 data sources, "Standbild" to the gallery / share file |
+| `ui/door/HomeCameraViewModel.kt`, `ui/door/HomeCameraSection.kt` | "Kameras" of the door screen: chips, live picture / stills, Standbild, Vollbild, Ton, "Clips heute", clip player |
 
 ## Door screen content
 
@@ -147,6 +151,50 @@ bottom bar; back returns to where the person was) reached only by:
 - Wide windows: locks/cameras as the list, history or event beside it.
 - Snapshots stay in memory only as long as the screen.
 
+## Kameras im Heimnetz (plugin 1.6.0)
+
+Cameras with ONVIF/RTSP behind a GateControl gateway (GateControl ≥ 1.240.0,
+gateway ≥ 1.28.0 with "Kameras"; the gateway's `docs/cameras.md` is the
+contract). The door screen shows them as the section **"Kameras"** between the
+locks and the Ring cameras (those are then labelled "Ring-Kameras"); Ring
+itself is unchanged.
+
+- **Which cameras:** `GET cameras/home` → only the cameras the person "sieht"
+  (column on the plugin's rights page; the server filters, the app shows what
+  it gets). `supported: false` (older GateControl), 404 (older plugin) or 403:
+  no section. Polled every 60 s while the door screen is in front.
+- **Title** "Kameras" with "n online", a chip per camera (offline ones
+  "(offline)"); the first online camera is shown, a push picks its camera.
+- **Picture:** `GET cameras/home/<id>/live`. In the VPN (or the server's LAN —
+  the server decides from where the request comes) `mode: live` with the HLS
+  list (fMP4, `hls`), played by Media3 ExoPlayer over the client API's OkHttp
+  (VPN-safe DNS); pills "● LIVE" and "HD · über VPN" (HD from the video height,
+  before that from `settings.stream`), name and the clock. Until the first
+  frame (and while the video fails) the still of the answer shows. Otherwise
+  `mode: snapshot` (`reason: vpn_required`): a new `snapshot.jpg?t=<n>` every
+  `every` s (10), with its `X-Snapshot-At` time. A change of the VPN asks
+  again after 1.5 s. Nothing runs while the screen is not in front.
+- **Tokens:** media addresses are `/camera-media/<token>/<file>` of the own
+  server, valid 10 minutes (thumbnails and clips 1 h). The app asks for a new
+  live answer one minute before `expiresAt` (within 2…9 minutes, the device
+  clock may be off). The player keeps running: every load goes through a
+  `ResolvingDataSource` that maps the requested live file (`index.m3u8`,
+  `init.mp4`, `s<n>.m4s`) to the **newest** token (`CameraMediaUrls.retoken`)
+  and refuses anything that is not a live file of the own server. A player
+  error (ring not ready yet: 409) shows stills and tries again after 3, 6, …
+  ≤ 60 s.
+- **Buttons:** **Standbild** → `GET …/still` (JPEG ≤ 700 KB) → "In Galerie
+  speichern" (MediaStore, Pictures/GateControl, no permission) or "Teilen"
+  (one file in `cacheDir/camera-still`, FileProvider, removed with the
+  screen); **Vollbild** (the same player in a full-screen dialog); **Ton**
+  (only when the live answer has `audio`; off by default).
+- **Clips heute:** `GET …/clips` (the server's day) every 2 minutes and on a
+  camera push: thumbnail (`thumb.jpg`, memory LRU by clip id), "Person · 0:24",
+  time, "Niemand zu Hause", pill Person / Auto / Tier / Bewegung. A tap plays
+  `clip.mp4` in a full-screen player with controls (only that address); a list
+  older than 50 minutes is fetched again first.
+- Errors `cam_*` have their own texts (`doorErrorText`).
+
 ## Push routing
 
 - Door messages: topic `plugin:gatecontrol-door:*` or route
@@ -158,8 +206,15 @@ bottom bar; back returns to where the person was) reached only by:
   the person was); wide windows open the door screen with the detail
   beside its list. An already open door screen is replaced. Without the
   plugin listed the message detail opens.
-- Channels: `plugin:gatecontrol-door:doorbell` gets a **high importance**
-  channel (`PushChannels.HIGH_TOPICS`), so a ring pops up; the other door
+- **"Personen an der Kamera"** (topic `plugin:gatecontrol-door:kamera`,
+  `data.door = { type: "home_camera_event", cameraId: "c…", eventId: "e…" }`,
+  with the still as push picture — shown like every push picture, see above):
+  a tap opens the door screen showing that camera (`DoorDest.Camera`,
+  `camera:<id>`; phones and wide windows alike) and scrolls "Kameras" into
+  view; an open door screen reloads the clips.
+- Channels: `plugin:gatecontrol-door:doorbell` and
+  `plugin:gatecontrol-door:kamera` get a **high importance** channel
+  (`PushChannels.HIGH_TOPICS`), so a ring or a person pops up; the other door
   topics use the default importance. Android keeps the importance of a
   channel that already exists.
 
@@ -167,6 +222,9 @@ bottom bar; back returns to where the person was) reached only by:
 
 Door history and doorbell pictures are stored on the own server only. The
 app keeps the last `me` (rights, locks, states, cameras — no pictures) for
-offline display and holds pictures in memory only. Push pictures are shown
+offline display and holds pictures in memory only. Home-camera video, stills
+and clips are played from the own server and never stored, except a still the
+person saves ("In Galerie speichern") or shares (one cache file, removed with
+the screen). Push pictures are shown
 in notifications (also on the lock screen, depending on the Android
 setting) and the inbox. See `docs/PRIVACY_POLICY.md`.

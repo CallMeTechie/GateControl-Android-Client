@@ -322,6 +322,15 @@ interface ApiClient {
     suspend fun fetchNotifyMedia(@Url url: String): Response<ResponseBody>
 
     /**
+     * Fetches a still or thumbnail of a home camera (`/camera-media/<token>/<file>` of the door
+     * plugin, GateControl 1.240+): a capability URL that needs no login, token 10 min / 1 h.
+     * [url] is absolute, built by the app from the own server address; never another host.
+     */
+    @Streaming
+    @GET
+    suspend fun fetchCameraMedia(@Url url: String): Response<ResponseBody>
+
+    /**
      * A file of the server by its own address (a short-lived download a plugin handed out, e.g. Drive's ZIP of a
      * selection). The caller makes sure [url] is on this server; relative to the base URL.
      */

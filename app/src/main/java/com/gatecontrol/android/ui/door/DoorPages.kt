@@ -15,6 +15,7 @@ import com.gatecontrol.android.ui.adaptive.GcTwoPane
 fun DoorPage(dest: DoorDest, onBack: () -> Unit, onOpen: (DoorDest) -> Unit) {
     when (dest) {
         DoorDest.Home -> DoorHomeScreen(onOpen = onOpen, onBack = onBack)
+        is DoorDest.Camera -> DoorHomeScreen(onOpen = onOpen, onBack = onBack, focusCamera = dest.cameraId)
         DoorDest.History -> DoorHistoryScreen(onBack = onBack, onOpen = onOpen)
         is DoorDest.Event -> DoorEventScreen(eventId = dest.eventId, onBack = onBack)
     }
@@ -23,19 +24,20 @@ fun DoorPage(dest: DoorDest, onBack: () -> Unit, onOpen: (DoorDest) -> Unit) {
 /**
  * The door screen "Tür & Kamera" on wide windows: locks and cameras as the
  * list, the history or a ring's detail beside it ([initial] from a push
- * message). [onBack] leaves it (back to the start tab).
+ * message; a home camera is shown in the list). [onBack] leaves it (back to the start tab).
  */
 @Composable
 fun DoorTwoPane(initial: DoorDest?, onBack: () -> Unit) {
-    var destKey by rememberSaveable(initial?.key) { mutableStateOf(initial?.takeIf { it != DoorDest.Home }?.key) }
+    var destKey by rememberSaveable(initial?.key) { mutableStateOf(initial?.takeIf { it != DoorDest.Home && it !is DoorDest.Camera }?.key) }
     val selected = DoorDest.parse(destKey)
+    val focusCamera = (initial as? DoorDest.Camera)?.cameraId
     GcTwoPane(
         listWidth = 420.dp,
-        list = { DoorHomeScreen(onOpen = { destKey = it.key }, onBack = onBack, selected = selected) },
+        list = { DoorHomeScreen(onOpen = { destKey = it.key }, onBack = onBack, selected = selected, focusCamera = focusCamera) },
         detail = {
             key(destKey) {
                 when (selected) {
-                    null, DoorDest.Home -> DoorPanePlaceholder()
+                    null, DoorDest.Home, is DoorDest.Camera -> DoorPanePlaceholder()
                     DoorDest.History -> DoorHistoryScreen(onBack = { destKey = null }, onOpen = { destKey = it.key }, selected = selected)
                     is DoorDest.Event -> DoorEventScreen(eventId = selected.eventId, onBack = { destKey = DoorDest.History.key })
                 }

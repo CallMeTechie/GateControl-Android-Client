@@ -397,12 +397,25 @@ zurück geht es dorthin, wo man war.
 - **Kameras** (Ring, inoffizielle Schnittstelle): letztes Bild, „Neues Bild“
   (mit Wartezeit, wenn Ring bremst), Schalter „Klingel-Push“ und
   „Bewegungs-Push“, Statuszeile „Ring: inoffizielle Verbindung“ / „gestört“.
+- **Kameras im Heimnetz** (Plugin 1.6.0, GateControl 1.240.0, Gateway
+  1.28.0; ONVIF/RTSP ohne Hersteller-Cloud): nur die Kameras, die die Person
+  laut Plugin „sieht“. Titel „Kameras · n online“, Chips je Kamera, darunter
+  das Bild: mit VPN (oder im LAN des Servers) Live-Video (HLS, „● LIVE · HD ·
+  über VPN“, Name und Uhrzeit), ohne VPN alle 10 s ein neues Standbild mit
+  Hinweis. Knöpfe **Standbild** (in die Galerie unter Bilder › GateControl
+  oder teilen), **Vollbild**, **Ton** (nur wenn die Kamera Ton liefert).
+  **Clips heute** mit Vorschaubild, Länge und Art (Person / Auto / Tier);
+  ein Tipp spielt den Clip. Die Medien-Tokens (10 Min.) erneuert die App vor
+  dem Ablauf, das Video läuft dabei weiter.
 - **Verlauf** mit Filter Alle / Aktionen / Klingeln; ein Klingeln öffnet
   das Bild und — mit dem Recht „öffnen“ — „Tür öffnen“.
 - **Klingel-Push** mit Bild auf einem eigenen Kanal mit hoher Wichtigkeit;
   „Tür öffnen“ direkt in der Mitteilung (verlangt das Entsperren des
   Geräts), „Ansehen“ öffnet das Klingel-Bild in der App; andere
   Tür-Mitteilungen öffnen „Tür & Kamera“.
+- **„Personen an der Kamera“** (Heimnetz-Kameras): Push mit Standbild auf
+  einem Kanal mit hoher Wichtigkeit; ein Tipp öffnet „Tür & Kamera“ mit
+  dieser Kamera.
 - Offline zeigt „Tür & Kamera“ den zuletzt bekannten Stand der Schlösser; Bilder
   und Verlauf bleiben nur auf dem eigenen Server.
 

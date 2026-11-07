@@ -951,7 +951,12 @@ fun AppNavigation(
                     DoorTwoPane(initial = dest, onBack = back)
                 } else {
                     GcContentWidth {
-                        DoorHomeScreen(onOpen = { navController.navigate(Screen.DoorPage.create(it.key)) }, onBack = back)
+                        DoorHomeScreen(
+                            onOpen = { navController.navigate(Screen.DoorPage.create(it.key)) },
+                            onBack = back,
+                            // "Personen an der Kamera": the door screen shows that home camera.
+                            focusCamera = (dest as? DoorDest.Camera)?.cameraId,
+                        )
                     }
                 }
             }
