@@ -89,7 +89,9 @@ object PrintTexts {
         is PResult.Ok -> ""
         is PResult.Failed -> when (r.code) {
             "too_large" -> r.text ?: context.getString(R.string.print_err_too_large)
-            "unsupported_type", "format" -> r.text ?: context.getString(R.string.print_err_format)
+            // the plugin (1.0.3+) names the real reason: not a PDF or picture, damaged, a printer without PDF whose
+            // gateway is too old / has converting off / knows no format to convert to — its own sentence
+            "unsupported_type", "format", "damaged", "printer_format", "gateway_update", "convert_off" -> r.text ?: context.getString(R.string.print_err_format)
             "quota_exceeded" -> context.getString(R.string.print_err_quota)
             "infected", "quarantined" -> context.getString(R.string.print_err_infected)
             "scan_unavailable", "scan_pending" -> context.getString(R.string.print_err_scan)
@@ -105,7 +107,8 @@ object PrintTexts {
     fun state(context: Context, job: PJob): String = when (PrintLogic.phase(job.state)) {
         PrintLogic.Phase.RUNNING -> context.getString(
             when (job.state) {
-                "sending" -> R.string.print_state_sending
+                // the gateway turns the PDF into the printer's own format first (a printer without PDF)
+                "sending" -> if (job.message == "converting") R.string.print_state_converting else R.string.print_state_sending
                 "printing" -> R.string.print_state_printing
                 else -> R.string.print_state_queued
             },
@@ -130,6 +133,8 @@ object PrintTexts {
     fun reason(context: Context, error: String): String = context.getString(
         when (error) {
             "format_unsupported" -> R.string.print_fail_format
+            "convert_failed" -> R.string.print_fail_convert
+            "convert_too_large" -> R.string.print_fail_convert_large
             "printer_rejected" -> R.string.print_fail_rejected
             "canceled_at_printer", "aborted_at_printer" -> R.string.print_fail_at_printer
             "expired", "printer_offline" -> R.string.print_fail_expired

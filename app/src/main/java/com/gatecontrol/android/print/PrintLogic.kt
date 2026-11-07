@@ -34,6 +34,46 @@ object PrintLogic {
         }
     }
 
+    /**
+     * The type of a file by its first bytes (up to 1024): a PDF a provider hands over as
+     * `application/octet-stream` or under a name without ".pdf" is still a PDF. null when nothing is recognised.
+     */
+    fun sniff(head: ByteArray?): String? {
+        if (head == null || head.size < 4) return null
+        fun at(text: String, offset: Int = 0): Boolean =
+            head.size >= offset + text.length && text.indices.all { head[offset + it] == text[it].code.toByte() }
+        val pdf = "%PDF-"
+        val limit = minOf(head.size, 1024) - pdf.length
+        for (i in 0..limit) if (at(pdf, i)) return "application/pdf"
+        val b = { i: Int -> head[i].toInt() and 0xff }
+        if (b(0) == 0xff && b(1) == 0xd8 && b(2) == 0xff) return "image/jpeg"
+        if (head.size >= 8 && b(0) == 0x89 && at("PNG\r\n", 1) && b(6) == 0x1a && b(7) == 0x0a) return "image/png"
+        if (at("GIF87a") || at("GIF89a")) return "image/gif"
+        if (at("RIFF") && at("WEBP", 8)) return "image/webp"
+        if (at("ftyp", 4) && head.size >= 12) {
+            val brand = String(head, 8, 4, Charsets.ISO_8859_1)
+            if (brand in setOf("heic", "heix", "hevc", "hevx")) return "image/heic"
+            if (brand in setOf("mif1", "msf1")) return "image/heif"
+        }
+        return null
+    }
+
+    /**
+     * The type a shared file goes up as: the one its content shows when the declared one ([declared]: provider,
+     * share, extension) is missing, not printable, or claims PDF for something else — else the declared one.
+     */
+    fun effectiveType(declared: String?, head: ByteArray?): String? {
+        val seen = sniff(head)
+        val d = declared?.lowercase()?.substringBefore(';')?.trim()
+        return when {
+            seen == null -> declared
+            d == null || upload(d) == null -> seen
+            d == "application/pdf" && seen != "application/pdf" -> seen
+            seen == "application/pdf" && d != "application/pdf" -> seen
+            else -> declared
+        }
+    }
+
     /** The type sent with an upload of [mime] (the core checks it against the plugin's types). */
     fun uploadType(mime: String?): String {
         val m = mime?.lowercase()?.substringBefore(';')?.trim().orEmpty()
