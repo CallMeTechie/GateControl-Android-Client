@@ -205,11 +205,15 @@ internal object DriveJson {
             located = o.bool("located"),
             people = o.arr("people")?.mapNotNull { e -> runCatching { e.asLong }.getOrNull() }?.distinct()?.take(50),
             scan = MediaScanJson.of(o),
+            // Drive 1.24: the previews from the home gateway (`preview.lan` / `largeLan` of a node, `previewLan` /
+            // `largeLan` of a photo item); a hint that is not right is simply not used
+            previewLan = com.gatecontrol.android.network.HomeCache.parse(o.obj("preview")?.get("lan") ?: o.get("previewLan")),
+            largeLan = com.gatecontrol.android.network.HomeCache.parse(o.obj("preview")?.get("largeLan") ?: o.get("largeLan")),
         ).let { n ->
             // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
             val vault = vaultId(o.str("vaultId"))
             if (vault == null && o.bool("encrypted") != true) n
-            else n.copy(vaultId = vault ?: INVALID_VAULT, nameCipher = nameCipher(o.str("nameCipher")), keyVersion = o.int("keyVersion")?.takeIf { it > 0 }, preview = false, insight = null)
+            else n.copy(vaultId = vault ?: INVALID_VAULT, nameCipher = nameCipher(o.str("nameCipher")), keyVersion = o.int("keyVersion")?.takeIf { it > 0 }, preview = false, insight = null, previewLan = null, largeLan = null)
         }
     }
 

@@ -117,8 +117,13 @@ class DriveApi @Inject constructor(
 
     private val unit: (JsonObject) -> Unit = { }
 
-    private suspend fun <T> get(path: String, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?) =
-        call(request = { pluginGet(DRIVE_PLUGIN, path, query + lang()) }, parse = parse)
+    private suspend fun <T> get(path: String, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?): DResult<T> {
+        // Drive 1.24 (`homeCachePreviews`): at home the lists carry the device's LAN addresses as well, so their previews
+        // may come with hints for the home gateway — only when "at home" is known already (a list never waits for it)
+        val local = if (homePreviewsOn) homeCache.localHeaderIfKnown() else null
+        return if (local == null) call(request = { pluginGet(DRIVE_PLUGIN, path, query + lang()) }, parse = parse)
+        else call(request = { pluginGetWithLocal(DRIVE_PLUGIN, path, query + lang(), local) }, parse = parse)
+    }
 
     private suspend fun <T> post(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
         call(request = { pluginPost(DRIVE_PLUGIN, path, body, lang()) }, parse = parse)
@@ -140,12 +145,19 @@ class DriveApi @Inject constructor(
     // ─── who, where ─────────────────────────────────────────────────
 
     suspend fun me(): DResult<DMe> = get("me", parse = DriveJson::me).also { r ->
-        if (r is DResult.Ok) homeCacheOn = r.value.has(DMe.FEATURE_HOME_CACHE)
+        if (r is DResult.Ok) {
+            homeCacheOn = r.value.has(DMe.FEATURE_HOME_CACHE)
+            homePreviewsOn = homeCacheOn && r.value.has(DMe.FEATURE_HOME_CACHE_PREVIEWS)
+        }
     }
 
     /** The last `GET me` named `homeCache` (Drive 1.20 on GateControl 1.231+): downloads may come from the home gateway. */
     @Volatile
     private var homeCacheOn = false
+
+    /** The last `GET me` named `homeCachePreviews` (Drive 1.24 on GateControl 1.249+): previews may come from the home gateway. */
+    @Volatile
+    private var homePreviewsOn = false
 
     suspend fun areas(): DResult<List<DArea>> = get("areas", parse = DriveJson::areas)
 
