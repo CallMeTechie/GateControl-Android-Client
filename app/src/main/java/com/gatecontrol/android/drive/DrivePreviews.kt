@@ -8,12 +8,17 @@ import android.net.Uri
 import android.util.LruCache
 import android.util.Size
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.homecache.HomeCacheLan
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.network.HomeCache
+import com.gatecontrol.android.network.LanHint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -30,12 +35,17 @@ import javax.inject.Singleton
  * and kept in memory and on disk. A media id never changes its content (a new version has a new one), so a cached
  * picture never goes stale; old ones are pruned by count. For HEIC photos and videos, which the server cannot read,
  * the uploader sends a picture it made itself ([uploadOwn]).
+ *
+ * Drive 1.24 on GateControl 1.249+ (`homeCachePreviews`): at home a node may name its preview on the home gateway
+ * ([DNode.previewLan] / [DNode.largeLan]) — loaded from there first (pinned certificate, the bytes checked against the
+ * hint's SHA-256, [HomeCacheLan]); on any error the server's preview as before.
  */
 @Singleton
 class DrivePreviews @Inject constructor(
     @ApplicationContext private val context: Context,
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
+    private val homeCache: HomeCacheLan,
 ) {
     private val memory = object : LruCache<String, Bitmap>(MEMORY_BYTES) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
@@ -57,7 +67,9 @@ class DrivePreviews @Inject constructor(
         val running = inFlight.putIfAbsent(key, mine)
         if (running != null) return running.await()
         return try {
-            val bmp = withContext(Dispatchers.IO) { fromDisk(key) ?: download(node.mediaId!!, large, key) }
+            val bmp = withContext(Dispatchers.IO) {
+                fromDisk(key) ?: fromHome(if (large) node.largeLan else node.previewLan, key) ?: download(node.mediaId!!, large, key)
+            }
             if (bmp != null) memory.put(key, bmp)
             mine.complete(bmp)
             bmp
@@ -81,6 +93,32 @@ class DrivePreviews @Inject constructor(
         if (!file.isFile) return null
         file.setLastModified(System.currentTimeMillis())
         return BitmapFactory.decodeFile(file.path)
+    }
+
+    /** A grid asks for many at once: a few connections to the gateway at a time. */
+    private val homePermits = Semaphore(HOME_PARALLEL)
+
+    /** After a failure at the gateway the server's previews for a while (a gateway that is off costs no waiting). */
+    @Volatile
+    private var homeOffUntil = 0L
+
+    /** The preview from the home gateway ([hint]), kept like a downloaded one; null: none, too late, any error. */
+    private suspend fun fromHome(hint: LanHint?, key: String): Bitmap? {
+        if (hint == null || !HomeCache.usable(hint, System.currentTimeMillis() / 1000)) return null
+        if (System.currentTimeMillis() < homeOffUntil) return null
+        val file = homePermits.withPermit { homeCache.fetch(hint, expectedSha256 = hint.sha256) }
+        if (file == null) {
+            homeOffUntil = System.currentTimeMillis() + HOME_PAUSE_MS
+            return null
+        }
+        return try {
+            val bytes = file.takeIf { it.length() in 1L..MAX_BYTES.toLong() }?.readBytes() ?: return null
+            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+            runCatching { write(key, bytes) }
+            bmp
+        } finally {
+            file.delete()
+        }
     }
 
     private suspend fun download(mediaId: String, large: Boolean, key: String): Bitmap? {
@@ -186,6 +224,8 @@ class DrivePreviews @Inject constructor(
         const val MAX_FILES = 600
         const val TIMEOUT_MS = 20_000L
         const val PENDING_TRIES = 3
+        const val HOME_PARALLEL = 6
+        const val HOME_PAUSE_MS = 60_000L
         const val OWN_SIDE = 640
         const val OWN_MAX_BYTES = 500 * 1024
         val JPEG = "image/jpeg".toMediaType()

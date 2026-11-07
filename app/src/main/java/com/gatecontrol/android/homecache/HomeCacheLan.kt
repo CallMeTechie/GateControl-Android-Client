@@ -16,7 +16,10 @@ import com.gatecontrol.android.network.isPrivateIpv4
 import com.gatecontrol.android.network.probeHomeNetwork
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -132,6 +135,20 @@ class HomeCacheLan @Inject constructor(
             Timber.d("Home cache: home network %s", if (status is HomeNetworkStatus.Home) "yes" else "no")
             if (status is HomeNetworkStatus.Home) local else null
         }
+    }
+
+    private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * [localHeader] without waiting: the value while "at home" is known already, null otherwise — then the check runs in
+     * the background (one at a time), so a later request has it. For requests that must not wait for the check, such
+     * as Drive's lists (their previews may then come with hints, Drive 1.24).
+     */
+    fun localHeaderIfKnown(): String? {
+        val local = HomeCache.localHeader(localAddresses(), excluded = { VpnSubnet.contains(apiClientProvider.vpnSubnet, it) }) ?: return null
+        memory.get(local)?.let { return if (it) local else null }
+        if (!probing.isLocked) background.launch { runCatching { localHeader() } }
+        return null
     }
 
     /** Forget whether this is home (e.g. after a network change the next request asks again anyway: other addresses). */

@@ -42,6 +42,28 @@ class DriveHomeCacheTest {
         assertNull(DriveJson.content(json("""{"size":12,"mediaId":null}""")))
     }
 
+    private fun hint(sha256: String, host: String = "192.168.1.23") =
+        "{\"url\":\"https://$host:8443/blob/$sha256?exp=1700000600&sig=${"c".repeat(64)}\",\"sha256\":\"$sha256\",\"tlsSha256\":\"$pin\",\"exp\":1700000600}"
+
+    @Test
+    fun `previews of a node and of a photo item with their hints for the home gateway (Drive 1_24)`() {
+        val small = "d".repeat(64)
+        val large = "e".repeat(64)
+        val node = DriveJson.node(json("""{"id":5,"areaId":"u1","name":"a.jpg","isDir":false,"size":3,"mime":"image/jpeg","mediaId":"$id","preview":{"url":"/x","largeUrl":"/x?size=large","lan":${hint(small)},"largeLan":${hint(large)}}}"""))!!
+        assertTrue(node.preview)
+        assertEquals(small, node.previewLan?.sha256)
+        assertEquals(large, node.largeLan?.sha256)
+        val item = DriveJson.node(json("""{"id":6,"areaId":"u1","name":"b.jpg","isDir":false,"size":3,"mime":"image/jpeg","mediaId":"$id","preview":true,"previewUrl":"/x","previewLan":${hint(small)}}"""))!!
+        assertEquals(small, item.previewLan?.sha256)
+        assertNull(item.largeLan)
+        // no hint, a public address, a vault's node: none
+        assertNull(DriveJson.node(json("""{"id":7,"areaId":"u1","name":"c.jpg","isDir":false,"size":3,"mediaId":"$id","preview":{"url":"/x"}}"""))!!.previewLan)
+        assertNull(DriveJson.node(json("""{"id":8,"areaId":"u1","name":"d.jpg","isDir":false,"size":3,"mediaId":"$id","preview":{"url":"/x","lan":${hint(small, "203.0.113.5")}}}"""))!!.previewLan)
+        val vault = DriveJson.node(json("""{"id":9,"areaId":"u1","name":"${"f".repeat(32)}","isDir":false,"size":3,"mediaId":"$id","encrypted":true,"vaultId":"${"a".repeat(32)}","keyVersion":1,"preview":{"url":"/x","lan":${hint(small)}}}"""))!!
+        assertNull(vault.previewLan)
+        assertFalse(vault.preview)
+    }
+
     @Test
     fun `the limit of 500 marks is recognised`() {
         assertTrue(DriveOfflineLogic.atLimit(DResult.Failed("invalid", 400, json("""{"code":"invalid","field":"offline","max":500}"""))))
