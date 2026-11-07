@@ -564,6 +564,9 @@ class DrivePlacesSettingsViewModel @Inject constructor(
 
     fun canLook(): Boolean = backfill.canLook()
 
+    /** Only picked photos (Android 14+): "Orte nachtragen" finds no others. */
+    fun partial(): Boolean = com.gatecontrol.android.drive.DriveMediaAccess.of(context, videos = false) == com.gatecontrol.android.drive.DriveMediaAccess.Access.PARTIAL
+
     private fun put(call: suspend () -> DResult<com.gatecontrol.android.drive.DPhotoSettings>, after: (Boolean) -> Unit = {}) {
         if (_busy.value) return
         viewModelScope.launch {

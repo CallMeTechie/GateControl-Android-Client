@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.25: Videos in der Foto-Sicherung, „Alle · Fotos · Videos“, Videos suchen -->
+<resources>
+    <!-- Foto-Sicherung: welche Videos -->
+    <string name="drive_backup_videos_which_title">Welche Videos?</string>
+    <string name="drive_backup_videos_which_text">Auch die Videos sichern, die schon auf dem Handy sind, oder nur die, die du ab jetzt aufnimmst? Fotos werden dabei nicht noch einmal hochgeladen.</string>
+    <string name="drive_backup_videos_which_all">Alle Videos</string>
+    <string name="drive_backup_videos_which_new">Nur neue</string>
+    <string name="drive_backup_videos_running">Ältere Videos: %1$d von %2$d</string>
+    <plurals name="drive_backup_videos_waiting">
+        <item quantity="one">Noch %d älteres Video zu sichern.</item>
+        <item quantity="other">Noch %d ältere Videos zu sichern.</item>
+    </plurals>
+    <!-- Zugriff -->
+    <string name="drive_media_partial">Die App sieht nur ausgewählte Fotos – Zugriff auf alle erlauben?</string>
+    <string name="drive_media_videos_missing">GateControl darf deine Videos noch nicht sehen – Zugriff erlauben?</string>
+    <string name="drive_media_allow">Zugriff erlauben</string>
+    <!-- Übersprungen -->
+    <string name="drive_backup_skipped_title">Übersprungen (%1$d)</string>
+    <string name="drive_backup_skipped_text">Diese Dateien sind nicht im Drive. Der Grund steht darunter.</string>
+    <string name="drive_backup_skipped_retry">Erneut versuchen</string>
+    <string name="drive_backup_skip_read">Die Datei ließ sich nicht lesen.</string>
+    <string name="drive_backup_skip_empty">Die Datei ist leer.</string>
+    <string name="drive_backup_skip_too_large">Zu groß für den Drive.</string>
+    <string name="drive_backup_skip_type">Diese Dateiart nimmt der Drive nicht an.</string>
+    <string name="drive_backup_skip_infected">Die Virenprüfung hat die Datei abgelehnt.</string>
+    <string name="drive_backup_skip_invalid">Der Server hat die Datei nicht angenommen.</string>
+    <string name="drive_backup_skip_other">Fehler beim Hochladen (%1$s).</string>
+    <plurals name="drive_backup_skipped_more">
+        <item quantity="one">… und %d weitere</item>
+        <item quantity="other">… und %d weitere</item>
+    </plurals>
+    <!-- Zuletzt hochgeladen -->
+    <string name="drive_backup_sent_title">Zuletzt hochgeladen</string>
+    <string name="drive_backup_sent_private">Kamera-Uploads › %1$s</string>
+    <string name="drive_backup_sent_work">%1$s › %2$s</string>
+    <!-- Fotos: Alle · Fotos · Videos -->
+    <string name="drive_media_all">Alle</string>
+    <string name="drive_media_images">Fotos</string>
+    <string name="drive_media_videos">Videos</string>
+    <string name="drive_media_filter">Fotos oder Videos</string>
+    <string name="drive_media_none_images">Keine Fotos.</string>
+    <string name="drive_media_none_videos">Keine Videos.</string>
+    <string name="drive_media_duration">Länge %1$s</string>
+    <!-- Orte nachtragen -->
+    <string name="drive_pp_fill_nothing">Nichts nachzutragen – alle Fotos auf diesem Handy haben schon einen Ort.</string>
+</resources>

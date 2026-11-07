@@ -261,6 +261,18 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
                             })
                         }
                     }
+                    // Drive 1.25 (`mediaFilter`): only pictures or only videos among the hits — a chip alone lists the newest
+                    if (!asking && me?.has(DMe.FEATURE_MEDIA_FILTER) == true) {
+                        val media by viewModel.media.collectAsStateWithLifecycle()
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            com.gatecontrol.android.ui.components.GcFilterChip(stringResource(R.string.drive_media_images), selected = media == "image", onClick = {
+                                viewModel.setMedia(if (media == "image") null else "image", q.take(100))
+                            })
+                            com.gatecontrol.android.ui.components.GcFilterChip(stringResource(R.string.drive_media_videos), selected = media == "video", onClick = {
+                                viewModel.setMedia(if (media == "video") null else "video", q.take(100))
+                            })
+                        }
+                    }
                 }
                 BulkBusyCard(busy, viewModel.bulk::cancelBusy)
                 if (asking) {

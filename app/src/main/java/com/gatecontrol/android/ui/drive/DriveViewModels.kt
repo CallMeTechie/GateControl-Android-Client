@@ -1084,27 +1084,41 @@ class DriveSearchViewModel @Inject constructor(
         viewModelScope.launch { _areas.value = api.areas().valueOrNull() ?: live.current()?.areas.orEmpty() }
     }
 
+    private val _media = MutableStateFlow<String?>(null)
+    /** The chip "Fotos" / "Videos" (Drive 1.25, `mediaFilter`): `image` | `video`, null: every hit. */
+    val media: StateFlow<String?> = _media.asStateFlow()
+
+    /** What is sent: the chip only while Drive knows it. */
+    private fun media(): String? = DriveLogic.mediaFilter(_media.value, live.me.value)
+
+    /** The chip on or off ([m] null): the search again — with a chip an empty field lists the newest of them. */
+    fun setMedia(m: String?, q: String) {
+        _media.value = m
+        search(q)
+    }
+
     fun search(q: String) {
         job?.cancel()
         val t = q.trim()
         term = t
         bulk.clear()
-        if (t.length < 2) {
+        val media = media()
+        if (!DriveLogic.searchable(t, media)) {
             _state.value = null
             return
         }
         job = viewModelScope.launch {
             delay(300)
             _state.value = DriveLoad.Loading
-            _state.value = api.search(t.take(100)).toLoad { it }
+            _state.value = api.search(t.take(100), media = media).toLoad { it }
         }
     }
 
     /** The same search again (after a job changed the hits), quietly. */
     private fun again() {
-        if (term.length < 2) return
+        if (!DriveLogic.searchable(term, media())) return
         viewModelScope.launch {
-            val r = api.search(term.take(100))
+            val r = api.search(term.take(100), media = media())
             if (r is DResult.Ok) _state.value = DriveLoad.Ready(r.value)
             bulk.keepPresent()
         }

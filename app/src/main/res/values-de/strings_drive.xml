@@ -136,8 +136,6 @@
     <string name="drive_backup_which_new">Nur neue</string>
     <string name="drive_backup_error_permission">GateControl darf deine Fotos nicht lesen. Erlaube es in den App-Einstellungen.</string>
     <string name="drive_backup_settings">Einstellungen</string>
-    <string name="drive_backup_partial">Nur die ausgewählten Fotos sind für GateControl freigegeben.</string>
-    <string name="drive_backup_allow_all">Alle erlauben</string>
     <string name="drive_backup_uptodate">Alles gesichert.</string>
     <string name="drive_backup_last">Zuletzt gesichert: %1$s</string>
     <string name="drive_backup_now">Jetzt sichern</string>

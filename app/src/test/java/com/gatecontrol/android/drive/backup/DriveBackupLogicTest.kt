@@ -138,4 +138,94 @@ class DriveBackupLogicTest {
         assertTrue(r.review)
         assertNull(r.learn)
     }
+
+    // ─── videos, late entries, skipped (1.25) ───────────────────────
+
+    @Test
+    fun `Nur neue Videos - photos after the mark, videos only after the switch`() {
+        val q = DriveBackupLogic.query(DriveBackupConfig(videos = true, cameraOnly = false), DriveBackupMark(100, 1), videosFrom = DriveBackupMark(500, 9))
+        assertEquals("(media_type = 1 OR (media_type = 3 AND (date_added > ? OR (date_added = ? AND _id > ?)))) AND (date_added > ? OR (date_added = ? AND _id > ?))", q.selection)
+        assertEquals(listOf("500", "500", "9", "100", "100", "1"), q.args.toList())
+        // ALL or none: every video
+        assertEquals(DriveBackupLogic.query(DriveBackupConfig(videos = true), DriveBackupMark(1, 1)), DriveBackupLogic.query(DriveBackupConfig(videos = true), DriveBackupMark(1, 1), DriveBackupMark.ALL))
+        // videos off: the bound does not matter
+        assertTrue(DriveBackupLogic.query(DriveBackupConfig(), DriveBackupMark(1, 1), DriveBackupMark(500, 9)).selection.startsWith("media_type = 1 AND"))
+    }
+
+    @Test
+    fun `the catch-up of older videos - only videos, up to the mark, never a photo again`() {
+        val q = DriveBackupLogic.videoQuery(DriveBackupConfig(videos = true), DriveBackupMark(10, 2), DriveBackupMark(900, 50))
+        assertEquals(
+            "media_type = 3 AND relative_path LIKE ? AND relative_path NOT LIKE ? AND (date_added > ? OR (date_added = ? AND _id > ?)) AND (date_added < ? OR (date_added = ? AND _id <= ?))",
+            q.selection,
+        )
+        assertEquals(listOf("DCIM/%", "%Screenshots%", "10", "10", "2", "900", "900", "50"), q.args.toList())
+        assertEquals("date_added ASC, _id ASC", q.sort)
+        // with "Nur neue" later: not before it
+        val n = DriveBackupLogic.videoQuery(DriveBackupConfig(videos = true, cameraOnly = false), DriveBackupMark.ALL, DriveBackupMark(900, 50), videosFrom = DriveBackupMark(300, 4))
+        assertEquals(listOf("300", "300", "4", "900", "900", "50"), n.args.toList())
+    }
+
+    @Test
+    fun `late entries - fresh, up to the mark, written after they were added`() {
+        val q = DriveBackupLogic.lateQuery(DriveBackupConfig(videos = true, cameraOnly = false), DriveBackupMark(1000, 7), null, nowS = 50_000)
+        assertEquals(
+            "media_type IN (1, 3) AND (date_added < ? OR (date_added = ? AND _id <= ?)) AND date_added >= ? AND date_modified >= date_added + 2",
+            q.selection,
+        )
+        assertEquals(listOf("1000", "1000", "7", (50_000 - DriveBackupLogic.LATE_WINDOW_S).toString()), q.args.toList())
+    }
+
+    @Test
+    fun `the handled fresh entries - kept within the window, the newest, at most RECENT_MAX`() {
+        val now = 100_000L
+        val map = mapOf(1L to now - 10, 2L to now - DriveBackupLogic.LATE_WINDOW_S - 1, 3L to now)
+        val text = DriveBackupLogic.recentText(map, now)
+        assertEquals(mapOf(3L to now, 1L to now - 10), DriveBackupLogic.recentOf(text))
+        val many = (1L..(DriveBackupLogic.RECENT_MAX + 50L)).associateWith { now - it }
+        val kept = DriveBackupLogic.recentOf(DriveBackupLogic.recentText(many, now))
+        assertEquals(DriveBackupLogic.RECENT_MAX, kept.size)
+        assertTrue(1L in kept && (DriveBackupLogic.RECENT_MAX + 50L) !in kept)
+        assertEquals(emptyMap<Long, Long>(), DriveBackupLogic.recentOf("x:1,2,:"))
+        assertTrue(DriveBackupLogic.fresh(now - 5, now))
+        assertFalse(DriveBackupLogic.fresh(now - DriveBackupLogic.LATE_WINDOW_S - 1, now))
+    }
+
+    @Test
+    fun `a file still being written waits, never skipped as empty`() {
+        assertFalse(DriveBackupLogic.ready(storeSize = 0, length = 4096), "the store has not seen its size")
+        assertFalse(DriveBackupLogic.ready(storeSize = 100, length = 4096), "it grew since")
+        assertFalse(DriveBackupLogic.ready(storeSize = 0, length = 0), "nothing yet")
+        assertTrue(DriveBackupLogic.ready(storeSize = 4096, length = 4096))
+        assertTrue(DriveBackupLogic.ready(storeSize = null, length = 1))
+        assertEquals(Next.WAIT, DriveBackupLogic.next(DriveBackupLogic.NOT_READY))
+    }
+
+    @Test
+    fun `looked at again - waiting and Erneut versuchen`() {
+        val list = listOf(DriveBackupLogic.Again(5, 100, retry = false), DriveBackupLogic.Again(6, 200, retry = true), DriveBackupLogic.Again(5, 300, retry = true))
+        assertEquals(listOf(DriveBackupLogic.Again(5, 100, false), DriveBackupLogic.Again(6, 200, true)), DriveBackupLogic.againOf(DriveBackupLogic.againText(list)))
+        assertEquals(emptyList<DriveBackupLogic.Again>(), DriveBackupLogic.againOf("1:2,x:y:z,3"))
+        val q = DriveBackupLogic.idsQuery(listOf(5, 6, 5))
+        assertEquals("_id IN (?,?)", q.selection)
+        assertEquals(listOf("5", "6"), q.args.toList())
+    }
+
+    @Test
+    fun `skipped - kept with the reason, newest first, the same photo once, names made safe`() {
+        val a = DriveBackupLogic.Skipped(1, "VID\tneu\n.mp4", "read", 10, video = true)
+        val b = DriveBackupLogic.Skipped(2, "IMG.jpg", "too_large", 20, video = false)
+        var list = DriveBackupLogic.withSkipped(emptyList(), a)
+        list = DriveBackupLogic.withSkipped(list, b)
+        list = DriveBackupLogic.withSkipped(list, a.copy(code = "empty", at = 30))
+        val back = DriveBackupLogic.skippedOf(DriveBackupLogic.skippedText(list))
+        assertEquals(listOf(1L, 2L), back.map { it.id })
+        assertEquals("empty", back[0].code)
+        assertEquals("VID neu .mp4", back[0].name)
+        assertTrue(back[0].video)
+        assertEquals(false, back[1].video)
+        val full = (1L..(DriveBackupLogic.SKIPPED_MAX + 10L)).fold(emptyList<DriveBackupLogic.Skipped>()) { l, i -> DriveBackupLogic.withSkipped(l, b.copy(id = i)) }
+        assertEquals(DriveBackupLogic.SKIPPED_MAX, full.size)
+        assertEquals(emptyList<DriveBackupLogic.Skipped>(), DriveBackupLogic.skippedOf("broken"))
+    }
 }

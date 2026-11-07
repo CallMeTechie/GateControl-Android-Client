@@ -113,4 +113,6 @@ data class DPhotoFilter(
     val withPeople: Boolean = false,
     val unlocated: Boolean = false,
     val unfacedModel: String? = null,
+    /** Drive 1.25 (`mediaFilter`): `image` | `video` — only pictures or only videos; null: both. */
+    val media: String? = null,
 )

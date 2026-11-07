@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.drive.DriveMediaAccess
 import com.gatecontrol.android.drive.backup.DriveBackup
 import com.gatecontrol.android.drive.backup.DriveBackupConfig
 import com.gatecontrol.android.drive.backup.DriveBackupLogic
@@ -81,6 +82,9 @@ class DriveBackupViewModel @Inject constructor(
 
     private val _pending = MutableStateFlow<Int?>(null)
     val pending: StateFlow<Int?> = _pending.asStateFlow()
+    private val _pendingVideos = MutableStateFlow<Int?>(null)
+    /** Older videos still to catch up ("Alle Videos"); null: none. */
+    val pendingVideos: StateFlow<Int?> = _pendingVideos.asStateFlow()
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
@@ -91,8 +95,30 @@ class DriveBackupViewModel @Inject constructor(
     val targetNotice: Boolean = backup.takeTargetNotice()
 
     fun refresh() {
-        viewModelScope.launch { _pending.value = backup.pending() }
+        viewModelScope.launch {
+            _pending.value = backup.pending()
+            _pendingVideos.value = backup.pendingVideos()
+        }
     }
+
+    /** What the app may see of the gallery (photos, and videos with "Auch Videos"). */
+    fun access(videos: Boolean): DriveMediaAccess.Access = DriveMediaAccess.of(context, videos)
+
+    /** "Auch Videos" on: ask which videos when the backup has a mark (else the first switch-on asks for both). */
+    fun videosNeedChoice(): Boolean = backup.videosNeedChoice()
+
+    fun videosOn(all: Boolean) {
+        backup.videosOn(all)
+        refresh()
+    }
+
+    fun videosOff() {
+        backup.videosOff()
+        refresh()
+    }
+
+    /** "Erneut versuchen": the skipped ones go into the next pass. */
+    fun retrySkipped() = backup.retrySkipped()
 
     /** The backup never ran for this login: ask whether the photos there are already go up too. */
     fun firstTime(): Boolean = backup.mark() == null
@@ -122,17 +148,7 @@ class DriveBackupViewModel @Inject constructor(
 }
 
 /** What the photo backup needs: the photos (and videos), their original location data, the progress notification. */
-private fun mediaPermissions(videos: Boolean): Array<String> = buildList {
-    if (Build.VERSION.SDK_INT >= 33) {
-        add(Manifest.permission.READ_MEDIA_IMAGES)
-        if (videos) add(Manifest.permission.READ_MEDIA_VIDEO)
-        if (Build.VERSION.SDK_INT >= 34) add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
-        add(Manifest.permission.POST_NOTIFICATIONS)
-    } else {
-        add(Manifest.permission.READ_EXTERNAL_STORAGE)
-    }
-    add(Manifest.permission.ACCESS_MEDIA_LOCATION)
-}.toTypedArray()
+private fun mediaPermissions(videos: Boolean): Array<String> = DriveMediaAccess.permissions(videos)
 
 private fun openAppSettings(context: Context) {
     runCatching {
@@ -150,6 +166,17 @@ internal fun backupText(context: Context, code: String): String = when (code) {
     else -> driveText(context, code)
 }
 
+/** Why the backup left a file out ("Übersprungen"), in plain words. */
+internal fun skipText(context: Context, code: String): String = when (code) {
+    "read" -> context.getString(R.string.drive_backup_skip_read)
+    "empty" -> context.getString(R.string.drive_backup_skip_empty)
+    "too_large", "http_413" -> context.getString(R.string.drive_backup_skip_too_large)
+    "unsupported_type", "http_415" -> context.getString(R.string.drive_backup_skip_type)
+    com.gatecontrol.android.scan.MediaScanJson.INFECTED -> context.getString(R.string.drive_backup_skip_infected)
+    "invalid", "invalid_answer", "upload_invalid" -> context.getString(R.string.drive_backup_skip_invalid)
+    else -> context.getString(R.string.drive_backup_skip_other, code)
+}
+
 /** Drive tab › Foto-Sicherung. */
 @Composable
 fun DriveBackupScreen(onBack: () -> Unit, onCleanup: () -> Unit = {}, viewModel: DriveBackupViewModel = hiltViewModel()) {
@@ -158,30 +185,45 @@ fun DriveBackupScreen(onBack: () -> Unit, onCleanup: () -> Unit = {}, viewModel:
     val stats by viewModel.backup.stats.collectAsStateWithLifecycle()
     val status by viewModel.backup.status.collectAsStateWithLifecycle()
     val pending by viewModel.pending.collectAsStateWithLifecycle()
+    val pendingVideos by viewModel.pendingVideos.collectAsStateWithLifecycle()
+    val skipped by viewModel.backup.skipped.collectAsStateWithLifecycle()
+    val sent by viewModel.backup.sent.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    var askVideos by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf(viewModel.targetNotice) }
     var askWhich by remember { mutableStateOf(false) }
     var denied by remember { mutableStateOf(false) }
     var canRead by remember { mutableStateOf(viewModel.backup.canRead()) }
-    var partial by remember { mutableStateOf(viewModel.backup.partialAccess()) }
+    // what the app sees: everything, only picked photos, the photos but not the videos (Android 13+)
+    var photoAccess by remember { mutableStateOf(viewModel.access(false)) }
+    var videoAccess by remember { mutableStateOf(viewModel.access(true)) }
+    val recheck = {
+        canRead = viewModel.backup.canRead()
+        photoAccess = viewModel.access(false)
+        videoAccess = viewModel.access(true)
+    }
 
     LifecycleResumeEffect(Unit) {
-        canRead = viewModel.backup.canRead()
-        partial = viewModel.backup.partialAccess()
+        recheck()
         viewModel.refresh()
         onPauseOrDispose { }
     }
 
     val start = { if (viewModel.firstTime()) askWhich = true else viewModel.enable(all = true) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        canRead = viewModel.backup.canRead()
-        partial = viewModel.backup.partialAccess()
+        recheck()
         denied = !canRead
         if (canRead && !config.enabled) start()
         viewModel.refresh()
     }
     val turnOn = {
-        if (viewModel.backup.canRead()) start() else permissions.launch(mediaPermissions(config.videos))
+        // full access first (with "Auch Videos" the videos too): "Ausgewählte Fotos" alone never shows new ones
+        if (viewModel.access(config.videos) == DriveMediaAccess.Access.FULL) start() else permissions.launch(mediaPermissions(config.videos))
+    }
+    // "Auch Videos" on: the videos must be readable (READ_MEDIA_VIDEO) — asked for now, never assumed
+    val videosOn = { all: Boolean ->
+        viewModel.videosOn(all)
+        if (viewModel.access(true) != DriveMediaAccess.Access.FULL) permissions.launch(mediaPermissions(true))
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -212,16 +254,19 @@ fun DriveBackupScreen(onBack: () -> Unit, onCleanup: () -> Unit = {}, viewModel:
                     Text(stringResource(R.string.drive_backup_error_permission), modifier = Modifier.weight(1f))
                     TextButton(onClick = { openAppSettings(context) }) { Text(stringResource(R.string.drive_backup_settings)) }
                 }
-            } else if (partial && config.enabled) {
-                GcBanner(tone = GcTone.Info, icon = GcIcons.Alert) {
-                    Text(stringResource(R.string.drive_backup_partial), modifier = Modifier.weight(1f))
-                    TextButton(onClick = { permissions.launch(mediaPermissions(config.videos)) }) { Text(stringResource(R.string.drive_backup_allow_all)) }
+            } else if (photoAccess == DriveMediaAccess.Access.PARTIAL || (config.videos && videoAccess != DriveMediaAccess.Access.FULL)) {
+                // only picked photos (Android 14+), or the photos but not the videos: new ones stay invisible to the backup
+                val videosOnly = photoAccess == DriveMediaAccess.Access.FULL
+                GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
+                    Text(stringResource(if (videosOnly) R.string.drive_media_videos_missing else R.string.drive_media_partial), modifier = Modifier.weight(1f))
+                    TextButton(onClick = { permissions.launch(mediaPermissions(config.videos)) }) { Text(stringResource(R.string.drive_media_allow)) }
                 }
             }
 
             if (config.enabled) {
-                BackupStatusCard(config, stats, status, pending, onRun = viewModel::runNow)
+                BackupStatusCard(config, stats, status, pending, pendingVideos, sent, onRun = viewModel::runNow)
             }
+            if (skipped.isNotEmpty()) SkippedCard(skipped, onRetry = viewModel::retrySkipped)
 
             // Drive 1.13: work photos apart (targets, WLANs, the AI, on the phone)
             WorkPhotoSections(onCleanup = onCleanup)
@@ -247,8 +292,12 @@ fun DriveBackupScreen(onBack: () -> Unit, onCleanup: () -> Unit = {}, viewModel:
                     description = stringResource(R.string.drive_backup_videos_text),
                     checked = config.videos,
                     onCheckedChange = { v ->
-                        viewModel.set { it.copy(videos = v) }
-                        if (v && config.enabled && !viewModel.backup.canRead(videos = true)) permissions.launch(mediaPermissions(true))
+                        when {
+                            !v -> viewModel.videosOff()
+                            // the backup ran before: which videos — the ones already on the phone too, or only new ones
+                            viewModel.videosNeedChoice() -> askVideos = true
+                            else -> videosOn(true)
+                        }
                     },
                 )
                 GcRowDivider()
@@ -268,6 +317,16 @@ fun DriveBackupScreen(onBack: () -> Unit, onCleanup: () -> Unit = {}, viewModel:
         }
     }
 
+    if (askVideos) {
+        AlertDialog(
+            onDismissRequest = { askVideos = false },
+            title = { Text(stringResource(R.string.drive_backup_videos_which_title)) },
+            text = { Text(stringResource(R.string.drive_backup_videos_which_text)) },
+            confirmButton = { TextButton(onClick = { askVideos = false; videosOn(true) }) { Text(stringResource(R.string.drive_backup_videos_which_all)) } },
+            dismissButton = { TextButton(onClick = { askVideos = false; videosOn(false) }) { Text(stringResource(R.string.drive_backup_videos_which_new)) } },
+        )
+    }
+
     if (askWhich) {
         AlertDialog(
             onDismissRequest = { askWhich = false },
@@ -280,7 +339,15 @@ fun DriveBackupScreen(onBack: () -> Unit, onCleanup: () -> Unit = {}, viewModel:
 }
 
 @Composable
-private fun BackupStatusCard(config: DriveBackupConfig, stats: DriveBackup.Stats, status: DriveBackup.Status, pending: Int?, onRun: () -> Unit) {
+private fun BackupStatusCard(
+    config: DriveBackupConfig,
+    stats: DriveBackup.Stats,
+    status: DriveBackup.Status,
+    pending: Int?,
+    pendingVideos: Int?,
+    sent: List<DriveBackup.Sent>,
+    onRun: () -> Unit,
+) {
     val context = LocalContext.current
     val x = GateControlTheme.extraColors
     GcCard {
@@ -291,7 +358,11 @@ private fun BackupStatusCard(config: DriveBackupConfig, stats: DriveBackup.Stats
                     progress = { if (status.total > 0) status.done.toFloat() / status.total else 0f },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                 )
-                Text(stringResource(R.string.drive_backup_running, status.done + 1, status.total), color = x.muted, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(if (status.videos) R.string.drive_backup_videos_running else R.string.drive_backup_running, status.done + 1, status.total),
+                    color = x.muted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             stats.error != null -> Text(backupText(context, stats.error), color = x.warn, style = MaterialTheme.typography.bodyMedium)
             pending != null && pending > 0 -> Text(
@@ -299,7 +370,28 @@ private fun BackupStatusCard(config: DriveBackupConfig, stats: DriveBackup.Stats
                 color = x.muted,
                 style = MaterialTheme.typography.bodyMedium,
             )
+            pendingVideos != null && pendingVideos > 0 -> Unit
             else -> Text(stringResource(R.string.drive_backup_uptodate), color = x.muted, style = MaterialTheme.typography.bodyMedium)
+        }
+        // the older videos ("Alle Videos"), after the new photos
+        if (!status.running && stats.error == null && pendingVideos != null && pendingVideos > 0) {
+            Text(pluralStringResource(R.plurals.drive_backup_videos_waiting, pendingVideos, pendingVideos), color = x.muted, style = MaterialTheme.typography.bodyMedium)
+        }
+        // where the last ones went (Kamera-Uploads, or the work folder)
+        if (sent.isNotEmpty()) {
+            Text(stringResource(R.string.drive_backup_sent_title), style = MaterialTheme.typography.labelMedium, color = x.muted)
+            val workDefault = stringResource(R.string.drive_work_work_default)
+            sent.forEach { s ->
+                val path = s.path.replace("/", " › ")
+                val where = if (s.work) stringResource(R.string.drive_backup_sent_work, s.label ?: workDefault, path) else stringResource(R.string.drive_backup_sent_private, path)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(if (s.video) GcIcons.Film else GcIcons.Photo, contentDescription = null, tint = x.muted, modifier = Modifier.size(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(s.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(where, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
         }
         if (stats.lastRunAt > 0) {
             Text(
@@ -311,6 +403,30 @@ private fun BackupStatusCard(config: DriveBackupConfig, stats: DriveBackup.Stats
         if (!status.running) GcOutlineButton(stringResource(R.string.drive_backup_now), onClick = onRun, icon = GcIcons.Refresh)
     }
 }
+
+/** "Übersprungen (N)": what the backup left out, each with its reason, and "Erneut versuchen". */
+@Composable
+private fun SkippedCard(list: List<com.gatecontrol.android.drive.backup.DriveBackupLogic.Skipped>, onRetry: () -> Unit) {
+    val context = LocalContext.current
+    val x = GateControlTheme.extraColors
+    GcCard {
+        Text(stringResource(R.string.drive_backup_skipped_title, list.size), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.drive_backup_skipped_text), color = x.muted, style = MaterialTheme.typography.bodySmall)
+        list.take(SKIPPED_SHOWN).forEach { s ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(if (s.video) GcIcons.Film else GcIcons.Photo, contentDescription = null, tint = x.warn, modifier = Modifier.size(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(s.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(skipText(context, s.code), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                }
+            }
+        }
+        if (list.size > SKIPPED_SHOWN) Text(pluralStringResource(R.plurals.drive_backup_skipped_more, list.size - SKIPPED_SHOWN, list.size - SKIPPED_SHOWN), color = x.muted, style = MaterialTheme.typography.bodySmall)
+        GcOutlineButton(stringResource(R.string.drive_backup_skipped_retry), onClick = onRetry, icon = GcIcons.Refresh)
+    }
+}
+
+private const val SKIPPED_SHOWN = 20
 
 /** The photo backup's state for its row in the settings. */
 @HiltViewModel

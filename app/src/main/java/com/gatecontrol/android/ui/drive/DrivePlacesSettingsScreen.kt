@@ -1,7 +1,5 @@
 package com.gatecontrol.android.ui.drive
 
-import android.Manifest
-import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +32,9 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DMe
+import com.gatecontrol.android.drive.DriveMediaAccess
+import com.gatecontrol.android.ui.components.GcBanner
+import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.drive.faces.FaceModelState
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIcons
@@ -62,12 +63,18 @@ fun DrivePlacesSettingsScreen(onBack: () -> Unit, viewModel: DrivePlacesSettings
     var askPeopleOff by remember { mutableStateOf(false) }
     var askPlacesOff by remember { mutableStateOf(false) }
     var canLook by remember { mutableStateOf(viewModel.canLook()) }
+    // Android 14+ "Ausgewählte Fotos": the app sees only the picked ones — "Orte nachtragen" finds nothing else
+    var partial by remember { mutableStateOf(viewModel.partial()) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         canLook = viewModel.canLook()
+        partial = viewModel.partial()
         if (canLook) viewModel.fillPlaces()
     }
+    /** Asks for every photo again (the system offers "Alle zulassen" and "Auswahl"). */
+    val askAll = { permissions.launch(DriveMediaAccess.permissions(videos = false, notifications = false)) }
     LifecycleResumeEffect(viewModel) {
         canLook = viewModel.canLook()
+        partial = viewModel.partial()
         viewModel.load()
         onPauseOrDispose { }
     }
@@ -86,6 +93,12 @@ fun DrivePlacesSettingsScreen(onBack: () -> Unit, viewModel: DrivePlacesSettings
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if ((places || people) && partial) {
+                GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
+                    Text(stringResource(R.string.drive_media_partial), modifier = Modifier.weight(1f))
+                    TextButton(onClick = askAll) { Text(stringResource(R.string.drive_media_allow)) }
+                }
+            }
             if (places) {
                 SettingsGroup(stringResource(R.string.drive_pp_places)) {
                     GcSwitchRow(
@@ -110,19 +123,17 @@ fun DrivePlacesSettingsScreen(onBack: () -> Unit, viewModel: DrivePlacesSettings
                         GcRowDivider()
                         GcListRow(
                             title = stringResource(R.string.drive_pp_fill),
-                            description = when {
-                                !canLook -> stringResource(R.string.drive_pp_fill_permission)
-                                geo.running -> stringResource(R.string.drive_pp_fill_running, geo.looked, geo.located)
-                                geo.lastRunAt > 0 -> stringResource(R.string.drive_pp_fill_last, geo.looked, geo.located)
-                                else -> stringResource(R.string.drive_pp_fill_desc)
+                            description = when (DriveMediaAccess.fillLine(canLook, partial, geo.running, geo.lastRunAt, geo.looked)) {
+                                DriveMediaAccess.FillLine.PERMISSION -> stringResource(R.string.drive_pp_fill_permission)
+                                DriveMediaAccess.FillLine.PARTIAL -> stringResource(R.string.drive_media_partial)
+                                DriveMediaAccess.FillLine.RUNNING -> stringResource(R.string.drive_pp_fill_running, geo.looked, geo.located)
+                                DriveMediaAccess.FillLine.NOTHING -> stringResource(R.string.drive_pp_fill_nothing)
+                                DriveMediaAccess.FillLine.LAST -> stringResource(R.string.drive_pp_fill_last, geo.looked, geo.located)
+                                DriveMediaAccess.FillLine.INTRO -> stringResource(R.string.drive_pp_fill_desc)
                             },
                             onClick = {
-                                if (canLook) {
-                                    viewModel.fillPlaces()
-                                } else {
-                                    val read = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
-                                    permissions.launch(arrayOf(read, Manifest.permission.ACCESS_MEDIA_LOCATION))
-                                }
+                                // only picked photos: ask for all again first (else nothing is found)
+                                if (canLook && !partial) viewModel.fillPlaces() else askAll()
                             },
                             leading = { Icon(GcIcons.Pin, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
                         )

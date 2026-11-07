@@ -434,7 +434,8 @@ class DriveFolderBackup @Inject constructor(
             is DResult.Ok -> "invalid"
         }
         when (DriveBackupLogic.next(code)) {
-            DriveBackupLogic.Next.RETRY -> throw Halt(code, retry = true)
+            // a server code never says "not ready" (that is the photo backup's own); retried like a busy server
+            DriveBackupLogic.Next.RETRY, DriveBackupLogic.Next.WAIT -> throw Halt(code, retry = true)
             DriveBackupLogic.Next.STOP -> throw Halt(code, retry = false)
             DriveBackupLogic.Next.SKIP, DriveBackupLogic.Next.TRY -> throw Skip(code)
         }

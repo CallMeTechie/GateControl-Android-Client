@@ -216,6 +216,9 @@ internal fun DrivePhotosContent(
     // Drive 1.10 (`photosFolder`): the timeline of the camera uploads only
     val hasCamera = me?.has(DMe.FEATURE_PHOTOS_FOLDER) == true
     val cameraOnly by viewModel.cameraOnly.collectAsStateWithLifecycle()
+    // Drive 1.25 (`mediaFilter`): "Alle · Fotos · Videos"
+    val hasMedia = me?.has(DMe.FEATURE_MEDIA_FILTER) == true
+    val media by viewModel.media.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf("timeline") }
     /** Full screen: the timeline from this photo on. */
     var viewing by remember { mutableStateOf<Int?>(null) }
@@ -315,8 +318,9 @@ internal fun DrivePhotosContent(
                 if (hasCamera && onTimeline) {
                     GcFilterChip(stringResource(R.string.drive_photos_camera_only), selected = cameraOnly, onClick = { viewModel.setCameraOnly(!cameraOnly) }, modifier = Modifier.padding(start = 8.dp))
                 }
+                if (hasMedia && onTimeline) MediaChips(media, viewModel::setMedia, Modifier.padding(start = 8.dp))
             }
-        } else if (hasAlbums || hasCamera) {
+        } else if (hasAlbums || hasCamera || hasMedia) {
             Row(Modifier.inert(selecting).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hasAlbums) {
                     GcFilterChip(stringResource(R.string.drive_photos_timeline), selected = tab == "timeline", onClick = { tab = "timeline" })
@@ -330,6 +334,7 @@ internal fun DrivePhotosContent(
                         onClick = { viewModel.setCameraOnly(!cameraOnly) },
                     )
                 }
+                if (hasMedia && (tab == "timeline" || !hasAlbums)) MediaChips(media, viewModel::setMedia)
             }
         }
         if (busy != null) {
@@ -377,7 +382,13 @@ internal fun DrivePhotosContent(
                     onToggle = viewModel::toggle,
                     onMore = viewModel::more,
                     onRetry = viewModel::refresh,
-                    empty = stringResource(R.string.drive_photos_empty),
+                    empty = stringResource(
+                        when (if (hasMedia) media else null) {
+                            "image" -> R.string.drive_media_none_images
+                            "video" -> R.string.drive_media_none_videos
+                            else -> R.string.drive_photos_empty
+                        },
+                    ),
                     onSelect = viewModel.bulk::set,
                 )
             }
@@ -652,9 +663,11 @@ private fun PhotoTile(
     val selectLabel = stringResource(R.string.drive_photos_select)
     val clickLabel = if (selecting) stringResource(if (ticked) R.string.drive_sel_deselect else R.string.drive_sel_select) else null
     val state = stringResource(if (ticked) R.string.drive_sel_selected else R.string.drive_sel_not_selected)
+    val duration = if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) DriveLogic.durationText(node.durationMs) else null
     val label = listOfNotNull(
         node.name,
         photoDate(node),
+        duration?.let { stringResource(R.string.drive_media_duration, it) },
         if (badge?.review == true) stringResource(R.string.drive_work_tile_review) else null,
         if (badge?.work == true) stringResource(R.string.drive_work_tile_work) else null,
         node.scan?.badge?.let { scanBadgeText(LocalContext.current, it) },
@@ -696,13 +709,43 @@ private fun PhotoTile(
             } else {
                 Icon(look.icon, contentDescription = null, tint = look.fg, modifier = Modifier.size(24.dp))
             }
-            if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) VideoMark(24)
+            if (DriveLogic.kind(node) == DriveLogic.Kind.VIDEO) {
+                // the play mark in the middle; its length (Drive 1.25) at the bottom right, where the phone sent it
+                VideoMark(24)
+                if (duration != null) VideoLength(duration, Modifier.align(Alignment.BottomEnd).padding(5.dp))
+            }
         }
         if (selecting) SelectCheck(ticked, Modifier.align(Alignment.TopStart).padding(6.dp), onImage = true)
         if (badge?.review == true) ReviewMark(Modifier.align(Alignment.TopEnd).padding(6.dp))
         if (badge?.work == true) WorkBag(Modifier.align(Alignment.BottomStart).padding(6.dp))
         // the virus scan's mark (Drive 1.19): the tile is too small for words
         node.scan?.badge?.let { ScanMark(it, Modifier.align(Alignment.BottomEnd).padding(6.dp)) }
+    }
+}
+
+/** A video's length on its tile ("1:23"), white on a dark pill like the play mark. */
+@Composable
+private fun VideoLength(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        color = Color.White,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        modifier = modifier.clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 5.dp, vertical = 1.dp),
+    )
+}
+
+/**
+ * "Alle · Fotos · Videos" (Drive 1.25, feature `mediaFilter`): the photos' filter of only pictures or only videos, in the
+ * chips' style — grouped for TalkBack as "Fotos oder Videos".
+ */
+@Composable
+internal fun MediaChips(media: String?, onPick: (String?) -> Unit, modifier: Modifier = Modifier) {
+    val group = stringResource(R.string.drive_media_filter)
+    Row(modifier.semantics { contentDescription = group }, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        GcFilterChip(stringResource(R.string.drive_media_all), selected = media == null, onClick = { onPick(null) })
+        GcFilterChip(stringResource(R.string.drive_media_images), selected = media == "image", onClick = { onPick("image") })
+        GcFilterChip(stringResource(R.string.drive_media_videos), selected = media == "video", onClick = { onPick("video") })
     }
 }
 

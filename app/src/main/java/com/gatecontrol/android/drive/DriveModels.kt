@@ -124,6 +124,11 @@ data class DMe(
         /** Drive 1.20: "Offline verfügbar" marks (`GET offline`, `PUT|DELETE nodes/<id>/offline`). */
         const val FEATURE_OFFLINE = "offline"
         /**
+         * Drive 1.25: only pictures or only videos — `media=image|video` on the photos and the search (search then also
+         * without a word), `durationMs` on videos, uploads/commit `{ durationMs }`.
+         */
+        const val FEATURE_MEDIA_FILTER = "mediaFilter"
+        /**
          * Drive 1.20 on GateControl 1.231+: files in the home gateways' caches — `GET nodes/<id>/content` may carry a
          * `lan` hint when the app sends its LAN addresses (`X-GC-Local`).
          */
@@ -243,6 +248,8 @@ data class DNode(
     val geo: DGeo? = null,
     /** Drive 1.16: Drive has a place for it, or knows there is none (null: the server says nothing). */
     val located: Boolean? = null,
+    /** Drive 1.25: how long a video runs (ms), when the device that sent it said so; null: unknown. */
+    val durationMs: Long? = null,
     /** Drive 1.16 (`photoPeople`, `with=people`): the named people on it (ids); null when not asked. */
     val people: List<Long>? = null,
     /** The host's virus scan (Drive 1.19, feature `scan`); null when the server says nothing (then nothing changes). */
