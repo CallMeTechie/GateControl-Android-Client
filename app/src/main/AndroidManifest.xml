@@ -507,6 +507,15 @@
             </intent-filter>
         </provider>
 
+        <!-- Drive vaults (plugin 1.22): "Mit anderer App öffnen" — a decrypted file
+             from memory (memfd), never a file of the cache; read only, a URI grant
+             per intent, gone when the person comes back or the vaults lock. -->
+        <provider
+            android:name=".drive.vault.DriveVaultShareProvider"
+            android:authorities="${applicationId}.vaultshare"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

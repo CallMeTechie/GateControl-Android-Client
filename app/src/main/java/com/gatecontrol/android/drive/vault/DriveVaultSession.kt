@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,9 +53,11 @@ class DriveVaultSession @Inject constructor(
     }
 
     init {
-        // decrypted copies of an earlier run go
+        // decrypted copies of an earlier version of the app (before Drive 1.22 there were some) and ciphertexts go
         runCatching { openDir().deleteRecursively() }
         runCatching { upDir().deleteRecursively() }
+        wipeViewed()
+        DriveVaultShares.clear()
     }
 
     fun deviceId(): String = deviceKey.deviceId()
@@ -81,12 +84,14 @@ class DriveVaultSession @Inject constructor(
 
     /**
      * Locks every vault (Drive 1.11: after a while without use, when the app goes to the background, or by hand): the
-     * keys in memory are overwritten and forgotten, the decrypted names forgotten, the decrypted copies deleted.
+     * keys in memory are overwritten and forgotten, the decrypted names forgotten; what was handed to another app
+     * ([DriveVaultShares]) and the ciphertexts of the viewer go. An open viewer closes on [locks] (it drops its plaintext).
      */
     fun lock() {
         val gone = keys.values.toList().also { keys.clear() }
         gone.forEach { m -> m.values.forEach { it.fill(0) } }
         synchronized(names) { names.clear() }
+        DriveVaultShares.clear()
         wipeOpened()
         _locks.tryEmit(Unit)
     }
@@ -447,7 +452,7 @@ class DriveVaultSession @Inject constructor(
 
     private fun upDir() = File(context.cacheDir, "drive-vault-up")
 
-    /** Where decrypted copies go (FileProvider `drive_vault_open`); [wipeOpened] empties it. */
+    /** Where older versions of the app put decrypted copies (before Drive 1.22; nothing goes there any more). */
     private fun openDir() = File(context.cacheDir, "drive-vault-open")
 
     /**
@@ -512,46 +517,143 @@ class DriveVaultSession @Inject constructor(
         else runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull()?.takeIf { it >= 0 }?.let { name to it }
     }
 
+    // ─── viewing (Drive plugin 1.22): in memory only ─────────────────
+
+    /** The ciphertext of a video being watched (encrypted, as the server keeps it); [wipeViewed] empties it. */
+    private fun viewDir() = File(context.cacheDir, "drive-vault-view")
+
     /**
-     * The file [node] decrypted into the app cache under [name] (FileProvider `drive_vault_open`), for opening it with
-     * another app. [wipeOpened] removes it.
+     * Downloads [node]'s ciphertext and decrypts it into [output] (the caller's memory). `locked`, `stale_key` (a key
+     * version this device did not hold: loaded now, try once more), `decrypt`, `invalid`, `too_large`.
      */
-    suspend fun fetch(node: DNode, name: String): DResult<File> = withContext(Dispatchers.IO) {
-        val vaultId = node.vaultId ?: return@withContext DResult.Failed("invalid", 0)
-        if (!unlocked(vaultId)) return@withContext DResult.Failed("locked", 0)
-        val dir = File(openDir(), node.id.toString()).apply { mkdirs() }
-        val target = File(dir, DriveLogic.safeName(name) ?: "file")
-        val part = File(dir, target.name + ".part")
-        // the ciphertext — from the home gateway too, when it holds it (checked against the node's hash)
+    private suspend fun decryptInto(node: DNode, output: OutputStream): DResult<Unit> {
+        val vaultId = node.vaultId ?: return DResult.Failed("invalid", 0)
+        if (!unlocked(vaultId)) return DResult.Failed("locked", 0)
         val r = api.download(node.id, expectedSha256 = node.sha256)
-        if (r !is DResult.Ok) return@withContext r.notOk()
-        try {
-            val body = r.value.body() ?: return@withContext DResult.Failed(DriveApi.CODE_INVALID, 0)
+        if (r !is DResult.Ok) return r.notOk()
+        return try {
+            val body = r.value.body() ?: return DResult.Failed(DriveApi.CODE_INVALID, 0)
             var missing = false
             body.use { b ->
                 b.byteStream().use { inp ->
-                    part.outputStream().buffered(256 * 1024).use { out ->
-                        DriveVaultCrypto.decryptContent({ v -> tk(vaultId, v).also { if (it == null) missing = true } }, vaultId, inp, out)
-                    }
+                    DriveVaultCrypto.decryptContent({ v -> tk(vaultId, v).also { if (it == null) missing = true } }, vaultId, inp, output)
                 }
             }
-            if (missing) return@withContext DResult.Failed("stale_key", 0)
-            if (!part.renameTo(target)) return@withContext DResult.Failed("write", 0)
-            DResult.Ok(target)
+            if (missing) DResult.Failed("stale_key", 0) else DResult.Ok(Unit)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: DriveVaultTooLarge) {
+            DResult.Failed("too_large", 0)
         } catch (e: DriveVaultException) {
-            // a key version this device does not hold yet: the next try loads the keys again
-            if (e.message == "no key for this version") reload(vaultId)
-            DResult.Failed(if (e.code == "decrypt") "decrypt" else "invalid", 0)
+            if (e.message == "no key for this version") {
+                reload(vaultId)
+                DResult.Failed("stale_key", 0)
+            } else {
+                DResult.Failed(if (e.code == "decrypt") "decrypt" else "invalid", 0)
+            }
         } catch (e: IOException) {
             DResult.Offline
-        } finally {
-            part.delete()
         }
     }
 
-    /** The decrypted copies go (the vault screen closed). */
+    /** [node] decrypted into a byte array (a picture, a text) of at most [limit] bytes — never into a file. */
+    suspend fun decryptToMemory(node: DNode, limit: Long): DResult<ByteArray> = withContext(Dispatchers.IO) {
+        if (node.size > limit + 4096) return@withContext DResult.Failed("too_large", 0)
+        val buf = PlainBuffer(DriveVaultCrypto.plainSizeOf(node.size).coerceAtMost(limit).toInt(), limit)
+        when (val r = decryptInto(node, buf)) {
+            is DResult.Ok -> DResult.Ok(buf.bytes())
+            else -> { buf.wipe(); r.notOk() }
+        }
+    }
+
+    /** [node] decrypted into an anonymous memory file (a PDF for PdfRenderer, a file for another app) — never a path. */
+    suspend fun decryptToMemFile(node: DNode, limit: Long): DResult<DriveVaultMemFile> = withContext(Dispatchers.IO) {
+        if (node.size > limit + 4096) return@withContext DResult.Failed("too_large", 0)
+        val file = try {
+            DriveVaultMemFile.create()
+        } catch (e: Exception) {
+            return@withContext DResult.Failed("unsupported", 0)
+        }
+        val out = file.output()
+        val bounded = object : OutputStream() {
+            var n = 0L
+            override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                n += len
+                if (n > limit) throw DriveVaultTooLarge()
+                out.write(b, off, len)
+            }
+        }
+        val r = try {
+            decryptInto(node, bounded)
+        } catch (e: Throwable) {
+            file.close()
+            throw e
+        }
+        if (r is DResult.Ok) DResult.Ok(file) else { file.close(); r.notOk() }
+    }
+
+    /** A video being watched: its ciphertext in the cache and the chunks it opens — the plaintext only while it plays. */
+    class Cipher(val file: File, val content: DriveVaultCrypto.Content) : java.io.Closeable {
+        override fun close() {
+            content.close()
+            file.delete()
+        }
+    }
+
+    /** [node]'s ciphertext into the cache (encrypted, as on the server), opened for playing. [onProgress] gets 0..1. */
+    suspend fun fetchCipher(node: DNode, onProgress: (Float) -> Unit = {}): DResult<Cipher> = withContext(Dispatchers.IO) {
+        val vaultId = node.vaultId ?: return@withContext DResult.Failed("invalid", 0)
+        if (!unlocked(vaultId)) return@withContext DResult.Failed("locked", 0)
+        val dir = viewDir().apply { mkdirs() }
+        if (dir.usableSpace in 1 until node.size + 64L * 1_048_576) return@withContext DResult.Failed("no_space", 0)
+        val file = File.createTempFile("view", ".gcdv", dir)
+        var keep = false
+        try {
+            val r = api.download(node.id, expectedSha256 = node.sha256) { done, total -> if (total > 0) onProgress(0.5f * done / total) }
+            if (r !is DResult.Ok) return@withContext r.notOk()
+            val body = r.value.body() ?: return@withContext DResult.Failed(DriveApi.CODE_INVALID, 0)
+            val total = body.contentLength().takeIf { it > 0 } ?: node.size
+            body.use { b ->
+                b.byteStream().use { inp ->
+                    file.outputStream().buffered(256 * 1024).use { out ->
+                        val buf = ByteArray(256 * 1024)
+                        var done = 0L
+                        while (true) {
+                            val n = inp.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            if (total > 0) onProgress((done.toFloat() / total).coerceAtMost(1f))
+                        }
+                    }
+                }
+            }
+            val head = ByteArray(DriveVaultCrypto.HEADER)
+            java.io.RandomAccessFile(file, "r").use { it.readFully(head) }
+            val content = try {
+                DriveVaultCrypto.openContent({ v -> tk(vaultId, v) }, vaultId, head, file.length())
+            } catch (e: DriveVaultException) {
+                if (e.message == "no key for this version") { reload(vaultId); return@withContext DResult.Failed("stale_key", 0) }
+                return@withContext DResult.Failed(if (e.code == "decrypt") "decrypt" else "invalid", 0)
+            }
+            keep = true
+            DResult.Ok(Cipher(file, content))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            DResult.Offline
+        } finally {
+            if (!keep) file.delete()
+        }
+    }
+
+    /** The ciphertexts of the viewer go (closed, locked, at the start). */
+    fun wipeViewed() {
+        runCatching { viewDir().deleteRecursively() }
+    }
+
+    /** Decrypted copies of older versions of the app (cacheDir/drive-vault-open, before Drive 1.22) go. */
     fun wipeOpened() {
         runCatching { openDir().deleteRecursively() }
     }

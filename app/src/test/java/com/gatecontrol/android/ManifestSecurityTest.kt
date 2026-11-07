@@ -124,6 +124,22 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `vault files are never shared as files - the share provider is private and serves memory only`() {
+        // Drive plugin 1.22: "Mit anderer App öffnen" hands out a memory file through this provider, never a cache file
+        val p = components("provider").first { it.androidAttr("name").endsWith("DriveVaultShareProvider") }
+        assertEquals("false", p.androidAttr("exported"))
+        assertEquals("true", p.androidAttr("grantUriPermissions"))
+        assertEquals(0, p.getElementsByTagName("intent-filter").length)
+        val xml = moduleFile("src/main/res/xml/file_paths.xml").readText()
+        assertFalse(xml.contains("drive-vault"), "no vault folder of the cache is shareable")
+        val viewer = moduleFile("src/main/java/com/gatecontrol/android/ui/drive/DriveVaultViewer.kt").readText()
+        assertTrue(viewer.contains("FLAG_SECURE"), "the viewer keeps screenshots out")
+        assertTrue(viewer.contains("setSecure(true)"), "the video surface too")
+        val screen = moduleFile("src/main/java/com/gatecontrol/android/ui/drive/DriveVaultScreen.kt").readText()
+        assertFalse(screen.contains("openFile("), "a vault file is never handed to openFile (a cache file for another app)")
+    }
+
+    @Test
     fun `push receiver and open activity are not exported`() {
         val receiver = components("receiver").first { it.androidAttr("name").endsWith("PushActionReceiver") }
         assertEquals("false", receiver.androidAttr("exported"))

@@ -19,11 +19,9 @@
          (cacheDir/drive-open/<node>-r<rev>/<name>, pruned after a day). The
          upload copies in cacheDir/drive-up stay private. -->
     <cache-path name="drive_open" path="drive-open/" />
-    <!-- Drive vaults: a file decrypted for opening it with another app
-         (cacheDir/drive-vault-open/<node>/<name>), removed when the vault is
-         left and at the next start. The ciphertext of an upload in
-         cacheDir/drive-vault-up stays private. -->
-    <cache-path name="drive_vault_open" path="drive-vault-open/" />
+    <!-- Drive vaults: nothing. A vault file is never decrypted into a file;
+         the viewer keeps it in memory, "Mit anderer App öffnen" hands out a
+         memory file through DriveVaultShareProvider (Drive plugin 1.22). -->
     <!-- Mail: an attachment the person opens or shares
          (cacheDir/mail-open/<message>-<attachment>/<name>, pruned after a
          day, removed with Mail's offline copy). Uploads in cacheDir/mail-up

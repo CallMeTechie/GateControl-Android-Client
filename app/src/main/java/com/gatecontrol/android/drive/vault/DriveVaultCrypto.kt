@@ -382,6 +382,78 @@ object DriveVaultCrypto {
         }
     }
 
+    /**
+     * Random access to a vault file's content (the viewer, Drive plugin 1.22): the [header] (its first [HEADER] bytes)
+     * and the ciphertext's [cipherSize] give the chunks; [decryptChunk] opens chunk `i` of its ciphertext bytes — one
+     * chunk at a time in memory, the plaintext never written anywhere. [close] overwrites the file key.
+     */
+    class Content internal constructor(
+        private val head: ByteArray,
+        private val key: ByteArray,
+        /** Bytes of plaintext per chunk. */
+        val chunkSize: Int,
+        /** Chunks of the file (at least one). */
+        val chunks: Long,
+        /** Bytes of plaintext of the whole file. */
+        val plainSize: Long,
+        private val lastCipher: Int,
+    ) : java.io.Closeable {
+        @Volatile private var closed = false
+
+        /** Where chunk [i]'s ciphertext lies in the file: offset and length. */
+        fun cipherRange(i: Long): Pair<Long, Int> {
+            require(i in 0 until chunks) { "chunk $i" }
+            val step = chunkSize.toLong() + TAG
+            return (HEADER + i * step) to (if (i == chunks - 1) lastCipher else step.toInt())
+        }
+
+        /** The chunk a plaintext [position] lies in. */
+        fun chunkOf(position: Long): Long = (position / chunkSize).coerceIn(0, chunks - 1)
+
+        /** Chunk [i] opened from its ciphertext ([cipher], [off], [len] = [cipherRange]); a changed chunk throws `decrypt`. */
+        fun decryptChunk(i: Long, cipher: ByteArray, off: Int = 0, len: Int = cipher.size - off): ByteArray {
+            if (closed) throw DriveVaultException("invalid", "closed")
+            val (_, want) = cipherRange(i)
+            if (len != want) throw DriveVaultException("decrypt", "chunk size")
+            return gcm(false, key, chunkNonce(i), chunkAad(head, i, i == chunks - 1), cipher, off, len)
+        }
+
+        override fun close() {
+            closed = true
+            key.fill(0)
+        }
+    }
+
+    /**
+     * Opens [head] (the first [HEADER] bytes of a ciphertext of [cipherSize] bytes) for random access; [keys] gives the
+     * TK of a key version. `invalid` when it is not a vault file or the size cannot be one, `decrypt` without the key.
+     */
+    fun openContent(keys: (Int) -> ByteArray?, vaultId: String, head: ByteArray, cipherSize: Long): Content {
+        if (head.size < HEADER) throw DriveVaultException("invalid", "too short")
+        val h = head.copyOf(HEADER)
+        val kv = contentVersion(h) ?: throw DriveVaultException("invalid", "not a vault file")
+        val cs = readU32(h, 9)
+        if (cs < 1024 || cs > 16_777_216) throw DriveVaultException("invalid", "chunk size")
+        val step = cs + TAG
+        val body = cipherSize - HEADER
+        if (body < TAG) throw DriveVaultException("invalid", "size")
+        val n = (body + step - 1) / step
+        val last = body - (n - 1) * step
+        if (n < 1 || last < TAG || last > step) throw DriveVaultException("invalid", "size")
+        val tk = keys(kv) ?: throw DriveVaultException("decrypt", "no key for this version")
+        val key = fileKey(tk, vaultId, h.copyOfRange(13, 29))
+        return Content(h, key, cs.toInt(), n, body - TAG * n, last.toInt())
+    }
+
+    /** The plaintext size of a ciphertext of [cipherSize] bytes with the default chunk size (an estimate before the header is read). */
+    fun plainSizeOf(cipherSize: Long, chunkSize: Int = CHUNK): Long {
+        val body = cipherSize - HEADER
+        if (body < TAG) return 0
+        val step = chunkSize.toLong() + TAG
+        val n = (body + step - 1) / step
+        return (body - TAG * n).coerceAtLeast(0)
+    }
+
     // ── recovery key ────────────────────────────────────────
 
     /** 32 bytes → "R30W-5GY4-…" (the Vault plugin's format: Crockford base32 with 3 BLAKE2b check bytes). */
