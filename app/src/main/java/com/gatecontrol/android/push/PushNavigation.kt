@@ -40,7 +40,7 @@ sealed interface PushNavTarget {
     ) : PushNavTarget
 
     /**
-     * Shared from another app ("Teilen → GateControl"): pick a chat for
+     * Shared from another app ("Teilen → An Chat senden"): pick a chat for
      * [ChatShareHandover]'s content — or straight into [conversationId]
      * (a sharing shortcut of that chat).
      */

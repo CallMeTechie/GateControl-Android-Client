@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- GateDrop (Plugin gatecontrol-gatedrop): Teilen mit Personen, eigenen Geräten, NAS und Links für Externe -->
-    <string name="share_target_label">GateControl</string>
+    <!-- share sheet entry: "GateDrop" while the server offers GateDrop, else "An Chat senden" for the chats -->
+    <string name="share_target_label_gatedrop">GateDrop</string>
+    <string name="share_target_label_chat">An Chat senden</string>
 
     <!-- Teilen-Blatt -->
     <string name="gatedrop_share_title">Teilen mit GateControl</string>

@@ -2,9 +2,18 @@
 <!-- Chats: sharing shortcuts. Each recent conversation is a dynamic
      shortcut with this category (ChatShortcutLogic.SHARE_CATEGORY); sharing
      into one opens ChatShareActivity with its shortcut id, straight into that
-     chat. No static shortcuts. -->
+     chat. The share sheet shows a shortcut only under the entry it names, so
+     both aliases of ChatShareActivity are named ("GateDrop" and "An Chat
+     senden", AndroidManifest.xml); only the one switched on shows up. No
+     static shortcuts. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
-    <share-target android:targetClass="com.gatecontrol.android.chat.ChatShareActivity">
+    <share-target android:targetClass="com.gatecontrol.android.chat.GateDropShareTarget">
+        <data android:mimeType="text/plain" />
+        <data android:mimeType="image/*" />
+        <data android:mimeType="*/*" />
+        <category android:name="com.gatecontrol.android.chat.SHARE_TARGET" />
+    </share-target>
+    <share-target android:targetClass="com.gatecontrol.android.chat.ChatShareTarget">
         <data android:mimeType="text/plain" />
         <data android:mimeType="image/*" />
         <data android:mimeType="*/*" />

@@ -159,7 +159,7 @@ class ChatRepository @Inject constructor(
         scope.launch {
             available.drop(1).distinctUntilChanged().collect { on -> if (on) refreshAll() else shortcuts.removeAll() }
         }
-        // "Teilen → GateControl" is switched by GateDropStartup: on while the chats or GateDrop are offered.
+        // The share sheet entry ("GateDrop" / "An Chat senden") is switched by GateDropStartup.
         scope.launch { runCatching { ChatShareActivity.pruneCache(context) } }
         scope.launch {
             runCatching {

@@ -10,6 +10,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.gatecontrol.android.chat.ChatShareActivity
+import com.gatecontrol.android.chat.ChatShareTargets
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.support.CrashReports
@@ -30,8 +31,9 @@ import javax.inject.Singleton
 
 /**
  * GateDrop's background duties, started with the app:
- * * the share targets: "Teilen → GateControl" is on while the server offers
- *   the chats or GateDrop, "In Drive speichern" while it offers Drive,
+ * * the share targets: "GateDrop" is on while the server offers GateDrop,
+ *   else "An Chat senden" while it offers the chats; "In Drive speichern"
+ *   while it offers Drive,
  *   "Mit GateControl drucken" while it offers the print plugin;
  * * presence: this device's LAN addresses go to the plugin on every
  *   network change and every ~5 minutes while the app is in the
@@ -62,9 +64,8 @@ class GateDropStartup @Inject constructor(
             started = true
         }
         scope.launch {
-            pluginDirectory.state.map { it.messengerTab || it.gatedrop }.distinctUntilChanged().collect { on ->
-                ChatShareActivity.setEnabled(context, on)
-            }
+            pluginDirectory.state.map { ChatShareTargets.choose(gatedrop = it.gatedrop, chats = it.messengerTab) }
+                .distinctUntilChanged().collect { target -> ChatShareActivity.setShareTarget(context, target) }
         }
         // "In Drive speichern" in the share sheet: on while the server offers Drive.
         scope.launch {
