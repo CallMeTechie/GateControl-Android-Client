@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.89.0] - 2026-11-07
+
+### Features
+- echter Druckstatus im Druckdienst, Papier aus dem Drucker, Office- und Text-Dateien teilen (#194)
+
+---
+
 ## [1.88.0] - 2026-11-07
 
 ### Features
