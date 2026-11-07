@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive-Tresore: die Ansicht von Tresor-Dateien in der App (Drive-Plugin 1.22) – nur im Speicher entschlüsselt. -->
+<resources>
+    <string name="drive_vault_view">Ansehen</string>
+    <string name="drive_vault_view_more">Mehr</string>
+    <string name="drive_vault_view_decrypting">Wird entschlüsselt …</string>
+    <string name="drive_vault_view_in_memory">Nur im Speicher entschlüsselt</string>
+    <string name="drive_vault_view_page">Seite %1$d</string>
+    <string name="drive_vault_view_office">Office-Dateien lassen sich im Tresor nicht sicher anzeigen. Öffne die Datei bewusst mit einer anderen App, wenn du sie brauchst.</string>
+    <string name="drive_vault_view_other">Für diese Art Datei gibt es keine Ansicht. Du kannst sie bewusst mit einer anderen App öffnen.</string>
+    <string name="drive_vault_view_too_large">Zu groß für die Ansicht (höchstens %1$d MB werden im Speicher entschlüsselt). Du kannst sie bewusst mit einer anderen App öffnen.</string>
+    <string name="drive_vault_view_unreadable">Diese Datei lässt sich mit den Schlüsseln dieses Geräts nicht entschlüsseln.</string>
+    <string name="drive_vault_view_failed">Diese Datei lässt sich nicht anzeigen.</string>
+    <string name="drive_vault_view_offline">Keine Verbindung zum Server.</string>
+    <string name="drive_vault_view_no_space">Zu wenig freier Speicher für das verschlüsselte Video.</string>
+    <string name="drive_vault_view_unsupported">Dieses Gerät kann die Datei nicht nur im Speicher halten.</string>
+    <string name="drive_vault_open_with">Mit anderer App öffnen</string>
+    <string name="drive_vault_open_with_title">Tresor verlassen?</string>
+    <string name="drive_vault_open_with_text">Die andere App bekommt den Inhalt unverschlüsselt. Was sie davon behält (Verlauf, Vorschaubilder, Kopien), schützt der Tresor nicht mehr. GateControl selbst legt keine unverschlüsselte Datei an und zieht die Datei zurück, sobald du zurückkommst oder der Tresor sich sperrt.</string>
+    <string name="drive_vault_open_with_go">Trotzdem öffnen</string>
+    <string name="drive_vault_open_with_too_large">Zu groß für eine andere App (höchstens %1$d MB).</string>
+</resources>
