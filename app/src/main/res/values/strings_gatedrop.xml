@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- GateDrop (plugin gatecontrol-gatedrop): share with people, own devices, NAS and links for externals -->
-    <string name="share_target_label">GateControl</string>
+    <!-- share sheet entry: "GateDrop" while the server offers GateDrop, else "Send to chat" for the chats -->
+    <string name="share_target_label_gatedrop">GateDrop</string>
+    <string name="share_target_label_chat">Send to chat</string>
 
     <!-- Share sheet -->
-    <string name="gatedrop_share_title">Share with GateControl</string>
+    <string name="gatedrop_share_title">Share with GateDrop</string>
     <plurals name="gatedrop_share_files">
         <item quantity="one">%d file</item>
         <item quantity="other">%d files</item>
@@ -89,7 +91,7 @@
     <string name="gatedrop_send_failed">Not sent</string>
     <string name="gatedrop_send_failed_desc">Your GateControl server could not be reached or refused it.</string>
     <string name="gatedrop_send_waiting">Not sent yet</string>
-    <string name="gatedrop_send_waiting_desc">Your GateControl server cannot be reached right now – GateControl tries again by itself.</string>
+    <string name="gatedrop_send_waiting_desc">Your GateControl server cannot be reached right now – GateDrop tries again by itself.</string>
     <string name="gatedrop_open_shared">Show sent and received</string>
     <plurals name="gatedrop_unread">
         <item quantity="one">%d file could not be read and is not sent.</item>

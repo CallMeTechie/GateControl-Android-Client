@@ -600,9 +600,12 @@ sehen keinen Unterschied.
 - **Verlassen / entfernt:** wird man aus einer Gruppe entfernt, die Gruppe
   gelöscht oder verlässt man sie, schließt sich der Chat — auf breiten
   Bildschirmen zeigt die rechte Seite wieder „Chat auswählen“.
-- **Teilen → GateControl-Chat:** Text, Bilder und Dateien aus anderen Apps;
+- **Teilen → „An Chat senden“:** Text, Bilder und Dateien aus anderen Apps;
   danach wählt man den Chat. Das Teilen-Ziel ist nur eingeschaltet, solange
-  der Server Chats anbietet; gelesen werden nur Inhalte anderer Apps.
+  der Server Chats anbietet; bietet er GateDrop an, heißt der Eintrag
+  stattdessen **„GateDrop“** und öffnet das GateDrop-Blatt (die Chats sind
+  dort einen Tipp entfernt). Es gibt immer nur einen der beiden Einträge;
+  gelesen werden nur Inhalte anderer Apps.
 - Alles bleibt auf dem eigenen Server; Dateien werden mit dem Geräte-Token
   geladen und im App-Cache gehalten (höchstens 200 MB).
 

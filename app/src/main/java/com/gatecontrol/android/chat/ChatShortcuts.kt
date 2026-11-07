@@ -21,6 +21,7 @@ import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.IconCompat
 import com.gatecontrol.android.R
 import com.gatecontrol.android.data.SettingsRepository
+import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.familie.familieLocalized
 import com.gatecontrol.android.profile.AvatarLoader
 import com.gatecontrol.android.push.PushOpenActivity
@@ -46,8 +47,11 @@ object ChatShortcutLogic {
     /** Recent conversations with a dynamic shortcut (launcher, share sheet). */
     const val MAX_RECENT = 4
 
-    /** Category of the sharing shortcuts (res/xml/shortcuts.xml `share-target`). */
+    /** Category of the sharing shortcuts while the share sheet entry is the chat one (res/xml/shortcuts.xml `share-target`). */
     const val SHARE_CATEGORY = "com.gatecontrol.android.chat.SHARE_TARGET"
+
+    /** The sharing category for the share sheet entry that is on ([ChatShareTargets.choose]); none on: the chat one. */
+    fun shareCategory(target: ChatShareTarget?): String = (target ?: ChatShareTarget.CHAT).category
 
     /** ShortcutInfo.SHORTCUT_CATEGORY_CONVERSATION. */
     const val CONVERSATION_CATEGORY = "android.shortcut.conversation"
@@ -73,8 +77,8 @@ object ChatShortcutLogic {
         existingIds.filter { id -> conversationOf(id)?.let { it !in keep } == true }
 
     /** What a shortcut shows: republished only when this changes. */
-    fun signature(c: ChatConversation, title: String): String =
-        listOf(c.id, title, c.avatarMediaId, c.peer?.avatarUrl, c.peer?.colorHex, shareable(c)).joinToString("|")
+    fun signature(c: ChatConversation, title: String, shareCategory: String = SHARE_CATEGORY): String =
+        listOf(c.id, title, c.avatarMediaId, c.peer?.avatarUrl, c.peer?.colorHex, shareable(c), shareCategory).joinToString("|")
 
     /**
      * How many chat shortcuts fit beside [others] dynamic shortcuts of other
@@ -99,6 +103,7 @@ class ChatShortcuts @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val avatars: AvatarLoader,
     private val media: ChatMediaStore,
+    private val pluginDirectory: PluginDirectory,
 ) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val mutex = Mutex()
@@ -146,7 +151,7 @@ class ChatShortcuts @Inject constructor(
                 val fresh = recent.mapIndexedNotNull { index, c ->
                     val title = titleOf(ctx, c)
                     val id = ChatShortcutLogic.id(c.id)
-                    val sig = ChatShortcutLogic.signature(c, title)
+                    val sig = ChatShortcutLogic.signature(c, title, shareCategory())
                     if (id in dynamic && published[id] == sig) null else Triple(build(ctx, c, title, ChatShortcutLogic.RANK_BASE + index).first, id, sig)
                 }
                 if (fresh.isNotEmpty()) {
@@ -174,7 +179,7 @@ class ChatShortcuts @Inject constructor(
                 if (c != null) {
                     val title = titleOf(ctx, c)
                     val (info, icon) = build(ctx, c, title, ChatShortcutLogic.RANK_BASE + ChatShortcutLogic.MAX_RECENT)
-                    val sig = ChatShortcutLogic.signature(c, title)
+                    val sig = ChatShortcutLogic.signature(c, title, shareCategory())
                     ShortcutManagerCompat.enableShortcuts(context, listOf(info))
                     ShortcutManagerCompat.pushDynamicShortcut(context, info)
                     published = published + (id to sig)
@@ -229,6 +234,11 @@ class ChatShortcuts @Inject constructor(
 
     // ─── building ───────────────────────────────────────────────────
 
+    /** The sharing shortcuts show up under the share sheet entry that is on ("GateDrop" or "An Chat senden"). */
+    private fun shareCategory(): String = pluginDirectory.state.value.let {
+        ChatShortcutLogic.shareCategory(ChatShareTargets.choose(gatedrop = it.gatedrop, chats = it.messengerTab))
+    }
+
     private fun titleOf(ctx: Context, c: ChatConversation): String = when {
         !c.title.isNullOrBlank() -> c.title
         c.isGroup -> ctx.getString(R.string.chat_group_fallback)
@@ -240,7 +250,7 @@ class ChatShortcuts @Inject constructor(
         val id = ChatShortcutLogic.id(conversationId)
         val categories = buildSet {
             add(ChatShortcutLogic.CONVERSATION_CATEGORY)
-            if (share) add(ChatShortcutLogic.SHARE_CATEGORY)
+            if (share) add(shareCategory())
         }
         return ShortcutInfoCompat.Builder(context, id)
             .setShortLabel(title.take(SHORT_LABEL_MAX))

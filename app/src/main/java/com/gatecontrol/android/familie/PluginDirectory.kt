@@ -54,7 +54,7 @@ data class PluginAvailability(
      */
     val schule: Boolean = false,
     /**
-     * The GateDrop plugin is listed for this user: "Teilen → GateControl"
+     * The GateDrop plugin is listed for this user: "Teilen → GateDrop"
      * shows the GateDrop sheet (people, own devices, NAS, link), the
      * screen "Geteilt" and GateDrop's pushes (contract F).
      */
