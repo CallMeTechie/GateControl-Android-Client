@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive vaults: vault files available offline – only the encrypted content is kept on the phone. -->
+<resources>
+    <string name="drive_vault_offline_all">Keep the whole vault offline</string>
+    <string name="drive_vault_offline_folder">Keep this folder offline</string>
+    <string name="drive_vault_offline_none">Then kept encrypted on this phone. Opens without a connection too.</string>
+    <plurals name="drive_vault_offline_of">
+        <item quantity="one">%1$d of %2$d file offline · %3$s encrypted on this phone</item>
+        <item quantity="other">%1$d of %2$d files offline · %3$s encrypted on this phone</item>
+    </plurals>
+    <plurals name="drive_vault_offline_count">
+        <item quantity="one">%1$d file offline · %2$s encrypted on this phone</item>
+        <item quantity="other">%1$d files offline · %2$s encrypted on this phone</item>
+    </plurals>
+    <string name="drive_vault_offline_badge">Offline</string>
+    <string name="drive_vault_offline_loading">Loading</string>
+    <string name="drive_vault_offline_item">Available offline</string>
+    <string name="drive_vault_offline_item_desc">Kept encrypted on this phone. Opens without a connection too.</string>
+    <string name="drive_vault_offline_from_folder">Comes from a folder above – switch it off there.</string>
+    <string name="drive_vault_offline_from_vault">The whole vault is kept offline.</string>
+    <string name="drive_vault_offline_needs_net">Can only be changed with a connection.</string>
+    <string name="drive_vault_offline_in_folder">%1$d offline</string>
+    <string name="drive_vault_offline_note">“Offline”: kept encrypted on this phone. As always it opens only after unlocking, in memory only.</string>
+    <string name="drive_vault_no_net_title">No connection</string>
+    <plurals name="drive_vault_no_net_text">
+        <item quantity="one">%1$d file is available offline. The others open as soon as you are connected again.</item>
+        <item quantity="other">%1$d files are available offline. The others open as soon as you are connected again.</item>
+    </plurals>
+    <string name="drive_vault_offline_ready">Available offline</string>
+    <string name="drive_vault_offline_net_only">Only with a connection</string>
+    <string name="drive_vault_offline_key_note">To make this work without a connection, the phone also keeps the wrapped vault key. It stays protected by the device key in the Android Keystore; to open anything you unlock the vault as always.</string>
+</resources>
