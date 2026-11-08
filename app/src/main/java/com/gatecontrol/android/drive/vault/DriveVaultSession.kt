@@ -541,7 +541,7 @@ class DriveVaultSession @Inject constructor(
             val v = keyVersion(vaultId) ?: return@fresh DResult.Failed("locked", 0)
             val tk = tk(vaultId, v) ?: return@fresh DResult.Failed("locked", 0)
             val dir = upDir().apply { mkdirs() }
-            val tmp = File.createTempFile("up", ".gcdv", dir)
+            val tmp = File.createTempFile("upload", ".gcdv", dir)
             try {
                 try {
                     val stream = context.contentResolver.openInputStream(uri) ?: return@fresh DResult.Failed("read", 0)
