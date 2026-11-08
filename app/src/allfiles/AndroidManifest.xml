@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive › "Auf dem Gerät" (the files of the phone, like a file manager):
+     "Zugriff auf alle Dateien". Merged into the GitHub build always, into the
+     Google Play build only with -Pgc.playAllFiles=true (repo variable
+     PLAY_ALL_FILES, once Play accepted the permissions declaration — Play
+     refuses an upload with this restricted permission until then, see
+     docs/GOOGLE_PLAY.md). Without it the page explains and goes back. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+</manifest>

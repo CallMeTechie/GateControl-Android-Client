@@ -122,6 +122,8 @@ data class DriveNav(
     val offline: () -> Unit = {},
     /** Mail › "Zum Ablegen" (the overview's attachments to file); null: no mail here. */
     val mailFiling: (() -> Unit)? = null,
+    /** "Auf dem Gerät": the files of this phone (the hard disk beside the switch). */
+    val device: () -> Unit = {},
     /** The page „Erinnerungen“ (Drive 1.26, `memoryCollections`). */
     val memories: () -> Unit = {},
     /** One collection of it opened there (the overview's picks, Drive 1.28). */
@@ -322,7 +324,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     )
                     },
                 )
-                Box(Modifier.inert(selecting)) { DriveModeSwitch(tabs = tabs, tab = tab, onTab = showTab) }
+                // "Auf dem Gerät": its own button beside the switch (a page of its own, not a tab)
+                Box(Modifier.inert(selecting)) { DriveModeRow(tabs = tabs, tab = tab, onTab = showTab, onDevice = nav.device) }
                 HorizontalPager(
                     state = pager,
                     modifier = Modifier.weight(1f),

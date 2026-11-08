@@ -291,6 +291,16 @@ sealed class Screen(val route: String) {
     data object DriveFolders : Screen("drive/folders")
     /** The storage overview (Drive 1.7). */
     data object DriveStorage : Screen("drive/storage")
+    /** "Auf dem Gerät": the files of this phone (the hard disk beside the Drive tab's switch). */
+    data object DriveDevice : Screen("drive/device")
+    /** "Auf dem Gerät" › a folder ([ARG_PATH], absolute) or a category ([ARG_CAT]; neither: "Zuletzt hinzugefügt"). */
+    data object DriveDeviceFiles : Screen("drive/device/files?path={path}&cat={cat}") {
+        const val ARG_PATH = "path"
+        const val ARG_CAT = "cat"
+        fun folder(path: String) = "drive/device/files?path=" + android.net.Uri.encode(path)
+        fun category(key: String) = "drive/device/files?cat=" + android.net.Uri.encode(key)
+        const val RECENT = "drive/device/files"
+    }
     /** One file: details, what the AI recognised, its deadlines (Drive 1.8). */
     data object DriveFile : Screen("drive/file/{id}") {
         const val ARG_ID = "id"

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Auf dem Gerät" (DeviceFileProvider): a file of the shared storage the
+     person opens with another app, shares or sends to Drive — internal
+     storage, SD card and USB sticks, all below /storage. Only the files the
+     person picks get a URI, for that one intent (grantUriPermissions, not
+     exported). The app's own files (/data) are never in it. -->
+<paths>
+    <root-path name="storage" path="storage/" />
+</paths>

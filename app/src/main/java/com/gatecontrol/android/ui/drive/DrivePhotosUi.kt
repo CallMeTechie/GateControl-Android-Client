@@ -155,7 +155,12 @@ internal fun photoDate(node: DNode): String? = (node.takenAt ?: node.mtime)?.let
 
 /** "Übersicht" | "Dateien" | "Fotos" on top of the Drive tab (Drive 1.18; "Fotos" only when Drive has photos). */
 @Composable
-internal fun DriveModeSwitch(tabs: List<DriveLogic.Tab>, tab: DriveLogic.Tab, onTab: (DriveLogic.Tab) -> Unit) {
+internal fun DriveModeSwitch(
+    tabs: List<DriveLogic.Tab>,
+    tab: DriveLogic.Tab,
+    onTab: (DriveLogic.Tab) -> Unit,
+    modifier: Modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+) {
     GcSegmented(
         options = tabs.map { t ->
             t to stringResource(
@@ -168,7 +173,7 @@ internal fun DriveModeSwitch(tabs: List<DriveLogic.Tab>, tab: DriveLogic.Tab, on
         },
         selected = tab,
         onSelect = onTab,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = modifier,
     )
 }
 
