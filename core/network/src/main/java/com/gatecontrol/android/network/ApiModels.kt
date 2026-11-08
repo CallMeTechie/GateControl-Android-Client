@@ -129,7 +129,11 @@ data class UpdateCheckResponse(
     val downloadUrl: String?,
     val fileName: String?,
     val fileSize: Long?,
-    val releaseNotes: String?
+    val releaseNotes: String?,
+    /** SHA-256 of the APK as GitHub publishes it (GateControl ≥ 1.253.0); null on older servers / releases. */
+    val sha256: String? = null,
+    /** The APK from the home gateway's cache (`{ url, sha256, tlsSha256, exp }`, [HomeCache.parse]); null when not at home. */
+    val lan: com.google.gson.JsonObject? = null,
 )
 
 // --- Split Tunnel ---

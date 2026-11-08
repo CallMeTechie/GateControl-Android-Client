@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the GitHub build (gc.distribution=github, the APK on GitHub): it
+     downloads its own updates (Settings › Updates, at home from the home
+     gateway's cache), checks checksum and signature and hands the APK to
+     Android's installer, which needs this permission. The Google Play build
+     (-Pgc.distribution=play) never gets this file: Play updates it. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+</manifest>

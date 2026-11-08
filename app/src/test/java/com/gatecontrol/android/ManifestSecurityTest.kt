@@ -83,9 +83,19 @@ class ManifestSecurityTest {
     }
 
     @Test
-    fun `unused install permission is not requested`() {
+    fun `install permission only in the GitHub build, never in the main manifest (Play)`() {
         val permissions = components("uses-permission").map { it.androidAttr("name") }
         assertFalse("android.permission.REQUEST_INSTALL_PACKAGES" in permissions)
+        // the GitHub build's own manifest holds exactly this one permission and nothing else
+        val github = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(moduleFile("src/github/AndroidManifest.xml")).documentElement
+        val all = github.getElementsByTagName("*")
+        val tags = (0 until all.length).map { (all.item(it) as Element).tagName }
+        assertEquals(listOf("uses-permission"), tags)
+        assertEquals("android.permission.REQUEST_INSTALL_PACKAGES", (all.item(0) as Element).androidAttr("name"))
+        // and it is merged for gc.distribution=github only
+        val gradle = moduleFile("build.gradle.kts").readText()
+        assertTrue(gradle.contains("if (gcDistribution == \"github\") variant.sources.manifests.addStaticManifestFile(\"src/github/AndroidManifest.xml\")"))
     }
 
     @Test
@@ -180,6 +190,8 @@ class ManifestSecurityTest {
         assertTrue(xml.contains("path=\"camera/\""), "camera captures only in their own directory")
         assertFalse(xml.contains("chat-media"), "the chat media cache stays private")
         assertFalse(xml.contains("files-path"), "nothing of the private files dir")
+        // the update APK of the GitHub build in its own directory only
+        assertTrue(xml.contains("<cache-path name=\"update\" path=\"update/\" />"))
     }
 
     @Test

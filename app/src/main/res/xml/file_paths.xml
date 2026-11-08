@@ -33,4 +33,7 @@
          ("Standbild › Teilen"; cacheDir/camera-still, one file at a time,
          removed with the door screen). -->
     <cache-path name="camera_still" path="camera-still/" />
+    <!-- App update of the GitHub build: the downloaded and checked APK
+         (cacheDir/update/update.apk), handed to Android's installer only. -->
+    <cache-path name="update" path="update/" />
 </paths>
