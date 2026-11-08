@@ -11,6 +11,7 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
+import com.gatecontrol.android.drive.device.DeviceFileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,10 +69,19 @@ class DriveLocal @Inject constructor(
     /** Deletes picked files directly (the lasting permission allows it); the ones that could not go come back. */
     suspend fun deleteDocs(uris: List<Uri>): List<Uri> = withContext(Dispatchers.IO) {
         uris.filterNot { uri ->
-            val gone = runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }.getOrDefault(false)
+            // sent from "Auf dem Gerät" ("In Drive"): the phone's own file, deleted with "Zugriff auf alle Dateien"
+            val device = DeviceFileProvider.fileOf(context, uri)
+            val gone = if (device != null) deleteDevice(device) else runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }.getOrDefault(false)
             if (gone) forget(uri)
             gone
         }
+    }
+
+    private fun deleteDevice(f: File): Boolean {
+        if (!f.exists()) return true
+        if (!android.os.Environment.isExternalStorageManager() || !f.isFile || !f.delete()) return false
+        runCatching { android.media.MediaScannerConnection.scanFile(context, arrayOf(f.path), null, null) }
+        return true
     }
 
     /** A picked file that would not go directly as its media store entry, for [trashRequest]; null if it has none. */
@@ -85,7 +95,9 @@ class DriveLocal @Inject constructor(
             if (match) Uri.parse(parts[2]) else null
         }.distinct()
         return hits.filter { uri ->
-            val there = runCatching {
+            // a file of "Auf dem Gerät": the provider answers for any path, the file itself must be there
+            val device = DeviceFileProvider.fileOf(context, uri)
+            val there = if (device != null) device.isFile else runCatching {
                 context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { it.moveToFirst() } == true
             }.getOrDefault(false)
             if (!there) forget(uri)

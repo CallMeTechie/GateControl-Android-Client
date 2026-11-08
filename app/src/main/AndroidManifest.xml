@@ -575,6 +575,19 @@
             android:exported="false"
             android:grantUriPermissions="true" />
 
+        <!-- Drive › "Auf dem Gerät": a file of the shared storage (internal, SD
+             card, USB stick) the person opens with another app, shares or sends
+             to Drive; a URI is granted per intent only, never the app's own files. -->
+        <provider
+            android:name=".drive.device.DeviceFileProvider"
+            android:authorities="${applicationId}.devicefiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/device_file_paths" />
+        </provider>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
