@@ -80,6 +80,11 @@ data class PluginAvailability(
      * only when the plugin answers (docs/FEATURES.md "Drucken").
      */
     val print: Boolean = false,
+    /**
+     * „Notizen & Aufgaben“ (gatecontrol-notizen) is listed for this user — installed, licensed and allowed: the tab
+     * „Aufgaben“ and the share target „Als Notiz oder Aufgabe“ (docs/FEATURES.md).
+     */
+    val notizen: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -101,6 +106,7 @@ data class PluginAvailability(
                 drive = plugins.any { it.id == com.gatecontrol.android.drive.DRIVE_PLUGIN },
                 mail = plugins.any { it.id == com.gatecontrol.android.mail.MAIL_PLUGIN && it.tab != null },
                 print = plugins.any { it.id == com.gatecontrol.android.print.PRINT_PLUGIN },
+                notizen = plugins.any { it.id == com.gatecontrol.android.notizen.NOTIZEN_PLUGIN },
             )
         }
 

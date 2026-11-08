@@ -277,4 +277,15 @@ class ManifestSecurityTest {
         assertTrue(xml.contains("path=\"mail-open/\""), "opened attachments only")
         assertFalse(xml.contains("path=\"mail-up"), "uploads stay private")
     }
+
+    @Test
+    fun `the share target of Notizen und Aufgaben is off until the server offers the plugin, its opened files have their own folder`() {
+        val activity = components("activity").first { it.androidAttr("name").endsWith("NotizenShareActivity") }
+        assertEquals("true", activity.androidAttr("exported"), "for the system's share sheet")
+        assertEquals("false", activity.androidAttr("enabled"), "switched on at runtime only while the plugin is there")
+        assertEquals("true", activity.androidAttr("excludeFromRecents"))
+        val xml = moduleFile("src/main/res/xml/file_paths.xml").readText()
+        assertTrue(xml.contains("path=\"notizen-open/\""), "opened attachments only")
+        assertFalse(xml.contains("notizen-cache") || xml.contains("notizen-vault"), "the offline copy and the device key stay private")
+    }
 }

@@ -437,6 +437,36 @@
             </intent-filter>
         </activity>
 
+        <!-- Share target "Als Notiz oder Aufgabe" (a text, a link or files become a note or a task of Notizen &
+             Aufgaben). Exported for the system's share sheet, but disabled until the server offers the plugin
+             (NotizenShareActivity.setEnabled). Reads only content:// URIs of other apps (ChatShareRules). -->
+        <activity
+            android:name=".ui.notizen.NotizenShareActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:label="@string/notizen_share_target_label"
+            android:theme="@style/Theme.GateControl.TileAction">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
+
         <!-- Share target "Mit GateControl drucken" (PDF files, pictures, text and office files, the print plugin's
              media types): the print sheet over the sharing app. Exported for the system's share
              sheet, but disabled until the server offers the print plugin to the apps

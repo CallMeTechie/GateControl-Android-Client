@@ -137,6 +137,7 @@ class AppPluginEventSink @Inject constructor(
     private val gatedropRepository: dagger.Lazy<GateDropRepository>,
     private val drive: dagger.Lazy<com.gatecontrol.android.drive.DriveLive>,
     private val mail: dagger.Lazy<com.gatecontrol.android.mail.MailRepository>,
+    private val notizen: dagger.Lazy<com.gatecontrol.android.notizen.NotizenRepository>,
 ) : PluginEventSink {
     override fun onPluginEvent(plugin: String, type: String, data: JsonElement?) {
         if (plugin == GATEDROP_PLUGIN) {
@@ -151,6 +152,10 @@ class AppPluginEventSink @Inject constructor(
             runCatching { mail.get().onPluginEvent(type, data) }
             return
         }
+        if (plugin == com.gatecontrol.android.notizen.NOTIZEN_PLUGIN) {
+            runCatching { notizen.get().onPluginEvent(type, data) }
+            return
+        }
         chats.onPluginEvent(plugin, type, data)
     }
 
@@ -162,6 +167,8 @@ class AppPluginEventSink @Inject constructor(
         runCatching { drive.get().onStreamOpen() }
         // Mail: the lists load again when the tab is open
         runCatching { mail.get().onStreamOpen() }
+        // Notizen & Aufgaben: the open lists load again, ticks made offline go out
+        runCatching { notizen.get().onStreamOpen() }
     }
 }
 

@@ -25,6 +25,8 @@ object StartPages {
     const val MAIL = "mail"
     const val VAULT = "vault"
     const val DRIVE = "drive"
+    /** „Notizen & Aufgaben“ (its tab „Aufgaben“). */
+    const val NOTIZEN = "notizen"
     const val NETWORK = "network"
     const val FAMILIE = "familie"
     /** Mail's calendar and contacts (since Mail 1.2.0): pages beside Start, never a tab of their own. */
@@ -32,7 +34,7 @@ object StartPages {
     const val CONTACTS = "contacts"
 
     /** Functions that can be pages, in the order of the tab bar (calendar and contacts after Mail). */
-    val FEATURES = listOf(CHATS, MAIL, CALENDAR, CONTACTS, VAULT, DRIVE, NETWORK, FAMILIE)
+    val FEATURES = listOf(CHATS, MAIL, CALENDAR, CONTACTS, NOTIZEN, VAULT, DRIVE, NETWORK, FAMILIE)
 
     /** Functions that are a page or nothing (no tab): taking them off leaves them in their tab (Mail). */
     val PAGE_ONLY = setOf(CALENDAR, CONTACTS)
