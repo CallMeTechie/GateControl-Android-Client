@@ -54,7 +54,7 @@ internal fun VaultOfflineChip(loading: Boolean) {
             CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = x.blue, trackColor = x.blueBg)
             Text(stringResource(R.string.drive_vault_offline_loading), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = x.blue, modifier = Modifier.padding(start = 6.dp))
         } else {
-            Icon(GcIcons.Download, contentDescription = null, tint = x.accentText, modifier = Modifier.size(14.dp))
+            Icon(GcIcons.DownloadTray, contentDescription = null, tint = x.accentText, modifier = Modifier.size(14.dp))
             Text(stringResource(R.string.drive_vault_offline_badge), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = x.accentText, modifier = Modifier.padding(start = 4.dp))
         }
     }
@@ -106,7 +106,7 @@ internal fun VaultOfflineCard(whole: Boolean, mark: Mark, summary: DriveVaultOff
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             GcIconSquare(size = 40.dp, background = x.accentBg) {
-                Icon(GcIcons.Download, contentDescription = null, tint = x.accentText, modifier = Modifier.size(20.dp))
+                Icon(GcIcons.DownloadTray, contentDescription = null, tint = x.accentText, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -146,7 +146,7 @@ internal fun VaultOfflineSwitch(mark: Mark, online: Boolean, onSet: (Boolean) ->
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(GcIcons.Download, contentDescription = null, tint = x.accentText, modifier = Modifier.size(24.dp))
+        Icon(GcIcons.DownloadTray, contentDescription = null, tint = x.accentText, modifier = Modifier.size(24.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(stringResource(R.string.drive_vault_offline_item), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
             Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
