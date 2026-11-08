@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.95.0] - 2026-11-08
+
+### Features
+- App lädt Updates selbst – zu Hause vom Heim-Gateway, mit Prüfsumme und Signaturprüfung (#202)
+
+---
+
 ## [1.94.1] - 2026-11-08
 
 ### Fixes
