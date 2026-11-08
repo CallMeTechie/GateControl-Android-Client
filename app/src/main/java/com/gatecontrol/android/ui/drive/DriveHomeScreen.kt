@@ -251,8 +251,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     onVault = { e -> close(); nav.vault(e.vault.id, e.vault.nodeId) },
                     icons = buildList {
                         add(DrawerIcon(GcIcons.Trash, R.string.drive_trash) { close(); nav.trash() })
-                        // Drive 1.20 (`offline`): what is kept ready in the home network
-                        if (me?.has(DMe.FEATURE_OFFLINE) == true) add(DrawerIcon(GcIcons.House, R.string.drive_offline_title) { close(); nav.offline() })
+                        // Drive 1.20 (`offline`): what is kept on this phone (the arrow down into a tray, as everywhere for "offline verfügbar")
+                        if (me?.has(DMe.FEATURE_OFFLINE) == true) add(DrawerIcon(GcIcons.DownloadTray, R.string.drive_offline_title) { close(); nav.offline() })
                         if (me?.has(DMe.FEATURE_STORAGE) == true) add(DrawerIcon(GcIcons.Activity, R.string.drive_storage_title) { close(); nav.storage() })
                         add(DrawerIcon(GcIcons.Upload, R.string.drive_folders_title) { close(); nav.folders() })
                         if (me?.has(DMe.FEATURE_DOC_AI) == true) add(DrawerIcon(GcIcons.Calendar, R.string.drive_deadlines) { close(); nav.deadlines() })
@@ -300,8 +300,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                         },
                         actions = {
                             when (tab) {
-                                DriveLogic.Tab.OVERVIEW ->
-                                    GcIconButton(GcIcons.Settings, contentDescription = stringResource(R.string.drive_settings_title), onClick = nav.settings, tint = MaterialTheme.colorScheme.onBackground)
+                                // the Drive settings are in the menu (its gear below), not twice in the head
+                                DriveLogic.Tab.OVERVIEW -> Unit
                                 DriveLogic.Tab.FILES -> FolderViewActions(folderViewModel, grid)
                                 DriveLogic.Tab.PHOTOS -> {
                                     // Drive 1.16: the photos on the map, the people (Drive 1.18: the symbols of the page's head)
@@ -309,7 +309,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                         GcIconButton(GcIcons.Map, contentDescription = stringResource(R.string.drive_pp_map), onClick = nav.photoMap, tint = MaterialTheme.colorScheme.onBackground)
                                     }
                                     if (me?.has(DMe.FEATURE_PHOTO_PEOPLE) == true) {
-                                        GcIconButton(GcIcons.Family, contentDescription = stringResource(R.string.drive_pp_people), onClick = nav.people, tint = MaterialTheme.colorScheme.onBackground)
+                                        GcIconButton(GcIcons.Users, contentDescription = stringResource(R.string.drive_pp_people), onClick = nav.people, tint = MaterialTheme.colorScheme.onBackground)
                                     }
                                 }
                             }
