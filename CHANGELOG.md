@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.97.0] - 2026-11-08
+
+### Features
+- Tresor-Dateien offline – nur Ciphertext auf dem Handy, Entsperren auch ohne Netz (#207)
+
+---
+
 ## [1.96.0] - 2026-11-08
 
 ### Features
