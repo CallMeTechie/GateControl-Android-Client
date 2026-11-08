@@ -3,6 +3,7 @@ package com.gatecontrol.android.ui.start
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,10 +47,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
@@ -65,6 +74,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -222,19 +232,34 @@ fun StartPager(
         pageOnly = StartPages.isPageOnly(id),
     )
 
-    Column(Modifier.fillMaxSize()) {
+    PagesWithDots(
+        dots = {
+            PageDots(
+                ids = ids,
+                current = pagerState.currentPage,
+                badges = badges,
+                names = names,
+                onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+            )
+        },
+    ) { dotsHeight ->
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             key = { index -> currentIds.getOrElse(index) { index } },
             verticalAlignment = Alignment.Top,
         ) { index ->
             val id = currentIds.getOrNull(index) ?: return@HorizontalPager
-            Box(Modifier.fillMaxSize()) {
+            // Start and the widget pages scroll on under the dots (their columns keep [dotsHeight]
+            // free at the end); a function's own screen and the plus page stay above them.
+            val clear = if (id == START_PAGE || StartPages.isWidgets(id)) Modifier else Modifier.padding(bottom = dotsHeight)
+            Box(Modifier.fillMaxSize().then(clear)) {
                 when {
-                    id == START_PAGE -> start { arranging = START_PAGE }
+                    id == START_PAGE -> CompositionLocalProvider(LocalStartPagerDotsInset provides dotsHeight) {
+                        start { arranging = START_PAGE }
+                    }
                     id == PLUS_PAGE -> PlusPage(onOpen = { sheet = true })
-                    StartPages.isWidgets(id) -> CompositionLocalProvider(LocalInStartPager provides true) {
+                    StartPages.isWidgets(id) -> CompositionLocalProvider(LocalInStartPager provides true, LocalStartPagerDotsInset provides dotsHeight) {
                         WidgetPage(
                             id = id,
                             menu = menu(id),
@@ -251,13 +276,6 @@ fun StartPager(
                 }
             }
         }
-        PageDots(
-            ids = ids,
-            current = pagerState.currentPage,
-            badges = badges,
-            names = names,
-            onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
-        )
     }
 
     if (sheet) {
@@ -292,15 +310,43 @@ internal fun RemovePageDialog(id: String, count: Int, onConfirm: () -> Unit, onD
 }
 
 /**
+ * The pages and their dots: [pages] fill the whole height down to the bar,
+ * the [dots] float over their lower edge without a strip of their own (the
+ * cards are no longer cut off above them). [pages] gets the dots' height to
+ * keep the end of a scrolling column clear of them.
+ */
+@Composable
+internal fun PagesWithDots(
+    dots: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    pages: @Composable (dotsHeight: Dp) -> Unit,
+) {
+    val density = LocalDensity.current
+    var dotsHeight by remember { mutableStateOf(0.dp) }
+    Box(modifier.fillMaxSize()) {
+        pages(dotsHeight)
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { dotsHeight = with(density) { it.height.toDp() } },
+        ) { dots() }
+    }
+}
+
+/**
  * The page dots above the bar: the current one a wide pill in the accent
  * colour, the plus page a small "+"; a tap shows that page. A page's badge
  * (unread chats, Remote hosts online) as a small number at its dot. [names]
  * (no bar): a line with the pages' names below, the current one stronger.
+ * They lie over the cards without a background: a thin halo around each dot
+ * keeps them visible on a card as on the background, light and dark.
  */
 @Composable
-private fun PageDots(ids: List<String>, current: Int, badges: Map<String, Int>, names: Boolean, onSelect: (Int) -> Unit) {
+internal fun PageDots(ids: List<String>, current: Int, badges: Map<String, Int>, names: Boolean, onSelect: (Int) -> Unit) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
+    val halo = dotHalo(extra.isDark)
     val dotsLabel = stringResource(R.string.pages_dots_desc)
     Column(
         Modifier.fillMaxWidth().padding(top = 2.dp, bottom = if (names) 10.dp else 2.dp),
@@ -334,9 +380,9 @@ private fun PageDots(ids: List<String>, current: Int, badges: Map<String, Int>, 
                     contentAlignment = Alignment.Center,
                 ) {
                     if (id == PLUS_PAGE) {
-                        Icon(GcIcons.Plus, contentDescription = null, tint = color, modifier = Modifier.size(10.dp))
+                        HaloIcon(GcIcons.Plus, tint = color, halo = halo, modifier = Modifier.size(10.dp))
                     } else {
-                        Box(Modifier.height(6.dp).width(width).clip(RoundedCornerShape(3.dp)).background(color))
+                        Box(Modifier.height(6.dp).width(width).haloBehind(halo).clip(RoundedCornerShape(3.dp)).background(color))
                     }
                     if (badge > 0) {
                         Box(
@@ -378,6 +424,37 @@ private fun PageDots(ids: List<String>, current: Int, badges: Map<String, Int>, 
                 modifier = Modifier.padding(horizontal = 16.dp).clearAndSetSemantics { },
             )
         }
+    }
+}
+
+/** The dots' halo: a little darker on light pages, a little lighter on dark ones. */
+internal fun dotHalo(dark: Boolean): Color = if (dark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.16f)
+
+private val HaloWidth = 1.dp
+
+/** A [HaloWidth] outline of [halo] around a rounded pill (a dot), drawn outside it. */
+private fun Modifier.haloBehind(halo: Color): Modifier = drawBehind {
+    val w = HaloWidth.toPx()
+    val r = size.height / 2 + w
+    drawRoundRect(
+        color = halo,
+        topLeft = Offset(-w, -w),
+        size = Size(size.width + 2 * w, size.height + 2 * w),
+        cornerRadius = CornerRadius(r, r),
+    )
+}
+
+/** [icon] in [tint] with a thin outline of [halo] around its strokes (the "+" among the dots). */
+@Composable
+private fun HaloIcon(icon: ImageVector, tint: Color, halo: Color, modifier: Modifier = Modifier) {
+    val painter = rememberVectorPainter(icon)
+    Canvas(modifier) {
+        val o = (HaloWidth * 0.75f).toPx()
+        val haloFilter = ColorFilter.tint(halo)
+        for ((dx, dy) in listOf(-o to 0f, o to 0f, 0f to -o, 0f to o)) {
+            translate(dx, dy) { with(painter) { draw(size, colorFilter = haloFilter) } }
+        }
+        with(painter) { draw(size, colorFilter = ColorFilter.tint(tint)) }
     }
 }
 

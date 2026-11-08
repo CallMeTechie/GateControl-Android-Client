@@ -85,6 +85,9 @@ class ChatShortcutsMediaTest {
         assertNotEquals(a, ChatShortcutLogic.signature(conv(1), "Anna B."))
         assertNotEquals(a, ChatShortcutLogic.signature(conv(1, avatarMediaId = "0".repeat(32)), "Anna"))
         assertNotEquals(a, ChatShortcutLogic.signature(conv(1, readonly = true), "Anna"))
+        // The share sheet entry changed ("An Chat senden" → "GateDrop"): republished with its category.
+        assertNotEquals(a, ChatShortcutLogic.signature(conv(1), "Anna", ChatShareTarget.GATEDROP.category))
+        assertEquals(a, ChatShortcutLogic.signature(conv(1), "Anna", ChatShareTarget.CHAT.category))
     }
 
     @Test

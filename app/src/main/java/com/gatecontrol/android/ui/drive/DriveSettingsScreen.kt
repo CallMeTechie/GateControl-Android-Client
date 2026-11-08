@@ -54,6 +54,7 @@ import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveCache
 import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DriveOfflineStoreLogic
 import com.gatecontrol.android.drive.DriveSettings
 import com.gatecontrol.android.drive.DriveSettingsLogic
 import com.gatecontrol.android.drive.DriveSettingsValues
@@ -103,6 +104,8 @@ class DriveSettingsViewModel @Inject constructor(
     private val session: DriveVaultSession,
     private val backup: DriveBackup,
     private val folderBackup: DriveFolderBackup,
+    /** "Offline verfügbar": the copies on this phone (size, "nur im WLAN", the limit). */
+    private val offlineStore: com.gatecontrol.android.drive.DriveOfflineStore,
 ) : ViewModel() {
     val values: StateFlow<DriveSettingsValues> = settings.values
     val backupConfig: StateFlow<DriveBackupConfig> = backup.config
@@ -120,6 +123,9 @@ class DriveSettingsViewModel @Inject constructor(
 
     private val _cacheSize = MutableStateFlow<Long?>(null)
     val cacheSize: StateFlow<Long?> = _cacheSize.asStateFlow()
+
+    /** The offline copies by node id (their size is what "Speicher für Offline-Dateien" shows). */
+    val offlineCopies: StateFlow<Map<Long, com.gatecontrol.android.drive.DriveOfflineCopy>> = offlineStore.copies
 
     /** This device for the vaults: its safety number and the vaults it holds keys for. */
     data class VaultInfo(val safetyNumber: String?, val approved: List<String>)
@@ -194,6 +200,18 @@ class DriveSettingsViewModel @Inject constructor(
         network.update()
         DriveBackupWork.apply(context, backup.config.value)
         DriveFolderBackupWork.apply(context, folderBackup.active(), folderBackup.settings.value)
+    }
+
+    /** "Offline-Dateien nur im WLAN laden": the runs wait for WLAN (or not) from now on. */
+    fun setOfflineWifiOnly(on: Boolean) {
+        settings.update { it.copy(offlineWifiOnly = on) }
+        offlineStore.request()
+    }
+
+    /** "Speicher für Offline-Dateien": a smaller limit drops what no longer fits with the next run (soon). */
+    fun setOfflineLimit(mb: Int) {
+        settings.update { it.copy(offlineLimitMb = mb) }
+        offlineStore.request()
     }
 
     fun clearCache() {
@@ -289,6 +307,8 @@ fun DriveSettingsScreen(
     val me by viewModel.live.me.collectAsStateWithLifecycle()
     val areas by viewModel.areas.collectAsStateWithLifecycle()
     val cacheSize by viewModel.cacheSize.collectAsStateWithLifecycle()
+    val offlineCopies by viewModel.offlineCopies.collectAsStateWithLifecycle()
+    var pickOfflineLimit by remember { mutableStateOf(false) }
     val vaultInfo by viewModel.vaultInfo.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val backup by viewModel.backupConfig.collectAsStateWithLifecycle()
@@ -558,6 +578,29 @@ fun DriveSettingsScreen(
                     onCheckedChange = viewModel::setWifiOnly,
                     icon = GcIcons.Wifi,
                 )
+                // Drive 1.20 (`offline`): the copies of "Offline verfügbar" on this phone
+                if (me?.has(DMe.FEATURE_OFFLINE) == true) {
+                    GcRowDivider()
+                    GcListRow(
+                        title = stringResource(R.string.drive_settings_offline_limit),
+                        description = stringResource(
+                            R.string.drive_settings_offline_limit_desc,
+                            DriveLogic.size(DriveOfflineStoreLogic.used(offlineCopies.values)),
+                            DriveLogic.size(values.offlineLimitMb.toLong() * 1024 * 1024),
+                        ),
+                        onClick = { pickOfflineLimit = true },
+                        leading = { Icon(GcIcons.House, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
+                        trailing = { GcChevron() },
+                    )
+                    GcRowDivider()
+                    GcSwitchRow(
+                        label = stringResource(R.string.drive_settings_offline_wifi),
+                        description = stringResource(R.string.drive_settings_offline_wifi_desc),
+                        checked = values.offlineWifiOnly,
+                        onCheckedChange = viewModel::setOfflineWifiOnly,
+                        icon = GcIcons.Wifi,
+                    )
+                }
             }
 
             // 6. Benachrichtigungen (Drive's pushes, filtered on this phone)
@@ -614,6 +657,15 @@ fun DriveSettingsScreen(
                 onDismiss = { pickTarget = null },
             )
         }
+    }
+    if (pickOfflineLimit) {
+        ChoiceDialog(
+            title = stringResource(R.string.drive_settings_offline_limit),
+            options = DriveSettingsLogic.OFFLINE_LIMIT_CHOICES.map { it to DriveLogic.size(it.toLong() * 1024 * 1024) },
+            selected = values.offlineLimitMb,
+            onSelect = { pickOfflineLimit = false; viewModel.setOfflineLimit(it) },
+            onDismiss = { pickOfflineLimit = false },
+        )
     }
     if (pickSort) {
         val keys = listOf("name", "mtime", "size", "type")

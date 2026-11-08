@@ -48,6 +48,9 @@ class DriveUploadNetwork @Inject constructor(
         _allowed.value = DriveSettingsLogic.uploadAllowed(settings.current.wifiOnly, connected = true, unmetered = _unmetered.value)
     }
 
+    /** The network now is unmetered (WLAN, Ethernet): the offline copies may load with "nur im WLAN". */
+    fun unmetered(): Boolean = _unmetered.value
+
     /** Uploads must wait for WLAN now. */
     fun waitsForWifi(): Boolean = !_allowed.value
 }

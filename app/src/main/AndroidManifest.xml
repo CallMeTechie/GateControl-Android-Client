@@ -335,20 +335,28 @@
             android:name=".chat.ChatActionReceiver"
             android:exported="false" />
 
-        <!-- Share target "Teilen → GateControl" (text, pictures, files):
+        <!-- Share target "GateDrop" / "An Chat senden" (text, pictures, files):
              the GateDrop sheet when the server offers GateDrop, else the
-             chats. Exported for the system's share sheet, but disabled
-             until the server offers the chats or GateDrop
-             (ChatShareActivity.setEnabled). Reads only content:// URIs of
-             other apps, never file:// or the app's own providers. -->
+             chats. The activity itself is not exported and has no intent
+             filters; the share sheet shows one of the two aliases below,
+             exactly one switched on at runtime (ChatShareActivity.setShareTarget):
+             "GateDrop" while the server offers GateDrop, "An Chat senden"
+             while it offers only the chats, none otherwise. Reads only
+             content:// URIs of other apps, never file:// or the app's own
+             providers. The sharing shortcuts of the chats (res/xml/shortcuts.xml)
+             name both aliases. -->
         <activity
             android:name=".chat.ChatShareActivity"
-            android:exported="true"
-            android:enabled="false"
+            android:exported="false"
             android:excludeFromRecents="true"
             android:taskAffinity=""
-            android:label="@string/share_target_label"
-            android:theme="@style/Theme.GateControl.TileAction">
+            android:theme="@style/Theme.GateControl.TileAction" />
+        <activity-alias
+            android:name=".chat.GateDropShareTarget"
+            android:targetActivity=".chat.ChatShareActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:label="@string/share_target_label_gatedrop">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -366,7 +374,31 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".chat.ChatShareTarget"
+            android:targetActivity=".chat.ChatShareActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:label="@string/share_target_label_chat">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- Share target "In Drive speichern" (any file, or a text as .txt): the
              Drive folder sheet over the sharing app. Exported for the system's

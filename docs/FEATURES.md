@@ -105,7 +105,10 @@ angehefteten Seiten in ihrer Reihenfolge, ganz rechts die **Plus-Seite**
 („Seite anheften“). Wischen wechselt die Seite; die **Seitenpunkte** über
 der Leiste (aktiver Punkt breit in Akzentfarbe, die Plus-Seite als kleines
 „+“) sind antippbar und tragen die Zähler (ungelesene Chats, Remote-Hosts
-online). Eine angeheftete Funktion zeigt ihren echten Bildschirm, ihr
+online). Die Punkte haben keinen eigenen Hintergrund: Start und
+Widget-Seiten laufen bis zur Leiste unter ihnen durch, ein feiner Rand hält
+sie auf Karten erkennbar, und die letzte Karte lässt sich ganz über die
+Punkte scrollen. Eine angeheftete Funktion zeigt ihren echten Bildschirm, ihr
 Symbol verschwindet aus der Leiste (bzw. der Navigationsleiste links).
 
 - **Anheften:** Plus-Seite → „Seite an Start anheften“ (Abschnitte „Aus der
@@ -597,9 +600,12 @@ sehen keinen Unterschied.
 - **Verlassen / entfernt:** wird man aus einer Gruppe entfernt, die Gruppe
   gelöscht oder verlässt man sie, schließt sich der Chat — auf breiten
   Bildschirmen zeigt die rechte Seite wieder „Chat auswählen“.
-- **Teilen → GateControl-Chat:** Text, Bilder und Dateien aus anderen Apps;
+- **Teilen → „An Chat senden“:** Text, Bilder und Dateien aus anderen Apps;
   danach wählt man den Chat. Das Teilen-Ziel ist nur eingeschaltet, solange
-  der Server Chats anbietet; gelesen werden nur Inhalte anderer Apps.
+  der Server Chats anbietet; bietet er GateDrop an, heißt der Eintrag
+  stattdessen **„GateDrop“** und öffnet das GateDrop-Blatt (die Chats sind
+  dort einen Tipp entfernt). Es gibt immer nur einen der beiden Einträge;
+  gelesen werden nur Inhalte anderer Apps.
 - Alles bleibt auf dem eigenen Server; Dateien werden mit dem Geräte-Token
   geladen und im App-Cache gehalten (höchstens 200 MB).
 
@@ -837,6 +843,53 @@ durch den Tunnel (kein Multicast, Heimnetz nicht geroutet) also nie.
   Drucker im Druckdialog „GateControl – …“ heißt.
 - **Ohne Plugin, ohne Recht:** der Druckdienst zeigt keine Drucker, das
   Teilen-Ziel und die Einstellungszeile sind aus.
+
+## Drive: „Offline verfügbar“ (Drive-Plugin 1.20, Feature `offline`)
+Im Menü ⋮ einer Datei oder eines Ordners (Ordner, Suche): „Offline
+verfügbar“. Die App behält dann eine **echte Kopie auf dem Handy**
+(`DriveOfflineStore`), die auch ohne Verbindung öffnet, angezeigt und
+geteilt werden kann; bei einem Ordner alle Dateien darunter (höchstens
+2000 Dateien, 500 Unterordner). Drive merkt die Markierung zusätzlich für
+den Zwischenspeicher der Heim-Gateways vor.
+
+- **Speicherort:** `filesDir/drive-offline/<Datei-Id>/<Name>` (App-intern,
+  nie im Backup, vom FileProvider nie selbst freigegeben – zum Öffnen oder
+  Teilen wird die eine Datei als Hardlink, notfalls als Kopie, nach
+  `cache/drive-open` gelegt); Liste in `filesDir/drive-offline-index.json`
+  mit dem Server – ein anderer Server, Drive ohne Feature `offline` oder
+  401/403/404 auf `GET offline` löschen alle Kopien.
+- **Abgleich** (WorkManager `drive-offline-now` nach jeder Änderung und
+  beim Öffnen der Liste, `drive-offline-periodic` alle 6 Stunden, solange
+  Kopien da sind; „Speicher nicht knapp“): `GET offline`, die Ordner
+  darunter (`children`), dann der Plan – neue Dateien laden, geänderte
+  (andere Revision oder SHA-256) laden neu (die alte Kopie öffnet bis
+  dahin), nicht mehr markierte, vom Virenscan blockierte oder nicht mehr
+  in den Speicher passende Kopien gehen. Geladen wird wie beim Öffnen
+  (`GET …/content`): zu Hause aus dem Zwischenspeicher des Heim-Gateways
+  (Zertifikat gepinnt, SHA-256 geprüft), sonst über den Server; die Bytes
+  werden gegen Drives SHA-256 geprüft. Nur vollständige Antworten löschen
+  etwas – ohne Verbindung bleibt alles, wie es ist.
+- **Einstellungen** (Drive-Einstellungen › Daten auf diesem Gerät):
+  „Speicher für Offline-Dateien“ (500 MB … 20 GB, Standard 2 GB, gefüllt
+  in der Reihenfolge der Markierungen, neueste zuerst) und „Offline-Dateien
+  nur im WLAN laden“ (Standard an). Auf dem Handy bleiben immer 500 MB frei.
+  Der „Zwischenspeicher“ (Vorschauen, geöffnete Dateien) zählt die Kopien
+  nicht und „Leeren“ löscht sie nicht.
+- **Zustände** (Seite „Offline verfügbar“): „Auf dem Handy“, „Wird
+  geladen“, „Wartet auf WLAN“, „Passt nicht in den Speicher für
+  Offline-Dateien“, „Zu wenig Platz auf dem Handy“, „Neuere Version wird
+  geladen“, „Konnte nicht geladen werden“; ein Ordner „12 von 14 Dateien
+  auf dem Handy“. Oben belegt/höchstens und „Jetzt aktualisieren“. Ohne
+  Verbindung zeigt die Seite die Kopien auf dem Handy zum Öffnen und
+  Teilen. Öffnen aus Ordnern, der Suche oder den Fotos nimmt die Kopie,
+  wenn sie die aktuelle Version ist; sieht die App eine neuere Version,
+  wird die Kopie sofort erneuert.
+- **Entfernen:** „Nicht mehr offline verfügbar“ (Menü oder ✕ in der
+  Liste) löscht die Kopie gleich; „auf allen Geräten gelöscht“ ebenso.
+- **Tresor:** Tresor-Dateien bleiben außen vor – die Tresor-Seiten bieten
+  die Markierung nicht an, und ihr Inhalt wird nie entschlüsselt auf die
+  Platte gelegt. Eine im Portal markierte Tresor-Datei steht mit „Tresor:
+  nur im Zwischenspeicher zu Hause“ in der Liste.
 
 ## Einstellungen
 

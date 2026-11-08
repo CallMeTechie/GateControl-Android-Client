@@ -49,7 +49,7 @@ import javax.inject.Inject
 /** A file shared from another app, copied into the app's cache. */
 data class SharedFile(val path: String, val name: String, val mime: String, val bytes: Long)
 
-/** What "Teilen → GateControl" brought: text and/or files. */
+/** What "Teilen → GateDrop / An Chat senden" brought: text and/or files. */
 data class SharePayload(val text: String?, val files: List<SharedFile>) {
     val isEmpty: Boolean get() = text.isNullOrBlank() && files.isEmpty()
 }
@@ -72,9 +72,9 @@ object ChatShareHandover {
 }
 
 /**
- * Share target "Teilen → GateControl" (text, pictures, files). Exported —
- * the system's share sheet starts it — but switched on only while the
- * server offers the chats or GateDrop ([setEnabled]).
+ * Share target (text, pictures, files), started by the system's share sheet
+ * through one of its two aliases: „GateDrop“ while the server offers GateDrop,
+ * „An Chat senden“ while it offers only the chats, none otherwise ([setShareTarget]).
  *
  * With GateDrop the sheet "Teilen mit GateControl" opens right here over
  * the sharing app (people, own devices, NAS, link for externals); the
@@ -275,13 +275,25 @@ class ChatShareActivity : ComponentActivity() {
         private const val MAX_FILES = 10
         private const val MAX_BYTES = 64L * 1024 * 1024
 
-        /** On while the server offers the chats or GateDrop: only then GateControl shows up in the share sheet. */
-        fun setEnabled(context: Context, enabled: Boolean) {
+        /**
+         * The share sheet entry: exactly one alias of this activity on ([ChatShareTargets.choose]),
+         * none for null. The activity itself was the entry up to now and kept its switched state
+         * across the update: back to the manifest's (no intent filters, never in the share sheet).
+         */
+        fun setShareTarget(context: Context, target: ChatShareTarget?) {
+            val pm = context.packageManager
+            switch(pm, ComponentName(context, ChatShareActivity::class.java), PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+            // Off first, then on: never two entries at once.
+            ChatShareTarget.entries.sortedBy { it == target }.forEach { t ->
+                val want = if (t == target) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                switch(pm, ComponentName(context.packageName, t.alias), want)
+            }
+        }
+
+        private fun switch(pm: PackageManager, component: ComponentName, want: Int) {
             runCatching {
-                val component = ComponentName(context, ChatShareActivity::class.java)
-                val want = if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                if (context.packageManager.getComponentEnabledSetting(component) != want) {
-                    context.packageManager.setComponentEnabledSetting(component, want, PackageManager.DONT_KILL_APP)
+                if (pm.getComponentEnabledSetting(component) != want) {
+                    pm.setComponentEnabledSetting(component, want, PackageManager.DONT_KILL_APP)
                 }
             }.onFailure { Timber.w("Chats: share target not switched (%s)", it.javaClass.simpleName) }
         }
@@ -292,6 +304,29 @@ class ChatShareActivity : ComponentActivity() {
             val cutoff = System.currentTimeMillis() - 24 * 3600_000L
             dir.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.delete() }
         }
+    }
+}
+
+/**
+ * The share sheet entries of [ChatShareActivity] (activity-alias in AndroidManifest.xml) with the
+ * category a chat's sharing shortcut needs to show up under it (share-target in res/xml/shortcuts.xml:
+ * the system pairs a shortcut with the first share-target whose categories it has, so each entry has
+ * its own and a shortcut carries only the one of the entry that is on, [ChatShortcutLogic.shareCategory]).
+ */
+enum class ChatShareTarget(val alias: String, val category: String) {
+    /** „GateDrop“: the GateDrop sheet (the chats one tap away). */
+    GATEDROP("com.gatecontrol.android.chat.GateDropShareTarget", "com.gatecontrol.android.chat.SHARE_TARGET_GATEDROP"),
+    /** „An Chat senden“: pick a chat. */
+    CHAT("com.gatecontrol.android.chat.ChatShareTarget", "com.gatecontrol.android.chat.SHARE_TARGET"),
+}
+
+/** Which share sheet entry is on. Pure, unit-tested. */
+object ChatShareTargets {
+    /** GateDrop when the server offers it (that is what the entry opens), else the chats, else none. */
+    fun choose(gatedrop: Boolean, chats: Boolean): ChatShareTarget? = when {
+        gatedrop -> ChatShareTarget.GATEDROP
+        chats -> ChatShareTarget.CHAT
+        else -> null
     }
 }
 

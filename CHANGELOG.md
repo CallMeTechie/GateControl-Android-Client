@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.93.2] - 2026-11-07
+
+### Fixes
+- Teilen-Ziel heißt „GateDrop“ bzw. „An Chat senden“ statt „GateControl“ (#200)
+
+---
+
+## [1.93.1] - 2026-11-07
+
+### Fixes
+- Seitenpunkte ohne grauen Streifen über den Karten (#199)
+
+---
+
+## [1.93.0] - 2026-11-07
+
+### Features
+- „Offline verfügbar“ mit echter Kopie auf dem Handy – öffnet ohne Verbindung, erneuert sich bei Änderungen (#198)
+
+---
+
 ## [1.92.0] - 2026-11-07
 
 ### Features

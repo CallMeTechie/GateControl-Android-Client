@@ -10,12 +10,12 @@ import javax.inject.Singleton
 
 /**
  * "Offline verfügbar" (Drive 1.20, feature `offline`): the files and folders the person marked. Drive offers them to
- * the home gateways' caches first (GateControl's "Zwischenspeicher im Heimnetz"); at home the app then loads them from
- * the gateway. This app keeps no copies of its own beyond the opened files' cache: the mark means "kept ready at home",
- * not "on this phone". [ids] marks the rows (a folder's content is marked through the folder only).
+ * the home gateways' caches first (GateControl's "Zwischenspeicher im Heimnetz"), and this phone keeps a copy of each
+ * marked file and of the files below marked folders ([DriveOfflineStore]: opens without a connection, loads at home from
+ * the gateway). [ids] marks the rows (a folder's content is marked through the folder only).
  */
 @Singleton
-class DriveOffline @Inject constructor(private val api: DriveApi) {
+class DriveOffline @Inject constructor(private val api: DriveApi, private val store: DriveOfflineStore) {
 
     private val _ids = MutableStateFlow<Set<Long>>(emptySet())
     /** The marked nodes as far as known (after [list] or [refresh]). */
@@ -44,6 +44,9 @@ class DriveOffline @Inject constructor(private val api: DriveApi) {
         val r: DResult<*> = if (on) api.markOffline(node.id) else api.unmarkOffline(node.id)
         if (r is DResult.Ok) {
             _ids.update { if (on) it + node.id else it - node.id }
+            if (!on) store.unmarked(node.id)
+            // the copies on this phone follow (in the background, "nur im WLAN" as set)
+            store.request()
             return null
         }
         return when (r) {

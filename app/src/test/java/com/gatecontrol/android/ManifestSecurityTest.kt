@@ -188,10 +188,21 @@ class ManifestSecurityTest {
         assertEquals("false", receiver.androidAttr("exported"))
         assertEquals(0, receiver.getElementsByTagName("intent-filter").length)
         val share = components("activity").first { it.androidAttr("name").endsWith("ChatShareActivity") }
-        assertEquals("true", share.androidAttr("exported"))
-        assertEquals("false", share.androidAttr("enabled"), "switched on at runtime only with the messenger")
-        val actions = share.getElementsByTagName("action").let { n -> (0 until n.length).map { (n.item(it) as Element).androidAttr("name") } }.toSet()
-        assertEquals(setOf("android.intent.action.SEND", "android.intent.action.SEND_MULTIPLE"), actions)
+        assertEquals("false", share.androidAttr("exported"), "only its aliases are share sheet entries")
+        assertEquals(0, share.getElementsByTagName("intent-filter").length, "no third entry beside the aliases")
+        val aliases = components("activity-alias").filter { it.androidAttr("targetActivity") == ".chat.ChatShareActivity" }
+        assertEquals(
+            com.gatecontrol.android.chat.ChatShareTarget.entries.map { it.alias }.toSet(),
+            aliases.map { "com.gatecontrol.android" + it.androidAttr("name") }.toSet(),
+        )
+        aliases.forEach { alias ->
+            val name = alias.androidAttr("name")
+            assertEquals("true", alias.androidAttr("exported"), name)
+            assertEquals("false", alias.androidAttr("enabled"), "$name: switched on at runtime only with GateDrop or the chats")
+            assertTrue(alias.androidAttr("label").startsWith("@string/share_target_label_"), name)
+            val actions = alias.getElementsByTagName("action").let { n -> (0 until n.length).map { (n.item(it) as Element).androidAttr("name") } }.toSet()
+            assertEquals(setOf("android.intent.action.SEND", "android.intent.action.SEND_MULTIPLE"), actions, name)
+        }
         val permissions = components("uses-permission").map { it.androidAttr("name") }
         assertTrue("android.permission.RECORD_AUDIO" in permissions)
     }
@@ -223,10 +234,19 @@ class ManifestSecurityTest {
         val xml = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
             .newDocumentBuilder().parse(moduleFile("src/main/res/xml/shortcuts.xml")).documentElement
         assertEquals(0, xml.getElementsByTagName("shortcut").length, "no static shortcuts")
-        val target = xml.getElementsByTagName("share-target").item(0) as Element
-        assertEquals("com.gatecontrol.android.chat.ChatShareActivity", target.androidAttr("targetClass"))
-        val category = (target.getElementsByTagName("category").item(0) as Element).androidAttr("name")
-        assertEquals(com.gatecontrol.android.chat.ChatShortcutLogic.SHARE_CATEGORY, category)
+        val targets = xml.getElementsByTagName("share-target").let { n -> (0 until n.length).map { n.item(it) as Element } }
+        // A sharing shortcut shows up only under the entry it is paired with: one share-target per alias,
+        // each with exactly its own category (the system takes the first share-target whose categories match).
+        val byClass = targets.associate { target ->
+            val categories = target.getElementsByTagName("category").let { n -> (0 until n.length).map { (n.item(it) as Element).androidAttr("name") } }
+            target.androidAttr("targetClass") to categories
+        }
+        assertEquals(targets.size, byClass.size)
+        assertEquals(
+            com.gatecontrol.android.chat.ChatShareTarget.entries.associate { it.alias to listOf(it.category) },
+            byClass,
+        )
+        assertEquals(com.gatecontrol.android.chat.ChatShortcutLogic.SHARE_CATEGORY, com.gatecontrol.android.chat.ChatShareTarget.CHAT.category)
     }
 
     @Test
