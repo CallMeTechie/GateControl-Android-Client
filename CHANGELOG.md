@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.99.0] - 2026-11-08
+
+### Features
+- Erinnerungen in der Übersicht auch ohne „Heute vor X Jahren“ (memoryPicks) (#210)
+
+---
+
 ## [1.98.0] - 2026-11-08
 
 ### Features
