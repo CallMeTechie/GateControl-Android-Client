@@ -61,6 +61,8 @@ import com.gatecontrol.android.drive.DActivity
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DDeadline
 import com.gatecontrol.android.drive.DMemoryCard
+import com.gatecontrol.android.drive.DMemoryCollection
+import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DOverview
 import com.gatecontrol.android.drive.DOverviewPeople
 import com.gatecontrol.android.drive.DOverviewPlaces
@@ -99,6 +101,8 @@ internal data class OverviewActions(
     val place: (String) -> Unit,
     /** „Alle“ of „Erinnerungen“: the page „Erinnerungen“ (Drive 1.26); null: an older Drive — „Fotos“ as before. */
     val memories: (() -> Unit)? = null,
+    /** A card of the picks (Drive 1.28, `memoryPicks`): that collection on the page „Erinnerungen“. */
+    val pick: (DMemoryCollection) -> Unit = {},
 )
 
 /** The small map of "Orte": a still picture this big (the mockup's 120 × 84, wide enough for the attribution). */
@@ -166,7 +170,7 @@ internal fun OverviewPage(
                     Section.STATUS -> item(key = "status", contentType = "status") { StatusRow(backup, overview.storage, actions) }
                     Section.TODO -> item(key = "todo", contentType = "todo") { TodoSection(overview.todo!!, areas, actions) }
                     Section.RECENT -> item(key = "recent", contentType = "recent") { RecentSection(overview.recent, areas, actions) }
-                    Section.MEMORIES -> item(key = "memories", contentType = "memories") { MemoriesSection(overview.memories, actions) }
+                    Section.MEMORIES -> item(key = "memories", contentType = "memories") { MemoriesSection(overview.memories, DriveOverviewLogic.picks(overview), actions) }
                     Section.PEOPLE -> item(key = "people", contentType = "people") { PeopleSection(overview.people!!, actions) }
                     Section.PLACES -> item(key = "places", contentType = "places") { PlacesSection(overview.places!!, stillKey, actions) }
                     Section.ACTIVITY -> item(key = "activity", contentType = "activity") { ActivitySection(overview.activity, actions) }
@@ -424,33 +428,49 @@ private fun RecentSection(recent: List<DRecent>, areas: List<DArea>, actions: Ov
     }
 }
 
-/** "Erinnerungen": "Heute vor 2 Jahren", "Vor einem Jahr" with the cover photo; a tap shows the photos. */
+/**
+ * "Erinnerungen": "Heute vor 2 Jahren", "Vor einem Jahr" with the cover photo; a tap shows the photos. A day without
+ * them (Drive 1.28): the [picks] of the page „Erinnerungen“ with its titles ("Hamburg", "Mit Noah"); a tap opens the
+ * collection there.
+ */
 @Composable
-private fun MemoriesSection(memories: List<DMemoryCard>, actions: OverviewActions) {
+private fun MemoriesSection(memories: List<DMemoryCard>, picks: List<DMemoryCollection>, actions: OverviewActions) {
     OverviewHead(stringResource(R.string.drive_ov_memories), link = stringResource(R.string.drive_pp_all), onLink = actions.memories ?: actions.photos)
     val today = remember { LocalDate.now() }
     val zone = remember { ZoneId.systemDefault() }
     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(memories, key = { "${it.yearsAgo}-${it.cover.id}" }) { m ->
-            val picture = rememberDrivePreview(m.cover, large = true) ?: rememberDrivePreview(m.cover)
-            val label = DriveOverviewLogic.memoryLabel(m, today, zone)
-            val title = when {
-                label.years <= 0 -> stringResource(R.string.drive_photos_memories)
-                label.today -> pluralStringResource(R.plurals.drive_ov_memory_today, label.years, label.years)
-                else -> pluralStringResource(R.plurals.drive_photos_years_ago, label.years, label.years)
-            }
-            val line = listOfNotNull(pluralStringResource(R.plurals.drive_photos_count, m.count, m.count), m.cover.geo?.place?.name).joinToString(" · ")
-            Box(
-                Modifier.width(200.dp).height(130.dp).clip(RoundedCornerShape(16.dp)).background(GateControlTheme.extraColors.blueBg)
-                    .clickable(role = Role.Button) { actions.memory(m) },
-            ) {
-                if (picture != null) Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
-                Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp, vertical = 10.dp)) {
-                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(line, style = MaterialTheme.typography.bodySmall, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (memories.isNotEmpty()) {
+            items(memories, key = { "${it.yearsAgo}-${it.cover.id}" }) { m ->
+                val label = DriveOverviewLogic.memoryLabel(m, today, zone)
+                val title = when {
+                    label.years <= 0 -> stringResource(R.string.drive_photos_memories)
+                    label.today -> pluralStringResource(R.plurals.drive_ov_memory_today, label.years, label.years)
+                    else -> pluralStringResource(R.plurals.drive_photos_years_ago, label.years, label.years)
                 }
+                val line = listOfNotNull(pluralStringResource(R.plurals.drive_photos_count, m.count, m.count), m.cover.geo?.place?.name).joinToString(" · ")
+                OverviewMemoryCard(m.cover, title, line) { actions.memory(m) }
             }
+        } else {
+            items(picks, key = { "pick-${it.id}" }) { c ->
+                OverviewMemoryCard(c.cover, memoryTitle(c), pluralStringResource(R.plurals.drive_photos_count, c.count, c.count)) { actions.pick(c) }
+            }
+        }
+    }
+}
+
+/** A card of "Erinnerungen": the cover (none: the plain colour), the title and the line over it. */
+@Composable
+private fun OverviewMemoryCard(cover: DNode?, title: String, line: String, onClick: () -> Unit) {
+    val picture = cover?.let { rememberDrivePreview(it, large = true) ?: rememberDrivePreview(it) }
+    Box(
+        Modifier.width(200.dp).height(130.dp).clip(RoundedCornerShape(16.dp)).background(GateControlTheme.extraColors.blueBg)
+            .clickable(role = Role.Button, onClick = onClick),
+    ) {
+        if (picture != null) Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
+        Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(line, style = MaterialTheme.typography.bodySmall, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

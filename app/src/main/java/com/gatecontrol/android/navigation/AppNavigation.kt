@@ -1914,7 +1914,11 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 cleanup = { nav.go(Screen.DriveCleanup.route) },
                 backup = { nav.go(Screen.DriveBackup.route) },
                 device = { nav.go(Screen.DriveDevice.route) },
-                memories = { nav.go(Screen.DriveMemories.route) },
+                memories = { nav.go(Screen.DriveMemories.create()) },
+                memory = { c ->
+                    com.gatecontrol.android.drive.DriveMemoryHandoff.put(c)
+                    nav.go(Screen.DriveMemories.create(c.id))
+                },
                 // Mail › "Zum Ablegen" (only where Mail's routes are there)
                 mailFiling = { runCatching { navController.navigate(Screen.MailFiling.route) } },
             ),
@@ -1986,7 +1990,10 @@ private fun NavGraphBuilder.driveRoutes(
     composable(Screen.DrivePerson.route, arguments = listOf(navArgument(Screen.DrivePerson.ARG_ID) { type = NavType.StringType })) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DrivePersonScreen(onBack = back, onPlace = { key, person -> go(Screen.DrivePhotoPlace.create(key, person = person)) }) }
     }
-    composable(Screen.DriveMemories.route) {
+    composable(
+        Screen.DriveMemories.route,
+        arguments = listOf(navArgument(Screen.DriveMemories.ARG_OPEN) { type = NavType.StringType; nullable = true; defaultValue = null }),
+    ) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveMemoriesScreen(onBack = back) }
     }
     composable(Screen.DrivePlacesSettings.route) {

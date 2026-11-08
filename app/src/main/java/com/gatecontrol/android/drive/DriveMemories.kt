@@ -100,6 +100,9 @@ object DriveMemoriesLogic {
     /** A section of the page: its kind and its collections (in the server's order). */
     data class Section(val kind: String, val items: List<DMemoryCollection>)
 
+    /** The collection [id] of the list (a pick of the overview after the app was restarted); null: not there. */
+    fun find(list: DMemoryList?, id: String?): DMemoryCollection? = id?.let { i -> list?.collections?.firstOrNull { it.id == i } }
+
     fun sections(list: List<DMemoryCollection>): List<Section> =
         KINDS.mapNotNull { k -> list.filter { it.kind == k }.takeIf { it.isNotEmpty() }?.let { Section(k, it) } }
 
@@ -142,4 +145,26 @@ object DriveMemoriesLogic {
      */
     fun privateDays(groups: List<DMemories>): List<DMemories> =
         groups.map { it.copy(items = it.items.filter(::isPrivate)) }.filter { it.items.size > DAY_MORE_THAN }
+}
+
+/**
+ * A collection the overview opens on the page „Erinnerungen“ (Drive 1.28, its picks): handed over as it is, so the
+ * page shows it at once with its title — the route carries only its id. Taken once, by that id.
+ */
+object DriveMemoryHandoff {
+    @Volatile
+    private var pending: DMemoryCollection? = null
+
+    fun put(c: DMemoryCollection) {
+        pending = c
+    }
+
+    /** The collection handed over for [id] (null: none, or another one); it is gone afterwards. */
+    @Synchronized
+    fun take(id: String?): DMemoryCollection? {
+        val c = pending ?: return null
+        if (id == null || c.id != id) return null
+        pending = null
+        return c
+    }
 }

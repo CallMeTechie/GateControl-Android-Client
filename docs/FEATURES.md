@@ -990,6 +990,15 @@ einem älteren Plugin, öffnet „Alle“ wie bisher den Reiter „Fotos“.
   `GET memories/photos?id=`, seitenweise). Ein Tipp öffnet den Foto-Betrachter
   (`PhotoViewer`), Zurück führt zur Liste. Eine Karte der Übersicht öffnet
   den Betrachter mit allen Fotos dieser Sammlung.
+- **Übersicht ohne „Heute vor X Jahren“** (Drive-Plugin 1.28, Feature
+  `memoryPicks`): Hat der Tag keine solche Karte, zeigt „Erinnerungen“ in der
+  Übersicht bis zu vier Sammlungen dieser Seite (`GET overview` `memoryPicks`)
+  in derselben Kartenreihe: Titelbild, Titel wie auf der Seite („Hamburg“,
+  „Mit Noah“, „2024 im Rückblick“) und Fotoanzahl. Ein Tipp öffnet die Sammlung
+  auf der Seite „Erinnerungen“ wie ein Tipp dort (Route
+  `drive/photos/memories?open=<id>`), Zurück führt zur Liste. „Alle“ öffnet die
+  Seite. Ohne Karten und ohne Auswahl bleibt der Abschnitt weg; ein älteres
+  Plugin ohne das Feld ändert nichts.
 - **Nur private Fotos:** Weggelassen werden der Arbeitsordner, Fotos unter
   „Prüfen“ und Team-Ordner. Bei einem älteren Plugin ohne `overview` baut die
   App die Übersichtskarten selbst; auch dann zählen nur private Fotos

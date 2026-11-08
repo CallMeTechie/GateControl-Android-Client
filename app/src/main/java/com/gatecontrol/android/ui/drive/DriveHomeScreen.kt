@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DMe
+import com.gatecontrol.android.drive.DMemoryCollection
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DriveLogic
@@ -125,6 +126,8 @@ data class DriveNav(
     val device: () -> Unit = {},
     /** The page „Erinnerungen“ (Drive 1.26, `memoryCollections`). */
     val memories: () -> Unit = {},
+    /** One collection of it opened there (the overview's picks, Drive 1.28). */
+    val memory: (DMemoryCollection) -> Unit = {},
 )
 
 /**
@@ -356,6 +359,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                 map = nav.photoMap,
                                 place = nav.place,
                                 memories = if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memories else null,
+                                // a pick opens its collection on the page „Erinnerungen“ (without the page: „Fotos“)
+                                pick = { c -> if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memory(c) else showTab(DriveLogic.Tab.PHOTOS) },
                             ),
                         )
                     } else if (pageTab == DriveLogic.Tab.PHOTOS) {
