@@ -38,8 +38,11 @@ data class DTodo(val deadlines: List<DDeadline>, val deadlinesTotal: Int, val re
 /** A file of "Zuletzt geöffnet": when the person opened it ([openedAt]) or, without that trace, changed it. */
 data class DRecent(val node: DNode, val openedAt: String?, val changedAt: String?, val areaLabel: String?)
 
-/** A memory group (this day [yearsAgo] years ago): its [cover] and how many photos; [items] when they came along. */
-data class DMemoryCard(val yearsAgo: Int, val date: String?, val cover: DNode, val count: Int, val items: List<DNode> = emptyList())
+/**
+ * A memory group (this day [yearsAgo] years ago): its [cover] and how many photos; [items] when they came along; [id]
+ * the collection of `GET memories/photos` (Drive 1.26, null before).
+ */
+data class DMemoryCard(val yearsAgo: Int, val date: String?, val cover: DNode, val count: Int, val items: List<DNode> = emptyList(), val id: String? = null)
 
 /** The named people (at most eight) and how many are still without a name; [firstUnnamed] when one came along. */
 data class DOverviewPeople(val people: List<DPerson>, val unnamed: Int, val firstUnnamed: Long? = null)
@@ -124,6 +127,7 @@ internal object DriveOverviewJson {
             cover = cover,
             count = (o.int("count") ?: items.size).coerceAtLeast(1),
             items = items.take(30),
+            id = o.str("id")?.trim()?.takeIf { it.isNotEmpty() && it.length <= 100 },
         )
     }
 
@@ -280,7 +284,8 @@ internal object DriveOverviewLogic {
             .sortedBy { it.date }
         val review = classes?.review ?: 0
         val todo = if (deadlines != null || classes != null) DTodo(next.take(3), next.size, review, null, null) else null
-        val cards = memories.orEmpty().filter { it.items.isNotEmpty() }.take(4)
+        // only private photos, only a day with more than 10 of them (Drive 1.26 decides so for every overview)
+        val cards = DriveMemoriesLogic.privateDays(memories.orEmpty()).take(4)
             .map { DMemoryCard(it.yearsAgo, it.date, it.items.first(), it.items.size, it.items) }
         val overviewPeople = people?.let { p ->
             val g = DrivePlacesLogic.groups(p.people)

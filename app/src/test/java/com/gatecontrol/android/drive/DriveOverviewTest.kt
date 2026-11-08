@@ -147,7 +147,8 @@ class DriveOverviewTest {
             today = today,
             deadlines = listOf(d(2, "2026-11-20"), d(1, "2026-10-01"), d(3, "2026-11-02"), d(5, "2026-11-01"), d(6, "2026-12-24")),
             classes = DPhotoClasses(work = 1, private = 2, review = 5),
-            memories = listOf(DMemories(1, "2025-11-01", listOf(node(9, "a.jpg"), node(10, "b.jpg"))), DMemories(2, null, emptyList())),
+            // Drive 1.26: a card only with more than 10 private photos that day
+            memories = listOf(DMemories(1, "2025-11-01", listOf(node(9, "a.jpg")) + (10L..19L).map { node(it, "b$it.jpg") }), DMemories(2, null, (20L..29L).map { node(it, "c$it.jpg") }), DMemories(3, null, emptyList())),
             people = DPeople(
                 listOf(
                     DPerson(1, "Mama", 5, false, null, null),
@@ -170,7 +171,7 @@ class DriveOverviewTest {
         assertEquals(4, o.todo!!.deadlinesTotal)
         assertEquals(5, o.todo!!.review)
         assertNull(o.todo!!.toFile)
-        assertEquals(listOf(1 to 2), o.memories.map { it.yearsAgo to it.count })
+        assertEquals(listOf(1 to 11), o.memories.map { it.yearsAgo to it.count })
         assertEquals(9L, o.memories[0].cover.id)
         assertEquals(listOf("Mama"), o.people!!.people.map { it.name })
         assertEquals(2, o.people!!.unnamed)
