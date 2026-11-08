@@ -435,15 +435,6 @@ fun SettingsScreen(
                 versionName = versionName,
                 uiState = uiState,
                 onCheck = { viewModel.checkForUpdate(versionName) },
-                onInstall = { url ->
-                    // Updates are downloaded in the browser — only ever hand
-                    // it an https URL from the server's update response.
-                    if (url.trim().startsWith("https://", ignoreCase = true)) {
-                        runCatching {
-                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url.trim())))
-                        }
-                    }
-                },
                 onLater = { viewModel.dismissUpdate() },
             )
         }
@@ -523,15 +514,26 @@ private fun SegmentRow(title: String, content: @Composable () -> Unit) {
     }
 }
 
+/**
+ * Settings › Updates of the GitHub build: the check, then "Installieren" — the app downloads the APK itself (at home
+ * from the home gateway's cache), checks hash and signature and opens Android's installer ([ApkUpdateViewModel]).
+ */
 @Composable
 private fun UpdateRow(
     versionName: String,
     uiState: SettingsUiState,
     onCheck: () -> Unit,
-    onInstall: (String) -> Unit,
     onLater: () -> Unit,
+    apk: com.gatecontrol.android.ui.update.ApkUpdateViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val info = uiState.updateInfo
+    val apkState by apk.state.collectAsStateWithLifecycle()
+    // back from "Unbekannte Apps installieren": the installer follows once it is allowed
+    androidx.lifecycle.compose.LifecycleResumeEffect(apk) {
+        apk.onResume(context)
+        onPauseOrDispose { }
+    }
     val desc = when {
         info?.available == true -> stringResource(R.string.settings_update_available, info.version ?: "")
         info != null -> stringResource(R.string.settings_version, versionName) + " · " + stringResource(R.string.settings_update_none)
@@ -544,19 +546,26 @@ private fun UpdateRow(
         trailing = { Icon(GcIcons.Refresh, contentDescription = null, tint = GateControlTheme.extraColors.faint, modifier = Modifier.size(20.dp)) },
     )
     if (info?.available == true) {
+        val busy = apkState is com.gatecontrol.android.update.ApkUpdateState.Downloading || apkState == com.gatecontrol.android.update.ApkUpdateState.Verifying
+        com.gatecontrol.android.ui.update.ApkUpdateStatus(apkState, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             GcOutlineButton(
                 text = stringResource(R.string.settings_update_install),
-                onClick = { info.downloadUrl?.let(onInstall) },
+                onClick = {
+                    if (apkState is com.gatecontrol.android.update.ApkUpdateState.Ready) apk.install(context) else apk.start(context, info, versionName)
+                },
+                enabled = !busy,
+                loading = busy,
                 modifier = Modifier.weight(1f),
                 minHeight = 40.dp,
             )
             GcSecondaryButton(
                 text = stringResource(R.string.settings_update_later),
-                onClick = onLater,
+                onClick = { apk.reset(); onLater() },
+                enabled = !busy,
                 modifier = Modifier.weight(1f),
             )
         }

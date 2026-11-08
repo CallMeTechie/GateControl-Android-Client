@@ -129,6 +129,13 @@ class GateControlApp : Application() {
             }
         }
 
+        // GitHub build: the update APK of an earlier run (installed by now, or given up) goes from the cache.
+        if (!com.gatecontrol.android.update.PlayUpdater.enabled) {
+            appScope.launch {
+                runCatching { EntryPointAccessors.fromApplication(this@GateControlApp, TileEntryPoint::class.java).apkUpdater().cleanup() }
+            }
+        }
+
         // Crash reports of earlier runs go to the server as a support bundle — with the exits Android recorded that
         // the handler never saw (ANR, native crash, ended for memory).
         try {
@@ -171,6 +178,7 @@ class GateControlApp : Application() {
         fun familieStartup(): com.gatecontrol.android.familie.FamilieStartup
         fun updateCoordinator(): com.gatecontrol.android.update.UpdateCoordinator
         fun gateDropStartup(): com.gatecontrol.android.gatedrop.GateDropStartup
+        fun apkUpdater(): com.gatecontrol.android.update.ApkUpdater
     }
 
     private fun installCrashLogger(context: Context) {

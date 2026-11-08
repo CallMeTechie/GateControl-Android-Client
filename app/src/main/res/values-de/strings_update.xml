@@ -108,4 +108,16 @@
         <item quantity="one">vor %d Tag</item>
         <item quantity="other">vor %d Tagen</item>
     </plurals>
+    <!-- Eigener APK-Download (GitHub-Version, Einstellungen › Updates) -->
+    <string name="update_apk_loading">Update wird geladen …</string>
+    <string name="update_apk_loading_home">Update wird zu Hause vom Gateway geladen …</string>
+    <string name="update_apk_verifying">Signatur und Prüfsumme werden geprüft …</string>
+    <string name="update_apk_ready">Geprüft – Android fragt jetzt, ob du installieren willst.</string>
+    <string name="update_apk_ready_home">Vom Heim-Gateway geladen und geprüft – Android fragt jetzt, ob du installieren willst.</string>
+    <string name="update_apk_failed_network">Das Update konnte nicht geladen werden. Versuch es später noch einmal.</string>
+    <string name="update_apk_failed_sha">Die Prüfsumme stimmt nicht. Das Update wurde verworfen.</string>
+    <string name="update_apk_failed_signature">Das Update ist nicht mit dem Schlüssel dieser App signiert. Es wurde verworfen.</string>
+    <string name="update_apk_failed_version">Das geladene Update ist nicht neuer als diese Version.</string>
+    <string name="update_apk_failed_invalid">Das Update ist keine gültige App-Datei.</string>
+    <string name="update_apk_permission">Erlaube GateControl auf der geöffneten Seite „Apps installieren“. Danach geht es von selbst weiter – oder tippe noch einmal auf „Installieren“.</string>
 </resources>

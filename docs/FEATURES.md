@@ -968,7 +968,25 @@ Zurück-Pfeil).
 ### Updates
 - In-App Update-Prüfung gegen den GateControl-Server
 - Semantische Versionserkennung
-- Direkt-Download neuer Versionen
+- **Eigener APK-Download** (nur die Version aus GitHub, `gc.distribution=github`;
+  die Google-Play-Version aktualisiert sich nur über Play): „Installieren“
+  fragt die Update-Prüfung noch einmal mit den LAN-Adressen des Handys
+  (`X-GC-Local`, nur wenn der Server sagt „zu Hause“). Liefert sie `lan`
+  (das APK liegt im Zwischenspeicher des Heim-Gateways, GateControl 1.231+),
+  lädt die App es dort – Zertifikat gepinnt, SHA-256 geprüft, an das WLAN
+  gebunden; bei jedem Fehler nimmt sie still den normalen `downloadUrl`
+  (GitHub ohne Token der App, der Proxy des eigenen Servers mit Token, nur
+  https, keine Umleitung auf http).
+- **Pflichtprüfung vor der Installation:** SHA-256 gegen `sha256` der
+  Update-Prüfung (GateControl 1.252+, sonst entfällt nur dieser Teil), dann
+  immer Paketname, höhere versionCode und das Signaturzertifikat der
+  installierten App (bei Schlüsselwechsel die Signaturlinie). Ein APK, das
+  durchfällt, wird gelöscht und nie angeboten. Danach öffnet Android seinen
+  Installer (`cache/update/update.apk` über den FileProvider); fehlt
+  „Unbekannte Apps installieren“, öffnet die App zuerst diese Seite.
+- Die Berechtigung `REQUEST_INSTALL_PACKAGES` steht nur im Manifest der
+  GitHub-Version (`app/src/github/AndroidManifest.xml`, per
+  `androidComponents` nur bei `gc.distribution=github`), nie im Play-AAB.
 
 ---
 

@@ -379,6 +379,15 @@ tasks.register<JacocoReport>("jacocoTestReport") {
     executionData.setFrom(fileTree("build") { include("jacoco/*.exec") })
 }
 
+// The GitHub build installs its own updates (update/ApkUpdater.kt): only it gets REQUEST_INSTALL_PACKAGES
+// (src/github/AndroidManifest.xml). The Play AAB (-Pgc.distribution=play) never has it (Play policy).
+val gcDistribution = providers.gradleProperty("gc.distribution").getOrElse("github")
+androidComponents {
+    onVariants { variant ->
+        if (gcDistribution == "github") variant.sources.manifests.addStaticManifestFile("src/github/AndroidManifest.xml")
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
