@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.97.1] - 2026-11-08
+
+### Fixes
+- Absturz beim Hochladen in den Tresor (#209)
+
+---
+
 ## [1.97.0] - 2026-11-08
 
 ### Features
