@@ -394,6 +394,16 @@ class DriveApi @Inject constructor(
             DriveJson.memories(o)?.map { it.copy(items = DriveLogic.withoutVaults(it.items)) }
         }
 
+    /** The page „Erinnerungen“ (Drive 1.26, `memoryCollections`): the collections of the private photos. */
+    suspend fun memoryCollections(date: String? = null): DResult<DMemoryList> =
+        get("memories", if (date != null) mapOf("date" to date) else emptyMap(), DriveMemoriesJson::list)
+
+    /** The photos of one collection of [memoryCollections] ([id]), page by page like [photos]. */
+    suspend fun memoryPhotos(id: String, before: String? = null, limit: Int = 120): DResult<DPhotos> =
+        get("memories/photos", buildMap { put("id", id); put("limit", limit.toString()); if (before != null) put("before", before) }) { o ->
+            DriveJson.photos(o)?.let { it.copy(items = DriveLogic.withoutVaults(it.items)) }
+        }
+
     /**
      * The camera uploads' folder ("Meine Dateien › Bilder › Kamera-Uploads"), made when it is missing (`POST photos/camera`,
      * Drive 1.10, feature `photosFolder`).

@@ -896,6 +896,32 @@ durch den Tunnel (kein Multicast, Heimnetz nicht geroutet) also nie.
 - **Ohne Plugin, ohne Recht:** der Druckdienst zeigt keine Drucker, das
   Teilen-Ziel und die Einstellungszeile sind aus.
 
+## Drive: „Erinnerungen“ (Drive-Plugin 1.26, Feature `memoryCollections`)
+In der Übersicht öffnet „Alle“ bei „Erinnerungen“ die Seite **„Erinnerungen“**
+(`DriveMemoriesScreen`, Route `drive/photos/memories`). Ohne das Feature, also bei
+einem älteren Plugin, öffnet „Alle“ wie bisher den Reiter „Fotos“.
+
+- **Inhalt** (`GET memories`): Karten mit Titelbild, nach Abschnitten sortiert:
+  - **Heute in früheren Jahren**: „Heute vor X Jahren“, jedes Jahr mit mehr als 10 Fotos an diesem Tag (± 1 Tag)
+  - **Ausflüge und Reisen**: Tage am Stück an einem Ort, der mindestens 40 km von zu Hause entfernt ist, ab 10 Fotos, z. B. „Hamburg, Lübeck · 5 Tage · Juli 2025 · 87 Fotos“
+  - **Mit deinen Leuten**: „Mit Noah“, benannte Personen ab 10 Fotos
+  - **Diesen Monat in früheren Jahren**: ab 20 Fotos
+  - **Jahresrückblick**: „2025 im Rückblick“, vergangene Jahre ab 50 Fotos
+  - **Orte**: z. B. „Langenlonsheim · 12 Fotos“, ab 10 Fotos
+
+  Die Mindestzahlen legt der Server fest (Plugin `server/memories.js`).
+- **Öffnen:** Eine Karte zeigt ihre Fotos im Fotoraster (`PhotoGrid`,
+  `GET memories/photos?id=`, seitenweise). Ein Tipp öffnet den Foto-Betrachter
+  (`PhotoViewer`), Zurück führt zur Liste. Eine Karte der Übersicht öffnet
+  den Betrachter mit allen Fotos dieser Sammlung.
+- **Nur private Fotos:** Weggelassen werden der Arbeitsordner, Fotos unter
+  „Prüfen“ und Team-Ordner. Bei einem älteren Plugin ohne `overview` baut die
+  App die Übersichtskarten selbst; auch dann zählen nur private Fotos
+  (`DriveMemoriesLogic.privateDays`) und nur Tage mit mehr als 10 Fotos.
+- **Arbeitsfotos:** Mit dem Feature heißt der Schalter in den
+  Arbeitsfoto-Einstellungen „Arbeitsfotos nie im Fotorahmen“. Er gilt nur noch
+  für den Fotorahmen, denn Erinnerungen sind ohnehin privat.
+
 ## Drive: „Offline verfügbar“ (Drive-Plugin 1.20, Feature `offline`)
 Im Menü ⋮ einer Datei oder eines Ordners (Ordner, Suche): „Offline
 verfügbar“. Die App behält dann eine **echte Kopie auf dem Handy**

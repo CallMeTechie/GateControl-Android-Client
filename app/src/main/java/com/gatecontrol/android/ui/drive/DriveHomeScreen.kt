@@ -121,6 +121,8 @@ data class DriveNav(
     val offline: () -> Unit = {},
     /** Mail › "Zum Ablegen" (the overview's attachments to file); null: no mail here. */
     val mailFiling: (() -> Unit)? = null,
+    /** The page „Erinnerungen“ (Drive 1.26, `memoryCollections`). */
+    val memories: () -> Unit = {},
 )
 
 /**
@@ -350,6 +352,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                 who = {},
                                 map = nav.photoMap,
                                 place = nav.place,
+                                memories = if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memories else null,
                             ),
                         )
                     } else if (pageTab == DriveLogic.Tab.PHOTOS) {
