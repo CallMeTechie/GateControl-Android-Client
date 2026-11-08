@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive › „Auf dem Gerät“: die Dateien des Handys (DriveDevice*.kt, drive/device) -->
+<resources>
+    <string name="drive_dev_title">Auf dem Gerät</string>
+    <string name="drive_dev_open">Auf dem Gerät: die Dateien dieses Handys</string>
+
+    <!-- Erster Aufruf: Zugriff auf alle Dateien -->
+    <string name="drive_dev_access_title">Die Dateien auf deinem Handy in Drive</string>
+    <string name="drive_dev_access_text">Damit Drive Downloads, Dokumente, SD-Karte und USB-Sticks zeigen kann, braucht es von Android den Zugriff auf alle Dateien.</string>
+    <string name="drive_dev_access_stays_title">Bleibt auf dem Handy</string>
+    <string name="drive_dev_access_stays">Drive lädt nichts hoch, was du nicht selbst mit „In Drive“ sicherst.</string>
+    <string name="drive_dev_access_revoke_title">Jederzeit widerrufbar</string>
+    <string name="drive_dev_access_revoke">In den Android-Einstellungen unter Apps › GateControl › Berechtigungen.</string>
+    <string name="drive_dev_access_without_title">Ohne Zugriff</string>
+    <string name="drive_dev_access_without">Die Fotos- und Video-Sicherung und Drive selbst funktionieren weiter wie bisher.</string>
+    <string name="drive_dev_access_allow">Zugriff erlauben</string>
+    <string name="drive_dev_access_later">Nicht jetzt</string>
+    <string name="drive_dev_access_none">Android hat die Einstellung nicht geöffnet. Erlaube den Zugriff unter Einstellungen › Apps › GateControl › Zugriff auf alle Dateien.</string>
+    <string name="drive_dev_access_play_title">In der Version aus Google Play noch nicht möglich</string>
+    <string name="drive_dev_access_play">Google Play gibt den Zugriff auf alle Dateien erst nach einer Prüfung frei. Bis dahin gibt es diese Seite nur in der Version von GitHub. Drive selbst funktioniert wie bisher.</string>
+    <string name="drive_dev_access_back">Zurück zu Drive</string>
+
+    <!-- Start der Seite -->
+    <string name="drive_dev_internal">Interner Speicher</string>
+    <string name="drive_dev_used">%1$s von %2$s belegt</string>
+    <string name="drive_dev_bar_media">Bilder &amp; Videos</string>
+    <string name="drive_dev_bar_docs">Dokumente</string>
+    <string name="drive_dev_bar_audio">Audio</string>
+    <string name="drive_dev_bar_other">Apps &amp; Sonstiges</string>
+    <string name="drive_dev_categories">Kategorien</string>
+    <string name="drive_dev_cat_download">Download</string>
+    <string name="drive_dev_cat_images">Bilder</string>
+    <string name="drive_dev_cat_videos">Videos</string>
+    <string name="drive_dev_cat_documents">Dokumente</string>
+    <string name="drive_dev_cat_audio">Audio</string>
+    <string name="drive_dev_cat_archives">APKs &amp; ZIP</string>
+    <string name="drive_dev_count">%1$s · %2$s</string>
+    <string name="drive_dev_counting">Wird gezählt …</string>
+    <string name="drive_dev_places">Speicherorte</string>
+    <string name="drive_dev_free">%1$s frei</string>
+    <string name="drive_dev_free_ro">%1$s frei · nur lesen</string>
+    <string name="drive_dev_sd">SD-Karte</string>
+    <string name="drive_dev_usb">USB-Stick</string>
+    <string name="drive_dev_usb_hint">Erscheint, wenn einer angeschlossen ist</string>
+    <string name="drive_dev_recent">Zuletzt hinzugefügt</string>
+    <string name="drive_dev_recent_empty">In letzter Zeit kam nichts hinzu.</string>
+    <string name="drive_dev_in_drive">In Drive</string>
+    <string name="drive_dev_only_here">Nur hier</string>
+    <string name="drive_dev_in_drive_note">„In Drive“: In deinem Drive liegt eine Datei mit demselben Namen und derselben Größe. „Nur hier“: Drive hat keine solche Datei, sie ist nur auf diesem Handy. Dafür fragt die App deinen Drive nach dem Dateinamen.</string>
+
+    <!-- Ordner, Kategorie -->
+    <string name="drive_dev_sort_newest">Neueste zuerst</string>
+    <string name="drive_dev_sort_name">Name</string>
+    <string name="drive_dev_sort_size">Größe</string>
+    <string name="drive_dev_sort_desc">Sortieren: %1$s</string>
+    <string name="drive_dev_filter_all">Alle</string>
+    <string name="drive_dev_filter_pdf">PDF</string>
+    <string name="drive_dev_filter_images">Bilder</string>
+    <string name="drive_dev_filter_videos">Videos</string>
+    <string name="drive_dev_filter_audio">Audio</string>
+    <string name="drive_dev_filter_documents">Dokumente</string>
+    <string name="drive_dev_filter_archives">ZIP &amp; APK</string>
+    <string name="drive_dev_path">Pfad</string>
+    <string name="drive_dev_empty">Hier ist nichts.</string>
+    <string name="drive_dev_no_access_folder">Android lässt die App diesen Ordner nicht lesen (zum Beispiel die Daten anderer Apps).</string>
+    <string name="drive_dev_gone">Dieser Speicherort ist nicht mehr da – wurde die SD-Karte oder der USB-Stick entfernt?</string>
+    <plurals name="drive_dev_items">
+        <item quantity="one">%1$d Element</item>
+        <item quantity="other">%1$d Elemente</item>
+    </plurals>
+
+    <!-- Aktionen -->
+    <string name="drive_dev_to_drive">In Drive</string>
+    <string name="drive_dev_share">Teilen</string>
+    <string name="drive_dev_delete">Löschen</string>
+    <string name="drive_dev_more">Mehr</string>
+    <string name="drive_dev_copy">Kopieren</string>
+    <string name="drive_dev_unzip">ZIP entpacken</string>
+    <string name="drive_dev_open_other">Mit anderer App öffnen</string>
+    <plurals name="drive_dev_queued">
+        <item quantity="one">%1$d Datei wird in Drive hochgeladen</item>
+        <item quantity="other">%1$d Dateien werden in Drive hochgeladen</item>
+    </plurals>
+    <string name="drive_dev_folders_skipped">Ordner gehen nicht über „In Drive“ – dafür gibt es „Ordner sichern“ im Drive-Menü.</string>
+    <string name="drive_dev_share_folders">Ordner lassen sich nicht teilen, nur Dateien.</string>
+    <plurals name="drive_dev_delete_title">
+        <item quantity="one">%1$d Element löschen?</item>
+        <item quantity="other">%1$d Elemente löschen?</item>
+    </plurals>
+    <plurals name="drive_dev_delete_direct">
+        <item quantity="one">%1$d wird endgültig gelöscht. Das lässt sich nicht rückgängig machen.</item>
+        <item quantity="other">%1$d werden endgültig gelöscht. Das lässt sich nicht rückgängig machen.</item>
+    </plurals>
+    <plurals name="drive_dev_delete_trash">
+        <item quantity="one">%1$d kommt in den Papierkorb von Android (30 Tage wiederherstellbar).</item>
+        <item quantity="other">%1$d kommen in den Papierkorb von Android (30 Tage wiederherstellbar).</item>
+    </plurals>
+    <plurals name="drive_dev_deleted">
+        <item quantity="one">%1$d gelöscht</item>
+        <item quantity="other">%1$d gelöscht</item>
+    </plurals>
+    <string name="drive_dev_delete_failed">Nicht alles ließ sich löschen.</string>
+    <string name="drive_dev_target_move">Verschieben nach</string>
+    <string name="drive_dev_target_copy">Kopieren nach</string>
+    <string name="drive_dev_target_here">Hierher</string>
+    <string name="drive_dev_target_into_itself">Ein Ordner kann nicht in sich selbst.</string>
+    <plurals name="drive_dev_moved">
+        <item quantity="one">%1$d verschoben</item>
+        <item quantity="other">%1$d verschoben</item>
+    </plurals>
+    <plurals name="drive_dev_copied">
+        <item quantity="one">%1$d kopiert</item>
+        <item quantity="other">%1$d kopiert</item>
+    </plurals>
+    <plurals name="drive_dev_transfer_failed">
+        <item quantity="one">%1$d ging nicht.</item>
+        <item quantity="other">%1$d gingen nicht.</item>
+    </plurals>
+    <string name="drive_dev_rename_failed">Umbenennen ging nicht – gibt es den Namen schon?</string>
+    <string name="drive_dev_mkdir_failed">Der Ordner ließ sich nicht anlegen.</string>
+    <string name="drive_dev_unzip_ask">„%1$s“ in den neuen Ordner „%2$s“ entpacken?</string>
+    <plurals name="drive_dev_unzip_done">
+        <item quantity="one">%1$d Datei entpackt</item>
+        <item quantity="other">%1$d Dateien entpackt</item>
+    </plurals>
+    <plurals name="drive_dev_unzip_skipped">
+        <item quantity="one">%1$d unsicherer Eintrag übersprungen (er wollte aus dem Ordner heraus).</item>
+        <item quantity="other">%1$d unsichere Einträge übersprungen (sie wollten aus dem Ordner heraus).</item>
+    </plurals>
+    <string name="drive_dev_unzip_too_many">Zu viele Einträge (mehr als %1$d) – nicht entpackt.</string>
+    <string name="drive_dev_unzip_too_large">Zu groß zum Entpacken oder zu wenig Platz frei – nicht entpackt.</string>
+    <string name="drive_dev_unzip_failed">Die ZIP-Datei ließ sich nicht entpacken (beschädigt oder mit Passwort?).</string>
+    <string name="drive_dev_busy">Einen Moment …</string>
+    <string name="drive_dev_details_where">Ort</string>
+    <string name="drive_dev_details_size">Größe</string>
+    <string name="drive_dev_details_modified">Geändert</string>
+    <string name="drive_dev_details_type">Art</string>
+    <string name="drive_dev_details_drive">Drive</string>
+    <string name="drive_dev_details_drive_unknown">Unbekannt (keine Antwort von Drive)</string>
+    <string name="drive_dev_too_large_view">Zu groß für die Ansicht hier.</string>
+    <string name="drive_dev_cannot_show">Diese Datei lässt sich hier nicht zeigen.</string>
+</resources>

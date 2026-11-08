@@ -1913,6 +1913,7 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 settings = { nav.go(Screen.DriveSettings.route) },
                 cleanup = { nav.go(Screen.DriveCleanup.route) },
                 backup = { nav.go(Screen.DriveBackup.route) },
+                device = { nav.go(Screen.DriveDevice.route) },
                 // Mail › "Zum Ablegen" (only where Mail's routes are there)
                 mailFiling = { runCatching { navController.navigate(Screen.MailFiling.route) } },
             ),
@@ -2027,6 +2028,25 @@ private fun NavGraphBuilder.driveRoutes(
     }
     composable(Screen.DriveStorage.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveStorageScreen(onBack = back, onFolder = folder) }
+    }
+    composable(Screen.DriveDevice.route) {
+        GcContentWidth {
+            com.gatecontrol.android.ui.drive.DriveDeviceScreen(
+                onBack = back,
+                onFolder = { navController.navigate(Screen.DriveDeviceFiles.folder(it)) },
+                onCategory = { navController.navigate(Screen.DriveDeviceFiles.category(it)) },
+                onRecent = { navController.navigate(Screen.DriveDeviceFiles.RECENT) },
+            )
+        }
+    }
+    composable(
+        Screen.DriveDeviceFiles.route,
+        arguments = listOf(
+            navArgument(Screen.DriveDeviceFiles.ARG_PATH) { type = NavType.StringType; nullable = true; defaultValue = null },
+            navArgument(Screen.DriveDeviceFiles.ARG_CAT) { type = NavType.StringType; nullable = true; defaultValue = null },
+        ),
+    ) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveDeviceFilesScreen(onBack = back) }
     }
     composable(Screen.DriveAlbum.route, arguments = listOf(navArgument(Screen.DriveAlbum.ARG_ID) { type = NavType.StringType })) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DriveAlbumScreen(onBack = back) }
