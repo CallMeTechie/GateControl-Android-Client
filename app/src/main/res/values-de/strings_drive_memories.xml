@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.26: die Seite „Erinnerungen“ (GET memories, Merkmal memoryCollections) -->
+<resources>
+    <string name="drive_mem_title">Erinnerungen</string>
+    <string name="drive_mem_private">Nur private Fotos – nichts aus deinem Arbeitsordner und nichts, was noch unter „Prüfen“ wartet.</string>
+    <string name="drive_mem_none">Noch keine Erinnerungen. Sie erscheinen, sobald genug private Fotos da sind – zum Beispiel mehr als 10 an einem Tag.</string>
+    <string name="drive_mem_empty">Hier sind keine Fotos mehr.</string>
+    <string name="drive_mem_sec_day">Heute in früheren Jahren</string>
+    <string name="drive_mem_sec_trip">Ausflüge und Reisen</string>
+    <string name="drive_mem_sec_person">Mit deinen Leuten</string>
+    <string name="drive_mem_sec_month">Diesen Monat in früheren Jahren</string>
+    <string name="drive_mem_sec_year">Jahresrückblick</string>
+    <string name="drive_mem_sec_place">Orte</string>
+    <string name="drive_mem_trip">Ausflug</string>
+    <string name="drive_mem_with">Mit %1$s</string>
+    <string name="drive_mem_year">%1$s im Rückblick</string>
+    <plurals name="drive_mem_month_years">
+        <item quantity="one">Diesen Monat vor einem Jahr</item>
+        <item quantity="other">Diesen Monat vor %1$d Jahren</item>
+    </plurals>
+    <plurals name="drive_mem_days">
+        <item quantity="one">%1$d Tag</item>
+        <item quantity="other">%1$d Tage</item>
+    </plurals>
+    <string name="drive_work_frame">Arbeitsfotos nie im Fotorahmen</string>
+    <string name="drive_work_frame_desc">Erinnerungen zeigen immer nur private Fotos.</string>
+</resources>
