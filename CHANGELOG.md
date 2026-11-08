@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.97.0] - 2026-11-08
+
+### Features
+- Tresor-Dateien offline – nur Ciphertext auf dem Handy, Entsperren auch ohne Netz (#207)
+
+---
+
+## [1.96.0] - 2026-11-08
+
+### Features
+- Seite „Erinnerungen“ (Drive 1.26) – „Alle“ öffnet die Sammlungen (#206)
+
+---
+
+## [1.95.2] - 2026-11-08
+
+### Fixes
+- eindeutige Symbole für Personen und Offline, kein doppeltes Zahnrad (#205)
+
+---
+
 ## [1.95.1] - 2026-11-08
 
 ### Fixes

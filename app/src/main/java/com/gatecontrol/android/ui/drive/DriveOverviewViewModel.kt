@@ -134,6 +134,15 @@ class DriveOverviewViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            // Drive 1.26: the collection's photos (every one up to a page, only private ones)
+            val id = card.id
+            if (id != null && live.current()?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) {
+                val items = api.memoryPhotos(id, limit = MEMORY_PHOTOS).valueOrNull()?.items?.takeIf { it.isNotEmpty() }
+                if (items != null) {
+                    _viewing.value = items
+                    return@launch
+                }
+            }
             val groups = api.memories(LocalDate.now().toString()).valueOrNull().orEmpty()
             val items = groups.firstOrNull { it.yearsAgo == card.yearsAgo }?.items?.takeIf { it.isNotEmpty() }
             _viewing.value = items ?: card.items.ifEmpty { listOf(card.cover) }
@@ -145,4 +154,9 @@ class DriveOverviewViewModel @Inject constructor(
     }
 
     suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
+
+    private companion object {
+        /** The photos of a memory the viewer gets at once (the server's page at most). */
+        const val MEMORY_PHOTOS = 200
+    }
 }

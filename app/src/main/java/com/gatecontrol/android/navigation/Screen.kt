@@ -329,6 +329,8 @@ sealed class Screen(val route: String) {
     }
     /** "Personen" (Drive 1.16, feature `photoPeople`). */
     data object DrivePeople : Screen("drive/photos/people")
+    /** Drive › „Erinnerungen“ (Drive 1.26, the overview's „Alle“). */
+    data object DriveMemories : Screen("drive/photos/memories")
     /** One person of the photos. */
     data object DrivePerson : Screen("drive/photos/person/{id}") {
         const val ARG_ID = "id"

@@ -451,9 +451,11 @@ internal fun WorkPhotoSections(onCleanup: () -> Unit, viewModel: DriveWorkViewMo
             onCheckedChange = viewModel::setRemoveAfter,
         )
         GcRowDivider()
+        // Drive 1.26 (memoryCollections): memories are private anyway — the switch is the photo frame's only
+        val frameOnly = me?.has(com.gatecontrol.android.drive.DMe.FEATURE_MEMORY_COLLECTIONS) == true
         GcSwitchRow(
-            label = stringResource(R.string.drive_work_memories),
-            description = if (classes) null else stringResource(R.string.drive_work_needs_1130),
+            label = stringResource(if (frameOnly) R.string.drive_work_frame else R.string.drive_work_memories),
+            description = if (!classes) stringResource(R.string.drive_work_needs_1130) else if (frameOnly) stringResource(R.string.drive_work_frame_desc) else null,
             checked = !s.inMemories,
             enabled = classes && !busy,
             onCheckedChange = viewModel::setNeverInMemories,

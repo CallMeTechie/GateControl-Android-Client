@@ -97,6 +97,8 @@ internal data class OverviewActions(
     val who: () -> Unit,
     val map: () -> Unit,
     val place: (String) -> Unit,
+    /** „Alle“ of „Erinnerungen“: the page „Erinnerungen“ (Drive 1.26); null: an older Drive — „Fotos“ as before. */
+    val memories: (() -> Unit)? = null,
 )
 
 /** The small map of "Orte": a still picture this big (the mockup's 120 × 84, wide enough for the attribution). */
@@ -425,7 +427,7 @@ private fun RecentSection(recent: List<DRecent>, areas: List<DArea>, actions: Ov
 /** "Erinnerungen": "Heute vor 2 Jahren", "Vor einem Jahr" with the cover photo; a tap shows the photos. */
 @Composable
 private fun MemoriesSection(memories: List<DMemoryCard>, actions: OverviewActions) {
-    OverviewHead(stringResource(R.string.drive_ov_memories), link = stringResource(R.string.drive_pp_all), onLink = actions.photos)
+    OverviewHead(stringResource(R.string.drive_ov_memories), link = stringResource(R.string.drive_pp_all), onLink = actions.memories ?: actions.photos)
     val today = remember { LocalDate.now() }
     val zone = remember { ZoneId.systemDefault() }
     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

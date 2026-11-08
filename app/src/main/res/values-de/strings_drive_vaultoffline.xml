@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive-Tresore: Tresor-Dateien offline verfügbar – nur der verschlüsselte Inhalt liegt auf dem Handy. -->
+<resources>
+    <string name="drive_vault_offline_all">Ganzen Tresor offline halten</string>
+    <string name="drive_vault_offline_folder">Diesen Ordner offline halten</string>
+    <string name="drive_vault_offline_none">Liegt dann verschlüsselt auf diesem Handy. Öffnen geht auch ohne Netz.</string>
+    <plurals name="drive_vault_offline_of">
+        <item quantity="one">%1$d von %2$d Datei offline · %3$s verschlüsselt auf dem Handy</item>
+        <item quantity="other">%1$d von %2$d Dateien offline · %3$s verschlüsselt auf dem Handy</item>
+    </plurals>
+    <plurals name="drive_vault_offline_count">
+        <item quantity="one">%1$d Datei offline · %2$s verschlüsselt auf dem Handy</item>
+        <item quantity="other">%1$d Dateien offline · %2$s verschlüsselt auf dem Handy</item>
+    </plurals>
+    <string name="drive_vault_offline_badge">Offline</string>
+    <string name="drive_vault_offline_loading">Wird geladen</string>
+    <string name="drive_vault_offline_item">Offline verfügbar</string>
+    <string name="drive_vault_offline_item_desc">Liegt verschlüsselt auf diesem Handy. Öffnen geht auch ohne Netz.</string>
+    <string name="drive_vault_offline_from_folder">Kommt vom Ordner darüber – dort ausschalten.</string>
+    <string name="drive_vault_offline_from_vault">Der ganze Tresor ist offline.</string>
+    <string name="drive_vault_offline_needs_net">Ändern geht nur mit Netz.</string>
+    <string name="drive_vault_offline_in_folder">%1$d offline</string>
+    <string name="drive_vault_offline_note">„Offline“: liegt verschlüsselt auf diesem Handy. Geöffnet wird wie immer erst nach dem Entsperren, nur im Arbeitsspeicher.</string>
+    <string name="drive_vault_no_net_title">Kein Netz</string>
+    <plurals name="drive_vault_no_net_text">
+        <item quantity="one">%1$d Datei ist offline da. Die anderen öffnen sich, sobald du wieder verbunden bist.</item>
+        <item quantity="other">%1$d Dateien sind offline da. Die anderen öffnen sich, sobald du wieder verbunden bist.</item>
+    </plurals>
+    <string name="drive_vault_offline_ready">Offline da</string>
+    <string name="drive_vault_offline_net_only">Nur mit Netz</string>
+    <string name="drive_vault_offline_key_note">Damit das ohne Netz klappt, merkt sich das Handy auch den verpackten Tresor-Schlüssel. Er bleibt mit dem Geräteschlüssel aus dem Android-Keystore geschützt; zum Öffnen musst du den Tresor wie immer entsperren.</string>
+</resources>

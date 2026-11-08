@@ -139,6 +139,11 @@ data class DMe(
          * (`X-GC-Local`) with its lists.
          */
         const val FEATURE_HOME_CACHE_PREVIEWS = "homeCachePreviews"
+        /**
+         * Drive 1.26: the page „Erinnerungen“ — `GET memories` (collections of the private photos with their counts and
+         * covers) and `GET memories/photos?id=`; the overview's „Alle“ opens it (without: „Fotos“ as before).
+         */
+        const val FEATURE_MEMORY_COLLECTIONS = "memoryCollections"
     }
 }
 

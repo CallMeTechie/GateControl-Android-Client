@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.26: the page "Memories" (GET memories, feature memoryCollections) -->
+<resources>
+    <string name="drive_mem_title">Memories</string>
+    <string name="drive_mem_private">Only private photos – nothing from your work folder and nothing still waiting under “Review”.</string>
+    <string name="drive_mem_none">No memories yet. They appear once there are enough private photos – for example more than 10 on one day.</string>
+    <string name="drive_mem_empty">There are no photos here any more.</string>
+    <string name="drive_mem_sec_day">On this day in earlier years</string>
+    <string name="drive_mem_sec_trip">Trips and travels</string>
+    <string name="drive_mem_sec_person">With your people</string>
+    <string name="drive_mem_sec_month">This month in earlier years</string>
+    <string name="drive_mem_sec_year">Year in review</string>
+    <string name="drive_mem_sec_place">Places</string>
+    <string name="drive_mem_trip">Trip</string>
+    <string name="drive_mem_with">With %1$s</string>
+    <string name="drive_mem_year">%1$s in review</string>
+    <plurals name="drive_mem_month_years">
+        <item quantity="one">This month a year ago</item>
+        <item quantity="other">This month %1$d years ago</item>
+    </plurals>
+    <plurals name="drive_mem_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="drive_work_frame">Never show work photos on the photo frame</string>
+    <string name="drive_work_frame_desc">Memories always show private photos only.</string>
+</resources>

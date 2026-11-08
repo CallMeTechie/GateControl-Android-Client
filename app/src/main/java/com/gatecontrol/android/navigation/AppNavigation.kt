@@ -1914,6 +1914,7 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 cleanup = { nav.go(Screen.DriveCleanup.route) },
                 backup = { nav.go(Screen.DriveBackup.route) },
                 device = { nav.go(Screen.DriveDevice.route) },
+                memories = { nav.go(Screen.DriveMemories.route) },
                 // Mail › "Zum Ablegen" (only where Mail's routes are there)
                 mailFiling = { runCatching { navController.navigate(Screen.MailFiling.route) } },
             ),
@@ -1984,6 +1985,9 @@ private fun NavGraphBuilder.driveRoutes(
     }
     composable(Screen.DrivePerson.route, arguments = listOf(navArgument(Screen.DrivePerson.ARG_ID) { type = NavType.StringType })) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DrivePersonScreen(onBack = back, onPlace = { key, person -> go(Screen.DrivePhotoPlace.create(key, person = person)) }) }
+    }
+    composable(Screen.DriveMemories.route) {
+        GcContentWidth { com.gatecontrol.android.ui.drive.DriveMemoriesScreen(onBack = back) }
     }
     composable(Screen.DrivePlacesSettings.route) {
         GcContentWidth { com.gatecontrol.android.ui.drive.DrivePlacesSettingsScreen(onBack = back) }

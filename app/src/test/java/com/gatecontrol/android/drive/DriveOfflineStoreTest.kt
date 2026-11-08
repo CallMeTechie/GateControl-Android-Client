@@ -71,17 +71,17 @@ class DriveOfflineStoreTest {
     }
 
     @Test
-    fun `vault files and folders are never kept, a blocked file loses its copy`() {
-        val vault = node(1, vault = "0123456789abcdef0123456789abcdef")
+    fun `folders are never kept, a vault file is planned as its ciphertext, a blocked file loses its copy`() {
+        val vault = node(1, vault = "AAAAAAAAAAAAAAAAAAAAAA")
         val dir = node(2, dir = true)
         val bad = node(3, scan = MediaScan(state = MediaScan.INFECTED, blocked = true))
         val p = DriveOfflineStoreLogic.plan(listOf(want(vault), want(dir), want(bad)), mapOf(3L to stored(bad)), 100 * mb)
-        assertNull(p.copies[1L])
+        assertEquals("AAAAAAAAAAAAAAAAAAAAAA", p.copies[1L]?.vaultId)
         assertNull(p.copies[2L])
         assertEquals(DriveOfflineCopy.State.FAILED, p.copies[3L]?.state)
         assertNull(p.copies[3L]?.file)
         assertEquals(listOf(3L), p.remove.map { it.id })
-        assertTrue(p.download.isEmpty())
+        assertEquals(listOf(1L), p.download)
     }
 
     @Test

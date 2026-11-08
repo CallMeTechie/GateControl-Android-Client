@@ -123,6 +123,8 @@ data class DriveNav(
     val mailFiling: (() -> Unit)? = null,
     /** "Auf dem Gerät": the files of this phone (the hard disk beside the switch). */
     val device: () -> Unit = {},
+    /** The page „Erinnerungen“ (Drive 1.26, `memoryCollections`). */
+    val memories: () -> Unit = {},
 )
 
 /**
@@ -353,6 +355,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                 who = {},
                                 map = nav.photoMap,
                                 place = nav.place,
+                                memories = if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memories else null,
                             ),
                         )
                     } else if (pageTab == DriveLogic.Tab.PHOTOS) {
