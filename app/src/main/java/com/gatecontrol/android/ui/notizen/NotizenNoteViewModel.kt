@@ -340,7 +340,6 @@ class NotizenNoteViewModel @Inject constructor(
     override fun onCleared() {
         // what was typed last goes out even when the screen closes before the autosave
         if (_ui.value.dirty) repo.saveLater { save() }
-        super.onCleared()
     }
 
     private companion object {

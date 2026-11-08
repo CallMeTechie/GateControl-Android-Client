@@ -240,10 +240,11 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
     var dialog by rememberSaveable { mutableStateOf<String?>(null) }
     var more by remember { mutableStateOf(false) }
     val maxBytes = (ui.me?.attachMB ?: 25) * 1024L * 1024L
+    val tooLarge = stringResource(R.string.notizen_msg_too_large)
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             val f = withContext(Dispatchers.IO) { readPicked(context, uri, maxBytes) }
-            if (f == null) vm.consumeMessage().also { snack.showSnackbar(context.getString(R.string.notizen_msg_too_large)) } else vm.attach(f.first, f.second, f.third)
+            if (f == null) snack.showSnackbar(tooLarge) else vm.attach(f.first, f.second, f.third)
         }
     }
     val d = ui.detail

@@ -318,6 +318,5 @@ class NotizenImportViewModel @Inject constructor(
 
     override fun onCleared() {
         source?.close()
-        super.onCleared()
     }
 }

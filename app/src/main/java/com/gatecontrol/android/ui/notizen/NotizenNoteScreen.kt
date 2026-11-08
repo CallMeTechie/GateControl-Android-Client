@@ -171,10 +171,13 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
     if (ui.vaultId != null) SecureWindow()
     BackHandler(ui.editing) { vm.stopEditing() }
     val maxBytes = (ui.me?.attachMB ?: 25) * 1024L * 1024L
+    val tooLarge = stringResource(R.string.notizen_msg_too_large)
+    val col1 = stringResource(R.string.notizen_table_col1)
+    val col2 = stringResource(R.string.notizen_table_col2)
     val attach: (Uri) -> Unit = { u ->
         scope.launch {
             val f = withContext(Dispatchers.IO) { readPicked(context, u, maxBytes) }
-            if (f == null) snack.showSnackbar(context.getString(R.string.notizen_msg_too_large)) else vm.attach(f.first, f.second, f.third, field.selection.end, ::recognizeText)
+            if (f == null) snack.showSnackbar(tooLarge) else vm.attach(f.first, f.second, f.third, field.selection.end, ::recognizeText)
         }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { u -> if (u != null) attach(u) }
@@ -295,7 +298,7 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
                     onHeading = { ensureEdit { edit(NoteMd.linePrefix(field.text, field.selection.start, "## ")) } },
                     onList = { ensureEdit { edit(NoteMd.linePrefix(field.text, field.selection.start, "- ")) } },
                     onCheck = { ensureEdit { edit(NoteMd.linePrefix(field.text, field.selection.start, "- [ ] ")) } },
-                    onTable = { ensureEdit { edit(NoteMd.table(field.text, field.selection.start, listOf(context.getString(R.string.notizen_table_col1), context.getString(R.string.notizen_table_col2)))) } },
+                    onTable = { ensureEdit { edit(NoteMd.table(field.text, field.selection.start, listOf(col1, col2))) } },
                     onAttach = { pick.launch(arrayOf("*/*")) },
                     onPhoto = takePhoto,
                     onLineTask = { vm.lineToTask(NoteMd.lineOf(field.text, field.selection.start)) },
