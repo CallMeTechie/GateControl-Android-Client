@@ -743,6 +743,46 @@ Abgleich über die normale Server-Adresse, auch ohne aktiven Tunnel.
   „Entsperren“ solange gesperrt, „In Vault suchen …“ (wahlweise für diese
   App merken) und Speichern neuer Logins. Die Vorschläge zeigen nur Titel
   und Benutzername; das Passwort wird erst beim Auswählen eingesetzt.
+- **Browser ohne eigenes Autofill** (Edge, Samsung Internet, DuckDuckGo,
+  Vivaldi, Kiwi, Ecosia, Opera Mini/GX/Touch, Chromium-Ableger, Brave und
+  Chrome vor 135): `compatibility-package` in
+  `res/xml/vault_autofill_service.xml` schaltet Androids
+  Autofill-Kompatibilitätsmodus ein (Chrome mit Beta/Dev/Canary und Brave nur
+  bis zur Version mit eigenem Autofill – Chrome unterstützt den Modus nicht
+  mehr). Die Domain der Seite steht dann in der Adressleiste des Browsers
+  (`VaultBrowsers.URL_BARS`, View-Ids je Paket) und zählt nur, wenn dort
+  eindeutig eine Adresse steht (ein Wort, `http(s)://` oder ohne Schema, Host
+  mit Punkt; kein Suchbegriff, kein Seitentitel, nicht `edge://`, `about:`,
+  `javascript:`, keine Benutzerangaben `@`). Die Adressleiste wird nie als
+  Feld zum Ausfüllen genommen und nicht, solange man in ihr tippt. Firefox und
+  Opera melden die Domain selbst und laufen ohne den Modus.
+- **Browser mit eigenem Autofill für andere Dienste** (Chrome ab 135 mit
+  „Autofill mit einem anderen Dienst“, Edge ab 147 mit dem Passwortmanager von
+  Android): Chromium meldet `webDomain`/`webScheme` am Wurzelknoten der Seite,
+  ein Frame einer anderen Seite an seinem eigenen. Jedes Feld gehört zur Seite
+  des nächsten Knotens darüber; nur `http`/`https` zählt (`chrome://`,
+  `edge://`, `file:`, `blob:` … nicht). Liegen die Felder auf verschiedenen
+  Seiten (Anmelde-Frame eines anderen Anbieters, Werbe-Frame), entscheidet
+  die Seite des Passworts; Felder anderer Seiten werden nicht ausgefüllt
+  (`VaultBrowsers.pickPage`).
+- **Sicherheit:** Eine Webseite passt nur über ihre Domain, nie über das
+  Paket des Browsers. Ohne sicher erkannte Domain schlägt Vault nichts vor
+  („Seite nicht erkannt“, nur „In Vault suchen …“ zum selbst Wählen), merkt
+  den Browser nie als „App“ eines Logins und speichert neue Logins ohne
+  App-Zuordnung. Gespeichert wird auch bei Seiten, die per Skript anmelden
+  (`SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE`).
+- **Hinweis „Browser einrichten“** (Vault-Einstellungen unter „In anderen Apps
+  ausfüllen“ und im letzten Schritt der Einrichtung): nur für installierte
+  Browser, die noch einen eigenen Schalter brauchen – Chrome (Einstellungen ›
+  Autofill-Dienste › „Autofill mit einem anderen Dienst“), Edge ab 147
+  (Passwort-Einstellungen: Passwortmanager von Android statt des
+  Edge-eigenen; die Auswahl erscheint erst, wenn in Android nicht „Google“ der
+  Autofill-Dienst ist), Brave und Vivaldi. Ob der Schalter schon an ist, fragt
+  die App beim Browser selbst ab (Chromiums Content-Provider
+  `<paket>.AutofillThirdPartyModeContentProvider`, `0`/`1`); ohne Antwort
+  entscheidet die Version. Der Knopf „<Browser> öffnen“ öffnet dessen
+  Autofill-Einstellungen (`ACTION_APPLICATION_PREFERENCES`), sonst den
+  Browser. Die Pakete stehen in `<queries>` des Manifests.
 
 ---
 

@@ -121,9 +121,11 @@ class VaultAutofillActivity : FragmentActivity() {
         val entries by viewModel.entries.collectAsStateWithLifecycle()
         var query by rememberSaveable { mutableStateOf("") }
         // an app (no web page): offer to remember the pick for it
-        var remember by rememberSaveable { mutableStateOf(form.webDomain == null) }
-        val label = form.webDomain ?: VaultAutofillService.appLabel(this, form.packageName)
-        val fitting = remember(entries, form) { VaultMatch.matches(entries, form.packageName, form.webDomain) }
+        // never for a web page: a browser is no app of a login
+        val mayRemember = !form.web && form.webDomain == null
+        var remember by rememberSaveable { mutableStateOf(mayRemember) }
+        val label = form.webDomain ?: if (form.web) stringResource(R.string.vault_af_unknown_page) else VaultAutofillService.appLabel(this, form.packageName)
+        val fitting = remember(entries, form) { VaultMatch.matches(entries, form.packageName, form.webDomain, form.web) }
         val live = entries.filter { !it.trashed && (it.data.username.isNotEmpty() || it.data.password.isNotEmpty()) }
         val shown = if (query.isBlank()) fitting.ifEmpty { live } else live.filter {
             listOf(it.data.title, it.data.username, it.data.urls.joinToString(" ")).any { s -> s.contains(query.trim(), true) }
@@ -140,7 +142,7 @@ class VaultAutofillActivity : FragmentActivity() {
                         VaultEntryRow(e, shared = false, showCode = false, onClick = { pick(viewModel, form, e, remember) })
                     }
                 }
-                if (form.webDomain == null) {
+                if (mayRemember) {
                     Row(
                         Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(remember, role = Role.Checkbox) { remember = it },
                         verticalAlignment = Alignment.CenterVertically,
@@ -155,7 +157,7 @@ class VaultAutofillActivity : FragmentActivity() {
 
     private fun pick(viewModel: VaultViewModel, form: VaultAutofillForm, e: Entry, rememberApp: Boolean) {
         val ds = VaultAutofillService.dataset(this, form, e) ?: return
-        if (rememberApp && form.webDomain == null && form.packageName.isNotEmpty() && !VaultMatch.fitsApp(e.data, form.packageName)) {
+        if (rememberApp && !form.web && form.webDomain == null && form.packageName.isNotEmpty() && !VaultMatch.fitsApp(e.data, form.packageName)) {
             viewModel.save(e.id, e.vaultId, e.data.copy(apps = e.data.apps + form.packageName)) { }
         }
         setResult(RESULT_OK, Intent().putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, ds))
@@ -167,13 +169,13 @@ class VaultAutofillActivity : FragmentActivity() {
         val x = GateControlTheme.extraColors
         val vaults by viewModel.vaults.collectAsStateWithLifecycle()
         val entries by viewModel.entries.collectAsStateWithLifecycle()
-        val label = save.webDomain?.let { VaultMatch.host(it) } ?: VaultAutofillService.appLabel(this, save.packageName)
+        val label = save.webDomain?.let { VaultMatch.host(it) } ?: if (save.web) "" else VaultAutofillService.appLabel(this, save.packageName)
         var title by rememberSaveable { mutableStateOf(label) }
         var username by rememberSaveable { mutableStateOf(save.username) }
         var busy by remember { mutableStateOf(false) }
         // the same login already there (same site / app and user name): its password is updated
         val existing = remember(entries) {
-            VaultMatch.matches(entries, save.packageName, save.webDomain).firstOrNull { it.data.username.equals(save.username, true) }
+            VaultMatch.matches(entries, save.packageName, save.webDomain, save.web).firstOrNull { it.data.username.equals(save.username, true) }
         }
         val target = existing?.vaultId ?: vaults.firstOrNull { it.vault.personal }?.id ?: vaults.firstOrNull { it.vault.canWrite }?.id
         val saved = stringResource(R.string.vault_af_saved)
@@ -189,7 +191,7 @@ class VaultAutofillActivity : FragmentActivity() {
                         ?: EntryData(
                             type = "login", title = title.trim(),
                             urls = listOfNotNull(save.webDomain?.let { "https://$it" }),
-                            apps = if (save.webDomain == null) listOf(save.packageName) else emptyList(),
+                            apps = VaultAutofillRules.appsToRemember(save.packageName, save.webDomain, save.web),
                             fields = mapOf("username" to username, "password" to save.password),
                         )
                     viewModel.save(existing?.id, target!!, data) { r ->

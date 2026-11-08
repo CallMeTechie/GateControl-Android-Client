@@ -1,4 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Vault as Android's autofill service (Settings › Passwords › Autofill service). -->
+<!-- Vault as Android's autofill service (Settings › Passwords › Autofill service).
+
+     compatibility-package: browsers without Android's own autofill support
+     (Chromium browsers such as Edge, Samsung Internet, DuckDuckGo) get
+     Android's autofill compatibility mode (API 28+): the form is read
+     through the browser's accessibility tree, the page's address from its
+     address bar (VaultBrowsers.URL_BARS – without a safely read address
+     Vault suggests nothing). maxLongVersionCode caps a browser whose newer
+     versions support autofill themselves (Chrome, its Beta, Dev and Canary
+     from 135 with "Autofill using another service" – Chrome no longer
+     supports the compatibility mode –, Brave): from there on they use the
+     normal way, once the switch in the browser is on (the hint in Vault's
+     settings, VaultBrowsers.hints). Edge stays in the mode (it works there;
+     Edge 147+ can also be switched to Android's password manager). Firefox and Opera support autofill themselves and are not
+     listed (they work without the mode). Keep in step with
+     VaultBrowsers.URL_BARS (VaultAutofillRulesTest checks it). -->
 <autofill-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:settingsActivity="com.gatecontrol.android.MainActivity" />
+    android:settingsActivity="com.gatecontrol.android.MainActivity">
+    <compatibility-package android:name="app.vanadium.browser" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.android.browser" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.android.chrome" android:maxLongVersionCode="711900039" />
+    <compatibility-package android:name="com.brave.browser" android:maxLongVersionCode="427912623" />
+    <compatibility-package android:name="com.brave.browser_beta" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.brave.browser_dev" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.brave.browser_nightly" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.chrome.beta" android:maxLongVersionCode="711900039" />
+    <compatibility-package android:name="com.chrome.canary" android:maxLongVersionCode="711900039" />
+    <compatibility-package android:name="com.chrome.dev" android:maxLongVersionCode="711900039" />
+    <compatibility-package android:name="com.duckduckgo.mobile.android" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.ecosia.android" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.kiwibrowser.browser" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.kiwibrowser.browser.dev" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.microsoft.emmx" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.microsoft.emmx.beta" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.microsoft.emmx.canary" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.microsoft.emmx.dev" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.naver.whale" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.opera.gx" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.opera.mini.native" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.opera.mini.native.beta" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.opera.touch" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.sec.android.app.sbrowser" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.sec.android.app.sbrowser.beta" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.vivaldi.browser" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="com.vivaldi.browser.snapshot" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="org.adblockplus.browser" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="org.bromite.bromite" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="org.chromium.chrome" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="org.cromite.cromite" android:maxLongVersionCode="10000000000" />
+    <compatibility-package android:name="org.ungoogled.chromium.stable" android:maxLongVersionCode="10000000000" />
+</autofill-service>
