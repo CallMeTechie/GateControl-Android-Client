@@ -178,6 +178,9 @@ class DriveVaultDeviceKey internal constructor(
 
     fun deviceId(): String = DriveVaultCrypto.deviceId(publicKey())
 
+    /** The device id when this phone already has a device key (never makes one: the background run of the offline files). */
+    fun storedDeviceId(): String? = (publicKey ?: synchronized(this) { load()?.publicKey })?.let(DriveVaultCrypto::deviceId)
+
     fun safetyNumber(): String = DriveVaultCrypto.safetyNumber(publicKey())
 
     private companion object {

@@ -91,6 +91,13 @@ class GateControlApp : Application() {
             Timber.w(e, "Drive folders: not ensured")
         }
 
+        // Drive offline files: signed out, another server or login — the vaults' offline ciphertext and wrapped keys go.
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.drive.DriveOfflineStoreEntryPoint::class.java).driveOfflineStore().watchAccount()
+        } catch (e: Throwable) {
+            Timber.w(e, "Drive offline: login not watched")
+        }
+
         // Home-screen widget: redraw on VPN, inbox and policy changes.
         try {
             EntryPointAccessors.fromApplication(this, com.gatecontrol.android.widget.VpnWidget.WidgetEntryPoint::class.java)

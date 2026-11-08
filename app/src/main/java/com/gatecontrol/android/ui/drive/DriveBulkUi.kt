@@ -300,6 +300,8 @@ internal fun BulkMoreSheet(
     onDismiss: () -> Unit,
     /** Further sections at the end, each with its label (null: none). */
     sections: List<Pair<String?, List<MoreItem>>> = emptyList(),
+    /** Something of its own right below the head (a vault file's switch "Offline verfügbar"). */
+    header: (@Composable () -> Unit)? = null,
 ) {
     val x = GateControlTheme.extraColors
     val context = LocalContext.current
@@ -315,6 +317,7 @@ internal fun BulkMoreSheet(
                 )
                 if (summary.isNotBlank()) Text(summary, style = MaterialTheme.typography.bodySmall, color = x.muted)
             }
+            header?.invoke()
             if (quick.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
                     quick.forEach { a ->

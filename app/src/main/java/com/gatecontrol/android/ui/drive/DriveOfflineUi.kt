@@ -116,7 +116,8 @@ fun DriveOfflineScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: 
                 )
             }
             if (noConnection) {
-                val list = copies.values.filter { it.hasFile }.sortedBy { it.name.lowercase() }
+                // a vault's copies are ciphertext: they open on the vault's own pages only
+                val list = copies.values.filter { it.hasFile && it.vaultId == null }.sortedBy { it.name.lowercase() }
                 GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     list.forEachIndexed { i, c ->
                         if (i > 0) GcRowDivider()
@@ -194,7 +195,7 @@ private fun OfflineSummary(used: Long, limitMb: Int, running: Boolean, waitsForW
 
 /** The state of one copy as a few words. */
 @Composable
-private fun copyLine(c: DriveOfflineCopy): String = when (c.state) {
+internal fun copyLine(c: DriveOfflineCopy): String = when (c.state) {
     DriveOfflineCopy.State.STORED -> stringResource(R.string.drive_offline_state_stored)
     DriveOfflineCopy.State.OUTDATED -> stringResource(if (c.reason == DriveOfflineStoreLogic.WAIT_WIFI) R.string.drive_offline_state_outdated_wifi else R.string.drive_offline_state_outdated)
     DriveOfflineCopy.State.FAILED -> stringResource(R.string.drive_offline_state_failed)
@@ -211,8 +212,9 @@ private fun copyLine(c: DriveOfflineCopy): String = when (c.state) {
 /** How a mark stands on this phone: a file like its copy, a folder "12 von 14 Dateien auf dem Gerät"; null: not known yet. */
 @Composable
 private fun markLine(n: DNode, copies: Collection<DriveOfflineCopy>): String? {
-    if (n.encrypted) return stringResource(R.string.drive_offline_state_vault)
-    val m = DriveOfflineStoreLogic.markState(n.id, copies) ?: return if (n.isDir) null else stringResource(R.string.drive_offline_state_pending)
+    // a vault's mark: its ciphertext on this phone when this device is approved for it, else only at home
+    val m = DriveOfflineStoreLogic.markState(n.id, copies)
+        ?: return if (n.encrypted) stringResource(R.string.drive_offline_state_vault) else if (n.isDir) null else stringResource(R.string.drive_offline_state_pending)
     if (!n.isDir) return copies.firstOrNull { it.id == n.id }?.let { copyLine(it) }
     val head = pluralStringResource(R.plurals.drive_offline_folder_stored, m.total, m.stored, m.total)
     val more = when {

@@ -78,6 +78,14 @@ import com.gatecontrol.android.drive.DVaultDevice
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DMe
+import com.gatecontrol.android.drive.DriveOffline
+import com.gatecontrol.android.drive.DriveOfflineStore
+import com.gatecontrol.android.drive.vault.DriveVaultOfflineLogic
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import com.gatecontrol.android.drive.vault.DriveVaultCrypto
 import com.gatecontrol.android.drive.vault.DriveVaultHeld
 import com.gatecontrol.android.drive.vault.DriveVaultShares
@@ -131,6 +139,10 @@ class DriveVaultViewModel @Inject constructor(
     private val network: DriveUploadNetwork,
     val ops: com.gatecontrol.android.drive.DriveOps,
     transfers: com.gatecontrol.android.drive.DriveTransfers,
+    /** "Offline verfügbar" (Drive 1.20): the marks, here for the vault's files, folders and the whole vault. */
+    private val marks: DriveOffline,
+    /** The ciphertext copies on this phone ("Tresor-Dateien offline"). */
+    val offlineStore: DriveOfflineStore,
 ) : ViewModel() {
 
     val vaultId: String = savedStateHandle.get<String>("vault").orEmpty()
@@ -148,7 +160,21 @@ class DriveVaultViewModel @Inject constructor(
          * [noScreenLock]: the phone has none, vaults cannot be opened. [title] is the remembered name, if any.
          */
         data class Gate(val vault: DVault, val title: String?, val noScreenLock: Boolean) : Ui()
-        data class Ready(val vault: DVault, val folder: DFolder, val title: String, val items: List<Pair<DNode, String>>) : Ui()
+        /**
+         * The folder. [ancestors]: its folders from the top (for the marks above it). [offline]: no connection — [items]
+         * are the files on this phone below the folder (each with its folder's name in [places]), [netOnly] the other
+         * files as last seen (greyed out, "Nur mit Netz").
+         */
+        data class Ready(
+            val vault: DVault,
+            val folder: DFolder,
+            val title: String,
+            val items: List<Pair<DNode, String>>,
+            val ancestors: List<Long> = emptyList(),
+            val offline: Boolean = false,
+            val netOnly: List<Pair<DNode, String>> = emptyList(),
+            val places: Map<Long, String> = emptyMap(),
+        ) : Ui()
     }
 
     private val _ui = MutableStateFlow<Ui>(Ui.Loading)
@@ -265,16 +291,45 @@ class DriveVaultViewModel @Inject constructor(
     /** "Sperren" by hand: every vault. */
     fun lockNow() = lock.lockNow()
 
+    /** Marks of Drive read since this page opened (else the marks the copies on this phone came from). */
+    private val marksKnown = MutableStateFlow(false)
+
+    /** The marked nodes ("offline verfügbar"): Drive's, or without a connection those the copies here came from. */
+    val offlineMarks: StateFlow<Set<Long>> = combine(marks.ids, offlineStore.copies, marksKnown) { ids, copies, known ->
+        if (known) ids else ids + copies.values.filter { it.vaultId == vaultId }.flatMap { it.roots }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /** Drive keeps marks (feature `offline`): the switches show. */
+    val canOffline: StateFlow<Boolean> = live.me.map { it?.has(DMe.FEATURE_OFFLINE) == true }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** "Offline verfügbar" on or off for a file or folder of the vault, or the vault's folder ("Ganzen Tresor offline halten"). */
+    fun setOffline(node: DNode, on: Boolean) {
+        lock.touch()
+        viewModelScope.launch { _message.value = marks.set(node, on) ?: if (on) "done_offline_on" else "done_offline_off" }
+    }
+
+    private fun loadMarks() {
+        viewModelScope.launch {
+            if (live.me.value == null) live.current()
+            if (marks.list() is DResult.Ok) marksKnown.value = true
+        }
+    }
+
     fun refresh(quiet: Boolean = false) {
         job?.cancel()
         job = viewModelScope.launch {
             if (!quiet || _ui.value !is Ui.Ready) _ui.value = Ui.Loading
             val v = api.vault(vaultId)
-            if (v !is DResult.Ok) {
+            // no connection: the vault as this phone kept it for its offline files (nothing kept: the error as before)
+            val kept = if (v is DResult.Offline) withContext(Dispatchers.IO) { session.offlineVault(vaultId) } else null
+            if (v !is DResult.Ok && kept == null) {
+                // the vault gone or no longer mine: what this phone kept of it offline goes
+                if (v is DResult.Failed && (v.http == 403 || v.http == 404)) withContext(Dispatchers.IO) { offlineStore.vaultRevoked(vaultId) }
                 _ui.value = Ui.Error(v.errorCode() ?: "failed")
                 return@launch
             }
-            val vault = v.value
+            val vault = (v as? DResult.Ok)?.value ?: kept!!
+            if (kept == null) loadMarks()
             // Drive 1.11: an approved device opens the vault only after the person confirmed (no screen lock: never)
             // (a vault answer without this person's devices counts as approved: never opened without the confirmation)
             if (!session.unlocked(vault.id) && (vault.myDevices.isEmpty() || session.approved(vault))) {
@@ -304,7 +359,11 @@ class DriveVaultViewModel @Inject constructor(
                 }
             }
             lock.touch()
-            val f = api.folder(if (folderId > 0) folderId else vault.nodeId)
+            val f = if (kept == null) api.folder(if (folderId > 0) folderId else vault.nodeId) else DResult.Offline
+            if (f is DResult.Offline && withContext(Dispatchers.IO) { session.offlineVault(vaultId) } != null) {
+                _ui.value = withContext(Dispatchers.IO) { offlinePage(vault) }
+                return@launch
+            }
             if (f !is DResult.Ok) {
                 _ui.value = Ui.Error(f.errorCode() ?: "failed")
                 return@launch
@@ -312,13 +371,40 @@ class DriveVaultViewModel @Inject constructor(
             val folder = f.value
             val title = (if (folder.node.id == vault.nodeId) session.nameOf(vault) else session.nameOf(folder.node)) ?: "…"
             val items = DriveLogic.sortVault(folder.items.filter { it.vaultId == vaultId }.map { it to (session.nameOf(it) ?: "…") })
-            _ui.value = Ui.Ready(vault, folder, title, items)
+            // the listing (opaque and encrypted names only) for opening without a connection, while files are offline
+            withContext(Dispatchers.IO) { session.keepListing(vaultId, folder) }
+            _ui.value = Ui.Ready(vault, folder, title, items, ancestors = DriveVaultOfflineLogic.ancestors(folder))
             bulk.keepPresent()
             if (showRequests && !requestsShown && vault.pending > 0) {
                 requestsShown = true
                 openRequests()
             }
         }
+    }
+
+    /**
+     * The page without a connection: the files on this phone below the folder (they open as always, decrypted in memory
+     * from the ciphertext here) and the other files of the folder as last seen, greyed out. Nothing can be changed.
+     */
+    private fun offlinePage(vault: DVault): Ui.Ready {
+        val fid = if (folderId > 0) folderId else vault.nodeId
+        val seen = session.offlineFolder(vaultId, fid)
+        val page = DriveVaultOfflineLogic.offlinePage(vaultId, vault.nodeId, fid, seen?.items, offlineStore.copies.value.values)
+        val title = (if (fid == vault.nodeId) session.nameOf(vault) else seen?.node?.let { session.nameOf(it) } ?: session.offlineFolderName(vaultId, fid)) ?: "…"
+        val ready = DriveLogic.sortVault(page.ready.map { c -> c.asNode().copy(areaId = vault.areaId.orEmpty()).let { n -> n to (session.nameOf(n) ?: "…") } })
+        val places = page.ready.mapNotNull { c ->
+            val parent = c.parents.lastOrNull()?.takeIf { it != fid && it != vault.nodeId } ?: return@mapNotNull null
+            session.offlineFolderName(vaultId, parent)?.let { c.id to it }
+        }.toMap()
+        val netOnly = DriveLogic.sortVault(page.netOnly.map { it to (session.nameOf(it) ?: "…") })
+        val folder = (seen ?: DFolder(
+            node = DNode(
+                id = fid, areaId = vault.areaId.orEmpty(), parentId = null, name = "", isDir = true, size = 0, mime = null, mediaId = null,
+                rev = 0, mtime = null, updatedAt = null, updatedBy = null, vaultId = vaultId, nameCipher = if (fid == vault.nodeId) vault.nameCipher else null,
+            ),
+            crumbs = emptyList(), role = "read", items = emptyList(), total = 0, next = null,
+        )).copy(role = "read")
+        return Ui.Ready(vault, folder, title, ready, ancestors = DriveVaultOfflineLogic.ancestors(folder), offline = true, netOnly = netOnly, places = places)
     }
 
     private fun locked(): DVault? = (_ui.value as? Ui.Locked)?.vault
@@ -449,6 +535,8 @@ class DriveVaultViewModel @Inject constructor(
         session.rotate(vaultId).also { r ->
             if (r is DResult.Ok) {
                 r.value.recoveryKey?.let { _recoveryKey.value = it }
+                // the new key version's wrap for the offline files (nothing unwrapped is kept)
+                session.keepKeys(vaultId)
                 refresh(quiet = true)
             }
         }
@@ -653,6 +741,9 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val conflict by viewModel.conflict.collectAsStateWithLifecycle()
     val move by viewModel.move.collectAsStateWithLifecycle()
     val recoveryKey by viewModel.recoveryKey.collectAsStateWithLifecycle()
+    val marks by viewModel.offlineMarks.collectAsStateWithLifecycle()
+    val canOffline by viewModel.canOffline.collectAsStateWithLifecycle()
+    val copies by viewModel.offlineStore.copies.collectAsStateWithLifecycle()
     var keysOpen by remember { mutableStateOf(false) }
     var confirmRotate by remember { mutableStateOf(false) }
     var confirmRecovery by remember { mutableStateOf(false) }
@@ -724,7 +815,8 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     GcSubpageBar(barTitle, onBack = onBack, backDescription = stringResource(R.string.drive_back)) {
                         if (ready != null) {
                             GcIconButton(GcIcons.Lock, contentDescription = stringResource(R.string.drive_vault_lock_now), onClick = viewModel::lockNow, tint = MaterialTheme.colorScheme.onBackground)
-                            GcIconButton(GcIcons.Users, contentDescription = stringResource(R.string.drive_vault_requests), onClick = viewModel::openRequests, tint = MaterialTheme.colorScheme.onBackground)
+                            // the requests of other devices need the server (without a connection: nothing to answer)
+                            if (!ready.offline) GcIconButton(GcIcons.Users, contentDescription = stringResource(R.string.drive_vault_requests), onClick = viewModel::openRequests, tint = MaterialTheme.colorScheme.onBackground)
                             // a new key and a new recovery key: the write right (the server's rule)
                             if (ready.folder.writable) {
                                 Box {
@@ -767,7 +859,9 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     is DriveVaultViewModel.Ui.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })
                     is DriveVaultViewModel.Ui.Gate -> VaultGate(s.noScreenLock, onConfirmed = viewModel::confirmed)
                     is DriveVaultViewModel.Ui.Locked -> LockedVault(s.access, busy, safety = viewModel.session.safetyNumber(), onAsk = viewModel::ask, onCheck = { viewModel.refresh() }, onRecover = viewModel::recover)
-                    is DriveVaultViewModel.Ui.Ready -> {
+                    is DriveVaultViewModel.Ui.Ready -> if (s.offline) {
+                        VaultOfflinePage(s, onOpen = { n, name -> viewModel.touch(); open(n, name) }, onMore = { n, name -> menuFor = n to name }, onRetry = { viewModel.refresh() })
+                    } else {
                         if (s.vault.pending > 0) {
                             GcBanner(tone = GcTone.Warn, icon = GcIcons.Users) {
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -797,6 +891,16 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             Icon(GcIcons.Lock, contentDescription = null, tint = GateControlTheme.extraColors.muted, modifier = Modifier.padding(end = 8.dp))
                             Text(stringResource(R.string.drive_vault_note), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
                         }
+                        val vaultCopies = remember(copies, s.vault.id) { DriveVaultOfflineLogic.ofVault(copies.values, s.vault.id) }
+                        if (canOffline) {
+                            val here = s.folder.node
+                            VaultOfflineCard(
+                                whole = here.id == s.vault.nodeId,
+                                mark = DriveVaultOfflineLogic.markOf(here.id, s.ancestors.dropLast(1), s.vault.nodeId, marks),
+                                summary = DriveVaultOfflineLogic.summary(DriveVaultOfflineLogic.below(vaultCopies, s.vault.id, s.vault.nodeId, here.id)),
+                                onSet = { on -> viewModel.setOffline(here, on) },
+                            )
+                        }
                         BulkBusyCard(bulkBusy, viewModel.bulk::cancelBusy)
                         upload?.let { (name, p) ->
                             GcCard {
@@ -811,9 +915,19 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                                 s.items.forEachIndexed { i, (n, name) ->
                                     if (i > 0) GcRowDivider()
+                                    val mark = DriveVaultOfflineLogic.markOf(n.id, s.ancestors, s.vault.nodeId, marks)
+                                    val row = if (n.isDir) DriveVaultOfflineLogic.RowState.NONE else DriveVaultOfflineLogic.rowState(copies[n.id]?.takeIf { it.vaultId == n.vaultId })
+                                    val inside = if (n.isDir && mark == DriveVaultOfflineLogic.Mark.NONE) vaultCopies.count { it.hasFile && n.id in it.parents } else 0
                                     NodeRow(
                                         node = n,
                                         title = name,
+                                        description = vaultRowLine(n, copies[n.id]?.takeIf { it.vaultId == n.vaultId }, inside),
+                                        trailing = when {
+                                            n.isDir && mark != DriveVaultOfflineLogic.Mark.NONE -> ({ VaultOfflineChip(loading = false) })
+                                            row == DriveVaultOfflineLogic.RowState.OFFLINE -> ({ VaultOfflineChip(loading = false) })
+                                            row == DriveVaultOfflineLogic.RowState.LOADING -> ({ VaultOfflineChip(loading = true) })
+                                            else -> null
+                                        },
                                         onClick = {
                                             viewModel.touch()
                                             when {
@@ -834,6 +948,9 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                                 }
                             }
                         }
+                        if (vaultCopies.isNotEmpty()) {
+                            Text(stringResource(R.string.drive_vault_offline_note), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 4.dp))
+                        }
                     }
                 }
             }
@@ -849,7 +966,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 )
             }
         }
-        if (ready != null && !selecting) {
+        if (ready != null && !selecting && !ready.offline) {
             JobsFab(
                 jobs = running,
                 onCancel = { id -> scope.launch { viewModel.ops.cancel(id) } },
@@ -894,12 +1011,14 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         val one = ns.singleOrNull()
         val bulk = viewModel.bulk
         val can: (DriveBulk.Action) -> DriveBulk.Can = { a -> bulk.can(a, nodes, where) }
-        val quick = if (!fromRow || one == null) emptyList() else listOf(
+        // without a connection only what works on this phone: looking at a file (and the explicit way out)
+        val noNet = ready?.offline == true
+        val quick = if (!fromRow || one == null || noNet) emptyList() else listOf(
             BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), can(DriveBulk.Action.MOVE)) { bulk.openTarget(DriveBulk.Mode.MOVE, nodes) },
             BarAction(GcIcons.Copy, stringResource(R.string.drive_bar_copy), can(DriveBulk.Action.COPY)) { bulk.openTarget(DriveBulk.Mode.COPY, nodes) },
             BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), can(DriveBulk.Action.DELETE), danger = true) { deleting = one },
         )
-        val multi = listOf(
+        val multi = if (noNet) emptyList() else listOf(
             MoreItem(GcIcons.Download, stringResource(R.string.drive_more_save), stringResource(R.string.drive_more_save_desc), can(DriveBulk.Action.SAVE)) {},
             MoreItem(GcIcons.Archive, stringResource(R.string.drive_more_zip), stringResource(R.string.drive_more_zip_desc), can(DriveBulk.Action.ZIP)) {},
             MoreItem(GcIcons.Link, stringResource(R.string.drive_share_link), null, can(DriveBulk.Action.LINK)) {},
@@ -910,6 +1029,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 // the explicit way out of the vault, asked first
                 add(MoreItem(GcIcons.External, stringResource(R.string.drive_vault_open_with)) { openWithFor = one })
             }
+            if (noNet) return@buildList
             add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = can(DriveBulk.Action.RENAME)) { one?.let { renaming = it } })
             if (one == null || !one.first.isDir) {
                 add(
@@ -927,7 +1047,16 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 )
             }
         }
-        BulkMoreSheet(ns.size, one?.second.takeIf { fromRow }, summaryText(DriveBulk.summary(nodes)), quick, multi, single, emptyList(), onDismiss = close)
+        val header: (@Composable () -> Unit)? = if (fromRow && one != null && ready != null && (canOffline || ready.offline)) {
+            {
+                VaultOfflineSwitch(
+                    mark = DriveVaultOfflineLogic.markOf(one.first.id, ready.ancestors, ready.vault.nodeId, marks),
+                    online = !ready.offline,
+                    onSet = { on -> viewModel.setOffline(one.first, on) },
+                )
+            }
+        } else null
+        BulkMoreSheet(ns.size, one?.second.takeIf { fromRow }, summaryText(DriveBulk.summary(nodes)), quick, multi, single, emptyList(), onDismiss = close, header = header)
     }
     menuFor?.let { m -> moreSheet(listOf(m), true) { menuFor = null } }
     if (moreOpen && chosen.isNotEmpty()) moreSheet(chosen, false) { moreOpen = false }

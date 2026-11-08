@@ -108,6 +108,11 @@ object GcIcons {
         "Wifi", 2f,
         "M2 8.8a15 15 0 0 1 20 0", "M5 12.9a10 10 0 0 1 14 0", "M8.5 16.4a5 5 0 0 1 7 0", "M12 20h.01",
     )
+    /** No connection (the vault without a network). */
+    val WifiOff = icon(
+        "WifiOff", 2f,
+        "M2 8.8a15 15 0 0 1 20 0", "M5 12.9a10 10 0 0 1 14 0", "M8.5 16.4a5 5 0 0 1 7 0", "M12 20h.01", "M3 3l18 18",
+    )
     private const val STAR = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"
     val Star = icon("Star", 2f, STAR)
     val StarFilled = filledIcon("StarFilled", STAR)

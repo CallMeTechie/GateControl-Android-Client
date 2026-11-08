@@ -12,6 +12,8 @@ import com.gatecontrol.android.drive.DVaultWrap
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveJson
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DriveOfflineStore
+import com.gatecontrol.android.drive.DFolder
 import com.gatecontrol.android.drive.notOk
 import com.gatecontrol.android.drive.vault.DriveVaultCrypto.DriveVaultException
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,6 +44,8 @@ class DriveVaultSession @Inject constructor(
     private val api: DriveApi,
     private val deviceKey: DriveVaultDeviceKey,
     private val vaultNames: DriveVaultNames,
+    /** "Tresor-Dateien offline": the ciphertext copies and what unlocking needs without a connection (wrapped keys). */
+    private val offline: DriveOfflineStore,
 ) {
     /** vault id → key version → TK. Never written anywhere. */
     private val keys = ConcurrentHashMap<String, ConcurrentHashMap<Int, ByteArray>>()
@@ -147,8 +151,12 @@ class DriveVaultSession @Inject constructor(
                 val k = r.value
                 r.value.keyVersion?.let { current[vault.id] = it }
                 if (k.state != "approved") {
+                    // no longer approved (or never): what this phone keeps of the vault offline goes
+                    offline.vaultRevoked(vault.id)
                     return@withContext DResult.Ok(if (k.state == "pending") Access.Pending(safetyNumber()) else Access.Unknown(revoked = k.state == "revoked"))
                 }
+                // the wrapped keys (never the keys themselves) for opening without a connection, while files are offline
+                offline.keepVaultKeys(vault, did, k.keys)
                 try {
                     unwrapAll(vault.id, k.keys)
                 } catch (e: DriveVaultDeviceKey.AuthRequired) {
@@ -161,9 +169,59 @@ class DriveVaultSession @Inject constructor(
                 }
                 if (unlocked(vault.id)) DResult.Ok(Access.Open) else DResult.Failed("decrypt", 0)
             }
-            is DResult.Failed -> if (r.code == "not_found") DResult.Ok(Access.Unknown(revoked = false)) else r
+            is DResult.Failed -> {
+                // the device or the vault unknown, or the vault no longer mine: nothing of it stays offline
+                if (r.code == "not_found" || r.http == 404 || r.http == 403) offline.vaultRevoked(vault.id)
+                if (r.code == "not_found") DResult.Ok(Access.Unknown(revoked = false)) else r
+            }
+            DResult.Offline -> openOffline(vault.id)
             else -> r.notOk()
         }
+    }
+
+    /**
+     * No connection: the vault opens with the wrapped keys this phone kept for its offline files (sealed to the device
+     * key, which only the Keystore opens — after the person's confirmation like always). Offline without them.
+     */
+    private fun openOffline(vaultId: String): DResult<Access> {
+        val e = offline.vaultEntry(vaultId, runCatching { deviceKey.storedDeviceId() }.getOrNull()) ?: return DResult.Offline
+        try {
+            unwrapAll(vaultId, e.keys)
+        } catch (x: DriveVaultDeviceKey.AuthRequired) {
+            return DResult.Failed(CODE_AUTH, 0)
+        } catch (x: DriveVaultDeviceKey.NoScreenLock) {
+            return DResult.Failed(CODE_NO_LOCK, 0)
+        } catch (x: DriveVaultDeviceKey.Unavailable) {
+            return DResult.Failed("decrypt", 0)
+        }
+        current.putIfAbsent(vaultId, e.vault.keyVersion)
+        return if (unlocked(vaultId)) DResult.Ok(Access.Open) else DResult.Failed("decrypt", 0)
+    }
+
+    /** The vault as this phone kept it for its offline files (no connection); null when there is nothing usable. */
+    fun offlineVault(vaultId: String): DVault? = offline.vaultEntry(vaultId, runCatching { deviceKey.storedDeviceId() }.getOrNull())?.vault
+
+    /** The listing of [folderId] as last seen (no connection), for a vault with offline files. */
+    fun offlineFolder(vaultId: String, folderId: Long): DFolder? =
+        offline.vaultEntry(vaultId, runCatching { deviceKey.storedDeviceId() }.getOrNull())?.folders?.get(folderId)
+
+    /** The name of the folder [folderId] of the vault as last seen, decrypted with the keys in memory (no connection). */
+    fun offlineFolderName(vaultId: String, folderId: Long): String? {
+        val e = offline.vaultEntry(vaultId, runCatching { deviceKey.storedDeviceId() }.getOrNull()) ?: return null
+        val cipher = DriveVaultOfflineLogic.folderCipher(e, folderId) ?: return null
+        return nameOfCipher(vaultId, cipher)
+    }
+
+    /** A listing of the vault as shown: kept for opening it without a connection while files of it are offline. */
+    fun keepListing(vaultId: String, folder: DFolder) = offline.keepVaultFolder(vaultId, folder)
+
+    /** The wrapped keys again (after a new key version), kept for the offline files; nothing is unwrapped. */
+    suspend fun keepKeys(vaultId: String) = withContext(Dispatchers.IO) {
+        if (!offline.hasVault(vaultId)) return@withContext
+        val v = api.vault(vaultId).valueOrNull() ?: return@withContext
+        val did = deviceId()
+        val k = api.vaultKeys(vaultId, did).valueOrNull() ?: return@withContext
+        if (DriveVaultOfflineLogic.revoked(k.state)) offline.vaultRevoked(vaultId) else offline.keepVaultKeys(v, did, k.keys)
     }
 
     private fun unwrapAll(vaultId: String, wraps: List<DVaultWrap>) {
@@ -405,6 +463,12 @@ class DriveVaultSession @Inject constructor(
         }
     }
 
+    private fun nameOfCipher(vaultId: String, cipher: String): String? {
+        synchronized(names) { names[cipher] }?.let { return it }
+        if (!unlocked(vaultId)) return null
+        return runCatching { DriveVaultCrypto.decryptName({ tk(vaultId, it) }, vaultId, cipher) }.getOrNull()?.also { n -> synchronized(names) { names[cipher] = n } }
+    }
+
     /** The name of the vault itself (its folder's nameCipher); remembered for the menu ([label]). */
     fun nameOf(vault: DVault): String? {
         val cipher = vault.nameCipher ?: return null
@@ -529,15 +593,30 @@ class DriveVaultSession @Inject constructor(
     private suspend fun decryptInto(node: DNode, output: OutputStream): DResult<Unit> {
         val vaultId = node.vaultId ?: return DResult.Failed("invalid", 0)
         if (!unlocked(vaultId)) return DResult.Failed("locked", 0)
+        // "offline verfügbar": the ciphertext on this phone (the version Drive has; without a connection an older one)
+        offline.vaultCipher(node)?.let { return decryptFile(vaultId, it, output) }
         val r = api.download(node.id, expectedSha256 = node.sha256)
+        if (r is DResult.Offline) offline.vaultCipher(node, anyVersion = true)?.let { return decryptFile(vaultId, it, output) }
         if (r !is DResult.Ok) return r.notOk()
+        offline.noticeChanged(node)
+        return decryptStream(vaultId, output) { r.value.body() ?: throw DriveVaultException("invalid", "no body") }
+    }
+
+    /** The kept ciphertext [file] decrypted into [output] — read from the disk, decrypted in memory. */
+    private suspend fun decryptFile(vaultId: String, file: File, output: OutputStream): DResult<Unit> =
+        decryptStream(vaultId, output) { file.inputStream().buffered(256 * 1024) }.let { r -> if (r is DResult.Offline) DResult.Failed("failed", 0) else r }
+
+    private suspend fun decryptStream(vaultId: String, output: OutputStream, open: () -> java.io.Closeable): DResult<Unit> {
         return try {
-            val body = r.value.body() ?: return DResult.Failed(DriveApi.CODE_INVALID, 0)
             var missing = false
-            body.use { b ->
-                b.byteStream().use { inp ->
-                    DriveVaultCrypto.decryptContent({ v -> tk(vaultId, v).also { if (it == null) missing = true } }, vaultId, inp, output)
+            val src = open()
+            src.use { s ->
+                val inp = when (s) {
+                    is okhttp3.ResponseBody -> s.byteStream()
+                    is java.io.InputStream -> s
+                    else -> throw DriveVaultException("invalid", "source")
                 }
+                inp.use { DriveVaultCrypto.decryptContent({ v -> tk(vaultId, v).also { if (it == null) missing = true } }, vaultId, it, output) }
             }
             if (missing) DResult.Failed("stale_key", 0) else DResult.Ok(Unit)
         } catch (e: CancellationException) {
@@ -593,11 +672,37 @@ class DriveVaultSession @Inject constructor(
         if (r is DResult.Ok) DResult.Ok(file) else { file.close(); r.notOk() }
     }
 
-    /** A video being watched: its ciphertext in the cache and the chunks it opens — the plaintext only while it plays. */
-    class Cipher(val file: File, val content: DriveVaultCrypto.Content) : java.io.Closeable {
+    /**
+     * A video being watched: its ciphertext in the cache (downloaded, or a link to the offline copy) and the chunks it
+     * opens — the plaintext only while it plays. [owned]: the file goes on close (never the offline copy itself).
+     */
+    class Cipher(val file: File, val content: DriveVaultCrypto.Content, private val owned: Boolean = true) : java.io.Closeable {
         override fun close() {
             content.close()
-            file.delete()
+            if (owned) file.delete()
+        }
+    }
+
+    /**
+     * The kept ciphertext [kept] for playing: a hard link in the viewer's folder (a newer version the background run
+     * puts in place does not change what plays), else the copy itself. Never a second copy, never plaintext.
+     */
+    private fun openKept(vaultId: String, kept: File): DResult<Cipher> {
+        val dir = viewDir().apply { mkdirs() }
+        val link = File(dir, "kept-" + System.nanoTime() + ".gcdv")
+        val linked = runCatching { android.system.Os.link(kept.path, link.path) }.isSuccess
+        val file = if (linked) link else kept
+        return try {
+            val head = ByteArray(DriveVaultCrypto.HEADER)
+            java.io.RandomAccessFile(file, "r").use { it.readFully(head) }
+            val content = DriveVaultCrypto.openContent({ v -> tk(vaultId, v) }, vaultId, head, file.length())
+            DResult.Ok(Cipher(file, content, owned = linked))
+        } catch (e: DriveVaultException) {
+            if (linked) link.delete()
+            DResult.Failed(if (e.message == "no key for this version") "stale_key" else if (e.code == "decrypt") "decrypt" else "invalid", 0)
+        } catch (e: IOException) {
+            if (linked) link.delete()
+            DResult.Failed("failed", 0)
         }
     }
 
@@ -605,13 +710,17 @@ class DriveVaultSession @Inject constructor(
     suspend fun fetchCipher(node: DNode, onProgress: (Float) -> Unit = {}): DResult<Cipher> = withContext(Dispatchers.IO) {
         val vaultId = node.vaultId ?: return@withContext DResult.Failed("invalid", 0)
         if (!unlocked(vaultId)) return@withContext DResult.Failed("locked", 0)
+        // "offline verfügbar": the ciphertext is on this phone already (streamed chunk by chunk from there)
+        offline.vaultCipher(node)?.let { return@withContext openKept(vaultId, it) }
         val dir = viewDir().apply { mkdirs() }
         if (dir.usableSpace in 1 until node.size + 64L * 1_048_576) return@withContext DResult.Failed("no_space", 0)
         val file = File.createTempFile("view", ".gcdv", dir)
         var keep = false
         try {
             val r = api.download(node.id, expectedSha256 = node.sha256) { done, total -> if (total > 0) onProgress(0.5f * done / total) }
+            if (r is DResult.Offline) offline.vaultCipher(node, anyVersion = true)?.let { return@withContext openKept(vaultId, it) }
             if (r !is DResult.Ok) return@withContext r.notOk()
+            offline.noticeChanged(node)
             val body = r.value.body() ?: return@withContext DResult.Failed(DriveApi.CODE_INVALID, 0)
             val total = body.contentLength().takeIf { it > 0 } ?: node.size
             body.use { b ->

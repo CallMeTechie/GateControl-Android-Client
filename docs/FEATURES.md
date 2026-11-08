@@ -938,10 +938,83 @@ den Zwischenspeicher der Heim-Gateways vor.
   wird die Kopie sofort erneuert.
 - **Entfernen:** „Nicht mehr offline verfügbar“ (Menü oder ✕ in der
   Liste) löscht die Kopie gleich; „auf allen Geräten gelöscht“ ebenso.
-- **Tresor:** Tresor-Dateien bleiben außen vor – die Tresor-Seiten bieten
-  die Markierung nicht an, und ihr Inhalt wird nie entschlüsselt auf die
-  Platte gelegt. Eine im Portal markierte Tresor-Datei steht mit „Tresor:
-  nur im Zwischenspeicher zu Hause“ in der Liste.
+- **Tresor:** siehe „Tresor-Dateien offline“ – auf dem Handy liegt nur der
+  verschlüsselte Inhalt. Auf einem Gerät, das für den Tresor nicht
+  freigegeben ist, steht eine markierte Tresor-Datei weiter mit „Tresor:
+  nur im Zwischenspeicher zu Hause“ in der Liste; ohne Verbindung zeigt die
+  Seite „Offline verfügbar“ nur Dateien außerhalb von Tresoren (die
+  Tresor-Dateien öffnen auf den Tresor-Seiten).
+
+### Tresor-Dateien offline
+
+Auf den Tresor-Seiten (Möglichkeit A der Entwürfe): oben **„Ganzen Tresor
+offline halten“** (im Unterordner „Diesen Ordner offline halten“) mit
+Schalter und „7 von 19 Dateien offline · 48 MB verschlüsselt auf dem Handy“;
+im Menü ⋮ jeder Datei und jedes Ordners der Schalter **„Offline verfügbar“**
+(„Liegt verschlüsselt auf diesem Handy. Öffnen geht auch ohne Netz.“). Eine
+Datei unter einem markierten Ordner oder im ganz markierten Tresor zeigt den
+Schalter an und fest („Kommt vom Ordner darüber – dort ausschalten.“ / „Der
+ganze Tresor ist offline.“). Zeilen tragen „Offline“ oder „Wird geladen“,
+Ordner „n offline“; wartende oder fehlgeschlagene Kopien sagen es wie auf
+der Seite „Offline verfügbar“. Es sind dieselben Markierungen von Drive
+(`PUT|DELETE nodes/<id>/offline` auf den Tresor-Knoten, der ganze Tresor =
+sein Ordner) – kein neuer Endpunkt, keine Änderung am Plugin.
+
+- **Nur Ciphertext auf der Platte:** die Kopie ist der Inhalt genau so, wie
+  der Server ihn hat (Kopf und Chunks, `GET …/content`, gegen Drives
+  SHA-256 geprüft), in `filesDir/drive-offline/<Id>/<undurchsichtiger
+  Name>`. Kein Klartext, kein Klarname: im Index stehen der undurchsichtige
+  Name, `nameCipher` und die Ordner-Ids. Nie entschlüsselt abgelegt, nie an
+  andere Apps gegeben (`stored`/`current`/FileProvider lassen sie aus).
+- **Öffnen:** wie bisher im Betrachter der App, nur im Arbeitsspeicher
+  (`DriveVaultSession.decryptInto` liest dann die Datei auf dem Handy statt
+  zu laden). Videos laufen Chunk für Chunk aus der Kopie
+  (`DriveVaultVideoSource` über einen Hardlink im Betrachter-Ordner – eine
+  neue Version, die der Abgleich hinlegt, ändert das laufende Video nicht).
+  Ist die Kopie veraltet, lädt der Betrachter mit Netz wie bisher und stößt
+  den Abgleich an; ohne Netz öffnet die ältere Kopie.
+- **Abgleich** (derselbe WorkManager-Lauf wie oben, ohne entsperrten
+  Tresor): für jeden Tresor unter den Markierungen `GET vaults/<id>` und
+  `GET vaults/<id>/keys?deviceId=` – nur ein freigegebenes Gerät behält
+  Ciphertext; dann die Ordner darunter (Tresor-Inhalt nur unter Markierungen
+  desselben Tresors, nie über einen normalen Ordner). Neue Versionen
+  ersetzen die Kopie (andere Revision oder SHA-256), gelöschte oder aus dem
+  markierten Ordner verschobene Dateien gehen. Die Tresor-Dateien zählen
+  zum „Speicher für Offline-Dateien“ und folgen „nur im WLAN“.
+- **Ohne Netz entsperren:** solange ein Tresor Offline-Dateien hat, merkt
+  sich das Handy in `noBackupFilesDir/drive-vault/offline/<Tresor-Id>.json`
+  den Tresor (Id, Ordner, `nameCipher`, Schlüsselversion, meine Geräte),
+  die **verpackten** Schlüssel dieses Geräts für jede Schlüsselversion
+  (HPKE an den Geräteschlüssel, den nur der Android-Keystore öffnet – wie
+  bisher nach Fingerabdruck, Gesicht oder PIN) und die zuletzt gesehenen
+  Ordnerlisten (undurchsichtige und verschlüsselte Namen, Größen; höchstens
+  300). Nie ein entpackter Tresor-Schlüssel. Aufgefrischt bei jedem Lauf,
+  beim Öffnen des Tresors mit Netz und nach „Tresor-Schlüssel wechseln“ –
+  so öffnen auch Dateien einer neuen Schlüsselversion offline.
+- **Ohne Netz:** Banner „Kein Netz – n Dateien sind offline da. Die anderen
+  öffnen sich, sobald du wieder verbunden bist.“ (mit „Erneut versuchen“),
+  „Offline da“ (die Dateien auf dem Handy unter diesem Ordner, mit
+  Ordnername) und ausgegraut „Nur mit Netz“; nichts lässt sich ändern
+  (kein Hochladen, Umbenennen, Verschieben, keine Anfragen), nur ansehen und
+  – nach Rückfrage wie bisher – „Mit anderer App öffnen“.
+- **Löschen:** sagt der Server beim nächsten Kontakt, dass dieses Gerät
+  nicht mehr freigegeben ist (`keys` mit anderem Zustand als `approved`,
+  404 für Gerät oder Tresor, 403), gehen der Ciphertext dieses Tresors und
+  sein Eintrag sofort – im Abgleich und beim Öffnen des Tresors. Ebenso mit
+  der letzten Offline-Datei eines Tresors, beim Abmelden oder Entfernen des
+  Kontos (alles), bei einem anderen Server (alles) und bei einer anderen
+  Anmeldung am selben Server (alle Tresore; `DriveOfflineStore.watchAccount`).
+- **Sicherheit (Android, ergänzt die Bedrohungstabelle „Viewing vault
+  files“ der Drive-README):**
+
+  | Bedrohung | Regel | Android |
+  |---|---|---|
+  | Klartext auf der Platte | nur im Speicher entschlüsseln | Offline-Kopien sind Ciphertext wie auf dem Server; der Betrachter entschlüsselt in Byte-Arrays, ein `memfd` (PDF) oder Chunk für Chunk (Video) |
+  | Schlüssel auf der Platte | nur verpackt | gespeichert werden nur die Wraps dieses Geräts; der Geräteschlüssel bleibt im Keystore (hinter der Bestätigung); der Tresor-Schlüssel nur im Speicher, gelöscht beim Sperren |
+  | Gerät gestohlen, gesperrt | ohne Entsperren nichts lesbar | Ciphertext und Wraps ohne Keystore-Schlüssel nutzlos; App-Daten nie im Backup |
+  | Gerät entzogen | Kopien löschen | beim nächsten Kontakt (Abgleich oder Öffnen): Ciphertext und Wraps des Tresors weg; eine Rotation schützt neue Dateien wie bisher |
+  | Metadaten | wie auf dem Server | Größen, Zeiten, Ordnerstruktur und Anzahl liegen auf dem Handy so, wie der Server sie kennt – keine Namen, keine Inhalte |
+  | Betrachter | unverändert | `FLAG_SECURE` und keine Vorschau in „Zuletzt verwendet“, gesicherte Video-Fläche, das Sperren schließt den Betrachter, keine Klartextdateien |
 
 ## Einstellungen
 
