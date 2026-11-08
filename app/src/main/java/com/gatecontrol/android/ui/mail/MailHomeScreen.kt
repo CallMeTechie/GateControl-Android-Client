@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -41,10 +42,13 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -53,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -304,6 +309,7 @@ private fun MailArea(
 ) {
     val context = mailContext()
     val extra = GateControlTheme.extraColors
+    val scope = rememberCoroutineScope()
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             // the bar: menu, title with the unread count, search, "⋯" when pinned to Start
@@ -359,6 +365,8 @@ private fun MailArea(
                 me == null && meError != null && list.items.isEmpty() -> ErrorBox(mailText(context, meError), onRetry = { viewModel.load(refresh = true) })
                 else -> {
                     val listState = rememberLazyListState()
+                    // new mails in front: at the top the list follows them, further down the pill counts them
+                    val newAbove = rememberNewMailsAbove(listState, remember(list.items) { list.items.map { it.id } }, view = box to tab, loading = list.loading)
                     LaunchedEffect(listState, list.next) {
                         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
                             if (list.next != null && last >= list.items.size - 8) viewModel.loadMore()
@@ -411,6 +419,13 @@ private fun MailArea(
                                 }
                             }
                         }
+                        if (newAbove.isNotEmpty()) {
+                            NewMailsPill(
+                                count = newAbove.size,
+                                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -424,6 +439,79 @@ private fun MailArea(
         undo?.let { u ->
             UndoBar(u, onUndo = { viewModel.undoSend(u) }, onExpired = { viewModel.undoExpired(u) }, modifier = Modifier.align(Alignment.BottomCenter))
         }
+    }
+}
+
+/** What the list showed last, for [MailLogic.newMails]: its box and tab, its mails, whether it still loaded, every mail seen in it. */
+private class ShownMails {
+    var view: Any? = null
+    var ids: List<Long> = emptyList()
+    var loading = false
+    val seen = HashSet<Long>()
+}
+
+/**
+ * Mails put in front of the first visible row ([ids] of the list in order): at the top the list goes to the top so
+ * they are seen (it would keep the old first mail in view); further down it stays and the mails new above the view
+ * are returned (the pill), until the list is at the top again. [view] names the list (box and tab): another one
+ * starts at the top. The decision is taken after the composition, before the list measures the new mails.
+ */
+@Composable
+internal fun rememberNewMailsAbove(listState: LazyListState, ids: List<Long>, view: Any, loading: Boolean): Set<Long> {
+    val slop = with(LocalDensity.current) { 8.dp.roundToPx() }
+    val pending: MutableState<Set<Long>> = rememberSaveable(
+        saver = listSaver(save = { it.value.toList() }, restore = { mutableStateOf(it.toSet()) }),
+    ) { mutableStateOf(emptySet()) }
+    val shown = remember { ShownMails() }
+    SideEffect {
+        if (shown.view == null) {
+            shown.seen += ids
+            shown.seen += pending.value
+        } else if (shown.view != view || ids != shown.ids) {
+            val switched = shown.view != view
+            val r = MailLogic.newMails(
+                before = shown.ids,
+                after = ids,
+                firstIndex = listState.firstVisibleItemIndex,
+                firstOffset = listState.firstVisibleItemScrollOffset,
+                slop = slop,
+                seen = shown.seen,
+                pending = pending.value,
+                quiet = shown.loading,
+                switched = switched,
+            )
+            if (r.toTop) listState.requestScrollToItem(0)
+            if (switched) shown.seen.clear()
+            shown.seen += ids
+            if (r.pending != pending.value) pending.value = r.pending
+        }
+        shown.view = view
+        shown.ids = ids
+        shown.loading = loading
+    }
+    LaunchedEffect(listState, slop) {
+        snapshotFlow { MailLogic.atTop(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, slop) }
+            .collect { if (it && pending.value.isNotEmpty()) pending.value = emptySet() }
+    }
+    return pending.value
+}
+
+/** „n neue Mails“ above the list (accent pill like "Neue Mail"): a tap goes to the top. */
+@Composable
+private fun NewMailsPill(count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier
+            .heightIn(min = 40.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(scheme.primary)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 12.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(GcIcons.ChevronUp, contentDescription = null, tint = scheme.onPrimary, modifier = Modifier.size(18.dp))
+        Text(pluralStringResource(R.plurals.mail_new_above_n, count, count), color = scheme.onPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
     }
 }
 
