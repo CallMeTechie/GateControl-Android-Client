@@ -48,10 +48,10 @@ import kotlinx.coroutines.launch
 internal fun offlineItem(me: DMe?, node: DNode, marked: Boolean, onSet: (DNode, Boolean) -> Unit): MoreItem? {
     if (me?.has(DMe.FEATURE_OFFLINE) != true) return null
     return if (marked) {
-        MoreItem(GcIcons.House, stringResource(R.string.drive_offline_unmark), stringResource(R.string.drive_offline_unmark_desc)) { onSet(node, false) }
+        MoreItem(GcIcons.DownloadTray, stringResource(R.string.drive_offline_unmark), stringResource(R.string.drive_offline_unmark_desc)) { onSet(node, false) }
     } else {
         val desc = if (me.has(DMe.FEATURE_HOME_CACHE)) R.string.drive_offline_mark_desc else R.string.drive_offline_mark_desc_later
-        MoreItem(GcIcons.House, stringResource(R.string.drive_offline_mark), stringResource(desc)) { onSet(node, true) }
+        MoreItem(GcIcons.DownloadTray, stringResource(R.string.drive_offline_mark), stringResource(desc)) { onSet(node, true) }
     }
 }
 
@@ -101,7 +101,7 @@ fun DriveOfflineScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: 
                     Text(stringResource(R.string.drive_offline_no_connection), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
-                GcBanner(tone = GcTone.Info, icon = GcIcons.House) {
+                GcBanner(tone = GcTone.Info, icon = GcIcons.DownloadTray) {
                     val intro = if (me?.has(DMe.FEATURE_HOME_CACHE) == false) R.string.drive_offline_intro_later else R.string.drive_offline_intro
                     Text(stringResource(intro), style = MaterialTheme.typography.bodyMedium)
                 }
