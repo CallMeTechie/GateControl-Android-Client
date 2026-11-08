@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.95.2] - 2026-11-08
+
+### Fixes
+- eindeutige Symbole für Personen und Offline, kein doppeltes Zahnrad (#205)
+
+---
+
 ## [1.95.1] - 2026-11-08
 
 ### Fixes
