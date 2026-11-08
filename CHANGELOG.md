@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.98.0] - 2026-11-08
+
+### Features
+- „Auf dem Gerät“ – die Dateien dieses Handys neben den Tabs (#208)
+
+---
+
 ## [1.97.1] - 2026-11-08
 
 ### Fixes
