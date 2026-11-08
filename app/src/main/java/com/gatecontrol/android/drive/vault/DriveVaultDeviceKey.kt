@@ -34,6 +34,8 @@ class DriveVaultDeviceKey internal constructor(
     private val wantAuth: () -> Boolean = { true },
     /** The [plain] Keystore key is no longer needed (after the move to [auth]). */
     private val dropPlain: () -> Unit = {},
+    /** The labels of the device id and the safety number (Notizen & Aufgaben keeps a device key of its own). */
+    private val prefix: String = DriveVaultCrypto.PREFIX_DRIVE,
 ) {
 
     @Inject constructor(@ApplicationContext context: Context, settings: DriveSettings) : this(
@@ -176,12 +178,12 @@ class DriveVaultDeviceKey internal constructor(
     /** The public key (32 raw bytes): stored in the clear, never needs the person (only a new key pair is made). */
     fun publicKey(): ByteArray = publicKey ?: synchronized(this) { load()?.publicKey } ?: keyPair().let { p -> p.publicKey.also { p.wipe() } }
 
-    fun deviceId(): String = DriveVaultCrypto.deviceId(publicKey())
+    fun deviceId(): String = DriveVaultCrypto.deviceId(publicKey(), prefix)
 
     /** The device id when this phone already has a device key (never makes one: the background run of the offline files). */
-    fun storedDeviceId(): String? = (publicKey ?: synchronized(this) { load()?.publicKey })?.let(DriveVaultCrypto::deviceId)
+    fun storedDeviceId(): String? = (publicKey ?: synchronized(this) { load()?.publicKey })?.let { DriveVaultCrypto.deviceId(it, prefix) }
 
-    fun safetyNumber(): String = DriveVaultCrypto.safetyNumber(publicKey())
+    fun safetyNumber(): String = DriveVaultCrypto.safetyNumber(publicKey(), prefix)
 
     private companion object {
         const val KEYSTORE_ALIAS = "gatecontrol_drive_vault_device"

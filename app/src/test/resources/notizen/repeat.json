@@ -1,0 +1,371 @@
+{
+ "$comment": "Repeat rules (ui/repeat.js): next(rule, { due, done }) and first(rule, today) and describe(rule, lang). Every port must give these.",
+ "version": 1,
+ "next": [
+  {
+   "rule": {
+    "type": "daily",
+    "interval": 1
+   },
+   "due": "2026-11-08",
+   "done": "2026-11-08",
+   "expect": "2026-11-09"
+  },
+  {
+   "rule": {
+    "type": "daily",
+    "interval": 1
+   },
+   "due": "2026-11-01",
+   "done": "2026-11-08",
+   "expect": "2026-11-09"
+  },
+  {
+   "rule": {
+    "type": "daily",
+    "interval": 3
+   },
+   "due": "2026-11-08",
+   "done": "2026-11-09",
+   "expect": "2026-11-11"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     1
+    ]
+   },
+   "due": "2026-11-09",
+   "done": "2026-11-09",
+   "expect": "2026-11-16"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     1,
+     3,
+     5
+    ]
+   },
+   "due": "2026-11-09",
+   "done": "2026-11-09",
+   "expect": "2026-11-11"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     1,
+     3,
+     5
+    ]
+   },
+   "due": "2026-11-13",
+   "done": "2026-11-13",
+   "expect": "2026-11-16"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 2,
+    "days": [
+     2
+    ]
+   },
+   "due": "2026-11-10",
+   "done": "2026-11-10",
+   "expect": "2026-11-24"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 2,
+    "days": [
+     1,
+     4
+    ]
+   },
+   "due": "2026-11-12",
+   "done": "2026-11-12",
+   "expect": "2026-11-23"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   },
+   "due": "2026-11-13",
+   "done": "2026-11-13",
+   "expect": "2026-11-16"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     7
+    ]
+   },
+   "due": "2026-10-04",
+   "done": "2026-11-08",
+   "expect": "2026-11-15"
+  },
+  {
+   "rule": {
+    "type": "monthly",
+    "interval": 1
+   },
+   "due": "2026-01-31",
+   "done": "2026-01-31",
+   "expect": "2026-02-28"
+  },
+  {
+   "rule": {
+    "type": "monthly",
+    "interval": 1,
+    "day": 31
+   },
+   "due": "2026-02-28",
+   "done": "2026-02-28",
+   "expect": "2026-03-31"
+  },
+  {
+   "rule": {
+    "type": "monthly",
+    "interval": 3
+   },
+   "due": "2026-11-15",
+   "done": "2026-11-15",
+   "expect": "2027-02-15"
+  },
+  {
+   "rule": {
+    "type": "yearly",
+    "interval": 1
+   },
+   "due": "2028-02-29",
+   "done": "2028-02-29",
+   "expect": "2029-02-28"
+  },
+  {
+   "rule": {
+    "type": "yearly",
+    "interval": 1
+   },
+   "due": "2026-11-16",
+   "done": "2026-11-16",
+   "expect": "2027-11-16"
+  },
+  {
+   "rule": {
+    "type": "after",
+    "interval": 3
+   },
+   "due": "2026-11-01",
+   "done": "2026-11-08",
+   "expect": "2026-11-11"
+  },
+  {
+   "rule": {
+    "type": "after",
+    "interval": 7
+   },
+   "due": null,
+   "done": "2026-11-08",
+   "expect": "2026-11-15"
+  },
+  {
+   "rule": {
+    "type": "daily",
+    "interval": 1
+   },
+   "due": null,
+   "done": "2026-11-08",
+   "expect": "2026-11-09"
+  },
+  {
+   "rule": {
+    "type": "monthly",
+    "interval": 1,
+    "day": 15
+   },
+   "due": "2026-12-15",
+   "done": "2026-12-20",
+   "expect": "2027-01-15"
+  }
+ ],
+ "first": [
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     1
+    ]
+   },
+   "today": "2026-11-08",
+   "expect": "2026-11-09"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     7
+    ]
+   },
+   "today": "2026-11-08",
+   "expect": "2026-11-08"
+  },
+  {
+   "rule": {
+    "type": "monthly",
+    "interval": 1,
+    "day": 5
+   },
+   "today": "2026-11-08",
+   "expect": "2026-12-05"
+  },
+  {
+   "rule": {
+    "type": "monthly",
+    "interval": 1,
+    "day": 20
+   },
+   "today": "2026-11-08",
+   "expect": "2026-11-20"
+  },
+  {
+   "rule": {
+    "type": "daily",
+    "interval": 2
+   },
+   "today": "2026-11-08",
+   "expect": "2026-11-08"
+  }
+ ],
+ "describe": [
+  {
+   "rule": {
+    "type": "daily",
+    "interval": 1
+   },
+   "de": "Täglich",
+   "en": "Daily"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     1
+    ]
+   },
+   "de": "Jeden Montag",
+   "en": "Every Monday"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 1,
+    "days": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   },
+   "de": "Werktags",
+   "en": "Every weekday"
+  },
+  {
+   "rule": {
+    "type": "weekly",
+    "interval": 2,
+    "days": [
+     1,
+     4
+    ]
+   },
+   "de": "Alle 2 Wochen am Montag und Donnerstag",
+   "en": "Every 2 weeks on Monday and Thursday"
+  },
+  {
+   "rule": {
+    "type": "monthly",
+    "interval": 1
+   },
+   "de": "Monatlich",
+   "en": "Monthly"
+  },
+  {
+   "rule": {
+    "type": "yearly",
+    "interval": 2
+   },
+   "de": "Alle 2 Jahre",
+   "en": "Every 2 years"
+  },
+  {
+   "rule": {
+    "type": "after",
+    "interval": 3
+   },
+   "de": "3 Tage nach Erledigung",
+   "en": "3 days after completion"
+  },
+  {
+   "rule": {
+    "type": "after",
+    "interval": 1
+   },
+   "de": "1 Tag nach Erledigung",
+   "en": "1 day after completion"
+  }
+ ],
+ "invalid": [
+  {
+   "type": "hourly",
+   "interval": 1
+  },
+  {
+   "type": "weekly",
+   "interval": 1,
+   "days": []
+  },
+  {
+   "type": "weekly",
+   "interval": 1,
+   "days": [
+    8
+   ]
+  },
+  {
+   "type": "daily",
+   "interval": 0
+  },
+  {
+   "type": "daily",
+   "interval": 1.5
+  },
+  {
+   "type": "monthly",
+   "interval": 1,
+   "day": 32
+  },
+  null
+ ]
+}

@@ -35,6 +35,10 @@ import javax.crypto.spec.SecretKeySpec
  *   recovery key   32 bytes, Crockford base32 with 3 BLAKE2b check bytes (the format of the Vault plugin)
  *
  * Errors: [DriveVaultException] with `code` `decrypt` (wrong key, tampered, another vault), `invalid`, `recovery_key`.
+ *
+ * Notizen & Aufgaben (gatecontrol-notizen 1.0.0) keeps its Tresor notebooks in this very format with one change:
+ * every label starts with [PREFIX_NOTES] instead of [PREFIX_DRIVE] (README "Tresor-Notizbücher – Kryptografie"), so the
+ * functions that use a label take the prefix as their last parameter (Drive's by default).
  */
 object DriveVaultCrypto {
     const val CHUNK = 1_048_576
@@ -44,6 +48,10 @@ object DriveVaultCrypto {
     private const val WRAP_BYTES = 81
     private val MAGIC = byteArrayOf(0x47, 0x43, 0x44, 0x56) // "GCDV"
     private const val VERSION: Byte = 1
+    /** The labels of Drive's vault folders. */
+    const val PREFIX_DRIVE = "gcdrive-v1"
+    /** The labels of the Tresor notebooks of Notizen & Aufgaben. */
+    const val PREFIX_NOTES = "gcnotes-v1"
 
     class DriveVaultException(val code: String, message: String? = null) : Exception(message ?: code)
 
@@ -145,11 +153,11 @@ object DriveVaultCrypto {
 
     // ── device id, safety number ────────────────────────────
 
-    fun deviceId(publicKey: ByteArray): String = b64u(sha256(utf8("gcdrive-v1:device:"), publicKey).copyOf(16))
+    fun deviceId(publicKey: ByteArray, prefix: String = PREFIX_DRIVE): String = b64u(sha256(utf8("$prefix:device:"), publicKey).copyOf(16))
 
     /** "44626 75008 87340 28578" — compared on both devices before a device gets the vault's keys. */
-    fun safetyNumber(publicKey: ByteArray): String {
-        val h = sha256(utf8("gcdrive-v1:fingerprint:"), publicKey)
+    fun safetyNumber(publicKey: ByteArray, prefix: String = PREFIX_DRIVE): String {
+        val h = sha256(utf8("$prefix:fingerprint:"), publicKey)
         return (0 until 4).joinToString(" ") { i -> (readU32(h, i * 4) % 100_000).toString().padStart(5, '0') }
     }
 
@@ -212,19 +220,19 @@ object DriveVaultCrypto {
     /** A new vault id: 16 random bytes, base64url (22 characters). */
     fun newVaultId(): String = b64u(randomBytes(16))
 
-    private fun wrapInfo(vaultId: String, keyVersion: Int) = utf8("gcdrive-v1:tk:$vaultId:$keyVersion")
+    private fun wrapInfo(vaultId: String, keyVersion: Int, prefix: String) = utf8("$prefix:tk:$vaultId:$keyVersion")
 
     /** TK → its wrap for [publicKey] (base64url, 81 bytes). */
-    fun wrapKey(tk: ByteArray, publicKey: ByteArray, vaultId: String, keyVersion: Int, ephemeral: KeyPair? = null): String {
+    fun wrapKey(tk: ByteArray, publicKey: ByteArray, vaultId: String, keyVersion: Int, ephemeral: KeyPair? = null, prefix: String = PREFIX_DRIVE): String {
         if (tk.size != KEY_BYTES) throw DriveVaultException("invalid", "key")
-        return b64u(byteArrayOf(VERSION) + hpkeSeal(publicKey, wrapInfo(vaultId, keyVersion), ByteArray(0), tk, ephemeral))
+        return b64u(byteArrayOf(VERSION) + hpkeSeal(publicKey, wrapInfo(vaultId, keyVersion, prefix), ByteArray(0), tk, ephemeral))
     }
 
     /** A wrap → TK, with the device's (or the recovery key's) key pair. */
-    fun unwrapKey(wrap: String, recipient: KeyPair, vaultId: String, keyVersion: Int): ByteArray {
+    fun unwrapKey(wrap: String, recipient: KeyPair, vaultId: String, keyVersion: Int, prefix: String = PREFIX_DRIVE): ByteArray {
         val b = unb64u(wrap)
         if (b.size != WRAP_BYTES || b[0] != VERSION) throw DriveVaultException("invalid", "wrap")
-        val tk = hpkeOpen(recipient, wrapInfo(vaultId, keyVersion), ByteArray(0), b.copyOfRange(1, b.size))
+        val tk = hpkeOpen(recipient, wrapInfo(vaultId, keyVersion, prefix), ByteArray(0), b.copyOfRange(1, b.size))
         if (tk.size != KEY_BYTES) throw DriveVaultException("decrypt")
         return tk
     }
@@ -243,13 +251,13 @@ object DriveVaultCrypto {
         return b.copyOf(i)
     }
 
-    private fun nameKey(tk: ByteArray, vaultId: String) = hkdf(tk, ByteArray(0), "gcdrive-v1:name:$vaultId")
+    private fun nameKey(tk: ByteArray, vaultId: String, prefix: String) = hkdf(tk, ByteArray(0), "$prefix:name:$vaultId")
 
     /** A name → nameCipher (base64url). [nonce] only for test vectors. */
-    fun encryptName(tk: ByteArray, vaultId: String, keyVersion: Int, name: String, nonce: ByteArray? = null): String {
+    fun encryptName(tk: ByteArray, vaultId: String, keyVersion: Int, name: String, nonce: ByteArray? = null, prefix: String = PREFIX_DRIVE): String {
         val head = byteArrayOf(VERSION) + u32(keyVersion.toLong())
         val n = nonce ?: randomBytes(12)
-        val k = nameKey(tk, vaultId)
+        val k = nameKey(tk, vaultId, prefix)
         try {
             val plain = pad(utf8(Normalizer.normalize(name, Normalizer.Form.NFC)))
             return b64u(head + n + gcm(true, k, n, head, plain))
@@ -265,11 +273,11 @@ object DriveVaultCrypto {
     }.getOrNull()
 
     /** nameCipher → the name; [keys] gives the TK of a key version (null: not known). */
-    fun decryptName(keys: (Int) -> ByteArray?, vaultId: String, cipher: String): String {
+    fun decryptName(keys: (Int) -> ByteArray?, vaultId: String, cipher: String, prefix: String = PREFIX_DRIVE): String {
         val b = unb64u(cipher)
         if (b.size < 65 || b[0] != VERSION || (b.size - 33) % 32 != 0) throw DriveVaultException("invalid", "name")
         val tk = keys(readU32(b, 1).toInt()) ?: throw DriveVaultException("decrypt", "no key for this version")
-        val k = nameKey(tk, vaultId)
+        val k = nameKey(tk, vaultId, prefix)
         try {
             val plain = gcm(false, k, b.copyOfRange(5, 17), b.copyOfRange(0, 5), b, 17, b.size - 17)
             return String(unpad(plain), Charsets.UTF_8)
@@ -287,7 +295,7 @@ object DriveVaultCrypto {
 
     private fun chunkAad(head: ByteArray, i: Long, last: Boolean) = head + u32(i) + byteArrayOf(if (last) 1 else 0)
 
-    private fun fileKey(tk: ByteArray, vaultId: String, salt: ByteArray) = hkdf(tk, salt, "gcdrive-v1:content:$vaultId")
+    private fun fileKey(tk: ByteArray, vaultId: String, salt: ByteArray, prefix: String) = hkdf(tk, salt, "$prefix:content:$vaultId")
 
     /** Bytes of the ciphertext of [size] plaintext bytes. */
     fun cipherSize(size: Long, chunkSize: Int = CHUNK): Long = HEADER + size + TAG * maxOf(1L, (size + chunkSize - 1) / chunkSize)
@@ -319,12 +327,13 @@ object DriveVaultCrypto {
         output: OutputStream,
         chunkSize: Int = CHUNK,
         salt: ByteArray = randomBytes(16),
+        prefix: String = PREFIX_DRIVE,
         onProgress: (Long) -> Unit = {},
     ) {
         if (size < 0) throw DriveVaultException("invalid", "size")
         val head = header(keyVersion, chunkSize, salt)
         val n = maxOf(1L, (size + chunkSize - 1) / chunkSize)
-        val key = fileKey(tk, vaultId, salt)
+        val key = fileKey(tk, vaultId, salt, prefix)
         try {
             output.write(head)
             val buf = ByteArray(chunkSize)
@@ -346,14 +355,21 @@ object DriveVaultCrypto {
      * Decrypts the content read from [input] into [output] (the end is found by reading on; no size needed). [keys]
      * gives the TK of a key version. A cut-off, reordered or changed content throws `decrypt`.
      */
-    fun decryptContent(keys: (Int) -> ByteArray?, vaultId: String, input: InputStream, output: OutputStream, onProgress: (Long) -> Unit = {}) {
+    fun decryptContent(
+        keys: (Int) -> ByteArray?,
+        vaultId: String,
+        input: InputStream,
+        output: OutputStream,
+        prefix: String = PREFIX_DRIVE,
+        onProgress: (Long) -> Unit = {},
+    ) {
         val head = ByteArray(HEADER)
         if (readFully(input, head, HEADER) != HEADER) throw DriveVaultException("invalid", "too short")
         val kv = contentVersion(head) ?: throw DriveVaultException("invalid", "not a vault file")
         val cs = readU32(head, 9)
         if (cs < 1024 || cs > 16_777_216) throw DriveVaultException("invalid", "chunk size")
         val tk = keys(kv) ?: throw DriveVaultException("decrypt", "no key for this version")
-        val key = fileKey(tk, vaultId, head.copyOfRange(13, 29))
+        val key = fileKey(tk, vaultId, head.copyOfRange(13, 29), prefix)
         val step = cs.toInt() + TAG
         val pin = PushbackInputStream(input, 1)
         val buf = ByteArray(step)
@@ -428,7 +444,7 @@ object DriveVaultCrypto {
      * Opens [head] (the first [HEADER] bytes of a ciphertext of [cipherSize] bytes) for random access; [keys] gives the
      * TK of a key version. `invalid` when it is not a vault file or the size cannot be one, `decrypt` without the key.
      */
-    fun openContent(keys: (Int) -> ByteArray?, vaultId: String, head: ByteArray, cipherSize: Long): Content {
+    fun openContent(keys: (Int) -> ByteArray?, vaultId: String, head: ByteArray, cipherSize: Long, prefix: String = PREFIX_DRIVE): Content {
         if (head.size < HEADER) throw DriveVaultException("invalid", "too short")
         val h = head.copyOf(HEADER)
         val kv = contentVersion(h) ?: throw DriveVaultException("invalid", "not a vault file")
@@ -441,7 +457,7 @@ object DriveVaultCrypto {
         val last = body - (n - 1) * step
         if (n < 1 || last < TAG || last > step) throw DriveVaultException("invalid", "size")
         val tk = keys(kv) ?: throw DriveVaultException("decrypt", "no key for this version")
-        val key = fileKey(tk, vaultId, h.copyOfRange(13, 29))
+        val key = fileKey(tk, vaultId, h.copyOfRange(13, 29), prefix)
         return Content(h, key, cs.toInt(), n, body - TAG * n, last.toInt())
     }
 
@@ -467,11 +483,11 @@ object DriveVaultCrypto {
     }
 
     /** The recovery key's proof (base64url) — the server keeps its SHA-256. */
-    fun recoveryAuth(key: ByteArray): String = b64u(hkdf(key, ByteArray(0), "gcdrive-v1:recovery-auth"))
+    fun recoveryAuth(key: ByteArray, prefix: String = PREFIX_DRIVE): String = b64u(hkdf(key, ByteArray(0), "$prefix:recovery-auth"))
 
     /** The recovery key's X25519 key pair: HKDF(key, empty, "gcdrive-v1:recovery") as the scalar. */
-    fun recoveryKeyPair(key: ByteArray): KeyPair {
-        val seed = hkdf(key, ByteArray(0), "gcdrive-v1:recovery")
+    fun recoveryKeyPair(key: ByteArray, prefix: String = PREFIX_DRIVE): KeyPair {
+        val seed = hkdf(key, ByteArray(0), "$prefix:recovery")
         return keyFromSeed(seed).also { seed.fill(0) }
     }
 }

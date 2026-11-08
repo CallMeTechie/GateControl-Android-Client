@@ -1,0 +1,957 @@
+{
+ "$comment": "Schnell-Eingabe (ui/quickparse.js): every port (Android, Windows) must give exactly these results. ctx is the same for every case; marks of the first case are listed once (offsets in UTF-16 code units).",
+ "version": 1,
+ "ctx": {
+  "today": "2026-11-08",
+  "now": "10:00",
+  "lists": [
+   {
+    "id": 1,
+    "name": "Gesundheit"
+   },
+   {
+    "id": 2,
+    "name": "Büro"
+   },
+   {
+    "id": 3,
+    "name": "Haus & Garten"
+   },
+   {
+    "id": 4,
+    "name": "Auto"
+   },
+   {
+    "id": 5,
+    "name": "Aufgaben"
+   }
+  ],
+  "people": [
+   {
+    "id": 12,
+    "name": "Jenny Muster"
+   },
+   {
+    "id": 15,
+    "name": "Noah"
+   },
+   {
+    "id": 16,
+    "name": "Noemi"
+   }
+  ]
+ },
+ "marksOfFirst": [
+  {
+   "start": 0,
+   "end": 6,
+   "kind": "date"
+  },
+  {
+   "start": 7,
+   "end": 12,
+   "kind": "time"
+  },
+  {
+   "start": 31,
+   "end": 38,
+   "kind": "important"
+  },
+  {
+   "start": 41,
+   "end": 52,
+   "kind": "list"
+  }
+ ],
+ "cases": [
+  {
+   "input": "Morgen 9 Uhr Zahnarzt anrufen, wichtig , #gesundheit",
+   "expect": {
+    "title": "Zahnarzt anrufen",
+    "date": "2026-11-09",
+    "time": "09:00",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "09:00"
+    },
+    "important": true,
+    "list": {
+     "id": 1,
+     "name": "Gesundheit"
+    },
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Fr 10 Uhr Angebot nachfassen #büro",
+   "expect": {
+    "title": "Angebot nachfassen",
+    "date": "2026-11-13",
+    "time": "10:00",
+    "remind": {
+     "date": "2026-11-13",
+     "time": "10:00"
+    },
+    "important": false,
+    "list": {
+     "id": 2,
+     "name": "Büro"
+    },
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Rasen mähen jeden Montag @noah",
+   "expect": {
+    "title": "Rasen mähen",
+    "date": "2026-11-09",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": {
+     "id": 15,
+     "name": "Noah"
+    },
+    "assigneeName": null,
+    "repeat": {
+     "type": "weekly",
+     "interval": 1,
+     "days": [
+      1
+     ]
+    }
+   }
+  },
+  {
+   "input": "in 2 Wochen Steuer",
+   "expect": {
+    "title": "Steuer",
+    "date": "2026-11-22",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Mathe: Buch S. 42, Nr. 3–6 bis morgen",
+   "expect": {
+    "title": "Mathe: Buch S. 42, Nr. 3–6",
+    "date": "2026-11-09",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "heute Abend Müll rausbringen",
+   "expect": {
+    "title": "Müll rausbringen",
+    "date": "2026-11-08",
+    "time": "19:00",
+    "remind": {
+     "date": "2026-11-08",
+     "time": "19:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "jeden Mo, Mi und Fr Training",
+   "expect": {
+    "title": "Training",
+    "date": "2026-11-09",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "weekly",
+     "interval": 1,
+     "days": [
+      1,
+      3,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "input": "alle 2 Wochen am Dienstag Putzen",
+   "expect": {
+    "title": "Putzen",
+    "date": "2026-11-10",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "weekly",
+     "interval": 2,
+     "days": [
+      2
+     ]
+    }
+   }
+  },
+  {
+   "input": "Filter wechseln 3 Tage nach Erledigung",
+   "expect": {
+    "title": "Filter wechseln",
+    "date": "2026-11-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "after",
+     "interval": 3
+    }
+   }
+  },
+  {
+   "input": "13.11. Packen",
+   "expect": {
+    "title": "Packen",
+    "date": "2026-11-13",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "am 13. November Geburtstag Oma",
+   "expect": {
+    "title": "Geburtstag Oma",
+    "date": "2026-11-13",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "halb 10 Meeting",
+   "expect": {
+    "title": "Meeting",
+    "date": "2026-11-09",
+    "time": "09:30",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "09:30"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "call mom tomorrow at 5 pm!",
+   "expect": {
+    "title": "call mom",
+    "date": "2026-11-09",
+    "time": "17:00",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "17:00"
+    },
+    "important": true,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "every monday and thursday gym",
+   "expect": {
+    "title": "gym",
+    "date": "2026-11-09",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "weekly",
+     "interval": 1,
+     "days": [
+      1,
+      4
+     ]
+    }
+   }
+  },
+  {
+   "input": "Freitag Einkaufen",
+   "expect": {
+    "title": "Einkaufen",
+    "date": "2026-11-13",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "werktags 7:30 Zeitung",
+   "expect": {
+    "title": "Zeitung",
+    "date": "2026-11-09",
+    "time": "07:30",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "07:30"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "weekly",
+     "interval": 1,
+     "days": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "input": "Tomorrow morning run",
+   "expect": {
+    "title": "run",
+    "date": "2026-11-09",
+    "time": "09:00",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "09:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "2026-12-24 Geschenke",
+   "expect": {
+    "title": "Geschenke",
+    "date": "2026-12-24",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "übermorgen Reifen wechseln #auto",
+   "expect": {
+    "title": "Reifen wechseln",
+    "date": "2026-11-10",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": {
+     "id": 4,
+     "name": "Auto"
+    },
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Steuererklärung jährlich",
+   "expect": {
+    "title": "Steuererklärung",
+    "date": "2026-11-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "yearly",
+     "interval": 1
+    }
+   }
+  },
+  {
+   "input": "Blumen gießen täglich",
+   "expect": {
+    "title": "Blumen gießen",
+    "date": "2026-11-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "daily",
+     "interval": 1
+    }
+   }
+  },
+  {
+   "input": "in einer Woche Rückruf",
+   "expect": {
+    "title": "Rückruf",
+    "date": "2026-11-15",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "nächste Woche Urlaub planen",
+   "expect": {
+    "title": "Urlaub planen",
+    "date": "2026-11-09",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "am Wochenende Fenster putzen",
+   "expect": {
+    "title": "Fenster putzen",
+    "date": "2026-11-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Zahnarzt 14:30",
+   "expect": {
+    "title": "Zahnarzt",
+    "date": "2026-11-08",
+    "time": "14:30",
+    "remind": {
+     "date": "2026-11-08",
+     "time": "14:30"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "um 8 Bäcker",
+   "expect": {
+    "title": "Bäcker",
+    "date": "2026-11-09",
+    "time": "08:00",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "08:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Präsentation 9.30 Uhr",
+   "expect": {
+    "title": "Präsentation",
+    "date": "2026-11-09",
+    "time": "09:30",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "09:30"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "@Jenny Einkaufsliste schreiben",
+   "expect": {
+    "title": "Einkaufsliste schreiben",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": {
+     "id": 12,
+     "name": "Jenny Muster"
+    },
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "@No Hausaufgaben prüfen",
+   "expect": {
+    "title": "Hausaufgaben prüfen",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": "No",
+    "repeat": null
+   }
+  },
+  {
+   "input": "#haus Hecke schneiden",
+   "expect": {
+    "title": "Hecke schneiden",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": {
+     "id": 3,
+     "name": "Haus & Garten"
+    },
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "#einkauf Milch",
+   "expect": {
+    "title": "Milch",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": "einkauf",
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Rechnung bezahlen dringend",
+   "expect": {
+    "title": "Rechnung bezahlen",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": true,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "!! Server neu starten",
+   "expect": {
+    "title": "Server neu starten",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": true,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Meeting 9 am",
+   "expect": {
+    "title": "Meeting",
+    "date": "2026-11-09",
+    "time": "09:00",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "09:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "in 3 days report",
+   "expect": {
+    "title": "report",
+    "date": "2026-11-11",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Sonntag Kuchen backen",
+   "expect": {
+    "title": "Kuchen backen",
+    "date": "2026-11-15",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Mo. Projekt starten",
+   "expect": {
+    "title": "Projekt starten",
+    "date": "2026-11-09",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Monatsbericht jeden Monat",
+   "expect": {
+    "title": "Monatsbericht",
+    "date": "2026-11-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "monthly",
+     "interval": 1
+    }
+   }
+  },
+  {
+   "input": "alle 3 Tage Pflanzen düngen",
+   "expect": {
+    "title": "Pflanzen düngen",
+    "date": "2026-11-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "daily",
+     "interval": 3
+    }
+   }
+  },
+  {
+   "input": "So geht das nicht",
+   "expect": {
+    "title": "So geht das nicht",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Do it now",
+   "expect": {
+    "title": "Do it now",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "31.02. Unsinn",
+   "expect": {
+    "title": "31.02. Unsinn",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Treffen 25.12.2026 18 Uhr",
+   "expect": {
+    "title": "Treffen",
+    "date": "2026-12-25",
+    "time": "18:00",
+    "remind": {
+     "date": "2026-12-25",
+     "time": "18:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "Jahresgespräch 15. Jan",
+   "expect": {
+    "title": "Jahresgespräch",
+    "date": "2027-01-15",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "morgen früh joggen",
+   "expect": {
+    "title": "joggen",
+    "date": "2026-11-09",
+    "time": "09:00",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "09:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "morgen früh 7 Uhr Flug",
+   "expect": {
+    "title": "Flug",
+    "date": "2026-11-09",
+    "time": "07:00",
+    "remind": {
+     "date": "2026-11-09",
+     "time": "07:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "tonight dinner",
+   "expect": {
+    "title": "dinner",
+    "date": "2026-11-08",
+    "time": "19:00",
+    "remind": {
+     "date": "2026-11-08",
+     "time": "19:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "14h Termin",
+   "expect": {
+    "title": "Termin",
+    "date": "2026-11-08",
+    "time": "14:00",
+    "remind": {
+     "date": "2026-11-08",
+     "time": "14:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "every 2 weeks newsletter",
+   "expect": {
+    "title": "newsletter",
+    "date": "2026-11-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "weekly",
+     "interval": 2,
+     "days": [
+      7
+     ]
+    }
+   }
+  },
+  {
+   "input": "Notiz ohne alles",
+   "expect": {
+    "title": "Notiz ohne alles",
+    "date": null,
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  },
+  {
+   "input": "in 1 Monat Vertrag kündigen",
+   "expect": {
+    "title": "Vertrag kündigen",
+    "date": "2026-12-08",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   }
+  }
+ ]
+}
