@@ -450,6 +450,8 @@ fun VaultSettingsScreen(onBack: () -> Unit, onForgot: () -> Unit, viewModel: Vau
                         leading = { Icon(GcIcons.Key, null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
                         trailing = { if (vaultAutofillActive(context)) GcChip(stringResource(R.string.vault_autofill_active), tone = GcTone.Ok, small = true) else GcChevron() },
                     )
+                    // installed browsers that still need their own switch (Chrome 135+, Edge 147+, Brave, Vivaldi)
+                    VaultBrowserHint(Modifier.padding(start = 52.dp, end = 16.dp, bottom = 12.dp))
                     GcRowDivider()
                     GcListRow(
                         title = stringResource(R.string.vault_change_pw),

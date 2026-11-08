@@ -58,6 +58,22 @@
         </intent>
         <!-- Recommended split-tunnel exclusions (no launcher activity) -->
         <package android:name="com.google.android.projection.gearhead" />
+        <!-- Vault's browser hint (VaultBrowserHint): which of these browsers is installed and whether its
+             "Autofill using another service" is on (Chromium's content provider). VaultBrowsers.switchPackages. -->
+        <package android:name="com.android.chrome" />
+        <package android:name="com.chrome.beta" />
+        <package android:name="com.chrome.dev" />
+        <package android:name="com.chrome.canary" />
+        <package android:name="com.microsoft.emmx" />
+        <package android:name="com.microsoft.emmx.beta" />
+        <package android:name="com.microsoft.emmx.dev" />
+        <package android:name="com.microsoft.emmx.canary" />
+        <package android:name="com.brave.browser" />
+        <package android:name="com.brave.browser_beta" />
+        <package android:name="com.brave.browser_dev" />
+        <package android:name="com.brave.browser_nightly" />
+        <package android:name="com.vivaldi.browser" />
+        <package android:name="com.vivaldi.browser.snapshot" />
     </queries>
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />

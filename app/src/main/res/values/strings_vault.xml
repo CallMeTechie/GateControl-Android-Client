@@ -65,6 +65,11 @@
     <string name="vault_bio_text">Your master password is not stored. A newly added fingerprint turns this off.</string>
     <string name="vault_autofill_title">Fill in other apps</string>
     <string name="vault_autofill_text">Choose GateControl as autofill service in Android\'s settings.</string>
+    <string name="vault_browser_hint_chrome">Chrome fills with GateControl only once you switch it on there: in Chrome choose “Autofill using another service” under Settings › Autofill services.</string>
+    <string name="vault_browser_hint_edge">Edge fills with GateControl only once you switch it there: in Edge’s settings for passwords choose Android’s password manager instead of Edge’s own. The choice exists from Edge 147 and only once GateControl is Android’s autofill service.</string>
+    <string name="vault_browser_hint_other">%1$s fills with GateControl only once you switch it on there: in %1$s choose “Autofill using another service” under Settings › Autofill services.</string>
+    <string name="vault_browser_open">Open %1$s</string>
+    <string name="vault_af_unknown_page">Page not recognised</string>
     <string name="vault_autofill_open">Open settings</string>
     <string name="vault_autofill_active">Active</string>
     <string name="vault_setup_finish">Open Vault</string>

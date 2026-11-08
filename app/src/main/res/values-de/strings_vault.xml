@@ -65,6 +65,11 @@
     <string name="vault_bio_text">Dein Hauptpasswort wird nicht gespeichert. Ein neu angelegter Fingerabdruck schaltet das ab.</string>
     <string name="vault_autofill_title">In anderen Apps ausfüllen</string>
     <string name="vault_autofill_text">Wähle GateControl als Autofill-Dienst in den Android-Einstellungen.</string>
+    <string name="vault_browser_hint_chrome">Chrome füllt erst mit GateControl aus, wenn du es dort einschaltest: In Chrome unter Einstellungen › Autofill-Dienste „Autofill mit einem anderen Dienst“ wählen.</string>
+    <string name="vault_browser_hint_edge">Edge füllt erst mit GateControl aus, wenn du es dort umstellst: In Edge in den Einstellungen bei den Passwörtern den Passwortmanager von Android statt des Edge-eigenen wählen. Die Auswahl gibt es ab Edge 147 und erst, wenn GateControl in Android als Autofill-Dienst gewählt ist.</string>
+    <string name="vault_browser_hint_other">%1$s füllt erst mit GateControl aus, wenn du es dort einschaltest: In %1$s unter Einstellungen › Autofill-Dienste „Autofill mit einem anderen Dienst“ wählen.</string>
+    <string name="vault_browser_open">%1$s öffnen</string>
+    <string name="vault_af_unknown_page">Seite nicht erkannt</string>
     <string name="vault_autofill_open">Einstellungen öffnen</string>
     <string name="vault_autofill_active">Aktiv</string>
     <string name="vault_setup_finish">Vault öffnen</string>

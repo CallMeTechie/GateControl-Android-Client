@@ -40,12 +40,14 @@ object VaultMatch {
 
     /**
      * Entries for a form: a browser page by its domain only (never by the browser's own package); an app by its
-     * package, or by a domain the app's form declares. Logins only, not trashed; favourites first.
+     * package, or by a domain the app's form declares. A web page ([web]) without a known domain fits nothing — never
+     * a password on the wrong page. Logins only, not trashed; favourites first.
      */
-    fun matches(entries: List<Entry>, packageName: String?, webDomain: String?): List<Entry> {
+    fun matches(entries: List<Entry>, packageName: String?, webDomain: String?, web: Boolean = false): List<Entry> {
         val live = entries.filter { !it.trashed && (it.data.type == "login" || it.data.username.isNotEmpty() || it.data.password.isNotEmpty()) }
         val hits = when {
             !webDomain.isNullOrBlank() -> live.filter { fitsDomain(it.data, webDomain) }
+            web || com.gatecontrol.android.vault.autofill.VaultBrowsers.isBrowser(packageName) -> emptyList()
             !packageName.isNullOrBlank() -> live.filter { fitsApp(it.data, packageName) }
             else -> emptyList()
         }
