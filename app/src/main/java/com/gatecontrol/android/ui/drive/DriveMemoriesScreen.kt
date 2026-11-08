@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -50,7 +51,9 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveMemoriesLogic
+import com.gatecontrol.android.drive.DriveMemoryHandoff
 import com.gatecontrol.android.drive.DriveTransfers
+import com.gatecontrol.android.navigation.Screen
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -63,12 +66,14 @@ import javax.inject.Inject
 
 /**
  * The page „Erinnerungen“ (Drive 1.26, feature `memoryCollections`): `GET memories` — the collections of the private
- * photos by section; one opened shows its photos (`GET memories/photos`) in the photo grid, a tap the viewer.
+ * photos by section; one opened shows its photos (`GET memories/photos`) in the photo grid, a tap the viewer. The route's
+ * `open` (a pick of the overview, Drive 1.28) opens that collection at once, as a tap on its card here would.
  */
 @HiltViewModel
 class DriveMemoriesViewModel @Inject constructor(
     private val api: DriveApi,
     private val transfers: DriveTransfers,
+    private val savedState: SavedStateHandle,
 ) : ViewModel() {
     private val _state = MutableStateFlow<DriveLoad<DMemoryList>>(DriveLoad.Loading)
     val state: StateFlow<DriveLoad<DMemoryList>> = _state.asStateFlow()
@@ -82,7 +87,11 @@ class DriveMemoriesViewModel @Inject constructor(
     }
     val photos: StateFlow<PhotoPages> = pager.state
 
+    /** The collection the route asks to open, until it is opened (once; not again after Zurück). */
+    private var wanted: String? = savedState.get<String>(Screen.DriveMemories.ARG_OPEN)?.takeIf { savedState.get<Boolean>(OPENED) != true }
+
     init {
+        DriveMemoryHandoff.take(wanted)?.let(::open)
         load()
     }
 
@@ -90,10 +99,16 @@ class DriveMemoriesViewModel @Inject constructor(
         viewModelScope.launch {
             val r = api.memoryCollections()
             if (r is DResult.Ok || _state.value !is DriveLoad.Ready) _state.value = r.toLoad { it }
+            // the app was restarted in between: the collection of the list, by its id
+            if (r is DResult.Ok && wanted != null) DriveMemoriesLogic.find(r.value, wanted)?.let(::open) ?: run { wanted = null }
         }
     }
 
     fun open(c: DMemoryCollection) {
+        if (wanted != null) {
+            wanted = null
+            savedState[OPENED] = true
+        }
         _open.value = c
         pager.reload()
     }
@@ -107,6 +122,10 @@ class DriveMemoriesViewModel @Inject constructor(
     fun retry() = pager.retry()
 
     suspend fun fetch(node: DNode): DResult<File> = transfers.fetch(node)
+
+    private companion object {
+        const val OPENED = "memories.opened"
+    }
 }
 
 /** The page „Erinnerungen“; back closes an opened collection first. */

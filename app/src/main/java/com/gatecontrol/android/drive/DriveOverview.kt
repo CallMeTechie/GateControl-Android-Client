@@ -16,12 +16,14 @@ import java.time.ZoneId
  * What the overview of Drive shows (Drive 1.18, mockup "Übersicht"): what is to be done, the files opened last, the
  * memories, people and places of the photos, what others added in shared areas, the storage. A part is null or empty
  * when there is nothing (or its feature is off). [assembled]: built from the older endpoints (a server without
- * `overview`); "Zuletzt geöffnet" and "Neu in Familie" are then missing.
+ * `overview`); "Zuletzt geöffnet" and "Neu in Familie" are then missing. [memoryPicks] (Drive 1.28, `memoryPicks`):
+ * collections of the page „Erinnerungen“ for the days without [memories] (empty on an older Drive).
  */
 data class DOverview(
     val todo: DTodo? = null,
     val recent: List<DRecent> = emptyList(),
     val memories: List<DMemoryCard> = emptyList(),
+    val memoryPicks: List<DMemoryCollection> = emptyList(),
     val people: DOverviewPeople? = null,
     val places: DOverviewPlaces? = null,
     val activity: List<DActivity> = emptyList(),
@@ -91,6 +93,8 @@ internal object DriveOverviewJson {
             todo = todo(src.obj("todo")),
             recent = src.arr("recent")?.mapNotNull { recent(it as? JsonObject) }?.take(RECENT_MAX).orEmpty(),
             memories = src.arr("memories")?.mapNotNull { memory(it as? JsonObject) }?.take(MEMORIES_MAX).orEmpty(),
+            // Drive 1.28: collections exactly as `GET memories` answers them (missing on an older Drive: none)
+            memoryPicks = src.arr("memoryPicks")?.mapNotNull { DriveMemoriesJson.collection(it as? JsonObject) }?.take(MEMORIES_MAX).orEmpty(),
             people = people(src),
             places = places(src.obj("places")),
             activity = src.arr("activity")?.mapNotNull { activity(it as? JsonObject) }?.take(ACTIVITY_MAX).orEmpty(),
@@ -239,6 +243,15 @@ internal object DriveOverviewLogic {
 
     fun hasPlaces(p: DOverviewPlaces?): Boolean = p != null && p.top.isNotEmpty()
 
+    /**
+     * What „Erinnerungen“ shows when there is no day „Heute vor X Jahren“ (Drive 1.28): the picks of the page
+     * „Erinnerungen“; none while [DOverview.memories] has a day (the server sends none then, too).
+     */
+    fun picks(o: DOverview): List<DMemoryCollection> = if (o.memories.isNotEmpty()) emptyList() else o.memoryPicks
+
+    /** „Erinnerungen“ shows with a day „Heute vor X Jahren“, else with a pick (Drive 1.28); with neither it stays out. */
+    fun hasMemories(o: DOverview): Boolean = o.memories.isNotEmpty() || picks(o).isNotEmpty()
+
     /** The sections shown, in order; an empty one is left out (the search always shows). */
     fun sections(o: DOverview?, backup: Backup?): List<Section> = buildList {
         add(Section.SEARCH)
@@ -246,7 +259,7 @@ internal object DriveOverviewLogic {
         if (backup != null || o.storage != null) add(Section.STATUS)
         if (hasTodo(o.todo)) add(Section.TODO)
         if (o.recent.isNotEmpty()) add(Section.RECENT)
-        if (o.memories.isNotEmpty()) add(Section.MEMORIES)
+        if (hasMemories(o)) add(Section.MEMORIES)
         if (hasPeople(o.people)) add(Section.PEOPLE)
         if (hasPlaces(o.places)) add(Section.PLACES)
         if (o.activity.isNotEmpty()) add(Section.ACTIVITY)

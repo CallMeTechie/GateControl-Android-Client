@@ -319,8 +319,12 @@ sealed class Screen(val route: String) {
     }
     /** "Personen" (Drive 1.16, feature `photoPeople`). */
     data object DrivePeople : Screen("drive/photos/people")
-    /** Drive › „Erinnerungen“ (Drive 1.26, the overview's „Alle“). */
-    data object DriveMemories : Screen("drive/photos/memories")
+    /** Drive › „Erinnerungen“ (Drive 1.26, the overview's „Alle“); [ARG_OPEN] a collection opened there (Drive 1.28). */
+    data object DriveMemories : Screen("drive/photos/memories?open={open}") {
+        const val ARG_OPEN = "open"
+        fun create(open: String? = null): String =
+            if (open == null) "drive/photos/memories" else "drive/photos/memories?open=" + android.net.Uri.encode(open)
+    }
     /** One person of the photos. */
     data object DrivePerson : Screen("drive/photos/person/{id}") {
         const val ARG_ID = "id"
