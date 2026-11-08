@@ -245,6 +245,22 @@ internal object DriveLogic {
      */
     fun cameraFilter(on: Boolean, me: DMe?): Boolean = on && me?.has(DMe.FEATURE_PHOTOS_FOLDER) == true
 
+    /** "Fotos" / "Videos" as sent (Drive 1.25, `mediaFilter`): `image` | `video`, else null (both, or an older Drive). */
+    fun mediaFilter(m: String?, me: DMe?): String? = m?.takeIf { it in DriveJson.MEDIA_KINDS && me?.has(DMe.FEATURE_MEDIA_FILTER) == true }
+
+    /** The search may go: two characters or more — or none with "Fotos" / "Videos" ([media], the newest of them). */
+    fun searchable(term: String, media: String?): Boolean = term.length >= 2 || (term.isEmpty() && media != null)
+
+    /** A video's length as on its tile: "0:07", "1:23", "1:02:03"; null when unknown. */
+    fun durationText(ms: Long?): String? {
+        if (ms == null || ms <= 0) return null
+        val t = (ms + 500) / 1000
+        val h = t / 3600
+        val m = (t % 3600) / 60
+        val s = t % 60
+        return if (h > 0) "%d:%02d:%02d".format(Locale.ROOT, h, m, s) else "%d:%02d".format(Locale.ROOT, m, s)
+    }
+
     /** The Photos page's search finds photos by content (1.14), people or places (1.16): else the files' search. */
     fun photoSearchable(me: DMe?): Boolean =
         me != null && (me.has(DMe.FEATURE_PHOTO_SEARCH) || me.has(DMe.FEATURE_PHOTO_PLACES) || me.has(DMe.FEATURE_PHOTO_PEOPLE))

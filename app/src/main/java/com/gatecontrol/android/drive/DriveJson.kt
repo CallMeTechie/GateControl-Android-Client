@@ -203,6 +203,7 @@ internal object DriveJson {
             labeled = o.bool("labeled"),
             geo = DrivePlacesJson.geo(o.obj("geo")),
             located = o.bool("located"),
+            durationMs = o.long("durationMs")?.takeIf { it in 1..DURATION_MAX_MS },
             people = o.arr("people")?.mapNotNull { e -> runCatching { e.asLong }.getOrNull() }?.distinct()?.take(50),
             scan = MediaScanJson.of(o),
             // Drive 1.24: the previews from the home gateway (`preview.lan` / `largeLan` of a node, `previewLan` /
@@ -411,6 +412,7 @@ internal object DriveJson {
         text: String? = null,
         takenAt: String? = null,
         geo: com.gatecontrol.android.drive.work.GeoPoint? = null,
+        durationMs: Long? = null,
     ) = JsonObject().apply {
         addProperty("mediaId", mediaId)
         addProperty("parentId", parentId)
@@ -423,6 +425,8 @@ internal object DriveJson {
         if (!takenAt.isNullOrBlank()) addProperty("takenAt", takenAt.take(40))
         // Where it was taken (Drive 1.16, only sent with `photoPlaces` and `keepGeo`).
         DrivePlacesJson.geoBody(geo)?.let { add("geo", it) }
+        // How long a video runs (Drive 1.25, only sent with `mediaFilter`).
+        if (durationMs != null && durationMs in 1..DURATION_MAX_MS) addProperty("durationMs", durationMs)
     }
 
     /** An empty file (feature `emptyFiles`): no media, just its place, name and size 0. */
@@ -500,6 +504,12 @@ internal object DriveJson {
             if (unlabeled) put("unlabeled", "1")
             putAll(DrivePlacesJson.filterQuery(filter) ?: return null)
         }
+
+    /** The values of `media` (Drive 1.25, `mediaFilter`). */
+    val MEDIA_KINDS = setOf("image", "video")
+
+    /** The longest video length taken from the server (7 days, as it keeps them). */
+    const val DURATION_MAX_MS = 7L * 24 * 3600 * 1000
 
     /** The values of `class` (Drive 1.13). */
     val PHOTO_CLASSES = setOf("work", "private", "review")

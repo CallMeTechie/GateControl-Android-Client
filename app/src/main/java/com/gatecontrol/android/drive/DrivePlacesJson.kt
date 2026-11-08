@@ -132,6 +132,7 @@ internal object DrivePlacesJson {
         if (f.districts && f.place != null) put("districts", "1")
         if (f.withPeople) put("with", "people")
         if (f.unlocated) put("unlocated", "1")
+        if (f.media != null) put("media", f.media.takeIf { it in DriveJson.MEDIA_KINDS } ?: return null)
         if (f.unfacedModel != null) {
             put("unfaced", "1")
             put("model", model(f.unfacedModel) ?: return null)

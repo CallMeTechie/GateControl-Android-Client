@@ -12,6 +12,7 @@ import com.gatecontrol.android.drive.DPhotos
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.drive.DriveLive
+import com.gatecontrol.android.drive.DPhotoFilter
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.drive.DPhotoClasses
@@ -142,7 +143,14 @@ class DrivePhotosViewModel @Inject constructor(
     /** The class as it is sent: only while Drive knows them. */
     private fun serverCls(): String? = if (work.serverClasses(live.me.value)) _cls.value else null
 
-    private val pager = PhotoPager(viewModelScope) { before -> api.photos(before = before, camera = camera(), cls = serverCls()) }
+    private val _media = MutableStateFlow<String?>(null)
+    /** "Alle" (null) | `image` | `video` (Drive 1.25, feature `mediaFilter`). */
+    val media: StateFlow<String?> = _media.asStateFlow()
+
+    /** The filter of pictures or videos as it is sent: only while Drive knows it. */
+    private fun mediaFilter(): DPhotoFilter = DPhotoFilter(media = DriveLogic.mediaFilter(_media.value, live.me.value))
+
+    private val pager = PhotoPager(viewModelScope) { before -> api.photos(before = before, camera = camera(), cls = serverCls(), filter = mediaFilter()) }
     val timeline: StateFlow<PhotoPages> = pager.state
 
     private val _classes = MutableStateFlow<DPhotoClasses?>(null)
@@ -202,7 +210,7 @@ class DrivePhotosViewModel @Inject constructor(
     /** Drive's features came or changed: the filter as sent may be another now (`photosFolder`). */
     fun featuresChanged() {
         val was = loadedCamera ?: return
-        if (camera() != was) load(quiet = false)
+        if (camera() != was || (_media.value != null && mediaFilter().media == null)) load(quiet = false)
     }
 
     private fun load(quiet: Boolean) {
@@ -210,9 +218,19 @@ class DrivePhotosViewModel @Inject constructor(
         val cls = serverCls()
         loadedCamera = camera
         pager.reload(quiet = quiet)
-        viewModelScope.launch { _months.value = api.photoMonths(camera = camera, cls = cls).valueOrNull()?.associate { it.month to it.count }.orEmpty() }
-        if (work.serverClasses(live.me.value)) viewModelScope.launch { _classes.value = api.photoClasses(camera = camera).valueOrNull() } else _classes.value = null
+        val filter = mediaFilter()
+        viewModelScope.launch { _months.value = api.photoMonths(camera = camera, cls = cls, filter = filter).valueOrNull()?.associate { it.month to it.count }.orEmpty() }
+        if (work.serverClasses(live.me.value)) viewModelScope.launch { _classes.value = api.photoClasses(camera = camera, media = filter.media).valueOrNull() } else _classes.value = null
         if (_albums.value != null) loadAlbums()
+    }
+
+    /** "Alle · Fotos · Videos" (Drive 1.25): the timeline of only the pictures or only the videos. */
+    fun setMedia(m: String?) {
+        if (m == _media.value) return
+        _media.value = m
+        bulk.clear()
+        _months.value = emptyMap()
+        load(quiet = false)
     }
 
     /** "Nur Kamera-Uploads" on or off: the timeline and its months again. */

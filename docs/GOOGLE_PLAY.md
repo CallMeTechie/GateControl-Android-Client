@@ -73,7 +73,7 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | **Standort → Genauer Standort** | optional | Standortfreigabe auf Tipp (ab 1.26), Standort-Nachricht im Chat (einmalig), Familie: Kind orten auf Anfrage der Eltern, SOS, Drive: Aufnahmeort gesicherter Fotos (EXIF, „Aufnahmeort mitsichern“, an den eigenen Server). Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
 | **Nachrichten → Sonstige In-App-Nachrichten** | optional | Chats (ab 1.42): Texte, Antworten, Reaktionen |
 | **Fotos und Videos → Fotos** | optional | Chat-Bilder, eigenes Profilbild (ab 1.33), Drive: Foto-Sicherung (nur eingeschaltet, in den eigenen Drive des Servers); Drive „Personen erkennen“ (nur eingeschaltet): auf dem Gerät berechnete Gesichtsmerkmale (Zahlen, keine Bilder) an den eigenen Server |
-| **Fotos und Videos → Videos** | optional | Chats: Videos, die als Datei gesendet oder aus anderen Apps geteilt werden; Drive: Foto-Sicherung mit „Auch Videos“ |
+| **Fotos und Videos → Videos** | optional | Chats: Videos, die als Datei gesendet oder aus anderen Apps geteilt werden; Drive: Foto-Sicherung mit „Auch Videos“ (beim Einschalten wählbar: „Alle Videos“ oder „Nur neue“; mit der Länge des Videos an den eigenen Server) |
 | **Audiodateien → Sprach- oder Tonaufnahmen** | optional | Chats: Sprachnachrichten (Mikrofon nur, solange die Taste gehalten wird) |
 | **Gesundheit und Fitness → Gesundheitsinformationen** | optional | Familie: Notfall-Karte (Allergien, Medikamente, Vorerkrankungen, Blutgruppe …) |
 | **App-Info und -Leistung → Absturzprotokolle** | Pflicht (automatisch) | Absturzbericht als geschwärztes Support-Paket an den eigenen Server |
@@ -102,7 +102,7 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 
 **Foto- und Videoberechtigungen** (Formular „Berechtigungen für Fotos und Videos“, Pflicht für `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` ab der Drive-Foto-Sicherung; ohne das Formular nimmt Play neue Versionen nicht an):
 - *Kernfunktion:* „Foto-Sicherung (Drive): Die App sichert auf Wunsch die Fotos und Videos der Kamera automatisch als Original in den Drive auf dem eigenen, selbst gehosteten GateControl-Server des Nutzers – wie eine Cloud-Foto-Sicherung, nur ohne fremden Anbieter. Dafür braucht sie dauerhaften Zugriff auf die Mediathek, auch im Hintergrund, wenn neue Fotos entstehen. Die Fotoauswahl des Systems reicht nicht, weil sie keine laufende Sicherung neuer Fotos erlaubt.“
-- *Nutzung:* nur nach Einschalten durch den Nutzer (Drive › Foto-Sicherung), Ziel nur der eigene Server, keine Weitergabe an Dritte, jederzeit abschaltbar. Teilzugriff (Android 14 „Ausgewählte Fotos“) wird unterstützt.
+- *Nutzung:* nur nach Einschalten durch den Nutzer (Drive › Foto-Sicherung), Ziel nur der eigene Server, keine Weitergabe an Dritte, jederzeit abschaltbar. Teilzugriff (Android 14 „Ausgewählte Fotos“) wird unterstützt; die App sagt dann in der Foto-Sicherung und bei „Orte und Personen“, dass sie nur die ausgewählten Fotos sieht, und fragt auf Tipp nach dem vollen Zugriff. Mit „Auch Videos“ fragt sie nach `READ_MEDIA_VIDEO`.
 - *Video (optional):* Drive-Tab → Foto-Sicherung → einschalten → Berechtigung erlauben → „Alle Fotos“ → Fortschritt auf der Karte → Foto im Ordner Familie › Fotos › Name.
 
 **Akku-Optimierung ausnehmen** (keine eigene Erklärung, Prüfer fragen ggf. nach): Die App fragt nur, wenn der Nutzer Benachrichtigungen „immer“ empfangen will; ohne Ausnahme beendet Doze die Verbindung zur Benachrichtigungszentrale.

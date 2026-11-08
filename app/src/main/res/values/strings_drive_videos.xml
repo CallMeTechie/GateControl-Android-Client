@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.25: videos in the photo backup, "All · Photos · Videos", searching videos -->
+<resources>
+    <string name="drive_backup_videos_which_title">Which videos?</string>
+    <string name="drive_backup_videos_which_text">Also back up the videos already on the phone, or only those you record from now on? Photos are not uploaded again.</string>
+    <string name="drive_backup_videos_which_all">All videos</string>
+    <string name="drive_backup_videos_which_new">Only new</string>
+    <string name="drive_backup_videos_running">Older videos: %1$d of %2$d</string>
+    <plurals name="drive_backup_videos_waiting">
+        <item quantity="one">%d older video still to back up.</item>
+        <item quantity="other">%d older videos still to back up.</item>
+    </plurals>
+    <string name="drive_media_partial">The app only sees selected photos – allow access to all?</string>
+    <string name="drive_media_videos_missing">GateControl may not see your videos yet – allow access?</string>
+    <string name="drive_media_allow">Allow access</string>
+    <string name="drive_backup_skipped_title">Skipped (%1$d)</string>
+    <string name="drive_backup_skipped_text">These files are not in Drive. The reason is below each.</string>
+    <string name="drive_backup_skipped_retry">Try again</string>
+    <string name="drive_backup_skip_read">The file could not be read.</string>
+    <string name="drive_backup_skip_empty">The file is empty.</string>
+    <string name="drive_backup_skip_too_large">Too large for Drive.</string>
+    <string name="drive_backup_skip_type">Drive does not take this kind of file.</string>
+    <string name="drive_backup_skip_infected">The virus scan rejected the file.</string>
+    <string name="drive_backup_skip_invalid">The server did not take the file.</string>
+    <string name="drive_backup_skip_other">Upload failed (%1$s).</string>
+    <plurals name="drive_backup_skipped_more">
+        <item quantity="one">… and %d more</item>
+        <item quantity="other">… and %d more</item>
+    </plurals>
+    <string name="drive_backup_sent_title">Uploaded lately</string>
+    <string name="drive_backup_sent_private">Camera uploads › %1$s</string>
+    <string name="drive_backup_sent_work">%1$s › %2$s</string>
+    <string name="drive_media_all">All</string>
+    <string name="drive_media_images">Photos</string>
+    <string name="drive_media_videos">Videos</string>
+    <string name="drive_media_filter">Photos or videos</string>
+    <string name="drive_media_none_images">No photos.</string>
+    <string name="drive_media_none_videos">No videos.</string>
+    <string name="drive_media_duration">Length %1$s</string>
+    <string name="drive_pp_fill_nothing">Nothing to fill in – every photo on this phone has a place already.</string>
+</resources>

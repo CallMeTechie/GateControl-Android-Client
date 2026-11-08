@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
@@ -27,13 +26,10 @@ class DriveWorkGeo @Inject constructor(@ApplicationContext private val context: 
     /** What a look found: [known] the phone could look (else ask again later), [at] where (null: not on the phone, no GPS). */
     data class Look(val known: Boolean, val at: GeoPoint?)
 
+    /** It may look: the photos (all, or the picked ones — [com.gatecontrol.android.drive.DriveMediaAccess]) and their locations. */
     fun canLook(): Boolean {
         fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
-        val read = when {
-            Build.VERSION.SDK_INT >= 34 && granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) -> true
-            Build.VERSION.SDK_INT >= 33 -> granted(Manifest.permission.READ_MEDIA_IMAGES)
-            else -> granted(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
+        val read = com.gatecontrol.android.drive.DriveMediaAccess.of(context, videos = false) != com.gatecontrol.android.drive.DriveMediaAccess.Access.NONE
         return read && granted(Manifest.permission.ACCESS_MEDIA_LOCATION)
     }
 

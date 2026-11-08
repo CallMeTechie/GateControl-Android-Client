@@ -386,9 +386,12 @@ fun DriveSettingsScreen(
             // Drive 1.16: places and people of the photos
             if (me?.has(DMe.FEATURE_PHOTO_PLACES) == true || me?.has(DMe.FEATURE_PHOTO_PEOPLE) == true) {
                 SettingsGroup(stringResource(R.string.drive_mode_photos)) {
+                    // Android 14+ "Ausgewählte Fotos": places and people find only the picked photos — said here already
+                    val partialMedia = com.gatecontrol.android.drive.DriveMediaAccess.of(LocalContext.current, videos = false) ==
+                        com.gatecontrol.android.drive.DriveMediaAccess.Access.PARTIAL
                     GcListRow(
                         title = stringResource(R.string.drive_pp_settings_title),
-                        description = stringResource(R.string.drive_pp_settings_row),
+                        description = stringResource(if (partialMedia) R.string.drive_media_partial else R.string.drive_pp_settings_row),
                         onClick = onPlaces,
                         leading = { Icon(GcIcons.Pin, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) },
                         trailing = { GcChevron() },

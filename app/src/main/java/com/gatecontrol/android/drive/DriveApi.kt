@@ -232,10 +232,12 @@ class DriveApi @Inject constructor(
     /** This device has removed (or never had) these files. */
     suspend fun wipesDone(ids: List<Long>): DResult<Unit> = post("wipes/done", DriveJson.wipesDoneBody(ids), unit)
 
-    suspend fun search(q: String, area: String? = null): DResult<List<DNode>> {
+    /** [media] `image` | `video` (Drive 1.25, `mediaFilter`): only those; [q] may then be empty (the newest of them). */
+    suspend fun search(q: String, area: String? = null, media: String? = null): DResult<List<DNode>> {
         val query = buildMap {
             put("q", q)
             if (area != null) put("area", DriveJson.areaId(area) ?: return bad())
+            if (media != null) put("media", media.takeIf { it in DriveJson.MEDIA_KINDS } ?: return bad())
         }
         return get("search", query) { o -> DriveJson.items(o)?.let(DriveLogic::withoutVaults) }
     }
@@ -382,8 +384,9 @@ class DriveApi @Inject constructor(
     }
 
     /** How many photos are work, private, to be reviewed (the chips' counts). */
-    suspend fun photoClasses(camera: Boolean = false): DResult<DPhotoClasses> =
-        get("photos/classes", DriveJson.photosQuery(camera = camera) ?: return bad(), DriveJson::photoClasses)
+    /** [media] `image` | `video` (Drive 1.25): the counts of only those. */
+    suspend fun photoClasses(camera: Boolean = false, media: String? = null): DResult<DPhotoClasses> =
+        get("photos/classes", DriveJson.photosQuery(camera = camera, filter = DPhotoFilter(media = media)) ?: return bad(), DriveJson::photoClasses)
 
     /** Photos of this calendar day ([date] `YYYY-MM-DD`, else the server's today) in earlier years. */
     suspend fun memories(date: String? = null, camera: Boolean = false): DResult<List<DMemories>> =
@@ -748,8 +751,9 @@ class DriveApi @Inject constructor(
         text: String? = null,
         takenAt: String? = null,
         geo: com.gatecontrol.android.drive.work.GeoPoint? = null,
+        durationMs: Long? = null,
     ): DResult<Pair<DNode, Boolean>> =
-        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text, takenAt, geo), DriveJson::commit)
+        post("uploads/commit", DriveJson.commitBody(mediaId, parentId, name, mtimeMs, onConflict, text, takenAt, geo, durationMs), DriveJson::commit)
 
     /** An empty file `name` in [parentId] without media (feature `emptyFiles`, Drive 1.5+). */
     suspend fun commitEmpty(parentId: Long, name: String, mime: String?, onConflict: String): DResult<Pair<DNode, Boolean>> =
