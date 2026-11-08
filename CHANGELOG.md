@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.93.2] - 2026-11-07
+
+### Fixes
+- Teilen-Ziel heißt „GateDrop“ bzw. „An Chat senden“ statt „GateControl“ (#200)
+
+---
+
 ## [1.93.1] - 2026-11-07
 
 ### Fixes
