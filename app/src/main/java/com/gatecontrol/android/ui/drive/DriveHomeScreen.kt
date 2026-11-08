@@ -251,7 +251,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     onVault = { e -> close(); nav.vault(e.vault.id, e.vault.nodeId) },
                     icons = buildList {
                         add(DrawerIcon(GcIcons.Trash, R.string.drive_trash) { close(); nav.trash() })
-                        // Drive 1.20 (`offline`): what is kept on this phone (the arrow down into a tray, not the house of "home")
+                        // Drive 1.20 (`offline`): what is kept on this phone (the arrow down into a tray, as everywhere for "offline verfügbar")
                         if (me?.has(DMe.FEATURE_OFFLINE) == true) add(DrawerIcon(GcIcons.DownloadTray, R.string.drive_offline_title) { close(); nav.offline() })
                         if (me?.has(DMe.FEATURE_STORAGE) == true) add(DrawerIcon(GcIcons.Activity, R.string.drive_storage_title) { close(); nav.storage() })
                         add(DrawerIcon(GcIcons.Upload, R.string.drive_folders_title) { close(); nav.folders() })

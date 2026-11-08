@@ -340,12 +340,12 @@ internal fun NodeRow(
     }
 }
 
-/** The mark of a node that is "offline verfügbar" (Drive 1.20): the house of the home network, read out as such. */
+/** The mark of a node that is "offline verfügbar" (Drive 1.20): the arrow down into a tray (kept on this device), read out as such. */
 @Composable
 internal fun OfflineMark(modifier: Modifier = Modifier) {
     val label = stringResource(R.string.drive_offline_badge)
     Icon(
-        GcIcons.House,
+        GcIcons.DownloadTray,
         contentDescription = label,
         tint = GateControlTheme.extraColors.accentText,
         modifier = modifier.size(16.dp),
