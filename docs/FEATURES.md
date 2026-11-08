@@ -801,6 +801,18 @@ wie die anderen Tabs als **Seite neben Start** anheftbar. Ohne Plugin
   Absender), archivieren, verschieben, Spam, löschen. „Neue Mail“ unten
   rechts; nach dem Senden 10 s die Leiste **Rückgängig** (Server-Fenster
   `undoUntil`, bei abweichender Uhr 10 s ab Antwort).
+- **Neue Mails oben:** Kommen beim Aktualisieren, per Push oder beim
+  Nachladen im Hintergrund neue Mails vor die oberste sichtbare, bleibt die
+  Liste oben stehen, wenn man ganz oben war – die neuen Mails sind sofort zu
+  sehen (vorher blieb die alte erste Mail im Blick und die neuen lagen
+  darüber). Wer weiter unten liest, wird nicht verschoben; oben erscheint
+  stattdessen die Pille **„n neue Mails“**, ein Tipp scrollt nach oben, sie
+  verschwindet, sobald die Liste oben ist. Gezählt werden nur Mails, die in
+  dieser Liste noch nie zu sehen waren und über der ersten sichtbaren Zeile
+  stehen (nicht die nächste Seite, nicht eine nach „Rückgängig“
+  zurückgekehrte Mail). Beim ersten Laden (Gerätekopie → Server) und beim
+  Wechsel von Posteingang, Konto, Ordner oder Relevant/Sonstige gibt es keine
+  Pille; ein Wechsel beginnt immer oben (`MailLogic.newMails`).
 - **Seitenmenü:** Alle Posteingänge, **Zum Ablegen** (mit Drive),
   **Postausgang** (wenn etwas wartet), die Konten mit ihren Ordnern,
   Speicherbelegung, „Konto hinzufügen“ und „Mail-Einstellungen“.

@@ -249,4 +249,80 @@ class MailLogicTest {
         assertNull(MailLogic.cidAttachment("img/abc"))
         assertNull(MailLogic.cidAttachment("cid/42/x"))
     }
+
+    // ─── new mails while the list is shown ──────────────────────────
+
+    private val old = listOf(10L, 9L, 8L, 7L, 6L)
+
+    @Test
+    fun `new mails - at the top the list follows them, no pill`() {
+        val r = MailLogic.newMails(old, listOf(12L, 11L) + old, firstIndex = 0, firstOffset = 0, slop = 8, seen = old.toSet(), pending = emptySet())
+        assertTrue(r.toTop)
+        assertEquals(emptySet<Long>(), r.pending)
+        // a few px off the top still counts as the top
+        assertTrue(MailLogic.newMails(old, listOf(11L) + old, 0, 5, 8, old.toSet(), emptySet()).toTop)
+        // nothing came in front: nothing to do
+        assertFalse(MailLogic.newMails(old, old + listOf(5L, 4L), 0, 0, 8, old.toSet(), emptySet()).toTop)
+        assertFalse(MailLogic.newMails(old, old.drop(1), 0, 0, 8, old.toSet(), emptySet()).toTop)
+        // at the top a pill left from before goes
+        assertEquals(emptySet<Long>(), MailLogic.newMails(old, listOf(11L) + old, 0, 0, 8, old.toSet(), setOf(10L)).pending)
+    }
+
+    @Test
+    fun `new mails - further down the list stays and counts the new ones above the view`() {
+        // the first visible row is 8 (index 2): 12 and 11 came in front of it
+        val r = MailLogic.newMails(old, listOf(12L, 11L) + old, firstIndex = 2, firstOffset = 30, slop = 8, seen = old.toSet(), pending = emptySet())
+        assertFalse(r.toTop)
+        assertEquals(setOf(12L, 11L), r.pending)
+        // the first row only partly scrolled away: its mails above count too
+        assertEquals(setOf(11L), MailLogic.newMails(old, listOf(11L) + old, 0, 200, 8, old.toSet(), emptySet()).pending)
+        // more come later: the pill adds them
+        val next = listOf(13L, 12L, 11L) + old
+        assertEquals(setOf(12L, 11L, 13L), MailLogic.newMails(listOf(12L, 11L) + old, next, 4, 0, 8, old.toSet() + setOf(12L, 11L), r.pending).pending)
+    }
+
+    @Test
+    fun `new mails - only new ids before the first visible row count`() {
+        val seen = old.toSet()
+        // new mails below the first visible row (or the next page) are no pill
+        assertEquals(emptySet<Long>(), MailLogic.newMails(old, listOf(10L, 9L, 8L, 99L) + old.drop(3), 2, 0, 8, seen, emptySet()).pending)
+        assertEquals(emptySet<Long>(), MailLogic.newMails(old, old + listOf(5L, 4L), 2, 0, 8, seen, emptySet()).pending)
+        // a mail seen before (put back after an undo) is not new
+        val gone = listOf(10L, 8L, 7L, 6L)
+        assertEquals(emptySet<Long>(), MailLogic.newMails(gone, listOf(10L, 9L, 8L, 7L, 6L), 2, 0, 8, seen, emptySet()).pending)
+        // mails changed in place: nothing
+        assertEquals(emptySet<Long>(), MailLogic.newMails(old, old, 3, 0, 8, seen, emptySet()).pending)
+        // the first visible mail went away: no guess
+        assertEquals(emptySet<Long>(), MailLogic.newMails(old, listOf(11L, 10L, 9L, 7L, 6L), 2, 0, 8, seen, emptySet()).pending)
+    }
+
+    @Test
+    fun `new mails - mails no longer in the list leave the pill`() {
+        val r = MailLogic.newMails(listOf(12L, 11L) + old, listOf(11L) + old, 3, 0, 8, old.toSet() + setOf(12L, 11L), setOf(12L, 11L))
+        assertEquals(setOf(11L), r.pending)
+        assertFalse(r.toTop)
+    }
+
+    @Test
+    fun `new mails - first load and a switch show no pill`() {
+        // the device's copy, then the server's with new mails: no pill (at the top the list still follows)
+        assertEquals(emptySet<Long>(), MailLogic.newMails(old, listOf(12L, 11L) + old, 2, 0, 8, old.toSet(), emptySet(), quiet = true).pending)
+        assertTrue(MailLogic.newMails(old, listOf(12L, 11L) + old, 0, 0, 8, old.toSet(), emptySet(), quiet = true).toTop)
+        // from nothing (the empty list) to mails: nothing to do
+        val first = MailLogic.newMails(emptyList(), old, 0, 0, 8, emptySet(), emptySet())
+        assertFalse(first.toTop)
+        assertEquals(emptySet<Long>(), first.pending)
+        // another box, folder or tab: to the top, without a pill
+        val sw = MailLogic.newMails(old, listOf(20L, 10L, 21L), 3, 50, 8, old.toSet(), setOf(10L), switched = true)
+        assertTrue(sw.toTop)
+        assertEquals(emptySet<Long>(), sw.pending)
+    }
+
+    @Test
+    fun `new mails - the top`() {
+        assertTrue(MailLogic.atTop(0, 0, 8))
+        assertTrue(MailLogic.atTop(0, 8, 8))
+        assertFalse(MailLogic.atTop(0, 9, 8))
+        assertFalse(MailLogic.atTop(1, 0, 8))
+    }
 }

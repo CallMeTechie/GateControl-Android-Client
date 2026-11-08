@@ -77,6 +77,45 @@ object MailLogic {
     /** Whether a mail still belongs to the list it is in after [action] (archive, delete, junk, move take it away). */
     fun leavesList(action: String): Boolean = action in setOf(SWIPE_ARCHIVE, SWIPE_DELETE, "junk", "move", "tab")
 
+    // ─── new mails while the list is shown ──────────────────────────
+
+    /** What the list does after its mails changed: [toTop] scrolls it to the first mail, [pending] are the new mails above the view (the pill „n neue Mails“). */
+    data class NewMails(val toTop: Boolean, val pending: Set<Long>)
+
+    /** Whether the list stands at its top: the first row, scrolled by at most [slop] px. */
+    fun atTop(firstIndex: Int, firstOffset: Int, slop: Int): Boolean = firstIndex == 0 && firstOffset <= slop
+
+    /**
+     * The list's mails changed from [before] to [after] (ids, in order) while its first visible row was [firstIndex]
+     * of [before], scrolled by [firstOffset] px. The list keeps the first visible mail in view (its key), so mails
+     * put in front of it would end up above the view:
+     * - at the top ([atTop]) the list goes to the top ([NewMails.toTop]): the new mails are seen, no pill;
+     * - further down it stays where it is, and [pending] gains the mails that were never in this list ([seen]) and
+     *   now stand before the first visible row (mails further down, the next page, a mail put back after an undo
+     *   do not count); [quiet] (the first load: from the device's copy to the server's) adds none;
+     * - [switched] (another box, folder or Relevant / Sonstige) starts at the top without a pill.
+     * Mails no longer in the list leave [pending].
+     */
+    fun newMails(
+        before: List<Long>,
+        after: List<Long>,
+        firstIndex: Int,
+        firstOffset: Int,
+        slop: Int,
+        seen: Set<Long>,
+        pending: Set<Long>,
+        quiet: Boolean = false,
+        switched: Boolean = false,
+    ): NewMails {
+        if (switched) return NewMails(toTop = true, pending = emptySet())
+        val anchor = before.getOrNull(firstIndex)
+        val at = if (anchor == null) -1 else after.indexOf(anchor)
+        if (atTop(firstIndex, firstOffset, slop)) return NewMails(toTop = at > 0, pending = emptySet())
+        val now = after.toHashSet()
+        val above = if (quiet || at <= 0) emptyList() else after.subList(0, at).filter { it !in seen }
+        return NewMails(toTop = false, pending = (pending + above).filterTo(LinkedHashSet()) { it in now })
+    }
+
     // ─── the menu: an account's folders ─────────────────────────────
 
     /**

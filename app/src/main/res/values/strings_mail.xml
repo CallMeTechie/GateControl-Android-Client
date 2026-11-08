@@ -289,6 +289,11 @@
         <item quantity="one">%d account</item>
         <item quantity="other">%d accounts</item>
     </plurals>
+    <!-- the pill above the list: new mails came in above the view (a tap goes to the top) -->
+    <plurals name="mail_new_above_n">
+        <item quantity="one">%d new email</item>
+        <item quantity="other">%d new emails</item>
+    </plurals>
     <plurals name="mail_unread_n">
         <item quantity="one">%d unread</item>
         <item quantity="other">%d unread</item>
