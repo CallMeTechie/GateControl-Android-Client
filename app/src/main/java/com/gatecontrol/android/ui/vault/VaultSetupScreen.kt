@@ -236,6 +236,7 @@ private fun FinishStep(viewModel: VaultViewModel, onDone: () -> Unit) {
                         GcOutlineButton(stringResource(R.string.vault_autofill_open), onClick = { openAutofillSettings(context) }, fillWidth = false, minHeight = 40.dp)
                     }
                 }
+                VaultBrowserHint(Modifier.padding(start = 54.dp, end = 16.dp, bottom = 16.dp))
             }
         }
         Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 28.dp)) {

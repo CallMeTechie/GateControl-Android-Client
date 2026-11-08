@@ -27,7 +27,8 @@ import javax.inject.Inject
 
 /** A login to save, held in this process only (never in an Intent) until the save page takes it. */
 object VaultAutofillPending {
-    data class Save(val packageName: String, val webDomain: String?, val username: String, val password: String, val atMs: Long)
+    /** [web]: typed on a web page — never remembered as the app of the login (a browser is no app of a login). */
+    data class Save(val packageName: String, val webDomain: String?, val username: String, val password: String, val atMs: Long, val web: Boolean = webDomain != null)
 
     private val saves = ConcurrentHashMap<String, Save>()
 
@@ -57,7 +58,8 @@ class VaultAutofillService : AutofillService() {
         if (form == null || form.packageName == packageName || form.ids.isEmpty()) return callback.onSuccess(null)
         repository.ensureLoaded()
         if (repository.state.value.account == null) return callback.onSuccess(null)
-        val label = form.webDomain ?: appLabel(this, form.packageName)
+        // a web page shows its domain; one whose domain is not known is said so (nothing fits it)
+        val label = form.webDomain ?: if (form.web) getString(R.string.vault_af_unknown_page) else appLabel(this, form.packageName)
         val response = FillResponse.Builder()
         if (!repository.unlocked.value) {
             response.setAuthentication(
@@ -66,7 +68,7 @@ class VaultAutofillService : AutofillService() {
                 presentation(this, getString(R.string.vault_af_unlock), label),
             )
         } else {
-            VaultMatch.matches(repository.entries.value, form.packageName, form.webDomain).take(MAX_SUGGESTIONS).forEach { e ->
+            VaultMatch.matches(repository.entries.value, form.packageName, form.webDomain, form.web).take(MAX_SUGGESTIONS).forEach { e ->
                 dataset(this, form, e)?.let { response.addDataset(it) }
             }
             @Suppress("DEPRECATION")
@@ -78,7 +80,8 @@ class VaultAutofillService : AutofillService() {
         }
         if (form.passwordIds.isNotEmpty()) {
             val type = if (form.usernameId != null) SaveInfo.SAVE_DATA_TYPE_USERNAME or SaveInfo.SAVE_DATA_TYPE_PASSWORD else SaveInfo.SAVE_DATA_TYPE_PASSWORD
-            response.setSaveInfo(SaveInfo.Builder(type, form.ids.toTypedArray()).build())
+            // pages that log in by script (no new page, the fields just go) ask to save too
+            response.setSaveInfo(SaveInfo.Builder(type, form.ids.toTypedArray()).setFlags(SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE).build())
         }
         callback.onSuccess(response.build())
     }
@@ -87,7 +90,7 @@ class VaultAutofillService : AutofillService() {
         val structure = request.fillContexts.lastOrNull()?.structure ?: return callback.onSuccess()
         val form = runCatching { VaultAutofillForm.parse(structure) }.getOrNull()
         if (form == null || form.password.isEmpty() || form.packageName == packageName) return callback.onSuccess()
-        val token = VaultAutofillPending.put(VaultAutofillPending.Save(form.packageName, form.webDomain, form.username, form.password, System.currentTimeMillis()))
+        val token = VaultAutofillPending.put(VaultAutofillPending.Save(form.packageName, form.webDomain, form.username, form.password, System.currentTimeMillis(), web = form.web))
         // the save page opens from here (unlock if needed, pick the vault, save)
         callback.onSuccess(VaultAutofillActivity.saveSender(this, token))
     }

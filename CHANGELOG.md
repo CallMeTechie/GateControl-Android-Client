@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.1] - 2026-11-08
+
+### Fixes
+- Autofill in Edge, Chrome und anderen Chromium-Browsern (#203)
+
+---
+
 ## [1.94.0] - 2026-11-08
 
 ### Features

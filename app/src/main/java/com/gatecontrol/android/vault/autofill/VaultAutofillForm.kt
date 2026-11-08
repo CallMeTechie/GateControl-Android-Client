@@ -54,6 +54,13 @@ object VaultAutofillRules {
         return w.isNotEmpty() && USER_WORDS.any { it in w } && NOT_LOGIN.none { it in w }
     }
 
+    /**
+     * The `apps` of a login saved from a form: the app's package — never for a web page or a browser (a browser is no
+     * app of a login; its pages fit by their domain only).
+     */
+    fun appsToRemember(packageName: String, webDomain: String?, web: Boolean): List<String> =
+        if (web || webDomain != null || packageName.isBlank() || VaultBrowsers.isBrowser(packageName)) emptyList() else listOf(packageName)
+
     /** Indices into [fields] (in screen order): the user name field (or null) and the password fields. */
     fun classify(fields: List<FieldDesc>): Pair<Int?, List<Int>> {
         val passwords = fields.indices.filter { fields[it].isText && isPassword(fields[it]) }
@@ -66,7 +73,11 @@ object VaultAutofillRules {
     }
 }
 
-/** A login form found in an AssistStructure: where to fill, and (for saving) what was typed. */
+/**
+ * A login form found in an AssistStructure: where to fill, and (for saving) what was typed. [web]: a web page (in a
+ * browser, or HTML in an app's web view) — it fits by [webDomain] only; without one nothing is suggested and the
+ * package is never remembered as the login's app.
+ */
 data class VaultAutofillForm(
     val packageName: String,
     val webDomain: String?,
@@ -74,21 +85,48 @@ data class VaultAutofillForm(
     val passwordIds: List<AutofillId>,
     val username: String,
     val password: String,
+    val web: Boolean = webDomain != null,
 ) {
     val ids: List<AutofillId> get() = listOfNotNull(usernameId) + passwordIds
 
     companion object {
-        /** Walks the structure; null when it has no login field. */
+        /**
+         * Walks the structure; null when it has no login field. The page's domain: what the browser reports for the
+         * fields (`webDomain` of the nearest node above a field that names one — Chromium sets it on the page's root,
+         * a frame of another site on its own root; only http(s), [VaultBrowsers.reportedDomain]). When the fields
+         * come from different pages, only those of the password's page are filled ([VaultBrowsers.pickPage]). Without
+         * a reported domain — Android's compatibility mode — the browser's own address bar ([VaultBrowsers]), which
+         * is never taken as a field to fill.
+         */
         fun parse(structure: AssistStructure): VaultAutofillForm? {
-            val nodes = ArrayList<AssistStructure.ViewNode>()
-            var webDomain: String? = null
-            fun walk(n: AssistStructure.ViewNode) {
-                if (n.webDomain != null && webDomain == null) webDomain = n.webDomain
-                if (n.autofillId != null && n.autofillType == View.AUTOFILL_TYPE_TEXT && n.visibility == View.VISIBLE) nodes += n
-                for (i in 0 until n.childCount) walk(n.getChildAt(i))
+            val pkg = structure.activityComponent?.packageName.orEmpty()
+            val urlBarIds = VaultBrowsers.urlBarIds(pkg)
+            val found = ArrayList<AssistStructure.ViewNode>()
+            val foundPages = ArrayList<String?>()
+            var addressBar: String? = null
+            var addressBarSeen = false
+            var html = false
+            fun walk(n: AssistStructure.ViewNode, inherited: String?, inheritedWeb: Boolean) {
+                // a node naming its page starts that page for everything below it (also a non-http one: then none)
+                val named = n.webDomain != null
+                val page = if (named) VaultBrowsers.reportedDomain(n.webDomain, n.webScheme) else inherited
+                val web = inheritedWeb || named
+                if (n.htmlInfo != null) html = true
+                val isUrlBar = urlBarIds.isNotEmpty() && n.idEntry in urlBarIds && (n.idPackage == null || n.idPackage == pkg)
+                if (isUrlBar) {
+                    addressBarSeen = true
+                    // while the person types into it, the bar holds a search or a half address, not the page
+                    if (!n.isFocused && addressBar == null) addressBar = n.text?.toString()
+                } else if (n.autofillId != null && n.autofillType == View.AUTOFILL_TYPE_TEXT && n.visibility == View.VISIBLE) {
+                    found += n
+                    foundPages += page
+                    if (web) html = true
+                }
+                for (i in 0 until n.childCount) walk(n.getChildAt(i), page, web)
             }
-            for (i in 0 until structure.windowNodeCount) walk(structure.getWindowNodeAt(i).rootViewNode)
-            if (nodes.isEmpty()) return null
+            for (i in 0 until structure.windowNodeCount) walk(structure.getWindowNodeAt(i).rootViewNode, null, false)
+            if (found.isEmpty()) return null
+            val nodes: List<AssistStructure.ViewNode> = found
             val descs = nodes.map { n ->
                 val attrs = n.htmlInfo?.attributes.orEmpty().associate { it.first.lowercase() to it.second }
                 FieldDesc(
@@ -102,16 +140,22 @@ data class VaultAutofillForm(
                     isText = n.htmlInfo == null || n.htmlInfo?.tag.equals("input", true),
                 )
             }
-            val (user, passwords) = VaultAutofillRules.classify(descs)
-            if (user == null && passwords.isEmpty()) return null
+            val (user0, passwords0) = VaultAutofillRules.classify(descs)
+            if (user0 == null && passwords0.isEmpty()) return null
+            val pick = VaultBrowsers.pickPage(foundPages, user0, passwords0)
+            val user = pick.user
+            val passwords = pick.passwords
+            val domain = VaultBrowsers.pageDomain(pkg, pick.page, addressBar)
+            val web = domain != null || html || addressBarSeen || VaultBrowsers.isBrowser(pkg)
             fun text(i: Int?) = i?.let { nodes[it].autofillValue?.takeIf { v -> v.isText }?.textValue?.toString() }.orEmpty()
             return VaultAutofillForm(
-                packageName = structure.activityComponent?.packageName.orEmpty(),
-                webDomain = webDomain?.takeIf { it.isNotBlank() },
+                packageName = pkg,
+                webDomain = domain,
                 usernameId = user?.let { nodes[it].autofillId },
                 passwordIds = passwords.mapNotNull { nodes[it].autofillId },
                 username = text(user),
                 password = passwords.firstNotNullOfOrNull { text(it).takeIf { s -> s.isNotEmpty() } }.orEmpty(),
+                web = web,
             )
         }
     }
