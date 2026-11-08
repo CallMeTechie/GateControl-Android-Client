@@ -978,7 +978,7 @@ Zurück-Pfeil).
   (GitHub ohne Token der App, der Proxy des eigenen Servers mit Token, nur
   https, keine Umleitung auf http).
 - **Pflichtprüfung vor der Installation:** SHA-256 gegen `sha256` der
-  Update-Prüfung (GateControl 1.252+, sonst entfällt nur dieser Teil), dann
+  Update-Prüfung (GateControl 1.253+, sonst entfällt nur dieser Teil), dann
   immer Paketname, höhere versionCode und das Signaturzertifikat der
   installierten App (bei Schlüsselwechsel die Signaturlinie). Ein APK, das
   durchfällt, wird gelöscht und nie angeboten. Danach öffnet Android seinen

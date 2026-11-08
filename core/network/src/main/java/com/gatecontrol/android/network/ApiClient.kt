@@ -433,7 +433,7 @@ interface ApiClient {
     /**
      * The update check right before the app downloads the update itself (GitHub build): with the device's LAN
      * addresses ([HomeCache.HEADER_LOCAL], only while at home) the answer may carry `lan`, the update from the home
-     * gateway's cache (GateControl ≥ 1.231.0), and `sha256` of the APK (GateControl ≥ 1.252.0).
+     * gateway's cache (GateControl ≥ 1.231.0), and `sha256` of the APK (GateControl ≥ 1.253.0).
      */
     @GET("api/v1/client/update/check")
     suspend fun checkUpdateWithLocal(
