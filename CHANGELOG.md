@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.96.0] - 2026-11-08
+
+### Features
+- Seite „Erinnerungen“ (Drive 1.26) – „Alle“ öffnet die Sammlungen (#206)
+
+---
+
 ## [1.95.2] - 2026-11-08
 
 ### Fixes
