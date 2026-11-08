@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.0] - 2026-11-08
+
+### Features
+- Videos sicher sichern, ältere Videos nachholen, „Alle · Fotos · Videos“ (#201)
+
+---
+
 ## [1.93.2] - 2026-11-07
 
 ### Fixes
