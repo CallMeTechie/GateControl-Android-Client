@@ -1002,6 +1002,82 @@ durch den Tunnel (kein Multicast, Heimnetz nicht geroutet) also nie.
 - **Ohne Plugin, ohne Recht:** der Druckdienst zeigt keine Drucker, das
   Teilen-Ziel und die Einstellungszeile sind aus.
 
+## Drive: „Auf dem Gerät“ (die Dateien des Handys)
+Ein Festplatten-Symbol rechts neben „Übersicht · Dateien · Fotos“ (eigener
+48-dp-Knopf, kein Reiter) öffnet die Seite **„Auf dem Gerät“**: die Dateien
+des Handys selbst, wie in einem Dateimanager (Ersatz für „Files by Google“).
+
+- **Zugriff:** Android-Berechtigung „Zugriff auf alle Dateien“
+  (`MANAGE_EXTERNAL_STORAGE`, Einstellung
+  `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION`). Ohne sie erklärt die
+  Seite, wofür sie gebraucht wird (bleibt auf dem Handy, jederzeit
+  widerrufbar, ohne Zugriff läuft Drive wie bisher) – „Zugriff erlauben“
+  öffnet Androids Einstellung, „Nicht jetzt“ geht zurück zu Drive. Bei
+  jedem Aufruf wird neu geprüft. Die Berechtigung steht in
+  `app/src/allfiles/AndroidManifest.xml` und kommt nur in die GitHub-Version;
+  die Google-Play-Version bekommt sie erst mit `-Pgc.playAllFiles=true`
+  (Repo-Variable `PLAY_ALL_FILES`, siehe GOOGLE_PLAY.md) und sagt bis dahin
+  auf der Seite, dass es dort noch nicht geht (`BuildConfig.ALL_FILES_ACCESS`).
+- **Start:** Interner Speicher mit Balken (Bilder & Videos, Dokumente,
+  Audio, Apps & Sonstiges = der Rest des belegten Platzes; Größe und frei
+  über `StorageStatsManager`); **Kategorien** Download, Bilder, Videos,
+  Dokumente, Audio, APKs & ZIP mit Anzahl und Größe (ein Durchgang über
+  MediaStores Dateitabelle auf allen Speichern, Art nach Endung, sonst nach
+  MIME-Typ; versteckte Ordner und `Android/data|obb|media` zählen nicht;
+  Download wird als Ordner durchgezählt), im Hintergrund berechnet und eine
+  Minute gemerkt; **Speicherorte** intern, SD-Karte, USB-Stick
+  (`StorageManager`, aktualisiert sich beim Anstecken/Abziehen über
+  `StorageVolumeCallback`; ohne Stick der Hinweis „Erscheint, wenn einer
+  angeschlossen ist“); **Zuletzt hinzugefügt** (die drei neuesten, „Alle“:
+  die letzten 30 Tage).
+- **„In Drive“ / „Nur hier“:** Die App fragt Drives Suche nach dem
+  Dateinamen (`GET search?q=<Name>`, höchstens drei Anfragen gleichzeitig,
+  5 Minuten gemerkt, nach einem Upload oder einer Änderung in Drive neu).
+  „In Drive“, wenn Drive eine Datei mit demselben Namen (Groß-/Kleinschreibung
+  egal) und genau derselben Größe hat – in einem Bereich, den die Person
+  sieht, nicht im Papierkorb, nicht im Tresor. „Nur hier“, wenn Drive
+  vollständig geantwortet hat (weniger als 100 Treffer) und keine solche
+  Datei hat. Sonst (offline, Fehler, 100 Treffer, Name kürzer als 2 oder
+  länger als 100 Zeichen) steht nichts da. Eine Kopie unter anderem Namen
+  zählt als „Nur hier“; eine nur im Tresor liegende Datei ebenso (Tresor-Namen
+  sind verschlüsselt).
+- **Ordner, Kategorie:** Pfad zum Antippen, Sortierung (Neueste zuerst,
+  Name, Größe; Ordner immer oben), Art-Chips (nur die vorhandenen),
+  langes Drücken wählt aus. Leiste: **In Drive** (Ordnerwahl wie „In Drive
+  speichern“, dann die Upload-Warteschlange des Drive-Tabs über einen
+  `content://…devicefiles`-URI; Ordner nicht – dafür „Ordner sichern“),
+  **Teilen**, **Verschieben** (eigene Ordnerwahl auf dem Handy; anderer
+  Speicher: kopieren und löschen), **Löschen** (Bilder, Videos, Audio und
+  Downloads, die MediaStore kennt, in Androids Papierkorb – Android fragt
+  selbst, 30 Tage wiederherstellbar; alles andere und Ordner endgültig, erst
+  nach einer Rückfrage der App), **Mehr**: Kopieren, Umbenennen, ZIP
+  entpacken, Details. Jede Änderung geht an den MediaScanner.
+- **ZIP entpacken:** in einen neuen Ordner daneben (Name ohne `.zip`, sonst
+  „(2)“). Einträge mit `..`, absolutem Pfad oder Laufwerksbuchstaben werden
+  übersprungen (und zusätzlich per kanonischem Pfad geprüft); höchstens
+  20 000 Einträge, höchstens 8 GB, nie mehr als das 200-Fache der ZIP-Datei
+  und nie mehr als der freie Platz minus 200 MB – gezählt wird beim
+  Schreiben, nicht nach den Angaben im ZIP; bei Überschreitung wird der
+  Ordner wieder gelöscht.
+- **Öffnen:** Bilder (gedreht nach EXIF, HEIC), Videos (Player), PDFs, Texte
+  und Markdown in Drives eigenen Ansichten; alles andere „Mit anderer App
+  öffnen“ über den `DeviceFileProvider` (nur `/storage`, nie App-Daten,
+  Freigabe nur für den einen Intent). Antippen einer ZIP fragt nach dem
+  Entpacken.
+- **„Nur auf diesem Gerät löschen“ in Drive** löscht auch eine Datei, die
+  über „In Drive“ hochging (wie eine ausgewählte Datei), ebenso „auf allen
+  Geräten löschen“ von einem anderen Gerät.
+
+## Drive in der Dateiauswahl von Android
+„GateControl Drive“ erscheint in der Dateien-App und in jedem „Datei
+öffnen“/„Speichern unter“-Dialog (`DriveDocumentsProvider`, seit #127): Lesen
+lädt die Datei (aktuelle Version, ohne Verbindung die gemerkte), Schreiben
+lädt beim Schließen hoch (neue Version bzw. neue Datei). Nur Androids
+Dokumente-UI darf den Provider aufrufen (`MANAGE_DOCUMENTS`). Die Wurzel gibt
+es nur mit eingerichtetem Server und Drive-Plugin; Tresor-Ordner und
+-Dateien erscheinen nie, und nichts lässt sich in einen Tresor anlegen,
+verschieben, umbenennen oder löschen (es käme unverschlüsselt an).
+
 ## Drive: „Erinnerungen“ (Drive-Plugin 1.26, Feature `memoryCollections`)
 In der Übersicht öffnet „Alle“ bei „Erinnerungen“ die Seite **„Erinnerungen“**
 (`DriveMemoriesScreen`, Route `drive/photos/memories`). Ohne das Feature, also bei
@@ -1020,6 +1096,15 @@ einem älteren Plugin, öffnet „Alle“ wie bisher den Reiter „Fotos“.
   `GET memories/photos?id=`, seitenweise). Ein Tipp öffnet den Foto-Betrachter
   (`PhotoViewer`), Zurück führt zur Liste. Eine Karte der Übersicht öffnet
   den Betrachter mit allen Fotos dieser Sammlung.
+- **Übersicht ohne „Heute vor X Jahren“** (Drive-Plugin 1.28, Feature
+  `memoryPicks`): Hat der Tag keine solche Karte, zeigt „Erinnerungen“ in der
+  Übersicht bis zu vier Sammlungen dieser Seite (`GET overview` `memoryPicks`)
+  in derselben Kartenreihe: Titelbild, Titel wie auf der Seite („Hamburg“,
+  „Mit Noah“, „2024 im Rückblick“) und Fotoanzahl. Ein Tipp öffnet die Sammlung
+  auf der Seite „Erinnerungen“ wie ein Tipp dort (Route
+  `drive/photos/memories?open=<id>`), Zurück führt zur Liste. „Alle“ öffnet die
+  Seite. Ohne Karten und ohne Auswahl bleibt der Abschnitt weg; ein älteres
+  Plugin ohne das Feld ändert nichts.
 - **Nur private Fotos:** Weggelassen werden der Arbeitsordner, Fotos unter
   „Prüfen“ und Team-Ordner. Bei einem älteren Plugin ohne `overview` baut die
   App die Übersichtskarten selbst; auch dann zählen nur private Fotos

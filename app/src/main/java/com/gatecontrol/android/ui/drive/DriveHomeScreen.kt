@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DArea
 import com.gatecontrol.android.drive.DMe
+import com.gatecontrol.android.drive.DMemoryCollection
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DriveLogic
@@ -121,8 +122,12 @@ data class DriveNav(
     val offline: () -> Unit = {},
     /** Mail › "Zum Ablegen" (the overview's attachments to file); null: no mail here. */
     val mailFiling: (() -> Unit)? = null,
+    /** "Auf dem Gerät": the files of this phone (the hard disk beside the switch). */
+    val device: () -> Unit = {},
     /** The page „Erinnerungen“ (Drive 1.26, `memoryCollections`). */
     val memories: () -> Unit = {},
+    /** One collection of it opened there (the overview's picks, Drive 1.28). */
+    val memory: (DMemoryCollection) -> Unit = {},
 )
 
 /**
@@ -319,7 +324,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     )
                     },
                 )
-                Box(Modifier.inert(selecting)) { DriveModeSwitch(tabs = tabs, tab = tab, onTab = showTab) }
+                // "Auf dem Gerät": its own button beside the switch (a page of its own, not a tab)
+                Box(Modifier.inert(selecting)) { DriveModeRow(tabs = tabs, tab = tab, onTab = showTab, onDevice = nav.device) }
                 HorizontalPager(
                     state = pager,
                     modifier = Modifier.weight(1f),
@@ -353,6 +359,8 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                 map = nav.photoMap,
                                 place = nav.place,
                                 memories = if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memories else null,
+                                // a pick opens its collection on the page „Erinnerungen“ (without the page: „Fotos“)
+                                pick = { c -> if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memory(c) else showTab(DriveLogic.Tab.PHOTOS) },
                             ),
                         )
                     } else if (pageTab == DriveLogic.Tab.PHOTOS) {

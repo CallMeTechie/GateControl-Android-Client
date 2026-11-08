@@ -291,6 +291,16 @@ sealed class Screen(val route: String) {
     data object DriveFolders : Screen("drive/folders")
     /** The storage overview (Drive 1.7). */
     data object DriveStorage : Screen("drive/storage")
+    /** "Auf dem Gerät": the files of this phone (the hard disk beside the Drive tab's switch). */
+    data object DriveDevice : Screen("drive/device")
+    /** "Auf dem Gerät" › a folder ([ARG_PATH], absolute) or a category ([ARG_CAT]; neither: "Zuletzt hinzugefügt"). */
+    data object DriveDeviceFiles : Screen("drive/device/files?path={path}&cat={cat}") {
+        const val ARG_PATH = "path"
+        const val ARG_CAT = "cat"
+        fun folder(path: String) = "drive/device/files?path=" + android.net.Uri.encode(path)
+        fun category(key: String) = "drive/device/files?cat=" + android.net.Uri.encode(key)
+        const val RECENT = "drive/device/files"
+    }
     /** One file: details, what the AI recognised, its deadlines (Drive 1.8). */
     data object DriveFile : Screen("drive/file/{id}") {
         const val ARG_ID = "id"
@@ -319,8 +329,12 @@ sealed class Screen(val route: String) {
     }
     /** "Personen" (Drive 1.16, feature `photoPeople`). */
     data object DrivePeople : Screen("drive/photos/people")
-    /** Drive › „Erinnerungen“ (Drive 1.26, the overview's „Alle“). */
-    data object DriveMemories : Screen("drive/photos/memories")
+    /** Drive › „Erinnerungen“ (Drive 1.26, the overview's „Alle“); [ARG_OPEN] a collection opened there (Drive 1.28). */
+    data object DriveMemories : Screen("drive/photos/memories?open={open}") {
+        const val ARG_OPEN = "open"
+        fun create(open: String? = null): String =
+            if (open == null) "drive/photos/memories" else "drive/photos/memories?open=" + android.net.Uri.encode(open)
+    }
     /** One person of the photos. */
     data object DrivePerson : Screen("drive/photos/person/{id}") {
         const val ARG_ID = "id"

@@ -18,8 +18,8 @@ android {
         applicationId = "com.gatecontrol.client"
         minSdk = 31
         targetSdk = 36
-        versionCode = 19701
-        versionName = "1.97.1"
+        versionCode = 19900
+        versionName = "1.99.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -29,6 +29,10 @@ android {
         val distribution = providers.gradleProperty("gc.distribution").getOrElse("github")
         require(distribution == "github" || distribution == "play") { "gc.distribution must be github or play" }
         buildConfigField("String", "DISTRIBUTION", "\"$distribution\"")
+        // Drive › "Auf dem Gerät" asks for "Zugriff auf alle Dateien" (MANAGE_EXTERNAL_STORAGE, src/allfiles): the
+        // GitHub build always, the Play AAB only with -Pgc.playAllFiles=true (after Play's permissions declaration).
+        val allFiles = distribution == "github" || providers.gradleProperty("gc.playAllFiles").getOrElse("false") == "true"
+        buildConfigField("boolean", "ALL_FILES_ACCESS", allFiles.toString())
 
         vectorDrawables {
             useSupportLibrary = true
@@ -382,9 +386,13 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 // The GitHub build installs its own updates (update/ApkUpdater.kt): only it gets REQUEST_INSTALL_PACKAGES
 // (src/github/AndroidManifest.xml). The Play AAB (-Pgc.distribution=play) never has it (Play policy).
 val gcDistribution = providers.gradleProperty("gc.distribution").getOrElse("github")
+// Drive › "Auf dem Gerät": "Zugriff auf alle Dateien" (src/allfiles/AndroidManifest.xml) in the GitHub build; in the Play
+// AAB only with -Pgc.playAllFiles=true — Play refuses an upload with MANAGE_EXTERNAL_STORAGE until its declaration is in.
+val gcAllFiles = gcDistribution == "github" || providers.gradleProperty("gc.playAllFiles").getOrElse("false") == "true"
 androidComponents {
     onVariants { variant ->
         if (gcDistribution == "github") variant.sources.manifests.addStaticManifestFile("src/github/AndroidManifest.xml")
+        if (gcAllFiles) variant.sources.manifests.addStaticManifestFile("src/allfiles/AndroidManifest.xml")
     }
 }
 

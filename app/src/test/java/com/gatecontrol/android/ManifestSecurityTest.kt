@@ -99,6 +99,35 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `all files access only in its own manifest, merged for GitHub or on request for Play`() {
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        assertFalse("android.permission.MANAGE_EXTERNAL_STORAGE" in permissions, "never in the main manifest (Play refuses it without a declaration)")
+        val own = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(moduleFile("src/allfiles/AndroidManifest.xml")).documentElement
+        val all = own.getElementsByTagName("*")
+        val tags = (0 until all.length).map { (all.item(it) as Element).tagName }
+        assertEquals(listOf("uses-permission"), tags)
+        assertEquals("android.permission.MANAGE_EXTERNAL_STORAGE", (all.item(0) as Element).androidAttr("name"))
+        val gradle = moduleFile("build.gradle.kts").readText()
+        assertTrue(gradle.contains("val gcAllFiles = gcDistribution == \"github\" || providers.gradleProperty(\"gc.playAllFiles\").getOrElse(\"false\") == \"true\""))
+        assertTrue(gradle.contains("if (gcAllFiles) variant.sources.manifests.addStaticManifestFile(\"src/allfiles/AndroidManifest.xml\")"))
+    }
+
+    @Test
+    fun `the files of the phone are handed out per intent only, never the app's own`() {
+        val provider = components("provider").firstOrNull { it.androidAttr("name").endsWith("DeviceFileProvider") }
+        assertNotNull(provider, "DeviceFileProvider must be declared")
+        assertEquals("false", provider!!.androidAttr("exported"))
+        assertEquals("true", provider.androidAttr("grantUriPermissions"))
+        val paths = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(moduleFile("src/main/res/xml/device_file_paths.xml")).documentElement
+        val all = paths.getElementsByTagName("*")
+        assertEquals(1, all.length, "exactly one path")
+        val p = all.item(0) as Element
+        assertEquals("root-path", p.tagName)
+        assertEquals("storage/", p.getAttribute("path"), "only the shared storage below /storage")
+    }
+
+    @Test
     fun `trusted WLANs declare the location permissions Android needs for the SSID`() {
         val permissions = components("uses-permission").map { it.androidAttr("name") }
         // Fine needs coarse alongside on Android 12+; background for SSIDs while the app is not in use.

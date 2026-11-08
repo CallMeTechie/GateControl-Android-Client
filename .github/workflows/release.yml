@@ -223,12 +223,15 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Drive "Auf dem Gerät" (MANAGE_EXTERNAL_STORAGE) in the Play AAB only once the
+          # repo variable PLAY_ALL_FILES is "true" (after Play's permissions declaration).
+          PLAY_ALL_FILES: ${{ vars.PLAY_ALL_FILES == 'true' }}
         run: |
           # GitHub APK (updates itself through the update check), then the
           # Google Play AAB without it (-Pgc.distribution=play, Play policy).
           ./gradlew assembleRelease
           cp app/build/outputs/mapping/release/mapping.txt "$RUNNER_TEMP/apk-mapping.txt"
-          ./gradlew bundleRelease -Pgc.distribution=play
+          ./gradlew bundleRelease -Pgc.distribution=play -Pgc.playAllFiles="$PLAY_ALL_FILES"
 
       - name: Fetch the face model for the release
         if: steps.check_tag.outputs.exists == 'false'

@@ -183,6 +183,8 @@ class DriveDocumentsProvider : DocumentsProvider() {
         }
         is DriveDocs.Id.Node -> docs[documentId] ?: run {
             val node = blocking(null) { nodeFor(id.id) }
+            // a vault (Drive 1.9) never: its names and contents are ciphertext
+            if (node.encrypted) throw FileNotFoundException("vault")
             val all = blocking(null) { areasNow() }
             DriveDocs.doc(node, all.firstOrNull { it.id == node.areaId }, ::mimeOf).also { docs[documentId] = it }
         }
@@ -235,6 +237,8 @@ class DriveDocumentsProvider : DocumentsProvider() {
                 else -> Listing(null, text(code(r)), now())
             }
             is DriveDocs.Id.Node -> {
+                // a vault folder is not listed (its id never comes from here, but a stale or guessed one may)
+                if ((nodeFor(id.id) as? DResult.Ok)?.value?.encrypted == true) return Listing(null, text("failed"), now())
                 val items = ArrayList<DNode>()
                 var offset = 0
                 var folder: DFolder? = null
@@ -344,6 +348,8 @@ class DriveDocumentsProvider : DocumentsProvider() {
 
     override fun createDocument(parentDocumentId: String, mimeType: String, displayName: String): String {
         val parent = DriveDocs.parse(parentDocumentId) as? DriveDocs.Id.Node ?: throw FileNotFoundException(parentDocumentId)
+        // nothing goes into a vault from here: it would arrive unencrypted
+        if (vault(parent.id)) throw FileNotFoundException("vault")
         val name = DriveDocs.createName(displayName, mimeType, ::extOf, ::mimeOf) ?: throw IllegalArgumentException("name")
         if (mimeType == DriveDocs.DIR) {
             val made = blocking(null) { api.createFolder(parent.id, name) }
@@ -359,6 +365,7 @@ class DriveDocumentsProvider : DocumentsProvider() {
     override fun renameDocument(documentId: String, displayName: String): String? {
         val id = DriveDocs.parse(documentId) as? DriveDocs.Id.Node ?: throw FileNotFoundException(documentId)
         val name = DriveLogic.safeName(displayName) ?: throw IllegalArgumentException("name")
+        if (vault(id.id)) throw FileNotFoundException("vault")
         val renamed = blocking(null) { api.rename(id.id, name) }
         nodes[id.id] = renamed
         docs.remove(documentId)
@@ -369,6 +376,7 @@ class DriveDocumentsProvider : DocumentsProvider() {
     override fun moveDocument(sourceDocumentId: String, sourceParentDocumentId: String, targetParentDocumentId: String): String {
         val id = DriveDocs.parse(sourceDocumentId) as? DriveDocs.Id.Node ?: throw FileNotFoundException(sourceDocumentId)
         val target = DriveDocs.parse(targetParentDocumentId) as? DriveDocs.Id.Node ?: throw FileNotFoundException(targetParentDocumentId)
+        if (vault(target.id) || vault(id.id)) throw FileNotFoundException("vault")
         val moved = blocking(null) { api.move(id.id, target.id) }
         nodes[id.id] = moved
         docs.remove(sourceDocumentId)
@@ -382,6 +390,7 @@ class DriveDocumentsProvider : DocumentsProvider() {
         when (val id = DriveDocs.parse(documentId)) {
             is DriveDocs.Id.Pending -> pendings.remove(id.seq)?.nodeId?.let { deleteDocument(DriveDocs.node(it)) }
             is DriveDocs.Id.Node -> {
+                if (vault(id.id)) throw FileNotFoundException("vault")
                 val parent = nodes[id.id]?.parentId
                 blocking(null) { api.delete(id.id) }
                 nodes.remove(id.id)
@@ -395,6 +404,9 @@ class DriveDocumentsProvider : DocumentsProvider() {
     }
 
     // ─── helpers ────────────────────────────────────────────────────
+
+    /** [id] is (or lies in) a vault, as far as Drive says (the server refuses plain content there anyway). */
+    private fun vault(id: Long): Boolean = runBlocking(Dispatchers.IO) { (nodeFor(id) as? DResult.Ok)?.value?.encrypted == true }
 
     private suspend fun nodeFor(id: Long): DResult<DNode> = nodes[id]?.let { DResult.Ok(it) }
         ?: api.node(id).also { if (it is DResult.Ok) nodes[id] = it.value }
