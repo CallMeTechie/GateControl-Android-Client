@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.100.0] - 2026-11-09
+
+### Features
+- Tab „Aufgaben“ – Notizen & Aufgaben in der Android-App (#211)
+
+---
+
 ## [1.99.0] - 2026-11-08
 
 ### Features
