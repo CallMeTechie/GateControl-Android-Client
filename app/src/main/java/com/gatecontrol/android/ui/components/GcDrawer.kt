@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,11 +17,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -34,9 +37,21 @@ import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
- * The parts of a plugin's side menu (Drive, Notizen & Aufgaben): the head with the title and who is signed in, the
- * section labels, and the bar of icons at the foot. The tabs build their own rows between them.
+ * The parts of a plugin's side menu (Drive, Notizen & Aufgaben; Mail uses the sheet): the sheet, the head with the
+ * title and who is signed in, the section labels, and the bar of icons at the foot. The tabs build their own rows
+ * between them.
  */
+
+/**
+ * The sheet of a plugin's side menu. The menu is drawn inside the app's Scaffold (AppNavigation), which already keeps
+ * it below the status bar and above the navigation or tab bar; Material's default sheet pads by the system bars a
+ * second time (the menu's head a status bar too low, v1.102). So no insets of its own: its content starts at the
+ * height of the page's head. The sheet's colour still fills its whole height.
+ */
+@Composable
+fun GcDrawerSheet(containerColor: Color = MaterialTheme.colorScheme.background, content: @Composable ColumnScope.() -> Unit) {
+    ModalDrawerSheet(drawerContainerColor = containerColor, windowInsets = WindowInsets(0), content = content)
+}
 
 /** An icon of the menu's bottom bar: [label] is its description (read out, shown on a long press). */
 data class GcDrawerIcon(val icon: ImageVector, val label: Int, val onClick: () -> Unit)

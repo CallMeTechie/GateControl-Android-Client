@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import com.gatecontrol.android.ui.components.keyboardPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -115,7 +115,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
     val kinds = listOf("date", "time", "repeat", "important", "list", "person")
     val colors = kinds.associateWith { markColor(it) }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().imePadding()) {
+        Column(Modifier.fillMaxSize().keyboardPadding()) {
             GcSubpageBar(stringResource(R.string.notizen_quick_title), nav.back, stringResource(R.string.notizen_back))
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 GcSegmented(listOf(false to stringResource(R.string.notizen_quick_task), true to stringResource(R.string.notizen_quick_note)), ui.note, vm::setNote)

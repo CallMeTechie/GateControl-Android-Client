@@ -30,7 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
+import com.gatecontrol.android.ui.components.GcDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -227,7 +227,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
+            GcDrawerSheet {
                 val close: () -> Unit = { scope.launch { drawer.close() } }
                 val areas = home?.areas.orEmpty().takeIf { usable }.orEmpty()
                 val personal = DriveTree.flatten(DriveTree.personal(areas), expanded, children)
@@ -547,7 +547,7 @@ internal fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)
  * deadlines, import (where Drive has them) and the Drive settings.
  */
 @Composable
-private fun DriveDrawer(
+internal fun DriveDrawer(
     me: DMe?,
     areas: List<DArea>,
     personal: List<DriveTree.Row>,

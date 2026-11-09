@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import com.gatecontrol.android.ui.components.keyboardPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -307,7 +307,7 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                 )
             }
-            LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(bottom = 40.dp)) {
+            LazyColumn(Modifier.fillMaxSize().keyboardPadding(), contentPadding = PaddingValues(bottom = 40.dp)) {
                 item {
                     Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         NCheck(d.task.done, stringResource(R.string.notizen_mark_done), if (d.task.canComplete) vm::complete else null)
@@ -609,7 +609,7 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
             }
             if (vm.name.startsWith("list:") && NotizenLists.canAdd(list, me)) {
                 Row(
-                    Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(12.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).padding(horizontal = 14.dp),
+                    Modifier.fillMaxWidth().keyboardPadding().padding(12.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(GcIcons.Plus, null, tint = MaterialTheme.colorScheme.primary)
