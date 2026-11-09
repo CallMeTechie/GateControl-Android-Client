@@ -28,6 +28,17 @@ class NotizenPushTest {
     }
 
     @Test
+    fun `plugin 1_2 - the list day opens its list in its area`() {
+        assertEquals("list:12@private", dest("listday", """{"kind":"listday","listId":12,"area":"private","day":"2026-11-14","list":12}"""))
+        assertEquals("list:12@work", dest("listday", """{"listId":12,"area":"work"}"""), "without a kind: the topic says it")
+        assertNull(dest("listday", """{"kind":"listday","listId":0}"""))
+        assertEquals(
+            listOf(NotizenPush.Tab, NotizenPush.Route(NotizenRoutes.view("list:12"))),
+            NotizenPush.steps(dest("listday", """{"kind":"listday","listId":12,"area":"private"}"""), listed = true),
+        )
+    }
+
+    @Test
     fun `plugin 1_0 - the topic and the key say it`() {
         assertEquals("task:12", dest("reminders", """{"task":12}"""))
         assertEquals("task:12", dest("shared", """{"task":12}"""))

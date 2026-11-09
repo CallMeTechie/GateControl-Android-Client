@@ -48,7 +48,15 @@ object NotizenJson {
     fun time(v: String?): String? = v?.takeIf { TIME.matches(it) }
 
     private fun due(o: JsonObject?): NDue? = o?.let { d -> date(d.str("date"))?.let { NDue(it, time(d.str("time"))) } }
-    private fun person(o: JsonObject?): NPerson? = o?.let { NPerson(it.id("id"), it.text("name", 120)) }?.takeIf { it.id != null || it.name != null }
+    private fun person(o: JsonObject?): NPerson? = o?.let { NPerson(it.id("id"), it.text("name", 120), role(it.str("role")), it.long("since")?.takeIf { s -> s > 0 }) }?.takeIf { it.id != null || it.name != null }
+
+    /** A member's or my role: `owner`, `write`, `read` (else null). */
+    fun role(v: String?): String? = v?.takeIf { it in ROLES }
+    private val ROLES = setOf("owner", "write", "read")
+    private val ICON = Regex("^[a-z]{1,20}$")
+
+    /** ISO week days 1..7, each once, in order. */
+    fun days(a: JsonArray?): List<Int> = a?.mapNotNull { e -> runCatching { e.asJsonPrimitive.takeIf { it.isNumber }?.asDouble }.getOrNull()?.takeIf { it % 1.0 == 0.0 }?.toInt()?.takeIf { it in 1..7 } }?.distinct()?.sorted().orEmpty()
     private fun progress(o: JsonObject?): NProgress? = o?.let { p ->
         val t = p.int("total") ?: return null
         NProgress((p.int("done") ?: 0).coerceIn(0, t.coerceAtLeast(0)), t.coerceAtLeast(0))
@@ -71,7 +79,18 @@ object NotizenJson {
             k.take(140) to s
         }?.toMap().orEmpty()
         val times = o.obj("times")?.entrySet()?.mapNotNull { (k, v) -> runCatching { v.asString }.getOrNull()?.let(::time)?.let { k to it } }?.toMap().orEmpty()
-        return NPrefs(NArea.of(o.str("area")), time(o.str("evening")) ?: "18:00", sources, groups, times)
+        val myday = o.obj("myday")
+        val notify = o.obj("notify")
+        return NPrefs(
+            NArea.of(o.str("area")),
+            time(o.str("evening")) ?: "18:00",
+            sources,
+            groups,
+            times,
+            myday = NMyDayPrefs(myday?.bool("listdays") ?: true, myday?.bool("showDone") ?: true),
+            startArea = o.str("startArea")?.takeIf { it in setOf("last", NArea.PRIVATE, NArea.WORK) } ?: "last",
+            notify = NNotifyPrefs(notify?.bool("reminders") ?: true, notify?.bool("shared") ?: true, notify?.bool("listday") ?: true),
+        )
     }
 
     fun me(o: JsonObject): NMe? {
@@ -91,6 +110,7 @@ object NotizenJson {
             imports = NImports(imports?.bool("mstodo") ?: false, imports?.bool("mstodoSync") ?: false, imports?.bool("dsnote") ?: false),
             attachMB = o.int("attachMB")?.coerceIn(1, 100) ?: 25,
             readOnly = o.bool("readOnly") ?: false,
+            listIcons = o.arr("listIcons")?.mapNotNull { runCatching { it.asString }.getOrNull()?.takeIf { ICON.matches(it) } }?.distinct()?.take(40).orEmpty(),
         )
     }
 
@@ -120,6 +140,8 @@ object NotizenJson {
             noteId = o.id("noteId"),
             position = o.long("position") ?: 0,
             updatedAt = o.long("updatedAt") ?: 0,
+            canComplete = o.bool("canComplete") ?: true,
+            canEdit = o.bool("canEdit") ?: true,
         )
     }
 
@@ -187,7 +209,16 @@ object NotizenJson {
             },
             list = list(o.obj("list")),
             plugin = o.str("plugin")?.takeIf { PLUGIN.matches(it) },
+            listdays = o.arr("listdays").each(::listDay),
         )
+    }
+
+    /** A card of `listdays` (plugin 1.2.0). */
+    fun listDay(o: JsonObject): NListDay? {
+        val l = list(o.obj("list")) ?: return null
+        val items = o.arr("items").each(::task).take(10)
+        val open = o.int("open")?.coerceAtLeast(0) ?: l.open
+        return NListDay(l, o.text("title", 120) ?: l.name, open, o.int("assignedToMe")?.coerceIn(0, open) ?: 0, items, o.int("more")?.coerceAtLeast(0) ?: (open - items.size).coerceAtLeast(0))
     }
 
     fun taskAnswer(o: JsonObject): NTask? = task(o.obj("task"))
@@ -246,10 +277,52 @@ object NotizenJson {
             members = o.arr("members").each { person(it) },
             open = o.int("open")?.coerceAtLeast(0) ?: 0,
             ext = o.obj("ext")?.text("kind", 20),
+            icon = o.str("icon")?.takeIf { ICON.matches(it) },
+            canEdit = o.bool("canEdit") ?: (o.str("role") != "read"),
+            days = days(o.arr("days")),
+            remind = time(o.str("remind")),
+            mydayOff = o.bool("mydayOff") ?: false,
+            dayToday = o.bool("dayToday") ?: false,
         )
     }
 
-    fun group(o: JsonObject?): NGroup? = o?.let { g -> NGroup(g.id("id") ?: return null, g.text("name", 120) ?: return null, NArea.of(g.str("area"))) }
+    fun group(o: JsonObject?): NGroup? = o?.let { g ->
+        NGroup(g.id("id") ?: return null, g.text("name", 120) ?: return null, NArea.of(g.str("area")), g.long("position") ?: 0, g.int("open")?.coerceAtLeast(0))
+    }
+
+    fun groupAnswer(o: JsonObject): NGroup? = group(o.obj("group"))
+
+    private fun ref(o: JsonObject?): NRef? = o?.let { r -> NRef(r.id("id") ?: return null, r.text("name", 120) ?: "") }
+
+    /** `GET lists/<id>/usage`. */
+    fun listUsage(o: JsonObject): NListUsage? {
+        val open = o.int("open") ?: return null
+        return NListUsage(open.coerceAtLeast(0), o.int("done")?.coerceAtLeast(0) ?: 0, o.arr("members").each { person(it) }, o.bool("isDefault") ?: false, o.bool("canDelete") ?: false, ref(o.obj("target")))
+    }
+
+    /** `GET notebooks/<id>/usage`. */
+    fun notebookUsage(o: JsonObject): NNotebookUsage? {
+        val notes = o.int("notes") ?: return null
+        return NNotebookUsage(
+            notes.coerceAtLeast(0),
+            o.int("withImages")?.coerceAtLeast(0) ?: 0,
+            o.int("withFiles")?.coerceAtLeast(0) ?: 0,
+            o.arr("members").each { person(it) },
+            o.bool("isDefault") ?: false,
+            o.bool("canDelete") ?: false,
+            o.bool("vault") ?: false,
+            ref(o.obj("target")),
+        )
+    }
+
+    /** The answer of `DELETE lists/<id>` / `DELETE notebooks/<id>` (1.1: `{ ok }` or `{ ok, left }`). */
+    fun deleted(o: JsonObject): NDeleted = NDeleted(
+        left = o.bool("left") ?: false,
+        moved = o.int("moved")?.coerceAtLeast(0) ?: 0,
+        removed = o.int("removed")?.coerceAtLeast(0) ?: 0,
+        target = ref(o.obj("target")),
+        restoreUntil = o.long("restoreUntil")?.takeIf { it > 0 },
+    )
 
     fun notebook(o: JsonObject?): NNotebook? {
         if (o == null) return null
@@ -269,6 +342,7 @@ object NotizenJson {
             bound = b?.let { x -> x.str("plugin")?.let { p -> NBound(p, x.text("key", 32) ?: "", x.text("kind", 20), x.text("label", 80)) } },
             count = o.int("count")?.coerceAtLeast(0) ?: 0,
             position = o.long("position") ?: 0,
+            canEdit = o.bool("canEdit") ?: (o.str("role") != "read"),
         )
     }
 
@@ -472,6 +546,48 @@ object NotizenJson {
 
     fun membersBody(ids: List<Long>) = JsonObject().apply { add("members", JsonArray().apply { ids.forEach { add(it) } }) }
 
+    /**
+     * `PUT …/members` with the roles (plugin 1.2.0, `shareRoles`): `[{ id, role }]`; without [roles] the ids only
+     * (1.1: everyone may change).
+     */
+    fun membersBody(members: List<Pair<Long, String>>, roles: Boolean): JsonObject = JsonObject().apply {
+        add("members", JsonArray().apply {
+            members.forEach { (id, role) ->
+                if (roles) add(JsonObject().apply { addProperty("id", id); addProperty("role", if (role == "read") "read" else "write") }) else add(id)
+            }
+        })
+    }
+
+    /** `PATCH lists/<id>` of „Liste bearbeiten“: only what changed. */
+    fun listPatch(
+        name: String? = null,
+        color: String? = null,
+        clearColor: Boolean = false,
+        icon: String? = null,
+        clearIcon: Boolean = false,
+        days: List<Int>? = null,
+        remind: String? = null,
+        clearRemind: Boolean = false,
+        groupId: Long? = null,
+        clearGroup: Boolean = false,
+        mydayOff: Boolean? = null,
+    ) = JsonObject().apply {
+        name?.let { addProperty("name", it.trim().take(80)) }
+        if (clearColor) add("color", JsonNull.INSTANCE) else color?.let { addProperty("color", it) }
+        if (clearIcon) add("icon", JsonNull.INSTANCE) else icon?.let { addProperty("icon", it) }
+        days?.let { d -> add("days", JsonArray().apply { d.filter { it in 1..7 }.distinct().sorted().forEach { add(it) } }) }
+        if (clearRemind) add("remind", JsonNull.INSTANCE) else remind?.let { addProperty("remind", it) }
+        if (clearGroup) add("groupId", JsonNull.INSTANCE) else groupId?.let { addProperty("groupId", it) }
+        mydayOff?.let { addProperty("mydayOff", it) }
+    }
+
+    /** `POST groups` (with `lists`: plugin 1.2.0, `groupEdit`). */
+    fun groupBody(name: String, area: String, lists: List<Long>) = JsonObject().apply {
+        addProperty("name", name.trim().take(80))
+        addProperty("area", area)
+        if (lists.isNotEmpty()) add("lists", JsonArray().apply { lists.forEach { add(it) } })
+    }
+
     fun attachBody(kind: String, refId: Long, mediaId: String, name: String?, nameCipher: String?) = JsonObject().apply {
         addProperty("kind", kind)
         addProperty("refId", refId)
@@ -480,9 +596,22 @@ object NotizenJson {
         nameCipher?.let { addProperty("nameCipher", it) }
     }
 
-    fun prefsBody(sources: Map<String, NSourcePrefs> = emptyMap(), groups: Map<String, String?> = emptyMap(), area: String? = null, evening: String? = null) = JsonObject().apply {
+    fun prefsBody(
+        sources: Map<String, NSourcePrefs> = emptyMap(),
+        groups: Map<String, String?> = emptyMap(),
+        area: String? = null,
+        evening: String? = null,
+        times: Map<String, String> = emptyMap(),
+        myday: Map<String, Boolean> = emptyMap(),
+        notify: Map<String, Boolean> = emptyMap(),
+        startArea: String? = null,
+    ) = JsonObject().apply {
         area?.let { addProperty("area", it) }
         evening?.let { addProperty("evening", it) }
+        startArea?.let { addProperty("startArea", it) }
+        if (times.isNotEmpty()) add("times", JsonObject().apply { times.forEach { (k, v) -> time(v)?.let { addProperty(k, it) } } })
+        if (myday.isNotEmpty()) add("myday", JsonObject().apply { myday.forEach { (k, v) -> addProperty(k, v) } })
+        if (notify.isNotEmpty()) add("notify", JsonObject().apply { notify.forEach { (k, v) -> addProperty(k, v) } })
         if (sources.isNotEmpty()) add("sources", JsonObject().apply {
             sources.forEach { (p, s) ->
                 add(p, JsonObject().apply {

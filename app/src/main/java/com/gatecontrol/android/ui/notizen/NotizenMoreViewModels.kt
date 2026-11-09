@@ -34,7 +34,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-/** „Quellen“ (mockup Quellen): per source on/off and its own choices, the groups to an area, „Jetzt abgleichen“. */
+/**
+ * „Einstellungen“: per source on/off and its own choices, the groups to an area, „Jetzt abgleichen“; the times of the
+ * quick entry; with plugin 1.2.0 „Mein Tag“, „Beim Öffnen“ and the pushes.
+ */
 @HiltViewModel
 class NotizenSourcesViewModel @Inject constructor(private val repo: NotizenRepository) : ViewModel() {
     data class Ui(val me: NMe? = null, val prefs: NPrefs = NPrefs(), val sources: List<NSourceStatus> = emptyList(), val loading: Boolean = true, val offline: Boolean = false)
@@ -62,6 +65,7 @@ class NotizenSourcesViewModel @Inject constructor(private val repo: NotizenRepos
             val r = repo.api.putPrefs(body)
             if (r is NResult.Ok) {
                 _ui.update { it.copy(prefs = r.value) }
+                repo.setPrefs(r.value)
                 repo.touched("items")
             } else {
                 _message.value = r.code()
@@ -75,6 +79,18 @@ class NotizenSourcesViewModel @Inject constructor(private val repo: NotizenRepos
     fun setGroup(key: String, value: String?) = put(NotizenJson.prefsBody(groups = mapOf(key to value)))
 
     fun setEvening(time: String) = put(NotizenJson.prefsBody(evening = time))
+
+    /** A word of the quick entry („morgens“ …) → its time. */
+    fun setTime(word: String, time: String) = put(NotizenJson.prefsBody(times = mapOf(word to time)))
+
+    /** Plugin 1.2.0: `prefs.myday.listdays` / `showDone`. */
+    fun setMyDay(key: String, value: Boolean) = put(NotizenJson.prefsBody(myday = mapOf(key to value)))
+
+    /** Plugin 1.2.0: `prefs.notify.reminders` / `shared` / `listday`. */
+    fun setNotify(key: String, value: Boolean) = put(NotizenJson.prefsBody(notify = mapOf(key to value)))
+
+    /** Plugin 1.2.0: „Beim Öffnen“ — `last`, `private`, `work`. */
+    fun setStartArea(value: String) = put(NotizenJson.prefsBody(startArea = value))
 
     fun sync(plugin: String) {
         viewModelScope.launch {

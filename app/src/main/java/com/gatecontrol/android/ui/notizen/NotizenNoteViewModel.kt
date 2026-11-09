@@ -141,8 +141,11 @@ class NotizenNoteViewModel @Inject constructor(
     /** After the Tresor was opened on the vault screen. */
     fun unlocked() = _ui.value.note?.let { show(it, _ui.value.offline) } ?: load()
 
+    /** Plugin 1.2.0: the note's notebook is shared with me to view only (`canEdit` false). */
+    fun viewOnly(): Boolean = _ui.value.note?.let { n -> _ui.value.notebooks.firstOrNull { it.id == n.summary.notebookId }?.canEdit == false } == true
+
     fun startEditing() {
-        if ((_ui.value.offline && !_ui.value.offlineEdits) || _ui.value.locked || _ui.value.me?.readOnly == true) {
+        if ((_ui.value.offline && !_ui.value.offlineEdits) || _ui.value.locked || _ui.value.me?.readOnly == true || viewOnly()) {
             _message.value = if (_ui.value.offline) "offline_read" else if (_ui.value.locked) "locked" else "read_only"
             return
         }

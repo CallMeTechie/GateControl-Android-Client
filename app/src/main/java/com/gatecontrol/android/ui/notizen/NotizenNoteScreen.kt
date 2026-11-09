@@ -205,7 +205,7 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
     }
     val ensureEdit: (() -> Unit) -> Unit = { action ->
         if (!ui.editing) vm.startEditing()
-        if (ui.editing || ((!ui.offline || ui.offlineEdits) && !ui.locked && ui.me?.readOnly != true)) action()
+        if (ui.editing || ((!ui.offline || ui.offlineEdits) && !ui.locked && ui.me?.readOnly != true && !vm.viewOnly())) action()
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -291,7 +291,7 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
                 }
                 Box(Modifier.height(24.dp))
             }
-            if (ui.me?.readOnly != true) {
+            if (ui.me?.readOnly != true && !vm.viewOnly()) {
                 Toolbar(
                     vault = ui.vaultId != null,
                     onBold = { ensureEdit { edit(NoteMd.wrap(field.text, field.selection.min, field.selection.max, "**")) } },

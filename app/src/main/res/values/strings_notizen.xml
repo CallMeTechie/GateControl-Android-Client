@@ -3,7 +3,6 @@
 <resources>
     <string name="notizen_add">Add</string>
     <string name="notizen_add_task">Add a task</string>
-    <string name="notizen_all">All</string>
     <string name="notizen_all_day">all day</string>
     <string name="notizen_area">Area</string>
     <string name="notizen_area_choose">Choose area: %1$s</string>
@@ -75,7 +74,6 @@
     <string name="notizen_kind_shopping">Shopping</string>
     <string name="notizen_list">List</string>
     <string name="notizen_list_empty">Nothing open here.</string>
-    <string name="notizen_list_mstodo">in sync with To Do</string>
     <string name="notizen_mark_done">Mark as done</string>
     <string name="notizen_me">Me</string>
     <string name="notizen_me_name">%1$s (me)</string>
@@ -144,9 +142,6 @@
     <string name="notizen_mstodo_waiting">Waiting for your consent at Microsoft …</string>
     <string name="notizen_my_lists">My lists</string>
     <string name="notizen_name">Name</string>
-    <string name="notizen_new_group">New group</string>
-    <string name="notizen_new_list">New list</string>
-    <string name="notizen_new_list_or_group">New list or group</string>
     <string name="notizen_new_note">New note</string>
     <string name="notizen_new_notebook">New notebook</string>
     <string name="notizen_new_task">New task</string>
@@ -189,7 +184,6 @@
     <string name="notizen_recovery_text">Write the recovery key down or save it as a file. Without it and without an approved device the notes are lost – the server cannot open them either.</string>
     <string name="notizen_recovery_title">Your recovery key</string>
     <string name="notizen_recovery_written">I wrote it down</string>
-    <string name="notizen_reload">Refresh</string>
     <string name="notizen_reminder">Reminder</string>
     <string name="notizen_repeat">Repeat</string>
     <string name="notizen_repeat_after">days after completion</string>
@@ -218,7 +212,6 @@
     <string name="notizen_source_error">Sync error: %1$s</string>
     <string name="notizen_source_missing">The plugin is missing or too old.</string>
     <string name="notizen_source_off_admin">Switched off by the administrator.</string>
-    <string name="notizen_sources">Sources</string>
     <string name="notizen_sources_intro">What the other plugins have to do shows up here. The original stays there – ticking it off here ticks it off there.</string>
     <string name="notizen_sources_later">Vehicles, NAS, Proxmox come in step 2.</string>
     <string name="notizen_src_evening">Remind at</string>
@@ -267,7 +260,6 @@
     <string name="notizen_tresor_ask">Ask for access</string>
     <string name="notizen_tresor_auth">Open the vault</string>
     <string name="notizen_tresor_check_again">Check again</string>
-    <string name="notizen_tresor_chip">%1$s · Vault</string>
     <string name="notizen_tresor_compare">Only approve when the safety number is the same on both devices:</string>
     <string name="notizen_tresor_device">New device</string>
     <string name="notizen_tresor_intro">A vault is a notebook only your devices can read – the server sees neither titles nor text.</string>

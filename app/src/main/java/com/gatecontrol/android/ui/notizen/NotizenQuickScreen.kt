@@ -200,7 +200,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
             title = { Text(stringResource(R.string.notizen_list)) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    ui.nav?.lists.orEmpty().forEach { l ->
+                    ui.nav?.lists.orEmpty().filter { it.canEdit }.forEach { l ->
                         Text(l.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth().clickable { dialog = null; vm.pickList(l.id) }.padding(vertical = 12.dp))
                     }
                 }

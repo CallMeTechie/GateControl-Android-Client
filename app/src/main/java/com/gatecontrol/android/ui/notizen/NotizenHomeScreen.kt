@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.notizen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,8 +26,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,9 +69,9 @@ import com.gatecontrol.android.notizen.NTask
 import com.gatecontrol.android.notizen.NotizenFormat
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.DisplayFontFamily
+import kotlinx.coroutines.launch
 
 /** Where the screens of the plugin lead (the navigation's side). */
 data class NotizenNav(
@@ -99,14 +102,16 @@ internal fun listPathOf(nav: NNav?, areaWord: String): (Long?) -> String? = { id
 }
 
 /**
- * The tab „Aufgaben“ of Notizen & Aufgaben: „Mein Tag“ (mockup Main), the lists (mockup Listen) and the notes
- * (mockup Notizen) as segments; the quick entry at the foot, the area (Privat / Arbeit) at the top.
+ * The tab „Aufgaben“ of Notizen & Aufgaben: „Mein Tag“ (mockup Main) or the notes (mockup Notizen); the rest — the
+ * fixed views, the lists and groups, the other plugins, the notebooks, the settings — is in the side menu behind ☰
+ * (mockup „Neue Navigation“). Pulling down loads again; the quick entry at the foot, the area (Privat / Arbeit) at the top.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel()) {
+fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(), manage: NotizenManageViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val segment by vm.segment.collectAsStateWithLifecycle()
+    val collapsed by vm.collapsed.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val snack = remember { SnackbarHostState() }
     val text = message?.let { messageText(it) }
@@ -116,120 +121,149 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
             vm.consumeMessage()
         }
     }
-    var menu by remember { mutableStateOf(false) }
-    var ask by rememberSaveable { mutableStateOf<String?>(null) }
+    var askNotebook by rememberSaveable { mutableStateOf(false) }
     var newTresor by rememberSaveable { mutableStateOf(false) }
+    val manageState = remember { NotizenManageState() }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
     // back from a note, a task or the Tresor page: the lists and the decrypted names as they are now
     androidx.lifecycle.compose.LifecycleResumeEffect(vm) {
         vm.load(quiet = true)
         onPauseOrDispose { }
     }
+    BackHandler(enabled = drawer.isOpen) { closeDrawer() }
+    val notesPage = segment == NotizenHomeViewModel.SEG_NOTES
+    val selectedNb = ui.notebook?.let { id -> ui.nav?.notebooks?.firstOrNull { it.id == id } }
+    val me = ui.me
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            // ── head ──
-            Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box {
-                    GcIconButton(GcIcons.Menu, stringResource(R.string.notizen_menu), { menu = true }, tint = MaterialTheme.colorScheme.onBackground)
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.notizen_new_list)) }, onClick = { menu = false; ask = "list" }, leadingIcon = { Icon(GcIcons.Tasks, null) })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.notizen_new_group)) }, onClick = { menu = false; ask = "group" }, leadingIcon = { Icon(GcIcons.Folder, null) })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.notizen_new_notebook)) }, onClick = { menu = false; ask = "notebook" }, leadingIcon = { Icon(GcIcons.Note, null) })
-                        if (ui.me?.vaults == true && ui.me?.has("vault") == true) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.notizen_new_tresor)) }, onClick = { menu = false; newTresor = true }, leadingIcon = { Icon(GcIcons.Lock, null) })
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        gesturesEnabled = drawer.isOpen,
+        drawerContent = {
+            ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.background) {
+                NotizenDrawer(
+                    me = me,
+                    nav = ui.nav,
+                    area = ui.area,
+                    selected = if (!notesPage) "myday" else ui.notebook?.let { "nb:$it" } ?: "notes",
+                    collapsed = collapsed,
+                    notebookName = vm::notebookName,
+                    actions = NotizenDrawerActions(
+                        area = vm::setArea,
+                        myDay = { closeDrawer(); vm.setSegment(NotizenHomeViewModel.SEG_DAY) },
+                        view = { name -> closeDrawer(); nav.view(name) },
+                        notes = { nb ->
+                            closeDrawer()
+                            if (nb?.vault != null && !vm.vault.unlocked(nb.vault.id)) {
+                                nav.vault(nb.vault.id)
+                            } else {
+                                vm.selectNotebook(nb?.id)
+                                vm.setSegment(NotizenHomeViewModel.SEG_NOTES)
+                            }
+                        },
+                        toggleGroup = vm::toggleGroup,
+                        listMenu = { manageState.listSheet = it },
+                        groupMenu = { manageState.groupSheet = it },
+                        notebookMenu = { manageState.nbSheet = it },
+                        newListOrGroup = { manageState.newList() },
+                        newNotebook = { askNotebook = true },
+                        newTresor = if (me?.vaults == true && me.has("vault")) ({ newTresor = true }) else null,
+                        settings = { closeDrawer(); nav.sources() },
+                    ),
+                )
+            }
+        },
+    ) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+                // ── head ──
+                Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    GcIconButton(GcIcons.Menu, stringResource(R.string.notizen_menu), { scope.launch { drawer.open() } }, tint = MaterialTheme.colorScheme.onBackground)
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            when {
+                                !notesPage -> stringResource(R.string.notizen_seg_day)
+                                selectedNb != null -> vm.notebookName(selectedNb) ?: stringResource(R.string.notizen_tresor)
+                                else -> stringResource(R.string.notizen_all_notes)
+                            },
+                            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = DisplayFontFamily, fontWeight = FontWeight.Bold, fontSize = 28.sp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val sub = when {
+                            !notesPage -> me?.let { NotizenFormat.dayTitle(it.today, it.lang) }
+                            selectedNb != null && selectedNb.shared && selectedNb.isOwner -> stringResource(R.string.notizen_shared_with, selectedNb.members.mapNotNull { it.name }.joinToString(", "))
+                            selectedNb != null && selectedNb.shared -> stringResource(if (selectedNb.canEdit) R.string.notizen_shared_by else R.string.notizen_shared_by_read, selectedNb.owner?.name.orEmpty())
+                            else -> null
                         }
-                        DropdownMenuItem(text = { Text(stringResource(R.string.notizen_sources)) }, onClick = { menu = false; nav.sources() }, leadingIcon = { Icon(GcIcons.Link, null) })
-                        if (ui.me?.imports?.let { it.mstodo || it.dsnote } == true) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.notizen_import)) }, onClick = { menu = false; nav.import() }, leadingIcon = { Icon(GcIcons.FolderMove, null) })
-                        }
-                        DropdownMenuItem(text = { Text(stringResource(R.string.notizen_reload)) }, onClick = { menu = false; vm.load() }, leadingIcon = { Icon(GcIcons.Refresh, null) })
+                        sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    }
+                    if (selectedNb != null && notesPage && com.gatecontrol.android.notizen.NotizenLists.notebookActions(selectedNb, me).isNotEmpty()) {
+                        GcIconButton(GcIcons.MoreHorizontal, stringResource(R.string.notizen_menu_of, vm.notebookName(selectedNb) ?: stringResource(R.string.notizen_tresor)), { manageState.nbSheet = selectedNb }, tint = MaterialTheme.colorScheme.onBackground)
+                    }
+                    NAreaPill(ui.area, vm::setArea)
+                    GcIconButton(GcIcons.Search, stringResource(if (notesPage) R.string.notizen_search_notes else R.string.notizen_search), nav.search, tint = MaterialTheme.colorScheme.onBackground)
+                }
+                NOfflineHint(ui.offline, ui.pending, ui.offlineEdits)
+                when {
+                    ui.me == null && ui.meError != null -> NotizenUnavailable(ui.meError!!, vm::load)
+                    ui.me == null -> NotizenLoading()
+                    else -> androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                        isRefreshing = ui.refreshing,
+                        onRefresh = vm::refresh,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        if (notesPage) NotesPane(ui, vm, nav) else MyDayPane(ui, vm, nav)
                     }
                 }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        stringResource(
-                            when (segment) {
-                                NotizenHomeViewModel.SEG_TASKS -> R.string.notizen_seg_tasks
-                                NotizenHomeViewModel.SEG_NOTES -> R.string.notizen_seg_notes
-                                else -> R.string.notizen_seg_day
-                            },
-                        ),
-                        style = MaterialTheme.typography.headlineMedium.copy(fontFamily = DisplayFontFamily, fontWeight = FontWeight.Bold, fontSize = 28.sp),
-                        maxLines = 1,
-                    )
-                    if (segment == NotizenHomeViewModel.SEG_DAY) ui.me?.let { Text(NotizenFormat.dayTitle(it.today, it.lang), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted) }
-                }
-                NAreaPill(ui.area, vm::setArea)
-                GcIconButton(GcIcons.Search, stringResource(if (segment == NotizenHomeViewModel.SEG_NOTES) R.string.notizen_search_notes else R.string.notizen_search), nav.search, tint = MaterialTheme.colorScheme.onBackground)
             }
-            GcSegmented(
-                options = listOf(
-                    NotizenHomeViewModel.SEG_DAY to stringResource(R.string.notizen_seg_day),
-                    NotizenHomeViewModel.SEG_TASKS to stringResource(R.string.notizen_seg_tasks),
-                    NotizenHomeViewModel.SEG_NOTES to stringResource(R.string.notizen_seg_notes),
-                ),
-                selected = segment,
-                onSelect = vm::setSegment,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            )
-            NOfflineHint(ui.offline, ui.pending, ui.offlineEdits)
-            when {
-                ui.me == null && ui.meError != null -> NotizenUnavailable(ui.meError!!, vm::load)
-                ui.me == null -> NotizenLoading()
-                segment == NotizenHomeViewModel.SEG_TASKS -> ListsPane(ui, nav) { ask = "list" }
-                segment == NotizenHomeViewModel.SEG_NOTES -> NotesPane(ui, vm, nav)
-                else -> MyDayPane(ui, vm, nav)
-            }
-        }
-        // the quick entry (mockup: the bar above the tab bar), the new note on the notes
-        if (ui.me != null && ui.me?.readOnly != true) {
-            if (segment == NotizenHomeViewModel.SEG_NOTES) {
-                FloatingActionButton(
-                    onClick = { nav.newNote(ui.notebook) },
-                    modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                ) { Icon(GcIcons.Plus, stringResource(R.string.notizen_new_note)) }
-            } else {
-                Row(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 12.dp)
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .shadow(8.dp, RoundedCornerShape(16.dp))
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable(role = Role.Button) { nav.quick(false) }
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(GcIcons.Plus, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                    Text(stringResource(R.string.notizen_quick_bar), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // the quick entry (mockup: the bar above the tab bar), the new note on the notes
+            if (me != null && !me.readOnly) {
+                if (notesPage) {
+                    if (selectedNb?.canEdit != false) {
+                        FloatingActionButton(
+                            onClick = { nav.newNote(ui.notebook) },
+                            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                        ) { Icon(GcIcons.Plus, stringResource(R.string.notizen_new_note)) }
+                    }
+                } else {
+                    Row(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .shadow(8.dp, RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickable(role = Role.Button) { nav.quick(false) }
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(GcIcons.Plus, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Text(stringResource(R.string.notizen_quick_bar), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
+            SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp)) { Snackbar(it) }
         }
-        SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp)) { Snackbar(it) }
     }
 
-    ask?.let { kind ->
+    NotizenManageHost(
+        manageState, manage, me, ui.nav, ui.area, snack, vm::notebookName,
+        onGone = { kind, id -> if (kind == "notebook" && ui.notebook == id) vm.selectNotebook(null) },
+    )
+    if (askNotebook) {
         NameDialog(
-            title = stringResource(
-                when (kind) {
-                    "group" -> R.string.notizen_new_group
-                    "notebook" -> R.string.notizen_new_notebook
-                    else -> R.string.notizen_new_list
-                },
-            ),
-            onDismiss = { ask = null },
+            title = stringResource(R.string.notizen_new_notebook),
+            onDismiss = { askNotebook = false },
             onDone = { name ->
-                ask = null
-                when (kind) {
-                    "group" -> vm.createGroup(name)
-                    "notebook" -> vm.createNotebook(name)
-                    else -> vm.createList(name)
-                }
+                askNotebook = false
+                vm.createNotebook(name)
             },
         )
     }
@@ -279,6 +313,10 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
     val rc = rowCtx(me.today, me.lang, path, showDay = false)
     val rcDays = rowCtx(me.today, me.lang, path, showDay = true)
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
+        // plugin 1.2.0: „Heute ist Einkaufstag“ — the lists whose day is today, on top
+        day.listdays.forEach { card ->
+            item(key = "ld-" + card.list.id) { ListDayCard(card, me, vm::toggle, nav) }
+        }
         for (s in day.sections) {
             val open = s.items.filter { !it.done || s.id == "done" }
             if (s.id == "done") {
@@ -309,7 +347,7 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
                 EntryCard(open, if (s.id == "events") rc.copy(timeFirst = true) else if (s.id == "upcoming" || s.id == "overdue") rcDays else rc, vm::toggle, nav)
             }
         }
-        if (day.sections.all { s -> s.id == "done" || s.items.none { !it.done } }) {
+        if (day.listdays.isEmpty() && day.sections.all { s -> s.id == "done" || s.items.none { !it.done } }) {
             item { Text(stringResource(R.string.notizen_day_empty), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(24.dp)) }
         }
     }
@@ -319,105 +357,6 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
 internal fun EntryCard(entries: List<NEntry>, ctx: RowCtx, toggle: (NEntry) -> Unit, nav: NotizenNav) {
     NCard {
         entries.forEachIndexed { i, e -> NEntryRow(e, ctx, { toggle(e) }, { nav.open(e) }, divider = i < entries.size - 1) }
-    }
-}
-
-// ── Aufgaben (mockup Listen) ────────────────────────────────
-
-@Composable
-private fun ListsPane(ui: NotizenHomeViewModel.Ui, nav: NotizenNav, onNew: () -> Unit) {
-    val n = ui.nav
-    if (n == null) {
-        if (ui.loading) NotizenLoading()
-        return
-    }
-    val x = GateControlTheme.extraColors
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
-        item {
-            val smart = listOf(
-                Triple("myday", R.string.notizen_seg_day, GcIcons.Sun),
-                Triple("important", R.string.notizen_smart_important, GcIcons.Star),
-                Triple("planned", R.string.notizen_smart_planned, GcIcons.Calendar),
-                Triple("assigned", R.string.notizen_smart_assigned, GcIcons.User),
-            )
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                smart.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        pair.forEach { (key, label, icon) ->
-                            Column(
-                                Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .border(1.dp, x.border, RoundedCornerShape(16.dp))
-                                    .clickable(role = Role.Button) { nav.view(key) }
-                                    .padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.weight(1f))
-                                    Text((n.smart[key] ?: 0).toString(), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-                                }
-                                Text(stringResource(label), style = MaterialTheme.typography.titleSmall)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (n.sources.isNotEmpty()) {
-            item { NSectionHeader(stringResource(R.string.notizen_from_plugins), null) }
-            item {
-                NCard {
-                    n.sources.forEachIndexed { i, s ->
-                        Row(
-                            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { nav.view("source:" + s.plugin) }.padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            NSourceBadge(s.plugin, s.label)
-                            Text(s.hint.orEmpty(), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.weight(1f), maxLines = 2)
-                            Text(s.open.toString(), style = MaterialTheme.typography.labelLarge, color = x.muted)
-                        }
-                        if (i < n.sources.size - 1) Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
-                    }
-                }
-            }
-        }
-        item { NSectionHeader(stringResource(R.string.notizen_my_lists), null) }
-        item {
-            NCard {
-                val groups = n.groups.associateBy { it.id }
-                n.lists.sortedWith(compareBy({ it.groupId ?: 0 }, { it.position })).forEachIndexed { i, l ->
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { nav.view("list:" + l.id) }.padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(noteColor(l.color) ?: MaterialTheme.colorScheme.primary))
-                        Column(Modifier.weight(1f)) {
-                            Text(l.name, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp))
-                            val sub = listOfNotNull(
-                                l.groupId?.let { groups[it]?.name },
-                                if (l.shared) stringResource(R.string.notizen_shared_with, l.members.mapNotNull { it.name }.ifEmpty { listOfNotNull(l.owner?.name) }.joinToString(", ")) else null,
-                                if (l.ext == "mstodo") stringResource(R.string.notizen_list_mstodo) else null,
-                            )
-                            if (sub.isNotEmpty()) Text(sub.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted)
-                            NSyncMark(l.pending, false)
-                        }
-                        Text(l.open.toString(), style = MaterialTheme.typography.labelLarge, color = x.muted)
-                    }
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
-                }
-                Text(
-                    stringResource(R.string.notizen_new_list_or_group),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onNew).padding(16.dp),
-                )
-            }
-        }
     }
 }
 
@@ -432,17 +371,6 @@ private fun NotesPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
     val byId = books.associateBy { it.id }
     val selected = ui.notebook?.let { byId[it] }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-        item {
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.gatecontrol.android.ui.components.GcFilterChip(stringResource(R.string.notizen_all), ui.notebook == null, { vm.selectNotebook(null) })
-                books.forEach { b ->
-                    val name = vm.notebookName(b) ?: stringResource(R.string.notizen_tresor)
-                    com.gatecontrol.android.ui.components.GcFilterChip(if (b.vault != null) stringResource(R.string.notizen_tresor_chip, name) else name, ui.notebook == b.id, {
-                        if (b.vault != null && !vm.vault.unlocked(b.vault.id)) nav.vault(b.vault.id) else vm.selectNotebook(b.id)
-                    })
-                }
-            }
-        }
         val tags = n?.tags.orEmpty().filter { selected?.vault == null }
         if (tags.isNotEmpty()) {
             item {
@@ -569,13 +497,64 @@ private fun NoteRow(s: NNoteSummary, nb: NNotebook?, vm: NotizenHomeViewModel, t
 
 /** A name for a new list, group or notebook. */
 @Composable
-internal fun NameDialog(title: String, initial: String = "", onDismiss: () -> Unit, onDone: (String) -> Unit) {
+internal fun NameDialog(title: String, initial: String = "", onDismiss: () -> Unit, confirm: String? = null, onDone: (String) -> Unit) {
     var name by rememberSaveable { mutableStateOf(initial) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { com.gatecontrol.android.ui.components.GcTextField(name, { name = it.take(80) }, stringResource(R.string.notizen_name)) },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { if (name.isNotBlank()) onDone(name.trim()) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.notizen_create)) } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { if (name.isNotBlank()) onDone(name.trim()) }, enabled = name.isNotBlank()) { Text(confirm ?: stringResource(R.string.notizen_create)) } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.notizen_cancel)) } },
     )
+}
+
+/**
+ * „Heute ist Einkaufstag“ (plugin 1.2.0, mockup „Mein Tag am Einkaufstag“): the list, how many things are open and
+ * whose, its first entries to tick off right here, and „Ganze Liste öffnen“.
+ */
+@Composable
+internal fun ListDayCard(card: com.gatecontrol.android.notizen.NListDay, me: com.gatecontrol.android.notizen.NMe, toggle: (NEntry) -> Unit, nav: NotizenNav) {
+    val x = GateControlTheme.extraColors
+    val l = card.list
+    val others = com.gatecontrol.android.notizen.NotizenLists.others(l, me.userId)
+    val rc = rowCtx(me.today, me.lang, { null })
+    NCard(Modifier.padding(top = 12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.view("list:" + l.id) }.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            NListBadge(l, 44.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(card.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                Text(stringResource(R.string.notizen_listday_open, l.name, card.open), style = MaterialTheme.typography.bodyMedium)
+                val sub = listOfNotNull(
+                    others.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.notizen_listday_with, it.joinToString(", ")) },
+                    card.assignedToMe.takeIf { it > 0 }?.let { stringResource(R.string.notizen_listday_mine, it) },
+                )
+                if (sub.isNotEmpty()) Text(sub.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+        card.items.forEach { t ->
+            NEntryRow(
+                t, rc,
+                if (com.gatecontrol.android.notizen.NotizenLists.canTick(t, l, me.userId) && !me.readOnly) ({ toggle(t) }) else null,
+                { nav.open(t) },
+                showAssignee = l.shared,
+            )
+        }
+        if (card.more > 0) {
+            Text(stringResource(R.string.notizen_listday_more, card.more), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        }
+        if (card.items.isEmpty()) {
+            Text(stringResource(R.string.notizen_listday_empty), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(16.dp))
+        }
+        Text(
+            stringResource(R.string.notizen_listday_open_all),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.view("list:" + l.id) }.padding(16.dp),
+        )
+    }
 }

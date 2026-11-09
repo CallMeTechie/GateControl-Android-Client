@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -178,10 +179,21 @@ internal fun rowCtx(today: String, lang: String, listPath: (Long?) -> String?, s
     timeFirst, showDay,
 )
 
-/** A row of a list: a task of the hub or an item of another plugin (mockup Main / Listen). */
+/**
+ * A row of a list: a task of the hub or an item of another plugin (mockup Main / Listen). [showAssignee] (a shared
+ * list): whom a task is assigned to as a little picture at the end — [onAssignee] lets one change it there.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun NEntryRow(entry: NEntry, ctx: RowCtx, onToggle: (() -> Unit)?, onOpen: () -> Unit, divider: Boolean = true) {
+internal fun NEntryRow(
+    entry: NEntry,
+    ctx: RowCtx,
+    onToggle: (() -> Unit)?,
+    onOpen: () -> Unit,
+    divider: Boolean = true,
+    showAssignee: Boolean = false,
+    onAssignee: (() -> Unit)? = null,
+) {
     val x = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val item = entry as? NItem
@@ -205,8 +217,8 @@ internal fun NEntryRow(entry: NEntry, ctx: RowCtx, onToggle: (() -> Unit)?, onOp
                     modifier = Modifier.width(56.dp).padding(start = 10.dp, top = 12.dp),
                 )
             } else {
-                val canTick = item?.canComplete != false
-                NCheck(entry.done, stringResource(R.string.notizen_done_cd, entry.title), if (canTick) onToggle else null)
+                val canTick = item?.canComplete != false && task?.canComplete != false
+                NCheck(entry.done, stringResource(R.string.notizen_done_cd, entry.title), if (canTick) onToggle else null, Modifier.alpha(if (canTick && onToggle != null) 1f else 0.45f))
             }
             Column(Modifier.weight(1f).padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
@@ -237,7 +249,7 @@ internal fun NEntryRow(entry: NEntry, ctx: RowCtx, onToggle: (() -> Unit)?, onOp
                         ctx.listPath(task.listId)?.let { meta.add(it) }
                         task.progress?.takeIf { it.total > 0 }?.let { meta.add(stringResource(R.string.notizen_subtasks_n, it.done, it.total)) }
                         task.repeatText?.let { meta.add(stringResource(R.string.notizen_repeats, it.replaceFirstChar { c -> c.lowercase() })) }
-                        task.assignee?.name?.let { meta.add(it) }
+                        if (!showAssignee) task.assignee?.name?.let { meta.add(it) }
                         if (task.attachments > 0) meta.add(stringResource(R.string.notizen_attachments_n, task.attachments))
                     }
                     if (meta.isNotEmpty()) {
@@ -252,8 +264,37 @@ internal fun NEntryRow(entry: NEntry, ctx: RowCtx, onToggle: (() -> Unit)?, onOp
             if (entry.important) {
                 Icon(GcIcons.StarFilled, contentDescription = stringResource(R.string.notizen_important), tint = Color(0xFFB45309), modifier = Modifier.padding(top = 12.dp).size(18.dp))
             }
+            if (showAssignee && task != null) AssigneeChip(task.assignee, onAssignee)
         }
         if (divider) Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+    }
+}
+
+/** Whom a task is assigned to: the little picture and the first name; „+ Person“ when nobody (and it can be changed). */
+@Composable
+private fun AssigneeChip(who: com.gatecontrol.android.notizen.NPerson?, onClick: (() -> Unit)?) {
+    val x = GateControlTheme.extraColors
+    if (who == null && onClick == null) return
+    val label = who?.name?.let { stringResource(R.string.notizen_assigned_to, it) } ?: stringResource(R.string.notizen_assign_person)
+    Row(
+        Modifier
+            .padding(top = 8.dp)
+            .heightIn(min = 32.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, x.border2, RoundedCornerShape(16.dp))
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick) else Modifier)
+            .semantics { contentDescription = label }
+            .padding(start = 4.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (who != null) {
+            NAvatar(who.name, 22.dp)
+            Text(who.name.orEmpty().substringBefore(' ').take(14), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        } else {
+            Icon(GcIcons.Plus, null, tint = x.muted, modifier = Modifier.padding(start = 4.dp).size(14.dp))
+            Text(stringResource(R.string.notizen_person), style = MaterialTheme.typography.labelMedium, color = x.muted)
+        }
     }
 }
 
@@ -401,6 +442,17 @@ internal fun messageText(code: String): String = when (code) {
     "copied" -> stringResource(R.string.notizen_msg_copied)
     "not_here" -> stringResource(R.string.notizen_msg_not_here)
     "off" -> stringResource(R.string.notizen_msg_off)
+    "owner" -> stringResource(R.string.notizen_msg_owner_only)
+    "default" -> stringResource(R.string.notizen_msg_default)
+    "bound" -> stringResource(R.string.notizen_nb_no_actions)
+    "group_created" -> stringResource(R.string.notizen_msg_group_created)
+    "group_dissolved" -> stringResource(R.string.notizen_msg_group_dissolved)
+    "list_deleted" -> stringResource(R.string.notizen_msg_list_deleted)
+    "list_left" -> stringResource(R.string.notizen_msg_list_left)
+    "notebook_deleted" -> stringResource(R.string.notizen_msg_notebook_deleted)
+    "notebook_left" -> stringResource(R.string.notizen_msg_notebook_left)
+    "restored" -> stringResource(R.string.notizen_msg_restored)
+    "saved" -> stringResource(R.string.notizen_msg_saved)
     else -> stringResource(R.string.notizen_msg_failed, code)
 }
 

@@ -854,15 +854,52 @@ wie die anderen Tabs als **Seite neben Start** anheftbar. Ohne Plugin
   wenn das Plugin verschwindet, sich Server/Token ändern oder der Server
   401 antwortet (Fernlöschen), ebenso geöffnete Anhänge (`cache/mail-open`).
 
-## Notizen & Aufgaben (Plugin `gatecontrol-notizen` 1.0, offline ändern ab 1.1, GateControl 1.216+)
+## Notizen & Aufgaben (Plugin `gatecontrol-notizen` 1.0, offline ändern ab 1.1, Listen bearbeiten/teilen ab 1.2, GateControl 1.216+)
 Eigener Tab **Aufgaben** (Tab-Id `notizen`, nach Mail), nur wenn der Server
 das Plugin für die Person listet (installiert, lizenziert, freigeschaltet);
 antwortet `GET me` nicht (keine Lizenz, keine Berechtigung), sagt der Tab das
 statt leerer Listen. Wie die anderen Tabs als **Seite neben Start**
-anheftbar. Oben **Mein Tag | Aufgaben | Notizen**, rechts der Bereich
-**Privat / Arbeit** (wird für alle Geräte der Person gemerkt, `prefs.area`)
-und die Suche, unten die Schnell-Eingabe bzw. „Neue Notiz“. Das Menü links:
-neue Liste, Gruppe, Notizbuch, Tresor-Notizbuch, **Quellen**, **Umziehen**.
+anheftbar. Die Seite zeigt **Mein Tag** oder die **Notizen**, rechts der
+Bereich **Privat / Arbeit** (wird für alle Geräte der Person gemerkt,
+`prefs.area`) und die Suche, unten die Schnell-Eingabe bzw. „Neue Notiz“;
+Herunterziehen lädt neu.
+
+- **Menü ☰ (Seitenleiste wie in Drive, `NotizenDrawer`, Teile in
+  `ui/components/GcDrawer.kt` mit Drive gemeinsam):** Kopf mit Name und
+  Bereich (Privat | Arbeit), Mein Tag, Wichtig, Geplant, Mir zugewiesen,
+  Aufgaben (Standardliste); **Meine Listen** mit „+“ („Neue Liste oder
+  Gruppe“) und Gruppen als aufklappbare Ordner (Zahl = offene Aufgaben
+  darin); **Aus anderen Plugins**; **Notizbücher** mit „+“ (Notizbuch oder
+  Tresor-Notizbuch), „Alle Notizen“; unten links das Zahnrad
+  **Einstellungen**. Geteilte Listen haben das Personen-Symbol (ich habe
+  geteilt) oder das kleine Bild des Besitzers (mit mir geteilt).
+- **Langes Drücken auf eine Liste** (oder ⋯ auf ihrer Seite): Besitzer –
+  Bearbeiten (Name, Farbe, Symbol, Gruppe, Wochentage für „Mein Tag“,
+  „Morgens daran erinnern“), Teilen, In Gruppe verschieben, Einkaufstag,
+  Liste löschen; Mitglied – In Gruppe verschieben, In „Mein Tag“ zeigen
+  (nur für mich), Liste verlassen. Löschen fragt mit offenen/erledigten
+  Aufgaben und Personen nach, offene Aufgaben wandern auf Wunsch nach
+  „Aufgaben“, danach **„Rückgängig“** (`POST lists/<id>/restore`). Die
+  Standardliste lässt sich nur umbenennen. **Gruppe:** Neue Liste in dieser
+  Gruppe, Umbenennen, Auflösen (Listen bleiben). **Notizbuch:** Bearbeiten
+  (Name, Farbe, geteilt mit), Teilen, Löschen (Notizen nach „Notizen“ oder
+  mitlöschen; ein Tresor fragt nach seinem Namen), Verlassen.
+- **Teilen:** Personen suchen (`GET people`), hinzufügen, **Ansehen /
+  Bearbeiten** wählen, entfernen. Wer nur ansehen darf: kein Eingabefeld,
+  Häkchen nur bei mir zugewiesenen Aufgaben, Aufgabe und Notiz nur lesen.
+  In geteilten Listen das Bild der zugewiesenen Person an jeder Aufgabe
+  (Antippen weist zu) und Filter **Alle / Mir zugewiesen / je Person /
+  Niemandem**.
+- **Plugin 1.2.0** meldet in `GET me` → `features` `listDays`,
+  `shareRoles`, `groupEdit`, `deleteKeep`, `listIcons`; ohne sie (1.1.x)
+  fehlen Wochentage, Erinnerung, „In ‚Mein Tag‘ zeigen“, Rollen, Symbole,
+  Rückgängig und die Einstellungen zu „Mein Tag“ und Benachrichtigungen –
+  Bearbeiten, Teilen (alle dürfen ändern), Gruppen und Löschen gehen mit den
+  Routen von 1.1.
+- **Einstellungen** (bisher „Quellen“): Aufgaben aus anderen Plugins, „Mein
+  Tag“ (Listen-Tage oben, Erledigte zeigen, Beim Öffnen), Uhrzeiten der
+  Schnell-Eingabe (`prefs.times`), Benachrichtigungen (`prefs.notify`) und
+  Umziehen.
 
 - **Mein Tag:** Termine heute (Uhrzeit vorne), Überfällig (rot), Heute,
   Demnächst (mit „Geplant“), „Erledigt heute (n)“ zum Aufklappen – eigene
@@ -872,10 +909,11 @@ neue Liste, Gruppe, Notizbuch, Tresor-Notizbuch, **Quellen**, **Umziehen**.
   Betrag. **Abhaken** hakt ein Element eines anderen Plugins dort ab
   (`items/<id>/complete`); was das Plugin nicht abhaken lässt, hat kein
   Häkchen.
-- **Aufgaben:** Mein Tag, Wichtig, Geplant, Mir zugewiesen mit Zahlen, „Aus
-  anderen Plugins“ je Quelle, **Meine Listen** (geteilt, Gruppen, im
-  Abgleich mit To Do); eine Liste zeigt offene und erledigte Aufgaben und
-  hat unten ein Feld für eine neue Aufgabe.
+- **Mein Tag am Listen-Tag (1.2.0):** oben die Karte „Heute ist
+  Einkaufstag“ (`listdays` von `views/myday`) mit Zahl der offenen Dinge, den
+  ersten Einträgen zum Abhaken und „Ganze Liste öffnen“.
+- **Liste:** offene und erledigte Aufgaben, unten ein Feld für eine neue
+  Aufgabe (nicht bei „nur ansehen“).
 - **Aufgabe:** Titel, Wichtig, Unteraufgaben (hinzufügen, abhaken,
   löschen), In „Mein Tag“, Fällig, Erinnerung (Push des Servers), Wiederholen
   (täglich, werktags, wöchentlich am Fälligkeitstag, alle 2 Wochen,
@@ -899,7 +937,7 @@ neue Liste, Gruppe, Notizbuch, Tresor-Notizbuch, **Quellen**, **Umziehen**.
   Die Regex sind so geschrieben, dass JVM und Androids ICU sie gleich lesen
   (`\s` = JavaScripts Leerraum, `\d` = `[0-9]`). Alle 51 Vektoren von
   `test/vectors/quickparse.json` laufen als Unit-Test.
-- **Notizen:** Notizbücher als Chips (Tresore mit „· Tresor“), angeheftete
+- **Notizen:** Notizbuch aus dem Menü (ein gesperrter Tresor öffnet erst seine Seite), angeheftete
   als farbige Karten, „Zuletzt geändert“ mit Bild-Hinweis, Schlagwort,
   Notizbuch, Checklisten-Stand. **Notiz:** Markdown (CommonMark + GitHub-
   Tabellen/Task-Listen wie `ui/notemd.js`) mit eigenem kleinen, sicheren
@@ -983,7 +1021,8 @@ neue Liste, Gruppe, Notizbuch, Tresor-Notizbuch, **Quellen**, **Umziehen**.
 - **Live:** Realtime-Event `changed` lädt offene Listen neu, `vault`
   (Anfrage/Freigabe) die Tresor-Seite.
 - **Pushes öffnen die Seite** (`NotizenPush`): eine Erinnerung oder eine
-  Zuweisung die Aufgabe, eine geteilte Liste die Liste, ein geteiltes
+  Zuweisung die Aufgabe, eine geteilte Liste und der Einkaufstag am Morgen
+  (`listday`, 1.2.0) die Liste, ein geteiltes
   Notizbuch die Notizen mit diesem Notizbuch (ein Tresor: seine Seite, erst
   entsperren), „Neues Gerät möchte Zugriff“ die Tresor-Seite mit der
   Anfrage (gesperrt: erst entsperren, dann bleibt die Seite mit „Freigeben“).

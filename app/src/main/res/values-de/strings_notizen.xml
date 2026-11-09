@@ -3,7 +3,6 @@
 <resources>
     <string name="notizen_add">Hinzufügen</string>
     <string name="notizen_add_task">Aufgabe hinzufügen</string>
-    <string name="notizen_all">Alle</string>
     <string name="notizen_all_day">ganztägig</string>
     <string name="notizen_area">Bereich</string>
     <string name="notizen_area_choose">Bereich wählen: %1$s</string>
@@ -75,7 +74,6 @@
     <string name="notizen_kind_shopping">Einkauf</string>
     <string name="notizen_list">Liste</string>
     <string name="notizen_list_empty">Hier ist nichts offen.</string>
-    <string name="notizen_list_mstodo">im Abgleich mit To Do</string>
     <string name="notizen_mark_done">Als erledigt markieren</string>
     <string name="notizen_me">Mir</string>
     <string name="notizen_me_name">%1$s (ich)</string>
@@ -144,9 +142,6 @@
     <string name="notizen_mstodo_waiting">Wartet auf deine Zustimmung bei Microsoft …</string>
     <string name="notizen_my_lists">Meine Listen</string>
     <string name="notizen_name">Name</string>
-    <string name="notizen_new_group">Neue Gruppe</string>
-    <string name="notizen_new_list">Neue Liste</string>
-    <string name="notizen_new_list_or_group">Neue Liste oder Gruppe</string>
     <string name="notizen_new_note">Neue Notiz</string>
     <string name="notizen_new_notebook">Neues Notizbuch</string>
     <string name="notizen_new_task">Neue Aufgabe</string>
@@ -189,7 +184,6 @@
     <string name="notizen_recovery_text">Schreib den Wiederherstellungsschlüssel auf oder sichere ihn als Datei. Ohne ihn und ohne ein freigegebenes Gerät sind die Notizen verloren – auch der Server kann sie nicht öffnen.</string>
     <string name="notizen_recovery_title">Dein Wiederherstellungsschlüssel</string>
     <string name="notizen_recovery_written">Ich habe ihn aufgeschrieben</string>
-    <string name="notizen_reload">Aktualisieren</string>
     <string name="notizen_reminder">Erinnerung</string>
     <string name="notizen_repeat">Wiederholen</string>
     <string name="notizen_repeat_after">Tage nach Erledigung</string>
@@ -218,7 +212,6 @@
     <string name="notizen_source_error">Fehler beim Abgleich: %1$s</string>
     <string name="notizen_source_missing">Das Plugin fehlt oder ist zu alt.</string>
     <string name="notizen_source_off_admin">Vom Administrator ausgeschaltet.</string>
-    <string name="notizen_sources">Quellen</string>
     <string name="notizen_sources_intro">Was die anderen Plugins zu erledigen haben, erscheint hier. Das Original bleibt dort – abhaken hier hakt dort ab.</string>
     <string name="notizen_sources_later">Fahrzeuge, NAS, Proxmox kommen in Schritt 2.</string>
     <string name="notizen_src_evening">Erinnern um</string>
@@ -267,7 +260,6 @@
     <string name="notizen_tresor_ask">Zugang anfragen</string>
     <string name="notizen_tresor_auth">Tresor öffnen</string>
     <string name="notizen_tresor_check_again">Erneut prüfen</string>
-    <string name="notizen_tresor_chip">%1$s · Tresor</string>
     <string name="notizen_tresor_compare">Nur freigeben, wenn die Sicherheitsnummer auf beiden Geräten gleich ist:</string>
     <string name="notizen_tresor_device">Neues Gerät</string>
     <string name="notizen_tresor_intro">Ein Tresor ist ein Notizbuch, das nur deine Geräte lesen können – der Server sieht weder Titel noch Text.</string>

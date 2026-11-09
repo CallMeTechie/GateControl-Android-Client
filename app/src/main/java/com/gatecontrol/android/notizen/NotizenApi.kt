@@ -97,7 +97,8 @@ class NotizenApi @Inject constructor(
         parse = parse,
     )
 
-    private suspend fun <T> del(path: String, parse: (JsonObject) -> T?) = call(request = { pluginDelete(NOTIZEN_PLUGIN, path, q()) }, parse = parse)
+    private suspend fun <T> del(path: String, parse: (JsonObject) -> T?, query: Map<String, String> = emptyMap()) =
+        call(request = { pluginDelete(NOTIZEN_PLUGIN, path, q(query)) }, parse = parse)
 
     private val unit: (JsonObject) -> Unit = { }
 
@@ -141,10 +142,35 @@ class NotizenApi @Inject constructor(
 
     suspend fun deleteList(id: Long): NResult<Unit> = del("lists/$id", unit)
 
+    /**
+     * `DELETE lists/<id>`: the owner deletes it, a member leaves it. [tasks] (plugin 1.2.0, `deleteKeep`): `move` (the
+     * open tasks go to „Aufgaben“) or `delete`; null: as 1.1 (all of them go).
+     */
+    suspend fun deleteList(id: Long, tasks: String?): NResult<NDeleted> =
+        del("lists/$id", NotizenJson::deleted, tasks?.takeIf { it == "move" || it == "delete" }?.let { mapOf("tasks" to it) }.orEmpty())
+
+    /** `GET lists/<id>/usage` (plugin 1.2.0): what deleting it touches. */
+    suspend fun listUsage(id: Long): NResult<NListUsage> = get("lists/$id/usage", parse = NotizenJson::listUsage)
+
+    /** `POST lists/<id>/restore` (plugin 1.2.0): „Rückgängig“ after deleting. */
+    suspend fun restoreList(id: Long): NResult<NList> = post("lists/$id/restore", parse = NotizenJson::listAnswer)
+
     suspend fun listMembers(id: Long, members: List<Long>): NResult<NList> = put("lists/$id/members", NotizenJson.membersBody(members), NotizenJson::listAnswer)
+
+    /** `PUT lists/<id>/members` — everyone who may see it besides the owner; [roles]: with `read` / `write` (1.2.0). */
+    suspend fun listMembers(id: Long, members: List<Pair<Long, String>>, roles: Boolean): NResult<NList> =
+        put("lists/$id/members", NotizenJson.membersBody(members, roles), NotizenJson::listAnswer)
 
     suspend fun createGroup(name: String, area: String): NResult<Unit> =
         post("groups", JsonObject().apply { addProperty("name", name.take(120)); addProperty("area", area) }, parse = unit)
+
+    /** `POST groups` → the new group (its id); [lists] go into it (plugin 1.2.0, `groupEdit`). */
+    suspend fun createGroup(name: String, area: String, lists: List<Long>): NResult<NGroup> = post("groups", NotizenJson.groupBody(name, area, lists), parse = NotizenJson::groupAnswer)
+
+    suspend fun renameGroup(id: Long, name: String): NResult<Unit> = patch("groups/$id", JsonObject().apply { addProperty("name", name.trim().take(80)) }, unit)
+
+    /** „Gruppe auflösen“: the folder goes, its lists stay. */
+    suspend fun deleteGroup(id: Long): NResult<Unit> = del("groups/$id", unit)
 
     // ── tasks ───────────────────────────────────────────────
 
@@ -179,6 +205,17 @@ class NotizenApi @Inject constructor(
     suspend fun patchNotebook(id: Long, body: JsonObject): NResult<NNotebook> = patch("notebooks/$id", body, NotizenJson::notebookAnswer)
 
     suspend fun deleteNotebook(id: Long): NResult<Unit> = del("notebooks/$id", unit)
+
+    /** `DELETE notebooks/<id>`; [notes] (plugin 1.2.0): `move` (to „Notizen“) or `delete`. A member leaves it. */
+    suspend fun deleteNotebook(id: Long, notes: String?): NResult<NDeleted> =
+        del("notebooks/$id", NotizenJson::deleted, notes?.takeIf { it == "move" || it == "delete" }?.let { mapOf("notes" to it) }.orEmpty())
+
+    suspend fun notebookUsage(id: Long): NResult<NNotebookUsage> = get("notebooks/$id/usage", parse = NotizenJson::notebookUsage)
+
+    suspend fun restoreNotebook(id: Long): NResult<NNotebook> = post("notebooks/$id/restore", parse = NotizenJson::notebookAnswer)
+
+    suspend fun notebookMembers(id: Long, members: List<Pair<Long, String>>, roles: Boolean): NResult<NNotebook> =
+        put("notebooks/$id/members", NotizenJson.membersBody(members, roles), NotizenJson::notebookAnswer)
 
     suspend fun notes(area: String, notebookId: Long? = null, tag: String? = null, pinned: Boolean = false, before: String? = null): NResult<Pair<NNotesPage, JsonObject>> {
         val query = buildMap {

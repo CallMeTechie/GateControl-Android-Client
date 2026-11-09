@@ -110,7 +110,7 @@ class NotizenRepository @Inject constructor(
             is NResult.Ok -> {
                 cache.put("me", r.value.second)
                 _me.value = r.value.first
-                if (_area.value == null) _area.value = r.value.first.prefs.area
+                if (_area.value == null) _area.value = startArea(r.value.first.prefs)
                 flushSoon()
                 return NCached(r.value.first, false)
             }
@@ -127,7 +127,7 @@ class NotizenRepository @Inject constructor(
         val (raw, at) = cache.get("me") ?: return null
         val me = NotizenJson.me(raw) ?: return null
         if (_me.value == null) _me.value = me
-        if (_area.value == null) _area.value = me.prefs.area
+        if (_area.value == null) _area.value = startArea(me.prefs)
         return NCached(me, true, at)
     }
 
@@ -144,7 +144,15 @@ class NotizenRepository @Inject constructor(
         scope.launch { api.putPrefs(NotizenJson.prefsBody(area = a)) }
     }
 
-    fun currentArea(): String = _area.value ?: _me.value?.prefs?.area ?: NArea.PRIVATE
+    fun currentArea(): String = _area.value ?: _me.value?.prefs?.let(::startArea) ?: NArea.PRIVATE
+
+    /** The area on opening: „Beim Öffnen“ (plugin 1.2.0 `startArea`), else the one open last. */
+    private fun startArea(p: NPrefs): String = if (p.startArea == NArea.PRIVATE || p.startArea == NArea.WORK) p.startArea else p.area
+
+    /** `GET me` again after the person changed a setting (the prefs in it). */
+    fun setPrefs(p: NPrefs) {
+        _me.value = _me.value?.copy(prefs = p)
+    }
 
     /** The server's id of [id] (a negative one: made offline; null while it waits). */
     fun serverId(id: Long): Long? = if (id > 0) id else _state.value.ids[id]
@@ -330,9 +338,15 @@ class NotizenRepository @Inject constructor(
     suspend fun deleteTask(id: Long): NResult<NWritten<Unit>> =
         write(NotizenOutbox.DELETE, NotizenOutbox.TASK, id, JsonObject(), null) { sid, _ -> api.deleteTask(sid).goneOk().map { sid to it } }.touch("tasks")
 
-    suspend fun createList(name: String, area: String): NResult<NWritten<NList>> {
+    /** `POST lists`; [groupId]: into that group (one of the server's, not one made offline). */
+    suspend fun createList(name: String, area: String, groupId: Long? = null): NResult<NWritten<NList>> {
         val cid = if (offlineEdits()) newClientId() else null
-        val b = JsonObject().apply { addProperty("name", name.take(120)); addProperty("area", area); cid?.let { addProperty("clientId", it) } }
+        val b = JsonObject().apply {
+            addProperty("name", name.take(120))
+            addProperty("area", area)
+            groupId?.takeIf { it > 0 }?.let { addProperty("groupId", it) }
+            cid?.let { addProperty("clientId", it) }
+        }
         return write(NotizenOutbox.CREATE, NotizenOutbox.LIST, 0, b, cid) { _, x -> api.createListBody(x).map { it.id to it } }.touch("lists")
     }
 
