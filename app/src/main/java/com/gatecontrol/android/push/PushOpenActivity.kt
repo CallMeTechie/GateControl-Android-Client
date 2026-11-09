@@ -110,6 +110,7 @@ class PushOpenActivity : ComponentActivity() {
         val vaultDest = intent.getStringExtra(EXTRA_VAULT_DEST)
         val driveDest = intent.getStringExtra(EXTRA_DRIVE_DEST)
         val mailDest = intent.getStringExtra(EXTRA_MAIL_DEST)
+        val notizenDest = intent.getStringExtra(EXTRA_NOTIZEN_DEST)
         val navTarget = when {
             actionType == PushActionType.OPEN_APP_ROUTE -> PushNavTarget.forRoute(target, id, doorDest)
             familieDest != null && actionType == null -> PushNavTarget.Familie(familieDest, id)
@@ -117,6 +118,7 @@ class PushOpenActivity : ComponentActivity() {
             vaultDest != null && actionType == null -> PushNavTarget.Vault(vaultDest, id)
             driveDest != null && actionType == null -> PushNavTarget.Drive(driveDest, id)
             mailDest != null && actionType == null -> PushNavTarget.Mail(mailDest, id)
+            notizenDest != null && actionType == null -> PushNavTarget.Notizen(notizenDest, id)
             else -> PushNavTarget.Detail(id)
         }
         PushNavigation.request(navTarget)
@@ -137,6 +139,7 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_VAULT_DEST = "com.gatecontrol.android.push.extra.VAULT_DEST"
         private const val EXTRA_DRIVE_DEST = "com.gatecontrol.android.push.extra.DRIVE_DEST"
         private const val EXTRA_MAIL_DEST = "com.gatecontrol.android.push.extra.MAIL_DEST"
+        private const val EXTRA_NOTIZEN_DEST = "com.gatecontrol.android.push.extra.NOTIZEN_DEST"
         private const val EXTRA_DOOR_DEST = "com.gatecontrol.android.push.extra.DOOR_DEST"
         private const val EXTRA_CHAT = "com.gatecontrol.android.push.extra.CHAT"
         private const val EXTRA_CHAT_MESSAGE = "com.gatecontrol.android.push.extra.CHAT_MESSAGE"
@@ -179,9 +182,11 @@ class PushOpenActivity : ComponentActivity() {
             vaultDest: String? = null,
             driveDest: String? = null,
             mailDest: String? = null,
+            notizenDest: String? = null,
         ): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_ID, id)
+                .apply { if (notizenDest != null) putExtra(EXTRA_NOTIZEN_DEST, notizenDest) }
                 .apply { if (driveDest != null) putExtra(EXTRA_DRIVE_DEST, driveDest) }
                 .apply { if (mailDest != null) putExtra(EXTRA_MAIL_DEST, mailDest) }
                 .apply { if (familieDest != null) putExtra(EXTRA_FAMILIE_DEST, familieDest) }

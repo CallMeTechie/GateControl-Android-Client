@@ -74,6 +74,12 @@ sealed interface PushNavTarget {
      */
     data class Mail(val dest: String, val messageId: Long? = null) : PushNavTarget
 
+    /**
+     * Notizen & Aufgaben: a task (a reminder, an assignment), a list or a notebook shared, a Tresor's page with a device
+     * asking ([com.gatecontrol.android.notizen.NotizenPush] destination). Without the plugin the tab says why.
+     */
+    data class Notizen(val dest: String, val messageId: Long? = null) : PushNavTarget
+
     companion object {
         /** App route of the Familie plugin (`plg-gatecontrol-familie`). */
         const val FAMILIE_ROUTE = "plg-gatecontrol-familie"

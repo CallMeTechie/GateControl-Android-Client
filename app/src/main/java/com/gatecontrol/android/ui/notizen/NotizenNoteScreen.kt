@@ -205,7 +205,7 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
     }
     val ensureEdit: (() -> Unit) -> Unit = { action ->
         if (!ui.editing) vm.startEditing()
-        if (ui.editing || (!ui.offline && !ui.locked && ui.me?.readOnly != true)) action()
+        if (ui.editing || ((!ui.offline || ui.offlineEdits) && !ui.locked && ui.me?.readOnly != true)) action()
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -231,7 +231,8 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
                     }
                 }
             }
-            NOfflineHint(ui.offline, 0)
+            NOfflineHint(ui.offline, 0, ui.offlineEdits)
+            note?.summary?.let { if (it.pending) Box(Modifier.padding(horizontal = 20.dp, vertical = 2.dp)) { NSyncMark(true, false) } }
             if (ui.locked) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(R.string.notizen_tresor_locked_note), style = MaterialTheme.typography.bodyMedium)

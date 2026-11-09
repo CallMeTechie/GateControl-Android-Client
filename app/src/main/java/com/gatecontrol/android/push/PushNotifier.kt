@@ -328,7 +328,9 @@ class PushNotifier @Inject constructor(
         val driveDest = com.gatecontrol.android.drive.DrivePush.destination(message)
         // Mail: a new mail opens it, a failed send the outbox
         val mailDest = com.gatecontrol.android.mail.MailPush.destination(message)
-        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest).setData(uri(message, slot))
+        // Notizen & Aufgaben: a reminder or an assignment opens the task, a share the list or notebook, a request the Tresor
+        val notizenDest = com.gatecontrol.android.notizen.NotizenPush.destination(message)
+        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest, notizenDest).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 

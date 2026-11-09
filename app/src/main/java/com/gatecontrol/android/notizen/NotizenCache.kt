@@ -3,7 +3,6 @@ package com.gatecontrol.android.notizen
 import android.content.Context
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.PluginDirectory
-import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,8 +17,8 @@ import javax.inject.Singleton
 
 /**
  * The offline copy of „Notizen & Aufgaben“: the server's answers as they came (`me`, the menu, the lists shown, the
- * notes and tasks opened) — read again with [NotizenJson], never by reflection — and the outbox of ticks made without a
- * connection. Tresor notes are kept as the server has them: ciphertext only, never the plaintext. Per login (server +
+ * notes and tasks opened) — read again with [NotizenJson], never by reflection — and the outbox of what was made or
+ * changed without a connection ([NotizenOutbox]). Tresor notes are kept as the server has them: ciphertext only, never the plaintext. Per login (server +
  * token) in the app's private, not backed-up files; another login or the plugin gone deletes it ([wipe]).
  */
 @Singleton
@@ -85,12 +84,11 @@ class NotizenCache @Inject constructor(
 
     // ── the outbox ──────────────────────────────────────────
 
-    suspend fun outbox(): List<NotizenOutbox.Op> = io { dir ->
-        read(File(dir, "outbox.json"))?.getAsJsonArray("ops")?.mapNotNull { NotizenOutbox.fromJson(it) }
-    }.orEmpty()
+    /** The outbox ([NotizenOutbox.State]: what waits, the ids the server gave things made offline). */
+    suspend fun outbox(): NotizenOutbox.State = io { dir -> read(File(dir, "outbox.json"))?.let { NotizenOutbox.stateFromJson(it) } } ?: NotizenOutbox.State()
 
-    suspend fun putOutbox(ops: List<NotizenOutbox.Op>) {
-        io { dir -> write(File(dir, "outbox.json"), JsonObject().apply { add("ops", JsonArray().apply { ops.forEach { add(NotizenOutbox.toJson(it)) } }) }) }
+    suspend fun putOutbox(state: NotizenOutbox.State) {
+        io { dir -> write(File(dir, "outbox.json"), NotizenOutbox.stateToJson(state)) }
     }
 
     /** Everything of this plugin on the phone goes (another login, the plugin gone). */
@@ -102,57 +100,4 @@ class NotizenCache @Inject constructor(
         const val DIR = "notizen-cache"
         const val MAX_FILES = 400
     }
-}
-
-/**
- * What the app keeps to send once it is online again (pure, unit-tested). Only what the API takes again safely: a tick
- * of a task or of an item of another plugin (`complete { done }` sets a state — sent twice, it does the same). New tasks
- * and notes and changes of text need a connection (the API has no ids made on the device): the screens say so.
- */
-object NotizenOutbox {
-    data class Op(val kind: String, val id: Long, val done: Boolean, val at: Long)
-
-    const val TASK = "task"
-    const val ITEM = "item"
-
-    fun fromJson(e: com.google.gson.JsonElement): Op? {
-        val o = e.takeIf { it.isJsonObject }?.asJsonObject ?: return null
-        val kind = o.get("kind")?.asString?.takeIf { it == TASK || it == ITEM } ?: return null
-        return Op(kind, o.get("id")?.asLong?.takeIf { it > 0 } ?: return null, o.get("done")?.asBoolean ?: return null, o.get("at")?.asLong ?: 0)
-    }
-
-    fun toJson(op: Op) = JsonObject().apply {
-        addProperty("kind", op.kind)
-        addProperty("id", op.id)
-        addProperty("done", op.done)
-        addProperty("at", op.at)
-    }
-
-    /** [op] added: the latest tick of the same thing replaces an earlier one (at most [MAX] wait). */
-    fun add(ops: List<Op>, op: Op): List<Op> = (ops.filterNot { it.kind == op.kind && it.id == op.id } + op).takeLast(MAX)
-
-    /** The state a waiting tick gives [uid] (`t:<id>` / `s:<id>`); null: none waits. */
-    fun pending(ops: List<Op>, uid: String): Boolean? {
-        val kind = if (uid.startsWith("t:")) TASK else if (uid.startsWith("s:")) ITEM else return null
-        val id = uid.substring(2).toLongOrNull() ?: return null
-        return ops.lastOrNull { it.kind == kind && it.id == id }?.done
-    }
-
-    /** A view as the person sees it: the waiting ticks laid over the server's copy. */
-    fun overlay(view: NView, ops: List<Op>): NView {
-        if (ops.isEmpty()) return view
-        return view.copy(sections = view.sections.map { s ->
-            s.copy(items = s.items.map { e ->
-                when (val d = pending(ops, e.uid)) {
-                    null -> e
-                    else -> when (e) {
-                        is NTask -> e.copy(done = d)
-                        is NItem -> e.copy(done = d)
-                    }
-                }
-            })
-        })
-    }
-
-    const val MAX = 500
 }

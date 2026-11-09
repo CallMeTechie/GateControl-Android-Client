@@ -108,6 +108,18 @@ class NotizenShareViewModel @Inject constructor(
             _ui.update { it.copy(busy = true, error = null) }
             val (title, rest) = NotizenShare.split(u.subject, u.text)
             val fallback = context.getString(R.string.notizen_share_title_files)
+            // only text: it may wait for a connection like any new note or task (plugin 1.1.0)
+            if (u.files.isEmpty()) {
+                val body = if (u.note) {
+                    NotizenJson.noteBody(null, u.area, title.ifEmpty { fallback }, rest.ifEmpty { if (u.subject != null) u.text.orEmpty() else "" })
+                } else {
+                    NotizenJson.taskBody(title.ifEmpty { fallback }, area = u.area, note = rest.takeIf { it.isNotEmpty() })
+                }
+                val r = if (u.note) repo.createNote(body).code() else repo.createTask(body).code()
+                if (r != null) { fail(r); return@launch }
+                _ui.update { it.copy(busy = false, done = true) }
+                return@launch
+            }
             val (kind, id) = if (u.note) {
                 val r = repo.api.createNote(NotizenJson.noteBody(null, u.area, title.ifEmpty { fallback }, rest.ifEmpty { if (u.subject != null) u.text.orEmpty() else "" }))
                 if (r !is NResult.Ok) { fail(r.code()); return@launch }

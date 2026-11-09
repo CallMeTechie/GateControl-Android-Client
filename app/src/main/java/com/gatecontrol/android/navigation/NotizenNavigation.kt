@@ -35,14 +35,15 @@ internal object NotizenRoutes {
     const val SOURCES = "notizen/sources"
     const val IMPORT = "notizen/import"
     const val SEARCH = "notizen/search"
-    const val VAULT = "notizen/vault/{vault}"
+    const val VAULT = "notizen/vault/{vault}?requests={requests}"
 
     fun view(name: String) = "notizen/view/" + MailRoutes.enc(name)
     fun task(id: Long) = "notizen/task/$id"
     fun item(id: Long) = "notizen/item/$id"
     fun quick(note: Boolean, text: String? = null) = MailRoutes.build("notizen/quick", "mode" to if (note) "note" else null, "text" to text?.take(1000))
     fun note(id: Long, notebook: Long? = null, text: String? = null) = MailRoutes.build("notizen/note/$id", "notebook" to notebook?.toString(), "text" to text?.take(20_000))
-    fun vault(id: String) = "notizen/vault/$id"
+    /** A Tresor's page; [requests] (a push „Neues Gerät möchte Zugriff“): it stays after unlocking, with the device to approve. */
+    fun vault(id: String, requests: Boolean = false) = "notizen/vault/$id" + if (requests) "?requests=1" else ""
 
     /** The tab of a plugin this app has (an item's original whose route it has no screen for). */
     fun tabOf(plugin: String): String? = when (plugin) {
@@ -102,7 +103,8 @@ internal fun NavGraphBuilder.notizenRoutes(navController: NavHostController, hav
     composable(NotizenRoutes.SOURCES) { GcContentWidth { NotizenSourcesScreen(remember { nav() }) } }
     composable(NotizenRoutes.IMPORT) { GcContentWidth { NotizenImportScreen(remember { nav() }) } }
     composable(NotizenRoutes.SEARCH) { GcContentWidth { NotizenSearchScreen(remember { nav() }) } }
-    composable(NotizenRoutes.VAULT, arguments = listOf(navArgument("vault") { type = NavType.StringType })) {
-        GcContentWidth { NotizenVaultScreen(onBack = { navController.popBackStack() }, onOpened = { navController.popBackStack() }) }
+    composable(NotizenRoutes.VAULT, arguments = listOf(navArgument("vault") { type = NavType.StringType }, str("requests"))) { entry ->
+        val requests = entry.arguments?.getString("requests") == "1"
+        GcContentWidth { NotizenVaultScreen(onBack = { navController.popBackStack() }, onOpened = { navController.popBackStack() }, stayAfterUnlock = requests) }
     }
 }

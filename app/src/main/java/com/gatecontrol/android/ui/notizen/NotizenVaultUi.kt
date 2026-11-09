@@ -132,12 +132,12 @@ internal fun NewTresorFlow(session: NotizenVaultSession, area: String, onDone: (
 }
 
 /**
- * A Tresor notebook on this phone (route `notizen/vault/<id>`): open it with the device confirmation, ask for access
+ * A Tresor notebook on this phone (route `notizen/vault/<id>`, from a push with `?requests=1`): open it with the device confirmation, ask for access
  * (with the safety number to compare), open it with the recovery key, approve other devices, a new key after a member
  * left, lock it.
  */
 @Composable
-fun NotizenVaultScreen(onBack: () -> Unit, onOpened: () -> Unit, vm: NotizenVaultViewModel = hiltViewModel()) {
+fun NotizenVaultScreen(onBack: () -> Unit, onOpened: () -> Unit, stayAfterUnlock: Boolean = false, vm: NotizenVaultViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val snack = remember { SnackbarHostState() }
@@ -150,8 +150,9 @@ fun NotizenVaultScreen(onBack: () -> Unit, onOpened: () -> Unit, vm: NotizenVaul
     val openNow: () -> Unit = {
         auth.authenticate(authTitle, null) { r ->
             when (r) {
-                DeviceAuthResult.SUCCESS -> vm.open(onOpened)
-                DeviceAuthResult.UNAVAILABLE -> vm.open(onOpened)
+                // from a push „Neues Gerät möchte Zugriff“: unlocked, the page stays with the device to approve
+                DeviceAuthResult.SUCCESS -> vm.open(if (stayAfterUnlock) ({}) else onOpened)
+                DeviceAuthResult.UNAVAILABLE -> vm.open(if (stayAfterUnlock) ({}) else onOpened)
                 else -> Unit
             }
         }
@@ -203,7 +204,7 @@ fun NotizenVaultScreen(onBack: () -> Unit, onOpened: () -> Unit, vm: NotizenVaul
                     GcCard {
                         Text(stringResource(R.string.notizen_tresor_with_recovery), style = MaterialTheme.typography.titleSmall)
                         GcTextField(recovery, { recovery = it.take(80) }, stringResource(R.string.notizen_recovery_key), mono = true)
-                        GcOutlineButton(stringResource(R.string.notizen_tresor_recover), { vm.recover(recovery, onOpened) }, enabled = recovery.length >= 40, loading = ui.busy)
+                        GcOutlineButton(stringResource(R.string.notizen_tresor_recover), { vm.recover(recovery, if (stayAfterUnlock) ({}) else onOpened) }, enabled = recovery.length >= 40, loading = ui.busy)
                     }
                 }
             }

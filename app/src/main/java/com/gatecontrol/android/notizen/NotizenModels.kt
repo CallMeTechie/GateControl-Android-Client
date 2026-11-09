@@ -112,6 +112,10 @@ data class NTask(
     val noteId: Long?,
     val position: Long,
     val updatedAt: Long,
+    /** Made or changed on this phone and not yet on the server ([NotizenOutbox]); a negative [id] was made offline. */
+    val pending: Boolean = false,
+    /** A change of this phone the server refused (`409`): the person decides when it is opened. */
+    val conflict: Boolean = false,
 ) : NEntry {
     override val uid: String get() = "t:$id"
 }
@@ -166,6 +170,8 @@ data class NList(
     val open: Int,
     /** Kept in step with Microsoft To Do (`ext.kind`). */
     val ext: String?,
+    /** Made on this phone and not yet on the server. */
+    val pending: Boolean = false,
 )
 
 data class NGroup(val id: Long, val name: String, val area: String)
@@ -189,6 +195,8 @@ data class NNotebook(
     val bound: NBound?,
     val count: Int,
     val position: Long,
+    /** Made on this phone and not yet on the server. */
+    val pending: Boolean = false,
 )
 
 data class NTag(val tag: String, val count: Int)
@@ -228,6 +236,10 @@ data class NNoteSummary(
     val createdAt: Long,
     val updatedAt: Long,
     val rev: Long,
+    /** Made or changed on this phone and not yet on the server. */
+    val pending: Boolean = false,
+    /** A change of this phone the server refused (`409`): the person decides when it is opened. */
+    val conflict: Boolean = false,
 )
 
 data class NAttachment(
@@ -256,7 +268,7 @@ data class NNote(
     val tasks: List<NNoteTask>,
 )
 
-data class NSubtask(val id: Long, val title: String, val done: Boolean)
+data class NSubtask(val id: Long, val title: String, val done: Boolean, val pending: Boolean = false)
 
 data class NTaskDetail(
     val task: NTask,

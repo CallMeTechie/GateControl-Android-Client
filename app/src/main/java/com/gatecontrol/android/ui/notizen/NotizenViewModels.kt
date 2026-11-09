@@ -23,9 +23,11 @@ import com.gatecontrol.android.notizen.NTaskDetail
 import com.gatecontrol.android.notizen.NView
 import com.gatecontrol.android.notizen.NoteMd
 import com.gatecontrol.android.notizen.NotizenJson
+import com.gatecontrol.android.notizen.NotizenOutbox
 import com.gatecontrol.android.notizen.NotizenRepository
 import com.gatecontrol.android.notizen.NotizenVaultSession
 import com.gatecontrol.android.notizen.QuickParse
+import com.google.gson.JsonObject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -70,6 +72,8 @@ class NotizenHomeViewModel @Inject constructor(
         val offline: Boolean = false,
         val savedAt: Long = 0,
         val pending: Int = 0,
+        /** Plugin 1.1.0: what is made or changed offline waits and is sent later. */
+        val offlineEdits: Boolean = false,
     )
 
     private val _ui = MutableStateFlow(Ui(notebook = saved.get<Long>(KEY_NB)?.takeIf { it > 0 }))
@@ -90,7 +94,7 @@ class NotizenHomeViewModel @Inject constructor(
                 load(quiet = true)
             }
         }
-        viewModelScope.launch { repo.pending.collect { p -> _ui.update { it.copy(pending = p.size) } } }
+        viewModelScope.launch { repo.pending.collect { p -> _ui.update { it.copy(pending = p.count { !it.conflict }) } } }
         load()
     }
 
@@ -111,8 +115,17 @@ class NotizenHomeViewModel @Inject constructor(
                 _ui.update { it.copy(loading = false, meError = code ?: "failed") }
                 return@launch
             }
+            // a push: its area, its notebook (the notes with it)
+            val link = com.gatecontrol.android.notizen.NotizenDeepLink.take()
+            link?.area?.let { a -> if (a != repo.currentArea()) repo.setArea(a) }
+            link?.notebook?.let { nb ->
+                _ui.update { it.copy(notebook = nb, tag = null) }
+                saved[KEY_NB] = nb
+                setSegment(SEG_NOTES)
+            }
+            com.gatecontrol.android.notizen.NotizenDeepLink.takeHint()?.let { _message.value = it }
             val area = repo.currentArea()
-            _ui.update { it.copy(me = me.value, meError = null, area = area) }
+            _ui.update { it.copy(me = me.value, meError = null, area = area, offlineEdits = me.value.has(NotizenRepository.FEATURE_OFFLINE)) }
             val nav = repo.nav(area)
             val day = repo.view("myday", area)
             val nb = _ui.value.notebook
@@ -132,6 +145,12 @@ class NotizenHomeViewModel @Inject constructor(
                 )
             }
             if (nav is NResult.Failed) _message.value = nav.code()
+            // the notebook of a push is not there (any more): the notes of all notebooks, and a hint
+            val shownNav = nav.valueOrNull()?.value
+            if (link?.notebook != null && shownNav != null && shownNav.notebooks.none { it.id == link.notebook }) {
+                _message.value = "gone"
+                selectNotebook(null)
+            }
         }
     }
 
@@ -170,8 +189,8 @@ class NotizenHomeViewModel @Inject constructor(
 
     fun createList(name: String) {
         viewModelScope.launch {
-            val r = repo.api.createList(name, _ui.value.area)
-            _message.value = r.code() ?: "list_created"
+            val r = repo.createList(name, _ui.value.area)
+            _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else "list_created"
             load(quiet = true)
         }
     }
@@ -185,8 +204,8 @@ class NotizenHomeViewModel @Inject constructor(
 
     fun createNotebook(name: String) {
         viewModelScope.launch {
-            val r = repo.api.createNotebook(name, _ui.value.area, null)
-            _message.value = r.code()
+            val r = repo.createNotebook(name, _ui.value.area)
+            _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else null
             load(quiet = true)
         }
     }
@@ -211,7 +230,7 @@ class NotizenViewViewModel @Inject constructor(
 ) : ViewModel() {
     val name: String = saved.get<String>("name").orEmpty()
 
-    data class Ui(val view: NView? = null, val loading: Boolean = true, val offline: Boolean = false, val error: String? = null, val me: NMe? = null)
+    data class Ui(val view: NView? = null, val loading: Boolean = true, val offline: Boolean = false, val error: String? = null, val me: NMe? = null, val gone: Boolean = false)
 
     private val _ui = MutableStateFlow(Ui())
     val ui: StateFlow<Ui> = _ui.asStateFlow()
@@ -225,11 +244,14 @@ class NotizenViewViewModel @Inject constructor(
 
     fun consumeMessage() { _message.value = null }
 
+    /** Back from a task that is not there any more: its hint. */
+    fun takeHint() { com.gatecontrol.android.notizen.NotizenDeepLink.takeHint()?.let { _message.value = it } }
+
     fun load() {
         viewModelScope.launch {
             val me = repo.meOrCached()
             val r = repo.view(name, repo.currentArea())
-            _ui.update { it.copy(me = me, view = r.valueOrNull()?.value ?: it.view, loading = false, offline = r.valueOrNull()?.offline == true, error = r.code()) }
+            _ui.update { it.copy(me = me, view = r.valueOrNull()?.value ?: it.view, loading = false, offline = r.valueOrNull()?.offline == true, error = r.code(), gone = r is NResult.Failed && r.http == 404) }
         }
     }
 
@@ -249,8 +271,8 @@ class NotizenViewViewModel @Inject constructor(
     fun add(title: String) {
         val listId = name.removePrefix("list:").toLongOrNull() ?: return
         viewModelScope.launch {
-            val r = repo.api.createTask(NotizenJson.taskBody(title, listId = listId))
-            _message.value = r.code()
+            val r = repo.createTask(NotizenJson.taskBody(title, listId = listId))
+            _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else null
             if (r is NResult.Ok) load()
         }
     }
@@ -272,6 +294,8 @@ class NotizenTaskViewModel @Inject constructor(
         val offline: Boolean = false,
         val gone: Boolean = false,
         val busy: Boolean = false,
+        /** A change of this phone was refused (409, now or in the background): „Meine behalten“ / „Die andere laden“. */
+        val conflict: Boolean = false,
     )
 
     private val _ui = MutableStateFlow(Ui())
@@ -279,9 +303,14 @@ class NotizenTaskViewModel @Inject constructor(
     private val _message = MutableStateFlow<NMessage?>(null)
     val message: StateFlow<NMessage?> = _message.asStateFlow()
 
+    /** The change refused right now (online): sent again without `base` for „Meine behalten“. */
+    private var refused: JsonObject? = null
+
     init {
         load()
         viewModelScope.launch { repo.api.people().valueOrNull()?.let { p -> _ui.update { it.copy(people = p) } } }
+        // what waits was sent (or refused): the page as it is now
+        viewModelScope.launch { repo.changed.collect { if (it.isEmpty() || "tasks" in it) { delay(300); load() } } }
     }
 
     fun consumeMessage() { _message.value = null }
@@ -290,8 +319,14 @@ class NotizenTaskViewModel @Inject constructor(
         viewModelScope.launch {
             val me = repo.meOrCached()
             when (val r = repo.task(id)) {
-                is NResult.Ok -> _ui.update { it.copy(detail = r.value.value, me = me, loading = false, offline = r.value.offline) }
-                is NResult.Failed -> _ui.update { it.copy(loading = false, gone = r.http == 404 || r.code == "not_found", me = me) }.also { _message.value = r.code() }
+                is NResult.Ok -> _ui.update {
+                    it.copy(detail = r.value.value, me = me, loading = false, offline = r.value.offline, conflict = refused != null || repo.conflictFor(NotizenOutbox.TASK, id) != null)
+                }
+                is NResult.Failed -> {
+                    val gone = r.http == 404 || r.code == "not_found"
+                    _ui.update { it.copy(loading = false, gone = gone, me = me) }
+                    _message.value = r.code()
+                }
                 else -> _ui.update { it.copy(loading = false, offline = true, me = me) }
             }
         }
@@ -300,14 +335,51 @@ class NotizenTaskViewModel @Inject constructor(
     private fun patch(vararg fields: Pair<String, Any?>) {
         viewModelScope.launch {
             _ui.update { it.copy(busy = true) }
-            val r = repo.api.patchTask(id, NotizenJson.patch(*fields))
-            if (r is NResult.Ok) {
-                _ui.update { it.copy(detail = r.value, busy = false) }
-                repo.touched("tasks")
-            } else {
-                _ui.update { it.copy(busy = false) }
-                _message.value = r.code()
+            val body = NotizenJson.patch(*fields)
+            val r = repo.patchTask(id, body, _ui.value.detail)
+            when {
+                r is NResult.Ok && !r.value.queued -> _ui.update { it.copy(detail = r.value.value ?: it.detail, busy = false) }
+                r is NResult.Ok -> {
+                    _ui.update { it.copy(busy = false) }
+                    if (r.value.offline) _message.value = "queued"
+                    load()
+                }
+                r is NResult.Failed && r.http == 409 && r.code == "conflict" -> {
+                    // someone changed the same field meanwhile: the person decides
+                    refused = body
+                    _ui.update { it.copy(busy = false, conflict = true) }
+                }
+                else -> {
+                    _ui.update { it.copy(busy = false) }
+                    _message.value = r.code()
+                }
             }
+        }
+    }
+
+    /** „Meine behalten“: this phone's change over the other one. */
+    fun keepMine() {
+        viewModelScope.launch {
+            val now = refused
+            refused = null
+            _ui.update { it.copy(conflict = false) }
+            if (now != null) {
+                val r = repo.patchTask(id, now, null)
+                _message.value = r.code()
+            } else {
+                repo.conflictFor(NotizenOutbox.TASK, id)?.let { repo.keepMine(it) }
+            }
+            load()
+        }
+    }
+
+    /** „Die andere laden“: this phone's change is dropped, the task as it is now. */
+    fun takeTheirs() {
+        viewModelScope.launch {
+            refused = null
+            _ui.update { it.copy(conflict = false) }
+            repo.conflictFor(NotizenOutbox.TASK, id)?.let { repo.dropChange(it) }
+            load()
         }
     }
 
@@ -324,7 +396,7 @@ class NotizenTaskViewModel @Inject constructor(
     fun complete() {
         val t = _ui.value.detail?.task ?: return
         viewModelScope.launch {
-            val (tick, next) = repo.complete(t, !t.done)
+            val (tick, next) = repo.completeTask(id, !t.done)
             _message.value = when (tick) {
                 NotizenRepository.Tick.QUEUED -> "queued"
                 NotizenRepository.Tick.READ_ONLY -> "read_only"
@@ -338,30 +410,34 @@ class NotizenTaskViewModel @Inject constructor(
     fun addSubtask(title: String) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            val r = repo.api.createTask(NotizenJson.taskBody(title.trim(), parentId = id))
-            _message.value = r.code()
+            val r = repo.createTask(NotizenJson.taskBody(title.trim(), parentId = id))
+            _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else null
             load()
         }
     }
 
     fun toggleSub(subId: Long, done: Boolean) {
         viewModelScope.launch {
-            _message.value = repo.api.completeTask(subId, done).code()
+            _message.value = when (repo.completeTask(subId, done).first) {
+                NotizenRepository.Tick.FAILED -> "failed"
+                NotizenRepository.Tick.READ_ONLY -> "read_only"
+                else -> null
+            }
             load()
         }
     }
 
     fun deleteSub(subId: Long) {
         viewModelScope.launch {
-            _message.value = repo.api.deleteTask(subId).code()
+            _message.value = repo.deleteTask(subId).code()
             load()
         }
     }
 
     fun delete(done: () -> Unit) {
         viewModelScope.launch {
-            val r = repo.api.deleteTask(id)
-            if (r is NResult.Ok) { repo.touched("tasks"); done() } else _message.value = r.code()
+            val r = repo.deleteTask(id)
+            if (r is NResult.Ok) done() else _message.value = r.code()
         }
     }
 
@@ -375,10 +451,16 @@ class NotizenTaskViewModel @Inject constructor(
                 _message.value = "too_large"
                 return@launch
             }
+            // pictures and files need the server (and a task it knows)
+            val sid = repo.serverId(id) ?: run {
+                _ui.update { it.copy(busy = false) }
+                _message.value = "attach_offline"
+                return@launch
+            }
             val up = repo.api.upload(bytes, mime)
-            val r = if (up is NResult.Ok) repo.api.attach(NotizenJson.attachBody("task", id, up.value, name, null)) else up
+            val r = if (up is NResult.Ok) repo.api.attach(NotizenJson.attachBody("task", sid, up.value, name, null)) else up
             _ui.update { it.copy(busy = false) }
-            _message.value = r.code()
+            _message.value = if (r is NResult.Offline) "attach_offline" else r.code()
             load()
         }
     }
@@ -561,15 +643,14 @@ class NotizenQuickViewModel @Inject constructor(
             _ui.update { it.copy(busy = true) }
             if (u.note) {
                 val (title, body) = NoteMd.splitTitle(u.text)
-                val r = repo.api.createNote(NotizenJson.noteBody(null, u.area, title, body))
+                val r = repo.createNote(NotizenJson.noteBody(null, u.area, title, body))
                 _ui.update { it.copy(busy = false, done = r is NResult.Ok) }
-                _message.value = r.code() ?: "note_saved"
-                if (r is NResult.Ok) repo.touched("notes")
+                _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else "note_saved"
                 return@launch
             }
             val e = effective() ?: run { _ui.update { it.copy(busy = false) }; return@launch }
             var listId = e.listId
-            if (listId == null && e.newList != null) listId = repo.api.createList(e.newList.replaceFirstChar { it.uppercase() }, u.area).valueOrNull()?.id
+            if (listId == null && e.newList != null) listId = repo.createList(e.newList.replaceFirstChar { it.uppercase() }, u.area).valueOrNull()?.id
             val body = NotizenJson.taskBody(e.title.ifBlank { u.text.trim() }, area = u.area, listId = listId).apply {
                 e.due?.let { add("due", NotizenJson.dueBody(it)) }
                 e.remind?.let { add("remindAt", NotizenJson.dueBody(it)) }
@@ -578,10 +659,9 @@ class NotizenQuickViewModel @Inject constructor(
                 e.repeat?.let { add("repeat", NRepeat.toJson(it)) }
                 if (e.due?.date == u.me?.today) addProperty("myDay", true)
             }
-            val r = repo.api.createTask(body)
+            val r = repo.createTask(body)
             _ui.update { it.copy(busy = false, done = r is NResult.Ok) }
-            _message.value = r.code() ?: "task_saved"
-            if (r is NResult.Ok) repo.touched("tasks")
+            _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else "task_saved"
         }
     }
 }

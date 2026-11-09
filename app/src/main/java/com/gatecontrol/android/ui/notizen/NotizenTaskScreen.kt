@@ -247,6 +247,22 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
             if (f == null) snack.showSnackbar(tooLarge) else vm.attach(f.first, f.second, f.third)
         }
     }
+    // the task is not there (any more) — a push of a deleted one: a hint, and back to the list
+    LaunchedEffect(ui.gone) {
+        if (ui.gone) {
+            com.gatecontrol.android.notizen.NotizenDeepLink.hint("gone")
+            nav.back()
+        }
+    }
+    if (ui.conflict) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.notizen_conflict_title)) },
+            text = { Text(stringResource(R.string.notizen_conflict_task_text)) },
+            confirmButton = { TextButton(onClick = vm::keepMine) { Text(stringResource(R.string.notizen_conflict_mine)) } },
+            dismissButton = { TextButton(onClick = vm::takeTheirs) { Text(stringResource(R.string.notizen_conflict_theirs)) } },
+        )
+    }
     val d = ui.detail
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -276,7 +292,8 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
             var title by rememberSaveable(d.task.id) { mutableStateOf(d.task.title) }
             var note by rememberSaveable(d.task.id) { mutableStateOf(d.note.orEmpty()) }
             var sub by rememberSaveable { mutableStateOf("") }
-            NOfflineHint(ui.offline, 0)
+            NOfflineHint(ui.offline, 0, me?.has(com.gatecontrol.android.notizen.NotizenRepository.FEATURE_OFFLINE) == true)
+            if (d.task.pending) Box(Modifier.padding(horizontal = 20.dp, vertical = 2.dp)) { NSyncMark(true, false) }
             LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(bottom = 40.dp)) {
                 item {
                     Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -473,6 +490,17 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
     val snack = remember { SnackbarHostState() }
     val text = message?.let { messageText(it) }
     LaunchedEffect(message) { if (text != null) { snack.showSnackbar(text); vm.consumeMessage() } }
+    androidx.lifecycle.compose.LifecycleResumeEffect(vm) {
+        vm.takeHint()
+        onPauseOrDispose { }
+    }
+    // the list is not there (any more) — a push of a deleted or no longer shared one: a hint, and back to the tab
+    LaunchedEffect(ui.gone) {
+        if (ui.gone) {
+            com.gatecontrol.android.notizen.NotizenDeepLink.hint("gone")
+            nav.back()
+        }
+    }
     var add by rememberSaveable { mutableStateOf("") }
     var showDone by rememberSaveable { mutableStateOf(false) }
     val title = ui.view?.title?.takeIf { it.isNotBlank() } ?: when (vm.name) {
@@ -485,7 +513,7 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             GcSubpageBar(title, nav.back, stringResource(R.string.notizen_back))
-            NOfflineHint(ui.offline, 0)
+            NOfflineHint(ui.offline, 0, ui.me?.has(com.gatecontrol.android.notizen.NotizenRepository.FEATURE_OFFLINE) == true)
             val v = ui.view
             val me = ui.me
             if (v == null || me == null) {
