@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: side menu, lists, sharing, settings (plugin gatecontrol-notizen 1.2.0). -->
+<resources>
+    <string name="notizen_add_person">Person hinzufügen</string>
+    <string name="notizen_all_notes">Alle Notizen</string>
+    <string name="notizen_assign_person">Einer Person zuweisen</string>
+    <string name="notizen_assigned_to">Zugewiesen an %1$s</string>
+    <string name="notizen_color_blue">Blau</string>
+    <string name="notizen_color_green">Grün</string>
+    <string name="notizen_color_grey">Grau</string>
+    <string name="notizen_color_none">Keine Farbe</string>
+    <string name="notizen_color_orange">Orange</string>
+    <string name="notizen_color_pink">Rosa</string>
+    <string name="notizen_color_purple">Lila</string>
+    <string name="notizen_color_red">Rot</string>
+    <string name="notizen_color_teal">Türkis</string>
+    <string name="notizen_color_yellow">Gelb</string>
+    <string name="notizen_create_group">Gruppe anlegen</string>
+    <string name="notizen_create_list">Liste anlegen</string>
+    <string name="notizen_days_hint">Jeden %1$s steht die Liste oben in „Mein Tag“.</string>
+    <string name="notizen_days_hint_none">Kein Tag gewählt: die Liste erscheint nicht von selbst in „Mein Tag“.</string>
+    <string name="notizen_days_hint_shared">Jeden %1$s steht die Liste oben in „Mein Tag“ – bei allen, mit denen sie geteilt ist.</string>
+    <string name="notizen_days_in_myday">jeden %1$s in „Mein Tag“</string>
+    <string name="notizen_days_label">In „Mein Tag“ zeigen an (z. B. Einkaufstag)</string>
+    <string name="notizen_default_notebook">Notizen</string>
+    <string name="notizen_delete_all_tasks">Alle Aufgaben mitlöschen</string>
+    <string name="notizen_delete_move">In „%1$s“ verschieben</string>
+    <string name="notizen_delete_open_q">Was soll mit den offenen Aufgaben passieren?</string>
+    <string name="notizen_deleted_x">„%1$s“ gelöscht</string>
+    <string name="notizen_done">Fertig</string>
+    <string name="notizen_edit_dots">Bearbeiten …</string>
+    <string name="notizen_filter_all">Alle</string>
+    <string name="notizen_filter_nobody">Niemandem</string>
+    <string name="notizen_group">Gruppe</string>
+    <string name="notizen_group_collapse">Gruppe „%1$s“ zuklappen</string>
+    <string name="notizen_group_dissolve">Auflösen</string>
+    <string name="notizen_group_dissolve_dots">Gruppe auflösen …</string>
+    <string name="notizen_group_dissolve_empty">Die Gruppe ist leer. Nur der Ordner verschwindet.</string>
+    <string name="notizen_group_dissolve_q">Gruppe „%1$s“ auflösen?</string>
+    <string name="notizen_group_dissolve_text">Nur der Ordner verschwindet. %1$s mit allen Aufgaben bleiben erhalten und stehen danach direkt unter „Meine Listen“.</string>
+    <string name="notizen_group_expand">Gruppe „%1$s“ aufklappen</string>
+    <string name="notizen_group_hint">Eine Gruppe ist ein Ordner für mehrere Listen. Nur du siehst sie.</string>
+    <string name="notizen_group_name">Name der Gruppe</string>
+    <string name="notizen_group_new_list">Neue Liste in dieser Gruppe</string>
+    <string name="notizen_group_put_in">Diese Listen hineinlegen (freiwillig)</string>
+    <string name="notizen_group_rename">Gruppe umbenennen</string>
+    <string name="notizen_icon">Symbol</string>
+    <string name="notizen_icon_cart">Einkaufswagen</string>
+    <string name="notizen_icon_gift">Geschenk</string>
+    <string name="notizen_icon_heart">Herz</string>
+    <string name="notizen_icon_home">Haus</string>
+    <string name="notizen_icon_list">Liste</string>
+    <string name="notizen_icon_plane">Flugzeug</string>
+    <string name="notizen_icon_tool">Werkzeug</string>
+    <string name="notizen_icon_work">Arbeit</string>
+    <string name="notizen_in_group">In Gruppe</string>
+    <string name="notizen_kind_group">Gruppe</string>
+    <string name="notizen_kind_list">Liste</string>
+    <string name="notizen_leave">Verlassen</string>
+    <string name="notizen_list_day">Einkaufstag</string>
+    <string name="notizen_list_day_none">keiner</string>
+    <string name="notizen_list_delete">Liste löschen</string>
+    <string name="notizen_list_delete_all">Alle Aufgaben darin werden mitgelöscht.</string>
+    <string name="notizen_list_delete_dots">Liste löschen …</string>
+    <string name="notizen_list_delete_q">„%1$s“ löschen?</string>
+    <string name="notizen_list_edit">Liste bearbeiten</string>
+    <string name="notizen_list_has">Die Liste hat %1$s und %2$s.</string>
+    <string name="notizen_list_has_open">Die Liste hat %1$s.</string>
+    <string name="notizen_list_leave">Liste verlassen</string>
+    <string name="notizen_list_leave_q">„%1$s“ verlassen?</string>
+    <string name="notizen_list_leave_text">Du siehst die Liste danach nicht mehr. %1$s kann sie dir wieder teilen.</string>
+    <string name="notizen_list_lose">%1$s sehen die Liste danach nicht mehr.</string>
+    <string name="notizen_list_name">Name der Liste</string>
+    <string name="notizen_listday_empty">Alles erledigt.</string>
+    <string name="notizen_listday_mine">%1$d davon dir zugewiesen</string>
+    <string name="notizen_listday_more">+ %1$d weitere</string>
+    <string name="notizen_listday_open">%1$s – %2$d offen</string>
+    <string name="notizen_listday_open_all">Ganze Liste öffnen</string>
+    <string name="notizen_listday_with">Mit %1$s geteilt</string>
+    <string name="notizen_lists_none">Noch keine eigenen Listen.</string>
+    <string name="notizen_member_own_hint">Gruppe und „In ‚Mein Tag‘ zeigen“ gelten nur für dich – jede Person ordnet geteilte Listen selbst ein.</string>
+    <string name="notizen_menu_of">Menü von „%1$s“</string>
+    <string name="notizen_move_to_group">In Gruppe verschieben</string>
+    <string name="notizen_msg_default">Die Standardliste und das Standard-Notizbuch lassen sich nicht löschen.</string>
+    <string name="notizen_msg_group_created">Gruppe angelegt.</string>
+    <string name="notizen_msg_group_dissolved">Gruppe aufgelöst – die Listen bleiben.</string>
+    <string name="notizen_msg_list_deleted">Liste gelöscht.</string>
+    <string name="notizen_msg_list_left">Liste verlassen.</string>
+    <string name="notizen_msg_notebook_deleted">Notizbuch gelöscht.</string>
+    <string name="notizen_msg_notebook_left">Notizbuch verlassen.</string>
+    <string name="notizen_msg_owner_only">Das darf nur der Besitzer.</string>
+    <string name="notizen_msg_restored">Wiederhergestellt.</string>
+    <string name="notizen_msg_saved">Gespeichert.</string>
+    <string name="notizen_nb_default_hint">„Notizen“ ist das Standard-Notizbuch: umbenennen ja, löschen nein.</string>
+    <string name="notizen_nb_delete">Notizbuch löschen</string>
+    <string name="notizen_nb_delete_all">Alle Notizen darin werden mitgelöscht.</string>
+    <string name="notizen_nb_delete_dots">Notizbuch löschen …</string>
+    <string name="notizen_nb_delete_notes">Notizen mitlöschen</string>
+    <string name="notizen_nb_edit">Notizbuch bearbeiten</string>
+    <string name="notizen_nb_has">Im Notizbuch sind %1$s.</string>
+    <string name="notizen_nb_has_images">Im Notizbuch sind %1$s (davon %2$d mit Bildern).</string>
+    <string name="notizen_nb_leave">Notizbuch verlassen</string>
+    <string name="notizen_nb_leave_q">„%1$s“ verlassen?</string>
+    <string name="notizen_nb_leave_text">Du siehst die Notizen darin danach nicht mehr. %1$s kann das Notizbuch wieder mit dir teilen.</string>
+    <string name="notizen_nb_lose">%1$s sehen sie danach nicht mehr.</string>
+    <string name="notizen_nb_move">Notizen nach „%1$s“ verschieben</string>
+    <string name="notizen_nb_no_actions">Dieses Notizbuch gehört zu einem anderen Plugin.</string>
+    <string name="notizen_nb_type_name">Zur Sicherheit: Tippe den Namen des Tresors ein.</string>
+    <string name="notizen_nb_unlock_first">Entsperre den Tresor zuerst, damit sein Name lesbar ist.</string>
+    <string name="notizen_new_list_hint">Farbe, Symbol, Teilen und Einkaufstag gehen später über langes Drücken auf die Liste.</string>
+    <string name="notizen_new_list_or_group_title">Neue Liste oder Gruppe</string>
+    <string name="notizen_no_group">Ohne Gruppe</string>
+    <string name="notizen_notebooks">Notizbücher</string>
+    <string name="notizen_open_n">%1$d offen</string>
+    <string name="notizen_owner_hint">Besitzer – darf umbenennen, teilen, löschen</string>
+    <string name="notizen_owner_hint_nb">Besitzer – darf umbenennen, teilen, löschen</string>
+    <string name="notizen_person">Person</string>
+    <string name="notizen_remind_morning">Morgens daran erinnern</string>
+    <string name="notizen_remind_morning_hint">Eine Nachricht aufs Handy um %1$s</string>
+    <string name="notizen_rename">Umbenennen</string>
+    <string name="notizen_role_owner">Besitzer</string>
+    <string name="notizen_role_read">Ansehen</string>
+    <string name="notizen_role_write">Bearbeiten</string>
+    <string name="notizen_set_from_dsnote">Von Synology DS Note</string>
+    <string name="notizen_set_from_mstodo">Von Microsoft To Do</string>
+    <string name="notizen_set_listdays">Einkaufstage und Listen-Tage oben zeigen</string>
+    <string name="notizen_set_listdays_hint">Die Karte „Heute ist Einkaufstag“</string>
+    <string name="notizen_set_notify">Benachrichtigungen</string>
+    <string name="notizen_set_notify_hint">Die Schalter in GateControl unter „Benachrichtigungen“ gelten zusätzlich.</string>
+    <string name="notizen_set_notify_listday">Einkaufstag am Morgen</string>
+    <string name="notizen_set_notify_reminders">Erinnerungen an Aufgaben</string>
+    <string name="notizen_set_notify_shared">Geteilt und zugewiesen</string>
+    <string name="notizen_set_show_done">Erledigte von heute zeigen</string>
+    <string name="notizen_set_start_area">Beim Öffnen</string>
+    <string name="notizen_set_start_last">Zuletzt offen</string>
+    <string name="notizen_set_times">Uhrzeiten für die Schnell-Eingabe</string>
+    <string name="notizen_set_times_hint">Was „morgens“, „mittags“ oder „abends“ bedeutet, wenn du z. B. „morgen abends“ tippst.</string>
+    <string name="notizen_settings">Einstellungen</string>
+    <string name="notizen_settings_intro">Gelten nur für dich.</string>
+    <string name="notizen_settings_sources">Aufgaben aus anderen Plugins</string>
+    <string name="notizen_share_all_hint">Alle, mit denen du teilst, dürfen Aufgaben hinzufügen, abhaken und ändern. Umbenennen, teilen und löschen kann nur der Besitzer.</string>
+    <string name="notizen_share_dots">Teilen …</string>
+    <string name="notizen_share_intro">Nur Personen mit GateControl-Konto. Sie bekommen eine Nachricht aufs Handy.</string>
+    <string name="notizen_share_nobody">Niemand gefunden, mit dem du teilen darfst.</string>
+    <string name="notizen_share_remove">%1$s entfernen</string>
+    <string name="notizen_share_roles_hint">Bearbeiten: Aufgaben hinzufügen, abhaken, ändern. Ansehen: nur lesen. Umbenennen, teilen und löschen kann nur der Besitzer.</string>
+    <string name="notizen_share_roles_hint_nb">Bearbeiten: Notizen schreiben und ändern. Ansehen: nur lesen. Umbenennen, teilen und löschen kann nur der Besitzer.</string>
+    <string name="notizen_share_search">Personen suchen</string>
+    <string name="notizen_share_title">„%1$s“ teilen</string>
+    <string name="notizen_share_who">Wer hat Zugriff</string>
+    <string name="notizen_shared_by">Geteilt von %1$s</string>
+    <string name="notizen_shared_by_read">Geteilt von %1$s · Du kannst nur ansehen</string>
+    <string name="notizen_shared_label">Geteilt mit</string>
+    <string name="notizen_shared_mark">Geteilt</string>
+    <string name="notizen_show_in_myday">In „Mein Tag“ zeigen</string>
+    <string name="notizen_since">seit %1$s</string>
+    <string name="notizen_sources_none">Kein anderes Plugin liefert Aufgaben.</string>
+    <string name="notizen_time_afternoon">nachmittags</string>
+    <string name="notizen_time_evening">abends</string>
+    <string name="notizen_time_morning">morgens</string>
+    <string name="notizen_time_night">nachts</string>
+    <string name="notizen_time_noon">mittags</string>
+    <string name="notizen_title">Notizen &amp; Aufgaben</string>
+    <string name="notizen_undo">Rückgängig</string>
+    <plurals name="notizen_delete_move_hint">
+        <item quantity="one">Die offene Aufgabe bleibt erhalten. Erledigte werden gelöscht.</item>
+        <item quantity="other">Die %1$d offenen Aufgaben bleiben erhalten. Erledigte werden gelöscht.</item>
+    </plurals>
+    <plurals name="notizen_done_tasks_n">
+        <item quantity="one">%1$d erledigte</item>
+        <item quantity="other">%1$d erledigte</item>
+    </plurals>
+    <plurals name="notizen_lists_n">
+        <item quantity="one">%1$d Liste</item>
+        <item quantity="other">%1$d Listen</item>
+    </plurals>
+    <plurals name="notizen_notes_n">
+        <item quantity="one">%1$d Notiz</item>
+        <item quantity="other">%1$d Notizen</item>
+    </plurals>
+    <plurals name="notizen_open_tasks_n">
+        <item quantity="one">%1$d offene Aufgabe</item>
+        <item quantity="other">%1$d offene Aufgaben</item>
+    </plurals>
+    <plurals name="notizen_people_n">
+        <item quantity="one">%1$d Person</item>
+        <item quantity="other">%1$d Personen</item>
+    </plurals>
+    <string-array name="notizen_days_long">
+        <item>Montag</item>
+        <item>Dienstag</item>
+        <item>Mittwoch</item>
+        <item>Donnerstag</item>
+        <item>Freitag</item>
+        <item>Samstag</item>
+        <item>Sonntag</item>
+    </string-array>
+    <string-array name="notizen_days_short">
+        <item>Mo</item>
+        <item>Di</item>
+        <item>Mi</item>
+        <item>Do</item>
+        <item>Fr</item>
+        <item>Sa</item>
+        <item>So</item>
+    </string-array>
+    <string name="notizen_task_read_only">Du kannst diese Aufgabe nur ansehen.</string>
+    <string name="notizen_task_read_only_tick">Du kannst diese Aufgabe nur ansehen – abhaken geht, weil sie dir zugewiesen ist.</string>
+</resources>

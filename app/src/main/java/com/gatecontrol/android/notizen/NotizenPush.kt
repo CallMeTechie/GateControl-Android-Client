@@ -14,7 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * vault }` only — both are read:
  * - `reminder` (topic `reminders`), `assigned` (topic `shared`) → the task;
  * - `shared_list` → the list; `shared_notebook` → the notebook (a Tresor: its page, which unlocks first);
- * - `vault_request` (topic `vault`) → the Tresor's page with the device to approve (unlocked first).
+ * - `vault_request` (topic `vault`) → the Tresor's page with the device to approve (unlocked first);
+ * - `listday` (plugin 1.2.0, topic `listday`, „Heute ist Einkaufstag“) → the list, in its area.
  *
  * The destination travels as text in the notification's intent: `task:<id>`, `list:<id>`, `notebook:<id>`,
  * `tresor:<notebookId>:<vaultId>`, `vault:<vaultId>`, each with `@private` / `@work` when the push names the area.
@@ -24,6 +25,7 @@ object NotizenPush {
     const val TOPIC_REMINDERS = TOPIC_PREFIX + "reminders"
     const val TOPIC_SHARED = TOPIC_PREFIX + "shared"
     const val TOPIC_VAULT = TOPIC_PREFIX + "vault"
+    const val TOPIC_LISTDAY = TOPIC_PREFIX + "listday"
 
     sealed interface Target { val area: String? }
     data class Task(val id: Long, override val area: String? = null) : Target
@@ -53,12 +55,13 @@ object NotizenPush {
         val vault = NotizenJson.vaultId(n.str("vaultId") ?: n.str("vault"))
         return when (n.str("kind")) {
             "reminder", "assigned" -> task?.let { Task(it, area) }
-            "shared_list" -> list?.let { ListPage(it, area) }
+            "shared_list", "listday" -> list?.let { ListPage(it, area) }
             "shared_notebook" -> notebook?.let { nb -> vault?.let { Tresor(nb, it, area) } ?: Notebook(nb, area) }
             "vault_request" -> vault?.let { VaultRequest(it, area) }
             // plugin 1.0: no kind — the topic and the key say it
             else -> when (topic) {
                 TOPIC_VAULT -> vault?.let { VaultRequest(it, area) }
+                TOPIC_LISTDAY -> list?.let { ListPage(it, area) }
                 TOPIC_REMINDERS -> task?.let { Task(it, area) }
                 TOPIC_SHARED -> task?.let { Task(it, area) } ?: list?.let { ListPage(it, area) } ?: notebook?.let { Notebook(it, area) }
                 else -> null

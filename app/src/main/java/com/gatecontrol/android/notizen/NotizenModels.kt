@@ -50,7 +50,19 @@ data class NPrefs(
     val groups: Map<String, String> = emptyMap(),
     /** The quick entry's words: morning, noon, afternoon, evening, night → HH:MM. */
     val times: Map<String, String> = emptyMap(),
+    /** Plugin 1.2.0 (`listDays`): what „Mein Tag“ shows. */
+    val myday: NMyDayPrefs = NMyDayPrefs(),
+    /** Plugin 1.2.0: the area on opening — `last` (the one open last: [area]), `private` or `work`. */
+    val startArea: String = "last",
+    /** Plugin 1.2.0: which pushes the server sends to this person (on top of GateControl's own switches). */
+    val notify: NNotifyPrefs = NNotifyPrefs(),
 )
+
+/** `prefs.myday` (plugin 1.2.0): the list-day cards on top, the tasks done today at the end. */
+data class NMyDayPrefs(val listdays: Boolean = true, val showDone: Boolean = true)
+
+/** `prefs.notify` (plugin 1.2.0): reminders, shared and assigned, the list day in the morning. */
+data class NNotifyPrefs(val reminders: Boolean = true, val shared: Boolean = true, val listday: Boolean = true)
 
 /** `GET me`. */
 data class NMe(
@@ -69,12 +81,18 @@ data class NMe(
     val attachMB: Int,
     /** A viewer the server knows by device trust only: may read, not change. */
     val readOnly: Boolean,
+    /** Plugin 1.2.0 (`listIcons`): the icons a list may have. */
+    val listIcons: List<String> = emptyList(),
 ) {
     fun has(feature: String) = feature in features
 }
 
 data class NDue(val date: String, val time: String? = null)
-data class NPerson(val id: Long?, val name: String?)
+/**
+ * A person of a list or notebook. [role] and [since] (plugin 1.2.0, `shareRoles`): `read` | `write` of a member,
+ * since when (ms).
+ */
+data class NPerson(val id: Long?, val name: String?, val role: String? = null, val since: Long? = null)
 data class NProgress(val done: Int, val total: Int)
 data class NOpen(val plugin: String, val route: String)
 data class NSourceRef(val plugin: String, val id: String)
@@ -116,6 +134,10 @@ data class NTask(
     val pending: Boolean = false,
     /** A change of this phone the server refused (`409`): the person decides when it is opened. */
     val conflict: Boolean = false,
+    /** Plugin 1.2.0: false in a list I may only view, unless the task is assigned to me. */
+    val canComplete: Boolean = true,
+    /** Plugin 1.2.0: false in a list I may only view (no changing, deleting, sub tasks, attachments). */
+    val canEdit: Boolean = true,
 ) : NEntry {
     override val uid: String get() = "t:$id"
 }
@@ -153,7 +175,18 @@ data class NItem(
 
 data class NSection(val id: String, val title: String, val count: Int, val items: List<NEntry>, val collapsed: Boolean)
 
-data class NView(val view: String, val title: String, val sections: List<NSection>, val list: NList? = null, val plugin: String? = null)
+data class NView(
+    val view: String,
+    val title: String,
+    val sections: List<NSection>,
+    val list: NList? = null,
+    val plugin: String? = null,
+    /** Plugin 1.2.0 (`listDays`, „Mein Tag“ only): the lists whose day is today, as cards on top. */
+    val listdays: List<NListDay> = emptyList(),
+)
+
+/** A card „Heute ist Einkaufstag“ of „Mein Tag“: the list, its first open tasks (to tick off) and how many more. */
+data class NListDay(val list: NList, val title: String, val open: Int, val assignedToMe: Int, val items: List<NTask>, val more: Int)
 
 data class NList(
     val id: Long,
@@ -172,9 +205,24 @@ data class NList(
     val ext: String?,
     /** Made on this phone and not yet on the server. */
     val pending: Boolean = false,
-)
+    /** Plugin 1.2.0 (`listIcons`): one of [NMe.listIcons]; null = the plain list. */
+    val icon: String? = null,
+    /** Plugin 1.2.0 (`shareRoles`): false when I may only view it. */
+    val canEdit: Boolean = true,
+    /** Plugin 1.2.0 (`listDays`): ISO week days (1 = Monday … 7 = Sunday) the list shows on top of „Mein Tag“. */
+    val days: List<Int> = emptyList(),
+    /** Plugin 1.2.0: the time of the morning message on those days (null: none). */
+    val remind: String? = null,
+    /** Plugin 1.2.0: I switched „In ‚Mein Tag‘ zeigen“ off for me. */
+    val mydayOff: Boolean = false,
+    /** Plugin 1.2.0: today is one of [days]. */
+    val dayToday: Boolean = false,
+) {
+    val isOwner: Boolean get() = role == null || role == "owner"
+}
 
-data class NGroup(val id: Long, val name: String, val area: String)
+/** A folder of lists (each person's own); [open] (plugin 1.2.0, `groupEdit`): the open tasks of its lists. */
+data class NGroup(val id: Long, val name: String, val area: String, val position: Long = 0, val open: Int? = null)
 
 data class NVaultRef(val id: String, val nameCipher: String?, val keyVersion: Int, val needsRotation: Boolean)
 
@@ -197,7 +245,11 @@ data class NNotebook(
     val position: Long,
     /** Made on this phone and not yet on the server. */
     val pending: Boolean = false,
-)
+    /** Plugin 1.2.0 (`shareRoles`): false when I may only view it. */
+    val canEdit: Boolean = true,
+) {
+    val isOwner: Boolean get() = role == null || role == "owner"
+}
 
 data class NTag(val tag: String, val count: Int)
 
@@ -299,6 +351,26 @@ data class NSearchResult(val tasks: List<NTask>, val notes: List<NNoteSummary>, 
 
 data class NNotesPage(val notes: List<NNoteSummary>, val next: String?)
 
+/** `GET lists/<id>/usage` (plugin 1.2.0, `deleteKeep`): what deleting the list touches. */
+data class NListUsage(val open: Int, val done: Int, val members: List<NPerson>, val isDefault: Boolean, val canDelete: Boolean, val target: NRef?)
+
+/** `GET notebooks/<id>/usage` (plugin 1.2.0, `deleteKeep`). */
+data class NNotebookUsage(
+    val notes: Int,
+    val withImages: Int,
+    val withFiles: Int,
+    val members: List<NPerson>,
+    val isDefault: Boolean,
+    val canDelete: Boolean,
+    val vault: Boolean,
+    val target: NRef?,
+)
+
+data class NRef(val id: Long, val name: String)
+
+/** The answer of a delete (plugin 1.2.0): moved and removed, where to, until when „Rückgängig“ works (ms). */
+data class NDeleted(val left: Boolean, val moved: Int, val removed: Int, val target: NRef?, val restoreUntil: Long?)
+
 // ── moving over ─────────────────────────────────────────────
 
 data class NMsAccount(val id: Long, val email: String, val label: String?, val tasks: Boolean)
@@ -327,3 +399,17 @@ data class NVault(
     val myDevices: List<com.gatecontrol.android.drive.DVaultMyDevice>,
     val pending: Int,
 )
+
+/** The abilities of plugin 1.2.0 in `GET me` → `features`; without them (1.1.x) the app hides what needs them. */
+object NFeature {
+    /** Lists with week days, a morning message and „In ‚Mein Tag‘ zeigen“; the cards in „Mein Tag“; push `listday`. */
+    const val LIST_DAYS = "listDays"
+    /** Members with `read` / `write`. */
+    const val SHARE_ROLES = "shareRoles"
+    /** `POST groups { lists }`, groups with `open`. */
+    const val GROUP_EDIT = "groupEdit"
+    /** Deleting with a choice (move or delete), `usage`, `restore` („Rückgängig“). */
+    const val DELETE_KEEP = "deleteKeep"
+    /** Lists with an icon. */
+    const val LIST_ICONS = "listIcons"
+}

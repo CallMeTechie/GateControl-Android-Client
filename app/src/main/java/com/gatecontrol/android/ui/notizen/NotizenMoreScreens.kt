@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -91,8 +92,12 @@ private fun <T> ChoiceRow(label: String, value: T, options: List<Pair<T, String>
     }
 }
 
-// ── Quellen (mockup Quellen) ────────────────────────────────
+// ── Einstellungen (mockup „Einstellungen statt Quellen“) ─────
 
+/**
+ * The gear at the bottom left of the side menu: what used to be „Quellen“ (now „Aufgaben aus anderen Plugins“), and
+ * — with plugin 1.2.0 — „Mein Tag“, the times of the quick entry, the pushes; „Umziehen“ moved here as well.
+ */
 @Composable
 fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -101,15 +106,77 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
     Messages(message, snack, vm::consumeMessage)
     val x = GateControlTheme.extraColors
     var time by remember { mutableStateOf<String?>(null) }
+    /** A word of the quick entry whose time is being picked (morning, noon …). */
+    var word by remember { mutableStateOf<String?>(null) }
+    val me = ui.me
+    val v12 = me?.has(com.gatecontrol.android.notizen.NFeature.LIST_DAYS) == true
+    val canWrite = me?.readOnly != true
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            GcSubpageBar(stringResource(R.string.notizen_sources), nav.back, stringResource(R.string.notizen_back))
+            GcSubpageBar(stringResource(R.string.notizen_settings), nav.back, stringResource(R.string.notizen_back))
             LazyColumn(contentPadding = PaddingValues(bottom = 32.dp)) {
-                item { Text(stringResource(R.string.notizen_sources_intro), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(16.dp)) }
+                item { Text(stringResource(R.string.notizen_settings_intro), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+                // ── Aufgaben aus anderen Plugins ──
+                item { NSectionHeader(stringResource(R.string.notizen_settings_sources), null) }
+                item { Text(stringResource(R.string.notizen_sources_intro), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)) }
                 if (ui.loading) item { NotizenLoading() }
                 ui.sources.forEach { s ->
                     item(key = s.plugin) {
                         SourceCard(s, ui.prefs.sources[s.plugin] ?: NSourcePrefs(), ui.prefs.groups, ui.prefs.evening, vm, onTime = { time = s.plugin })
+                    }
+                }
+                if (!ui.loading && ui.sources.isEmpty()) item { Text(stringResource(R.string.notizen_sources_none), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(horizontal = 16.dp)) }
+                // ── Mein Tag (1.2.0) ──
+                if (v12) {
+                    item { NSectionHeader(stringResource(R.string.notizen_seg_day), null) }
+                    item {
+                        NCard {
+                            SettingSwitch(stringResource(R.string.notizen_set_listdays), stringResource(R.string.notizen_set_listdays_hint), ui.prefs.myday.listdays, canWrite) { vm.setMyDay("listdays", it) }
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+                            SettingSwitch(stringResource(R.string.notizen_set_show_done), null, ui.prefs.myday.showDone, canWrite) { vm.setMyDay("showDone", it) }
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+                            ChoiceRow(
+                                stringResource(R.string.notizen_set_start_area),
+                                ui.prefs.startArea,
+                                listOf("last" to stringResource(R.string.notizen_set_start_last), NArea.PRIVATE to stringResource(R.string.notizen_area_private), NArea.WORK to stringResource(R.string.notizen_area_work)),
+                            ) { vm.setStartArea(it) }
+                        }
+                    }
+                }
+                // ── Uhrzeiten für die Schnell-Eingabe ──
+                item { NSectionHeader(stringResource(R.string.notizen_set_times), null) }
+                item { Text(stringResource(R.string.notizen_set_times_hint), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)) }
+                item {
+                    NCard {
+                        val words = listOf("morning" to R.string.notizen_time_morning, "noon" to R.string.notizen_time_noon, "afternoon" to R.string.notizen_time_afternoon, "evening" to R.string.notizen_time_evening, "night" to R.string.notizen_time_night)
+                        words.forEach { (k, label) ->
+                            val value = ui.prefs.times[k] ?: com.gatecontrol.android.notizen.QuickParse.DEFAULT_TIMES[k]
+                            DetailRow(GcIcons.Clock, stringResource(label), NotizenFormat.time(value).orEmpty(), if (canWrite) ({ word = k }) else null)
+                        }
+                    }
+                }
+                // ── Benachrichtigungen (1.2.0) ──
+                if (v12) {
+                    item { NSectionHeader(stringResource(R.string.notizen_set_notify), null) }
+                    item {
+                        NCard {
+                            SettingSwitch(stringResource(R.string.notizen_set_notify_reminders), null, ui.prefs.notify.reminders, canWrite) { vm.setNotify("reminders", it) }
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+                            SettingSwitch(stringResource(R.string.notizen_set_notify_shared), null, ui.prefs.notify.shared, canWrite) { vm.setNotify("shared", it) }
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+                            SettingSwitch(stringResource(R.string.notizen_set_notify_listday), null, ui.prefs.notify.listday, canWrite) { vm.setNotify("listday", it) }
+                        }
+                    }
+                    item { Text(stringResource(R.string.notizen_set_notify_hint), style = MaterialTheme.typography.bodySmall, color = x.faint, modifier = Modifier.padding(16.dp)) }
+                }
+                // ── Umziehen ──
+                if (me?.imports?.let { it.mstodo || it.dsnote } == true && canWrite) {
+                    item { NSectionHeader(stringResource(R.string.notizen_import), null) }
+                    item {
+                        NCard {
+                            if (me.imports.mstodo) DetailRow(GcIcons.Download, stringResource(R.string.notizen_set_from_mstodo), "", nav.import, trailing = { Icon(GcIcons.ChevronRight, null, tint = x.muted) })
+                            if (me.imports.dsnote) DetailRow(GcIcons.FolderMove, stringResource(R.string.notizen_set_from_dsnote), "", nav.import, trailing = { Icon(GcIcons.ChevronRight, null, tint = x.muted) })
+                        }
                     }
                 }
                 item { Text(stringResource(R.string.notizen_sources_later), style = MaterialTheme.typography.bodySmall, color = x.faint, modifier = Modifier.padding(16.dp)) }
@@ -120,6 +187,30 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
     time?.let { plugin ->
         val cur = ui.prefs.sources[plugin]?.evening ?: ui.prefs.evening
         NTimePicker(cur, { t -> time = null; if (t != null) vm.setSource(plugin, NSourcePrefs(evening = t)) }, { time = null })
+    }
+    word?.let { k ->
+        val cur = ui.prefs.times[k] ?: com.gatecontrol.android.notizen.QuickParse.DEFAULT_TIMES[k]
+        NTimePicker(cur, { t -> word = null; if (t != null) vm.setTime(k, t) }, { word = null })
+    }
+}
+
+/** A switch of the settings with its text (the whole row switches). */
+@Composable
+private fun SettingSwitch(title: String, hint: String?, value: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = value, enabled = enabled, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted) }
+        }
+        GcSwitch(value, null, enabled = enabled)
     }
 }
 

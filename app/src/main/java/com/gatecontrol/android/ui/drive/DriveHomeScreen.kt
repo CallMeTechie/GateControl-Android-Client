@@ -59,6 +59,10 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveTransfers
 import com.gatecontrol.android.ui.components.GcIconButton
+import com.gatecontrol.android.ui.components.GcDrawerBar
+import com.gatecontrol.android.ui.components.GcDrawerHead
+import com.gatecontrol.android.ui.components.GcDrawerIcon
+import com.gatecontrol.android.ui.components.GcDrawerLabel
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcRowDivider
@@ -70,12 +74,10 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.draw.clip
@@ -257,16 +259,16 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                     vaults = if (me?.has(DMe.FEATURE_VAULT) == true) vaults else null,
                     onVault = { e -> close(); nav.vault(e.vault.id, e.vault.nodeId) },
                     icons = buildList {
-                        add(DrawerIcon(GcIcons.Trash, R.string.drive_trash) { close(); nav.trash() })
+                        add(GcDrawerIcon(GcIcons.Trash, R.string.drive_trash) { close(); nav.trash() })
                         // Drive 1.20 (`offline`): what is kept on this phone (the arrow down into a tray, as everywhere for "offline verfügbar")
-                        if (me?.has(DMe.FEATURE_OFFLINE) == true) add(DrawerIcon(GcIcons.DownloadTray, R.string.drive_offline_title) { close(); nav.offline() })
-                        if (me?.has(DMe.FEATURE_STORAGE) == true) add(DrawerIcon(GcIcons.Activity, R.string.drive_storage_title) { close(); nav.storage() })
-                        add(DrawerIcon(GcIcons.Upload, R.string.drive_folders_title) { close(); nav.folders() })
-                        if (me?.has(DMe.FEATURE_DOC_AI) == true) add(DrawerIcon(GcIcons.Calendar, R.string.drive_deadlines) { close(); nav.deadlines() })
+                        if (me?.has(DMe.FEATURE_OFFLINE) == true) add(GcDrawerIcon(GcIcons.DownloadTray, R.string.drive_offline_title) { close(); nav.offline() })
+                        if (me?.has(DMe.FEATURE_STORAGE) == true) add(GcDrawerIcon(GcIcons.Activity, R.string.drive_storage_title) { close(); nav.storage() })
+                        add(GcDrawerIcon(GcIcons.Upload, R.string.drive_folders_title) { close(); nav.folders() })
+                        if (me?.has(DMe.FEATURE_DOC_AI) == true) add(GcDrawerIcon(GcIcons.Calendar, R.string.drive_deadlines) { close(); nav.deadlines() })
                         // Drive 1.8 (`cloudImport`): the import runs in the portal only
                         if (me?.has(DMe.FEATURE_CLOUD_IMPORT) == true) {
                             add(
-                                DrawerIcon(GcIcons.Download, R.string.drive_import) {
+                                GcDrawerIcon(GcIcons.Download, R.string.drive_import) {
                                     scope.launch {
                                         drawer.close()
                                         viewModel.importUrl()?.let { openPortal(context, it) }
@@ -275,7 +277,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                 },
                             )
                         }
-                        add(DrawerIcon(GcIcons.Settings, R.string.drive_settings_title) { close(); nav.settings() })
+                        add(GcDrawerIcon(GcIcons.Settings, R.string.drive_settings_title) { close(); nav.settings() })
                     },
                 )
             }
@@ -539,9 +541,6 @@ private fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)?
     }
 }
 
-/** An icon of the menu's bottom bar: [label] is its description (read out, shown on a long press). */
-private data class DrawerIcon(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: Int, val onClick: () -> Unit)
-
 /**
  * The menu (Drive 1.11): who and which seat, "Persönlich" and "Gemeinsam" with each area's folders as a tree (the arrow
  * opens, the name shows the folder), the vaults (only here), and a bar of icons below — trash, storage, "Ordner sichern",
@@ -559,7 +558,7 @@ private fun DriveDrawer(
     /** The vaults (null: Drive has none). */
     vaults: List<DriveHomeViewModel.VaultEntry>?,
     onVault: (DriveHomeViewModel.VaultEntry) -> Unit,
-    icons: List<DrawerIcon>,
+    icons: List<GcDrawerIcon>,
 ) {
     Column(Modifier.fillMaxHeight()) {
         LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp)) {
@@ -577,45 +576,25 @@ private fun DriveDrawer(
                 items(vaults, key = { "v" + it.vault.id }) { e -> VaultRow(e, areas.firstOrNull { it.id == e.vault.areaId }, onClick = { onVault(e) }) }
             }
         }
-        GcRowDivider()
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            icons.forEach { DrawerIconButton(it) }
-        }
+        GcDrawerBar(icons)
     }
 }
 
 @Composable
 private fun DrawerHead(me: DMe?) {
-    val x = GateControlTheme.extraColors
-    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        GcScreenTitle(stringResource(R.string.drive_title))
-        val name = me?.name?.takeIf { it.isNotBlank() }
-        if (name != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(x.accentBg), contentAlignment = Alignment.Center) {
-                    Text(name.trim().take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = x.accentText, fontWeight = FontWeight.Bold)
-                }
-                Column {
-                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    when (me.seat) {
-                        "family" -> stringResource(R.string.drive_seat_family)
-                        "business" -> stringResource(R.string.drive_seat_business)
-                        else -> null
-                    }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = x.muted) }
-                }
-            }
-        }
-    }
+    GcDrawerHead(
+        title = stringResource(R.string.drive_title),
+        name = me?.name,
+        subtitle = when (me?.seat) {
+            "family" -> stringResource(R.string.drive_seat_family)
+            "business" -> stringResource(R.string.drive_seat_business)
+            else -> null
+        },
+    )
 }
 
 @Composable
-private fun DrawerLabel(text: String) {
-    GcSectionLabel(text, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp))
-}
+private fun DrawerLabel(text: String) = GcDrawerLabel(text)
 
 /**
  * A row of the tree: the arrow (opens or closes, ≥ 44 dp) and the name (shows the folder on the Files page). An area
@@ -726,30 +705,6 @@ private fun VaultRow(e: DriveHomeViewModel.VaultEntry, area: DArea?, onClick: ()
             )
             Text(listOfNotNull(whose, state).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-    }
-}
-
-/** A 44 dp icon of the menu's bottom bar, described for TalkBack and on a long press. */
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun DrawerIconButton(i: DrawerIcon) {
-    val label = stringResource(i.label)
-    val context = LocalContext.current
-    Box(
-        Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(13.dp))
-            .background(GateControlTheme.extraColors.panel2)
-            .combinedClickable(
-                role = Role.Button,
-                onClickLabel = label,
-                onLongClick = { Toast.makeText(context, label, Toast.LENGTH_SHORT).show() },
-                onClick = i.onClick,
-            )
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(i.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
     }
 }
 

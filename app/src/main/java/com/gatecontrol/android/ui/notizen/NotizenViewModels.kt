@@ -43,10 +43,13 @@ typealias NMessage = String
 
 internal fun <T> NResult<T>.code(): String? = when (this) {
     is NResult.Ok -> null
-    is NResult.Failed -> NotizenJson.reason(body)?.takeIf { it == "login" || it == "read_only" || it == "off" } ?: code
+    is NResult.Failed -> NotizenJson.reason(body)?.takeIf { it in REASONS } ?: code
     NResult.Offline -> "offline"
     NResult.NotConfigured -> "not_configured"
 }
+
+/** The `reason` of a refusal that has a text of its own (plugin 1.2.0: `owner`, `default`, `bound`). */
+private val REASONS = setOf("login", "read_only", "off", "owner", "default", "bound")
 
 /** „Mein Tag“, „Aufgaben“ (the lists) and „Notizen“ — the tab of the plugin (mockups Main, Listen, Notizen). */
 @HiltViewModel
@@ -74,6 +77,8 @@ class NotizenHomeViewModel @Inject constructor(
         val pending: Int = 0,
         /** Plugin 1.1.0: what is made or changed offline waits and is sent later. */
         val offlineEdits: Boolean = false,
+        /** Pulled down: loading again. */
+        val refreshing: Boolean = false,
     )
 
     private val _ui = MutableStateFlow(Ui(notebook = saved.get<Long>(KEY_NB)?.takeIf { it > 0 }))
@@ -82,8 +87,13 @@ class NotizenHomeViewModel @Inject constructor(
     private val _message = MutableStateFlow<NMessage?>(null)
     val message: StateFlow<NMessage?> = _message.asStateFlow()
 
-    private val _segment = MutableStateFlow(saved.get<String>(KEY_SEG) ?: SEG_DAY)
+    /** „Mein Tag“ or the notes (the lists open as pages of their own from the side menu). */
+    private val _segment = MutableStateFlow(saved.get<String>(KEY_SEG)?.takeIf { it == SEG_NOTES } ?: SEG_DAY)
     val segment: StateFlow<String> = _segment.asStateFlow()
+
+    /** The groups closed in the side menu. */
+    private val _collapsed = MutableStateFlow(saved.get<LongArray>(KEY_COLLAPSED)?.toSet().orEmpty())
+    val collapsed: StateFlow<Set<Long>> = _collapsed.asStateFlow()
 
     private var loadJob: Job? = null
 
@@ -105,6 +115,17 @@ class NotizenHomeViewModel @Inject constructor(
         saved[KEY_SEG] = s
     }
 
+    fun toggleGroup(id: Long) {
+        _collapsed.update { if (id in it) it - id else it + id }
+        saved[KEY_COLLAPSED] = _collapsed.value.toLongArray()
+    }
+
+    /** Pulled down („Aktualisieren“). */
+    fun refresh() {
+        _ui.update { it.copy(refreshing = true) }
+        load(quiet = true)
+    }
+
     fun load(quiet: Boolean = false) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
@@ -112,7 +133,7 @@ class NotizenHomeViewModel @Inject constructor(
             val me = repo.refreshMe()
             if (me == null) {
                 val code = repo.api.me().code()
-                _ui.update { it.copy(loading = false, meError = code ?: "failed") }
+                _ui.update { it.copy(loading = false, refreshing = false, meError = code ?: "failed") }
                 return@launch
             }
             // a push: its area, its notebook (the notes with it)
@@ -142,6 +163,7 @@ class NotizenHomeViewModel @Inject constructor(
                     notes = notes.valueOrNull()?.value?.notes?.let { list -> if (nb == null && tag == null) list.filterNot { it.pinned } else list } ?: u.notes,
                     offline = off,
                     savedAt = (day.valueOrNull()?.savedAt ?: 0),
+                    refreshing = false,
                 )
             }
             if (nav is NResult.Failed) _message.value = nav.code()
@@ -187,21 +209,6 @@ class NotizenHomeViewModel @Inject constructor(
         }
     }
 
-    fun createList(name: String) {
-        viewModelScope.launch {
-            val r = repo.createList(name, _ui.value.area)
-            _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else "list_created"
-            load(quiet = true)
-        }
-    }
-
-    fun createGroup(name: String) {
-        viewModelScope.launch {
-            _message.value = repo.api.createGroup(name, _ui.value.area).code()
-            load(quiet = true)
-        }
-    }
-
     fun createNotebook(name: String) {
         viewModelScope.launch {
             val r = repo.createNotebook(name, _ui.value.area)
@@ -215,9 +222,9 @@ class NotizenHomeViewModel @Inject constructor(
 
     companion object {
         const val SEG_DAY = "day"
-        const val SEG_TASKS = "tasks"
         const val SEG_NOTES = "notes"
         private const val KEY_SEG = "seg"
+        private const val KEY_COLLAPSED = "collapsed"
         private const val KEY_NB = "nb"
     }
 }
@@ -230,7 +237,19 @@ class NotizenViewViewModel @Inject constructor(
 ) : ViewModel() {
     val name: String = saved.get<String>("name").orEmpty()
 
-    data class Ui(val view: NView? = null, val loading: Boolean = true, val offline: Boolean = false, val error: String? = null, val me: NMe? = null, val gone: Boolean = false)
+    data class Ui(
+        val view: NView? = null,
+        val loading: Boolean = true,
+        val offline: Boolean = false,
+        val error: String? = null,
+        val me: NMe? = null,
+        val gone: Boolean = false,
+        /** The side menu's data of the area (the groups for „In Gruppe verschieben“). */
+        val nav: NNav? = null,
+        val area: String = NArea.PRIVATE,
+        /** The filter of a shared list (Alle, Mir zugewiesen, a person, Niemandem). */
+        val filter: com.gatecontrol.android.notizen.NotizenLists.Filter = com.gatecontrol.android.notizen.NotizenLists.Filter.All,
+    )
 
     private val _ui = MutableStateFlow(Ui())
     val ui: StateFlow<Ui> = _ui.asStateFlow()
@@ -250,8 +269,22 @@ class NotizenViewViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             val me = repo.meOrCached()
-            val r = repo.view(name, repo.currentArea())
-            _ui.update { it.copy(me = me, view = r.valueOrNull()?.value ?: it.view, loading = false, offline = r.valueOrNull()?.offline == true, error = r.code(), gone = r is NResult.Failed && r.http == 404) }
+            val area = repo.currentArea()
+            val r = repo.view(name, area)
+            _ui.update { it.copy(me = me, area = area, view = r.valueOrNull()?.value ?: it.view, loading = false, offline = r.valueOrNull()?.offline == true, error = r.code(), gone = r is NResult.Failed && r.http == 404) }
+            if (name.startsWith("list:")) repo.nav(area).valueOrNull()?.value?.let { n -> _ui.update { it.copy(nav = n) } }
+        }
+    }
+
+    fun setFilter(f: com.gatecontrol.android.notizen.NotizenLists.Filter) = _ui.update { it.copy(filter = f) }
+
+    /** The little picture at a task: assigned to someone of the list, or to nobody. */
+    fun assign(task: NTask, personId: Long?) {
+        if (task.assignee?.id == personId) return
+        viewModelScope.launch {
+            val r = repo.patchTask(task.id, NotizenJson.patch("assigneeId" to personId), null)
+            _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else null
+            load()
         }
     }
 
@@ -600,7 +633,7 @@ class NotizenQuickViewModel @Inject constructor(
         val ctx = QuickParse.Ctx(
             today = me.today,
             now = me.time,
-            lists = u.nav?.lists.orEmpty().map { QuickParse.Ref(it.id, it.name) },
+            lists = u.nav?.lists.orEmpty().filter { it.canEdit }.map { QuickParse.Ref(it.id, it.name) },
             people = u.people.map { QuickParse.Ref(it.id, it.name) },
             times = me.prefs.times,
         )

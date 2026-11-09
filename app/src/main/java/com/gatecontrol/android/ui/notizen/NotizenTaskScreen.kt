@@ -72,6 +72,10 @@ import com.gatecontrol.android.notizen.NAttachment
 import com.gatecontrol.android.notizen.NDue
 import com.gatecontrol.android.notizen.NItem
 import com.gatecontrol.android.notizen.NPersonPick
+import com.gatecontrol.android.notizen.NTask
+import com.gatecontrol.android.notizen.NotizenLists
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.offset
 import com.gatecontrol.android.notizen.NRepeat
 import com.gatecontrol.android.notizen.NotizenFormat
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -271,7 +275,8 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                 onBack = nav.back,
                 backDescription = stringResource(R.string.notizen_back),
             ) {
-                if (d != null) {
+                // plugin 1.2.0: a task of a list I may only view (`canEdit` false): nothing to change here
+                if (d != null && d.task.canEdit) {
                     GcIconButton(if (d.task.important) GcIcons.StarFilled else GcIcons.Star, stringResource(R.string.notizen_important), { vm.setImportant(!d.task.important) }, tint = if (d.task.important) androidx.compose.ui.graphics.Color(0xFFB45309) else x.muted)
                     Box {
                         GcIconButton(GcIcons.MoreVertical, stringResource(R.string.notizen_more), { more = true })
@@ -294,13 +299,23 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
             var sub by rememberSaveable { mutableStateOf("") }
             NOfflineHint(ui.offline, 0, me?.has(com.gatecontrol.android.notizen.NotizenRepository.FEATURE_OFFLINE) == true)
             if (d.task.pending) Box(Modifier.padding(horizontal = 20.dp, vertical = 2.dp)) { NSyncMark(true, false) }
+            val ro = !d.task.canEdit || me?.readOnly == true
+            if (!d.task.canEdit) {
+                Text(
+                    stringResource(if (d.task.canComplete) R.string.notizen_task_read_only_tick else R.string.notizen_task_read_only),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = x.muted,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+            }
             LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(bottom = 40.dp)) {
                 item {
                     Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        NCheck(d.task.done, stringResource(R.string.notizen_mark_done), vm::complete)
+                        NCheck(d.task.done, stringResource(R.string.notizen_mark_done), if (d.task.canComplete) vm::complete else null)
                         androidx.compose.foundation.text.BasicTextField(
                             title,
                             { title = it.take(500) },
+                            readOnly = ro,
                             textStyle = MaterialTheme.typography.headlineSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground,
@@ -320,13 +335,13 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                     NCard(Modifier.padding(top = 12.dp)) {
                         d.subtasks.forEach { s ->
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, end = 4.dp)) {
-                                NCheck(s.done, stringResource(R.string.notizen_done_cd, s.title), { vm.toggleSub(s.id, !s.done) })
+                                NCheck(s.done, stringResource(R.string.notizen_done_cd, s.title), if (d.task.canComplete) ({ vm.toggleSub(s.id, !s.done) }) else null)
                                 Text(s.title, style = MaterialTheme.typography.bodyMedium.copy(textDecoration = if (s.done) TextDecoration.LineThrough else null), color = if (s.done) x.faint else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                                GcIconButton(GcIcons.Close, stringResource(R.string.notizen_delete_sub, s.title), { vm.deleteSub(s.id) }, iconSize = 16.dp)
+                                if (!ro) GcIconButton(GcIcons.Close, stringResource(R.string.notizen_delete_sub, s.title), { vm.deleteSub(s.id) }, iconSize = 16.dp)
                             }
                             Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp)) {
+                        if (!ro) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp)) {
                             Icon(GcIcons.Plus, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                             androidx.compose.foundation.text.BasicTextField(
                                 sub,
@@ -345,23 +360,23 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                 item {
                     NCard(Modifier.padding(top = 12.dp)) {
                         DetailRow(GcIcons.Sun, stringResource(R.string.notizen_in_my_day), "", null) { GcSwitch(d.task.myDay, { vm.setMyDay(it) }) }
-                        DetailRow(GcIcons.Calendar, stringResource(R.string.notizen_due), NotizenFormat.due(d.task.due?.copy(time = d.task.due.time), today, lang, words) ?: stringResource(R.string.notizen_none), { dialog = "due" })
+                        DetailRow(GcIcons.Calendar, stringResource(R.string.notizen_due), NotizenFormat.due(d.task.due?.copy(time = d.task.due.time), today, lang, words) ?: stringResource(R.string.notizen_none), if (ro) null else ({ dialog = "due" }))
                         val remind = NotizenFormat.remindParts(d.task.remindAt)
-                        DetailRow(GcIcons.Bell, stringResource(R.string.notizen_reminder), NotizenFormat.due(remind, today, lang, words) ?: stringResource(R.string.notizen_none), { dialog = "remind" })
-                        DetailRow(GcIcons.Refresh, stringResource(R.string.notizen_repeat), NRepeat.describe(d.task.repeat, lang), { dialog = "repeat" })
-                        DetailRow(GcIcons.User, stringResource(R.string.notizen_assigned), d.task.assignee?.let { a -> if (a.id == me?.userId) stringResource(R.string.notizen_me) else a.name } ?: stringResource(R.string.notizen_nobody), { dialog = "people" })
+                        DetailRow(GcIcons.Bell, stringResource(R.string.notizen_reminder), NotizenFormat.due(remind, today, lang, words) ?: stringResource(R.string.notizen_none), if (ro) null else ({ dialog = "remind" }))
+                        DetailRow(GcIcons.Refresh, stringResource(R.string.notizen_repeat), NRepeat.describe(d.task.repeat, lang), if (ro) null else ({ dialog = "repeat" }))
+                        DetailRow(GcIcons.User, stringResource(R.string.notizen_assigned), d.task.assignee?.let { a -> if (a.id == me?.userId) stringResource(R.string.notizen_me) else a.name } ?: stringResource(R.string.notizen_nobody), if (ro) null else ({ dialog = "people" }))
                     }
                 }
                 item {
                     NCard(Modifier.padding(top = 12.dp)) {
                         d.attachmentList.forEach { a -> AttachmentRow(a, vm, scope, context) }
-                        DetailRow(GcIcons.Paperclip, stringResource(R.string.notizen_attach), "", { pick.launch(arrayOf("*/*")) }) { Icon(GcIcons.Plus, null, tint = MaterialTheme.colorScheme.primary) }
+                        if (!ro) DetailRow(GcIcons.Paperclip, stringResource(R.string.notizen_attach), "", { pick.launch(arrayOf("*/*")) }) { Icon(GcIcons.Plus, null, tint = MaterialTheme.colorScheme.primary) }
                     }
                 }
                 item {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(R.string.notizen_note), style = MaterialTheme.typography.titleSmall)
-                        OutlinedTextField(note, { note = it.take(20_000) }, modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).onFocusLost { vm.setNote(note) }, placeholder = { Text(stringResource(R.string.notizen_note_hint)) })
+                        OutlinedTextField(note, { note = it.take(20_000) }, readOnly = ro, modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).onFocusLost { vm.setNote(note) }, placeholder = { Text(stringResource(R.string.notizen_note_hint)) })
                         val src = d.sourceItem
                         if (src != null) Text(stringResource(R.string.notizen_done_there, src.sourceLabel), style = MaterialTheme.typography.bodySmall, color = x.muted)
                     }
@@ -482,9 +497,13 @@ fun NotizenItemScreen(nav: NotizenNav, vm: NotizenItemViewModel = hiltViewModel(
     }
 }
 
-/** A list (Wichtig, Geplant, Mir zugewiesen, an own list, a source), route `notizen/view/<name>`. */
+/**
+ * A list (Wichtig, Geplant, Mir zugewiesen, an own list, a source), route `notizen/view/<name>`. An own list has ⋯
+ * (its menu); a shared one says with whom (and whether I may only view it), filters by whom its tasks are assigned to
+ * and shows that person's little picture at each task (mockups „Teilen“, „Aufgaben zuweisen“).
+ */
 @Composable
-fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel()) {
+fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(), manage: NotizenManageViewModel = hiltViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val snack = remember { SnackbarHostState() }
@@ -494,16 +513,23 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
         vm.takeHint()
         onPauseOrDispose { }
     }
+    /** Deleted or left from here: the page goes back once (not again when it then finds the list gone). */
+    var left by remember { mutableStateOf(false) }
     // the list is not there (any more) — a push of a deleted or no longer shared one: a hint, and back to the tab
     LaunchedEffect(ui.gone) {
-        if (ui.gone) {
+        if (ui.gone && !left) {
+            left = true
             com.gatecontrol.android.notizen.NotizenDeepLink.hint("gone")
             nav.back()
         }
     }
+    val manageState = remember { NotizenManageState() }
+    var assignFor by remember { mutableStateOf<NTask?>(null) }
     var add by rememberSaveable { mutableStateOf("") }
     var showDone by rememberSaveable { mutableStateOf(false) }
-    val title = ui.view?.title?.takeIf { it.isNotBlank() } ?: when (vm.name) {
+    val list = ui.view?.list
+    val me = ui.me
+    val title = list?.name ?: ui.view?.title?.takeIf { it.isNotBlank() } ?: when (vm.name) {
         "important" -> stringResource(R.string.notizen_smart_important)
         "planned" -> stringResource(R.string.notizen_smart_planned)
         "assigned" -> stringResource(R.string.notizen_smart_assigned)
@@ -512,22 +538,45 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
     }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            GcSubpageBar(title, nav.back, stringResource(R.string.notizen_back))
+            GcSubpageBar(title, nav.back, stringResource(R.string.notizen_back)) {
+                if (list != null && NotizenLists.actions(list, me).isNotEmpty()) {
+                    GcIconButton(GcIcons.MoreHorizontal, stringResource(R.string.notizen_menu_of, list.name), { manageState.listSheet = list }, tint = MaterialTheme.colorScheme.onBackground)
+                }
+            }
+            if (list != null && me != null) ListHead(list, me) { manageState.listLeave = list }
             NOfflineHint(ui.offline, 0, ui.me?.has(com.gatecontrol.android.notizen.NotizenRepository.FEATURE_OFFLINE) == true)
             val v = ui.view
-            val me = ui.me
             if (v == null || me == null) {
                 if (ui.loading) NotizenLoading() else Text(messageText(ui.error ?: "failed"), modifier = Modifier.padding(24.dp))
                 return@Column
             }
+            val tasks = v.sections.flatMap { it.items }.filterIsInstance<NTask>()
+            val filters = NotizenLists.filters(list, tasks, me.userId)
+            val filter = ui.filter.takeIf { f -> filters.any { it.first == f } } ?: NotizenLists.Filter.All
+            if (filters.isNotEmpty()) {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    filters.forEach { (f, n) ->
+                        val label = when (f) {
+                            NotizenLists.Filter.All -> stringResource(R.string.notizen_filter_all)
+                            NotizenLists.Filter.Mine -> stringResource(R.string.notizen_smart_assigned)
+                            NotizenLists.Filter.Nobody -> stringResource(R.string.notizen_filter_nobody)
+                            is NotizenLists.Filter.Person -> f.name.substringBefore(' ')
+                        }
+                        com.gatecontrol.android.ui.components.GcFilterChip("$label $n", f == filter, { vm.setFilter(f) })
+                    }
+                }
+            }
             val rc = rowCtx(me.today, me.lang, { null })
+            val shared = list?.shared == true
+            val canAssign = shared && list?.canEdit != false && !me.readOnly
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
                 v.sections.forEach { s ->
-                    if (s.items.isEmpty() && s.id != "open") return@forEach
+                    val items = s.items.filter { e -> filter == NotizenLists.Filter.All || (e is NTask && NotizenLists.matches(e, filter, me.userId)) }
+                    if (items.isEmpty() && s.id != "open") return@forEach
                     if (s.collapsed) {
                         item(key = "t-" + s.id) {
                             Text(
-                                stringResource(R.string.notizen_done_n, s.count),
+                                stringResource(R.string.notizen_done_n, if (filter == NotizenLists.Filter.All) s.count else items.size),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(12.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { showDone = !showDone }.padding(6.dp),
@@ -535,15 +584,31 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
                         }
                         if (!showDone) return@forEach
                     } else if (v.sections.size > 1) {
-                        item(key = "h-" + s.id) { NSectionHeader(s.title, s.items.size, danger = s.id == "overdue") }
+                        item(key = "h-" + s.id) { NSectionHeader(s.title, items.size, danger = s.id == "overdue") }
                     }
                     item(key = "s-" + s.id) {
-                        if (s.items.isEmpty()) Text(stringResource(R.string.notizen_list_empty), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(16.dp))
-                        else EntryCard(s.items, rc, vm::toggle, nav)
+                        if (items.isEmpty()) {
+                            Text(stringResource(R.string.notizen_list_empty), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(16.dp))
+                        } else {
+                            NCard {
+                                items.forEachIndexed { i, e ->
+                                    val t = e as? NTask
+                                    val tick = me.readOnly.not() && (t == null || NotizenLists.canTick(t, list, me.userId))
+                                    NEntryRow(
+                                        e, rc,
+                                        if (tick) ({ vm.toggle(e) }) else null,
+                                        { nav.open(e) },
+                                        divider = i < items.size - 1,
+                                        showAssignee = shared,
+                                        onAssignee = if (canAssign && t != null) ({ assignFor = t }) else null,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
-            if (vm.name.startsWith("list:") && me.readOnly.not()) {
+            if (vm.name.startsWith("list:") && NotizenLists.canAdd(list, me)) {
                 Row(
                     Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(12.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -564,5 +629,46 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
             }
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp)) { Snackbar(it) }
+    }
+    assignFor?.let { t ->
+        val people = list?.let { NotizenLists.people(it) }.orEmpty().mapNotNull { p -> p.id?.let { NPersonPick(it, p.name.orEmpty(), null, null, it == me?.userId) } }
+        PeopleDialog(people, t.assignee?.id, { id -> assignFor = null; vm.assign(t, id) }, { assignFor = null })
+    }
+    NotizenManageHost(
+        manageState, manage, me, ui.nav, list?.area ?: ui.area, snack, notebookName = { it.name },
+        onGone = { kind, id -> if (kind == "list" && id == list?.id && !left) { left = true; nav.back() } },
+        showsUndo = { u -> u.kind != "list" || u.id != list?.id },
+    )
+}
+
+/**
+ * Under a list's title: whom it is shared with (the little pictures), its list days, and for a member who shared it
+ * and whether they may only view it — with „Verlassen“.
+ */
+@Composable
+private fun ListHead(list: com.gatecontrol.android.notizen.NList, me: com.gatecontrol.android.notizen.NMe, onLeave: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val days = daysText(list.days)
+    if (!list.shared && days == null) return
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (list.shared) {
+            Row {
+                NotizenLists.people(list).take(3).forEachIndexed { i, p ->
+                    NAvatar(p.name, 26.dp, me = p.id == me.userId, modifier = if (i > 0) Modifier.padding(start = 0.dp).offset(x = (-6 * i).dp) else Modifier)
+                }
+            }
+        }
+        val parts = listOfNotNull(
+            when (NotizenLists.shared(list)) {
+                NotizenLists.Shared.BY_ME -> stringResource(R.string.notizen_shared_with, NotizenLists.others(list, me.userId).joinToString(", "))
+                NotizenLists.Shared.WITH_ME -> stringResource(if (list.canEdit) R.string.notizen_shared_by else R.string.notizen_shared_by_read, list.owner?.name.orEmpty())
+                NotizenLists.Shared.NO -> null
+            },
+            days?.let { stringResource(R.string.notizen_days_in_myday, it) },
+        )
+        Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.weight(1f))
+        if (list.shared && !list.isOwner && !me.readOnly) {
+            TextButton(onClick = onLeave) { Text(stringResource(R.string.notizen_leave), color = MaterialTheme.colorScheme.error) }
+        }
     }
 }
