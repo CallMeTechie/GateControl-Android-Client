@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.103.0] - 2026-11-09
+
+### Features
+- Mail: Mehrere Mails auf einmal auswählen und verschieben, löschen oder archivieren – Wischen selbst einstellen (#218)
+
+---
+
 ## [1.102.2] - 2026-11-09
 
 ### Fixes
