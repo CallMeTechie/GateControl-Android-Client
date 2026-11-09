@@ -22,13 +22,15 @@ internal object MainTabs {
         Screen.Mail.route,
         Screen.Vault.route,
         Screen.Drive.route,
+        NotizenRoutes.TAB,
     )
 
-    /** Routes of the tabs in their order: Start, Chats, Mail, Vault, Drive, Netzwerk, Familie. */
+    /** Routes of the tabs in their order: Start, Chats, Mail, Aufgaben (Notizen & Aufgaben), Vault, Drive, Netzwerk, Familie. */
     fun routes(network: Boolean, plugins: PluginAvailability): List<String> = buildList {
         add(Screen.Vpn.route)
         if (plugins.messengerTab) add(Screen.Chats.route)
         if (plugins.mail) add(Screen.Mail.route)
+        if (plugins.notizen) add(NotizenRoutes.TAB)
         if (plugins.vault) add(Screen.Vault.route)
         if (plugins.drive) add(Screen.Drive.route)
         if (network) add(Screen.Network.route)
@@ -56,6 +58,7 @@ internal object MainTabs {
         Screen.Mail.route -> StartPages.MAIL
         Screen.Vault.route -> StartPages.VAULT
         Screen.Drive.route -> StartPages.DRIVE
+        NotizenRoutes.TAB -> StartPages.NOTIZEN
         Screen.Network.route -> StartPages.NETWORK
         Screen.Familie.route -> StartPages.FAMILIE
         else -> null
@@ -67,6 +70,7 @@ internal object MainTabs {
         StartPages.MAIL -> Screen.Mail.route
         StartPages.VAULT -> Screen.Vault.route
         StartPages.DRIVE -> Screen.Drive.route
+        StartPages.NOTIZEN -> NotizenRoutes.TAB
         StartPages.NETWORK -> Screen.Network.route
         StartPages.FAMILIE -> Screen.Familie.route
         else -> null
@@ -82,6 +86,7 @@ internal object MainTabs {
         Screen.Mail.route -> StartPages.MAIL
         Screen.Vault.route -> StartPages.VAULT
         Screen.Drive.route -> StartPages.DRIVE
+        NotizenRoutes.TAB -> StartPages.NOTIZEN
         Screen.Network.BASE -> StartPages.NETWORK
         Screen.Familie.BASE -> StartPages.FAMILIE
         else -> null

@@ -854,6 +854,112 @@ wie die anderen Tabs als **Seite neben Start** anheftbar. Ohne Plugin
   wenn das Plugin verschwindet, sich Server/Token ändern oder der Server
   401 antwortet (Fernlöschen), ebenso geöffnete Anhänge (`cache/mail-open`).
 
+## Notizen & Aufgaben (Plugin `gatecontrol-notizen` 1.0, GateControl 1.216+)
+Eigener Tab **Aufgaben** (Tab-Id `notizen`, nach Mail), nur wenn der Server
+das Plugin für die Person listet (installiert, lizenziert, freigeschaltet);
+antwortet `GET me` nicht (keine Lizenz, keine Berechtigung), sagt der Tab das
+statt leerer Listen. Wie die anderen Tabs als **Seite neben Start**
+anheftbar. Oben **Mein Tag | Aufgaben | Notizen**, rechts der Bereich
+**Privat / Arbeit** (wird für alle Geräte der Person gemerkt, `prefs.area`)
+und die Suche, unten die Schnell-Eingabe bzw. „Neue Notiz“. Das Menü links:
+neue Liste, Gruppe, Notizbuch, Tresor-Notizbuch, **Quellen**, **Umziehen**.
+
+- **Mein Tag:** Termine heute (Uhrzeit vorne), Überfällig (rot), Heute,
+  Demnächst (mit „Geplant“), „Erledigt heute (n)“ zum Aufklappen – eigene
+  Aufgaben und alles „Zu tun“ aus Familie, Mail, Drive, Schule und Alltag
+  mit **Quellen-Badge** („Mail · Zu tun“, „Drive · Frist“, „Schule ·
+  Hausaufgabe“ …), Unteraufgaben n/m, Wiederholung, Zuweisung, Sterne,
+  Betrag. **Abhaken** hakt ein Element eines anderen Plugins dort ab
+  (`items/<id>/complete`); was das Plugin nicht abhaken lässt, hat kein
+  Häkchen.
+- **Aufgaben:** Mein Tag, Wichtig, Geplant, Mir zugewiesen mit Zahlen, „Aus
+  anderen Plugins“ je Quelle, **Meine Listen** (geteilt, Gruppen, im
+  Abgleich mit To Do); eine Liste zeigt offene und erledigte Aufgaben und
+  hat unten ein Feld für eine neue Aufgabe.
+- **Aufgabe:** Titel, Wichtig, Unteraufgaben (hinzufügen, abhaken,
+  löschen), In „Mein Tag“, Fällig, Erinnerung (Push des Servers), Wiederholen
+  (täglich, werktags, wöchentlich am Fälligkeitstag, alle 2 Wochen,
+  monatlich, jährlich, n Tage nach Erledigung – Text wie `ui/repeat.js`),
+  Zugewiesen (`GET people`), Anhänge (Datei vom Gerät → Plugin-Media →
+  `POST attachments`, öffnen über `cache/notizen-open`), Notiz. Eine
+  Aufgabe aus einem anderen Plugin zeigt „Aus Mail · … · Mail öffnen“.
+- **Element eines anderen Plugins:** Details, **„… öffnen“** (die Route
+  `open { plugin, route }` = `gatecontrol://plugin/<plugin>/<route>`:
+  Mail `message/<id>` → die Mail, Drive `node/<id>` → die Datei, Familie
+  `task/…` → Aufgaben, `shopping/<id>` → die Einkaufsliste, Schule →
+  Stundenplan, Alltag → Termine; sonst der Tab des Plugins,
+  `NotizenOpen`), abhaken, **„Unteraufgaben, Notiz, Erinnerung …“**
+  (`items/<id>/carry`: eine eigene Aufgabe dazu).
+- **Schnell-Eingabe:** `ui/quickparse.js` 1:1 nach Kotlin portiert
+  (`QuickParse`, reine Funktion, ohne KI, auf dem Gerät); die erkannten Teile
+  sind im Text farbig hinterlegt und stehen als Chips darunter („Mo. 9. Nov.,
+  9:00“, „Erinnerung 9:00“, „Wichtig“, „Liste: Gesundheit“, Bereich) – ein
+  Tipp ändert (Datum, Liste, Bereich) oder entfernt sie. „#neu“ ohne Liste
+  legt die Liste an. Umschalter **Aufgabe | Notiz** (erste Zeile = Titel).
+  Die Regex sind so geschrieben, dass JVM und Androids ICU sie gleich lesen
+  (`\s` = JavaScripts Leerraum, `\d` = `[0-9]`). Alle 51 Vektoren von
+  `test/vectors/quickparse.json` laufen als Unit-Test.
+- **Notizen:** Notizbücher als Chips (Tresore mit „· Tresor“), angeheftete
+  als farbige Karten, „Zuletzt geändert“ mit Bild-Hinweis, Schlagwort,
+  Notizbuch, Checklisten-Stand. **Notiz:** Markdown (CommonMark + GitHub-
+  Tabellen/Task-Listen wie `ui/notemd.js`) mit eigenem kleinen, sicheren
+  Renderer (`NoteMd`: kein HTML, Links nur http/https/mailto; die App hat
+  keine Markdown-Bibliothek) – Überschriften, fett, kursiv, durchgestrichen,
+  Code, Zitate, Listen, **Checklisten zum Abhaken** (`notes/<id>/check`),
+  Tabellen, Bilder der Notiz, „Aufgabe · Mi.“ öffnet die Aufgabe einer
+  Zeile. Werkzeugleiste: Fett, Kursiv, Überschrift, Aufzählung, Checkliste,
+  Tabelle, Bild/Datei anhängen, **Foto aufnehmen** (Kamera →
+  `cache/camera`), **Zeile → Aufgabe** (`notes/<id>/task`, auch lange auf
+  eine Checklisten-Zeile drücken). Speichert beim Tippen (1,5 s) mit `rev`;
+  wurde die Notiz anderswo geändert (`409 conflict`), fragt die App „Meine
+  behalten / Die andere laden“. Anheften, Farbe, Teilen, Löschen. Erkannter
+  Text in Bildern (ML Kit, auf dem Gerät) geht für die Suche an
+  `PUT attachments/<id>/text` (nie bei Tresoren). **Suche** über das
+  Volltext-Register des Servers (`GET search`).
+- **Tresor-Notizbücher:** Drives Tresor-Code wiederverwendet –
+  `DriveVaultCrypto` nimmt das Label-Präfix als Parameter (`gcdrive-v1` für
+  Drive, `gcnotes-v1` hier), eigener Geräteschlüssel (X25519, privater Teil
+  nur mit Keystore-Schlüssel hinter Fingerabdruck/PIN verschlüsselt, eigene
+  Datei `notizen-vault/device.key` und eigene Keystore-Aliase), HPKE-Wraps,
+  Wiederherstellungsschlüssel, „Zugang anfragen“ mit Sicherheitsnummer,
+  Geräte freigeben, neuer Schlüssel bei `needsRotation`. Titel, Text und
+  Anhänge werden nur im Speicher entschlüsselt (Bildschirm FLAG_SECURE),
+  die Schlüssel nach 15 Minuten ohne Nutzung vergessen. Geprüft gegen
+  `test/vault-vectors.json` des Plugins.
+- **Quellen:** je Quelle an/aus, Familie „Aufgaben der Kinder zeigen“ und
+  „Einkaufslisten in Mein Tag“, Mail „Markierte Mails als Aufgabe“, Alltag
+  „Erinnern um“, Gruppen (Mail-Konten, Kinder) → Privat/Arbeit/ausblenden,
+  „Jetzt abgleichen“ (`PUT prefs`, `sources/<plugin>/sync`).
+- **Umziehen:** **Microsoft To Do** über das Microsoft-Konto aus Mail: beim
+  ersten Mal zeigt die App Microsofts Gerätecode und den Link
+  (`import/mstodo/consent`, wartet bis „done“), dann die Listen mit Zahlen,
+  Bereich je Liste, erledigte der letzten Tage, Übergangszeit in beide
+  Richtungen, Fortschritt des Auftrags, „Abgleich beenden“. **Synology DS
+  Note:** die `.nsx`-Datei wählt man per Dateiauswahl (SAF); die App liest
+  sie **auf dem Gerät** (`Nsx`, Port von `ui/nsx.js`: ZIP mit ZIP64,
+  stückweise gelesen, HTML → Markdown) und lädt nur die Anhänge einzeln
+  hoch. Geschützte Notizen öffnet das eingegebene Passwort
+  (OpenSSL/CryptoJS-Form); sie werden je Notizbuch ein neues
+  Tresor-Notizbuch, dessen Wiederherstellungsschlüssel vorher erscheint –
+  sonst übersprungen und gezählt.
+- **Teilen → „Als Notiz oder Aufgabe“:** Share-Ziel für Text, Links, Bilder
+  und PDFs (`NotizenShareActivity`, nur aktiv, solange der Server das Plugin
+  anbietet): Notiz oder Aufgabe, Bereich, Dateien als Anhänge.
+- **Offline:** `me`, das Menü, die Listen, geöffnete Aufgaben und Notizen
+  liegen pro Anmeldung in `noBackupFilesDir/notizen-cache` (Tresore nur als
+  Ciphertext) und werden ohne Verbindung gezeigt (Hinweis oben). **Abhaken
+  wartet offline** in einer Warteschlange (`NotizenOutbox`, gesendet beim
+  nächsten Kontakt bzw. per WorkManager mit Netz) – das geht, weil
+  `complete { done }` einen Zustand setzt. Neue Aufgaben und Notizen und
+  Textänderungen brauchen eine Verbindung (die API kennt keine auf dem Gerät
+  vergebenen Ids), die Bildschirme sagen das. 401/404 des Plugins löschen
+  die Kopie.
+- **Live:** Realtime-Event `changed` lädt offene Listen neu, `vault`
+  (Anfrage/Freigabe) die Tresor-Seite.
+- **Später:** Widgets „Mein Tag“ und eine Schnell-Kachel sind als nächster
+  Schritt vorgesehen; Pushes des Plugins (Erinnerungen, geteilt, Tresor)
+  zeigen bisher die Mitteilung selbst.
+
 ## Drucken (Plugin `gatecontrol-print` 1.0, GateControl 1.236+)
 Drucken auf den Druckern zu Hause **über GateControl**: der Auftrag geht
 über die normale Server-Verbindung der App (mit und ohne VPN) an das

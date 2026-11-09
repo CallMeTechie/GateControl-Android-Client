@@ -73,6 +73,12 @@ class GateDropStartup @Inject constructor(
                 com.gatecontrol.android.ui.drive.DriveShareActivity.setEnabled(context, on)
             }
         }
+        // "Als Notiz oder Aufgabe" in the share sheet: on while the server offers Notizen & Aufgaben.
+        scope.launch {
+            pluginDirectory.state.map { it.notizen }.distinctUntilChanged().collect { on ->
+                com.gatecontrol.android.ui.notizen.NotizenShareActivity.setEnabled(context, on)
+            }
+        }
         // "Mit GateControl drucken" in the share sheet: on while the server offers the print plugin to the apps.
         scope.launch {
             pluginDirectory.state.map { it.print }.distinctUntilChanged().collect { on ->

@@ -283,6 +283,10 @@ fun AppNavigation(
         showStart(StartPageRequest(page))
     }
 
+    // Notizen & Aufgaben opens an item's original where this app has a screen for its plugin.
+    val notizenHave: () -> com.gatecontrol.android.notizen.NotizenOpen.Have = {
+        com.gatecontrol.android.notizen.NotizenOpen.Have(mail = plugins.mail, drive = plugins.drive, familie = plugins.familieTab, schule = plugins.schule)
+    }
     // The plugin's own tab icon (SVG path), else the house.
     val familieIcon = remember(plugins.familieIcon) {
         plugins.familieIcon?.let { path -> runCatching { GcIcons.fromPath("FamilieTab", path) }.getOrNull() } ?: GcIcons.Family
@@ -305,6 +309,7 @@ fun AppNavigation(
             Screen.Vault.route -> TabItem(route, Screen.Vault.route, R.string.vault_tab, GcIcons.Vault)
             Screen.Drive.route -> TabItem(route, Screen.Drive.route, R.string.drive_tab, GcIcons.Cloud)
             Screen.Mail.route -> TabItem(route, Screen.Mail.route, R.string.mail_tab, GcIcons.Mail)
+            NotizenRoutes.TAB -> TabItem(route, NotizenRoutes.TAB, R.string.notizen_tab, com.gatecontrol.android.ui.notizen.NotizenTabIcon)
             else -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
         }
     }
@@ -428,6 +433,7 @@ fun AppNavigation(
             StartPages.VAULT -> VaultHome(navController)
             StartPages.DRIVE -> DriveHome(navController, onShown = {})
             StartPages.MAIL -> MailHome(navController)
+            StartPages.NOTIZEN -> NotizenHome(navController, notizenHave)
             StartPages.CALENDAR -> MailHome(navController, com.gatecontrol.android.ui.mail.MailDrawerFoot.CALENDAR)
             StartPages.CONTACTS -> MailHome(navController, com.gatecontrol.android.ui.mail.MailDrawerFoot.CONTACTS)
         }
@@ -1261,6 +1267,9 @@ fun AppNavigation(
             }
             mailRoutes(navController, navigateToTab) {
                 if (StartPages.MAIL in pinnedNow) RedirectToPage(StartPages.MAIL, Screen.Mail.route) else MailHome(navController)
+            }
+            notizenRoutes(navController, notizenHave) {
+                if (StartPages.NOTIZEN in pinnedNow) RedirectToPage(StartPages.NOTIZEN, NotizenRoutes.TAB) else NotizenHome(navController, notizenHave)
             }
             driveRoutes(navController, navigateToTab) { entry ->
                 if (StartPages.DRIVE in pinnedNow) {

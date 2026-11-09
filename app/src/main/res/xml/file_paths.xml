@@ -29,6 +29,10 @@
          day, removed with Mail's offline copy). Uploads in cacheDir/mail-up
          stay private. -->
     <cache-path name="mail_open" path="mail-open/" />
+    <!-- Notizen & Aufgaben: an attachment of a task or note the person opens
+         (cacheDir/notizen-open/<name>, one file at a time, replaced by the next).
+         Tresor attachments are never written here: they stay in memory. -->
+    <cache-path name="notizen_open" path="notizen-open/" />
     <!-- Tür & Kamera: a still of a home camera the person shares
          ("Standbild › Teilen"; cacheDir/camera-still, one file at a time,
          removed with the door screen). -->

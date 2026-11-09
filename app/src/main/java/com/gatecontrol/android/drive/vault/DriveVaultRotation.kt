@@ -23,11 +23,12 @@ internal object DriveVaultRotation {
         keyVersion: Int,
         devices: List<DVaultDevice>,
         ephemeral: (Int) -> DriveVaultCrypto.KeyPair? = { null },
+        prefix: String = DriveVaultCrypto.PREFIX_DRIVE,
     ): List<Pair<String, String>> =
         devices.filter { it.state == "approved" }.sortedBy { it.deviceId }.mapIndexed { i, d ->
             val pub = DriveVaultCrypto.unb64u(d.publicKey)
-            if (DriveVaultCrypto.deviceId(pub) != d.deviceId) throw DriveVaultException("invalid", "device id")
-            d.deviceId to DriveVaultCrypto.wrapKey(tk, pub, vaultId, keyVersion, ephemeral(i))
+            if (DriveVaultCrypto.deviceId(pub, prefix) != d.deviceId) throw DriveVaultException("invalid", "device id")
+            d.deviceId to DriveVaultCrypto.wrapKey(tk, pub, vaultId, keyVersion, ephemeral(i), prefix)
         }
 
     /**
@@ -40,14 +41,15 @@ internal object DriveVaultRotation {
         tks: Map<Int, ByteArray>,
         upTo: Int,
         ephemeral: (Int) -> DriveVaultCrypto.KeyPair? = { null },
+        prefix: String = DriveVaultCrypto.PREFIX_DRIVE,
     ): DriveJson.RecoveryPart {
-        val pair = DriveVaultCrypto.recoveryKeyPair(key)
+        val pair = DriveVaultCrypto.recoveryKeyPair(key, prefix)
         try {
             val wraps = (1..upTo).map { v ->
                 val tk = tks[v] ?: throw DriveVaultException("old_keys", "key version $v missing")
-                DVaultWrap(v, DriveVaultCrypto.wrapKey(tk, pair.publicKey, vaultId, v, ephemeral(v)))
+                DVaultWrap(v, DriveVaultCrypto.wrapKey(tk, pair.publicKey, vaultId, v, ephemeral(v), prefix))
             }
-            return DriveJson.RecoveryPart(DriveVaultCrypto.b64u(pair.publicKey), DriveVaultCrypto.recoveryAuth(key), wraps)
+            return DriveJson.RecoveryPart(DriveVaultCrypto.b64u(pair.publicKey), DriveVaultCrypto.recoveryAuth(key, prefix), wraps)
         } finally {
             pair.wipe()
         }
@@ -67,11 +69,12 @@ internal object DriveVaultRotation {
         recovery: DriveJson.RecoveryPart?,
         ephemeral: (Int) -> DriveVaultCrypto.KeyPair? = { null },
         recoveryEphemeral: DriveVaultCrypto.KeyPair? = null,
+        prefix: String = DriveVaultCrypto.PREFIX_DRIVE,
     ): JsonObject {
-        val wraps = deviceWraps(tk, vaultId, keyVersion, devices, ephemeral)
+        val wraps = deviceWraps(tk, vaultId, keyVersion, devices, ephemeral, prefix)
         val recoveryWrap = if (recovery == null) {
             val pub = recoveryPub ?: throw DriveVaultException("recovery_required")
-            DriveVaultCrypto.wrapKey(tk, DriveVaultCrypto.unb64u(pub), vaultId, keyVersion, recoveryEphemeral)
+            DriveVaultCrypto.wrapKey(tk, DriveVaultCrypto.unb64u(pub), vaultId, keyVersion, recoveryEphemeral, prefix)
         } else {
             null
         }
