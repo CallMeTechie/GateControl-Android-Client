@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -112,7 +111,7 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
     val v12 = me?.has(com.gatecontrol.android.notizen.NFeature.LIST_DAYS) == true
     val canWrite = me?.readOnly != true
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(Modifier.fillMaxSize()) {
             GcSubpageBar(stringResource(R.string.notizen_settings), nav.back, stringResource(R.string.notizen_back))
             LazyColumn(contentPadding = PaddingValues(bottom = 32.dp)) {
                 item { Text(stringResource(R.string.notizen_settings_intro), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
@@ -274,7 +273,7 @@ fun NotizenImportScreen(nav: NotizenNav, vm: NotizenImportViewModel = hiltViewMo
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { u: Uri? -> if (u != null) vm.pick(u) }
     var password by rememberSaveable { mutableStateOf("") }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+        Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             GcSubpageBar(stringResource(R.string.notizen_import), nav.back, stringResource(R.string.notizen_back))
             Text(stringResource(R.string.notizen_import_intro), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(16.dp))
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -432,7 +431,7 @@ fun NotizenSearchScreen(nav: NotizenNav, vm: NotizenSearchViewModel = hiltViewMo
     val x = GateControlTheme.extraColors
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().imePadding()) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).imePadding()) {
         GcSubpageBar(stringResource(R.string.notizen_search), nav.back, stringResource(R.string.notizen_back))
         BasicTextField(
             ui.query,

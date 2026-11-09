@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -209,7 +208,7 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
+        Column(Modifier.fillMaxSize().imePadding()) {
             GcSubpageBar(listOfNotNull(notebookName, status).joinToString(" · "), { if (ui.editing) vm.stopEditing(); vm.saveNow(); nav.back() }, stringResource(R.string.notizen_back)) {
                 if (note != null && !ui.locked) {
                     GcIconButton(GcIcons.Share, stringResource(R.string.notizen_share), {

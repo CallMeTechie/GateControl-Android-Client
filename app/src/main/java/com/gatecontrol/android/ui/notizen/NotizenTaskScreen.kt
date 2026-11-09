@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -269,7 +268,7 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
     }
     val d = ui.detail
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(Modifier.fillMaxSize()) {
             GcSubpageBar(
                 title = listOfNotNull(d?.listArea?.let { areaLabel(it) }, d?.listName).joinToString(" › "),
                 onBack = nav.back,
@@ -464,7 +463,7 @@ fun NotizenItemScreen(nav: NotizenNav, vm: NotizenItemViewModel = hiltViewModel(
     LaunchedEffect(ui.taskId) { ui.taskId?.let { nav.back(); nav.task(it) } }
     val x = GateControlTheme.extraColors
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val item = ui.item
             GcSubpageBar(item?.sourceLabel.orEmpty(), nav.back, stringResource(R.string.notizen_back))
             if (item == null) {
@@ -537,7 +536,7 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
         else -> ""
     }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(Modifier.fillMaxSize()) {
             GcSubpageBar(title, nav.back, stringResource(R.string.notizen_back)) {
                 if (list != null && NotizenLists.actions(list, me).isNotEmpty()) {
                     GcIconButton(GcIcons.MoreHorizontal, stringResource(R.string.notizen_menu_of, list.name), { manageState.listSheet = list }, tint = MaterialTheme.colorScheme.onBackground)

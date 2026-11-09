@@ -521,9 +521,9 @@ internal fun guardText(context: Context, message: String): String = when {
     else -> driveText(context, message)
 }
 
-/** Menu, title (the area), sort, search. */
+/** Menu, title (the area), sort, search. Internal: NotizenHeadUiTest holds the Notizen head to its height. */
 @Composable
-private fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
+internal fun TabBar(title: String, onMenu: (() -> Unit)?, onSearch: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
     Row(
         Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

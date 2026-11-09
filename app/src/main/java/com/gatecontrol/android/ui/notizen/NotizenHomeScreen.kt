@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,7 +21,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -70,7 +70,6 @@ import com.gatecontrol.android.notizen.NotizenFormat
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.theme.GateControlTheme
-import com.gatecontrol.android.ui.theme.DisplayFontFamily
 import kotlinx.coroutines.launch
 
 /** Where the screens of the plugin lead (the navigation's side). */
@@ -176,33 +175,29 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
         },
     ) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            // no statusBarsPadding: the app's Scaffold (AppNavigation) already keeps the page below the status bar
+            Column(Modifier.fillMaxSize()) {
                 // ── head ──
-                Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    GcIconButton(GcIcons.Menu, stringResource(R.string.notizen_menu), { scope.launch { drawer.open() } }, tint = MaterialTheme.colorScheme.onBackground)
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            when {
-                                !notesPage -> stringResource(R.string.notizen_seg_day)
-                                selectedNb != null -> vm.notebookName(selectedNb) ?: stringResource(R.string.notizen_tresor)
-                                else -> stringResource(R.string.notizen_all_notes)
-                            },
-                            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = DisplayFontFamily, fontWeight = FontWeight.Bold, fontSize = 28.sp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        val sub = when {
-                            !notesPage -> me?.let { NotizenFormat.dayTitle(it.today, it.lang) }
-                            selectedNb != null && selectedNb.shared && selectedNb.isOwner -> stringResource(R.string.notizen_shared_with, selectedNb.members.mapNotNull { it.name }.joinToString(", "))
-                            selectedNb != null && selectedNb.shared -> stringResource(if (selectedNb.canEdit) R.string.notizen_shared_by else R.string.notizen_shared_by_read, selectedNb.owner?.name.orEmpty())
-                            else -> null
-                        }
-                        sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    }
+                val sub = when {
+                    !notesPage -> me?.let { NotizenFormat.dayTitle(it.today, it.lang) }
+                    selectedNb != null && selectedNb.shared && selectedNb.isOwner -> stringResource(R.string.notizen_shared_with, selectedNb.members.mapNotNull { it.name }.joinToString(", "))
+                    selectedNb != null && selectedNb.shared -> stringResource(if (selectedNb.canEdit) R.string.notizen_shared_by else R.string.notizen_shared_by_read, selectedNb.owner?.name.orEmpty())
+                    else -> null
+                }
+                NotizenHomeHead(
+                    title = when {
+                        !notesPage -> stringResource(R.string.notizen_seg_day)
+                        selectedNb != null -> vm.notebookName(selectedNb) ?: stringResource(R.string.notizen_tresor)
+                        else -> stringResource(R.string.notizen_all_notes)
+                    },
+                    subtitle = sub,
+                    onMenu = { scope.launch { drawer.open() } },
+                ) {
                     if (selectedNb != null && notesPage && com.gatecontrol.android.notizen.NotizenLists.notebookActions(selectedNb, me).isNotEmpty()) {
                         GcIconButton(GcIcons.MoreHorizontal, stringResource(R.string.notizen_menu_of, vm.notebookName(selectedNb) ?: stringResource(R.string.notizen_tresor)), { manageState.nbSheet = selectedNb }, tint = MaterialTheme.colorScheme.onBackground)
                     }
                     NAreaPill(ui.area, vm::setArea)
+                    Spacer(Modifier.width(6.dp))
                     GcIconButton(GcIcons.Search, stringResource(if (notesPage) R.string.notizen_search_notes else R.string.notizen_search), nav.search, tint = MaterialTheme.colorScheme.onBackground)
                 }
                 NOfflineHint(ui.offline, ui.pending, ui.offlineEdits)
@@ -269,6 +264,45 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
     }
     if (newTresor) {
         NewTresorFlow(vm.vault, ui.area, onDone = { newTresor = false; vm.load(quiet = true) })
+    }
+}
+
+/**
+ * The head of the tab, laid out like Drive's (DriveHomeScreen › TabBar): ☰, the title in the screen title's style and
+ * the actions on one row at the same height as Drive's, the [subtitle] (the day, who shares the notebook) below the
+ * title. No inset of its own: the app's Scaffold keeps the page below the status bar.
+ */
+@Composable
+internal fun NotizenHomeHead(title: String, subtitle: String?, onMenu: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp, bottom = if (subtitle == null) 4.dp else 0.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GcIconButton(GcIcons.Menu, stringResource(R.string.notizen_menu), onMenu, tint = MaterialTheme.colorScheme.onBackground)
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(start = 4.dp),
+            )
+            actions()
+            // "⋯" of the page when Notizen is pinned to Start (as in Drive)
+            com.gatecontrol.android.ui.start.StartPageMenuButton()
+        }
+        subtitle?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = GateControlTheme.extraColors.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                // under the title: the row's start padding, ☰ and the title's own padding
+                modifier = Modifier.padding(start = 56.dp, end = 16.dp, bottom = 4.dp),
+            )
+        }
     }
 }
 
