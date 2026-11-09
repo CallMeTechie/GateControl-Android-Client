@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import com.gatecontrol.android.ui.components.keyboardPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -273,7 +273,7 @@ fun NotizenImportScreen(nav: NotizenNav, vm: NotizenImportViewModel = hiltViewMo
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { u: Uri? -> if (u != null) vm.pick(u) }
     var password by rememberSaveable { mutableStateOf("") }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+        Column(Modifier.fillMaxSize().keyboardPadding().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             GcSubpageBar(stringResource(R.string.notizen_import), nav.back, stringResource(R.string.notizen_back))
             Text(stringResource(R.string.notizen_import_intro), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(16.dp))
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -431,7 +431,7 @@ fun NotizenSearchScreen(nav: NotizenNav, vm: NotizenSearchViewModel = hiltViewMo
     val x = GateControlTheme.extraColors
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).imePadding()) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).keyboardPadding()) {
         GcSubpageBar(stringResource(R.string.notizen_search), nav.back, stringResource(R.string.notizen_back))
         BasicTextField(
             ui.query,
