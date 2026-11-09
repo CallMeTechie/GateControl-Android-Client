@@ -3,21 +3,30 @@
 ## [1.102.0] - 2026-11-09
 
 ### Features
-- Menü wie in Drive, Listen bearbeiten, teilen und löschen, Einkaufstag in „Mein Tag“ (#213)
+- Aufgaben: neues Seitenmenü – Tippe auf ☰ oben links: Dort findest du „Mein Tag“, deine Listen, Gruppen und Notizbücher. Das Zahnrad unten öffnet die Einstellungen. (#213)
+- Listen, Gruppen und Notizbücher bearbeiten – Lange drücken öffnet das Menü: Name, Farbe, Symbol und Wochentage ändern oder in eine Gruppe verschieben. (#213)
+- Teilen mit „Ansehen“ oder „Bearbeiten“ – Du bestimmst, ob andere eine Liste nur ansehen oder auch ändern dürfen. (#213)
+- Löschen mit „Rückgängig“ – Aus Versehen gelöscht? Ein Tipp auf „Rückgängig“ holt es zurück. (#213)
+- Aufgaben zuweisen – In geteilten Listen siehst du an jeder Aufgabe, wer sie übernimmt. (#213)
+- Einkaufstag in „Mein Tag“ – Am Einkaufstag steht die Liste ganz oben in „Mein Tag“. (#213)
 
 ---
 
 ## [1.101.0] - 2026-11-09
 
 ### Features
-- offline anlegen und bearbeiten, Benachrichtigungen öffnen direkt die Seite (#212)
+- Aufgaben und Notizen ohne Internet – Du kannst sie jetzt auch offline anlegen und ändern. Sie werden gesendet, sobald du wieder verbunden bist. (#212)
+- Benachrichtigungen führen direkt hin – Ein Tipp öffnet gleich die passende Aufgabe, Liste oder Notiz. (#212)
 
 ---
 
 ## [1.100.0] - 2026-11-09
 
 ### Features
-- Tab „Aufgaben“ – Notizen & Aufgaben in der Android-App (#211)
+- Neuer Tab „Aufgaben“ – Notizen & Aufgaben jetzt in der App: „Mein Tag“, deine Listen und deine Notizen. (#211)
+- Schnell eintragen – Schreib einfach „morgen 9 Uhr Zahnarzt“, Tag und Uhrzeit erkennt die App selbst. (#211)
+- Geheime Notizen im Tresor – Notizen im Tresor bleiben verschlüsselt und öffnen sich nur mit deiner Entsperrung. (#211)
+- Umziehen – Hol deine Listen und Notizen aus einer anderen App hierher. (#211)
 
 ---
 

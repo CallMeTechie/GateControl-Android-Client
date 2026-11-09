@@ -16,22 +16,32 @@ class UpdateLogicTest {
         fun `version code to name follows release yml`() {
             assertEquals("1.46.0", UpdateVersions.name(14600))
             assertEquals("1.45.2", UpdateVersions.name(14502))
-            assertEquals("2.0.13", UpdateVersions.name(20013))
-            assertEquals("10.99.99", UpdateVersions.name(109999))
+            assertEquals("1.99.0", UpdateVersions.name(19900))
+        }
+
+        @Test
+        fun `since 1_100_0 the minor has three digits - 20200 is 1_102_0, not 2_2_0`() {
+            assertEquals(20000, UpdateVersions.code("1.100.0"))
+            assertEquals(20200, UpdateVersions.code("1.102.0"))
+            assertEquals("1.100.0", UpdateVersions.name(20000))
+            assertEquals("1.102.0", UpdateVersions.name(20200))
+            assertEquals("1.103.4", UpdateVersions.name(20304))
+            assertEquals("1.250.1", UpdateVersions.name(35001))
         }
 
         @Test
         fun `name to code and back`() {
             assertEquals(14600, UpdateVersions.code("1.46.0"))
             assertEquals(14502, UpdateVersions.code(" 1.45.2 "))
-            for (code in listOf(10000, 14502, 14600, 20101)) assertEquals(code, UpdateVersions.code(UpdateVersions.name(code)))
+            for (code in listOf(10000, 14502, 14600, 19999, 20000, 20101, 20200, 99999)) assertEquals(code, UpdateVersions.code(UpdateVersions.name(code)))
+            for (name in listOf("1.0.0", "1.99.0", "1.100.0", "1.102.0", "1.205.3")) assertEquals(name, UpdateVersions.name(UpdateVersions.code(name)!!))
         }
 
         @Test
         fun `malformed names have no code`() {
             assertNull(UpdateVersions.code("1.46"))
             assertNull(UpdateVersions.code("1.46.0-beta"))
-            assertNull(UpdateVersions.code("1.100.0"))
+            assertNull(UpdateVersions.code("1.102.100"))
             assertNull(UpdateVersions.code("a.b.c"))
         }
     }
@@ -109,6 +119,34 @@ class UpdateLogicTest {
             val plain = ReleaseNote("Fix the widget", ReleaseNote.Kind.Fix)
             assertEquals("Fix the widget", plain.title)
             assertNull(plain.detail)
+        }
+
+        @Test
+        fun `three-digit minors are read (1_100_0 and later)`() {
+            val md = """
+                # Changelog
+
+                ## [1.102.0] - 2026-11-09
+
+                ### Features
+                - Notizen – neues Menü (#213)
+
+                ---
+
+                ## [1.101.0] - 2026-11-09
+
+                ### Features
+                - Notizen offline (#212)
+
+                ---
+
+                ## [1.99.0] - 2026-11-08
+
+                ### Features
+                - Erinnerungen (#210)
+            """.trimIndent()
+            assertEquals(listOf(ReleaseNote("Notizen – neues Menü", ReleaseNote.Kind.Feature)), ChangelogParser.parse(md, 20100, 20200))
+            assertEquals(3, ChangelogParser.parse(md, 19800, 20200).size)
         }
 
         @Test
