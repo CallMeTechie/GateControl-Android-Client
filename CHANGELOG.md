@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.101.0] - 2026-11-09
+
+### Features
+- offline anlegen und bearbeiten, Benachrichtigungen öffnen direkt die Seite (#212)
+
+---
+
 ## [1.100.0] - 2026-11-09
 
 ### Features
