@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.102.1] - 2026-11-09
+
+### Fixes
+- „Das ist neu“ zeigt wieder die Änderungen, Überschrift in Aufgaben wieder oben (#216)
+
+---
+
 ## [1.102.0] - 2026-11-09
 
 ### Features
