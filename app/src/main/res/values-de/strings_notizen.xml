@@ -21,6 +21,7 @@
     <string name="notizen_clear">Entfernen</string>
     <string name="notizen_color">Farbe</string>
     <string name="notizen_conflict_mine">Meine behalten</string>
+    <string name="notizen_conflict_task_text">Die Aufgabe wurde inzwischen auf einem anderen Gerät geändert – an denselben Angaben wie bei dir. Deine Version überschreibt sie, die andere verwirft deine Änderung.</string>
     <string name="notizen_conflict_text">Die Notiz wurde inzwischen auf einem anderen Gerät geändert. Deine Version überschreibt sie, die andere lädt sie neu (kopiere deinen Text vorher, wenn du ihn brauchst).</string>
     <string name="notizen_conflict_theirs">Die andere laden</string>
     <string name="notizen_conflict_title">Anderswo geändert</string>
@@ -81,6 +82,7 @@
     <string name="notizen_menu">Menü öffnen</string>
     <string name="notizen_more">Weitere Optionen</string>
     <string name="notizen_msg_approved">Gerät freigegeben.</string>
+    <string name="notizen_msg_attach_offline">Bilder und Anhänge brauchen eine Verbindung zum Server.</string>
     <string name="notizen_msg_auth">Bitte mit Fingerabdruck oder PIN bestätigen.</string>
     <string name="notizen_msg_busy">Gerade viel los – gleich noch einmal versuchen.</string>
     <string name="notizen_msg_conflict">Anderswo geändert – bitte neu laden.</string>
@@ -93,9 +95,11 @@
     <string name="notizen_msg_dsnote_password">Das Passwort öffnet die geschützten Notizen nicht – sie werden übersprungen.</string>
     <string name="notizen_msg_failed">Hat nicht geklappt (%1$s).</string>
     <string name="notizen_msg_forbidden">Das darfst du hier nicht.</string>
+    <string name="notizen_msg_gone">Nicht mehr da – gelöscht oder nicht mehr geteilt.</string>
     <string name="notizen_msg_import_done">Umzug fertig.</string>
     <string name="notizen_msg_import_failed">Der Umzug ist fehlgeschlagen.</string>
     <string name="notizen_msg_line_empty">Diese Zeile hat keinen Text.</string>
+    <string name="notizen_msg_line_offline">Eine Zeile als Aufgabe braucht eine Verbindung zum Server.</string>
     <string name="notizen_msg_line_task">Die Zeile ist jetzt eine Aufgabe.</string>
     <string name="notizen_msg_list_created">Liste angelegt.</string>
     <string name="notizen_msg_locked">Der Tresor ist gesperrt.</string>
@@ -155,10 +159,11 @@
     <string name="notizen_note_hint">Notiz hinzufügen</string>
     <string name="notizen_notes_empty">Noch keine Notizen.</string>
     <string name="notizen_offline_hint">Offline – gezeigt wird der letzte Stand. Ändern geht, sobald der Server erreichbar ist.</string>
+    <string name="notizen_offline_hint_edit">Offline – gezeigt wird der letzte Stand. Was du änderst, wird gesendet, sobald der Server erreichbar ist.</string>
     <string name="notizen_ok">OK</string>
     <string name="notizen_open_in">%1$s öffnen</string>
     <string name="notizen_open_state">offen</string>
-    <string name="notizen_pending_n">%1$d Häkchen warten auf die Verbindung.</string>
+    <string name="notizen_pending_n">%1$d Änderungen warten auf die Verbindung.</string>
     <string name="notizen_picture_cd">Bild: %1$s</string>
     <string name="notizen_pictures_n">%1$d Bild(er)</string>
     <string name="notizen_pin">Anheften</string>
@@ -234,7 +239,9 @@
     <string name="notizen_stat_open">offene Aufgaben</string>
     <string name="notizen_subtask">Unteraufgabe</string>
     <string name="notizen_subtasks_n">Unteraufgaben %1$d/%2$d</string>
+    <string name="notizen_sync_conflict">Anderswo geändert</string>
     <string name="notizen_sync_error">Fehler beim Abgleich</string>
+    <string name="notizen_sync_pending">Noch nicht gesendet</string>
     <string name="notizen_tab">Aufgaben</string>
     <string name="notizen_table_col1">Spalte 1</string>
     <string name="notizen_table_col2">Spalte 2</string>

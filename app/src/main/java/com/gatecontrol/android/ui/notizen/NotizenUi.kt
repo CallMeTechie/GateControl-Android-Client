@@ -232,6 +232,7 @@ internal fun NEntryRow(entry: NEntry, ctx: RowCtx, onToggle: (() -> Unit)?, onOp
                         item.meta["amount"]?.let { meta.add(it) }
                         item.progress?.let { meta.add("${it.done}/${it.total}") }
                     }
+                    if (task != null) NSyncMark(task.pending, task.conflict)
                     if (task != null) {
                         ctx.listPath(task.listId)?.let { meta.add(it) }
                         task.progress?.takeIf { it.total > 0 }?.let { meta.add(stringResource(R.string.notizen_subtasks_n, it.done, it.total)) }
@@ -328,9 +329,12 @@ internal fun NAreaPill(area: String, onChange: (String) -> Unit) {
 @Composable
 internal fun areaLabel(area: String): String = stringResource(if (area == NArea.WORK) R.string.notizen_area_work else R.string.notizen_area_private)
 
-/** „Offline – Stand von …“, waiting ticks. */
+/**
+ * „Offline – Stand von …“, what waits. [canEdit] (plugin 1.1.0): changing works offline too, it is sent later —
+ * else changing waits for the server.
+ */
 @Composable
-internal fun NOfflineHint(offline: Boolean, pending: Int) {
+internal fun NOfflineHint(offline: Boolean, pending: Int, canEdit: Boolean = false) {
     if (!offline && pending == 0) return
     val x = GateControlTheme.extraColors
     Row(
@@ -341,7 +345,7 @@ internal fun NOfflineHint(offline: Boolean, pending: Int) {
         Icon(GcIcons.WifiOff, null, tint = x.warn, modifier = Modifier.size(18.dp))
         Text(
             listOfNotNull(
-                if (offline) stringResource(R.string.notizen_offline_hint) else null,
+                if (offline) stringResource(if (canEdit) R.string.notizen_offline_hint_edit else R.string.notizen_offline_hint) else null,
                 if (pending > 0) stringResource(R.string.notizen_pending_n, pending) else null,
             ).joinToString(" "),
             style = MaterialTheme.typography.bodySmall,
@@ -356,6 +360,9 @@ internal fun messageText(code: String): String = when (code) {
     "offline" -> stringResource(R.string.notizen_msg_offline)
     "offline_read", "offline_write" -> stringResource(R.string.notizen_msg_offline_write)
     "queued" -> stringResource(R.string.notizen_msg_queued)
+    "gone" -> stringResource(R.string.notizen_msg_gone)
+    "attach_offline" -> stringResource(R.string.notizen_msg_attach_offline)
+    "line_offline" -> stringResource(R.string.notizen_msg_line_offline)
     "read_only", "login" -> stringResource(R.string.notizen_msg_read_only)
     "forbidden" -> stringResource(R.string.notizen_msg_forbidden)
     "not_found" -> stringResource(R.string.notizen_msg_not_found)
@@ -395,6 +402,23 @@ internal fun messageText(code: String): String = when (code) {
     "not_here" -> stringResource(R.string.notizen_msg_not_here)
     "off" -> stringResource(R.string.notizen_msg_off)
     else -> stringResource(R.string.notizen_msg_failed, code)
+}
+
+/** „Noch nicht gesendet“ (made or changed offline) or „Anderswo geändert“ (a change of this phone refused: open it). */
+@Composable
+internal fun NSyncMark(pending: Boolean, conflict: Boolean) {
+    if (!pending && !conflict) return
+    val x = GateControlTheme.extraColors
+    val color = if (conflict) MaterialTheme.colorScheme.error else x.muted
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Icon(if (conflict) GcIcons.Alert else GcIcons.Clock, null, tint = color, modifier = Modifier.size(12.dp))
+        Text(
+            stringResource(if (conflict) R.string.notizen_sync_conflict else R.string.notizen_sync_pending),
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = if (conflict) FontWeight.SemiBold else null,
+        )
+    }
 }
 
 @Composable

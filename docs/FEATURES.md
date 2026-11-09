@@ -854,7 +854,7 @@ wie die anderen Tabs als **Seite neben Start** anheftbar. Ohne Plugin
   wenn das Plugin verschwindet, sich Server/Token ändern oder der Server
   401 antwortet (Fernlöschen), ebenso geöffnete Anhänge (`cache/mail-open`).
 
-## Notizen & Aufgaben (Plugin `gatecontrol-notizen` 1.0, GateControl 1.216+)
+## Notizen & Aufgaben (Plugin `gatecontrol-notizen` 1.0, offline ändern ab 1.1, GateControl 1.216+)
 Eigener Tab **Aufgaben** (Tab-Id `notizen`, nach Mail), nur wenn der Server
 das Plugin für die Person listet (installiert, lizenziert, freigeschaltet);
 antwortet `GET me` nicht (keine Lizenz, keine Berechtigung), sagt der Tab das
@@ -950,15 +950,51 @@ neue Liste, Gruppe, Notizbuch, Tresor-Notizbuch, **Quellen**, **Umziehen**.
   Ciphertext) und werden ohne Verbindung gezeigt (Hinweis oben). **Abhaken
   wartet offline** in einer Warteschlange (`NotizenOutbox`, gesendet beim
   nächsten Kontakt bzw. per WorkManager mit Netz) – das geht, weil
-  `complete { done }` einen Zustand setzt. Neue Aufgaben und Notizen und
-  Textänderungen brauchen eine Verbindung (die API kennt keine auf dem Gerät
-  vergebenen Ids), die Bildschirme sagen das. 401/404 des Plugins löschen
-  die Kopie.
+  `complete { done }` einen Zustand setzt. 401/404 des Plugins löschen die
+  Kopie samt Warteschlange.
+- **Offline anlegen und ändern (Plugin 1.1, Fähigkeit `offlineEdits` in
+  `GET me`):** Aufgaben, Unteraufgaben, Listen, Notizbücher und Notizen
+  lassen sich auch ohne Verbindung anlegen, ändern und löschen (Schnell-
+  Eingabe, Feld einer Liste, Aufgabe, Notiz, Menü, Teilen ohne Dateien). Sie
+  erscheinen sofort – in ihrer Liste, in „Mein Tag“, „Wichtig“, bei den
+  Notizen – mit **„Noch nicht gesendet“**; Neues hat bis zur Antwort des
+  Servers eine negative Id (auch Routen und Verweise: eine Unteraufgabe
+  einer offline angelegten Aufgabe, eine Aufgabe einer offline angelegten
+  Liste). Die Warteschlange geht **in der Reihenfolge** raus (WorkManager
+  mit Netz, Stream-Verbindung, `GET me`); solange etwas wartet, reiht sich
+  auch online alles dahinter ein. Jedes Anlegen trägt eine `clientId`
+  (UUID) – kommt es doppelt an (Antwort verloren), legt der Server nichts
+  zweimal an; die Antwort liefert die Server-Id, die App tauscht damit die
+  negative Id in allem, was noch wartet (`NotizenOutbox.mapped`).
+  Änderungen an einer offline angelegten Sache wandern in ihr Anlegen,
+  mehrere Änderungen derselben Sache werden eine; Löschen von etwas offline
+  Angelegtem nimmt es samt Inhalt aus der Warteschlange. Aufgaben schicken
+  **`base`** (die Werte vor der Änderung, Feld für Feld), Notizen `rev`.
+  Lehnt der Server mit `409` ab (dasselbe Feld anderswo geändert, bei
+  Tresoren auch `stale_key`), bekommt der Eintrag **„Anderswo geändert“**
+  und beim Öffnen fragt die App „Meine behalten / Die andere laden“ (Aufgabe
+  wie Notiz; online sofort). Andere Ablehnungen (gelöscht `410 gone`, kein
+  Recht) verwerfen die Änderung. **Tresor-Notizen** offline nur bei
+  geöffnetem Tresor; in die Warteschlange kommt nur Ciphertext, „Meine
+  behalten“ verschlüsselt mit dem aktuellen Schlüssel neu. Bilder und
+  Anhänge, „Zeile → Aufgabe“ und Teilen mit Dateien brauchen weiter eine
+  Verbindung (die App sagt das). Ohne `offlineEdits` (Plugin 1.0) bleibt es
+  beim Lesen und Abhaken – 1.0 erkennt doppelt gesendetes Anlegen nicht.
 - **Live:** Realtime-Event `changed` lädt offene Listen neu, `vault`
   (Anfrage/Freigabe) die Tresor-Seite.
+- **Pushes öffnen die Seite** (`NotizenPush`): eine Erinnerung oder eine
+  Zuweisung die Aufgabe, eine geteilte Liste die Liste, ein geteiltes
+  Notizbuch die Notizen mit diesem Notizbuch (ein Tresor: seine Seite, erst
+  entsperren), „Neues Gerät möchte Zugriff“ die Tresor-Seite mit der
+  Anfrage (gesperrt: erst entsperren, dann bleibt die Seite mit „Freigeben“).
+  Gelesen wird `data.notizen = { kind, area, taskId | listId | notebookId |
+  vaultId }` (Plugin 1.1) und die Schlüssel von 1.0 (`task`, `list`,
+  `notebook`, `vault`) nach dem Thema. Immer erst der Tab (Zurück führt
+  dorthin, auch nach einem Kaltstart), mit dem Bereich des Pushes; ist die
+  Aufgabe oder Liste weg, zeigt der Tab „Nicht mehr da“; ohne Plugin oder
+  Lizenz öffnet nur der Tab, der den Grund nennt.
 - **Später:** Widgets „Mein Tag“ und eine Schnell-Kachel sind als nächster
-  Schritt vorgesehen; Pushes des Plugins (Erinnerungen, geteilt, Tresor)
-  zeigen bisher die Mitteilung selbst.
+  Schritt vorgesehen.
 
 ## Drucken (Plugin `gatecontrol-print` 1.0, GateControl 1.236+)
 Drucken auf den Druckern zu Hause **über GateControl**: der Auftrag geht

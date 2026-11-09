@@ -24,7 +24,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * The API of „Notizen & Aufgaben“ (gatecontrol-notizen 1.0.0, README "API") through the core's plugin bridge
+ * The API of „Notizen & Aufgaben“ (gatecontrol-notizen 1.0.0 / 1.1.0, README "API") through the core's plugin bridge
  * (`/api/v1/client/plugins/gatecontrol-notizen/api/…`) and GateControl's media routes. The only place that knows the
  * routes: one method per route, answers parsed by [NotizenJson]. Paths are built from fixed segments and server ids
  * only. Never throws (except cancellation).
@@ -134,6 +134,9 @@ class NotizenApi @Inject constructor(
     suspend fun createList(name: String, area: String): NResult<NList> =
         post("lists", JsonObject().apply { addProperty("name", name.take(120)); addProperty("area", area) }, parse = NotizenJson::listAnswer)
 
+    /** `POST lists` with a body of its own (plugin 1.1.0: with `clientId`). */
+    suspend fun createListBody(body: JsonObject): NResult<NList> = post("lists", body, parse = NotizenJson::listAnswer)
+
     suspend fun patchList(id: Long, body: JsonObject): NResult<NList> = patch("lists/$id", body, NotizenJson::listAnswer)
 
     suspend fun deleteList(id: Long): NResult<Unit> = del("lists/$id", unit)
@@ -169,6 +172,9 @@ class NotizenApi @Inject constructor(
         JsonObject().apply { addProperty("name", name.take(80)); addProperty("area", area); color?.let { addProperty("color", it) } },
         parse = NotizenJson::notebookAnswer,
     )
+
+    /** `POST notebooks` with a body of its own (plugin 1.1.0: with `clientId`). */
+    suspend fun createNotebookBody(body: JsonObject): NResult<NNotebook> = post("notebooks", body, parse = NotizenJson::notebookAnswer)
 
     suspend fun patchNotebook(id: Long, body: JsonObject): NResult<NNotebook> = patch("notebooks/$id", body, NotizenJson::notebookAnswer)
 

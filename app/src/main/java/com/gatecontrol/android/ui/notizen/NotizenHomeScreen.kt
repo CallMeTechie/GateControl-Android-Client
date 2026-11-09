@@ -172,7 +172,7 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
                 onSelect = vm::setSegment,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
-            NOfflineHint(ui.offline, ui.pending)
+            NOfflineHint(ui.offline, ui.pending, ui.offlineEdits)
             when {
                 ui.me == null && ui.meError != null -> NotizenUnavailable(ui.meError!!, vm::load)
                 ui.me == null -> NotizenLoading()
@@ -404,6 +404,7 @@ private fun ListsPane(ui: NotizenHomeViewModel.Ui, nav: NotizenNav, onNew: () ->
                                 if (l.ext == "mstodo") stringResource(R.string.notizen_list_mstodo) else null,
                             )
                             if (sub.isNotEmpty()) Text(sub.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                            NSyncMark(l.pending, false)
                         }
                         Text(l.open.toString(), style = MaterialTheme.typography.labelLarge, color = x.muted)
                     }
@@ -560,6 +561,7 @@ private fun NoteRow(s: NNoteSummary, nb: NNotebook?, vm: NotizenHomeViewModel, t
                 NotizenFormat.due(com.gatecontrol.android.notizen.NDue(day), today, lang, Triple(stringResource(R.string.notizen_today_word), stringResource(R.string.notizen_tomorrow_word), stringResource(R.string.notizen_yesterday_word))),
             )
             Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = x.faint, maxLines = 1)
+            NSyncMark(s.pending, s.conflict)
         }
         if (s.pinned) Icon(GcIcons.Pin, stringResource(R.string.notizen_pinned_one), tint = x.faint, modifier = Modifier.size(16.dp))
     }

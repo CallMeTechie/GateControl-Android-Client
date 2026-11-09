@@ -11,6 +11,7 @@ import com.gatecontrol.android.notizen.NResult
 import com.gatecontrol.android.notizen.NVault
 import com.gatecontrol.android.notizen.NoteMd
 import com.gatecontrol.android.notizen.NotizenJson
+import com.gatecontrol.android.notizen.NotizenOutbox
 import com.gatecontrol.android.notizen.NotizenRepository
 import com.gatecontrol.android.notizen.NotizenVaultSession
 import com.gatecontrol.android.drive.DVaultDevice
@@ -37,7 +38,8 @@ class NotizenNoteViewModel @Inject constructor(
     saved: SavedStateHandle,
 ) : ViewModel() {
     private var id: Long = saved.get<String>("id")?.toLongOrNull() ?: 0L
-    private val notebookArg: Long? = saved.get<String>("notebook")?.toLongOrNull()?.takeIf { it > 0 }
+    /** A notebook made offline has a negative id until the server's is known. */
+    private val notebookArg: Long? = saved.get<String>("notebook")?.toLongOrNull()?.takeIf { it != 0L }
     private val startText: String = saved.get<String>("text").orEmpty()
 
     data class Ui(
@@ -59,6 +61,8 @@ class NotizenNoteViewModel @Inject constructor(
         /** attachment id → its bytes (pictures shown in the text; Tresor pictures decrypted in memory). */
         val pictures: Map<Long, ByteArray> = emptyMap(),
         val notebooks: List<NNotebook> = emptyList(),
+        /** Plugin 1.1.0: changes made offline wait and are sent later. */
+        val offlineEdits: Boolean = false,
     )
 
     private val _ui = MutableStateFlow(Ui(editing = id == 0L))
@@ -70,6 +74,8 @@ class NotizenNoteViewModel @Inject constructor(
 
     init {
         load()
+        // what waited was sent or refused: the page as it is now (not while typing)
+        viewModelScope.launch { repo.changed.collect { if ((it.isEmpty() || "notes" in it) && !_ui.value.dirty && !_ui.value.editing) { delay(300); load() } } }
     }
 
     fun consumeMessage() { _message.value = null }
@@ -79,7 +85,7 @@ class NotizenNoteViewModel @Inject constructor(
             val me = repo.meOrCached()
             val area = repo.currentArea()
             val nbs = repo.nav(area).valueOrNull()?.value?.notebooks.orEmpty()
-            _ui.update { it.copy(me = me, notebooks = nbs) }
+            _ui.update { it.copy(me = me, notebooks = nbs, offlineEdits = me?.has(NotizenRepository.FEATURE_OFFLINE) == true) }
             if (id == 0L) {
                 val (t, b) = if (startText.isNotBlank()) NoteMd.splitTitle(startText) else ("" to "")
                 val nb = nbs.firstOrNull { it.id == notebookArg }
@@ -87,7 +93,11 @@ class NotizenNoteViewModel @Inject constructor(
                 return@launch
             }
             when (val r = repo.note(id)) {
-                is NResult.Ok -> show(r.value.value, r.value.offline)
+                is NResult.Ok -> {
+                    show(r.value.value, r.value.offline)
+                    // a change of this phone refused in the background: the person decides now
+                    if (repo.conflictFor(NotizenOutbox.NOTE, id) != null) _ui.update { it.copy(conflict = true) }
+                }
                 is NResult.Failed -> {
                     _ui.update { it.copy(loading = false, gone = r.http == 404) }
                     _message.value = r.code()
@@ -132,7 +142,7 @@ class NotizenNoteViewModel @Inject constructor(
     fun unlocked() = _ui.value.note?.let { show(it, _ui.value.offline) } ?: load()
 
     fun startEditing() {
-        if (_ui.value.offline || _ui.value.locked || _ui.value.me?.readOnly == true) {
+        if ((_ui.value.offline && !_ui.value.offlineEdits) || _ui.value.locked || _ui.value.me?.readOnly == true) {
             _message.value = if (_ui.value.offline) "offline_read" else if (_ui.value.locked) "locked" else "read_only"
             return
         }
@@ -173,17 +183,19 @@ class NotizenNoteViewModel @Inject constructor(
         if (u.title.isBlank() && u.body.isBlank()) return
         _ui.update { it.copy(saving = true) }
         val vid = u.vaultId
-        val r: NResult<NNote> = if (id == 0L) {
+        val r = if (id == 0L) {
             val nbId = notebookArg
             if (vid != null && nbId != null) {
+                // a Tresor: only ciphertext leaves the screen (also into the outbox)
                 val sealed = vault.seal(vid, u.title, u.body) ?: return locked()
-                repo.api.createNote(NotizenJson.vaultNoteBody(nbId, sealed.first, sealed.second, sealed.third))
+                repo.createNote(NotizenJson.vaultNoteBody(nbId, sealed.first, sealed.second, sealed.third))
             } else {
-                repo.api.createNote(NotizenJson.noteBody(nbId, repo.currentArea(), u.title.trim(), u.body))
+                repo.createNote(NotizenJson.noteBody(nbId, repo.currentArea(), u.title.trim(), u.body))
             }
         } else {
             val body = JsonObject().apply {
-                u.note?.summary?.rev?.let { addProperty("rev", it) }
+                // the outbox may have saved this note meanwhile: its revision goes on from there
+                (listOfNotNull(u.note?.summary?.rev, repo.knownRev(id)).maxOrNull())?.let { addProperty("rev", it) }
                 if (vid != null) {
                     val sealed = vault.seal(vid, u.title, u.body) ?: return locked()
                     addProperty("titleCipher", sealed.first)
@@ -194,14 +206,16 @@ class NotizenNoteViewModel @Inject constructor(
                     addProperty("body", u.body)
                 }
             }
-            repo.api.patchNote(id, body)
+            repo.patchNote(id, body)
         }
         when (r) {
             is NResult.Ok -> {
-                id = r.value.summary.id
+                id = r.value.id
                 // only what was saved is clean: typing meanwhile stays dirty
-                _ui.update { it.copy(note = r.value, saving = false, savedOnce = true, dirty = it.title != u.title || it.body != u.body, conflict = false) }
-                repo.touched("notes")
+                _ui.update {
+                    it.copy(note = r.value.value ?: it.note, saving = false, savedOnce = true, dirty = it.title != u.title || it.body != u.body, conflict = false)
+                }
+                if (r.value.offline) _message.value = "queued"
             }
             is NResult.Failed -> {
                 _ui.update { it.copy(saving = false, conflict = r.http == 409 && r.code == "conflict") }
@@ -221,14 +235,32 @@ class NotizenNoteViewModel @Inject constructor(
 
     /** The other device's text wins: the note as it is now (this phone's text is offered to copy first). */
     fun takeTheirs() {
-        _ui.update { it.copy(dirty = false, conflict = false) }
-        load()
+        viewModelScope.launch {
+            repo.conflictFor(NotizenOutbox.NOTE, id)?.let { repo.dropChange(it) }
+            _ui.update { it.copy(dirty = false, conflict = false) }
+            load()
+        }
     }
 
     /** This phone's text wins: saved over the newer one. */
     fun keepMine() {
         viewModelScope.launch {
-            val r = repo.api.note(id)
+            val waiting = repo.conflictFor(NotizenOutbox.NOTE, id)
+            if (waiting != null) {
+                // refused in the background: sent again without rev — a Tresor note sealed again with the key of now
+                // (its version may be older: a new key meanwhile, `stale_key`)
+                val vid = _ui.value.vaultId
+                val body = if (vid != null) {
+                    val sealed = vault.seal(vid, _ui.value.title, _ui.value.body) ?: return@launch locked()
+                    waiting.body?.deepCopy()?.apply { addProperty("titleCipher", sealed.first); addProperty("cipher", sealed.second); addProperty("keyVersion", sealed.third) }
+                } else {
+                    null
+                }
+                repo.keepMine(waiting, body)
+                _ui.update { it.copy(conflict = false) }
+                return@launch
+            }
+            val r = repo.api.note(repo.serverId(id) ?: return@launch)
             if (r is NResult.Ok) {
                 _ui.update { it.copy(note = r.value.first, conflict = false, dirty = true) }
                 save()
@@ -239,12 +271,11 @@ class NotizenNoteViewModel @Inject constructor(
     private fun patch(body: JsonObject) {
         if (id == 0L) return
         viewModelScope.launch {
-            val r = repo.api.patchNote(id, body)
-            if (r is NResult.Ok) {
-                _ui.update { it.copy(note = r.value) }
-                repo.touched("notes")
-            } else {
-                _message.value = r.code()
+            val r = repo.patchNote(id, body)
+            when {
+                r is NResult.Ok && !r.value.queued -> _ui.update { it.copy(note = r.value.value ?: it.note) }
+                r is NResult.Ok -> { if (r.value.offline) _message.value = "queued"; load() }
+                else -> _message.value = r.code()
             }
         }
     }
@@ -256,8 +287,8 @@ class NotizenNoteViewModel @Inject constructor(
     fun delete(done: () -> Unit) {
         if (id == 0L) { done(); return }
         viewModelScope.launch {
-            val r = repo.api.deleteNote(id)
-            if (r is NResult.Ok) { repo.touched("notes"); done() } else _message.value = r.code()
+            val r = repo.deleteNote(id)
+            if (r is NResult.Ok) done() else _message.value = r.code()
         }
     }
 
@@ -265,16 +296,21 @@ class NotizenNoteViewModel @Inject constructor(
     fun check(line: Int, done: Boolean) {
         val u = _ui.value
         val local = NoteMd.toggle(u.body, line, done) ?: return
-        if (u.vaultId != null || id == 0L || u.dirty) {
+        if (u.vaultId != null || id <= 0L || u.dirty || repo.pending.value.any { !it.conflict }) {
             setBody(local)
             return
         }
         _ui.update { it.copy(body = local) }
         viewModelScope.launch {
             val r = repo.api.checkLine(id, line, done)
-            if (r is NResult.Ok) _ui.update { it.copy(note = r.value, body = r.value.body ?: local) } else {
-                _message.value = r.code()
-                load()
+            when {
+                r is NResult.Ok -> _ui.update { it.copy(note = r.value, body = r.value.body ?: local) }
+                // offline (plugin 1.1.0): the ticked text is saved like any change and waits
+                r is NResult.Offline && u.offlineEdits -> setBody(local)
+                else -> {
+                    _message.value = r.code()
+                    load()
+                }
             }
         }
     }
@@ -287,7 +323,9 @@ class NotizenNoteViewModel @Inject constructor(
         viewModelScope.launch {
             if (u.dirty || id == 0L) save()
             if (id == 0L) return@launch
-            val r = repo.api.lineToTask(id, line)
+            val sid = repo.serverId(id) ?: run { _message.value = "line_offline"; return@launch }
+            val r = repo.api.lineToTask(sid, line)
+            if (r is NResult.Offline) { _message.value = "line_offline"; return@launch }
             _message.value = r.code() ?: "line_task"
             if (r is NResult.Ok) {
                 _ui.update { it.copy(dirty = false) }
@@ -305,6 +343,8 @@ class NotizenNoteViewModel @Inject constructor(
             if (bytes.size > limit) { _message.value = "too_large"; return@launch }
             if (id == 0L) save()
             if (id == 0L) { _message.value = "save_first"; return@launch }
+            // pictures and files need the server (and a note it knows)
+            val sid = repo.serverId(id) ?: run { _message.value = "attach_offline"; return@launch }
             _ui.update { it.copy(saving = true) }
             val vid = u.vaultId
             val up: NResult<String>
@@ -316,7 +356,8 @@ class NotizenNoteViewModel @Inject constructor(
             } else {
                 up = repo.api.upload(bytes, mime)
             }
-            val r = if (up is NResult.Ok) repo.api.attach(NotizenJson.attachBody("note", id, up.value, if (vid == null) name else null, nameCipher)) else up.let { NResult.Failed(it.code() ?: "failed", 0) }
+            if (up is NResult.Offline) { _ui.update { it.copy(saving = false) }; _message.value = "attach_offline"; return@launch }
+            val r = if (up is NResult.Ok) repo.api.attach(NotizenJson.attachBody("note", sid, up.value, if (vid == null) name else null, nameCipher)) else up.let { NResult.Failed(it.code() ?: "failed", 0) }
             _ui.update { it.copy(saving = false) }
             if (r is NResult.Ok) {
                 val a: NAttachment = r.value

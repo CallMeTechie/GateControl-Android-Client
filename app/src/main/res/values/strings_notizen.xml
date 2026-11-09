@@ -21,6 +21,7 @@
     <string name="notizen_clear">Remove</string>
     <string name="notizen_color">Colour</string>
     <string name="notizen_conflict_mine">Keep mine</string>
+    <string name="notizen_conflict_task_text">The task was changed on another device meanwhile – the same details you changed. Yours overwrites it, the other one drops your change.</string>
     <string name="notizen_conflict_text">The note was changed on another device meanwhile. Yours overwrites it, the other one loads it again (copy your text first if you need it).</string>
     <string name="notizen_conflict_theirs">Load the other one</string>
     <string name="notizen_conflict_title">Changed elsewhere</string>
@@ -81,6 +82,7 @@
     <string name="notizen_menu">Open menu</string>
     <string name="notizen_more">More options</string>
     <string name="notizen_msg_approved">Device approved.</string>
+    <string name="notizen_msg_attach_offline">Pictures and attachments need a connection to the server.</string>
     <string name="notizen_msg_auth">Please confirm with your fingerprint or PIN.</string>
     <string name="notizen_msg_busy">Busy right now – try again in a moment.</string>
     <string name="notizen_msg_conflict">Changed elsewhere – please reload.</string>
@@ -93,9 +95,11 @@
     <string name="notizen_msg_dsnote_password">The password does not open the protected notes – they are skipped.</string>
     <string name="notizen_msg_failed">Did not work (%1$s).</string>
     <string name="notizen_msg_forbidden">You may not do that here.</string>
+    <string name="notizen_msg_gone">Not there any more – deleted or no longer shared.</string>
     <string name="notizen_msg_import_done">Move done.</string>
     <string name="notizen_msg_import_failed">The move failed.</string>
     <string name="notizen_msg_line_empty">This line has no text.</string>
+    <string name="notizen_msg_line_offline">Turning a line into a task needs a connection to the server.</string>
     <string name="notizen_msg_line_task">The line is a task now.</string>
     <string name="notizen_msg_list_created">List created.</string>
     <string name="notizen_msg_locked">The vault is locked.</string>
@@ -155,10 +159,11 @@
     <string name="notizen_note_hint">Add a note</string>
     <string name="notizen_notes_empty">No notes yet.</string>
     <string name="notizen_offline_hint">Offline – the last state is shown. Changing works once the server can be reached.</string>
+    <string name="notizen_offline_hint_edit">Offline – the last state is shown. What you change is sent once the server can be reached.</string>
     <string name="notizen_ok">OK</string>
     <string name="notizen_open_in">Open in %1$s</string>
     <string name="notizen_open_state">open</string>
-    <string name="notizen_pending_n">%1$d ticks wait for the connection.</string>
+    <string name="notizen_pending_n">%1$d changes wait for the connection.</string>
     <string name="notizen_picture_cd">Picture: %1$s</string>
     <string name="notizen_pictures_n">%1$d picture(s)</string>
     <string name="notizen_pin">Pin</string>
@@ -234,7 +239,9 @@
     <string name="notizen_stat_open">open tasks</string>
     <string name="notizen_subtask">Sub-task</string>
     <string name="notizen_subtasks_n">Sub-tasks %1$d/%2$d</string>
+    <string name="notizen_sync_conflict">Changed elsewhere</string>
     <string name="notizen_sync_error">sync error</string>
+    <string name="notizen_sync_pending">Not sent yet</string>
     <string name="notizen_tab">Tasks</string>
     <string name="notizen_table_col1">Column 1</string>
     <string name="notizen_table_col2">Column 2</string>

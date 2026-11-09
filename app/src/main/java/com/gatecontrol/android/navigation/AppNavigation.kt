@@ -1286,7 +1286,7 @@ fun AppNavigation(
             val target = pushTarget ?: return@LaunchedEffect
             if (!isSetupComplete) return@LaunchedEffect
             PushNavigation.consume(target)
-            openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive, plugins.mail)
+            openPushTarget(navController, target, navigateToTab, openTab, layout, plugins.familieTab, plugins.door, plugins.messengerTab, plugins.vault, plugins.drive, plugins.mail, plugins.notizen)
         }
 
         // After NavHost so the graph is set before navigating.
@@ -1320,8 +1320,20 @@ private fun openPushTarget(
     drive: Boolean = false,
     /** The Mail plugin is listed with its tab: a mail push opens the mail, a failed send the outbox. */
     mail: Boolean = false,
+    /** Notizen & Aufgaben is listed (installed, licensed, allowed): its pushes open the task, list, notebook or Tresor. */
+    notizen: Boolean = false,
 ) {
     when (target) {
+        // the tab first (Back leads there; it says itself when the plugin is missing or not licensed), then the page
+        is PushNavTarget.Notizen -> {
+            com.gatecontrol.android.notizen.NotizenDeepLink.request(com.gatecontrol.android.notizen.NotizenPush.decode(target.dest))
+            com.gatecontrol.android.notizen.NotizenPush.steps(target.dest, notizen).forEach { step ->
+                when (step) {
+                    com.gatecontrol.android.notizen.NotizenPush.Tab -> navigateToTab(NotizenRoutes.TAB)
+                    is com.gatecontrol.android.notizen.NotizenPush.Route -> navController.navigate(step.route) { launchSingleTop = true }
+                }
+            }
+        }
         is PushNavTarget.Mail -> {
             val message = com.gatecontrol.android.mail.MailPush.messageOf(target.dest)
             when {
