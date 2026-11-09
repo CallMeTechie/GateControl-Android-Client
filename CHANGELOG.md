@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.102.2] - 2026-11-09
+
+### Fixes
+- Seitenmenü in Drive und Aufgaben beginnt direkt unter der Statusleiste (#217)
+
+---
+
 ## [1.102.1] - 2026-11-09
 
 ### Fixes
