@@ -6,18 +6,28 @@ import kotlin.math.roundToInt
 
 /**
  * Version names and codes of the app. release.yml derives the code from
- * the name as `MAJOR*10000 + MINOR*100 + PATCH` (1.46.0 → 14600), so the
- * name of an update Play offers follows from its version code.
+ * the name as `MAJOR*10000 + MINOR*100 + PATCH` (1.46.0 → 14600). Since
+ * 1.100.0 the minor has three digits and the code runs on into what
+ * looked like 2.x: 1.100.0 → 20000, 1.102.0 → 20200. Every code shipped
+ * so far is a 1.x (release.yml refuses a code that is not larger than the
+ * last one, which a 2.0.0 would be), so a code reads as 1.x.y.
  */
 object UpdateVersions {
-    fun name(code: Int): String = "${code / 10000}.${code / 100 % 100}.${code % 100}"
+    private const val MAJOR = 1
 
-    /** "1.46.0" → 14600; null for anything that isn't three numbers (MINOR, PATCH < 100). */
+    /** 14600 → "1.46.0", 20200 → "1.102.0". */
+    fun name(code: Int): String {
+        if (code < MAJOR * 10000) return "${code / 10000}.${code / 100 % 100}.${code % 100}"
+        val rest = code - MAJOR * 10000
+        return "$MAJOR.${rest / 100}.${rest % 100}"
+    }
+
+    /** "1.46.0" → 14600, "1.102.0" → 20200; null for anything that isn't three numbers (PATCH < 100). */
     fun code(name: String): Int? {
         val parts = name.trim().split('.')
         if (parts.size != 3) return null
         val (major, minor, patch) = parts.map { it.toIntOrNull() ?: return null }
-        if (major < 0 || minor !in 0..99 || patch !in 0..99) return null
+        if (major < 0 || minor !in 0..9999 || patch !in 0..99) return null
         return major * 10000 + minor * 100 + patch
     }
 }

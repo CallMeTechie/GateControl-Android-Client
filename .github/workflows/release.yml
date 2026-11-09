@@ -161,6 +161,14 @@ jobs:
         run: |
           IFS='.' read -r MAJOR MINOR PATCH <<< "$NEW_VERSION"
           NEW_VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+          # Since 1.100.0 the minor has three digits (1.102.0 -> 20200): a 2.x would get a smaller code than the
+          # last 1.x, a patch of 100 the code of the next minor. Play needs a larger code, and the app reads every
+          # code as 1.x (UpdateVersions in UpdateLogic.kt).
+          OLD_VERSION_CODE=$(sed -n 's/^ *versionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts | head -1)
+          if [ "$MAJOR" != "1" ] || [ "$PATCH" -ge 100 ] || [ "$NEW_VERSION_CODE" -le "${OLD_VERSION_CODE:-0}" ]; then
+            echo "::error::versionCode $NEW_VERSION_CODE for $NEW_VERSION does not follow $OLD_VERSION_CODE: change the scheme in release.yml, play-promote.yml and UpdateVersions first"
+            exit 1
+          fi
           sed -i "s/versionName = \"[0-9]*\.[0-9]*\.[0-9]*\"/versionName = \"$NEW_VERSION\"/" app/build.gradle.kts
           sed -i "s/versionCode = [0-9]*/versionCode = $NEW_VERSION_CODE/" app/build.gradle.kts
           echo "Updated versionName=$NEW_VERSION versionCode=$NEW_VERSION_CODE"

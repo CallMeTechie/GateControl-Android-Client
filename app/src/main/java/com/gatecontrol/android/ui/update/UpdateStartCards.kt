@@ -402,7 +402,9 @@ private fun DoneCard(marker: PostUpdateMarker, viewModel: PlayUpdateViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(Modifier.weight(1f).semantics(mergeDescendants = true) { heading() }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.upd_done_label, UpdateVersions.name(marker.toCode)), style = UpdMonoLabel, color = UpdGradientLabel)
+                    // the installed version by its own name (the code alone is ambiguous since 1.100.0, see UpdateVersions)
+                    val name = if (marker.toCode == BuildConfig.VERSION_CODE) BuildConfig.VERSION_NAME else UpdateVersions.name(marker.toCode)
+                    Text(stringResource(R.string.upd_done_label, name), style = UpdMonoLabel, color = UpdGradientLabel)
                     Text(stringResource(R.string.upd_done_title), style = updTitleStyle(20f), color = Color.White)
                 }
                 // 36 dp circle inside a 48 dp target.

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -116,7 +115,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
     val kinds = listOf("date", "time", "repeat", "important", "list", "person")
     val colors = kinds.associateWith { markColor(it) }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
+        Column(Modifier.fillMaxSize().imePadding()) {
             GcSubpageBar(stringResource(R.string.notizen_quick_title), nav.back, stringResource(R.string.notizen_back))
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 GcSegmented(listOf(false to stringResource(R.string.notizen_quick_task), true to stringResource(R.string.notizen_quick_note)), ui.note, vm::setNote)
