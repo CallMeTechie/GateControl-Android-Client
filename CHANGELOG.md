@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.102.0] - 2026-11-09
+
+### Features
+- Menü wie in Drive, Listen bearbeiten, teilen und löschen, Einkaufstag in „Mein Tag“ (#213)
+
+---
+
 ## [1.101.0] - 2026-11-09
 
 ### Features
