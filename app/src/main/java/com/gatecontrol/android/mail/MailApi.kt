@@ -49,6 +49,8 @@ class MailApi @Inject constructor(
         private const val TIMEOUT_MS = 25_000L
         /** Adding an account checks IMAP and SMTP first; the server's own time-outs are 30 s each. */
         private const val ACCOUNT_TIMEOUT_MS = 75_000L
+        /** A bulk action on up to 500 mails talks to the provider: more time than a list. */
+        private const val BULK_TIMEOUT_MS = 60_000L
         private const val UPLOAD_TIMEOUT_MS = 30 * 60_000L
         private const val IMAGE_TIMEOUT_MS = 20_000L
         private const val IMAGE_MAX_BYTES = 6L * 1024 * 1024
@@ -155,8 +157,15 @@ class MailApi @Inject constructor(
     /** `GET me` with the raw answer (kept for offline). */
     suspend fun me(): MResult<Pair<MMe, JsonObject>> = get("me") { o -> MailJson.me(o)?.let { it to o } }
 
-    suspend fun putSettings(threads: Boolean? = null, swipeLeft: String? = null, swipeRight: String? = null): MResult<MSettings> =
-        put("settings", MailJson.settingsBody(threads, swipeLeft, swipeRight), MailJson::settingsAnswer)
+    /** `PUT settings`; [v2]: the server has `swipeV2` (Mail 1.13, [MailJson.settingsBody]). */
+    suspend fun putSettings(
+        threads: Boolean? = null,
+        swipeLeft: String? = null,
+        swipeRight: String? = null,
+        confirmDelete: Boolean? = null,
+        v2: Boolean = false,
+    ): MResult<MSettings> =
+        put("settings", MailJson.settingsBody(threads, swipeLeft, swipeRight, confirmDelete, v2), MailJson::settingsAnswer)
 
     suspend fun providers(): MResult<List<MProvider>> = getAny("providers", MailJson::providers)
 
@@ -200,6 +209,22 @@ class MailApi @Inject constructor(
     suspend fun junk(ids: Collection<Long>): MResult<List<MSummary>> = post("messages/junk", MailJson.idsBody(ids), parse = MailJson::changedItems)
 
     suspend fun setTab(ids: Collection<Long>, tab: String): MResult<List<MSummary>> = post("messages/tab", MailJson.tabBody(ids, tab), parse = MailJson::changedItems)
+
+    /**
+     * A bulk action on at most [MailBulk.MAX_IDS] mails with the whole answer (Mail 1.13: count, undo, purged):
+     * [action] is one of [MailBulk.PATHS] (`flags`, `move`, `copy`, `archive`, `delete`, `junk`, `tab`).
+     */
+    suspend fun bulk(action: String, body: JsonObject): MResult<MBulkDone> {
+        val path = action.takeIf { it in MailBulk.PATHS } ?: return MResult.Failed(CODE_INVALID, 0)
+        return post("messages/$path", body, timeoutMs = BULK_TIMEOUT_MS, parse = MailJson::bulkDone)
+    }
+
+    /** `POST messages/undo { token }` (Mail 1.13 `undo`). */
+    suspend fun undo(token: String): MResult<MUndone> = post("messages/undo", MailJson.undoBody(token), timeoutMs = BULK_TIMEOUT_MS, parse = MailJson::undone)
+
+    /** `GET messages/ids` (Mail 1.13 `bulkAll`): every mail of a list, the query as for `GET messages` (no cursor). */
+    suspend fun messageIds(query: Map<String, String>): MResult<MIds> =
+        get("messages/ids", query - setOf("before", "limit", "cursor"), MailJson::messageIds)
 
     suspend fun attachmentMedia(messageId: Long, attachmentId: Long): MResult<MAttachmentMedia> =
         get("messages/$messageId/attachments/$attachmentId", parse = MailJson::attachmentMedia)

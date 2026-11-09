@@ -41,7 +41,9 @@ class MailJsonTest {
         assertEquals(mapOf(3L to 2), me.unreadByAccount)
         assertFalse(me.settings.threads)
         assertEquals("delete", me.settings.swipeLeft)
-        assertEquals(MSettings.DEFAULT.swipeRight, me.settings.swipeRight, "an unknown swipe falls back")
+        // an action the app does not know does nothing (it never archives what the person did not choose)
+        assertEquals(MSettings.SWIPE_NONE, me.settings.swipeRight, "an unknown swipe does nothing")
+        assertFalse(me.settings.confirmDelete)
     }
 
     @Test

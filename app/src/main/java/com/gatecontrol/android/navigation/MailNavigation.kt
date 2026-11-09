@@ -20,6 +20,7 @@ import com.gatecontrol.android.ui.mail.MailSearchScreen
 import com.gatecontrol.android.ui.mail.MailSenderNav
 import com.gatecontrol.android.ui.mail.MailSenderScreen
 import com.gatecontrol.android.ui.mail.MailSettingsScreen
+import com.gatecontrol.android.ui.mail.MailSwipeScreen
 import com.gatecontrol.android.ui.mail.calendar.BookingRequestsScreen
 import com.gatecontrol.android.ui.mail.calendar.EventNav
 import com.gatecontrol.android.ui.mail.calendar.InviteNav
@@ -159,8 +160,12 @@ internal fun NavGraphBuilder.mailRoutes(
                 onBack = back,
                 onAccount = { go(Screen.MailAccount.create(it)) },
                 onAdd = { go(Screen.MailAddAccount.create()) },
+                onSwipe = { go(Screen.MailSwipe.route) },
             )
         }
+    }
+    composable(Screen.MailSwipe.route) {
+        GcContentWidth { MailSwipeScreen(onBack = back) }
     }
     composable(Screen.MailAccount.route, arguments = listOf(navArgument(Screen.MailAccount.ARG_ID) { type = NavType.StringType })) {
         GcContentWidth { MailAccountScreen(onBack = back, onRelogin = { go(Screen.MailAddAccount.create(it)) }) }

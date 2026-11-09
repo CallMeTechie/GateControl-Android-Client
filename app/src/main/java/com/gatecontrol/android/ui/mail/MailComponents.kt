@@ -24,6 +24,8 @@ import com.gatecontrol.android.mail.MailEntryPoint
 import com.gatecontrol.android.ui.scan.scanCodeText
 import dagger.hilt.android.EntryPointAccessors
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +56,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,6 +68,7 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.gatecontrol.android.R
 import com.gatecontrol.android.mail.MAccount
+import com.gatecontrol.android.mail.MSettings
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MTodo
 import com.gatecontrol.android.mail.MailLogic
@@ -91,6 +96,12 @@ internal object MailIcons {
     val Pen: ImageVector by lazy { GcIcons.fromPath("MailPen", "M4 20h4l10-10-4-4L4 16z") }
     val Outbox: ImageVector by lazy { GcIcons.fromPath("MailOutbox", "M12 15V3m0 0-4 4m4-4 4 4M3 13h5l2 3h4l2-3h5v6H3z") }
     val Unread: ImageVector by lazy { GcIcons.fromPath("MailUnread", "M3 5h18v14H3zM3 7l9 6 9-6") }
+    /** An opened envelope: "Als gelesen markieren". */
+    val Read: ImageVector by lazy { GcIcons.fromPath("MailRead", "M3 10.5 12 4l9 6.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 10.5l9 6 9-6") }
+    /** Arrows both ways: "Wischen". */
+    val Swipe: ImageVector by lazy { GcIcons.fromPath("MailSwipe", "M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4") }
+    /** A crossed-out circle: a swipe that does nothing. */
+    val None: ImageVector by lazy { GcIcons.fromPath("MailNone", "M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17zM6 6l12 12") }
 }
 
 /** The account's color (`#RRGGBB`), else a neutral one. */
@@ -245,20 +256,40 @@ internal fun SenderAvatar(name: String?, email: String, color: Color, size: Dp =
 /** What a swipe does on a mail row (its color, icon and label). */
 internal data class SwipeSpec(val action: String, val label: String, val icon: ImageVector, val color: Color)
 
+/**
+ * The look of a swipe action (the list and the settings' preview): archive in the accent, delete in the error color,
+ * read / unread blue, flag warn, move purple, spam muted (Mail 1.13 mockup "Wischen").
+ */
 @Composable
-internal fun swipeSpec(action: String?, unread: Boolean): SwipeSpec? {
+internal fun swipeLook(action: String): Pair<ImageVector, Color> {
     val extra = GateControlTheme.extraColors
-    return when (MailLogic.swipe(action)) {
-        MailLogic.SWIPE_ARCHIVE -> SwipeSpec(MailLogic.SWIPE_ARCHIVE, stringResource(R.string.mail_archive), GcIcons.Archive, extra.accentText)
-        MailLogic.SWIPE_DELETE -> SwipeSpec(MailLogic.SWIPE_DELETE, stringResource(R.string.mail_delete), GcIcons.Trash, MaterialTheme.colorScheme.error)
-        MailLogic.SWIPE_READ -> SwipeSpec(
-            MailLogic.SWIPE_READ,
-            stringResource(if (unread) R.string.mail_mark_read else R.string.mail_mark_unread),
-            MailIcons.Unread,
-            extra.blue,
-        )
-        else -> null
+    return when (action) {
+        MSettings.SWIPE_ARCHIVE -> GcIcons.Archive to extra.accentText
+        MSettings.SWIPE_DELETE -> GcIcons.Trash to MaterialTheme.colorScheme.error
+        MSettings.SWIPE_READ -> MailIcons.Unread to extra.blue
+        MSettings.SWIPE_FLAG -> GcIcons.Flag to extra.warn
+        MSettings.SWIPE_MOVE -> GcIcons.FolderMove to extra.pro
+        MSettings.SWIPE_JUNK -> GcIcons.ShieldX to extra.muted
+        else -> MailIcons.None to extra.faint
     }
+}
+
+/** What a swipe set to [action] does on a mail ([unread], [flagged]: the label says which way); null: nothing. */
+@Composable
+internal fun swipeSpec(action: String?, unread: Boolean, flagged: Boolean = false): SwipeSpec? {
+    val a = MailLogic.swipe(action) ?: return null
+    val (icon, color) = swipeLook(a)
+    val label = stringResource(
+        when (a) {
+            MSettings.SWIPE_ARCHIVE -> R.string.mail_archive
+            MSettings.SWIPE_DELETE -> R.string.mail_delete
+            MSettings.SWIPE_READ -> if (unread) R.string.mail_mark_read else R.string.mail_mark_unread
+            MSettings.SWIPE_FLAG -> if (flagged) R.string.mail_unflag else R.string.mail_flag
+            MSettings.SWIPE_MOVE -> R.string.mail_swipe_move
+            else -> R.string.mail_more_junk
+        },
+    )
+    return SwipeSpec(a, label, icon, color)
 }
 
 /**
@@ -288,12 +319,14 @@ internal fun SwipeRow(
         val x = offset.value
         val spec = if (x < 0) left else if (x > 0) right else null
         if (spec != null) {
+            // past a third of the width (letting go acts): the color stronger, the icon a little bigger
+            val past = abs(x) > width[0] / 3f
             Row(
-                Modifier.matchParentSize().background(spec.color.copy(alpha = 0.18f)).padding(horizontal = 20.dp),
+                Modifier.matchParentSize().background(spec.color.copy(alpha = if (past) 0.30f else 0.18f)).padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = if (x < 0) Arrangement.End else Arrangement.Start,
             ) {
-                Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(20.dp))
+                Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(if (past) 24.dp else 20.dp))
                 Text(spec.label, color = spec.color, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
             }
         }
@@ -332,7 +365,11 @@ internal fun SwipeRow(
     }
 }
 
-/** One mail in a list (mockup "Posteingang"): avatar, dot, sender, time, subject, snippet. */
+/**
+ * One mail in a list (mockup "Posteingang"): avatar, dot, sender, time, subject, snippet. While [selecting] (Mail 1.13
+ * "Mehrfachauswahl") a ticked mail shows a check in place of its avatar and the accent behind it, the others a small
+ * ring on the avatar; a tap on the avatar ([onAvatar]) ticks it (also before the selection started).
+ */
 @Composable
 internal fun MailRow(
     item: MSummary,
@@ -341,20 +378,42 @@ internal fun MailRow(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    selecting: Boolean = false,
+    onAvatar: (() -> Unit)? = null,
 ) {
     val extra = GateControlTheme.extraColors
     val color = accountColor(account)
     val weight = if (item.unread) FontWeight.Bold else FontWeight.Medium
-    val longLabel = stringResource(R.string.mail_actions)
+    val longLabel = stringResource(if (selecting) R.string.mail_sel_select else R.string.mail_actions)
+    val state = if (selecting) stringResource(if (selected) R.string.drive_sel_selected else R.string.drive_sel_not_selected) else null
     Row(
         modifier
             .fillMaxWidth()
             .background(if (selected) extra.accentBg else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = longLabel)
+            .semantics { if (state != null) stateDescription = state }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SenderAvatar(item.from.name, item.from.email, color)
+        val pick = stringResource(R.string.mail_sel_select)
+        Box(
+            if (onAvatar != null) Modifier.clip(CircleShape).clickable(role = Role.Checkbox, onClickLabel = pick, onClick = onAvatar) else Modifier,
+        ) {
+            when {
+                selected -> Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                    Icon(GcIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(22.dp))
+                }
+                else -> {
+                    SenderAvatar(item.from.name, item.from.email, color)
+                    if (selecting) {
+                        Box(
+                            Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 3.dp).size(16.dp).clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.background).border(2.dp, extra.muted, CircleShape),
+                        )
+                    }
+                }
+            }
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 MailDot(color)

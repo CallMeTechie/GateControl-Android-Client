@@ -10,7 +10,6 @@ import com.gatecontrol.android.mail.MFilingItem
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MOutboxItem
 import com.gatecontrol.android.mail.MResult
-import com.gatecontrol.android.mail.MSettings
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MailDisplaySettings
 import com.gatecontrol.android.mail.MailJson
@@ -163,9 +162,23 @@ class MailSearchViewModel @Inject constructor(private val repository: MailReposi
     )
 
     val me: StateFlow<MMe?> = repository.me
+    val folders: StateFlow<Map<Long, List<com.gatecontrol.android.mail.MFolder>>> = repository.folders
+    val recentFolders: StateFlow<List<Long>> = repository.recentFolders
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
     private var job: Job? = null
+
+    /**
+     * Several mails of the results at once (Mail 1.13): "Alle" ticks the results loaded; the mails stay single
+     * (no conversations); after an action the search runs again.
+     */
+    internal val bulk = MailBulkActions(
+        scope = viewModelScope,
+        repository = repository,
+        items = { _state.value.items },
+        setItems = { f -> _state.update { it.copy(items = f(it.items)) } },
+        changed = { search(quiet = true) },
+    )
 
     fun setQuery(q: String) {
         _state.update { it.copy(query = q) }
@@ -195,18 +208,22 @@ class MailSearchViewModel @Inject constructor(private val repository: MailReposi
         cursor?.let { put("cursor", it) }
     }
 
-    private fun search() {
+    private fun search(quiet: Boolean = false) {
         job?.cancel()
+        if (!quiet) bulk.clear()
         val s = _state.value
         if (s.query.trim().length < 2 && !s.unread && !s.attachments) {
             _state.update { it.copy(items = emptyList(), next = null, busy = false, error = null) }
             return
         }
         job = viewModelScope.launch {
-            delay(350)
+            if (!quiet) delay(350)
             _state.update { it.copy(busy = true) }
             when (val r = repository.api.search(query(_state.value, null))) {
-                is MResult.Ok -> _state.update { it.copy(items = r.value.items, next = r.value.next, remote = r.value.remote, busy = false, error = null) }
+                is MResult.Ok -> {
+                    _state.update { it.copy(items = r.value.items, next = r.value.next, remote = r.value.remote, busy = false, error = null) }
+                    bulk.onListChanged()
+                }
                 else -> _state.update { it.copy(busy = false, error = MailHomeViewModel.code(r)) }
             }
         }
@@ -285,18 +302,10 @@ class MailSettingsViewModel @Inject constructor(
         }
     }
 
-    fun put(threads: Boolean? = null, swipeLeft: String? = null, swipeRight: String? = null) {
-        val me = repository.me.value ?: return
-        // at once on the screen
-        repository.setMe(me.copy(settings = me.settings.copy(threads = threads ?: me.settings.threads, swipeLeft = swipeLeft ?: me.settings.swipeLeft, swipeRight = swipeRight ?: me.settings.swipeRight)))
+    /** A list setting (`PUT settings`): at once on the screen, back with a toast when the server says no. */
+    fun put(threads: Boolean? = null, swipeLeft: String? = null, swipeRight: String? = null, confirmDelete: Boolean? = null) {
         viewModelScope.launch {
-            when (val r = repository.api.putSettings(threads, swipeLeft, swipeRight)) {
-                is MResult.Ok -> repository.me.value?.let { repository.setMe(it.copy(settings = r.value)) }
-                else -> {
-                    repository.setMe(me)
-                    _toast.value = mailText(context, MailHomeViewModel.code(r))
-                }
-            }
+            repository.putSettings(threads, swipeLeft, swipeRight, confirmDelete)?.let { _toast.value = mailText(context, it) }
         }
     }
 
@@ -370,7 +379,4 @@ class MailAccountViewModel @Inject constructor(
         _toast.value = null
     }
 
-    companion object {
-        val SWIPES = MSettings.SWIPES
-    }
 }

@@ -102,6 +102,55 @@ class MailRepository @Inject constructor(
         scope.launch { cache.putFolderFolds(_folderFolds.value) }
     }
 
+    /** "Zuletzt" of the folder picker: the folders moved or copied into last (kept on the device). */
+    private val _recentFolders = MutableStateFlow<List<Long>>(emptyList())
+    val recentFolders: StateFlow<List<Long>> = _recentFolders.asStateFlow()
+    @Volatile private var recentChanged = false
+
+    /** A folder moved or copied into: in front of "Zuletzt". */
+    fun useFolder(folderId: Long) {
+        recentChanged = true
+        _recentFolders.update { MailBulk.recent(it, folderId) }
+        scope.launch { cache.putRecentFolders(_recentFolders.value) }
+    }
+
+    /**
+     * `PUT settings` (only the given fields): at once in [me], back when the server says no. The swipes go as Mail
+     * 1.13's `swipe { left, right }` when the server has `swipeV2`, else as the old fields. The failure's code, null when saved.
+     */
+    suspend fun putSettings(
+        threads: Boolean? = null,
+        swipeLeft: String? = null,
+        swipeRight: String? = null,
+        confirmDelete: Boolean? = null,
+    ): String? {
+        val me = _me.value ?: return "not_configured"
+        val v2 = me.has(MMe.FEATURE_SWIPE_V2)
+        val s = me.settings
+        _me.value = me.copy(
+            settings = s.copy(
+                threads = threads ?: s.threads,
+                swipeLeft = swipeLeft ?: s.swipeLeft,
+                swipeRight = swipeRight ?: s.swipeRight,
+                confirmDelete = confirmDelete?.takeIf { v2 } ?: s.confirmDelete,
+            ),
+        )
+        return when (val r = api.putSettings(threads, swipeLeft, swipeRight, confirmDelete, v2)) {
+            is MResult.Ok -> {
+                _me.value?.let { _me.value = it.copy(settings = r.value) }
+                null
+            }
+            else -> {
+                _me.value?.let { _me.value = it.copy(settings = s) }
+                when (r) {
+                    is MResult.Failed -> r.code
+                    MResult.Offline -> MailApi.CODE_OFFLINE
+                    else -> "not_configured"
+                }
+            }
+        }
+    }
+
     @Volatile private var meAt = 0L
     private var refreshJob: Job? = null
 
@@ -110,6 +159,7 @@ class MailRepository @Inject constructor(
             if (_me.value == null) cache.me()?.let { if (_me.value == null) _me.value = it }
             if (_folders.value.isEmpty()) cache.folders()?.let { if (_folders.value.isEmpty()) _folders.value = it }
             cache.folderFolds()?.let { if (!folderFoldsChanged) _folderFolds.value = it }
+            cache.recentFolders()?.let { if (!recentChanged) _recentFolders.value = it }
         }
     }
 
@@ -193,6 +243,7 @@ class MailRepository @Inject constructor(
         _me.value = null
         _folders.value = emptyMap()
         _folderFolds.value = emptyMap()
+        _recentFolders.value = emptyList()
         _undo.value = null
         pim.forget()
         cache.wipe()

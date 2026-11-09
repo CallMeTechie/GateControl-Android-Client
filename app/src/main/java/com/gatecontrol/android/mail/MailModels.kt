@@ -53,6 +53,16 @@ data class MMe(
         const val FEATURE_SHARING = "calendarSharing"
         const val FEATURE_RESOURCES = "resources"
         const val FEATURE_BOOKING_REQUESTS = "bookingRequests"
+        /** Since Mail 1.13.0: `POST messages/copy`. */
+        const val FEATURE_COPY = "copy"
+        /** Since Mail 1.13.0: `settings.swipe { left, right }` with seven actions and `settings.confirmDelete`. */
+        const val FEATURE_SWIPE_V2 = "swipeV2"
+        /** Since Mail 1.13.0: the bulk answers carry `undo`, `POST messages/undo`. */
+        const val FEATURE_UNDO = "undo"
+        /** Since Mail 1.13.0: `GET messages/ids` (every mail of a list, "Alle"), bulk calls with `all: true`. */
+        const val FEATURE_BULK_ALL = "bulkAll"
+        /** Since Mail 1.13.0: bulk calls with `threads: true` (the whole conversation in the folder). */
+        const val FEATURE_THREAD_SCOPE = "threadScope"
     }
 }
 
@@ -67,14 +77,25 @@ data class MMicrosoft(
     val adminConsentUrl: String? = null,
 )
 
-/** The person's list settings (`PUT settings`). */
-data class MSettings(val threads: Boolean, val swipeLeft: String, val swipeRight: String) {
+/**
+ * The person's list settings (`PUT settings`). [swipeLeft] / [swipeRight] are the actions as the app uses them: since
+ * Mail 1.13 (`swipeV2`) the full ones of `settings.swipe` ([SWIPES_V2]), before the old four ([SWIPES]).
+ * [confirmDelete] (Mail 1.13): ask before deleting (swipe and several mails); off: delete at once with "Rückgängig".
+ */
+data class MSettings(val threads: Boolean, val swipeLeft: String, val swipeRight: String, val confirmDelete: Boolean = false) {
     companion object {
         const val SWIPE_ARCHIVE = "archive"
         const val SWIPE_DELETE = "delete"
         const val SWIPE_READ = "read"
         const val SWIPE_NONE = "none"
+        /** Mail 1.13 (`swipeV2`): flag or unflag, choose a folder, into spam. */
+        const val SWIPE_FLAG = "flag"
+        const val SWIPE_MOVE = "move"
+        const val SWIPE_JUNK = "junk"
+        /** The old four (`swipeLeft` / `swipeRight`, every server). */
         val SWIPES = listOf(SWIPE_ARCHIVE, SWIPE_DELETE, SWIPE_READ, SWIPE_NONE)
+        /** The seven of `settings.swipe` (Mail 1.13), in the order of the settings page. */
+        val SWIPES_V2 = listOf(SWIPE_ARCHIVE, SWIPE_DELETE, SWIPE_READ, SWIPE_FLAG, SWIPE_MOVE, SWIPE_JUNK, SWIPE_NONE)
         val DEFAULT = MSettings(threads = true, swipeLeft = SWIPE_ARCHIVE, swipeRight = SWIPE_READ)
     }
 }
@@ -426,3 +447,26 @@ data class MChanged(
     /** Mail 1.8: the scan of an attachment of this draft changed. */
     val draftId: Long? = null,
 )
+
+/**
+ * The answer of a bulk action (`messages/flags|move|copy|archive|delete|junk|tab`): the mails as they lie now
+ * ([items], in their new folder), since Mail 1.13 also how many there were ([count], after `threads`), their ids
+ * before ([ids]), the token to take it back ([undo], move/copy/archive/delete/junk) and the mails deleted for good
+ * ([purged], they lay in the trash).
+ */
+data class MBulkDone(
+    val items: List<MSummary>,
+    val count: Int,
+    val ids: List<Long>,
+    val undo: MBulkUndo?,
+    val purged: List<Long>,
+)
+
+/** `undo` of a bulk answer (Mail 1.13): `POST messages/undo { token }` within two minutes. */
+data class MBulkUndo(val token: String, val kind: String, val count: Int, val expiresAt: Long?)
+
+/** `POST messages/undo`: how many came back (copies: deleted), how many not, the mails as they lie again. */
+data class MUndone(val kind: String?, val restored: Int, val failed: Int, val items: List<MSummary>)
+
+/** `GET messages/ids` (Mail 1.13): the ids of every mail of a list, newest first, at most [max]. */
+data class MIds(val ids: List<Long>, val total: Int, val max: Int, val truncated: Boolean)

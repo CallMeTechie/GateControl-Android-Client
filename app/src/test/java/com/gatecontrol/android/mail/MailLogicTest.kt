@@ -48,9 +48,12 @@ class MailLogicTest {
     }
 
     @Test
-    fun `swipes - only archive, delete and read act`() {
+    fun `swipes - the seven actions act, none and unknown ones do nothing`() {
         assertEquals("archive", MailLogic.swipe("archive"))
         assertEquals("read", MailLogic.swipe("read"))
+        assertEquals("flag", MailLogic.swipe("flag"))
+        assertEquals("move", MailLogic.swipe("move"))
+        assertEquals("junk", MailLogic.swipe("junk"))
         assertNull(MailLogic.swipe("none"))
         assertNull(MailLogic.swipe(null))
         assertNull(MailLogic.swipe("explode"))
