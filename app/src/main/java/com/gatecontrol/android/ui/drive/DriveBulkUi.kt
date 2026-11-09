@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -82,11 +81,15 @@ import com.gatecontrol.android.drive.DriveBulk
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.DriveOps
 import com.gatecontrol.android.ui.components.GcBanner
+import com.gatecontrol.android.ui.components.GcBarAction
+import com.gatecontrol.android.ui.components.GcMoreRow
+import com.gatecontrol.android.ui.components.GcSelectCheck
+import com.gatecontrol.android.ui.components.GcSelectionActionBar
+import com.gatecontrol.android.ui.components.GcSelectionHead
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
-import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
@@ -177,93 +180,28 @@ private fun bulkDay(iso: String?): String? = iso?.let {
 
 /**
  * The bar on top while items are ticked: ✕ (ends the selection), "N ausgewählt" with [line] below (the summary, or a
- * hint), "Alle" / "Keine" on the right ([onAll], none without it).
+ * hint), "Alle" / "Keine" on the right ([onAll], none without it). Shared with Mail ([GcSelectionHead]).
  */
 @Composable
-internal fun SelectionHead(count: Int, line: String?, allSelected: Boolean, onClose: () -> Unit, onAll: (() -> Unit)?) {
-    val x = GateControlTheme.extraColors
-    Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        GcIconButton(GcIcons.Close, contentDescription = stringResource(R.string.drive_sel_end), onClick = onClose, tint = MaterialTheme.colorScheme.onSurface)
-        Column(Modifier.weight(1f).padding(start = 4.dp)) {
-            Text(
-                pluralStringResource(R.plurals.drive_sel_count, count, count),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                // TalkBack says the new count when it changes
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; heading() },
-            )
-            // one line: the head is as high whatever it says (SelectionSwap keeps the page below in place)
-            if (!line.isNullOrBlank()) Text(line, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (onAll != null) {
-            val desc = stringResource(if (allSelected) R.string.drive_sel_none_desc else R.string.drive_sel_all_desc)
-            TextButton(onClick = onAll, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = desc }) {
-                Text(stringResource(if (allSelected) R.string.drive_sel_none else R.string.drive_sel_all), color = x.accentText, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
+internal fun SelectionHead(count: Int, line: String?, allSelected: Boolean, onClose: () -> Unit, onAll: (() -> Unit)?) =
+    GcSelectionHead(count = count, line = line, allSelected = allSelected, onClose = onClose, onAll = onAll)
 
 /** An action of the bar below a selection; [can] greys it out (a tap then says why). */
 internal data class BarAction(val icon: ImageVector, val label: String, val can: DriveBulk.Can, val danger: Boolean = false, val onClick: () -> Unit)
 
-/** The bar below a selection (in place of the round plus): icon over a short label, each ≥ 56 dp high. */
+/** The bar below a selection (in place of the round plus): icon over a short label, each ≥ 56 dp high ([GcSelectionActionBar]). */
 @Composable
 internal fun SelectionActionBar(actions: List<BarAction>, modifier: Modifier = Modifier) {
-    val x = GateControlTheme.extraColors
-    val context = LocalContext.current
-    val barLabel = stringResource(R.string.drive_sel_actions)
-    Column(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).semantics { contentDescription = barLabel }) {
-        GcRowDivider()
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            actions.forEach { a ->
-                val why = whyText(a.can.why)
-                val tint = when {
-                    !a.can.ok -> x.faint
-                    a.danger -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.onSurface
-                }
-                val unavailable = why?.let { stringResource(R.string.drive_sel_unavailable, a.label, it) }
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .heightIn(min = 56.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(role = Role.Button, onClickLabel = a.label) {
-                            if (a.can.ok) a.onClick() else if (why != null) Toast.makeText(context, why, Toast.LENGTH_SHORT).show()
-                        }
-                        .semantics { if (unavailable != null) stateDescription = unavailable }
-                        .padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Icon(a.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-                    Text(a.label, style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                }
-            }
-        }
-    }
+    GcSelectionActionBar(
+        actions.map { a -> GcBarAction(a.icon, a.label, enabled = a.can.ok, why = whyText(a.can.why), danger = a.danger, onClick = a.onClick) },
+        modifier,
+    )
 }
 
-/** The round tick of a row or tile while selecting: empty, or filled with a check. */
+/** The round tick of a row or tile while selecting: empty, or filled with a check ([GcSelectCheck]). */
 @Composable
-internal fun SelectCheck(selected: Boolean, modifier: Modifier = Modifier, onImage: Boolean = false) {
-    val x = GateControlTheme.extraColors
-    val accent = MaterialTheme.colorScheme.primary
-    Box(
-        modifier
-            .size(24.dp)
-            .clip(CircleShape)
-            .background(if (selected) accent else if (onImage) Color.Black.copy(alpha = 0.25f) else Color.Transparent)
-            .border(2.dp, if (selected) accent else if (onImage) Color.White else x.muted, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (selected) Icon(GcIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
-    }
-}
+internal fun SelectCheck(selected: Boolean, modifier: Modifier = Modifier, onImage: Boolean = false) =
+    GcSelectCheck(selected, modifier, onImage)
 
 /** "neu hier" next to an item that just arrived. */
 @Composable
@@ -365,29 +303,15 @@ internal fun BulkMoreSheet(
 
 @Composable
 private fun MoreRow(item: MoreItem, onDismiss: () -> Unit) {
-    val x = GateControlTheme.extraColors
     val enabled = item.can.ok
     // "Nur bei einem Element" says it already as the section's label
     val why = item.can.why?.takeIf { it != DriveBulk.Why.ONLY_ONE }?.let { whyText(it) }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(enabled = enabled, role = Role.Button) { onDismiss(); item.onClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        GcIconSquare(size = 40.dp, background = x.panel2) {
-            Icon(item.icon, contentDescription = null, tint = if (enabled) MaterialTheme.colorScheme.onSurface else x.faint, modifier = Modifier.size(20.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(item.title, style = MaterialTheme.typography.bodyLarge, color = if (enabled) MaterialTheme.colorScheme.onSurface else x.faint)
-            val d = if (enabled) item.description else why ?: item.description
-            if (!d.isNullOrBlank()) Text(d, style = MaterialTheme.typography.bodySmall, color = if (enabled) x.muted else x.faint)
-        }
-    }
+    GcMoreRow(
+        icon = item.icon,
+        title = item.title,
+        description = if (enabled) item.description else why ?: item.description,
+        enabled = enabled,
+    ) { onDismiss(); item.onClick() }
 }
 
 // ─── choosing the target ────────────────────────────────────────────

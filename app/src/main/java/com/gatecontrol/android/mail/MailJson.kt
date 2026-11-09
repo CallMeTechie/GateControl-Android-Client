@@ -128,11 +128,25 @@ object MailJson {
         )
     }
 
-    fun settings(o: JsonObject): MSettings = MSettings(
-        threads = o.bool("threads") ?: MSettings.DEFAULT.threads,
-        swipeLeft = o.str("swipeLeft")?.takeIf { it in MSettings.SWIPES } ?: MSettings.DEFAULT.swipeLeft,
-        swipeRight = o.str("swipeRight")?.takeIf { it in MSettings.SWIPES } ?: MSettings.DEFAULT.swipeRight,
-    )
+    /**
+     * `settings`: since Mail 1.13 the full swipe actions of `swipe { left, right }` (they win), else the old
+     * `swipeLeft` / `swipeRight`. A value missing falls back to the default; one the app does not know does nothing
+     * (`none`) — never something the person did not choose.
+     */
+    fun settings(o: JsonObject): MSettings {
+        val swipe = o.obj("swipe")
+        fun side(v2: String, legacy: String, default: String): String {
+            swipe?.str(v2)?.let { return if (it in MSettings.SWIPES_V2) it else MSettings.SWIPE_NONE }
+            val old = o.str(legacy) ?: return default
+            return if (old in MSettings.SWIPES) old else MSettings.SWIPE_NONE
+        }
+        return MSettings(
+            threads = o.bool("threads") ?: MSettings.DEFAULT.threads,
+            swipeLeft = side("left", "swipeLeft", MSettings.DEFAULT.swipeLeft),
+            swipeRight = side("right", "swipeRight", MSettings.DEFAULT.swipeRight),
+            confirmDelete = o.bool("confirmDelete") ?: false,
+        )
+    }
 
     /** `{ settings }` of `PUT settings`. */
     fun settingsAnswer(o: JsonObject): MSettings? = o.obj("settings")?.let(::settings)
@@ -293,6 +307,53 @@ object MailJson {
 
     /** `{ ok, items? }` of the bulk actions: the changed summaries (empty when the server sends none). */
     fun changedItems(o: JsonObject): List<MSummary> = summaries(o.arr("items"))
+
+    private fun JsonArray.ids(): List<Long> = mapNotNull { e ->
+        e.takeIf { it.isJsonPrimitive }?.asJsonPrimitive?.let { p -> if (p.isNumber) p.asDouble.takeIf { d -> d % 1.0 == 0.0 }?.toLong() else p.asString.toLongOrNull() }
+            ?.takeIf { it > 0 }
+    }.distinct()
+
+    /**
+     * A bulk answer (`{ ok, items, count?, ids?, undo?, purged? }`, the last four since Mail 1.13). Without `count`
+     * the changed items count; an `undo` without a valid token is none.
+     */
+    fun bulkDone(o: JsonObject): MBulkDone {
+        val items = summaries(o.arr("items"))
+        val ids = o.arr("ids")?.ids().orEmpty()
+        return MBulkDone(
+            items = items,
+            count = o.int("count")?.coerceAtLeast(0) ?: ids.size.takeIf { it > 0 } ?: items.size,
+            ids = ids,
+            undo = o.obj("undo")?.let(::bulkUndo),
+            purged = o.arr("purged")?.ids().orEmpty(),
+        )
+    }
+
+    private val UNDO_TOKEN = Regex("^[A-Za-z0-9_-]{1,64}$")
+
+    fun bulkUndo(o: JsonObject): MBulkUndo? {
+        val token = o.str("token")?.takeIf { UNDO_TOKEN.matches(it) } ?: return null
+        return MBulkUndo(token, o.str("kind").orEmpty(), o.int("count")?.coerceAtLeast(0) ?: 0, o.long("expiresAt")?.takeIf { it > 0 })
+    }
+
+    /** `POST messages/undo`. */
+    fun undone(o: JsonObject): MUndone = MUndone(
+        kind = o.str("kind"),
+        restored = o.int("restored")?.coerceAtLeast(0) ?: 0,
+        failed = o.int("failed")?.coerceAtLeast(0) ?: 0,
+        items = summaries(o.arr("items")),
+    )
+
+    /** `GET messages/ids` (Mail 1.13); null without `ids`. */
+    fun messageIds(o: JsonObject): MIds? {
+        val ids = o.arr("ids")?.ids() ?: return null
+        return MIds(
+            ids = ids,
+            total = o.int("total")?.coerceAtLeast(ids.size) ?: ids.size,
+            max = o.int("max")?.takeIf { it > 0 } ?: 2000,
+            truncated = o.bool("truncated") ?: false,
+        )
+    }
 
     /** `GET threads/<id>` → oldest first. */
     fun thread(o: JsonObject): List<MMessage>? = o.arr("items")?.objects()?.mapNotNull(::message)
@@ -543,11 +604,45 @@ object MailJson {
 
     fun tabBody(ids: Collection<Long>, tab: String): JsonObject = idsBody(ids).apply { addProperty("tab", tab) }
 
-    fun settingsBody(threads: Boolean? = null, swipeLeft: String? = null, swipeRight: String? = null): JsonObject = JsonObject().apply {
+    /**
+     * `PUT settings`: only the given fields. With [v2] (the server has `swipeV2`) the swipes go as `swipe { left,
+     * right }` with all seven actions, else as `swipeLeft` / `swipeRight` with the old four only; [confirmDelete] only
+     * with [v2].
+     */
+    fun settingsBody(
+        threads: Boolean? = null,
+        swipeLeft: String? = null,
+        swipeRight: String? = null,
+        confirmDelete: Boolean? = null,
+        v2: Boolean = false,
+    ): JsonObject = JsonObject().apply {
         threads?.let { addProperty("threads", it) }
-        swipeLeft?.takeIf { it in MSettings.SWIPES }?.let { addProperty("swipeLeft", it) }
-        swipeRight?.takeIf { it in MSettings.SWIPES }?.let { addProperty("swipeRight", it) }
+        if (v2) {
+            val left = swipeLeft?.takeIf { it in MSettings.SWIPES_V2 }
+            val right = swipeRight?.takeIf { it in MSettings.SWIPES_V2 }
+            if (left != null || right != null) {
+                add("swipe", JsonObject().apply {
+                    left?.let { addProperty("left", it) }
+                    right?.let { addProperty("right", it) }
+                })
+            }
+            confirmDelete?.let { addProperty("confirmDelete", it) }
+        } else {
+            swipeLeft?.takeIf { it in MSettings.SWIPES }?.let { addProperty("swipeLeft", it) }
+            swipeRight?.takeIf { it in MSettings.SWIPES }?.let { addProperty("swipeRight", it) }
+        }
     }
+
+    /**
+     * A bulk call's body: [ids] (1…500), `threads: true` with [threads] (Mail 1.13 `threadScope`: the whole
+     * conversation in the folder) and the action's own fields ([extra]).
+     */
+    fun bulkBody(ids: Collection<Long>, threads: Boolean = false, extra: JsonObject.() -> Unit = {}): JsonObject = idsBody(ids).apply {
+        if (threads) addProperty("threads", true)
+        extra()
+    }
+
+    fun undoBody(token: String): JsonObject = JsonObject().apply { addProperty("token", token) }
 
     private fun serverBody(s: MServer): JsonObject = JsonObject().apply {
         addProperty("host", s.host)

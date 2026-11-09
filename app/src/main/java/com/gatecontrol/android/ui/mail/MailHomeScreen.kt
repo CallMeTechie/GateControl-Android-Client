@@ -36,6 +36,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -57,6 +59,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -77,11 +81,14 @@ import com.gatecontrol.android.mail.MFolder
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MUndo
+import com.gatecontrol.android.mail.MailBulk
 import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcSelectionSwap
+import com.gatecontrol.android.ui.components.gcInert
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.mail.calendar.CalendarMenuDialogs
 import com.gatecontrol.android.ui.mail.calendar.CalendarMenuState
@@ -157,7 +164,6 @@ fun MailHomeScreen(
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val extra = GateControlTheme.extraColors
     var actionsFor by remember { mutableStateOf<MSummary?>(null) }
-    var moveFor by remember { mutableStateOf<MSummary?>(null) }
     // the areas of the tab (contract D2): mail, calendar, contacts — switched by the menu's foot
     var area by rememberSaveable(initialArea) { mutableStateOf(initialArea) }
     var calendarUsed by rememberSaveable { mutableStateOf(initialArea == MailDrawerFoot.CALENDAR) }
@@ -262,6 +268,7 @@ fun MailHomeScreen(
         )
     }
 
+    // the menu of one mail ("Mehr" with one ticked): its action ends the selection; "move" opens the folder picker
     actionsFor?.let { item ->
         RowActions(
             item = item,
@@ -269,20 +276,10 @@ fun MailHomeScreen(
             hasFolders = folders[item.accountId].orEmpty().isNotEmpty(),
             onAction = { action ->
                 actionsFor = null
-                if (action == "move") moveFor = item else viewModel.act(item, action)
+                viewModel.bulk.clear()
+                viewModel.act(item, action)
             },
             onDismiss = { actionsFor = null },
-        )
-    }
-    moveFor?.let { item ->
-        FolderPicker(
-            folders = folders[item.accountId].orEmpty(),
-            current = item.folderId,
-            onPick = { f ->
-                moveFor = null
-                viewModel.act(item, "move", f.id)
-            },
-            onDismiss = { moveFor = null },
         )
     }
 }
@@ -310,6 +307,16 @@ private fun MailArea(
     val context = mailContext()
     val extra = GateControlTheme.extraColors
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val bulk = viewModel.bulk
+    val selection by bulk.selection.collectAsStateWithLifecycle()
+    val loadingAll by bulk.loadingAll.collectAsStateWithLifecycle()
+    val recent by viewModel.recentFolders.collectAsStateWithLifecycle()
+    val selecting = selection.active
+    val snackbar = remember { SnackbarHostState() }
+    var moreOpen by remember { mutableStateOf(false) }
+    // back ends the selection first
+    BackHandler(enabled = selecting) { bulk.clear() }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             // the bar: menu, title with the unread count, search, "⋯" when pinned to Start
@@ -324,39 +331,60 @@ private fun MailArea(
                 else -> stringResource(R.string.mail_inbox)
             }
             val where = if (box.all) pluralStringResource(R.plurals.mail_accounts_n, accounts.size, accounts.size) else account?.label.orEmpty()
-            Row(
-                Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                GcIconButton(
-                    GcIcons.Menu,
-                    contentDescription = stringResource(R.string.mail_menu),
-                    onClick = openMenu,
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-                Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text(title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (me != null) {
-                        Text(
-                            listOf(where, pluralStringResource(R.plurals.mail_unread_n, unread, unread)).filter { it.isNotEmpty() }.joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = extra.muted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+            val chosen = remember(selection, list.items) { list.items.filter { it.id in selection.ids } }
+            GcSelectionSwap(
+                selecting,
+                bar = {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        GcIconButton(
+                            GcIcons.Menu,
+                            contentDescription = stringResource(R.string.mail_menu),
+                            onClick = openMenu,
+                            tint = MaterialTheme.colorScheme.onBackground,
                         )
+                        Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                            Text(title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (me != null) {
+                                Text(
+                                    listOf(where, pluralStringResource(R.plurals.mail_unread_n, unread, unread)).filter { it.isNotEmpty() }.joinToString(" · "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = extra.muted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.mail_search), onClick = nav.search, tint = MaterialTheme.colorScheme.onBackground)
+                        com.gatecontrol.android.ui.start.StartPageMenuButton()
                     }
-                }
-                GcIconButton(GcIcons.Search, contentDescription = stringResource(R.string.mail_search), onClick = nav.search, tint = MaterialTheme.colorScheme.onBackground)
-                com.gatecontrol.android.ui.start.StartPageMenuButton()
-            }
+                },
+                selection = {
+                    MailSelectionHead(
+                        selection = selection,
+                        where = title + " · " + (if (box.all) stringResource(R.string.mail_sel_all_accounts) else account?.label.orEmpty()),
+                        folderName = title,
+                        allSelected = MailBulk.allSelected(selection, list.items.map { it.id }),
+                        loadingAll = loadingAll,
+                        read = MailBulk.readAction(chosen),
+                        onRead = { bulk.onSelection(MailBulk.readAction(chosen)) },
+                        onClose = bulk::clear,
+                        onAll = bulk::allOrNone,
+                    )
+                },
+            )
+            // while mails are ticked the chips and the tabs stay in place but do nothing (the selection belongs to this list)
             if (accounts.size > 1) {
-                BoxChips(accounts = accounts, box = box, onBox = viewModel::selectBox)
+                BoxChips(accounts = accounts, box = box, onBox = viewModel::selectBox, modifier = Modifier.gcInert(selecting))
             }
             if (inbox) {
                 TabSwitch(
                     tab = tab,
                     other = list.counts?.other,
                     onTab = viewModel::selectTab,
+                    modifier = Modifier.gcInert(selecting),
                 )
             }
             MailBanners(me = me, meError = meError, offline = list.offline, onAccount = nav.account)
@@ -395,17 +423,25 @@ private fun MailArea(
                             }
                             items(list.items, key = { it.id }) { item ->
                                 val settings = me?.settings
+                                val pick: () -> Unit = { if (selecting) bulk.toggle(item.id) else bulk.select(item.id) }
+                                // while selecting the rows do not swipe
                                 SwipeRow(
-                                    left = swipeSpec(settings?.swipeLeft, item.unread),
-                                    right = swipeSpec(settings?.swipeRight, item.unread),
+                                    left = if (selecting) null else swipeSpec(settings?.swipeLeft, item.unread, item.flagged),
+                                    right = if (selecting) null else swipeSpec(settings?.swipeRight, item.unread, item.flagged),
                                     onSwipe = { viewModel.act(item, it.action) },
                                 ) {
                                     Column {
                                         MailRow(
                                             item = item,
                                             account = me?.account(item.accountId),
-                                            onClick = { nav.open(item.id) },
-                                            onLongClick = { onActions(item) },
+                                            onClick = { if (selecting) bulk.toggle(item.id) else nav.open(item.id) },
+                                            onLongClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                pick()
+                                            },
+                                            selected = item.id in selection.ids,
+                                            selecting = selecting,
+                                            onAvatar = pick,
                                         )
                                         MailDivider()
                                     }
@@ -430,15 +466,39 @@ private fun MailArea(
                 }
             }
         }
-        if (accounts.isNotEmpty()) {
+        val snackShown = snackbar.currentSnackbarData != null
+        if (selecting) {
+            val accountsOf = bulk.selectedAccounts()
+            MailSelectionBar(
+                me = me,
+                oneAccount = accountsOf.size <= 1,
+                hasFolders = folders[accountsOf.singleOrNull()].orEmpty().isNotEmpty(),
+                onAction = bulk::onSelection,
+                onMore = { moreOpen = true },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        } else if (accounts.isNotEmpty()) {
             NewMailButton(
                 onClick = { nav.compose(box.accountId) },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = if (undo != null) 88.dp else 16.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = if (undo != null) 88.dp else if (snackShown) 80.dp else 16.dp),
             )
         }
-        undo?.let { u ->
+        undo?.takeIf { !selecting }?.let { u ->
             UndoBar(u, onUndo = { viewModel.undoSend(u) }, onExpired = { viewModel.undoExpired(u) }, modifier = Modifier.align(Alignment.BottomCenter))
         }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = if (selecting) 88.dp else 12.dp))
+    }
+    MailBulkHost(bulk, me, folders, recent, snackbar)
+    if (moreOpen && selecting) {
+        val chosen = bulk.selectedItems()
+        MailMoreSheet(
+            count = selection.count,
+            items = chosen,
+            inbox = inbox,
+            onAction = bulk::onSelection,
+            onOne = chosen.singleOrNull()?.takeIf { selection.count == 1 }?.let { one -> { onActions(one) } },
+            onDismiss = { moreOpen = false },
+        )
     }
 }
 
@@ -517,9 +577,9 @@ private fun NewMailsPill(count: Int, onClick: () -> Unit, modifier: Modifier = M
 
 /** "Alle" and one chip per account (mockup: colored dot, the active one in the accent). */
 @Composable
-private fun BoxChips(accounts: List<MAccount>, box: MailLogic.Box, onBox: (MailLogic.Box) -> Unit) {
+private fun BoxChips(accounts: List<MAccount>, box: MailLogic.Box, onBox: (MailLogic.Box) -> Unit, modifier: Modifier = Modifier) {
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         BoxChip(stringResource(R.string.mail_box_all), MaterialTheme.colorScheme.onBackground, box.all) { onBox(MailLogic.Box()) }
@@ -549,9 +609,9 @@ private fun BoxChip(label: String, dot: Color, on: Boolean, onClick: () -> Unit)
 
 /** Relevant | Sonstige · n (mockup: tabs with the accent line). */
 @Composable
-private fun TabSwitch(tab: String, other: Int?, onTab: (String) -> Unit) {
+private fun TabSwitch(tab: String, other: Int?, onTab: (String) -> Unit, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
-    Column {
+    Column(modifier) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             listOf(
                 MSummary.TAB_RELEVANT to stringResource(R.string.mail_tab_relevant),
@@ -756,7 +816,7 @@ internal fun FolderPicker(folders: List<MFolder>, current: Long?, onPick: (MFold
  * folder without children keeps the room empty, so that the names stay in line.
  */
 @Composable
-private fun FolderArrow(r: MailLogic.FolderRow, label: String, modifier: Modifier, onToggle: () -> Unit) {
+internal fun FolderArrow(r: MailLogic.FolderRow, label: String, modifier: Modifier, onToggle: () -> Unit) {
     if (!r.hasKids) {
         Box(modifier)
         return
@@ -798,6 +858,17 @@ internal object MailFolders {
         MFolder.ROLE_ARCHIVE -> stringResource(R.string.mail_folder_archive)
         MFolder.ROLE_JUNK -> stringResource(R.string.mail_folder_junk)
         MFolder.ROLE_TRASH -> stringResource(R.string.mail_folder_trash)
+        else -> f.name
+    }
+
+    /** [label] outside of composition (the snackbar, the folder search). */
+    fun labelOf(context: android.content.Context, f: MFolder): String = when (f.role) {
+        MFolder.ROLE_INBOX -> context.getString(R.string.mail_inbox)
+        MFolder.ROLE_SENT -> context.getString(R.string.mail_folder_sent)
+        MFolder.ROLE_DRAFTS -> context.getString(R.string.mail_folder_drafts)
+        MFolder.ROLE_ARCHIVE -> context.getString(R.string.mail_folder_archive)
+        MFolder.ROLE_JUNK -> context.getString(R.string.mail_folder_junk)
+        MFolder.ROLE_TRASH -> context.getString(R.string.mail_folder_trash)
         else -> f.name
     }
 }

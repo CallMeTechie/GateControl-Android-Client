@@ -265,8 +265,11 @@ object MailLogic {
     const val SWIPE_DELETE = MSettings.SWIPE_DELETE
     const val SWIPE_READ = MSettings.SWIPE_READ
 
-    /** What a swipe does (null: nothing, the row does not move). `read` flips read / unread. */
-    fun swipe(setting: String?): String? = setting?.takeIf { it == SWIPE_ARCHIVE || it == SWIPE_DELETE || it == SWIPE_READ }
+    /**
+     * What a swipe does (null: nothing, the row does not move). `read` flips read / unread, `flag` the flag; since
+     * Mail 1.13 also `move` (the folder picker) and `junk` ([MailBulk.swipe]).
+     */
+    fun swipe(setting: String?): String? = MailBulk.swipe(setting)
 
     // ─── undo after sending ─────────────────────────────────────────
 

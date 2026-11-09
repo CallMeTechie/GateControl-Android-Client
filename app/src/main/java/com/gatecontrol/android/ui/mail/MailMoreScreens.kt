@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.mail
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -44,7 +49,7 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.mail.MAccount
 import com.gatecontrol.android.mail.MFilingItem
 import com.gatecontrol.android.mail.MMe
-import com.gatecontrol.android.mail.MSettings
+import com.gatecontrol.android.mail.MailBulk
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
@@ -56,6 +61,8 @@ import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSegmented
+import com.gatecontrol.android.ui.components.GcSelectionSwap
+import com.gatecontrol.android.ui.components.gcInert
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTextField
@@ -226,57 +233,114 @@ fun MailOutboxScreen(onBack: () -> Unit, onDraft: (Long) -> Unit, viewModel: Mai
     }
 }
 
-/** The search: words, "Ungelesen", "Mit Anhang", an account; the server searches its copy and, when needed, the provider. */
+/**
+ * The search: words, "Ungelesen", "Mit Anhang", an account; the server searches its copy and, when needed, the
+ * provider. A long press or a tap on the picture ticks mails (Mail 1.13): the same bar as in the list.
+ */
 @Composable
 fun MailSearchScreen(onBack: () -> Unit, onOpen: (Long) -> Unit, viewModel: MailSearchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val me by viewModel.me.collectAsStateWithLifecycle()
+    val folders by viewModel.folders.collectAsStateWithLifecycle()
+    val recent by viewModel.recentFolders.collectAsStateWithLifecycle()
+    val bulk = viewModel.bulk
+    val selection by bulk.selection.collectAsStateWithLifecycle()
+    val selecting = selection.active
+    val snackbar = remember { SnackbarHostState() }
+    var moreOpen by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
     val context = mailContext()
     val extra = GateControlTheme.extraColors
+    BackHandler(enabled = selecting) { bulk.clear() }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().imePadding()) {
-        GcSubpageBar(title = stringResource(R.string.mail_search), onBack = onBack, backDescription = stringResource(R.string.mail_back))
-        GcTextField(
-            value = state.query,
-            onValueChange = viewModel::setQuery,
-            label = stringResource(R.string.mail_search_hint),
-            modifier = Modifier.padding(horizontal = 16.dp),
-            trailingIcon = { if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) },
+        val chosen = remember(selection, state.items) { state.items.filter { it.id in selection.ids } }
+        GcSelectionSwap(
+            selecting,
+            bar = { GcSubpageBar(title = stringResource(R.string.mail_search), onBack = onBack, backDescription = stringResource(R.string.mail_back)) },
+            selection = {
+                MailSelectionHead(
+                    selection = selection,
+                    where = stringResource(R.string.mail_search),
+                    folderName = stringResource(R.string.mail_search),
+                    allSelected = MailBulk.allSelected(selection, state.items.map { it.id }),
+                    loadingAll = false,
+                    read = MailBulk.readAction(chosen),
+                    onRead = { bulk.onSelection(MailBulk.readAction(chosen)) },
+                    onClose = bulk::clear,
+                    onAll = bulk::allOrNone,
+                )
+            },
         )
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GcFilterChip(stringResource(R.string.mail_filter_unread), selected = state.unread, onClick = viewModel::toggleUnread)
-            GcFilterChip(stringResource(R.string.mail_filter_attachments), selected = state.attachments, onClick = viewModel::toggleAttachments)
-        }
-        if ((me?.accounts?.size ?: 0) > 1) {
-            Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GcFilterChip(stringResource(R.string.mail_box_all), selected = state.accountId == null, onClick = { viewModel.setAccount(null) })
-                me?.accounts?.forEach { a -> GcFilterChip(a.label, selected = state.accountId == a.id, onClick = { viewModel.setAccount(a.id) }) }
+        Column(Modifier.gcInert(selecting)) {
+            GcTextField(
+                value = state.query,
+                onValueChange = viewModel::setQuery,
+                label = stringResource(R.string.mail_search_hint),
+                modifier = Modifier.padding(horizontal = 16.dp),
+                trailingIcon = { if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) },
+            )
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GcFilterChip(stringResource(R.string.mail_filter_unread), selected = state.unread, onClick = viewModel::toggleUnread)
+                GcFilterChip(stringResource(R.string.mail_filter_attachments), selected = state.attachments, onClick = viewModel::toggleAttachments)
+            }
+            if ((me?.accounts?.size ?: 0) > 1) {
+                Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GcFilterChip(stringResource(R.string.mail_box_all), selected = state.accountId == null, onClick = { viewModel.setAccount(null) })
+                    me?.accounts?.forEach { a -> GcFilterChip(a.label, selected = state.accountId == a.id, onClick = { viewModel.setAccount(a.id) }) }
+                }
             }
         }
         if (state.remote) Text(stringResource(R.string.mail_search_remote), style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.padding(horizontal = 16.dp))
-        LazyColumn(Modifier.weight(1f)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = if (selecting) 88.dp else 0.dp)) {
             if (state.error != null && state.items.isEmpty()) item { ErrorBox(mailText(context, state.error), onRetry = null) }
             if (state.error == null && !state.busy && state.items.isEmpty() && state.query.length >= 2) {
                 item { ErrorBox(stringResource(R.string.mail_search_none), onRetry = null) }
             }
             items(state.items, key = { it.id }) { item ->
-                MailRow(item = item, account = me?.account(item.accountId), onClick = { onOpen(item.id) }, onLongClick = { onOpen(item.id) })
+                val pick: () -> Unit = { if (selecting) bulk.toggle(item.id) else bulk.select(item.id) }
+                MailRow(
+                    item = item,
+                    account = me?.account(item.accountId),
+                    onClick = { if (selecting) bulk.toggle(item.id) else onOpen(item.id) },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        pick()
+                    },
+                    selected = item.id in selection.ids,
+                    selecting = selecting,
+                    onAvatar = pick,
+                )
                 MailDivider()
             }
             if (state.next != null) item { TextButton(onClick = viewModel::more, modifier = Modifier.padding(16.dp)) { Text(stringResource(R.string.mail_more_results)) } }
         }
     }
+        if (selecting) {
+            val accountsOf = bulk.selectedAccounts()
+            MailSelectionBar(
+                me = me,
+                oneAccount = accountsOf.size <= 1,
+                hasFolders = folders[accountsOf.singleOrNull()].orEmpty().isNotEmpty(),
+                onAction = bulk::onSelection,
+                onMore = { moreOpen = true },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = if (selecting) 88.dp else 12.dp))
+    }
+    MailBulkHost(bulk, me, folders, recent, snackbar)
+    if (moreOpen && selecting) {
+        MailMoreSheet(
+            count = selection.count,
+            items = bulk.selectedItems(),
+            inbox = false,
+            onAction = bulk::onSelection,
+            onOne = null,
+            onDismiss = { moreOpen = false },
+        )
+    }
 }
-
-/** The label of a swipe setting. */
-@Composable
-private fun swipeLabel(v: String): String = stringResource(
-    when (v) {
-        MSettings.SWIPE_ARCHIVE -> R.string.mail_archive
-        MSettings.SWIPE_DELETE -> R.string.mail_delete
-        MSettings.SWIPE_READ -> R.string.mail_swipe_read
-        else -> R.string.mail_swipe_none
-    },
-)
 
 /** "Mail-Einstellungen": conversations, the swipes, "Darstellung" (mails dark), the accounts and the storage. */
 @Composable
@@ -284,6 +348,8 @@ fun MailSettingsScreen(
     onBack: () -> Unit,
     onAccount: (Long) -> Unit,
     onAdd: () -> Unit,
+    /** "Wischen" (Mail 1.13): the page with the swipe actions and "Vor dem Löschen fragen". */
+    onSwipe: () -> Unit = {},
     viewModel: MailSettingsViewModel = hiltViewModel(),
     display: MailDisplayViewModel = hiltViewModel(),
 ) {
@@ -314,13 +380,25 @@ fun MailSettingsScreen(
                     onCheckedChange = { viewModel.put(threads = it) },
                 )
             }
-            listOf(true, false).forEach { left ->
-                Text(stringResource(if (left) R.string.mail_settings_swipe_left else R.string.mail_settings_swipe_right), style = MaterialTheme.typography.labelLarge)
-                GcSegmented(
-                    options = MSettings.SWIPES.map { it to swipeLabel(it) },
-                    selected = if (left) m.settings.swipeLeft else m.settings.swipeRight,
-                    onSelect = { v -> if (left) viewModel.put(swipeLeft = v) else viewModel.put(swipeRight = v) },
+            // Mail 1.13: the swipes on a page of their own (mockup 4), "Vor dem Löschen fragen" with them
+            GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                GcListRow(
+                    title = stringResource(R.string.mail_settings_swipe),
+                    description = stringResource(R.string.mail_settings_swipe_summary, swipeName(m.settings.swipeLeft), swipeName(m.settings.swipeRight)),
+                    onClick = onSwipe,
+                    leading = { SettingsIcon(MailIcons.Swipe) },
+                    trailing = { GcChevron() },
                 )
+                if (m.has(MMe.FEATURE_SWIPE_V2)) {
+                    GcRowDivider()
+                    GcListRow(
+                        title = stringResource(R.string.mail_settings_confirm),
+                        description = stringResource(if (m.settings.confirmDelete) R.string.mail_settings_confirm_on else R.string.mail_settings_confirm_off),
+                        onClick = onSwipe,
+                        leading = { SettingsIcon(GcIcons.Trash) },
+                        trailing = { GcChevron() },
+                    )
+                }
             }
             GcSectionLabel(stringResource(R.string.mail_settings_display))
             GcCard(contentPadding = PaddingValues(vertical = 4.dp)) {
@@ -478,5 +556,14 @@ fun MailAccountScreen(onBack: () -> Unit, onRelogin: (Long) -> Unit, viewModel: 
                 dismissButton = { TextButton(onClick = { askRemove = false }) { Text(stringResource(R.string.mail_cancel)) } },
             )
         }
+    }
+}
+
+/** The icon of a settings row (mockup: accent square). */
+@Composable
+private fun SettingsIcon(icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    val x = GateControlTheme.extraColors
+    Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(x.accentBg), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = x.accentText, modifier = Modifier.size(20.dp))
     }
 }

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GateControl Mail 1.13: several mails at once, swipe actions -->
+    <plurals name="mail_n_mails">
+        <item quantity="one">%1$d mail</item>
+        <item quantity="other">%1$d mails</item>
+    </plurals>
+    <plurals name="mail_sel_line_all">
+        <item quantity="one">All %1$d mail in “%2$s”</item>
+        <item quantity="other">All %1$d mails in “%2$s”</item>
+    </plurals>
+    <string name="mail_sel_line_newest">The newest %1$d of %2$d mails in “%3$s”</string>
+    <string name="mail_sel_loading_all">Selecting all mails …</string>
+    <string name="mail_sel_all_accounts">All accounts</string>
+    <string name="mail_sel_select">Select</string>
+    <string name="mail_bar_archive">Archive</string>
+    <string name="mail_bar_delete">Delete</string>
+    <string name="mail_bar_move">Move</string>
+    <string name="mail_bar_copy">Copy</string>
+    <string name="mail_bar_more">More</string>
+    <string name="mail_sel_why_accounts">Only for mails of one account</string>
+    <string name="mail_more_row_actions">All actions for this mail</string>
+    <string name="mail_more_junk">Move to spam</string>
+    <plurals name="mail_pick_title_move">
+        <item quantity="one">Move %1$d mail</item>
+        <item quantity="other">Move %1$d mails</item>
+    </plurals>
+    <plurals name="mail_pick_title_copy">
+        <item quantity="one">Copy %1$d mail</item>
+        <item quantity="other">Copy %1$d mails</item>
+    </plurals>
+    <string name="mail_pick_move">Move</string>
+    <string name="mail_pick_copy">Copy</string>
+    <string name="mail_pick_search">Search folders</string>
+    <string name="mail_pick_recent">Recent</string>
+    <string name="mail_pick_here">here</string>
+    <string name="mail_pick_none">No folder found</string>
+    <string name="mail_pick_note">Mails can only be moved or copied within their account.</string>
+    <string name="mail_pick_go_move">Move to “%1$s”</string>
+    <string name="mail_pick_go_copy">Copy to “%1$s”</string>
+    <string name="mail_pick_choose">Choose a folder</string>
+    <plurals name="mail_snack_moved">
+        <item quantity="one">%1$d mail moved to “%2$s”</item>
+        <item quantity="other">%1$d mails moved to “%2$s”</item>
+    </plurals>
+    <plurals name="mail_snack_copied">
+        <item quantity="one">%1$d mail copied to “%2$s”</item>
+        <item quantity="other">%1$d mails copied to “%2$s”</item>
+    </plurals>
+    <plurals name="mail_snack_archived">
+        <item quantity="one">%1$d mail archived</item>
+        <item quantity="other">%1$d mails archived</item>
+    </plurals>
+    <plurals name="mail_snack_deleted">
+        <item quantity="one">%1$d mail moved to the trash</item>
+        <item quantity="other">%1$d mails moved to the trash</item>
+    </plurals>
+    <plurals name="mail_snack_purged">
+        <item quantity="one">%1$d mail deleted for good</item>
+        <item quantity="other">%1$d mails deleted for good</item>
+    </plurals>
+    <plurals name="mail_snack_junk">
+        <item quantity="one">%1$d mail moved to spam</item>
+        <item quantity="other">%1$d mails moved to spam</item>
+    </plurals>
+    <string name="mail_undo_late">Too late – this can no longer be undone.</string>
+    <plurals name="mail_del_title">
+        <item quantity="one">Delete %1$d mail?</item>
+        <item quantity="other">Delete %1$d mails?</item>
+    </plurals>
+    <string name="mail_del_text">They go to the trash. You can restore them there.</string>
+    <string name="mail_del_dont_ask">Don’t ask again</string>
+    <string name="mail_del_go">Delete</string>
+    <plurals name="mail_purge_title">
+        <item quantity="one">Delete %1$d mail for good?</item>
+        <item quantity="other">Delete %1$d mails for good?</item>
+    </plurals>
+    <string name="mail_purge_text">The mails are already in the trash. Afterwards they are gone and cannot be brought back.</string>
+    <string name="mail_purge_go">Delete for good</string>
+    <string name="mail_settings_swipe">Swipe</string>
+    <string name="mail_settings_swipe_summary">Left: %1$s · Right: %2$s</string>
+    <string name="mail_settings_confirm">Ask before deleting</string>
+    <string name="mail_settings_confirm_on">On · asks before deleting</string>
+    <string name="mail_settings_confirm_off">Off · “Undo” instead of asking</string>
+    <string name="mail_settings_confirm_text">Applies to swiping and to several mails. Off: you can tap “Undo” for a moment.</string>
+    <string name="mail_swipe_preview">Preview: this is how swiping looks with your choice.</string>
+    <string name="mail_swipe_preview_desc">Preview of a mail being swiped</string>
+    <string name="mail_swipe_left_title">Swipe left</string>
+    <string name="mail_swipe_right_title">Swipe right</string>
+    <string name="mail_swipe_note">Applies to all your devices and to the quick actions on the PC.</string>
+    <string name="mail_swipe_more_later">More actions come with a newer GateControl Mail on the server.</string>
+    <string name="mail_swipe_a_archive">Archive</string>
+    <string name="mail_swipe_a_delete">Delete</string>
+    <string name="mail_swipe_a_read">Read / unread</string>
+    <string name="mail_swipe_a_flag">Flag</string>
+    <string name="mail_swipe_a_move">Move …</string>
+    <string name="mail_swipe_a_junk">Move to spam</string>
+    <string name="mail_swipe_a_none">Nothing</string>
+    <string name="mail_swipe_move">Move</string>
+    <string name="mail_swipe_sample_from" translatable="false">Lena Hoffmann</string>
+    <string name="mail_swipe_sample_subject">Photos from the summer party</string>
+    <string name="mail_swipe_sample_snippet">Here are the pictures, as promised – enjoy!</string>
+</resources>

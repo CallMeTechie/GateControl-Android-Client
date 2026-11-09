@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GateControl Mail 1.13: mehrere Mails auf einmal, Wischaktionen -->
+    <plurals name="mail_n_mails">
+        <item quantity="one">%1$d Mail</item>
+        <item quantity="other">%1$d Mails</item>
+    </plurals>
+    <plurals name="mail_sel_line_all">
+        <item quantity="one">Alle %1$d Mail in „%2$s“</item>
+        <item quantity="other">Alle %1$d Mails in „%2$s“</item>
+    </plurals>
+    <string name="mail_sel_line_newest">Die neuesten %1$d von %2$d Mails in „%3$s“</string>
+    <string name="mail_sel_loading_all">Alle Mails werden ausgewählt …</string>
+    <string name="mail_sel_all_accounts">Alle Konten</string>
+    <string name="mail_sel_select">Auswählen</string>
+    <string name="mail_bar_archive">Archivieren</string>
+    <string name="mail_bar_delete">Löschen</string>
+    <string name="mail_bar_move">Verschieben</string>
+    <string name="mail_bar_copy">Kopieren</string>
+    <string name="mail_bar_more">Mehr</string>
+    <string name="mail_sel_why_accounts">Nur mit Mails aus einem Konto</string>
+    <string name="mail_more_row_actions">Alle Aktionen für diese Mail</string>
+    <string name="mail_more_junk">In Spam</string>
+    <plurals name="mail_pick_title_move">
+        <item quantity="one">%1$d Mail verschieben</item>
+        <item quantity="other">%1$d Mails verschieben</item>
+    </plurals>
+    <plurals name="mail_pick_title_copy">
+        <item quantity="one">%1$d Mail kopieren</item>
+        <item quantity="other">%1$d Mails kopieren</item>
+    </plurals>
+    <string name="mail_pick_move">Verschieben</string>
+    <string name="mail_pick_copy">Kopieren</string>
+    <string name="mail_pick_search">Ordner suchen</string>
+    <string name="mail_pick_recent">Zuletzt</string>
+    <string name="mail_pick_here">hier</string>
+    <string name="mail_pick_none">Kein Ordner gefunden</string>
+    <string name="mail_pick_note">Mails lassen sich nur innerhalb ihres Kontos verschieben oder kopieren.</string>
+    <string name="mail_pick_go_move">Nach „%1$s“ verschieben</string>
+    <string name="mail_pick_go_copy">Nach „%1$s“ kopieren</string>
+    <string name="mail_pick_choose">Ordner wählen</string>
+    <plurals name="mail_snack_moved">
+        <item quantity="one">%1$d Mail nach „%2$s“ verschoben</item>
+        <item quantity="other">%1$d Mails nach „%2$s“ verschoben</item>
+    </plurals>
+    <plurals name="mail_snack_copied">
+        <item quantity="one">%1$d Mail nach „%2$s“ kopiert</item>
+        <item quantity="other">%1$d Mails nach „%2$s“ kopiert</item>
+    </plurals>
+    <plurals name="mail_snack_archived">
+        <item quantity="one">%1$d Mail archiviert</item>
+        <item quantity="other">%1$d Mails archiviert</item>
+    </plurals>
+    <plurals name="mail_snack_deleted">
+        <item quantity="one">%1$d Mail in den Papierkorb gelegt</item>
+        <item quantity="other">%1$d Mails in den Papierkorb gelegt</item>
+    </plurals>
+    <plurals name="mail_snack_purged">
+        <item quantity="one">%1$d Mail endgültig gelöscht</item>
+        <item quantity="other">%1$d Mails endgültig gelöscht</item>
+    </plurals>
+    <plurals name="mail_snack_junk">
+        <item quantity="one">%1$d Mail in Spam verschoben</item>
+        <item quantity="other">%1$d Mails in Spam verschoben</item>
+    </plurals>
+    <string name="mail_undo_late">Zu spät – das lässt sich nicht mehr zurücknehmen.</string>
+    <plurals name="mail_del_title">
+        <item quantity="one">%1$d Mail löschen?</item>
+        <item quantity="other">%1$d Mails löschen?</item>
+    </plurals>
+    <string name="mail_del_text">Sie kommen in den Papierkorb. Dort kannst du sie wiederherstellen.</string>
+    <string name="mail_del_dont_ask">Nicht mehr fragen</string>
+    <string name="mail_del_go">Löschen</string>
+    <plurals name="mail_purge_title">
+        <item quantity="one">%1$d Mail endgültig löschen?</item>
+        <item quantity="other">%1$d Mails endgültig löschen?</item>
+    </plurals>
+    <string name="mail_purge_text">Die Mails liegen schon im Papierkorb. Danach sind sie weg und lassen sich nicht zurückholen.</string>
+    <string name="mail_purge_go">Endgültig löschen</string>
+    <string name="mail_settings_swipe">Wischen</string>
+    <string name="mail_settings_swipe_summary">Links: %1$s · Rechts: %2$s</string>
+    <string name="mail_settings_confirm">Vor dem Löschen fragen</string>
+    <string name="mail_settings_confirm_on">An · vor dem Löschen kommt eine Frage</string>
+    <string name="mail_settings_confirm_off">Aus · „Rückgängig“ statt Nachfrage</string>
+    <string name="mail_settings_confirm_text">Gilt fürs Wischen und für mehrere Mails. Aus: Du kannst kurz „Rückgängig“ tippen.</string>
+    <string name="mail_swipe_preview">Vorschau: so sieht das Wischen mit deiner Auswahl aus.</string>
+    <string name="mail_swipe_preview_desc">Vorschau einer Mail, die gewischt wird</string>
+    <string name="mail_swipe_left_title">Nach links wischen</string>
+    <string name="mail_swipe_right_title">Nach rechts wischen</string>
+    <string name="mail_swipe_note">Gilt für alle deine Geräte und für die Schnellaktionen am PC.</string>
+    <string name="mail_swipe_more_later">Weitere Aktionen gibt es, sobald GateControl Mail auf dem Server neuer ist.</string>
+    <string name="mail_swipe_a_archive">Archivieren</string>
+    <string name="mail_swipe_a_delete">Löschen</string>
+    <string name="mail_swipe_a_read">Gelesen / Ungelesen</string>
+    <string name="mail_swipe_a_flag">Markieren</string>
+    <string name="mail_swipe_a_move">Verschieben …</string>
+    <string name="mail_swipe_a_junk">In Spam</string>
+    <string name="mail_swipe_a_none">Nichts</string>
+    <string name="mail_swipe_move">Verschieben</string>
+    <string name="mail_swipe_sample_subject">Fotos vom Sommerfest</string>
+    <string name="mail_swipe_sample_snippet">Hier sind die Bilder, wie versprochen – viel Spaß beim Anschauen!</string>
+</resources>

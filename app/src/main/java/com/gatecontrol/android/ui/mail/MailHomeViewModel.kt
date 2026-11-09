@@ -8,8 +8,10 @@ import com.gatecontrol.android.mail.MCounts
 import com.gatecontrol.android.mail.MFolder
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MResult
+import com.gatecontrol.android.mail.MSettings
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MUndo
+import com.gatecontrol.android.mail.MailBulk
 import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.mail.MailRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -57,6 +59,8 @@ class MailHomeViewModel @Inject constructor(
     val folds: StateFlow<Map<Long, Boolean>> = repository.folds
     /** The menu's folded folders ([MailLogic.folderOpen]). */
     val folderFolds: StateFlow<Map<Long, Boolean>> = repository.folderFolds
+    /** "Zuletzt" of the folder picker. */
+    val recentFolders: StateFlow<List<Long>> = repository.recentFolders
 
     private val _box = MutableStateFlow(MailLogic.Box(saved.get<Long>(KEY_ACCOUNT)?.takeIf { it > 0 }, saved.get<Long>(KEY_FOLDER)?.takeIf { it > 0 }))
     val box: StateFlow<MailLogic.Box> = _box.asStateFlow()
@@ -82,6 +86,23 @@ class MailHomeViewModel @Inject constructor(
     private val _reopen = MutableStateFlow<Long?>(null)
     /** A draft to open again (undo after sending). */
     val reopen: StateFlow<Long?> = _reopen.asStateFlow()
+
+    /**
+     * Several mails at once (Mail 1.13): the selection of this list and its actions; a swipe and the menu of one
+     * row go the same way ([act]).
+     */
+    internal val bulk = MailBulkActions(
+        scope = viewModelScope,
+        repository = repository,
+        items = { _list.value.items },
+        setItems = { f -> _list.update { it.copy(items = f(it.items)) } },
+        tabbed = { inbox() && _tab.value != MSummary.TAB_ALL },
+        listQuery = { MailLogic.listQuery(_box.value, _tab.value, inbox()) },
+        conversations = { true },
+        here = ::here,
+        accountsOfAll = { _box.value.accountId?.let { setOf(it) } ?: repository.me.value?.accounts.orEmpty().mapTo(LinkedHashSet()) { it.id } },
+        changed = { load(refresh = true, quiet = true) },
+    )
 
     private var loadJob: Job? = null
 
@@ -123,6 +144,7 @@ class MailHomeViewModel @Inject constructor(
         repository.revealFolder(box)
         saved[KEY_ACCOUNT] = box.accountId ?: 0L
         saved[KEY_FOLDER] = box.folderId ?: 0L
+        bulk.clear()
         _list.value = MailListState()
         load(refresh = false)
     }
@@ -131,6 +153,7 @@ class MailHomeViewModel @Inject constructor(
         if (tab == _tab.value) return
         _tab.value = tab
         saved[KEY_TAB] = tab
+        bulk.clear()
         _list.value = MailListState()
         load(refresh = false)
     }
@@ -155,6 +178,7 @@ class MailHomeViewModel @Inject constructor(
                 is MResult.Ok -> {
                     val (page, raw) = r.value
                     _list.value = MailListState(items = page.items, next = page.next, counts = page.counts ?: _list.value.counts, loading = false)
+                    bulk.onListChanged()
                     cache.putList(key, raw, first = true)
                 }
                 else -> _list.update {
@@ -188,51 +212,26 @@ class MailHomeViewModel @Inject constructor(
         }
     }
 
-    /** A swipe or an action of the row's menu. */
+    /** The folder shown (null: an inbox of all or of one account). */
+    private fun here(): MFolder? = _box.value.folderId?.let { id -> folders.value[_box.value.accountId]?.firstOrNull { it.id == id } }
+
+    /**
+     * A swipe or an action of the row's menu on one mail: read / unread and the flag flip, `tab` switches Relevant /
+     * Sonstige, `move` with [folderId] moves (without: the folder picker), `delete` asks first when the person wants it.
+     */
     fun act(item: MSummary, action: String, folderId: Long? = null) {
         val ids = listOf(item.id)
-        val leaves = when (action) {
-            MailLogic.SWIPE_READ, "unread", "flag" -> false
-            "tab" -> inbox() && _tab.value != MSummary.TAB_ALL
-            else -> true
-        }
-        // at once on the screen, put right when the server says no
-        val before = _list.value.items
-        _list.update { s ->
-            if (leaves) s.copy(items = s.items.filter { it.id != item.id }) else s.copy(
-                items = s.items.map {
-                    when {
-                        it.id != item.id -> it
-                        action == MailLogic.SWIPE_READ -> it.copy(unread = !it.unread)
-                        action == "unread" -> it.copy(unread = true)
-                        action == "flag" -> it.copy(flagged = !it.flagged)
-                        else -> it
-                    }
-                },
-            )
-        }
-        viewModelScope.launch {
-            val r = when (action) {
-                MailLogic.SWIPE_ARCHIVE -> api.archive(ids)
-                MailLogic.SWIPE_DELETE -> api.delete(ids)
-                MailLogic.SWIPE_READ -> api.flags(ids, unread = !item.unread)
-                "unread" -> api.flags(ids, unread = true)
-                "flag" -> api.flags(ids, flagged = !item.flagged)
-                "junk" -> api.junk(ids)
-                "tab" -> api.setTab(ids, if (item.tab == MSummary.TAB_OTHER) MSummary.TAB_RELEVANT else MSummary.TAB_OTHER)
-                "move" -> api.move(ids, folderId ?: return@launch)
-                else -> return@launch
-            }
-            when (r) {
-                is MResult.Ok -> {
-                    if (!leaves && r.value.isNotEmpty()) _list.update { s -> s.copy(items = MailLogic.apply(s.items, r.value)) }
-                    if (leaves) cache.forgetMessages(ids)
-                    repository.refreshSoon(0)
-                }
-                else -> {
-                    _list.update { it.copy(items = before) }
-                    _message.value = code(r)
-                }
+        when (action) {
+            MailLogic.SWIPE_ARCHIVE -> bulk.run(MailBulk.Action.ARCHIVE, ids)
+            MailLogic.SWIPE_DELETE -> bulk.delete(ids)
+            MailLogic.SWIPE_READ -> bulk.run(if (item.unread) MailBulk.Action.READ else MailBulk.Action.UNREAD, ids)
+            "unread" -> bulk.run(MailBulk.Action.UNREAD, ids)
+            MSettings.SWIPE_FLAG -> bulk.run(if (item.flagged) MailBulk.Action.UNFLAG else MailBulk.Action.FLAG, ids)
+            MSettings.SWIPE_JUNK -> bulk.run(MailBulk.Action.JUNK, ids)
+            "tab" -> bulk.run(if (item.tab == MSummary.TAB_OTHER) MailBulk.Action.TO_RELEVANT else MailBulk.Action.TO_OTHER, ids)
+            MSettings.SWIPE_MOVE -> {
+                val folder = folderId?.let { id -> folders.value[item.accountId]?.firstOrNull { it.id == id } }
+                if (folder != null) bulk.run(MailBulk.Action.MOVE, ids, folder) else bulk.openPicker(MailBulk.Action.MOVE, ids)
             }
         }
     }

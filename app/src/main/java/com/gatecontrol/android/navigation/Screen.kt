@@ -180,6 +180,8 @@ sealed class Screen(val route: String) {
     }
     /** "Mail-Einstellungen": the list settings and the accounts. */
     data object MailSettings : Screen("mail/settings")
+    /** "Mail-Einstellungen › Wischen" (Mail 1.13): the swipe actions and "Vor dem Löschen fragen". */
+    data object MailSwipe : Screen("mail/settings/swipe")
     data object MailAccount : Screen("mail/accounts/{id}") {
         const val ARG_ID = "id"
         fun create(id: Long) = "mail/accounts/$id"

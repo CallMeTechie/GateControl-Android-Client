@@ -84,6 +84,17 @@ class MailCache @Inject constructor(
         }?.toMap()
     }
 
+    /** "Zuletzt" of the folder picker (Mail 1.13): the folders moved or copied into last, newest first. */
+    suspend fun putRecentFolders(ids: List<Long>) {
+        io { write(File(it, "recent-folders.json"), JsonObject().apply { add("ids", com.google.gson.JsonArray().apply { ids.forEach { id -> add(id) } }) }) }
+    }
+
+    suspend fun recentFolders(): List<Long>? = io { dir ->
+        read(File(dir, "recent-folders.json"))?.get("ids")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString?.toLongOrNull()?.takeIf { it > 0 } }
+            ?.distinct()?.take(MailBulk.RECENT_MAX)
+    }
+
     // ─── account pictures ───────────────────────────────────────────
 
     /** An account's picture as it came ([MAccount.avatar]); the media id changes with the picture. */
