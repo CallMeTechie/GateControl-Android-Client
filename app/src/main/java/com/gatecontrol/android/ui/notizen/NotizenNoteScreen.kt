@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import com.gatecontrol.android.ui.components.keyboardPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -208,7 +208,7 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().imePadding()) {
+        Column(Modifier.fillMaxSize().keyboardPadding()) {
             GcSubpageBar(listOfNotNull(notebookName, status).joinToString(" · "), { if (ui.editing) vm.stopEditing(); vm.saveNow(); nav.back() }, stringResource(R.string.notizen_back)) {
                 if (note != null && !ui.locked) {
                     GcIconButton(GcIcons.Share, stringResource(R.string.notizen_share), {
