@@ -157,7 +157,10 @@ class MailHomeSelectionUiTest {
         coEvery { api.bulk("archive", any()) } returns MResult.Ok(MBulkDone(emptyList(), 2, listOf(1, 4), MBulkUndo("tok", "archive", 2, null), emptyList()))
         rule.onNodeWithText("Lena Hoffmann").performTouchInput { longClick() }
         rule.onNodeWithText("Paketdienst Flink").performClick()
+        // the snackbar stays a few seconds: the test's clock goes by hand from here
+        rule.mainClock.autoAdvance = false
         rule.onNodeWithText("Archivieren").performClick()
+        rule.mainClock.advanceTimeBy(1_000)
         rule.waitForIdle()
         rule.onAllNodesWithText("Lena Hoffmann").assertCountEquals(0)
         rule.onNodeWithText("2 Mails archiviert").assertIsDisplayed()

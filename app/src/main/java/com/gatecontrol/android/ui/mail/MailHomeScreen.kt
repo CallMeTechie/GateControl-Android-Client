@@ -361,10 +361,12 @@ private fun MailArea(
                     }
                 },
                 selection = {
+                    // mockup: "Posteingang · Alle Konten", "Rechnungen · Privat"
+                    val headTitle = if (box.all) stringResource(R.string.mail_inbox) else title
                     MailSelectionHead(
                         selection = selection,
-                        where = title + " · " + (if (box.all) stringResource(R.string.mail_sel_all_accounts) else account?.label.orEmpty()),
-                        folderName = title,
+                        where = headTitle + " · " + (if (box.all) stringResource(R.string.mail_sel_all_accounts) else account?.label.orEmpty()),
+                        folderName = headTitle,
                         allSelected = MailBulk.allSelected(selection, list.items.map { it.id }),
                         loadingAll = loadingAll,
                         read = MailBulk.readAction(chosen),
