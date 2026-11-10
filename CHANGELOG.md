@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.103.1] - 2026-11-10
+
+### Fixes
+- Snackbar bleibt stehen, Hochladen in einen Tresor verschiebt statt zu kopieren (#219)
+
+---
+
 ## [1.103.0] - 2026-11-09
 
 ### Features
