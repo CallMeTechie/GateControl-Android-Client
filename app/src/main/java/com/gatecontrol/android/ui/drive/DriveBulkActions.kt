@@ -126,6 +126,10 @@ internal class DriveBulkActions(
 
     fun snackShown() { _snack.value = null }
 
+    /** A snackbar as after a job (tests of the screen's host). */
+    @androidx.annotation.VisibleForTesting
+    internal fun postSnack(s: Snack) { _snack.value = s }
+
     /**
      * Waits for the job [id] to end, then the snackbar: how many ([count], the server's `items` when it says), where to;
      * the new items at the target are marked "neu hier" ([moved]: a move keeps the ids).

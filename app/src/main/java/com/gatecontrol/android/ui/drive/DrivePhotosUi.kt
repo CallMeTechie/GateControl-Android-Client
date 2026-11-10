@@ -102,6 +102,7 @@ import com.gatecontrol.android.drive.work.DriveWorkLogic
 import com.gatecontrol.android.drive.work.DriveWorkPhotos
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
+import com.gatecontrol.android.ui.components.GcShowOnce
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -272,9 +273,8 @@ internal fun DrivePhotosContent(
     val workSnackLearns = stringResource(R.string.drive_work_snack_learns)
     val resources = LocalResources.current
     val undoLabel = stringResource(R.string.drive_snack_undo)
-    LaunchedEffect(workSnack) {
-        val w = workSnack ?: return@LaunchedEffect
-        viewModel.workSnackShown()
+    // the snackbars run in the page's scope (GcShowOnce): taking the value restarts an effect keyed by it
+    GcShowOnce(workSnack, consume = viewModel::workSnackShown) { w ->
         val r = resources
         val target = workSettings.folderLabel ?: r.getString(R.string.drive_work_work_default)
         val line = when (w.to) {
@@ -287,9 +287,7 @@ internal fun DrivePhotosContent(
         if (result == SnackbarResult.ActionPerformed) w.undo?.let(viewModel::undoWork)
     }
     // marked photos the phone sorted alone ("Selbst einsortieren, wenn sicher"), now or since the last time
-    LaunchedEffect(autoSorted) {
-        val a = autoSorted ?: return@LaunchedEffect
-        viewModel.autoSortedShown()
+    GcShowOnce(autoSorted, consume = viewModel::autoSortedShown) { a ->
         val text = resources.getQuantityString(R.plurals.drive_work_auto_sorted, a.count, a.count)
         val result = snackbar.showSnackbar(text, actionLabel = if (a.undo != null) undoLabel else null, withDismissAction = a.undo == null, duration = SnackbarDuration.Long)
         if (result == SnackbarResult.ActionPerformed) a.undo?.let(viewModel::undoAutoSorted)

@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.gatecontrol.android.ui.components.GcShowOnce
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,9 +89,8 @@ fun ShoppingScreen(
     val snackbar = remember { SnackbarHostState() }
     val captureText = stringResource(R.string.familie_expense_capture)
     val captureAction = stringResource(R.string.familie_expense_capture_action)
-    LaunchedEffect(captureList) {
-        val listId = captureList ?: return@LaunchedEffect
-        viewModel.clearCapture()
+    // the snackbar runs in the page's scope (GcShowOnce): clearing the list restarts an effect keyed by it
+    GcShowOnce(captureList, consume = viewModel::clearCapture) { listId ->
         val result = snackbar.showSnackbar(captureText, actionLabel = captureAction, withDismissAction = true, duration = SnackbarDuration.Long)
         if (result == SnackbarResult.ActionPerformed) onOpen(FamilieDest.Expenses(listId))
     }

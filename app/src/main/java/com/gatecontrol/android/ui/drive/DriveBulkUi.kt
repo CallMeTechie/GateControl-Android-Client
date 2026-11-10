@@ -86,6 +86,7 @@ import com.gatecontrol.android.ui.components.GcMoreRow
 import com.gatecontrol.android.ui.components.GcSelectCheck
 import com.gatecontrol.android.ui.components.GcSelectionActionBar
 import com.gatecontrol.android.ui.components.GcSelectionHead
+import com.gatecontrol.android.ui.components.GcShowOnce
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcFilterChip
@@ -853,9 +854,8 @@ internal fun DriveBulkHost(bulk: DriveBulkActions, snackbar: SnackbarHostState, 
             bulk.clearMessage()
         }
     }
-    LaunchedEffect(snack) {
-        val s = snack ?: return@LaunchedEffect
-        bulk.snackShown()
+    // taking the snack restarts an effect keyed by it: the snackbar runs in the host's scope (GcShowOnce)
+    GcShowOnce(snack, consume = bulk::snackShown) { s ->
         val undo = s.undoId
         val result = snackbar.showSnackbar(
             snackText(context, s),

@@ -5,11 +5,13 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.os.PersistableBundle
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +42,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.activity.compose.BackHandler
 import com.gatecontrol.android.drive.DriveBulk
@@ -95,6 +98,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.Closeable
 import com.gatecontrol.android.drive.vault.DriveVaultSession
+import com.gatecontrol.android.drive.vault.DriveVaultMove
+import java.util.concurrent.atomic.AtomicBoolean
 import com.gatecontrol.android.drive.vault.DriveVaultLock
 import com.gatecontrol.android.drive.DriveSettings
 import com.gatecontrol.android.drive.DriveUploadNetwork
@@ -109,6 +114,7 @@ import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
+import com.gatecontrol.android.ui.components.GcShowOnce
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.components.GcTone
@@ -143,6 +149,8 @@ class DriveVaultViewModel @Inject constructor(
     private val marks: DriveOffline,
     /** The ciphertext copies on this phone ("Tresor-Dateien offline"). */
     val offlineStore: DriveOfflineStore,
+    /** "In Tresor verschieben": the originals go once their encrypted upload is through and verified. */
+    private val vaultMove: DriveVaultMove,
 ) : ViewModel() {
 
     val vaultId: String = savedStateHandle.get<String>("vault").orEmpty()
@@ -464,9 +472,43 @@ class DriveVaultViewModel @Inject constructor(
         conflict.answer.complete(choice)
     }
 
+    // ─── "In Tresor verschieben": the originals go ────────────────────
+
+    private val _moved = MutableStateFlow<DriveVaultMove.Outcome?>(null)
+    /** A batch is in the vault: what became of the originals (the snackbar; taken with [movedShown]). */
+    val moved: StateFlow<DriveVaultMove.Outcome?> = _moved.asStateFlow()
+
+    fun movedShown() { _moved.value = null }
+
+    /** Android's dialog before gallery originals go for good ([sender]), shown once ([take]); [outcome] waits for it. */
+    class DeleteAsk(val sender: IntentSender, val outcome: DriveVaultMove.Outcome) {
+        private val taken = AtomicBoolean(false)
+        /** True the first time only: the dialog opens once (not again after the page is drawn anew). */
+        fun take(): Boolean = taken.compareAndSet(false, true)
+    }
+
+    private val _deleteAsk = MutableStateFlow<DeleteAsk?>(null)
+    val deleteAsk: StateFlow<DeleteAsk?> = _deleteAsk.asStateFlow()
+
+    /** The person answered Android's dialog ([ok]: deleted): the snackbar says what became of the originals. */
+    fun deleteAnswered(ok: Boolean) {
+        val a = _deleteAsk.value ?: return
+        _deleteAsk.value = null
+        viewModelScope.launch { _moved.value = a.outcome.asked(vaultMove.confirmAsked(a.outcome.ask, ok)) }
+    }
+
+    /** The batch is through: gallery originals wait for Android's dialog, else the snackbar at once. */
+    private fun finishMove(o: DriveVaultMove.Outcome) {
+        if (o.moved == 0) return
+        val sender = vaultMove.deleteRequest(o.ask)
+        if (sender != null) _deleteAsk.value = DeleteAsk(sender, o) else _moved.value = o.asked(0, answered = false)
+    }
+
     /**
-     * Encrypts and uploads the picked files one after the other. A name already in the folder asks first (the server
-     * cannot tell: it only sees opaque names): a new version of that file, both (a free name), or skip.
+     * Encrypts and uploads the picked files one after the other — and moves them: once a file's upload is through and
+     * verified its original goes ([DriveVaultMove]); a file that did not go up keeps it, the batch stops at the first
+     * failure. A name already in the folder asks first (the server cannot tell: it only sees opaque names): a new
+     * version of that file, both (a free name), or skip (the original stays).
      */
     fun upload(uris: List<Uri>, names: (Uri) -> String) {
         val r = here() ?: return
@@ -476,6 +518,7 @@ class DriveVaultViewModel @Inject constructor(
         }
         viewModelScope.launch {
             var last: DResult<*> = DResult.Ok(Unit)
+            var outcome = DriveVaultMove.Outcome()
             val taken = r.items.map { it.second }.toMutableList()
             for (uri in uris) {
                 var name = DriveLogic.safeName(names(uri)) ?: "file"
@@ -498,9 +541,12 @@ class DriveVaultViewModel @Inject constructor(
                 _upload.value = name to 0f
                 last = lock.busy { session.upload(vaultId, r.folder.node.id, uri, name = name, version = version) { p -> _upload.value = name to p } }
                 if (last !is DResult.Ok) break
+                // in the vault and verified: now (and only now) the unencrypted original goes
+                outcome += lock.busy { vaultMove.remove(uri) }
             }
             _upload.value = null
-            _message.value = last.errorCode() ?: "done_upload"
+            last.errorCode()?.let { _message.value = it }
+            finishMove(outcome)
             refresh(quiet = true)
         }
     }
@@ -516,8 +562,11 @@ class DriveVaultViewModel @Inject constructor(
         viewModelScope.launch {
             _upload.value = name to 0f
             val res = lock.busy { session.upload(vaultId, r.folder.node.id, uri, name = name, version = node) { p -> _upload.value = name to p } }
+            // the new content is in the vault and verified: its unencrypted original goes too
+            val outcome = if (res is DResult.Ok) DriveVaultMove.Outcome() + lock.busy { vaultMove.remove(uri) } else DriveVaultMove.Outcome()
             _upload.value = null
-            _message.value = res.errorCode() ?: "done_version"
+            res.errorCode()?.let { _message.value = it }
+            finishMove(outcome)
             refresh(quiet = true)
         }
     }
@@ -774,6 +823,21 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.upload(uris) { u -> displayName(context, u) }
     }
+    // "In Tresor verschieben": Android asks before gallery originals go for good (one dialog for the batch)
+    val deleteAsk by viewModel.deleteAsk.collectAsStateWithLifecycle()
+    val askDelete = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
+        viewModel.deleteAnswered(r.resultCode == android.app.Activity.RESULT_OK)
+    }
+    LaunchedEffect(deleteAsk) {
+        val a = deleteAsk ?: return@LaunchedEffect
+        if (!a.take()) return@LaunchedEffect
+        viewModel.away()
+        try {
+            askDelete.launch(IntentSenderRequest.Builder(a.sender).build())
+        } catch (e: android.content.ActivityNotFoundException) {
+            viewModel.deleteAnswered(false)
+        }
+    }
     val pickVersion = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val target = versionFor
         versionFor = null
@@ -987,6 +1051,12 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         }
     }
     DriveBulkHost(viewModel.bulk, snackbar)
+    // what became of the originals of a batch put into the vault (in the page's scope: GcShowOnce)
+    val moved by viewModel.moved.collectAsStateWithLifecycle()
+    GcShowOnce(moved, consume = viewModel::movedShown) { o ->
+        snackbar.currentSnackbarData?.dismiss()
+        snackbar.showSnackbar(vaultMoveText(context, o), withDismissAction = true, duration = SnackbarDuration.Long)
+    }
 
     if (addOpen) {
         ModalBottomSheet(onDismissRequest = { addOpen = false }) {
@@ -996,8 +1066,10 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     onClick = { addOpen = false; newFolder = true },
                     leading = { Icon(GcIcons.FolderPlus, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                 )
+                // a move: the unencrypted original goes once the file is in the vault (said before, too)
                 GcListRow(
-                    title = stringResource(R.string.drive_upload),
+                    title = stringResource(R.string.drive_vault_move_in),
+                    description = stringResource(R.string.drive_vault_move_in_desc),
                     onClick = { addOpen = false; viewModel.away(); pick.launch(arrayOf("*/*")) },
                     leading = { Icon(GcIcons.Upload, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                 )
@@ -1036,6 +1108,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     MoreItem(
                         GcIcons.Upload,
                         stringResource(R.string.drive_vault_new_version),
+                        stringResource(R.string.drive_vault_new_version_desc),
                         can = when {
                             one == null -> DriveBulk.Can.no(DriveBulk.Why.ONLY_ONE)
                             !writable -> DriveBulk.Can.no(DriveBulk.Why.READ_ONLY)
@@ -1468,3 +1541,20 @@ private fun displayName(context: Context, uri: Uri): String = runCatching {
         if (c.moveToFirst()) c.getString(0) else null
     }
 }.getOrNull() ?: uri.lastPathSegment ?: "…"
+
+/**
+ * The snackbar after files went into the vault: all originals gone ("3 Dateien in den Tresor verschoben – die
+ * Originale wurden gelöscht."), else what went up and which originals are still there and why.
+ */
+internal fun vaultMoveText(context: Context, o: DriveVaultMove.Outcome): String {
+    val r = context.resources
+    if (o.clean) return r.getQuantityString(R.plurals.drive_vault_moved, o.moved, o.moved)
+    val kept = o.kept + o.ask.size
+    return buildList {
+        add(r.getQuantityString(R.plurals.drive_vault_uploaded, o.moved, o.moved))
+        if (o.deleted > 0) add(r.getQuantityString(R.plurals.drive_vault_orig_deleted, o.deleted, o.deleted))
+        if (kept > 0) add(r.getQuantityString(R.plurals.drive_vault_orig_kept, kept, kept))
+        if (o.declined > 0) add(r.getQuantityString(R.plurals.drive_vault_orig_declined, o.declined, o.declined))
+        if (o.inTrash > 0) add(r.getQuantityString(R.plurals.drive_vault_orig_trash, o.inTrash, o.inTrash))
+    }.joinToString(" ")
+}

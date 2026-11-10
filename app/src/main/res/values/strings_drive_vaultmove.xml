@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- "In Tresor verschieben": files put into a vault are moved, their unencrypted original goes -->
+    <string name="drive_vault_move_in">Move into vault</string>
+    <string name="drive_vault_move_in_desc">Encrypted and uploaded, then the original is deleted</string>
+    <string name="drive_vault_new_version_desc">The original is deleted afterwards</string>
+    <string name="drive_vault_err_verify">The file did not arrive in the vault completely. The original was kept – please try again.</string>
+    <plurals name="drive_vault_moved">
+        <item quantity="one">%d file moved into the vault – the original was deleted.</item>
+        <item quantity="other">%d files moved into the vault – the originals were deleted.</item>
+    </plurals>
+    <plurals name="drive_vault_uploaded">
+        <item quantity="one">%d file uploaded into the vault.</item>
+        <item quantity="other">%d files uploaded into the vault.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_deleted">
+        <item quantity="one">%d original was deleted.</item>
+        <item quantity="other">%d originals were deleted.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_kept">
+        <item quantity="one">The original could not be deleted – please delete it yourself.</item>
+        <item quantity="other">%d originals could not be deleted – please delete them yourself.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_declined">
+        <item quantity="one">The original was not deleted because you declined – please delete it yourself.</item>
+        <item quantity="other">%d originals were not deleted because you declined – please delete them yourself.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_trash">
+        <item quantity="one">The original is still in the Drive trash – please delete it there for good.</item>
+        <item quantity="other">%d originals are still in the Drive trash – please delete them there for good.</item>
+    </plurals>
+</resources>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- „In Tresor verschieben“: Dateien im Tresor werden verschoben, das unverschlüsselte Original wird gelöscht -->
+    <string name="drive_vault_move_in">In Tresor verschieben</string>
+    <string name="drive_vault_move_in_desc">Wird verschlüsselt hochgeladen, danach wird das Original gelöscht</string>
+    <string name="drive_vault_new_version_desc">Das Original wird danach gelöscht</string>
+    <string name="drive_vault_err_verify">Die Datei ist nicht vollständig im Tresor angekommen. Das Original bleibt erhalten – bitte noch einmal versuchen.</string>
+    <plurals name="drive_vault_moved">
+        <item quantity="one">%d Datei in den Tresor verschoben – das Original wurde gelöscht.</item>
+        <item quantity="other">%d Dateien in den Tresor verschoben – die Originale wurden gelöscht.</item>
+    </plurals>
+    <plurals name="drive_vault_uploaded">
+        <item quantity="one">Hochgeladen.</item>
+        <item quantity="other">%d Dateien in den Tresor hochgeladen.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_deleted">
+        <item quantity="one">%d Original wurde gelöscht.</item>
+        <item quantity="other">%d Originale wurden gelöscht.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_kept">
+        <item quantity="one">Das Original konnte nicht gelöscht werden – bitte selbst löschen.</item>
+        <item quantity="other">%d Originale konnten nicht gelöscht werden – bitte selbst löschen.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_declined">
+        <item quantity="one">Das Original wurde nicht gelöscht, weil du abgelehnt hast – bitte selbst löschen.</item>
+        <item quantity="other">%d Originale wurden nicht gelöscht, weil du abgelehnt hast – bitte selbst löschen.</item>
+    </plurals>
+    <plurals name="drive_vault_orig_trash">
+        <item quantity="one">Das Original liegt noch im Drive-Papierkorb – bitte dort endgültig löschen.</item>
+        <item quantity="other">%d Originale liegen noch im Drive-Papierkorb – bitte dort endgültig löschen.</item>
+    </plurals>
+</resources>
