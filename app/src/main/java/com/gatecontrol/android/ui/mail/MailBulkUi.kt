@@ -39,10 +39,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.gatecontrol.android.ui.components.GcShowOnce
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -79,7 +79,6 @@ import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcSelectionActionBar
 import com.gatecontrol.android.ui.components.GcSelectionHead
 import com.gatecontrol.android.ui.theme.GateControlTheme
-import kotlinx.coroutines.launch
 
 /*
  * Mail 1.13 "Mehrfachauswahl" (mockups 1–3): the head while mails are ticked, the bar of actions, "Mehr", the folder
@@ -493,22 +492,17 @@ internal fun MailBulkHost(bulk: MailBulkActions, me: MMe?, folders: Map<Long, Li
         toast(context, if (m == MailBulkActions.UNDO_TOO_LATE) tooLate else mailText(context, m))
         bulk.clearMessage()
     }
-    // the snackbar runs in the host's scope: taking the snack ([MailBulkActions.snackShown]) restarts the effect
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(snack) {
-        val s = snack ?: return@LaunchedEffect
-        bulk.snackShown()
+    // the snackbar runs in the host's scope (GcShowOnce): taking the snack ([MailBulkActions.snackShown]) restarts the effect
+    GcShowOnce(snack, consume = bulk::snackShown) { s ->
         val undo = s.tokens.isNotEmpty()
         snackbar.currentSnackbarData?.dismiss()
-        scope.launch {
-            val result = snackbar.showSnackbar(
-                snackText(context, s),
-                actionLabel = if (undo) undoLabel else null,
-                withDismissAction = !undo,
-                duration = if (undo) SnackbarDuration.Long else SnackbarDuration.Short,
-            )
-            if (result == SnackbarResult.ActionPerformed && undo) bulk.undo(s)
-        }
+        val result = snackbar.showSnackbar(
+            snackText(context, s),
+            actionLabel = if (undo) undoLabel else null,
+            withDismissAction = !undo,
+            duration = if (undo) SnackbarDuration.Long else SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed && undo) bulk.undo(s)
     }
     picker?.let { p ->
         val accountId = p.accounts.singleOrNull()

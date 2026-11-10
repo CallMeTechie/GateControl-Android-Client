@@ -28,6 +28,8 @@ import timber.log.Timber
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
+import java.security.DigestOutputStream
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -521,7 +523,9 @@ class DriveVaultSession @Inject constructor(
 
     /**
      * Encrypts the picked [uri] (streamed, 1 MiB chunks) into a ciphertext file of the cache, uploads it and makes it a
-     * file of folder [parentId] of the vault. [onProgress] gets 0..1.
+     * file of folder [parentId] of the vault. [onProgress] gets 0..1. Ok only when the vault's answer is that very
+     * ciphertext (its size, and its SHA-256 when the server gives one — [DriveVaultMove.verified]), else `verify`: only
+     * then may the original go ("In Tresor verschieben"). The whole plaintext was read (encryptContent checks the size).
      */
     suspend fun upload(
         vaultId: String,
@@ -542,11 +546,12 @@ class DriveVaultSession @Inject constructor(
             val tk = tk(vaultId, v) ?: return@fresh DResult.Failed("locked", 0)
             val dir = upDir().apply { mkdirs() }
             val tmp = File.createTempFile("upload", ".gcdv", dir)
+            val digest = MessageDigest.getInstance("SHA-256")
             try {
                 try {
                     val stream = context.contentResolver.openInputStream(uri) ?: return@fresh DResult.Failed("read", 0)
                     stream.use { inp ->
-                        tmp.outputStream().buffered(256 * 1024).use { out ->
+                        DigestOutputStream(tmp.outputStream(), digest).buffered(256 * 1024).use { out ->
                             DriveVaultCrypto.encryptContent(tk, vaultId, v, inp, size, out, onProgress = { done ->
                                 if (size > 0) onProgress(0.5f * done / size)
                             })
@@ -557,11 +562,21 @@ class DriveVaultSession @Inject constructor(
                 } catch (e: IOException) {
                     return@fresh DResult.Failed("read", 0)
                 }
-                val total = tmp.length().coerceAtLeast(1)
+                val length = tmp.length()
+                val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
+                val total = length.coerceAtLeast(1)
                 val media = api.upload(tmp, "application/octet-stream") { sent -> onProgress(0.5f + 0.5f * sent / total) }
                 if (media !is DResult.Ok) return@fresh media.notOk()
                 val cipher = DriveVaultCrypto.encryptName(tk, vaultId, v, name)
-                api.commitVault(media.value, parentId, cipher, v, null, opaqueName = opaque).let { r -> if (r is DResult.Ok) DResult.Ok(r.value.first) else r.notOk() }
+                when (val r = api.commitVault(media.value, parentId, cipher, v, null, opaqueName = opaque)) {
+                    is DResult.Ok -> if (DriveVaultMove.verified(r.value.first, length, sha256)) {
+                        DResult.Ok(r.value.first)
+                    } else {
+                        Timber.w("Drive vault: the uploaded file differs from the ciphertext sent")
+                        DResult.Failed(CODE_VERIFY, 0)
+                    }
+                    else -> r.notOk()
+                }
             } finally {
                 tmp.delete()
             }
@@ -772,6 +787,8 @@ class DriveVaultSession @Inject constructor(
         const val CODE_AUTH = "auth_required"
         /** `open`: the phone has no screen lock, the vault cannot be opened. */
         const val CODE_NO_LOCK = "no_screen_lock"
+        /** `upload`: the vault's answer is not the file sent (size or SHA-256) — the original stays. */
+        const val CODE_VERIFY = "verify"
         private const val PLATFORM = "android"
         private const val ROTATE_TRIES = 3
         /** The opaque name of a vault node (32 hex characters, plugin `vault.js` OPAQUE_RE). */

@@ -5,6 +5,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.gatecontrol.android.ui.components.GcShowOnce
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,9 +78,8 @@ internal fun NotizenManageHost(
     }
     val undoText = undo?.let { stringResource(R.string.notizen_deleted_x, it.name) }
     val undoLabel = stringResource(R.string.notizen_undo)
-    LaunchedEffect(undo) {
-        val u = undo?.takeIf(showsUndo) ?: return@LaunchedEffect
-        vm.consumeUndo()
+    // the snackbar runs in the host's scope (GcShowOnce): taking the undo restarts an effect keyed by it
+    GcShowOnce(undo?.takeIf(showsUndo), consume = vm::consumeUndo) { u ->
         val r = snack.showSnackbar(undoText.orEmpty(), actionLabel = undoLabel, withDismissAction = true, duration = SnackbarDuration.Long)
         if (r == SnackbarResult.ActionPerformed) vm.restore(u)
     }

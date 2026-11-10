@@ -103,6 +103,7 @@ internal fun vaultViewText(context: Context, code: String): String? = when (code
     "vault_share_too_large" -> context.getString(R.string.drive_vault_open_with_too_large, DriveVaultView.SHARE_LIMIT / 1_048_576)
     "unsupported" -> context.getString(R.string.drive_vault_view_unsupported)
     "decrypt" -> context.getString(R.string.drive_vault_view_unreadable)
+    DriveVaultSession.CODE_VERIFY -> context.getString(R.string.drive_vault_err_verify)
     else -> null
 }
 
