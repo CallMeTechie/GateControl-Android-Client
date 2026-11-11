@@ -152,8 +152,8 @@
     <string name="rules_tpl_car">Auto laden</string>
     <string name="rules_tpl_car_hint">Abends erinnern, wenn der Akku unter 50 % ist</string>
     <string name="rules_tpl_all_away">Alle weg – Licht und Klima aus</string>
-    <string name="rules_tpl_all_away_hint">Schaltet die Geräte aus, wenn niemand mehr zuhause ist</string>
-    <string name="rules_tpl_child_alone">Kind allein zuhause</string>
+    <string name="rules_tpl_all_away_hint">Schaltet die Geräte aus, wenn niemand mehr zu Hause ist</string>
+    <string name="rules_tpl_child_alone">Kind allein zu Hause</string>
     <string name="rules_tpl_child_alone_hint">Mitteilung an die Eltern</string>
     <string name="rules_tpl_school">An der Schule angekommen</string>
     <string name="rules_tpl_school_hint">Mitteilung an die Eltern, wenn das Kind die Schule erreicht</string>
@@ -187,4 +187,26 @@
     <string name="rules_text_hint_school">{event}</string>
     <string name="rules_tpl_school_cancelled">Stunde fällt aus</string>
     <string name="rules_tpl_school_cancelled_hint">Mitteilung, wenn laut Stundenplan eine Stunde ausfällt</string>
+
+    <!-- Internet zu Hause als Aktion (Familie 1.20) -->
+    <string name="rules_action_kind_internet">Internet zu Hause</string>
+    <string name="rules_add_action_hint_internet">Gerät schalten, Mitteilung, Chat, Internet zu Hause</string>
+    <string name="rules_internet_pause">Internet von %1$s pausieren</string>
+    <string name="rules_internet_resume">Internet von %1$s fortsetzen</string>
+    <string name="rules_internet_for">für %1$s</string>
+    <string name="rules_internet_until">bis %1$s</string>
+    <string name="rules_internet_problem_not_found">Nicht verfügbar: %1$s ist kein minderjähriges Kind der Familie mehr</string>
+    <string name="rules_internet_problem_not_allowed">Nicht verfügbar: Die Regel gehört keinem Elternteil mehr</string>
+    <string name="rules_internet_problem_unavailable">Nicht verfügbar: Auf diesem Server gibt es kein „Internet zu Hause“</string>
+    <string name="rules_internet_who">Für wen</string>
+    <string name="rules_internet_what">Was</string>
+    <string name="rules_internet_how_long">Wie lange</string>
+    <string name="rules_internet_op_pause">Pausieren</string>
+    <string name="rules_internet_op_resume">Fortsetzen</string>
+    <string name="rules_internet_until_time">bis Uhrzeit</string>
+    <string name="rules_done">Fertig</string>
+    <string name="rules_internet_owner_hint">Die Regel pausiert im Namen von %1$s. Nur Eltern können diese Aktion speichern.</string>
+    <string name="rules_internet_parents_hint">Nur Eltern können diese Aktion speichern.</string>
+    <string name="rules_err_internet_parents">Nur Eltern können eine Regel mit „Internet zu Hause“ speichern.</string>
+    <string name="rules_err_internet_child">Das Internet lässt sich nur für ein minderjähriges Kind der Familie pausieren.</string>
 </resources>

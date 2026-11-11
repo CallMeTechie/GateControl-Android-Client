@@ -1,5 +1,7 @@
 package com.gatecontrol.android.familie.rules
 
+import com.google.gson.JsonObject
+
 /**
  * Familie "Regeln und Erinnerungen" (contract B1, client API
  * `/api/v1/client/plugins/gatecontrol-familie/api/rules…`): the presence
@@ -59,6 +61,25 @@ object RuleActionType {
     const val QUICK_ACTION = "quick_action"
     const val NOTIFY = "notify"
     const val MESSENGER = "messenger"
+
+    /** Familie 1.20 (GateControl 1.259+): pause / resume a child's „Internet zu Hause“; parents only. */
+    const val INTERNET = "internet"
+}
+
+/** `op` of an [RuleActionType.INTERNET] action. */
+object RuleInternetOp {
+    const val PAUSE = "pause"
+    const val RESUME = "resume"
+}
+
+/** `problem` of an internet action in an answer: why it will not run. */
+object RuleInternetProblem {
+    /** No „Internet zu Hause“ on the server (any more). */
+    const val UNAVAILABLE = "unavailable"
+    /** The rule's owner is no parent any more. */
+    const val NOT_ALLOWED = "not_allowed"
+    /** No minor child of the family any more. */
+    const val NOT_FOUND = "not_found"
 }
 
 /** Buttons of a `notify` action (B1): a quick action of the device, "In 1 Std.", "Erledigt". */
@@ -151,6 +172,11 @@ data class RuleRecipients(val keyword: String? = null, val userIds: List<Int> = 
  * null = a button); notify: [to], [text], [facts], [buttons]; messenger:
  * [to], [text]. [available] false: the owner no longer has the quick
  * action; [needsTarget]: a toggle without a target state (older rule).
+ * internet (1.20): [op] ([RuleInternetOp]) for the child [userId] ([title]
+ * its name), a pause for [minutes] (1…1440) or until the next [until]
+ * (`HH:MM`, the family's zone); [problem] ([RuleInternetProblem]) why it
+ * will not run. [raw] is the action as the server sent it: its fields the
+ * app does not know go back unchanged when the rule is saved.
  */
 data class RuleAction(
     val type: String,
@@ -167,7 +193,16 @@ data class RuleAction(
     /** quick_action: toggle | button | null, and the toggle's word for [state] ("Verriegeln"). */
     val kind: String? = null,
     val verb: String? = null,
+    val op: String? = null,
+    val userId: Int? = null,
+    val minutes: Int? = null,
+    val until: String? = null,
+    val problem: String? = null,
+    val raw: JsonObject? = null,
 ) {
+    /** An internet action the editor can show and change (a newer `op` is kept as it came). */
+    val isInternet: Boolean get() = type == RuleActionType.INTERNET && (op == RuleInternetOp.PAUSE || op == RuleInternetOp.RESUME) && userId != null
+
     /** `<plugin>/<id>` of a quick action. */
     val actionId: String? get() = if (plugin != null && id != null) "$plugin/$id" else null
 }
@@ -274,6 +309,19 @@ data class RuleOptionPlace(val id: Int, val name: String)
 
 data class RuleOptionPerson(val userId: Int, val name: String, val child: Boolean = false)
 
+/** A child whose internet a rule may pause (`rules/options` → `internet.children[]`). */
+data class RuleOptionChild(val userId: Int, val name: String)
+
+/**
+ * `rules/options` → `internet` (Familie 1.20). [available] false with
+ * [reason] `parents_only` (the caller is no parent) or `unavailable` (no
+ * „Internet zu Hause“, or GateControl before 1.259): the action is not offered.
+ */
+data class RuleOptionInternet(val available: Boolean = false, val reason: String? = null, val children: List<RuleOptionChild> = emptyList()) {
+    /** The action can be added and changed here. */
+    val usable: Boolean get() = available && children.isNotEmpty()
+}
+
 /** A child with a timetable (`rules/options` → `school.students[]`). */
 data class RuleOptionStudent(val userId: Int, val name: String)
 
@@ -297,6 +345,8 @@ data class RuleOptions(
     val buttons: Boolean = true,
     /** The timetable's children; null without the Schule plugin (or before Familie 1.12). */
     val school: RuleOptionSchool? = null,
+    /** The internet action; not available from a plugin before 1.20. */
+    val internet: RuleOptionInternet = RuleOptionInternet(),
 ) {
     fun device(actionId: String?): RuleOptionDevice? = devices.firstOrNull { it.actionId == actionId }
 

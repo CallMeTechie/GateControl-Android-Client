@@ -108,6 +108,9 @@ fun FamilieHomeScreen(
     val schoolSnapshot by viewModel.schoolSnapshot.collectAsStateWithLifecycle()
     val schoolError by viewModel.schoolError.collectAsStateWithLifecycle()
     val schoolInbox by viewModel.schoolInbox.collectAsStateWithLifecycle()
+    val internet by viewModel.internet.collectAsStateWithLifecycle()
+    // „Internet zu Hause“ has no module: the card is there when the server lists children for it.
+    val hasInternet = internet?.payload?.visible == true
     val context = LocalContext.current
     val errorText = message?.let { familieErrorText(it) }
     var arranging by rememberSaveable { mutableStateOf(false) }
@@ -136,7 +139,7 @@ fun FamilieHomeScreen(
 
     val arrangeFor = profile
     if (arranging && arrangeFor != null) {
-        val available = FamilieCards.available(arrangeFor, schule)
+        val available = FamilieCards.available(arrangeFor, schule, hasInternet)
         FamilieArrangeScreen(
             profile = arrangeFor,
             order = FamilieLayout.merge(layout.familie, available),
@@ -164,14 +167,17 @@ fun FamilieHomeScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             val p = profile
-            Header(profile, onArrange = if (p != null && p.modules.any) openArrange else null)
+            Header(profile, onArrange = if (p != null && (p.modules.any || hasInternet)) openArrange else null)
             when {
                 p == null && !profileLoaded -> FamilieLoading()
                 p == null -> FamilieErrorBanner(profileError, onRetry = viewModel::refresh)
-                !p.modules.any -> FamilieEmpty(GcIcons.Family, stringResource(R.string.familie_all_off))
+                !p.modules.any && !hasInternet -> FamilieEmpty(GcIcons.Family, stringResource(R.string.familie_all_off))
                 else -> {
-                    val order = FamilieLayout.visible(FamilieLayout.merge(layout.familie, FamilieCards.available(p, schule)), layout.familieHidden)
-                    HomeCards(p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange) {
+                    val order = FamilieLayout.visible(FamilieLayout.merge(layout.familie, FamilieCards.available(p, schule, hasInternet)), layout.familieHidden)
+                    HomeCards(
+                        p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange,
+                        internetCard = { internet?.let { InternetHomeCard(it, selected == FamilieDest.Internet, onOpen) } },
+                    ) {
                         SchoolCard(schoolSnapshot, schoolError, selected is FamilieDest.School, onOpen, schoolInbox)
                     }
                 }
@@ -232,6 +238,7 @@ private fun HomeCards(
     onOpenProfile: () -> Unit,
     onTaskDone: (Int) -> Unit,
     onArrange: () -> Unit,
+    internetCard: @Composable () -> Unit,
     schoolCard: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -268,6 +275,7 @@ private fun HomeCards(
                     FamilieLayout.LOCATE -> LocateCard(p, overview, selected, onOpen)
                     FamilieLayout.DATES -> DatesCard(overview, selected == FamilieDest.Dates, onOpen)
                     FamilieLayout.SCHOOL -> schoolCard()
+                    FamilieLayout.INTERNET -> internetCard()
                     FamilieLayout.MEALS -> MealsCard(p, overview, selected is FamilieDest.Meals, onOpen)
                     FamilieLayout.BOARD -> BoardCard(overview, selected == FamilieDest.Board, onOpen)
                     FamilieLayout.ALLOWANCE -> AllowanceCard(p, overview, selected is FamilieDest.Allowance, onOpen)

@@ -34,6 +34,12 @@ object RuleJson {
     private const val TEXT_MAX = 500
     private const val MAX_ITEMS = 200
 
+    /** A rule pauses for at most a day. */
+    const val INTERNET_MAX_MINUTES = 1440
+
+    /** Fields of an internet action only answers carry; they are not sent back. */
+    private val INTERNET_ANSWER_ONLY = listOf("name", "available", "problem")
+
     internal fun time(value: String?): String? = value?.trim()?.take(5)?.takeIf { HHMM_RE.matches(it) }
 
     private fun token(value: String?): String? = value?.trim()?.takeIf { TOKEN_RE.matches(it) }
@@ -231,9 +237,44 @@ object RuleJson {
                 buttons = o.arr("buttons")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString?.trim()?.takeIf { b -> b.length <= 140 } }
                     ?.distinct()?.take(3).orEmpty(),
             )
+            RuleActionType.INTERNET -> internetAction(o)
             // A newer action type: kept so a save does not lose it.
             else -> RuleAction(type = type, text = text)
         }
+    }
+
+    /**
+     * `{ type: "internet", op, userId, name, minutes | until, available, problem }` (1.20). An `op` or a
+     * child the app cannot read stays as it came ([RuleAction.raw]) and is not editable.
+     */
+    private fun internetAction(o: JsonObject): RuleAction {
+        val op = o.str("op")?.takeIf { it == RuleInternetOp.PAUSE || it == RuleInternetOp.RESUME }
+        val pause = op == RuleInternetOp.PAUSE
+        val until = if (pause) time(o.str("until")) else null
+        return RuleAction(
+            type = RuleActionType.INTERNET,
+            title = o.str("name")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
+            available = o.bool("available"),
+            op = op,
+            userId = o.int("userId")?.takeIf { it > 0 },
+            minutes = if (pause && until == null) o.int("minutes")?.takeIf { it in 1..INTERNET_MAX_MINUTES } else null,
+            until = until,
+            problem = token(o.str("problem")),
+            raw = o.deepCopy(),
+        )
+    }
+
+    /** `rules/options` → `internet`. */
+    private fun optionInternet(o: JsonObject?): RuleOptionInternet {
+        if (o == null) return RuleOptionInternet()
+        return RuleOptionInternet(
+            available = o.bool("available") == true,
+            reason = token(o.str("reason")),
+            children = o.arr("children")?.objects()?.mapNotNull { c ->
+                val id = c.int("userId")?.takeIf { it > 0 } ?: return@mapNotNull null
+                RuleOptionChild(id, clean(c.str("name"), 60).ifBlank { "#$id" })
+            }?.distinctBy { it.userId }?.take(50).orEmpty(),
+        )
     }
 
     fun logEntry(o: JsonObject): RuleLogEntry? {
@@ -298,6 +339,7 @@ object RuleJson {
                     }?.distinctBy { it.userId }?.take(50).orEmpty(),
                 )
             },
+            internet = optionInternet(o.obj("internet")),
         )
     }
 
@@ -399,7 +441,25 @@ object RuleJson {
         }
     }
 
-    private fun actionBody(a: RuleAction): JsonObject = JsonObject().apply {
+    /**
+     * An internet action: what the server sent ([RuleAction.raw]) with the editor's fields written
+     * over it — fields the app does not know stay as they are. One the editor could not read (a newer
+     * `op`) goes back untouched.
+     */
+    private fun internetBody(a: RuleAction): JsonObject = (a.raw?.deepCopy() ?: JsonObject()).apply {
+        INTERNET_ANSWER_ONLY.forEach { remove(it) }
+        addProperty("type", RuleActionType.INTERNET)
+        if (!a.isInternet) return@apply
+        addProperty("op", a.op)
+        addProperty("userId", a.userId)
+        remove("minutes")
+        remove("until")
+        if (a.op == RuleInternetOp.PAUSE) {
+            if (a.until != null) addProperty("until", a.until) else addProperty("minutes", (a.minutes ?: 30).coerceIn(1, INTERNET_MAX_MINUTES))
+        }
+    }
+
+    private fun actionBody(a: RuleAction): JsonObject = if (a.type == RuleActionType.INTERNET) internetBody(a) else JsonObject().apply {
         addProperty("type", a.type)
         when (a.type) {
             // Familie 1.9: the quick action as `{ actionId }`, a toggle with its target `state`.

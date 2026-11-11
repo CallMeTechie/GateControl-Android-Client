@@ -788,3 +788,45 @@ source, chat { at, ok, error, fallback } }`). Request cards show
 off. Shopping, task and request cards are plugin `notice` cards: title as
 headline, text below, buttons run the Familie quick actions
 (`shop-take:<id>`, `shop-decline:<id>`, `task-done:<id>`).
+
+## Internet zu Hause (Familie 1.20, GateControl 1.259 for the rule action)
+
+`familie/internet/` (models, `InternetJson`, pure `InternetLogic`,
+`InternetRepository`), `ui/familie/InternetScreen.kt` (page, dialogs, the
+card of the start screen) and `InternetViewModel.kt`.
+
+- **No module.** `GET internet` decides: the card `internet` (FamilieLayout,
+  after the tasks, arranged and hidden like every card) and the page
+  `FamilieDest.Internet` are there when `internet.available` is true and the
+  answer lists children (parents: the minors; a minor child: itself,
+  `manage: false`, no buttons). An older plugin (404), `409 unavailable` or
+  `available: false` leave the card out without an error; the page then
+  shows "Auf diesem Server gibt es kein „Internet zu Hause“".
+- **State of a card** in the portal's order (`InternetLogic.state`): pause
+  runs → "Heute länger" runs → `error` → `filtered` → not filtered. "Runs"
+  is checked against the server's clock (`serverTime` plus the time since
+  the answer), times of day are shown in the family's `timezone`. Of a
+  child's devices only the number is shown.
+- **Changes** (parents): `POST internet/<id>/pause` `{minutes}` / `{until:
+  "HH:MM"}` / `{add: 30}`, `resume`, `extend` `{minutes[, fromNow]}`
+  (`minutes: 0` ends the extra time). The answer's `child` replaces the one
+  in the shared snapshot, so the start screen's card follows at once.
+- **A rule paused it:** `pausedBy.rule` → "Pausiert von der Regel …" with
+  "Regel öffnen" (parents; opens the rule editor).
+- **Rule action** `type: "internet"` (`RuleActionType.INTERNET`): offered
+  when `rules/options → internet.available` and it lists children. The
+  action as the server sent it is kept (`RuleAction.raw`); on save the
+  editor's fields are written over it and unknown fields go back unchanged
+  (answer-only `name`, `available`, `problem` are left out). `problem`
+  shows as "Nicht verfügbar: …".
+- **Wi-Fi detection** (1.17) in the profile: `GET|PUT presence/wifi`,
+  `PUT presence/wifi/devices/<id>`; the switch is hidden when
+  `wifi.available` is false or the call fails. The source of the own state
+  (`members[].source`: `wifi` → "WLAN", `app` → "App") is shown next to it.
+- **Push** topic `internet`, `data.familie.type = "internet"` (`kind`
+  `pause`, `resume`, `extend`, `extend_end`, `pause_over`, `extend_over`,
+  unknown kinds alike): a tap opens the page, an open page and the card
+  reload.
+- Tests: `InternetJsonTest`, `InternetLogicTest`, `InternetPushTest`,
+  `RuleInternetTest`, Robolectric `InternetUiTest` (screenshots with
+  `INTERNET_SHOTS=<dir>`).

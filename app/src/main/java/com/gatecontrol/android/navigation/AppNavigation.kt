@@ -365,7 +365,11 @@ fun AppNavigation(
     @Composable
     fun FamilieTab(dest: FamilieDest?) {
         if (layout.twoPane) {
-            FamilieTwoPane(initial = dest, onOpenProfile = { openSettingsPane(SettingsPane.Profile) })
+            FamilieTwoPane(
+                initial = dest,
+                onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                onOpenRule = { id -> navController.navigate(RulesRoutes.edit(id)) { launchSingleTop = true } },
+            )
         } else {
             GcContentWidth {
                 FamilieHomeScreen(
@@ -748,6 +752,7 @@ fun AppNavigation(
                         },
                         onOpen = { navController.navigate(Screen.FamiliePage.create(it.key)) },
                         onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                        onOpenRule = { id -> navController.navigate(RulesRoutes.edit(id)) { launchSingleTop = true } },
                     )
                 }
             }

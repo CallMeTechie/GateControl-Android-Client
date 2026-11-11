@@ -72,6 +72,7 @@ object RuleLogic {
     /** Can [r] be saved? A title, a complete trigger and at least one action. */
     fun valid(r: Rule): Boolean {
         if (r.title.isBlank() || r.actions.isEmpty()) return false
+        if (r.actions.any { it.isInternet && !internetComplete(it) }) return false
         val t = r.trigger
         return when (t.type) {
             RuleTriggerType.SCHEDULE -> t.weekdays.isNotEmpty() && t.time != null
@@ -81,6 +82,32 @@ object RuleLogic {
             else -> true
         }
     }
+
+    private val ACTION_FIELD_RE = Regex("^actions\\.(\\d{1,3})(?:\\..*)?$")
+
+    /** The step an error's `field` names (`actions.2`, `actions.2.userId`), else null. */
+    fun actionIndex(field: String?): Int? = field?.let { ACTION_FIELD_RE.find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+    /** An internet action says what to do: resume, or pause for minutes or until a time of day. */
+    fun internetComplete(a: RuleAction): Boolean = when (a.op) {
+        RuleInternetOp.RESUME -> a.userId != null
+        RuleInternetOp.PAUSE -> a.userId != null && ((a.minutes != null && a.minutes in 1..RuleJson.INTERNET_MAX_MINUTES) != (a.until != null))
+        else -> false
+    }
+
+    /**
+     * The internet action the dialog hands back: [initial] (an action being changed) keeps what the
+     * server sent with it; a pause is for [minutes] or, with [until] (`HH:MM`), until that time of day.
+     */
+    fun internetAction(initial: RuleAction?, userId: Int, name: String?, pause: Boolean, minutes: Int, until: String?): RuleAction = RuleAction(
+        type = RuleActionType.INTERNET,
+        title = name,
+        op = if (pause) RuleInternetOp.PAUSE else RuleInternetOp.RESUME,
+        userId = userId,
+        minutes = if (pause && until == null) minutes.coerceIn(1, RuleJson.INTERNET_MAX_MINUTES) else null,
+        until = if (pause) until else null,
+        raw = initial?.raw,
+    )
 
     /**
      * What the line of a school_change trigger says: the one [kind] it watches (null: several —

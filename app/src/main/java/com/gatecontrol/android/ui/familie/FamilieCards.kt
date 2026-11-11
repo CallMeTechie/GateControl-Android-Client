@@ -16,14 +16,17 @@ object FamilieCards {
      * start screen shows them under. [schule]: the Schule plugin is listed
      * (PluginAvailability), which adds "Stundenplan" for everybody — the
      * plugin itself answers only with the children the person may see.
+     * [internet]: `GET internet` says „Internet zu Hause“ is there and lists
+     * children (parents: the minors; a minor child: itself).
      */
-    fun available(p: FamilieProfile, schule: Boolean = false): List<String> {
+    fun available(p: FamilieProfile, schule: Boolean = false, internet: Boolean = false): List<String> {
         val m = p.modules
         return buildList {
             add(FamilieLayout.MEMBERS)
             if (p.me.isChild && (m.locate || m.arrivalSos)) add(FamilieLayout.CHILD)
             if (m.emergency) add(FamilieLayout.EMERGENCY)
             if (m.tasks) add(FamilieLayout.TASKS)
+            if (internet) add(FamilieLayout.INTERNET)
             if (m.rides) add(FamilieLayout.RIDES)
             if (m.shopping) add(FamilieLayout.SHOPPING)
             if (p.me.isParent && m.locate && p.children.isNotEmpty()) add(FamilieLayout.LOCATE)
@@ -55,6 +58,7 @@ object FamilieCards {
         FamilieLayout.WISHES -> GcIcons.Gift
         FamilieLayout.EXPENSES -> GcIcons.Receipt
         FamilieLayout.PLACES -> GcIcons.Pin
+        FamilieLayout.INTERNET -> GcIcons.Globe
         else -> GcIcons.Family
     }
 
@@ -77,6 +81,7 @@ object FamilieCards {
             FamilieLayout.WISHES -> R.string.familie_wishes_title
             FamilieLayout.EXPENSES -> R.string.familie_expenses_title
             FamilieLayout.PLACES -> R.string.familie_places_title
+            FamilieLayout.INTERNET -> R.string.familie_internet_title
             else -> R.string.familie_title
         },
     )

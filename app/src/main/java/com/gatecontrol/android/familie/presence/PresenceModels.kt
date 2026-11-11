@@ -5,7 +5,7 @@ import com.gatecontrol.android.trustednet.TrustedNetSnapshot
 
 /*
  * Familie 1.2 Anwesenheit (`presence`): each person decides whether the app
- * reports "zuhause" / "unterwegs" to the family's own server. The phone
+ * reports "zu Hause" / "unterwegs" to the family's own server. The phone
  * asks the server itself (`GET api/v1/client/home-network` with its private
  * LAN addresses): the server's own LAN or, from core 1.167 on, the LAN
  * behind one of its gateways counts as home — no GPS, and independent of
@@ -37,6 +37,8 @@ data class PresenceMember(
     val since: String?,
     /** The person agreed to share (consent). */
     val shares: Boolean,
+    /** Where the state comes from (Familie 1.17): `wifi` (the gateway saw the phone) | `app`; null when unknown. */
+    val source: String? = null,
 )
 
 /** `GET presence`. */

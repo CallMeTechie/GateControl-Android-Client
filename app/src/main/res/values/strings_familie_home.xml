@@ -264,4 +264,107 @@
         <item quantity="one">%d wish received (hidden)</item>
         <item quantity="other">%d wishes received (hidden)</item>
     </plurals>
+
+    <!-- Internet at home (Familie 1.18 / 1.20) -->
+    <string name="familie_internet_title">Internet at home</string>
+    <string name="familie_internet_on">Internet on</string>
+    <string name="familie_internet_paused_until">paused until %1$s</string>
+    <string name="familie_internet_pause_until">Paused until %1$s</string>
+    <string name="familie_internet_extended_until">longer today until %1$s</string>
+    <string name="familie_internet_longer_until">longer until %1$s</string>
+    <string name="familie_internet_extended_title">Longer today until %1$s</string>
+    <string name="familie_internet_unfiltered">not filtered</string>
+    <string name="familie_internet_unfiltered_title">Not filtered</string>
+    <string name="familie_internet_unreadable_chip">unreadable</string>
+    <string name="familie_internet_chip_paused">paused</string>
+    <string name="familie_internet_chip_extra">extra time</string>
+    <string name="familie_internet_home_wifi">home · Wi-Fi</string>
+    <string name="familie_internet_home_app">home · app</string>
+    <string name="familie_internet_no_devices">no devices</string>
+    <plurals name="familie_internet_devices">
+        <item quantity="one">%d device</item>
+        <item quantity="other">%d devices</item>
+    </plurals>
+    <string name="familie_internet_next_schedule">Next blocked time from %1$s: %2$s</string>
+    <string name="familie_internet_schedule_active">Blocked time until %1$s: %2$s</string>
+    <string name="familie_internet_schedule_active_open">Blocked time is running: %1$s</string>
+    <string name="familie_internet_no_schedule">No blocked times</string>
+    <string name="familie_internet_block_all">all of the internet</string>
+    <string name="familie_internet_cat_social">social networks</string>
+    <string name="familie_internet_cat_games">games</string>
+    <string name="familie_internet_cat_video">videos</string>
+    <string name="familie_internet_and">%1$s and %2$s</string>
+    <plurals name="familie_internet_paused_text">
+        <item quantity="one">Internet off on %d device. GateControl and allowed sites keep working.</item>
+        <item quantity="other">Internet off on %d devices. GateControl and allowed sites keep working.</item>
+    </plurals>
+    <plurals name="familie_internet_paused_text_child">
+        <item quantity="one">The internet at home is paused on your %d device. GateControl and allowed sites keep working.</item>
+        <item quantity="other">The internet at home is paused on your %d devices. GateControl and allowed sites keep working.</item>
+    </plurals>
+    <string name="familie_internet_by">by %1$s</string>
+    <string name="familie_internet_by_at">by %1$s at %2$s</string>
+    <string name="familie_internet_by_rule_at">by the rule “%1$s” (%2$s) at %3$s</string>
+    <string name="familie_internet_by_rule_untitled_at">by an unnamed rule (%1$s) at %2$s</string>
+    <string name="familie_internet_paused_by_rule">Paused by the rule “%1$s”</string>
+    <string name="familie_internet_paused_by_rule_untitled">Paused by an unnamed rule</string>
+    <string name="familie_internet_open_rule">Open rule</string>
+    <string name="familie_internet_rule_named">Rule “%1$s”</string>
+    <string name="familie_internet_rule">Rule</string>
+    <string name="familie_internet_left">%1$s left</string>
+    <string name="familie_internet_schedule_suspended">Blocked time from %1$s suspended</string>
+    <string name="familie_internet_schedules_suspended">Blocked times suspended</string>
+    <string name="familie_internet_extra_when_home">The extra time applies as soon as %1$s is at home.</string>
+    <string name="familie_internet_unreadable">The state can\'t be read right now. Pull down to refresh.</string>
+    <string name="familie_internet_no_devices_text">No devices assigned in the home network. An admin assigns them in the network watcher. A pause would have no effect.</string>
+    <string name="familie_internet_no_filter_text">No gateway with a DNS filter knows these devices. A pause would have no effect.</string>
+    <string name="familie_internet_pause">Pause</string>
+    <string name="familie_internet_extend">Longer today</string>
+    <string name="familie_internet_resume">Resume</string>
+    <string name="familie_internet_add_30">+30 min</string>
+    <string name="familie_internet_add_pause_cd">Extend %1$s\'s pause by 30 minutes</string>
+    <string name="familie_internet_add_extra_cd">Extend %1$s\'s extra time by 30 minutes</string>
+    <string name="familie_internet_end_extra">End extra time</string>
+    <string name="familie_internet_foot">Applies in the Wi-Fi at home. It does not apply on mobile data. The admin sets the blocked times in the gateway\'s DNS filter.</string>
+    <string name="familie_internet_foot_child">View only. Your parents set pauses and extra time.</string>
+    <string name="familie_internet_none">No minor children in the family.</string>
+    <string name="familie_internet_unavailable_title">This server has no “Internet at home”.</string>
+    <string name="familie_internet_unavailable_text">It needs a gateway with a DNS filter in the home network. An admin sets it up in GateControl.</string>
+    <string name="familie_internet_min">%1$d min</string>
+    <string name="familie_internet_hours">%1$d h</string>
+    <string name="familie_internet_pause_for">Pause for %1$s</string>
+    <string name="familie_internet_until_time">until a time</string>
+    <string name="familie_internet_pause_until_label">Pause until</string>
+    <string name="familie_internet_until_hint">Until %1$s.</string>
+    <string name="familie_internet_until_hint_today">Today until %1$s. If that time has passed, it means tomorrow.</string>
+    <string name="familie_internet_until_hint_tomorrow">Tomorrow until %1$s – that time has already passed today.</string>
+    <string name="familie_internet_child_notified">%1$s gets a notification in GateControl.</string>
+    <string name="familie_internet_extend_for">Longer today for %1$s</string>
+    <string name="familie_internet_counts_from">Counts from</string>
+    <string name="familie_internet_from_schedule">start of the blocked time (%1$s)</string>
+    <string name="familie_internet_from_now">now</string>
+    <string name="familie_internet_extend_hint_schedule">Today the blocked time only starts at %1$s.</string>
+    <string name="familie_internet_extend_hint_now">Extra time until %1$s.</string>
+    <string name="familie_internet_allow">Allow</string>
+    <string name="familie_internet_done_paused">Internet paused</string>
+    <string name="familie_internet_done_pause_longer">Pause extended</string>
+    <string name="familie_internet_done_resumed">Internet is back on</string>
+    <string name="familie_internet_done_extended">Extra time allowed</string>
+    <string name="familie_internet_done_extra_ended">Extra time ended</string>
+    <string name="familie_error_unavailable">This server does not have that.</string>
+    <string name="familie_error_not_person">The server does not see a signed-in person here.</string>
+
+    <!-- Wi-Fi detection (Familie 1.17) -->
+    <string name="familie_wifi_use">Use Wi-Fi detection</string>
+    <string name="familie_wifi_use_desc">The gateway reports “home” as soon as one of your devices is in the home Wi-Fi. Works even when the app is not running.</string>
+    <string name="familie_wifi_now">Right now</string>
+    <string name="familie_wifi_source_wifi">Source: Wi-Fi</string>
+    <string name="familie_wifi_source_app">Source: app</string>
+    <string name="familie_wifi_devices">My devices in the home Wi-Fi</string>
+    <string name="familie_wifi_last_seen">last seen %1$s</string>
+    <string name="familie_wifi_never_seen">not seen yet</string>
+    <string name="familie_wifi_not_counted">does not count</string>
+    <string name="familie_wifi_foot_on">The switch on a device decides whether it counts for “home”. An admin assigns the devices in the network watcher. This setting is yours alone. Parents can\'t set it for a child.</string>
+    <string name="familie_wifi_foot_none">No device is assigned to you yet. An admin assigns the devices in the network watcher. This setting is yours alone.</string>
+    <string name="familie_wifi_foot_off">Without Wi-Fi detection only what this phone reports counts.</string>
 </resources>

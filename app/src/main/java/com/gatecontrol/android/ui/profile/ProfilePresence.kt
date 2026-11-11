@@ -2,6 +2,9 @@ package com.gatecontrol.android.ui.profile
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -19,6 +23,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.familie.FamilieApi
 import com.gatecontrol.android.familie.FamilieRepository
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.PluginDirectory
@@ -26,11 +31,16 @@ import com.gatecontrol.android.familie.errorCode
 import com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
 import com.gatecontrol.android.familie.places.RulePlaceWatcher
+import com.gatecontrol.android.familie.internet.InternetPresence
+import com.gatecontrol.android.familie.internet.WifiPresence
 import com.gatecontrol.android.familie.presence.PresenceCheck
+import com.gatecontrol.android.familie.presence.PresenceMember
 import com.gatecontrol.android.familie.presence.PresenceReporter
 import com.gatecontrol.android.familie.presence.PresenceSense
+import com.gatecontrol.android.familie.presence.PresenceState
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcChip
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcRowDivider
@@ -39,6 +49,8 @@ import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.familie.FamilieConfirmDialog
 import com.gatecontrol.android.ui.familie.familieErrorText
+import com.gatecontrol.android.ui.familie.presenceLine
+import com.gatecontrol.android.ui.familie.relativeStamp
 import com.gatecontrol.android.ui.familie.rememberLocationPermissionFlow
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -64,6 +76,7 @@ class ProfilePresenceViewModel @Inject constructor(
     private val reporter: PresenceReporter,
     private val rulePlaces: RulePlaceWatcher,
     private val registrar: GeofenceRegistrar,
+    private val api: FamilieApi,
     plugins: PluginDirectory,
 ) : ViewModel() {
 
@@ -84,7 +97,52 @@ class ProfilePresenceViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             // My consents as the server has them now (also whether it knows the place consent yet).
-            if (repository.cachedProfile()?.modules?.presence == true) reporter.fetch()
+            if (repository.cachedProfile()?.modules?.presence == true) {
+                loadMine()
+                // Familie 1.17: an older plugin or a server without the detection leaves the switch out.
+                (api.presenceWifi() as? FamilieResult.Ok)?.let { _wifi.value = it.value }
+            }
+        }
+    }
+
+    // ─── WLAN-Erkennung verwenden (Familie 1.17) ──────────────────────
+
+    private val _mine = MutableStateFlow<PresenceMember?>(null)
+    /** My state as the family sees it, with the source it comes from (Wi-Fi / app). */
+    val mine: StateFlow<PresenceMember?> = _mine.asStateFlow()
+
+    private val _wifi = MutableStateFlow<WifiPresence?>(null)
+    /** My switch and my devices in the home Wi-Fi; null or not available: nothing is shown. */
+    val wifi: StateFlow<WifiPresence?> = _wifi.asStateFlow()
+
+    private val _wifiSaving = MutableStateFlow(false)
+    val wifiSaving: StateFlow<Boolean> = _wifiSaving.asStateFlow()
+
+    private val _wifiError = MutableStateFlow<String?>(null)
+    val wifiError: StateFlow<String?> = _wifiError.asStateFlow()
+
+    private suspend fun loadMine() {
+        val r = reporter.fetch()
+        val me = repository.profile.value?.me?.userId
+        if (r is FamilieResult.Ok) _mine.value = r.value.payload.of(me ?: return)
+    }
+
+    /** Only for myself: may the gateway report my devices in the home Wi-Fi as "zu Hause"? */
+    fun setWifi(enabled: Boolean) = wifiChange { api.setPresenceWifi(enabled) }
+
+    /** Whether one of my devices counts. */
+    fun setWifiDevice(deviceId: Int, counts: Boolean) = wifiChange { api.setPresenceWifiDevice(deviceId, counts) }
+
+    private fun wifiChange(call: suspend () -> FamilieResult<WifiPresence>) {
+        if (_wifiSaving.value) return
+        _wifiSaving.value = true
+        viewModelScope.launch {
+            val r = call()
+            if (r is FamilieResult.Ok) _wifi.value = r.value
+            _wifiError.value = if (r is FamilieResult.Ok) null else r.errorCode()
+            _wifiSaving.value = false
+            // The source of my state may have changed with it.
+            if (r is FamilieResult.Ok) loadMine()
         }
     }
 
@@ -95,6 +153,7 @@ class ProfilePresenceViewModel @Inject constructor(
             val r = reporter.setShare(share)
             _shareError.value = if (r is FamilieResult.Ok) null else r.errorCode()
             _saving.value = false
+            if (r is FamilieResult.Ok) loadMine()
         }
     }
 
@@ -160,7 +219,26 @@ fun ProfilePresenceSection(viewModel: ProfilePresenceViewModel, modifier: Modifi
             stringResource(R.string.profile_section_familie),
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
         )
-        PresenceShareCard(share, check, sense, saving, shareError, viewModel::setShare, viewModel::clearShareError)
+        val wifi by viewModel.wifi.collectAsStateWithLifecycle()
+        val mine by viewModel.mine.collectAsStateWithLifecycle()
+        val wifiSaving by viewModel.wifiSaving.collectAsStateWithLifecycle()
+        val wifiError by viewModel.wifiError.collectAsStateWithLifecycle()
+        val detection = wifi?.takeIf { it.available }
+        PresenceShareCard(share, check, sense, saving, shareError, viewModel::setShare, viewModel::clearShareError) {
+            if (detection != null) {
+                GcRowDivider()
+                GcSwitchRow(
+                    label = stringResource(R.string.familie_wifi_use),
+                    description = stringResource(R.string.familie_wifi_use_desc),
+                    checked = detection.consent,
+                    onCheckedChange = viewModel::setWifi,
+                    icon = GcIcons.Wifi,
+                    enabled = !wifiSaving,
+                )
+            }
+            PresenceNowRow(mine)
+        }
+        if (detection != null) WifiDevices(detection, wifiSaving, wifiError, viewModel::setWifiDevice)
         val placesSupported by viewModel.placesSupported.collectAsStateWithLifecycle()
         if (!placesSupported) return@Column
         val placesShare by viewModel.placesShare.collectAsStateWithLifecycle()
@@ -181,6 +259,78 @@ fun ProfilePresenceSection(viewModel: ProfilePresenceViewModel, modifier: Modifi
             onClearError = viewModel::clearPlacesError,
             modifier = Modifier.padding(top = 8.dp),
         )
+    }
+}
+
+/**
+ * "Gerade · zu Hause seit 16:40" with the source the state comes from
+ * ("Quelle: WLAN" / "Quelle: App"); nothing while the family sees no state.
+ */
+@Composable
+internal fun PresenceNowRow(mine: PresenceMember?) {
+    if (mine == null || (mine.state != PresenceState.HOME && mine.state != PresenceState.AWAY)) return
+    val extra = GateControlTheme.extraColors
+    GcRowDivider()
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.familie_wifi_now), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+            Text(presenceLine(mine), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        }
+        when (mine.source) {
+            InternetPresence.SOURCE_WIFI -> GcChip(stringResource(R.string.familie_wifi_source_wifi), tone = GcTone.Ok, small = true)
+            InternetPresence.SOURCE_APP -> GcChip(stringResource(R.string.familie_wifi_source_app), tone = GcTone.Neutral, small = true)
+        }
+    }
+}
+
+/**
+ * "Meine Geräte im Heim-WLAN": the person's own devices (names and "zuletzt
+ * gesehen", never an address) with the switch whether each counts for
+ * "zu Hause". An administrator assigns them in the network watcher.
+ */
+@Composable
+internal fun WifiDevices(wifi: WifiPresence, saving: Boolean, error: String?, onCounts: (Int, Boolean) -> Unit) {
+    val extra = GateControlTheme.extraColors
+    if (wifi.consent && wifi.devices.isNotEmpty()) {
+        GcSectionLabel(stringResource(R.string.familie_wifi_devices), modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 4.dp))
+        GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+            wifi.devices.forEachIndexed { i, d ->
+                if (i > 0) GcRowDivider()
+                GcSwitchRow(
+                    label = d.name,
+                    description = listOfNotNull(
+                        d.lastSeen?.let { stringResource(R.string.familie_wifi_last_seen, relativeStamp(it)) } ?: stringResource(R.string.familie_wifi_never_seen),
+                        d.gateway,
+                        if (!d.counts) stringResource(R.string.familie_wifi_not_counted) else null,
+                    ).joinToString(" · "),
+                    checked = d.counts,
+                    onCheckedChange = { on -> onCounts(d.id, on) },
+                    icon = GcIcons.Smartphone,
+                    enabled = !saving,
+                )
+            }
+        }
+    }
+    Text(
+        stringResource(
+            when {
+                !wifi.consent -> R.string.familie_wifi_foot_off
+                wifi.devices.isEmpty() -> R.string.familie_wifi_foot_none
+                else -> R.string.familie_wifi_foot_on
+            },
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = extra.muted,
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+    )
+    if (error != null) {
+        GcBanner(tone = GcTone.Error, icon = GcIcons.Alert) {
+            Text(familieErrorText(error), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 
@@ -264,6 +414,8 @@ fun PlacesShareCard(
  * "Anwesenheit teilen" with the explanation, a confirmation before it goes
  * on, the detection state and, when the server can't tell (older than
  * core 1.167, without the check, unreachable), a short note why.
+ * [more] adds rows to the card (the Wi-Fi detection and where the state
+ * comes from).
  */
 @Composable
 fun PresenceShareCard(
@@ -275,6 +427,7 @@ fun PresenceShareCard(
     onShare: (Boolean) -> Unit,
     onClearError: () -> Unit,
     modifier: Modifier = Modifier,
+    more: @Composable ColumnScope.() -> Unit = {},
 ) {
     var confirm by remember { mutableStateOf(false) }
     val extra = GateControlTheme.extraColors
@@ -305,6 +458,7 @@ fun PresenceShareCard(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
+            more()
         }
         val note = when {
             !share -> null

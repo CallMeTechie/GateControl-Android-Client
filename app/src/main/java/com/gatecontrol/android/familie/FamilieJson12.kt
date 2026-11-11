@@ -38,6 +38,7 @@ import com.gatecontrol.android.familie.money.WishDraft
 import com.gatecontrol.android.familie.money.WishItem
 import com.gatecontrol.android.familie.places.RuleFence
 import com.gatecontrol.android.familie.places.RuleWatch
+import com.gatecontrol.android.familie.internet.InternetJson
 import com.gatecontrol.android.familie.presence.PresenceMember
 import com.gatecontrol.android.familie.presence.PresencePayload
 import com.gatecontrol.android.familie.presence.PresenceState
@@ -492,6 +493,7 @@ object FamilieJson12 {
             state = state,
             since = stamp(o.str("since")),
             shares = shares ?: (state != PresenceState.NOT_SHARED),
+            source = InternetJson.source(o.str("source")),
         )
     }
 
