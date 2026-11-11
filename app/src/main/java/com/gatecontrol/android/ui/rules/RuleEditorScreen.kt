@@ -55,6 +55,7 @@ import com.gatecontrol.android.familie.rules.Rule
 import com.gatecontrol.android.familie.rules.RuleAction
 import com.gatecontrol.android.familie.rules.RuleActionType
 import com.gatecontrol.android.familie.rules.RuleButton
+import com.gatecontrol.android.familie.rules.RuleInternetOp
 import com.gatecontrol.android.familie.rules.RuleLogic
 import com.gatecontrol.android.familie.rules.RuleOp
 import com.gatecontrol.android.familie.rules.RuleOptions
@@ -85,6 +86,7 @@ import com.gatecontrol.android.ui.familie.FamilieFormDialog
 import com.gatecontrol.android.ui.familie.FamiliePlacePicker
 import com.gatecontrol.android.ui.familie.familieErrorMessage
 import com.gatecontrol.android.ui.familie.familieErrorText
+import com.gatecontrol.android.ui.familie.internetDuration
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import java.time.LocalTime
 import java.time.ZoneId
@@ -103,6 +105,7 @@ private sealed interface EditorDialog {
     data class Quick(val index: Int?) : EditorDialog
     data class Notify(val index: Int?) : EditorDialog
     data class Chat(val index: Int?) : EditorDialog
+    data class Internet(val index: Int?) : EditorDialog
     data object Delete : EditorDialog
     data object NewPlace : EditorDialog
 }
@@ -146,7 +149,10 @@ fun RuleEditorScreen(
                 }
                 RuleEditorEvent.Deleted -> onBack()
                 RuleEditorEvent.PlaceCreated -> dialog = null
-                is RuleEditorEvent.Error -> Toast.makeText(ctx, ruleErrorMessage(ctx, e.code, e.field), Toast.LENGTH_LONG).show()
+                is RuleEditorEvent.Error -> {
+                    val refused = RuleLogic.actionIndex(e.field)?.let { viewModel.draft.value?.actions?.getOrNull(it) }
+                    Toast.makeText(ctx, ruleErrorMessage(ctx, e.code, e.field, internet = refused?.type == RuleActionType.INTERNET), Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -249,12 +255,15 @@ fun RuleEditorScreen(
                 ("quick" to stringResource(R.string.rules_action_kind_device)).takeIf { options.actions.isNotEmpty() || options.devices.isNotEmpty() },
                 "notify" to stringResource(R.string.rules_action_kind_notify),
                 ("chat" to stringResource(R.string.rules_action_kind_chat)).takeIf { options.messenger },
+                // Familie 1.20: parents only, and only where the server has „Internet zu Hause“.
+                ("internet" to stringResource(R.string.rules_action_kind_internet)).takeIf { options.internet.usable },
             ),
             null,
             { kind ->
                 dialog = when (kind) {
                     "quick" -> EditorDialog.Quick(null)
                     "chat" -> EditorDialog.Chat(null)
+                    "internet" -> EditorDialog.Internet(null)
                     else -> EditorDialog.Notify(null)
                 }
             },
@@ -271,6 +280,7 @@ fun RuleEditorScreen(
             { dialog = null },
         )
         is EditorDialog.Chat -> ChatActionDialog(dl.index?.let { current.actions.getOrNull(it) }, current.scope == RuleScope.PERSONAL, myId, { a -> dialog = null; viewModel.edit { putAction(it, dl.index, a) } }, { dialog = null })
+        is EditorDialog.Internet -> InternetActionDialog(dl.index?.let { current.actions.getOrNull(it) }, options, { a -> dialog = null; viewModel.edit { putAction(it, dl.index, a) } }, { dialog = null })
         EditorDialog.NewPlace -> NewPlaceDialog(viewModel, saving, onDismiss = { dialog = null })
         EditorDialog.Delete -> FamilieConfirmDialog(
             title = stringResource(R.string.rules_delete_title),
@@ -409,7 +419,9 @@ private fun EditorContent(
 
     Step(3, stringResource(R.string.rules_then)) {
         d.actions.forEachIndexed { i, a ->
+            val internetOff = a.type == RuleActionType.INTERNET && (a.available == false || a.problem != null)
             val sub = when {
+                a.type == RuleActionType.INTERNET -> internetActionDetail(a)
                 a.available == false -> stringResource(R.string.rules_action_unavailable)
                 a.needsTarget -> stringResource(R.string.rules_action_needs_target)
                 a.type == RuleActionType.NOTIFY && a.buttons.isNotEmpty() -> stringResource(R.string.rules_with_buttons, a.buttons.map { buttonLabel(it, options) }.joinToString(", "))
@@ -419,22 +431,33 @@ private fun EditorContent(
                 when (a.type) {
                     RuleActionType.QUICK_ACTION -> GcIcons.Zap
                     RuleActionType.MESSENGER -> GcIcons.Share
+                    RuleActionType.INTERNET -> GcIcons.Globe
                     else -> GcIcons.Bell
                 },
                 actionText(a, options, myId, nameOf),
                 sub,
                 onRemove = if (d.actions.size > 1) ({ vm.edit { r -> r.copy(actions = r.actions.filterIndexed { j, _ -> j != i }) } }) else null,
+                subtitleColor = if (internetOff) MaterialTheme.colorScheme.error else null,
             ) {
-                onDialog(
-                    when (a.type) {
-                        RuleActionType.QUICK_ACTION -> EditorDialog.Quick(i)
-                        RuleActionType.MESSENGER -> EditorDialog.Chat(i)
-                        else -> EditorDialog.Notify(i)
-                    },
-                )
+                when (a.type) {
+                    RuleActionType.QUICK_ACTION -> onDialog(EditorDialog.Quick(i))
+                    RuleActionType.MESSENGER -> onDialog(EditorDialog.Chat(i))
+                    // Changed only by who may add it (a parent, with „Internet zu Hause“ on the server); a newer `op` stays as it is.
+                    RuleActionType.INTERNET -> if (a.isInternet && options.internet.usable) onDialog(EditorDialog.Internet(i))
+                    else -> onDialog(EditorDialog.Notify(i))
+                }
             }
         }
-        AddButton(stringResource(R.string.rules_add_action_hint)) { onDialog(EditorDialog.AddAction) }
+        AddButton(stringResource(if (options.internet.usable) R.string.rules_add_action_hint_internet else R.string.rules_add_action_hint)) { onDialog(EditorDialog.AddAction) }
+        if (d.actions.any { it.type == RuleActionType.INTERNET }) {
+            // The rule acts for whoever saved its actions last: me after a save, else its owner.
+            val owner = (if (d.editable) myId?.let(nameOf) else null) ?: d.ownerName
+            Text(
+                owner?.let { stringResource(R.string.rules_internet_owner_hint, it) } ?: stringResource(R.string.rules_internet_parents_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.muted,
+            )
+        }
     }
 
     if (test != null) {
@@ -516,7 +539,14 @@ private fun Step(num: Int, title: String, content: @Composable ColumnScope.() ->
 
 /** A chosen element (mockup `.sel`): icon, text, optional subtitle, chevron or remove. */
 @Composable
-private fun SelRow(icon: ImageVector, text: String, subtitle: String?, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
+private fun SelRow(
+    icon: ImageVector,
+    text: String,
+    subtitle: String?,
+    onRemove: (() -> Unit)? = null,
+    subtitleColor: androidx.compose.ui.graphics.Color? = null,
+    onClick: () -> Unit,
+) {
     val extra = GateControlTheme.extraColors
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(14.dp)).background(extra.panel2)
@@ -527,7 +557,7 @@ private fun SelRow(icon: ImageVector, text: String, subtitle: String?, onRemove:
         Icon(icon, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp))
         Column(Modifier.weight(1f)) {
             Text(text, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface)
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = extra.muted) }
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = subtitleColor ?: extra.muted) }
         }
         if (onRemove != null) GcIconButton(GcIcons.Close, stringResource(R.string.rules_remove), onClick = onRemove, size = 40.dp, iconSize = 18.dp) else GcChevron()
     }
@@ -557,12 +587,19 @@ private fun DayChip(label: String, on: Boolean, modifier: Modifier, onClick: () 
 // ─── dialogs ────────────────────────────────────────────────────────
 
 @Composable
-private fun EditDialog(title: String, ok: Boolean, onOk: () -> Unit, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+private fun EditDialog(
+    title: String,
+    ok: Boolean,
+    onOk: () -> Unit,
+    onDismiss: () -> Unit,
+    okLabel: String = stringResource(R.string.chat_ok),
+    content: @Composable ColumnScope.() -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp), content = content) },
-        confirmButton = { TextButton(onClick = onOk, enabled = ok) { Text(stringResource(R.string.chat_ok)) } },
+        confirmButton = { TextButton(onClick = onOk, enabled = ok) { Text(okLabel) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_cancel)) } },
     )
 }
@@ -747,12 +784,76 @@ private fun ChatActionDialog(initial: RuleAction?, personal: Boolean, myId: Int?
     }
 }
 
-/** Error codes of the rules API (Familie 1.9) as text; [field] where it applies. */
-internal fun ruleErrorMessage(ctx: android.content.Context, code: String?, field: String?): String {
+/**
+ * „Internet zu Hause“ (Familie 1.20, approved mockup section 4): whose internet, pause or resume,
+ * and a pause for 30 Min., 1 Std., 2 Std. or until a time of day. A duration the dialog does not
+ * offer (set in the portal) stays as its own choice.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun InternetActionDialog(initial: RuleAction?, options: RuleOptions, onDone: (RuleAction) -> Unit, onDismiss: () -> Unit) {
+    val children = options.internet.children
+    var userId by remember { mutableStateOf(initial?.userId ?: children.firstOrNull()?.userId) }
+    var pause by remember { mutableStateOf(initial?.op != RuleInternetOp.RESUME) }
+    // 0: until a time of day
+    var minutes by remember { mutableStateOf(if (initial?.until != null) 0 else initial?.minutes ?: INTERNET_MINUTES.first()) }
+    var until by remember { mutableStateOf(initial?.until ?: "18:30") }
+    var pick by remember { mutableStateOf(false) }
+    EditDialog(
+        stringResource(R.string.rules_action_kind_internet),
+        userId != null,
+        {
+            val id = userId ?: return@EditDialog
+            val name = children.firstOrNull { it.userId == id }?.name ?: initial?.title?.takeIf { initial.userId == id }
+            onDone(RuleLogic.internetAction(initial, id, name, pause, minutes, until.takeIf { minutes == 0 }))
+        },
+        onDismiss,
+        okLabel = stringResource(R.string.rules_done),
+    ) {
+        GcSectionLabel(stringResource(R.string.rules_internet_who))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            children.forEach { c -> PickChip(c.name, userId == c.userId) { userId = c.userId } }
+            // a child no longer offered (still the rule's)
+            initial?.userId?.takeIf { id -> children.none { it.userId == id } }?.let { id -> PickChip(initial.title ?: "#$id", userId == id) { userId = id } }
+        }
+        GcSectionLabel(stringResource(R.string.rules_internet_what))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PickChip(stringResource(R.string.rules_internet_op_pause), pause) { pause = true }
+            PickChip(stringResource(R.string.rules_internet_op_resume), !pause) { pause = false }
+        }
+        if (pause) {
+            GcSectionLabel(stringResource(R.string.rules_internet_how_long))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                (INTERNET_MINUTES + listOfNotNull(initial?.minutes)).distinct().sorted().forEach { m -> PickChip(internetDuration(m), minutes == m) { minutes = m } }
+                PickChip(stringResource(R.string.rules_internet_until_time), minutes == 0) { minutes = 0 }
+            }
+            if (minutes == 0) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.rules_to))
+                    PickChip(until, true) { pick = true }
+                }
+            }
+        }
+    }
+    if (pick) TimeOnlyDialog(msOf(until), onPick = { ms -> until = hhmm(ms); pick = false }, onDismiss = { pick = false })
+}
+
+private val INTERNET_MINUTES = listOf(30, 60, 120)
+
+/**
+ * Error codes of the rules API (Familie 1.9) as text; [field] where it applies. [internet]: the
+ * refused step (`actions.<i>…`) is an internet action (Familie 1.20: parents only, minor children only).
+ */
+internal fun ruleErrorMessage(ctx: android.content.Context, code: String?, field: String?, internet: Boolean = false): String {
     val res = when (code) {
         "state_required" -> R.string.rules_err_state_required
         "too_many" -> R.string.rules_err_too_many
-        "forbidden" -> if (field?.endsWith(".to") == true) R.string.rules_err_forbidden_to else R.string.rules_err_forbidden
+        "forbidden" -> when {
+            field?.endsWith(".to") == true -> R.string.rules_err_forbidden_to
+            internet -> R.string.rules_err_internet_parents
+            else -> R.string.rules_err_forbidden
+        }
+        "invalid" -> if (internet && field?.endsWith(".userId") == true) R.string.rules_err_internet_child else null
         "module_off" -> if (field == "trigger") R.string.rules_err_module_off_trigger else null
         else -> null
     }

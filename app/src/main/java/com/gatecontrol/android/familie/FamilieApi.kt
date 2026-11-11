@@ -7,6 +7,11 @@ import com.gatecontrol.android.familie.board.NoteDraft
 import com.gatecontrol.android.familie.emergency.EmergencyCard
 import com.gatecontrol.android.familie.emergency.EmergencyContact
 import com.gatecontrol.android.familie.emergency.EmergencyMemberDraft
+import com.gatecontrol.android.familie.internet.InternetChild
+import com.gatecontrol.android.familie.internet.InternetJson
+import com.gatecontrol.android.familie.internet.InternetPayload
+import com.gatecontrol.android.familie.internet.PauseRequest
+import com.gatecontrol.android.familie.internet.WifiPresence
 import com.gatecontrol.android.familie.meals.Meal
 import com.gatecontrol.android.familie.meals.MealWeek
 import com.gatecontrol.android.familie.money.AllowancePayload
@@ -663,6 +668,36 @@ class FamilieApi @Inject constructor(
     suspend fun reportPresence(home: Boolean, at: String): FamilieResult<String?> =
         post(path("presence"), FamilieJson12.presenceBody(home, at)) { FamilieJson12.watchVersion(it) ?: "" }
             .let { r -> if (r is FamilieResult.Ok) FamilieResult.Ok(r.value?.takeIf { it.isNotEmpty() }) else r }
+
+    // ─── Wi-Fi detection (1.17) ───────────────────────────────────────
+
+    /** My switch "WLAN-Erkennung verwenden" and my own devices in the home Wi-Fi. */
+    suspend fun presenceWifi(): FamilieResult<WifiPresence> = get(path("presence", "wifi"), parse = InternetJson::wifi)
+
+    /** Only for oneself (the person's consent). */
+    suspend fun setPresenceWifi(enabled: Boolean): FamilieResult<WifiPresence> =
+        put(path("presence", "wifi"), InternetJson.wifiBody(enabled), InternetJson::wifi)
+
+    /** Whether one of my devices counts for "zu Hause". */
+    suspend fun setPresenceWifiDevice(deviceId: Int, counts: Boolean): FamilieResult<WifiPresence> =
+        put(path("presence", "wifi", "devices", deviceId), InternetJson.wifiDeviceBody(counts), InternetJson::wifi)
+
+    // ─── Internet zu Hause (1.18 / 1.20) ──────────────────────────────
+
+    /** Parents: every minor child; a minor child: itself, read only. `available` false without the function. */
+    suspend fun internet(): FamilieResult<InternetPayload> = get(path("internet"), parse = InternetJson::payload)
+
+    /** Parents only; the answer is the child as it is now. */
+    suspend fun internetPause(childId: Int, request: PauseRequest): FamilieResult<InternetChild> =
+        post(path("internet", childId, "pause"), InternetJson.pauseBody(request), InternetJson::childAnswer)
+
+    /** Ends the pause (an extra time stays). */
+    suspend fun internetResume(childId: Int): FamilieResult<InternetChild> =
+        post(path("internet", childId, "resume"), parse = InternetJson::childAnswer)
+
+    /** "Heute länger"; [minutes] 0 ends it. */
+    suspend fun internetExtend(childId: Int, minutes: Int, fromNow: Boolean = false): FamilieResult<InternetChild> =
+        post(path("internet", childId, "extend"), InternetJson.extendBody(minutes, fromNow), InternetJson::childAnswer)
 
     // ─── place events for rules (1.5) ─────────────────────────────────
 

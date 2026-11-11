@@ -12,6 +12,9 @@ import com.gatecontrol.android.familie.school.SchoolInbox
 import com.gatecontrol.android.familie.school.SchoolRepository
 import com.gatecontrol.android.familie.school.SchoolSnapshot
 import com.gatecontrol.android.familie.errorCode
+import com.gatecontrol.android.familie.internet.InternetRepository
+import com.gatecontrol.android.familie.internet.InternetSnapshot
+import com.gatecontrol.android.familie.push.FamiliePush
 import com.gatecontrol.android.familie.push.FamiliePushEvent
 import com.gatecontrol.android.familie.shopping.ShoppingLogic
 import com.gatecontrol.android.familie.shopping.ShoppingRepository
@@ -41,7 +44,11 @@ class FamilieHomeViewModel @Inject constructor(
     private val tabLayout: TabLayoutRepository,
     private val plugins: PluginDirectory,
     private val school: SchoolRepository,
+    private val internetRepository: InternetRepository,
 ) : ViewModel() {
+
+    /** „Internet zu Hause“ for its card; null until the server answered (or without the function). */
+    val internet: StateFlow<InternetSnapshot?> = internetRepository.snapshot
 
     /** The Schule plugin is listed: the card "Stundenplan" is available. */
     val schule: StateFlow<Boolean> = plugins.state.map { it.schule }
@@ -109,6 +116,7 @@ class FamilieHomeViewModel @Inject constructor(
             repository.events.collect { event ->
                 // Something changed that the overview shows.
                 if (event !is FamiliePushEvent.LocateRequest) refreshOverview()
+                if (FamiliePush.touchesInternet(event)) internetRepository.refresh()
             }
         }
     }
@@ -126,6 +134,8 @@ class FamilieHomeViewModel @Inject constructor(
             val p = repository.refreshProfile()
             _profileLoaded.value = true
             if (p is FamilieResult.Ok || repository.profile.value != null) {
+                // Its own call: a server without „Internet zu Hause“ just leaves the card out.
+                launch { internetRepository.refresh() }
                 refreshOverview()
                 if (repository.profile.value?.modules?.shopping == true) shopping.sync()
             }

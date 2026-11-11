@@ -100,6 +100,11 @@ sealed interface FamilieDest {
         override val key = "presence"
     }
 
+    /** „Internet zu Hause“: parents pause a child's internet at home or allow more time; a child sees its own state. */
+    data object Internet : FamilieDest {
+        override val key = "internet"
+    }
+
     /**
      * Stundenplan (Schule plugin): [studentId]'s timetable on [date]
      * (`YYYY-MM-DD`); without them the first child on the default day.
@@ -198,6 +203,7 @@ sealed interface FamilieDest {
                     else -> null
                 }
                 "presence" -> if (p.size == 1) Presence else null
+                "internet" -> if (p.size == 1) Internet else null
                 "school" -> {
                     val view = when (p.getOrNull(1)) {
                         "messages" -> SchoolView.MESSAGES

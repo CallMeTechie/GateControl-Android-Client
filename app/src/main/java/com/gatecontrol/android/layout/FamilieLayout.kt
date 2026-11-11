@@ -22,9 +22,11 @@ object FamilieLayout {
     const val WISHES = "wishes"
     const val EXPENSES = "expenses"
     const val PLACES = "places"
+    /** „Internet zu Hause“ (no module: there when the server has it). */
+    const val INTERNET = "internet"
 
     /** The order before anybody arranged the tab. */
-    val DEFAULT_ORDER = listOf(MEMBERS, CHILD, EMERGENCY, TASKS, RIDES, SHOPPING, LOCATE, DATES, SCHOOL, MEALS, BOARD, ALLOWANCE, WISHES, EXPENSES, PLACES)
+    val DEFAULT_ORDER = listOf(MEMBERS, CHILD, EMERGENCY, TASKS, INTERNET, RIDES, SHOPPING, LOCATE, DATES, SCHOOL, MEALS, BOARD, ALLOWANCE, WISHES, EXPENSES, PLACES)
 
     /**
      * The [available] cards in the [saved] order; a card the order lacks

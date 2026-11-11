@@ -29,10 +29,17 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 /**
  * One screen of the Familie tab for [dest]. [onBack] leaves it, [onOpen]
  * goes to another one (e.g. places → edit), [onOpenProfile] to the own
- * profile (own avatar, "Anwesenheit teilen").
+ * profile (own avatar, "Anwesenheit teilen"), [onOpenRule] to the editor of
+ * a rule (the rule that paused a child's internet).
  */
 @Composable
-fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> Unit, onOpenProfile: () -> Unit = {}) {
+fun FamiliePage(
+    dest: FamilieDest,
+    onBack: () -> Unit,
+    onOpen: (FamilieDest) -> Unit,
+    onOpenProfile: () -> Unit = {},
+    onOpenRule: (Int) -> Unit = {},
+) {
     when (dest) {
         FamilieDest.Home -> FamilieHomeScreen(onOpen = onOpen, onOpenProfile = onOpenProfile)
         is FamilieDest.Shopping -> ShoppingScreen(onBack = onBack, initialListId = dest.listId, onOpen = onOpen)
@@ -51,6 +58,7 @@ fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> 
         FamilieDest.Board -> BoardScreen(onBack = onBack)
         is FamilieDest.Meals -> MealsScreen(onBack = onBack, initialWeek = dest.week)
         FamilieDest.Presence -> PresenceScreen(onBack = onBack, onOpenProfile = onOpenProfile)
+        FamilieDest.Internet -> InternetScreen(onBack = onBack, onOpenRule = onOpenRule)
         is FamilieDest.School -> SchoolScreen(
             onBack = onBack,
             initialStudentId = dest.studentId,
@@ -67,7 +75,7 @@ fun FamiliePage(dest: FamilieDest, onBack: () -> Unit, onOpen: (FamilieDest) -> 
  * returns to the places list in the same pane.
  */
 @Composable
-fun FamilieTwoPane(initial: FamilieDest?, onOpenProfile: () -> Unit = {}) {
+fun FamilieTwoPane(initial: FamilieDest?, onOpenProfile: () -> Unit = {}, onOpenRule: (Int) -> Unit = {}) {
     var destKey by rememberSaveable(initial?.key) { mutableStateOf(initial?.takeIf { it != FamilieDest.Home }?.key) }
     val selected = FamilieDest.parse(destKey)
     GcTwoPane(
@@ -87,6 +95,7 @@ fun FamilieTwoPane(initial: FamilieDest?, onOpenProfile: () -> Unit = {}) {
                         },
                         onOpen = { destKey = it.key },
                         onOpenProfile = onOpenProfile,
+                        onOpenRule = onOpenRule,
                     )
                 }
             }

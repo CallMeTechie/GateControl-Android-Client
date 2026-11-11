@@ -79,6 +79,8 @@ fun familieErrorRes(code: String?): Int = when (code) {
     "no_star_rate" -> R.string.familie_error_no_star_rate
     "no_consent" -> R.string.familie_error_no_consent
     "too_many" -> R.string.familie_error_too_many
+    "unavailable" -> R.string.familie_error_unavailable
+    "not_person" -> R.string.familie_error_not_person
     else -> R.string.familie_error_generic
 }
 

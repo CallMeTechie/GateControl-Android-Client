@@ -7,6 +7,7 @@ import com.gatecontrol.android.familie.FamilieProfile
 import com.gatecontrol.android.familie.FamilieRole
 import com.gatecontrol.android.layout.FamilieLayout
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 
 class FamilieCardsTest {
@@ -26,20 +27,20 @@ class FamilieCardsTest {
 
     @Test
     fun `parents get every card but the child's, in the default order`() {
-        val cards = FamilieCards.available(profile(FamilieRole.PARENT), schule = true)
+        val cards = FamilieCards.available(profile(FamilieRole.PARENT), schule = true, internet = true)
         assertEquals(FamilieLayout.DEFAULT_ORDER - FamilieLayout.CHILD, cards)
     }
 
     @Test
     fun `children get their own card, no locating and no household book`() {
-        val cards = FamilieCards.available(profile(FamilieRole.CHILD), schule = true)
+        val cards = FamilieCards.available(profile(FamilieRole.CHILD), schule = true, internet = true)
         assertEquals(FamilieLayout.DEFAULT_ORDER - FamilieLayout.LOCATE - FamilieLayout.EXPENSES, cards)
     }
 
     @Test
     fun `the timetable card comes with the schule plugin only, after the dates`() {
         val without = FamilieCards.available(profile(FamilieRole.PARENT))
-        assertEquals(FamilieLayout.DEFAULT_ORDER - FamilieLayout.CHILD - FamilieLayout.SCHOOL, without)
+        assertEquals(FamilieLayout.DEFAULT_ORDER - FamilieLayout.CHILD - FamilieLayout.SCHOOL - FamilieLayout.INTERNET, without)
         val with = FamilieCards.available(profile(FamilieRole.PARENT), schule = true)
         assertEquals(with.indexOf(FamilieLayout.DATES) + 1, with.indexOf(FamilieLayout.SCHOOL))
         // No Familie module needed: the plugin decides which children the person sees.
@@ -58,5 +59,23 @@ class FamilieCardsTest {
     fun `modules switched off and missing children leave their cards out`() {
         val cards = FamilieCards.available(profile(FamilieRole.PARENT, FamilieModules(tasks = true, locate = true, allowance = true), members = emptyList()))
         assertEquals(listOf(FamilieLayout.MEMBERS, FamilieLayout.TASKS), cards)
+    }
+
+    @Test
+    fun `internet at home has no module - its card comes with the server's answer, after today's tasks`() {
+        val parent = profile(FamilieRole.PARENT)
+        assertFalse(FamilieLayout.INTERNET in FamilieCards.available(parent), "an older plugin or a server without the function: no card")
+        val with = FamilieCards.available(parent, internet = true)
+        assertEquals(with.indexOf(FamilieLayout.TASKS) + 1, with.indexOf(FamilieLayout.INTERNET))
+        // Every module off: the card is still there (a child sees its own state).
+        assertEquals(
+            listOf(FamilieLayout.MEMBERS, FamilieLayout.INTERNET),
+            FamilieCards.available(profile(FamilieRole.CHILD, FamilieModules(), members = emptyList()), internet = true),
+        )
+        // An arrangement saved before the card existed: it joins after the tasks and can be hidden like any card.
+        val saved = listOf(FamilieLayout.MEMBERS, FamilieLayout.DATES, FamilieLayout.TASKS)
+        val merged = FamilieLayout.merge(saved, listOf(FamilieLayout.MEMBERS, FamilieLayout.TASKS, FamilieLayout.INTERNET, FamilieLayout.DATES))
+        assertEquals(listOf(FamilieLayout.MEMBERS, FamilieLayout.DATES, FamilieLayout.TASKS, FamilieLayout.INTERNET), merged)
+        assertEquals(saved, FamilieLayout.visible(merged, listOf(FamilieLayout.INTERNET)))
     }
 }

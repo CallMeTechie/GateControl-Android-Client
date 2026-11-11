@@ -61,8 +61,16 @@ sealed interface FamiliePushEvent {
         val isConvert: Boolean get() = type == FamiliePush.ALLOWANCE_CONVERT
     }
 
-    /** A presence rule's notification (1.2, "Tim ist zuhause"). */
+    /** A presence rule's notification (1.2, "Tim ist zu Hause"). */
     data class PresenceRule(val ruleId: Int?, val userId: Int?) : FamiliePushEvent
+
+    /**
+     * „Internet zu Hause“ (1.18, to the child): [kind] `pause`, `resume`,
+     * `extend`, `extend_end`, and from 1.20 `pause_over` / `extend_over`
+     * (it ran out by itself); [ruleId] when a rule did it. An unknown kind
+     * is a message of the topic like any other: the view reloads.
+     */
+    data class Internet(val kind: String?, val userId: Int?, val ruleId: Int? = null) : FamiliePushEvent
 
         /** Any other Familie message (e.g. the parent's SOS acknowledgement); routed by its topic. */
     data class Other(val type: String?, val topicKey: String?) : FamiliePushEvent
@@ -124,6 +132,7 @@ object FamiliePush {
             "locate_age_hint" -> FamiliePushEvent.LocateAgeHint(f.int("childId"))
             ALLOWANCE_PAID, ALLOWANCE_CONVERT, ALLOWANCE_DECIDED -> FamiliePushEvent.Allowance(type, f.int("childId"), f.int("requestId")?.takeIf { it > 0 }, f.int("stars"))
             "presence_rule" -> FamiliePushEvent.PresenceRule(f.int("ruleId"), f.int("userId"))
+            INTERNET -> FamiliePushEvent.Internet(f.str("kind")?.take(40), f.int("userId"), f.int("ruleId")?.takeIf { it > 0 })
             else -> {
                 if (type != null && type.startsWith("allowance_")) {
                     return FamiliePushEvent.Allowance(type, f.int("childId"), f.int("requestId")?.takeIf { it > 0 }, f.int("stars"))
@@ -154,6 +163,7 @@ object FamiliePush {
         is FamiliePushEvent.LocateAgeHint -> event.childId?.let { FamilieDest.Locate(it) } ?: FamilieDest.Home
         is FamiliePushEvent.Allowance -> FamilieDest.Allowance(event.childId)
         is FamiliePushEvent.PresenceRule -> FamilieDest.Presence
+        is FamiliePushEvent.Internet -> FamilieDest.Internet
         is FamiliePushEvent.Other -> when (event.topicKey) {
             "shopping" -> FamilieDest.Shopping()
             "tasks" -> FamilieDest.Tasks
@@ -166,6 +176,7 @@ object FamiliePush {
             "board" -> FamilieDest.Board
             "meals" -> FamilieDest.Meals()
             "presence" -> FamilieDest.Presence
+            INTERNET -> FamilieDest.Internet
             // To a child: the parent saw the SOS / asked for the location.
             "sos", "locate" -> FamilieDest.Child
             else -> FamilieDest.Home
@@ -179,6 +190,13 @@ object FamiliePush {
     const val ALLOWANCE_PAID = "allowance_paid"
     const val ALLOWANCE_CONVERT = "allowance_convert"
     const val ALLOWANCE_DECIDED = "allowance_decided"
+
+    /** Topic key and `data.familie.type` of „Internet zu Hause“. */
+    const val INTERNET = "internet"
+
+    /** A message about „Internet zu Hause“: its view reloads. */
+    fun touchesInternet(event: FamiliePushEvent): Boolean =
+        event is FamiliePushEvent.Internet || (event is FamiliePushEvent.Other && event.topicKey == INTERNET)
 
     fun actions(event: FamiliePushEvent): List<Action> = when (event) {
         is FamiliePushEvent.LocateRequest ->

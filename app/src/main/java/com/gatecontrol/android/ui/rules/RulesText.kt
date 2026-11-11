@@ -11,6 +11,8 @@ import com.gatecontrol.android.familie.rules.DeviceCondition
 import com.gatecontrol.android.familie.rules.Rule
 import com.gatecontrol.android.familie.rules.RuleAction
 import com.gatecontrol.android.familie.rules.RuleActionType
+import com.gatecontrol.android.familie.rules.RuleInternetOp
+import com.gatecontrol.android.familie.rules.RuleInternetProblem
 import com.gatecontrol.android.familie.rules.RuleLogic
 import com.gatecontrol.android.familie.rules.RuleOp
 import com.gatecontrol.android.familie.rules.RuleOptions
@@ -21,6 +23,7 @@ import com.gatecontrol.android.familie.rules.RuleTemplate
 import com.gatecontrol.android.familie.rules.RuleTrigger
 import com.gatecontrol.android.familie.rules.RuleTriggerType
 import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.familie.internetDuration
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
@@ -212,7 +215,34 @@ internal fun actionText(a: RuleAction, options: RuleOptions, myUserId: Int?, nam
     RuleActionType.NOTIFY -> stringResource(R.string.rules_action_notify, recipientsText(a.to, myUserId, nameOf))
     RuleActionType.MESSENGER -> a.text?.let { stringResource(R.string.rules_action_chat_text, it) }
         ?: stringResource(R.string.rules_action_chat, recipientsText(a.to, myUserId, nameOf))
+    RuleActionType.INTERNET -> when {
+        !a.isInternet -> stringResource(R.string.rules_action_kind_internet)
+        else -> {
+            val child = a.title ?: a.userId?.let { id -> options.internet.children.firstOrNull { it.userId == id }?.name ?: nameOf(id) ?: "#$id" }.orEmpty()
+            stringResource(if (a.op == RuleInternetOp.RESUME) R.string.rules_internet_resume else R.string.rules_internet_pause, child)
+        }
+    }
     else -> stringResource(R.string.rules_action_unknown, a.type)
+}
+
+/** Under an internet action: "für 30 Min." / "bis 18:30", or why it will not run ("Nicht verfügbar: …"). */
+@Composable
+internal fun internetActionDetail(a: RuleAction): String? {
+    if (a.type != RuleActionType.INTERNET) return null
+    if (a.available == false || a.problem != null) {
+        val child = a.title ?: a.userId?.let { "#$it" }.orEmpty()
+        return when (a.problem) {
+            RuleInternetProblem.NOT_FOUND -> stringResource(R.string.rules_internet_problem_not_found, child)
+            RuleInternetProblem.NOT_ALLOWED -> stringResource(R.string.rules_internet_problem_not_allowed)
+            else -> stringResource(R.string.rules_internet_problem_unavailable)
+        }
+    }
+    return when {
+        !a.isInternet || a.op != RuleInternetOp.PAUSE -> null
+        a.until != null -> stringResource(R.string.rules_internet_until, a.until)
+        a.minutes != null -> stringResource(R.string.rules_internet_for, internetDuration(a.minutes))
+        else -> null
+    }
 }
 
 /** The line under a rule in the list. */
