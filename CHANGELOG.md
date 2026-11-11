@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.104.0] - 2026-11-11
+
+### Features
+- Familie: Internet zu Hause – Internet der Kinder pausieren oder heute länger erlauben, auch per Regel (#220)
+
+---
+
 ## [1.103.1] - 2026-11-10
 
 ### Fixes

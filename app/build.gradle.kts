@@ -18,8 +18,8 @@ android {
         applicationId = "com.gatecontrol.client"
         minSdk = 31
         targetSdk = 36
-        versionCode = 20301
-        versionName = "1.103.1"
+        versionCode = 20400
+        versionName = "1.104.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
