@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.IntentSender
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.drive.DFolder
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
@@ -26,8 +27,10 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -56,7 +59,23 @@ class DriveVaultMoveViewModelTest {
 
     @BeforeEach fun setUp() = Dispatchers.setMain(dispatcher)
 
-    @AfterEach fun tearDown() = Dispatchers.resetMain()
+    /** The pages of a test, ended before Main goes. */
+    private val models = mutableListOf<DriveVaultViewModel>()
+
+    /**
+     * The page reloads after an upload, with steps on Dispatchers.IO that come back to Main: a test is over before
+     * they are. They end here, while Main still is the test's dispatcher — coming back after resetMain would be an
+     * uncaught exception that fails whichever test runs next.
+     */
+    @AfterEach fun tearDown() {
+        models.forEach { it.viewModelScope.cancel() }
+        val until = System.currentTimeMillis() + 5_000
+        while (models.any { !it.viewModelScope.coroutineContext.job.isCompleted } && System.currentTimeMillis() < until) {
+            dispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(2)
+        }
+        Dispatchers.resetMain()
+    }
 
     private val vault = DVault("v".repeat(22), 5L, "a1", 1L, "nc", 1, null, false, emptyList(), 0)
     private val vaultNode = DNode(5, "a1", 1, "abcd".repeat(8), true, 0, null, null, 1, null, null, null, vaultId = vault.id, nameCipher = "nc")
@@ -115,6 +134,7 @@ class DriveVaultMoveViewModelTest {
             offlineStore = store,
             vaultMove = DriveVaultMove(api, phone, dispatcher),
         )
+        models += vm
         // the page loads with a few steps on Dispatchers.IO: wait until it shows the folder
         val until = System.currentTimeMillis() + 5_000
         while (vm.ui.value !is DriveVaultViewModel.Ui.Ready && System.currentTimeMillis() < until) {
