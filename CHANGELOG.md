@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.106.0] - 2026-11-12
+
+### Features
+- Pi-hole entfernt – Ersatz ist der DNS-Schutz (#222)
+
+---
+
 ## [1.105.0] - 2026-11-12
 
 ### Features
