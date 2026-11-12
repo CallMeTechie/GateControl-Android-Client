@@ -67,8 +67,6 @@ class DnsRepository @Inject constructor(
                 traffic = p.traffic,
                 dns = p.dns,
                 rdp = p.rdp,
-                pihole = p.pihole,
-                piholeControl = p.piholeControl,
                 vpnDns = LicenseRepository.vpnDnsOf(response.vpnDns?.plugin, response.vpnDns?.state),
             )
         } catch (e: CancellationException) {

@@ -23,21 +23,18 @@ import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.ui.components.GcScreenTitle
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.dnsprotect.DnsProtectContent
-import com.gatecontrol.android.ui.pihole.PiholeContent
 import com.gatecontrol.android.ui.rdp.RdpContent
 import com.gatecontrol.android.ui.services.ServicesContent
 import com.gatecontrol.android.ui.vpn.VpnViewModel
 
 const val NETWORK_TAB_SERVICES = NetworkTabs.SERVICES
-const val NETWORK_TAB_PIHOLE = NetworkTabs.PIHOLE
 const val NETWORK_TAB_DNS = NetworkTabs.DNS
 const val NETWORK_TAB_REMOTE = NetworkTabs.REMOTE
 
 /** Segments of the Netzwerk tab (pure, unit-tested). */
 object NetworkTabs {
     const val SERVICES = "services"
-    const val PIHOLE = "pihole"
-    /** DNS protection of the server (plugin gatecontrol-dns): takes the place of Pi-hole where the server reports it. */
+    /** DNS protection of the server (plugin gatecontrol-dns), where the server reports it. */
     const val DNS = "dns"
     /** RDP hosts; until 1.35 the own bottom tab "Remote". */
     const val REMOTE = "remote"
@@ -45,27 +42,28 @@ object NetworkTabs {
     /** Old name of the Remote segment (the former tab's route `rdp`). */
     private const val LEGACY_REMOTE = "rdp"
 
+    /** Segment of the removed Pi-hole link (a stored default, an old link); DNS-Schutz stands in its place. */
+    private const val LEGACY_PIHOLE = "pihole"
+
     /**
-     * The segments the token may use, in order: Dienste, Pi-hole or
-     * DNS-Schutz, Remote. [dns]: the server reports a DNS protection — it
-     * wins over Pi-hole (also when both are reported).
+     * The segments the token may use, in order: Dienste, DNS-Schutz,
+     * Remote. [dns]: the server reports a DNS protection.
      */
-    fun available(services: Boolean, pihole: Boolean, remote: Boolean, dns: Boolean = false): List<String> = buildList {
+    fun available(services: Boolean, remote: Boolean, dns: Boolean = false): List<String> = buildList {
         if (services) add(SERVICES)
-        if (dns) add(DNS) else if (pihole) add(PIHOLE)
+        if (dns) add(DNS)
         if (remote) add(REMOTE)
     }
 
-    /** A requested segment under its current name (the old `rdp` is Remote). */
-    fun normalize(tab: String?): String? = if (tab == LEGACY_REMOTE) REMOTE else tab
-
-    /** [tab] as [available] has it: Pi-hole and DNS-Schutz stand in the same place, one for the other. */
-    private fun present(tab: String?, available: List<String>): String? = when {
-        tab == null || tab in available -> tab
-        tab == PIHOLE && DNS in available -> DNS
-        tab == DNS && PIHOLE in available -> PIHOLE
-        else -> null
+    /** A requested segment under its current name (the old `rdp` is Remote, the old `pihole` is DNS-Schutz). */
+    fun normalize(tab: String?): String? = when (tab) {
+        LEGACY_REMOTE -> REMOTE
+        LEGACY_PIHOLE -> DNS
+        else -> tab
     }
+
+    /** [tab] when [available] has it. */
+    private fun present(tab: String?, available: List<String>): String? = tab?.takeIf { it in available }
 
     /**
      * The segment to show: the requested one when available, else the
@@ -78,7 +76,7 @@ object NetworkTabs {
 }
 
 /**
- * "Netzwerk" tab: services, Pi-hole (or the server's DNS protection) and the RDP hosts ("Remote", until
+ * "Netzwerk" tab: services, the server's DNS protection and the RDP hosts ("Remote", until
  * 1.35 an own tab) behind a segmented switch. Shows only the parts the
  * token is allowed to use; the switch disappears when only one is. A long
  * press on a segment makes it the one the tab opens with.
@@ -86,10 +84,9 @@ object NetworkTabs {
 @Composable
 fun NetworkScreen(
     hasServices: Boolean,
-    hasPihole: Boolean,
     hasRemote: Boolean,
     initialTab: String?,
-    /** The server reports a DNS protection: "DNS-Schutz" instead of "Pi-hole". */
+    /** The server reports a DNS protection: the segment "DNS-Schutz". */
     hasDnsProtect: Boolean = false,
     onGoToStart: () -> Unit,
     vpnViewModel: VpnViewModel = hiltViewModel(),
@@ -98,10 +95,9 @@ fun NetworkScreen(
     val tunnelState by vpnViewModel.tunnelState.collectAsState()
     val default by tabsViewModel.default.collectAsState()
     val context = LocalContext.current
-    val keys = NetworkTabs.available(services = hasServices, pihole = hasPihole, remote = hasRemote, dns = hasDnsProtect)
+    val keys = NetworkTabs.available(services = hasServices, remote = hasRemote, dns = hasDnsProtect)
     val labels = mapOf(
         NetworkTabs.SERVICES to stringResource(R.string.nav_services),
-        NetworkTabs.PIHOLE to stringResource(R.string.nav_pihole),
         NetworkTabs.DNS to stringResource(R.string.nav_dns_protect),
         NetworkTabs.REMOTE to stringResource(R.string.nav_remote),
     )
@@ -143,7 +139,6 @@ fun NetworkScreen(
                 onConnect = onGoToStart,
                 modifier = Modifier.weight(1f),
             )
-            NetworkTabs.PIHOLE -> PiholeContent(modifier = Modifier.weight(1f))
             NetworkTabs.DNS -> DnsProtectContent(modifier = Modifier.weight(1f))
             NetworkTabs.REMOTE -> RdpContent(modifier = Modifier.weight(1f))
             else -> Unit

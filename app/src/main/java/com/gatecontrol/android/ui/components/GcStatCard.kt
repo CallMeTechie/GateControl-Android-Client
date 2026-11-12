@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
-/** Small card with a label over a big display number (Pi-hole stats). */
+/** Small card with a label over a big display number (DNS-Schutz counters). */
 @Composable
 fun GcStatCard(
     label: String,

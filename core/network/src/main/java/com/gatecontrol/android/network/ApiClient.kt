@@ -493,25 +493,4 @@ interface ApiClient {
     /** `{ topic, dest: inbox | own | family }`; 403 family_not_allowed, 409 locked / no_sink. */
     @PUT("api/v1/client/push/routes")
     suspend fun putPushRoutes(@Body body: JsonObject): Response<JsonObject>
-
-    @GET("api/v1/pihole/summary")
-    suspend fun getPiholeSummary(): PiholeSummaryResponse
-
-    @GET("api/v1/pihole/history")
-    suspend fun getPiholeHistory(): PiholeHistoryResponse
-
-    @GET("api/v1/pihole/top-domains")
-    suspend fun getPiholeTopDomains(): PiholeTopDomainsResponse
-
-    @GET("api/v1/pihole/top-clients")
-    suspend fun getPiholeTopClients(): PiholeTopClientsResponse
-
-    @GET("api/v1/pihole/query-types")
-    suspend fun getPiholeQueryTypes(): PiholeQueryTypesResponse
-
-    @GET("api/v1/pihole/health")
-    suspend fun getPiholeHealth(): PiholeHealthResponse
-
-    @POST("api/v1/pihole/blocking")
-    suspend fun setPiholeBlocking(@Body request: PiholeBlockingRequest): SimpleResponse
 }

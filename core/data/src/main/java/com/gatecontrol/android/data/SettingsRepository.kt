@@ -58,7 +58,7 @@ class SettingsRepository @Inject constructor(private val dataStore: DataStore<Pr
         val USAGE_CARD_FAVORITE = stringPreferencesKey("usage_card_favorite")
         /** Start tab "Info" card: chosen contents per login, JSON owned by the app's InfoCardRepository. */
         val INFO_CARD = stringPreferencesKey("info_card")
-        /** Netzwerk tab: segment shown first ("services" | "pihole" | "remote"), chosen by a long press. */
+        /** Netzwerk tab: segment shown first ("services" | "dns" | "remote"), chosen by a long press. */
         val NETWORK_DEFAULT_TAB = stringPreferencesKey("network_default_tab")
         /** Start tab: devices pinned as widgets, JSON owned by the app's StartWidgetPin. */
         val START_WIDGETS = stringPreferencesKey("start_widgets")

@@ -6,7 +6,7 @@ import com.gatecontrol.android.ui.network.NetworkTabs
 
 /**
  * Entries of the bottom bar / navigation rail (pure, unit-tested): Start,
- * Chats (messenger plugin), Mail (mail plugin), Vault (vault plugin), Drive (drive plugin), Netzwerk (Dienste, Pi-hole and Remote as its
+ * Chats (messenger plugin), Mail (mail plugin), Vault (vault plugin), Drive (drive plugin), Netzwerk (Dienste, DNS-Schutz and Remote as its
  * segments) and Familie. The door plugin gets no tab (its screen opens from
  * pushes and its quick actions, docs/DOOR.md). The settings are no tab
  * since 1.35: they open from the profile (gear top right).
@@ -38,8 +38,8 @@ internal object MainTabs {
     }
 
     /** The Netzwerk tab exists when any of its segments may be used (Remote included). */
-    fun hasNetwork(services: Boolean, pihole: Boolean, rdp: Boolean, dns: Boolean = false): Boolean =
-        NetworkTabs.available(services = services, pihole = pihole, remote = rdp, dns = dns).isNotEmpty()
+    fun hasNetwork(services: Boolean, rdp: Boolean, dns: Boolean = false): Boolean =
+        NetworkTabs.available(services = services, remote = rdp, dns = dns).isNotEmpty()
 
     /**
      * Where a route of an older version leads now: the former Remote tab

@@ -43,7 +43,7 @@ class DnsRepositoryTest {
     private fun repo() = DnsRepository(setup, provider, license, settings)
 
     private fun reported(plugin: String = "gatecontrol-dns", state: String = "filtering") {
-        license.updatePermissions(services = true, traffic = false, dns = false, rdp = false, pihole = true, vpnDns = LicenseRepository.VpnDns(plugin, state))
+        license.updatePermissions(services = true, traffic = false, dns = false, rdp = false, vpnDns = LicenseRepository.VpnDns(plugin, state))
     }
 
     @BeforeEach
@@ -150,13 +150,13 @@ class DnsRepositoryTest {
         reported()
         coEvery { api.getPermissions() } returns PermissionsResponse(
             ok = true,
-            permissions = PermissionFlags(services = true, traffic = false, dns = false, rdp = false, pihole = true),
+            permissions = PermissionFlags(services = true, traffic = false, dns = false, rdp = false),
             scopes = emptyList(),
             vpnDns = null,
         )
         repo().reloadPermissions()
         assertNull(license.permissions.value.vpnDns)
-        assertTrue(license.permissions.value.pihole, "Pi-hole stays: its segment is back")
+        assertTrue(license.permissions.value.services, "the other permissions stay")
 
         coEvery { api.getPermissions() } returns PermissionsResponse(
             ok = true,

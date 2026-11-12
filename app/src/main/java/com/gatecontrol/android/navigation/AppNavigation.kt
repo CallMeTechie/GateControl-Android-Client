@@ -165,8 +165,7 @@ fun AppNavigation(
     isSetupComplete: Boolean,
     hasRdpPermission: Boolean,
     hasServicesPermission: Boolean,
-    hasPiholePermission: Boolean,
-    /** The server reports a DNS protection (`permissions.vpnDns`): its screen replaces Pi-hole, a tile joins Start. */
+    /** The server reports a DNS protection (`permissions.vpnDns`): its screen joins Netzwerk, a tile joins Start. */
     hasDnsProtect: Boolean = false,
     onlineRdpHostCount: Int = 0,
     /** What the server's plugins offer (Familie tab), cached on the device. */
@@ -186,7 +185,7 @@ fun AppNavigation(
     val pagesAccess by pagesViewModel.access.collectAsStateWithLifecycle()
     val hideBarSetting by pagesViewModel.hideBar.collectAsStateWithLifecycle()
     val tabRoutes = MainTabs.routes(
-        network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission, dns = hasDnsProtect),
+        network = MainTabs.hasNetwork(services = hasServicesPermission, rdp = hasRdpPermission, dns = hasDnsProtect),
         plugins = plugins,
     )
     // Mail's calendar and contacts: pages without a tab, while the server offers them
@@ -300,7 +299,7 @@ fun AppNavigation(
     } else {
         0
     }
-    // Start, Chats (messenger plugin), Netzwerk (Dienste, Pi-hole, Remote),
+    // Start, Chats (messenger plugin), Netzwerk (Dienste, DNS-Schutz, Remote),
     // the plugin tab Familie (docs/FAMILIE.md). The door plugin has no tab
     // (docs/DOOR.md), the settings open from the profile (gear top right).
     val tabs = barRoutes.map { route ->
@@ -356,7 +355,6 @@ fun AppNavigation(
         GcContentWidth(maxWidth = 840.dp) {
             NetworkScreen(
                 hasServices = hasServicesPermission,
-                hasPihole = hasPiholePermission,
                 hasRemote = hasRdpPermission,
                 hasDnsProtect = hasDnsProtect,
                 initialTab = initialTab,

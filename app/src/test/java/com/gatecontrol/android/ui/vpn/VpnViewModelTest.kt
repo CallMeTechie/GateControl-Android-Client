@@ -187,8 +187,6 @@ class VpnViewModelTest {
             traffic = true,
             dns = false,
             rdp = true,
-            pihole = true,
-            piholeControl = true,
         )
         coEvery { apiClient.getPermissions() } returns PermissionsResponse(
             ok = true,
@@ -205,8 +203,6 @@ class VpnViewModelTest {
                 traffic = true,
                 dns = false,
                 rdp = true,
-                pihole = true,
-                piholeControl = true,
             )
         }
     }

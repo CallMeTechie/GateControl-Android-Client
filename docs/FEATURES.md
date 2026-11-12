@@ -81,10 +81,10 @@ Familie-Plugin mit Tab anbietet — **Familie**. Seit dem Messenger-Plugin
 (GateControl 1.177+) kommt direkt nach Start der Tab **Chats** dazu
 (siehe „Chats“).
 
-- **Netzwerk** hat die Segmente **Dienste**, **Pi-hole** und **Remote**
-  (die RDP-Hosts, bis 1.34 ein eigener Tab). Meldet der Server einen
-  DNS-Schutz, steht an der Stelle von Pi-hole das Segment **DNS-Schutz**
-  (siehe „DNS-Schutz“). Es erscheinen nur die
+- **Netzwerk** hat die Segmente **Dienste**, **DNS-Schutz** und **Remote**
+  (die RDP-Hosts, bis 1.34 ein eigener Tab). **DNS-Schutz** erscheint,
+  wenn der Server einen DNS-Schutz meldet (siehe „DNS-Schutz“); die
+  frühere Pi-hole-Anbindung gibt es nicht mehr. Es erscheinen nur die
   Segmente, die das Token nutzen darf; mit nur einem entfällt der
   Umschalter. Pushes mit der App-Route `rdp`/`remote` öffnen Netzwerk →
   Remote, `services` öffnet Netzwerk → Dienste; die alte Route `rdp` leitet
@@ -254,11 +254,12 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
   fest („Als Standard festgelegt“, Stern neben der Beschriftung): diese
   Seite erscheint zuerst. Ohne Wahl startet die Karte mit der Datennutzung.
   Bei der Info-Karte übernimmt das Langdruck-Menü diese Rolle.
-- **Netzwerk-Tab:** langes Drücken auf Dienste, Pi-hole oder Remote legt
+- **Netzwerk-Tab:** langes Drücken auf Dienste, DNS-Schutz oder Remote legt
   fest, womit der Tab öffnet („Als Standard festgelegt“); ein Link mit
-  Ziel (Push, alte Remote-Route) geht weiterhin vor.
-- Kill-Switch und Split-Tunneling stehen (nur noch) in den Einstellungen,
-  Pi-hole im Netzwerk-Tab. Die Verbindungsdetails (Tunnel-IP, verbunden
+  Ziel (Push, alte Remote-Route) geht weiterhin vor. Ein früher gewählter Standard
+  „Pi-hole“ öffnet den DNS-Schutz, ohne DNS-Schutz das erste Segment.
+- Kill-Switch und Split-Tunneling stehen (nur noch) in den Einstellungen.
+  Die Verbindungsdetails (Tunnel-IP, verbunden
   seit, letzter Handshake, Server) und der **DNS-Leak-Test** stehen unter
   Einstellungen → Verbindung → Verbindungsdetails.
 
@@ -344,10 +345,11 @@ der Server sagt (`may` in `GET status`); jede Regel setzt das Plugin durch.
 
 - **Erkennung:** `vpnDns` in `GET /api/v1/client/permissions`
   (`{ plugin, state }`). Fehlt das Feld oder ist es `null` (älterer Server,
-  Plugin aus, Schutz ausgeschaltet), bleibt alles wie bisher — mit Pi-hole
-  der Reiter „Pi-hole“. Meldet der Server beides, gewinnt der DNS-Schutz.
+  Plugin aus, Schutz ausgeschaltet), gibt es weder den Reiter noch die
+  Kachel — auch dann nicht, wenn ein älterer Server noch Pi-hole meldet
+  (`pihole`/`piholeControl` liest die App nicht mehr).
   Die Plugin-Kennung kommt immer aus `vpnDns.plugin`.
-- **Bildschirm „DNS-Schutz“** (Netzwerk, an der Stelle von Pi-hole):
+- **Bildschirm „DNS-Schutz“** (Netzwerk, zwischen Dienste und Remote):
   Statuskarte (aktiv · unterbrochen mit Restzeit · ausgefallen · wird nicht
   gefiltert · startet), Zähler von heute (dieses Gerät, deine Geräte oder
   alle Geräte des Servers), „Schutz unterbrechen“ mit den Dauern 5 Min,

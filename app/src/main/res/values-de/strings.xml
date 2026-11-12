@@ -220,30 +220,6 @@
     <string name="retry">Wiederholen</string>
     <string name="close">Schließen</string>
     <string name="permission_camera">Kameraberechtigung für QR-Scan erforderlich</string>
-    <!-- Pi-hole -->
-    <string name="nav_pihole">Pi-hole</string>
-    <string name="pihole_title">Pi-hole</string>
-    <string name="pihole_queries">Anfragen</string>
-    <string name="pihole_blocked">Geblockt</string>
-    <string name="pihole_blocklist">Blocklisten-Domains</string>
-    <string name="pihole_active_clients">Aktive Clients</string>
-    <string name="pihole_status_enabled">Aktiv</string>
-    <string name="pihole_status_disabled">Pausiert</string>
-    <string name="pihole_status_partial">Teilweise</string>
-    <string name="pihole_status_unknown">Unbekannt</string>
-    <string name="pihole_history_title">Anfragen über Zeit</string>
-    <string name="pihole_allowed">Erlaubt</string>
-    <string name="pihole_top_domains">Top geblockte Domains</string>
-    <string name="pihole_top_clients">Top Clients</string>
-    <string name="pihole_query_types">Anfrage-Typen</string>
-    <string name="pihole_pause_forever">Dauerhaft</string>
-    <string name="pihole_resume">Wieder aktivieren</string>
-    <string name="pihole_applying">Wird angewendet&#8230;</string>
-    <string name="pihole_action_failed">Aktion fehlgeschlagen</string>
-    <string name="pihole_empty">Noch keine Pi-hole-Daten</string>
-    <string name="pihole_synced_ago">Sync vor %1$ds</string>
-    <string name="pihole_paused">Pausiert</string>
-    <string name="pihole_paused_mmss">pausiert &#183; %1$s</string>
 
     <!-- Redesign 2026 -->
     <string name="common_back">Zurück</string>
@@ -273,12 +249,6 @@
     <string name="dns_tile_idle">Tippen zum Testen</string>
     <string name="dns_tile_ok">Kein Leak · %1$s</string>
     <string name="dns_tile_fail">Test fehlgeschlagen</string>
-    <string name="pihole_tile_blocking">Blockierung aktiv</string>
-    <string name="pihole_pause_title">Blockieren pausieren</string>
-    <string name="pihole_chip_30s">30 s</string>
-    <string name="pihole_chip_5m">5 Min</string>
-    <string name="pihole_chip_30m">30 Min</string>
-    <string name="pihole_history_desc">Balkendiagramm der Pi-hole-Anfragen, erlaubt und geblockt</string>
     <string name="services_vpn_required">Dienste sind nur mit aktivem VPN erreichbar.</string>
     <string name="rdp_summary">%1$d Hosts · %2$d online</string>
     <string name="rdp_no_match">Keine Hosts gefunden</string>

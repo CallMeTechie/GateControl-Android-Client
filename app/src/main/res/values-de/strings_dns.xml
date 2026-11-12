@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- DNS-Schutz (Plugin gatecontrol-dns, Server ab 1.264): ersetzt den Reiter Pi-hole -->
+    <!-- DNS-Schutz (Plugin gatecontrol-dns, Server ab 1.264) -->
     <string name="nav_dns_protect">DNS-Schutz</string>
 
     <string name="dns_state_active_title">Schutz aktiv</string>
