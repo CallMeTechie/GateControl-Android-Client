@@ -82,7 +82,9 @@ Familie-Plugin mit Tab anbietet — **Familie**. Seit dem Messenger-Plugin
 (siehe „Chats“).
 
 - **Netzwerk** hat die Segmente **Dienste**, **Pi-hole** und **Remote**
-  (die RDP-Hosts, bis 1.34 ein eigener Tab). Es erscheinen nur die
+  (die RDP-Hosts, bis 1.34 ein eigener Tab). Meldet der Server einen
+  DNS-Schutz, steht an der Stelle von Pi-hole das Segment **DNS-Schutz**
+  (siehe „DNS-Schutz“). Es erscheinen nur die
   Segmente, die das Token nutzen darf; mit nur einem entfällt der
   Umschalter. Pushes mit der App-Route `rdp`/`remote` öffnen Netzwerk →
   Remote, `services` öffnet Netzwerk → Dienste; die alte Route `rdp` leitet
@@ -332,6 +334,44 @@ dem Start-Tab). Ein integrierter Test prüft, ob DNS-Anfragen korrekt über den 
 - **Kein DNS-Leak erkannt** — Alle DNS-Anfragen laufen über den Tunnel
 - **DNS-Leak erkannt!** — DNS-Anfragen umgehen den Tunnel (Handlungsempfehlung: Kill-Switch aktivieren)
 - **DNS-Server:** Auflistung der erkannten DNS-Server
+
+---
+
+## DNS-Schutz (Plugin `gatecontrol-dns` 1.0, GateControl 1.264+)
+
+Der DNS-Filter des Servers für die VPN-Geräte. Die App zeichnet nur, was
+der Server sagt (`may` in `GET status`); jede Regel setzt das Plugin durch.
+
+- **Erkennung:** `vpnDns` in `GET /api/v1/client/permissions`
+  (`{ plugin, state }`). Fehlt das Feld oder ist es `null` (älterer Server,
+  Plugin aus, Schutz ausgeschaltet), bleibt alles wie bisher — mit Pi-hole
+  der Reiter „Pi-hole“. Meldet der Server beides, gewinnt der DNS-Schutz.
+  Die Plugin-Kennung kommt immer aus `vpnDns.plugin`.
+- **Bildschirm „DNS-Schutz“** (Netzwerk, an der Stelle von Pi-hole):
+  Statuskarte (aktiv · unterbrochen mit Restzeit · ausgefallen · wird nicht
+  gefiltert · startet), Zähler von heute (dieses Gerät, deine Geräte oder
+  alle Geräte des Servers), „Schutz unterbrechen“ mit den Dauern 5 Min,
+  30 Min, 1 Std (nicht erlaubte ausgegraut), 4 Std nur wenn erlaubt, und
+  „Bis ich wieder einschalte“ (ausgegraut ohne Freigabe). Unterbrochen
+  zählt der gewählte Chip die Restzeit gegen die Uhr des Servers herunter,
+  darunter „Wieder einschalten“. „Unterbrechen nicht erlaubt“ (Profil)
+  ersetzt die Chips durch einen Hinweis; bei „Nur Admins“ gibt es keinen
+  Knopf. Dazu „Zeiten heute“ und „Top gesperrte Domains“, wenn der Server
+  sie liefert.
+- **Kachel auf Start:** Zustand, Zähler und Knopf („Unterbrechen“ öffnet
+  den Bildschirm, „Einschalten“ schaltet direkt wieder ein).
+- **Für andere unterbrechen** (Admins, Eltern; `status.manage`): Personen
+  und ihre Geräte aus `GET people`, Admins auch „Alle VPN-Geräte“, jeweils
+  nur mit den für das Ziel erlaubten Dauern.
+- **Abfragen:** beim Öffnen, alle 45 s solange der Bildschirm vorn ist,
+  kurz nach dem Ende einer Unterbrechung; nach `rate_limited` alle 2 Min.
+- **Fehler:** kein Netz → letzter Stand mit Hinweis; Plugin gestört
+  (502/503/504) → „gerade nicht erreichbar“; `off`, `unsupported`, 404 des
+  Kerns, `no_user` → Karte weg und `permissions` neu laden; Ablehnungen
+  zeigen den Satz des Servers.
+
+Code: `dnsprotect/` (Modelle, `DnsJson`, `DnsLogic`, `DnsRepository`),
+`ui/dnsprotect/`.
 
 ---
 

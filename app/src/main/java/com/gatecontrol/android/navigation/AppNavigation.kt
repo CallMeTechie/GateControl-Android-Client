@@ -166,6 +166,8 @@ fun AppNavigation(
     hasRdpPermission: Boolean,
     hasServicesPermission: Boolean,
     hasPiholePermission: Boolean,
+    /** The server reports a DNS protection (`permissions.vpnDns`): its screen replaces Pi-hole, a tile joins Start. */
+    hasDnsProtect: Boolean = false,
     onlineRdpHostCount: Int = 0,
     /** What the server's plugins offer (Familie tab), cached on the device. */
     plugins: PluginAvailability = PluginAvailability.NONE,
@@ -184,7 +186,7 @@ fun AppNavigation(
     val pagesAccess by pagesViewModel.access.collectAsStateWithLifecycle()
     val hideBarSetting by pagesViewModel.hideBar.collectAsStateWithLifecycle()
     val tabRoutes = MainTabs.routes(
-        network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission),
+        network = MainTabs.hasNetwork(services = hasServicesPermission, pihole = hasPiholePermission, rdp = hasRdpPermission, dns = hasDnsProtect),
         plugins = plugins,
     )
     // Mail's calendar and contacts: pages without a tab, while the server offers them
@@ -356,6 +358,7 @@ fun AppNavigation(
                 hasServices = hasServicesPermission,
                 hasPihole = hasPiholePermission,
                 hasRemote = hasRdpPermission,
+                hasDnsProtect = hasDnsProtect,
                 initialTab = initialTab,
                 onGoToStart = goToStart,
             )
@@ -603,6 +606,7 @@ fun AppNavigation(
                             onOpenConnectionDetails = { openSettingsPane(SettingsPane.Connection) },
                             // Long press on a door quick action: the door screen, a normal destination — no tab.
                             onOpenDoor = openDoor,
+                            onOpenDnsProtect = { openTab(Screen.Network.create(NetworkTabs.DNS)) },
                             onOpenStoryComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
                             onOpenOwnStories = { navController.navigate(Screen.ChatStoryView.create(0L)) { launchSingleTop = true } },
                             onArrange = onArrange,

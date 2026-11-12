@@ -395,6 +395,7 @@ class VpnViewModel @Inject constructor(
                         rdp = flags.rdp,
                         pihole = flags.pihole,
                         piholeControl = flags.piholeControl,
+                        vpnDns = com.gatecontrol.android.data.LicenseRepository.vpnDnsOf(response.vpnDns?.plugin, response.vpnDns?.state),
                     )
                     setupRepository.setPortalUrl(response.portalUrl)
                     _portalUrl.value = response.portalUrl

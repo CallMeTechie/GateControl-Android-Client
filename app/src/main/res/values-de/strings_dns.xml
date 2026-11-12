@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DNS-Schutz (Plugin gatecontrol-dns, Server ab 1.264): ersetzt den Reiter Pi-hole -->
+    <string name="nav_dns_protect">DNS-Schutz</string>
+
+    <string name="dns_state_active_title">Schutz aktiv</string>
+    <string name="dns_state_active_sub">Werbung und Schadseiten werden gesperrt</string>
+    <string name="dns_state_active_profile">Profil „%1$s“ · Werbung und Schadseiten werden gesperrt</string>
+    <string name="dns_state_paused_clock">unterbrochen · %1$s</string>
+    <string name="dns_state_paused_until">bis %1$s Uhr · schaltet sich von selbst ein</string>
+    <string name="dns_state_paused_open">Unterbrochen</string>
+    <string name="dns_state_paused_open_me">bis du wieder einschaltest</string>
+    <string name="dns_state_paused_open_other">bis wieder eingeschaltet wird</string>
+    <string name="dns_state_fallback_title">Schutz ausgefallen</string>
+    <string name="dns_state_fallback_since">seit %1$s Uhr · Internet läuft ungefiltert</string>
+    <string name="dns_state_fallback_sub">Internet läuft ungefiltert</string>
+    <string name="dns_state_unfiltered_title">Wird nicht gefiltert</string>
+    <string name="dns_unfiltered_own_dns">Dieses Gerät nutzt einen eigenen DNS-Server (%1$s).</string>
+    <string name="dns_unfiltered_own_dns_plain">Dieses Gerät nutzt einen eigenen DNS-Server.</string>
+    <string name="dns_unfiltered_excluded">Dieses Gerät ist vom DNS-Schutz ausgenommen.</string>
+    <string name="dns_unfiltered_disabled">Dieses Gerät ist auf dem Server deaktiviert.</string>
+    <string name="dns_state_starting_title">Schutz startet</string>
+    <string name="dns_state_starting_sub">Der Filter ist gleich bereit.</string>
+    <string name="dns_state_off_title">DNS-Schutz ist aus</string>
+
+    <string name="dns_stat_queries">Anfragen heute</string>
+    <string name="dns_stat_blocked">Gesperrt</string>
+    <string name="dns_scope_device">dieses Gerät</string>
+    <string name="dns_scope_person">deine Geräte</string>
+    <string name="dns_scope_server">alle Geräte des Servers</string>
+    <string name="dns_percent">%1$s %%</string>
+
+    <string name="dns_pause_title">Schutz unterbrechen</string>
+    <string name="dns_chip_min">%1$d Min</string>
+    <string name="dns_chip_hours">%1$d Std</string>
+    <string name="dns_chip_forever">Bis ich wieder einschalte</string>
+    <string name="dns_pause_hint_device">Gilt für dieses Gerät und endet von selbst.</string>
+    <string name="dns_pause_hint_person">Gilt für deine Geräte und endet von selbst.</string>
+    <string name="dns_pause_forever_locked">„Bis ich wieder einschalte“ hat dein Admin nicht freigegeben.</string>
+    <string name="dns_resume">Wieder einschalten</string>
+    <string name="dns_applying">Wird angewendet&#8230;</string>
+    <string name="dns_paused_plain">Der Schutz ist unterbrochen.</string>
+    <string name="dns_paused_at">Unterbrochen um %1$s.</string>
+    <string name="dns_paused_by_me">Unterbrochen von dir um %1$s.</string>
+    <string name="dns_paused_by_me_for">Unterbrochen von dir um %1$s für %2$s.</string>
+    <string name="dns_paused_by_other">Unterbrochen von %1$s um %2$s.</string>
+    <string name="dns_paused_by_other_for">Unterbrochen von %1$s um %2$s für %3$s.</string>
+    <string name="dns_paused_effect_device">Solange wird auf diesem Gerät nichts gesperrt.</string>
+    <string name="dns_paused_effect_person">Solange wird auf deinen Geräten nichts gesperrt.</string>
+    <string name="dns_paused_for_all">Ein Admin hat für alle Geräte unterbrochen – nur ein Admin schaltet wieder ein.</string>
+    <plurals name="dns_minutes">
+        <item quantity="one">%1$d Minute</item>
+        <item quantity="other">%1$d Minuten</item>
+    </plurals>
+    <plurals name="dns_hours">
+        <item quantity="one">%1$d Stunde</item>
+        <item quantity="other">%1$d Stunden</item>
+    </plurals>
+
+    <string name="dns_fallback_banner_title">Der Filter auf dem Server antwortet nicht.</string>
+    <string name="dns_fallback_banner_text">Dein Internet läuft weiter, aber ohne Schutz. Dein Admin wurde benachrichtigt. Der Schutz schaltet sich von selbst wieder ein.</string>
+    <string name="dns_not_allowed_title">Unterbrechen nicht erlaubt</string>
+    <string name="dns_not_allowed_profile">Für dein Profil hat der Admin das Unterbrechen gesperrt. Geht eine Seite nicht, die du brauchst, frag deine Eltern oder den Admin.</string>
+
+    <string name="dns_top_title">Top gesperrte Domains</string>
+    <string name="dns_today_title">Zeiten heute</string>
+    <string name="dns_today_entry">%1$s–%2$s Uhr gesperrt: %3$s.</string>
+    <string name="dns_today_whole">Ganzer Tag gesperrt: %1$s.</string>
+    <string name="dns_today_all">alles</string>
+    <string name="dns_cat_social">Soziale Netzwerke</string>
+    <string name="dns_cat_games">Spiele</string>
+    <string name="dns_cat_video">Videos</string>
+
+    <string name="dns_notice_offline">Keine Verbindung zum Server. Du siehst den letzten bekannten Stand.</string>
+    <string name="dns_notice_busy">Der DNS-Schutz ist gerade nicht erreichbar. Die App versucht es gleich wieder.</string>
+    <string name="dns_notice_refused">Das hat nicht geklappt.</string>
+    <string name="dns_gone">Der Server meldet keinen DNS-Schutz mehr.</string>
+    <string name="dns_empty">DNS-Schutz konnte nicht geladen werden. Zum Aktualisieren nach unten ziehen.</string>
+    <string name="dns_retry">Erneut versuchen</string>
+
+    <!-- Kachel auf Start -->
+    <string name="dns_tile_active">DNS-Schutz aktiv</string>
+    <string name="dns_tile_counts">%1$s von %2$s gesperrt · %3$s %%</string>
+    <string name="dns_tile_pause">Unterbrechen</string>
+    <string name="dns_tile_paused">Unterbrochen</string>
+    <string name="dns_tile_paused_sub">noch %1$s · bis %2$s Uhr</string>
+    <string name="dns_tile_resume">Einschalten</string>
+    <string name="dns_tile_fallback">DNS-Schutz ausgefallen</string>
+    <string name="dns_tile_unfiltered">Dieses Gerät wird nicht gefiltert</string>
+    <string name="dns_tile_loading">Zustand wird geladen&#8230;</string>
+
+    <!-- Für andere unterbrechen (Admins, Eltern) -->
+    <string name="dns_others_title">Für andere unterbrechen</string>
+    <string name="dns_others_desc">Personen und Geräte, für die du entscheiden darfst</string>
+    <string name="dns_others_all">Alle VPN-Geräte</string>
+    <string name="dns_others_self">%1$s (du)</string>
+    <string name="dns_others_paused_until">unterbrochen bis %1$s Uhr</string>
+    <string name="dns_others_paused_open">unterbrochen, bis wieder eingeschaltet wird</string>
+    <string name="dns_others_paused_some">teilweise unterbrochen</string>
+    <string name="dns_others_forever">Bis wieder eingeschaltet wird</string>
+    <string name="dns_others_empty">Es gibt niemanden, für den du unterbrechen darfst.</string>
+    <string name="dns_others_failed">Die Liste konnte nicht geladen werden.</string>
+    <plurals name="dns_others_devices">
+        <item quantity="one">%1$d Gerät</item>
+        <item quantity="other">%1$d Geräte</item>
+    </plurals>
+    <string name="dns_reason_admins_only">Unterbrechen dürfen hier nur Admins.</string>
+    <string name="dns_reason_profile">Für dieses Profil ist das Unterbrechen gesperrt.</string>
+    <string name="dns_reason_not_filtered">Wird nicht gefiltert.</string>
+    <string name="dns_reason_no_device">Du hast kein VPN-Gerät, für das der Schutz gilt.</string>
+    <string name="dns_reason_fallback">Filter ausgefallen.</string>
+    <string name="dns_reason_off">DNS-Schutz ist aus.</string>
+    <string name="dns_reason_paused_for_all">Für alle Geräte unterbrochen – nur ein Admin schaltet wieder ein.</string>
+</resources>

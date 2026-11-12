@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DNS protection (plugin gatecontrol-dns, server 1.264+): takes the place of the Pi-hole segment -->
+    <string name="nav_dns_protect">DNS protection</string>
+
+    <string name="dns_state_active_title">Protection on</string>
+    <string name="dns_state_active_sub">Ads and harmful sites are blocked</string>
+    <string name="dns_state_active_profile">Profile “%1$s” · ads and harmful sites are blocked</string>
+    <string name="dns_state_paused_clock">paused · %1$s</string>
+    <string name="dns_state_paused_until">until %1$s · switches back on by itself</string>
+    <string name="dns_state_paused_open">Paused</string>
+    <string name="dns_state_paused_open_me">until you switch it back on</string>
+    <string name="dns_state_paused_open_other">until it is switched back on</string>
+    <string name="dns_state_fallback_title">Protection down</string>
+    <string name="dns_state_fallback_since">since %1$s · internet runs unfiltered</string>
+    <string name="dns_state_fallback_sub">Internet runs unfiltered</string>
+    <string name="dns_state_unfiltered_title">Not filtered</string>
+    <string name="dns_unfiltered_own_dns">This device uses its own DNS server (%1$s).</string>
+    <string name="dns_unfiltered_own_dns_plain">This device uses its own DNS server.</string>
+    <string name="dns_unfiltered_excluded">This device is excluded from the DNS protection.</string>
+    <string name="dns_unfiltered_disabled">This device is disabled on the server.</string>
+    <string name="dns_state_starting_title">Protection is starting</string>
+    <string name="dns_state_starting_sub">The filter will be ready in a moment.</string>
+    <string name="dns_state_off_title">DNS protection is off</string>
+
+    <string name="dns_stat_queries">Queries today</string>
+    <string name="dns_stat_blocked">Blocked</string>
+    <string name="dns_scope_device">this device</string>
+    <string name="dns_scope_person">your devices</string>
+    <string name="dns_scope_server">all devices of the server</string>
+    <string name="dns_percent">%1$s %%</string>
+
+    <string name="dns_pause_title">Pause protection</string>
+    <string name="dns_chip_min">%1$d min</string>
+    <string name="dns_chip_hours">%1$d h</string>
+    <string name="dns_chip_forever">Until I switch it back on</string>
+    <string name="dns_pause_hint_device">Applies to this device and ends by itself.</string>
+    <string name="dns_pause_hint_person">Applies to your devices and ends by itself.</string>
+    <string name="dns_pause_forever_locked">Your admin has not enabled “Until I switch it back on”.</string>
+    <string name="dns_resume">Switch back on</string>
+    <string name="dns_applying">Applying&#8230;</string>
+    <string name="dns_paused_plain">The protection is paused.</string>
+    <string name="dns_paused_at">Paused at %1$s.</string>
+    <string name="dns_paused_by_me">Paused by you at %1$s.</string>
+    <string name="dns_paused_by_me_for">Paused by you at %1$s for %2$s.</string>
+    <string name="dns_paused_by_other">Paused by %1$s at %2$s.</string>
+    <string name="dns_paused_by_other_for">Paused by %1$s at %2$s for %3$s.</string>
+    <string name="dns_paused_effect_device">Nothing is blocked on this device meanwhile.</string>
+    <string name="dns_paused_effect_person">Nothing is blocked on your devices meanwhile.</string>
+    <string name="dns_paused_for_all">An admin paused it for all devices – only an admin switches it back on.</string>
+    <plurals name="dns_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="dns_hours">
+        <item quantity="one">%1$d hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+
+    <string name="dns_fallback_banner_title">The filter on the server does not answer.</string>
+    <string name="dns_fallback_banner_text">Your internet keeps working, but without protection. Your admin has been notified. The protection switches back on by itself.</string>
+    <string name="dns_not_allowed_title">Pausing not allowed</string>
+    <string name="dns_not_allowed_profile">The admin has locked pausing for your profile. If a site you need does not work, ask your parents or the admin.</string>
+
+    <string name="dns_top_title">Top blocked domains</string>
+    <string name="dns_today_title">Times today</string>
+    <string name="dns_today_entry">Blocked %1$s–%2$s: %3$s.</string>
+    <string name="dns_today_whole">Blocked all day: %1$s.</string>
+    <string name="dns_today_all">everything</string>
+    <string name="dns_cat_social">Social networks</string>
+    <string name="dns_cat_games">Games</string>
+    <string name="dns_cat_video">Videos</string>
+
+    <string name="dns_notice_offline">No connection to the server. You see the last known state.</string>
+    <string name="dns_notice_busy">The DNS protection cannot be reached right now. The app will try again shortly.</string>
+    <string name="dns_notice_refused">That did not work.</string>
+    <string name="dns_gone">The server no longer reports a DNS protection.</string>
+    <string name="dns_empty">The DNS protection could not be loaded. Pull down to refresh.</string>
+    <string name="dns_retry">Try again</string>
+
+    <!-- Tile on Start -->
+    <string name="dns_tile_active">DNS protection on</string>
+    <string name="dns_tile_counts">%1$s of %2$s blocked · %3$s %%</string>
+    <string name="dns_tile_pause">Pause</string>
+    <string name="dns_tile_paused">Paused</string>
+    <string name="dns_tile_paused_sub">%1$s left · until %2$s</string>
+    <string name="dns_tile_resume">Switch on</string>
+    <string name="dns_tile_fallback">DNS protection down</string>
+    <string name="dns_tile_unfiltered">This device is not filtered</string>
+    <string name="dns_tile_loading">Loading state&#8230;</string>
+
+    <!-- Pause for others (admins, parents) -->
+    <string name="dns_others_title">Pause for others</string>
+    <string name="dns_others_desc">People and devices you may decide for</string>
+    <string name="dns_others_all">All VPN devices</string>
+    <string name="dns_others_self">%1$s (you)</string>
+    <string name="dns_others_paused_until">paused until %1$s</string>
+    <string name="dns_others_paused_open">paused until it is switched back on</string>
+    <string name="dns_others_paused_some">partly paused</string>
+    <string name="dns_others_forever">Until it is switched back on</string>
+    <string name="dns_others_empty">There is nobody you may pause for.</string>
+    <string name="dns_others_failed">The list could not be loaded.</string>
+    <plurals name="dns_others_devices">
+        <item quantity="one">%1$d device</item>
+        <item quantity="other">%1$d devices</item>
+    </plurals>
+    <string name="dns_reason_admins_only">Only admins may pause here.</string>
+    <string name="dns_reason_profile">Pausing is locked for this profile.</string>
+    <string name="dns_reason_not_filtered">Not filtered.</string>
+    <string name="dns_reason_no_device">You have no VPN device the protection applies to.</string>
+    <string name="dns_reason_fallback">Filter down.</string>
+    <string name="dns_reason_off">DNS protection is off.</string>
+    <string name="dns_reason_paused_for_all">Paused for all devices – only an admin switches it back on.</string>
+</resources>
