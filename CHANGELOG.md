@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.105.0] - 2026-11-12
+
+### Features
+- DNS-Schutz – Filter des Servers sehen und für eine Weile unterbrechen (#221)
+
+---
+
 ## [1.104.0] - 2026-11-11
 
 ### Features
