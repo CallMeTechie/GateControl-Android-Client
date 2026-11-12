@@ -88,7 +88,7 @@ private const val EXPIRY_WARN_DAYS = 7
  * chose, sliding; long press → menu) and one card for throughput and data
  * usage (sliding). Kill switch and split tunneling live in the settings,
  * the DNS leak test and the connection details in Settings → Verbindung →
- * Verbindungsdetails, Pi-hole in the Netzwerk tab. A server with a DNS
+ * Verbindungsdetails. A server with a DNS
  * protection adds its tile (state, counters, "Unterbrechen").
  */
 @Composable

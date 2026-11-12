@@ -48,21 +48,11 @@ class LicenseRepositoryTest {
     }
 
     @Test
-    fun `pihole and piholeControl default to false`() {
+    fun `the removed Pi-hole features are unknown`() {
         val repo = LicenseRepository()
+        repo.updatePermissions(services = true, traffic = true, dns = true, rdp = true)
         assertFalse(repo.hasFeature("pihole"))
         assertFalse(repo.hasFeature("piholeControl"))
-    }
-
-    @Test
-    fun `updatePermissions sets pihole flags`() {
-        val repo = LicenseRepository()
-        repo.updatePermissions(
-            services = false, traffic = false, dns = false, rdp = false,
-            pihole = true, piholeControl = true
-        )
-        assertTrue(repo.hasFeature("pihole"))
-        assertTrue(repo.hasFeature("piholeControl"))
     }
 
     @Test
@@ -70,13 +60,13 @@ class LicenseRepositoryTest {
         val repo = LicenseRepository()
         assertNull(repo.permissions.value.vpnDns)
         repo.updatePermissions(
-            services = true, traffic = false, dns = false, rdp = false, pihole = true,
+            services = true, traffic = false, dns = false, rdp = false,
             vpnDns = LicenseRepository.vpnDnsOf("gatecontrol-dns", "filtering"),
         )
         assertEquals(LicenseRepository.VpnDns("gatecontrol-dns", "filtering"), repo.permissions.value.vpnDns)
         repo.clearVpnDns()
         assertNull(repo.permissions.value.vpnDns)
-        assertTrue(repo.permissions.value.pihole)
+        assertTrue(repo.permissions.value.services)
     }
 
     @Test

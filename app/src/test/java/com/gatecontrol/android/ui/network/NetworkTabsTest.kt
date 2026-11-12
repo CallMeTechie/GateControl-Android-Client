@@ -6,23 +6,23 @@ import org.junit.jupiter.api.Test
 
 class NetworkTabsTest {
 
-    private val all = NetworkTabs.available(services = true, pihole = true, remote = true)
+    private val all = NetworkTabs.available(services = true, remote = true, dns = true)
 
     @Test
-    fun `available keeps the order Dienste, Pi-hole, Remote`() {
-        assertEquals(listOf("services", "pihole", "remote"), all)
-        assertEquals(listOf("pihole"), NetworkTabs.available(services = false, pihole = true, remote = false))
+    fun `available keeps the order Dienste, DNS-Schutz, Remote`() {
+        assertEquals(listOf("services", "dns", "remote"), all)
+        assertEquals(listOf("dns"), NetworkTabs.available(services = false, remote = false, dns = true))
     }
 
     @Test
     fun `a requested segment wins over the stored default`() {
-        assertEquals("remote", NetworkTabs.initial("remote", all, default = "pihole"))
-        assertEquals("remote", NetworkTabs.initial("rdp", all, default = "pihole"), "the old Remote route")
+        assertEquals("remote", NetworkTabs.initial("remote", all, default = "dns"))
+        assertEquals("remote", NetworkTabs.initial("rdp", all, default = "dns"), "the old Remote route")
     }
 
     @Test
     fun `without a request the stored default opens, else the first`() {
-        assertEquals("pihole", NetworkTabs.initial(null, all, default = "pihole"))
+        assertEquals("dns", NetworkTabs.initial(null, all, default = "dns"))
         assertEquals("remote", NetworkTabs.initial(null, all, default = "rdp"))
         assertEquals("services", NetworkTabs.initial(null, all, default = null))
         assertEquals("services", NetworkTabs.initial(null, all))
@@ -30,28 +30,33 @@ class NetworkTabsTest {
 
     @Test
     fun `a default the token may not use is ignored`() {
-        val noRemote = NetworkTabs.available(services = true, pihole = true, remote = false)
+        val noRemote = NetworkTabs.available(services = true, remote = false, dns = true)
         assertEquals("services", NetworkTabs.initial(null, noRemote, default = "remote"))
         assertEquals("services", NetworkTabs.initial("remote", noRemote, default = "remote"))
+        assertNull(NetworkTabs.initial(null, emptyList(), default = "dns"))
+    }
+
+    @Test
+    fun `DNS-Schutz is a segment only where the server reports it`() {
+        assertEquals(listOf("services", "dns", "remote"), NetworkTabs.available(services = true, remote = true, dns = true))
+        // No DNS protection (older server, plugin off): nothing stands in its place.
+        assertEquals(listOf("services", "remote"), NetworkTabs.available(services = true, remote = true, dns = false))
+        assertEquals(listOf("services"), NetworkTabs.available(services = true, remote = false))
+        assertEquals(emptyList<String>(), NetworkTabs.available(services = false, remote = false))
+    }
+
+    @Test
+    fun `the removed Pi-hole segment opens DNS-Schutz, else the first segment`() {
+        // A default stored or a link made while the app still had Pi-hole.
+        assertEquals("dns", NetworkTabs.initial(null, all, default = "pihole"))
+        assertEquals("dns", NetworkTabs.initial("pihole", all))
+        assertEquals("dns", NetworkTabs.initial("dns", all, default = "remote"))
+        val noDns = NetworkTabs.available(services = true, remote = true)
+        assertEquals("services", NetworkTabs.initial(null, noDns, default = "pihole"))
+        assertEquals("services", NetworkTabs.initial("pihole", noDns))
+        assertEquals("remote", NetworkTabs.initial("pihole", noDns, default = "remote"))
+        assertEquals("services", NetworkTabs.initial("dns", noDns))
+        assertEquals("remote", NetworkTabs.initial(null, NetworkTabs.available(services = false, remote = true), default = "pihole"))
         assertNull(NetworkTabs.initial(null, emptyList(), default = "pihole"))
-    }
-
-    @Test
-    fun `a server with DNS protection shows DNS-Schutz in place of Pi-hole`() {
-        assertEquals(listOf("services", "dns", "remote"), NetworkTabs.available(services = true, pihole = true, remote = true, dns = true))
-        assertEquals(listOf("dns"), NetworkTabs.available(services = false, pihole = false, remote = false, dns = true))
-        // No DNS protection (older server, plugin off): Pi-hole as before.
-        assertEquals(listOf("services", "pihole"), NetworkTabs.available(services = true, pihole = true, remote = false, dns = false))
-    }
-
-    @Test
-    fun `Pi-hole and DNS-Schutz stand for each other as request and stored default`() {
-        val withDns = NetworkTabs.available(services = true, pihole = true, remote = true, dns = true)
-        assertEquals("dns", NetworkTabs.initial(null, withDns, default = "pihole"), "the default chosen before the server changed")
-        assertEquals("dns", NetworkTabs.initial("pihole", withDns))
-        assertEquals("dns", NetworkTabs.initial("dns", withDns, default = "remote"))
-        // The DNS protection is gone again: the stored "dns" opens Pi-hole.
-        assertEquals("pihole", NetworkTabs.initial(null, all, default = "dns"))
-        assertEquals("services", NetworkTabs.initial("dns", NetworkTabs.available(services = true, pihole = false, remote = true)))
     }
 }

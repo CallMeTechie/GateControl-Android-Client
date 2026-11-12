@@ -27,7 +27,7 @@ Details:
 
 - In the detail pane (`LocalInDetailPane`), sub pages drop their back arrow;
   the list stays visible beside them.
-- The rail (and the bottom bar) holds Start, Netzwerk (Dienste, Pi-hole,
+- The rail (and the bottom bar) holds Start, Netzwerk (Dienste, DNS-Schutz,
   Remote as segments) and Familie; since 1.35 there is no settings tab and
   no remote tab. The settings are a normal destination with back, opened
   from the profile's gear; they hide the rail like any other sub page.

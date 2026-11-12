@@ -67,20 +67,20 @@ class MainTabsTest {
 
     @Test
     fun `the Netzwerk tab exists for any of its segments, Remote included`() {
-        assertTrue(MainTabs.hasNetwork(services = false, pihole = false, rdp = true))
-        assertTrue(MainTabs.hasNetwork(services = true, pihole = false, rdp = false))
-        assertTrue(MainTabs.hasNetwork(services = false, pihole = true, rdp = false))
-        assertFalse(MainTabs.hasNetwork(services = false, pihole = false, rdp = false))
+        assertTrue(MainTabs.hasNetwork(services = false, rdp = true))
+        assertTrue(MainTabs.hasNetwork(services = true, rdp = false))
+        assertTrue(MainTabs.hasNetwork(services = false, rdp = false, dns = true))
+        assertFalse(MainTabs.hasNetwork(services = false, rdp = false))
     }
 
     @Test
-    fun `Netzwerk has Remote as third segment next to Dienste and Pi-hole`() {
+    fun `Netzwerk has Remote as third segment next to Dienste and DNS-Schutz`() {
         assertEquals(
-            listOf(NetworkTabs.SERVICES, NetworkTabs.PIHOLE, NetworkTabs.REMOTE),
-            NetworkTabs.available(services = true, pihole = true, remote = true),
+            listOf(NetworkTabs.SERVICES, NetworkTabs.DNS, NetworkTabs.REMOTE),
+            NetworkTabs.available(services = true, remote = true, dns = true),
         )
-        assertEquals(listOf(NetworkTabs.REMOTE), NetworkTabs.available(services = false, pihole = false, remote = true))
-        assertEquals(listOf(NetworkTabs.SERVICES), NetworkTabs.available(services = true, pihole = false, remote = false))
+        assertEquals(listOf(NetworkTabs.REMOTE), NetworkTabs.available(services = false, remote = true))
+        assertEquals(listOf(NetworkTabs.SERVICES), NetworkTabs.available(services = true, remote = false))
     }
 
     @Test
@@ -90,10 +90,10 @@ class MainTabsTest {
         // Current routes stay as they are (the settings keep their route, now with back).
         assertNull(MainTabs.redirect(Screen.Settings.route))
         assertNull(MainTabs.redirect(Screen.Vpn.route))
-        val all = NetworkTabs.available(services = true, pihole = true, remote = true)
+        val all = NetworkTabs.available(services = true, remote = true, dns = true)
         assertEquals(NetworkTabs.REMOTE, NetworkTabs.initial("rdp", all))
         assertEquals(NetworkTabs.REMOTE, NetworkTabs.initial("remote", all))
-        assertEquals(NetworkTabs.PIHOLE, NetworkTabs.initial("pihole", all))
+        assertEquals(NetworkTabs.DNS, NetworkTabs.initial("dns", all))
         // Not allowed (any more) or unknown: the first segment.
         assertEquals(NetworkTabs.SERVICES, NetworkTabs.initial("remote", listOf(NetworkTabs.SERVICES)))
         assertEquals(NetworkTabs.SERVICES, NetworkTabs.initial(null, all))

@@ -61,9 +61,8 @@ import kotlinx.coroutines.delay
 
 /**
  * "DNS-Schutz" inside the Netzwerk tab (no own title; the tab provides it).
- * Takes the place of the Pi-hole segment on servers that report a DNS
- * protection and keeps its build: status card, counters, the card to
- * suspend. The durations are chips; the chosen one shows the time left.
+ * The segment of servers that report a DNS protection: status card,
+ * counters, the card to suspend. The durations are chips; the chosen one shows the time left.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

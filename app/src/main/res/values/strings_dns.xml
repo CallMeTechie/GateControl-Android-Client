@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- DNS protection (plugin gatecontrol-dns, server 1.264+): takes the place of the Pi-hole segment -->
+    <!-- DNS protection (plugin gatecontrol-dns, server 1.264+) -->
     <string name="nav_dns_protect">DNS protection</string>
 
     <string name="dns_state_active_title">Protection on</string>

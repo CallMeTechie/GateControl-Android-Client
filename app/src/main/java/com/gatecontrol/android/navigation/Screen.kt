@@ -8,7 +8,7 @@ sealed class Screen(val route: String) {
      * segment of the Netzwerk tab (MainTabs.redirect).
      */
     data object Rdp : Screen("rdp")
-    /** Services, Pi-hole and Remote; `tab` picks the initial segment (NetworkTabs). */
+    /** Services, DNS-Schutz and Remote; `tab` picks the initial segment (NetworkTabs). */
     data object Network : Screen("network?tab={tab}") {
         const val ARG_TAB = "tab"
         const val BASE = "network"

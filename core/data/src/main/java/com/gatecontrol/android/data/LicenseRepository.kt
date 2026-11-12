@@ -14,9 +14,7 @@ class LicenseRepository @Inject constructor() {
         val traffic: Boolean = false,
         val dns: Boolean = false,
         val rdp: Boolean = false,
-        val pihole: Boolean = false,
-        val piholeControl: Boolean = false,
-        /** DNS protection of the server (replaces Pi-hole in the app); null = none. */
+        /** DNS protection of the server ; null = none. */
         val vpnDns: VpnDns? = null
     )
 
@@ -33,8 +31,6 @@ class LicenseRepository @Inject constructor() {
         traffic: Boolean,
         dns: Boolean,
         rdp: Boolean,
-        pihole: Boolean = false,
-        piholeControl: Boolean = false,
         vpnDns: VpnDns? = null
     ) {
         _permissions.value = Permissions(
@@ -42,8 +38,6 @@ class LicenseRepository @Inject constructor() {
             traffic = traffic,
             dns = dns,
             rdp = rdp,
-            pihole = pihole,
-            piholeControl = piholeControl,
             vpnDns = vpnDns
         )
         apiTokenMode = true
@@ -56,8 +50,6 @@ class LicenseRepository @Inject constructor() {
             "services" -> perms.services
             "traffic" -> perms.traffic
             "dns" -> perms.dns
-            "pihole" -> perms.pihole
-            "piholeControl" -> perms.piholeControl
             else -> false
         }
     }

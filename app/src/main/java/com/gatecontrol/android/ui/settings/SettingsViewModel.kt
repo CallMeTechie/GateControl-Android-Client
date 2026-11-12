@@ -375,8 +375,6 @@ class SettingsViewModel @Inject constructor(
                         traffic = perms.traffic,
                         dns = perms.dns,
                         rdp = perms.rdp,
-                        pihole = perms.pihole,
-                        piholeControl = perms.piholeControl,
                         vpnDns = com.gatecontrol.android.data.LicenseRepository.vpnDnsOf(response.vpnDns?.plugin, response.vpnDns?.state),
                     )
                     clientPolicyManager.noteVersionAsync(response.policyVersion)
