@@ -1,6 +1,8 @@
 package com.gatecontrol.android.data
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -61,5 +63,27 @@ class LicenseRepositoryTest {
         )
         assertTrue(repo.hasFeature("pihole"))
         assertTrue(repo.hasFeature("piholeControl"))
+    }
+
+    @Test
+    fun `vpnDns is kept with the permissions and can be cleared`() {
+        val repo = LicenseRepository()
+        assertNull(repo.permissions.value.vpnDns)
+        repo.updatePermissions(
+            services = true, traffic = false, dns = false, rdp = false, pihole = true,
+            vpnDns = LicenseRepository.vpnDnsOf("gatecontrol-dns", "filtering"),
+        )
+        assertEquals(LicenseRepository.VpnDns("gatecontrol-dns", "filtering"), repo.permissions.value.vpnDns)
+        repo.clearVpnDns()
+        assertNull(repo.permissions.value.vpnDns)
+        assertTrue(repo.permissions.value.pihole)
+    }
+
+    @Test
+    fun `vpnDnsOf takes only a plain plugin id`() {
+        assertNull(LicenseRepository.vpnDnsOf(null, "filtering"), "field missing or null")
+        assertNull(LicenseRepository.vpnDnsOf("../admin", "filtering"))
+        assertNull(LicenseRepository.vpnDnsOf("", "filtering"))
+        assertEquals(LicenseRepository.VpnDns("my-dns_2", ""), LicenseRepository.vpnDnsOf("my-dns_2", null))
     }
 }

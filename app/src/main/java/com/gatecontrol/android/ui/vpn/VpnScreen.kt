@@ -88,7 +88,8 @@ private const val EXPIRY_WARN_DAYS = 7
  * chose, sliding; long press → menu) and one card for throughput and data
  * usage (sliding). Kill switch and split tunneling live in the settings,
  * the DNS leak test and the connection details in Settings → Verbindung →
- * Verbindungsdetails, Pi-hole in the Netzwerk tab.
+ * Verbindungsdetails, Pi-hole in the Netzwerk tab. A server with a DNS
+ * protection adds its tile (state, counters, "Unterbrechen").
  */
 @Composable
 fun VpnScreen(
@@ -116,6 +117,8 @@ fun VpnScreen(
     onOpenConnectionDetails: () -> Unit = {},
     /** Door screen "Tür & Kamera" (long press on a door quick action); null without the door plugin. */
     onOpenDoor: (() -> Unit)? = null,
+    /** The screen "DNS-Schutz" in the Netzwerk tab (tile of the server's DNS protection). */
+    onOpenDnsProtect: () -> Unit = {},
     /** Messenger 1.4: "Status erstellen" (from the status sheet behind the avatar). */
     onOpenStoryComposer: () -> Unit = {},
     /** Messenger 1.4: the own active stories (from the status sheet). */
@@ -525,6 +528,9 @@ fun VpnScreen(
 
         // --- Client policy: kill switch / always-on need the system settings
         com.gatecontrol.android.ui.components.GcPolicySystemVpnCard(clientPolicy)
+
+        // --- DNS protection of the server: state, today's counters, the button
+        com.gatecontrol.android.ui.dnsprotect.DnsStartCard(onOpen = onOpenDnsProtect)
     }
     // --- Quick actions, widgets, Info and usage card in the arranged order ---
     val quickActionsViewModel: com.gatecontrol.android.ui.quickactions.QuickActionsViewModel = hiltViewModel()

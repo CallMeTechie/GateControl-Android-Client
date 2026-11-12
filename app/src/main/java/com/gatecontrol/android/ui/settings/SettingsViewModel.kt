@@ -377,6 +377,7 @@ class SettingsViewModel @Inject constructor(
                         rdp = perms.rdp,
                         pihole = perms.pihole,
                         piholeControl = perms.piholeControl,
+                        vpnDns = com.gatecontrol.android.data.LicenseRepository.vpnDnsOf(response.vpnDns?.plugin, response.vpnDns?.state),
                     )
                     clientPolicyManager.noteVersionAsync(response.policyVersion)
                     val isPro = perms.rdp || perms.traffic || perms.dns

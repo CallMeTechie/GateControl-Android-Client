@@ -89,6 +89,7 @@ class MainActivity : FragmentActivity() {
                     hasRdpPermission = permissions.rdp,
                     hasServicesPermission = permissions.services,
                     hasPiholePermission = permissions.pihole,
+                    hasDnsProtect = permissions.vpnDns != null,
                     plugins = plugins,
                     pendingSetupLink = pendingSetupLink,
                     onSetupLinkConsumed = { pendingSetupLink = null },

@@ -19,6 +19,14 @@ data class PermissionsResponse(
     @SerializedName("autoOpenPortal") val autoOpenPortal: Boolean = false,
     /** Client policy version (see [ClientPolicyResponse]); null on old servers. */
     @SerializedName("policyVersion") val policyVersion: String? = null,
+    /** DNS protection of the VPN devices (server 1.264+): null or missing = none (older server, plugin off, switched off). */
+    @SerializedName("vpnDns") val vpnDns: VpnDnsInfo? = null,
+)
+
+/** The plugin that serves the apps (`/api/v1/client/plugins/<plugin>/api/…`) and the filter's state (`starting` | `filtering` | `fallback`). */
+data class VpnDnsInfo(
+    val plugin: String? = null,
+    val state: String? = null,
 )
 
 data class PermissionFlags(

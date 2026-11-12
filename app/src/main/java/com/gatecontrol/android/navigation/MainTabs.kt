@@ -38,8 +38,8 @@ internal object MainTabs {
     }
 
     /** The Netzwerk tab exists when any of its segments may be used (Remote included). */
-    fun hasNetwork(services: Boolean, pihole: Boolean, rdp: Boolean): Boolean =
-        NetworkTabs.available(services = services, pihole = pihole, remote = rdp).isNotEmpty()
+    fun hasNetwork(services: Boolean, pihole: Boolean, rdp: Boolean, dns: Boolean = false): Boolean =
+        NetworkTabs.available(services = services, pihole = pihole, remote = rdp, dns = dns).isNotEmpty()
 
     /**
      * Where a route of an older version leads now: the former Remote tab
