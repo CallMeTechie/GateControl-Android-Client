@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.106.2] - 2026-11-13
+
+### Fixes
+- Tresor-Bildschirme ohne Bildschirmfotos, Chat-Schutz nur solange der Chat zu sehen ist (#225)
+
+---
+
 ## [1.106.1] - 2026-11-13
 
 ### Fixes
