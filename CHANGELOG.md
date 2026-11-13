@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.106.1] - 2026-11-13
+
+### Fixes
+- Tresor fragt erst nach dem Fingerabdruck, wenn seine Seite vorn ist (#223)
+
+---
+
 ## [1.106.0] - 2026-11-12
 
 ### Features
