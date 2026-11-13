@@ -72,7 +72,8 @@ class ChatBubbleActivity : ComponentActivity() {
                     val open = image
                     if (open != null) {
                         BackHandler { image = null }
-                        ChatImageViewer(mediaId = open, onBack = { image = null })
+                        // As the picture's route in the app: "Bildschirmfotos verhindern" holds for it too.
+                        com.gatecontrol.android.ui.chat.ChatSecureGate { ChatImageViewer(mediaId = open, onBack = { image = null }) }
                     } else {
                         // No back arrow: the bubble collapses with the system's back.
                         CompositionLocalProvider(LocalInDetailPane provides true) {

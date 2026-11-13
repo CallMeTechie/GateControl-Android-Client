@@ -11,6 +11,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlin.math.abs
 
 /**
  * True while the screen is the page Start's pager rests on, and for every
@@ -24,6 +25,23 @@ val LocalStartPageSettled = compositionLocalOf { true }
 
 /** Whether the page [index] is the one a pager rests on ([settledPage]: its page once no scroll is running). */
 internal fun startPageSettled(index: Int, settledPage: Int): Boolean = index == settledPage
+
+/**
+ * True while a part of the screen shows: always outside Start's pager, in it
+ * from the first pixels swiped in until the page is gone — not for a page the
+ * pager only keeps composed beside the shown one. What must hold for as long
+ * as the screen can be seen (no screenshots of a vault) follows this, not
+ * [LocalStartPageSettled]: a page dragged in halfway shows what is on it
+ * before the pager rests on it.
+ */
+val LocalStartPageVisible = compositionLocalOf { true }
+
+/**
+ * Whether a part of the page [index] shows: the pager is at [currentPage] moved by [offsetFraction] of a page
+ * (-0.5..0.5) towards the next one, and a page shows while it is less than one page away from there.
+ */
+internal fun startPageVisible(index: Int, currentPage: Int, offsetFraction: Float): Boolean =
+    abs(currentPage + offsetFraction - index) < 1f
 
 /** What [PageArrivalEffect] does next: [run] the action now, [done] kept for the next change. */
 internal data class PageArrival(val done: Boolean, val run: Boolean) {

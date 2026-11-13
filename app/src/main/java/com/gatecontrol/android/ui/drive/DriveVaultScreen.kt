@@ -118,6 +118,7 @@ import com.gatecontrol.android.ui.components.GcShowOnce
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.components.SecureScreenEffect
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -792,6 +793,8 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val recoveryKey by viewModel.recoveryKey.collectAsStateWithLifecycle()
     val marks by viewModel.offlineMarks.collectAsStateWithLifecycle()
     val canOffline by viewModel.canOffline.collectAsStateWithLifecycle()
+    // The whole page, locked or not, with the viewer over it and its dialogs: no screenshot, no picture in the recent apps.
+    SecureScreenEffect()
     val copies by viewModel.offlineStore.copies.collectAsStateWithLifecycle()
     var keysOpen by remember { mutableStateOf(false) }
     var confirmRotate by remember { mutableStateOf(false) }
@@ -1415,6 +1418,8 @@ internal fun RecoveryKeyDialog(key: String, onDone: () -> Unit, replaced: Boolea
         onDismissRequest = {},
         title = { Text(stringResource(R.string.drive_vault_recovery_title)) },
         text = {
+            // The dialog's own window: it also shows over a folder's page, which is not secure.
+            SecureScreenEffect()
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.drive_vault_recovery_text), style = MaterialTheme.typography.bodyMedium)
                 // a new key of an existing vault: the one written down before no longer opens it

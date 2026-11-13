@@ -60,6 +60,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.components.GcIcons
+import com.gatecontrol.android.ui.components.SecureScreenEffect
 import com.gatecontrol.android.ui.network.NetworkScreen
 import com.gatecontrol.android.ui.network.NetworkTabs
 import com.gatecontrol.android.ui.infocard.InfoCardPickerScreen
@@ -1785,13 +1786,16 @@ private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, naviga
     val recover: () -> Unit = { go(Screen.VaultRecover.route) }
     composable(Screen.Vault.route) { home() }
     composable(Screen.VaultSetup.route) {
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultSetupScreen(onBack = back, onDone = back) }
     }
     composable(Screen.VaultRecover.route) {
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultRecoverScreen(onBack = back, onDone = back) }
     }
     composable(Screen.VaultEntry.route, arguments = listOf(navArgument(Screen.VaultEntry.ARG_ID) { type = NavType.StringType })) { e ->
         val id = e.arguments?.getString(Screen.VaultEntry.ARG_ID).orEmpty()
+        SecureScreenEffect()
         GcContentWidth {
             com.gatecontrol.android.ui.vault.VaultEntryScreen(
                 id = id, onBack = back, onForgot = recover,
@@ -1809,6 +1813,7 @@ private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, naviga
         ),
     ) { e ->
         val id = e.arguments?.getString(Screen.VaultEdit.ARG_ID)
+        SecureScreenEffect()
         GcContentWidth {
             com.gatecontrol.android.ui.vault.VaultEditScreen(
                 id = id,
@@ -1828,27 +1833,35 @@ private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, naviga
         }
     }
     composable(Screen.VaultHistory.route, arguments = listOf(navArgument(Screen.VaultHistory.ARG_ID) { type = NavType.StringType })) { e ->
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultHistoryScreen(e.arguments?.getString(Screen.VaultHistory.ARG_ID).orEmpty(), onBack = back, onForgot = recover) }
     }
     composable(Screen.VaultVaults.route) {
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultVaultsScreen(onBack = back, onOpen = { go(Screen.VaultShare.create(it)) }, onForgot = recover) }
     }
     composable(Screen.VaultShare.route, arguments = listOf(navArgument(Screen.VaultShare.ARG_ID) { type = NavType.StringType })) { e ->
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultShareScreen(e.arguments?.getString(Screen.VaultShare.ARG_ID).orEmpty(), onBack = back, onForgot = recover) }
     }
     composable(Screen.VaultTrash.route) {
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultTrashScreen(onBack = back, onOpen = { go(Screen.VaultEntry.create(it)) }, onForgot = recover) }
     }
     composable(Screen.VaultEmergency.route) {
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultEmergencyScreen(onBack = back, onOpen = { go(Screen.VaultEmergencyView.create(it)) }, onForgot = recover) }
     }
     composable(Screen.VaultEmergencyView.route, arguments = listOf(navArgument(Screen.VaultEmergencyView.ARG_ID) { type = NavType.StringType })) { e ->
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultEmergencyViewScreen(e.arguments?.getString(Screen.VaultEmergencyView.ARG_ID).orEmpty(), onBack = back, onForgot = recover) }
     }
     composable(Screen.VaultImport.route) {
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultImportScreen(onBack = back, onForgot = recover) }
     }
     composable(Screen.VaultSettings.route) {
+        SecureScreenEffect()
         GcContentWidth { com.gatecontrol.android.ui.vault.VaultSettingsScreen(onBack = back, onForgot = recover) }
     }
 }
@@ -1857,6 +1870,7 @@ private fun NavGraphBuilder.vaultRoutes(navController: NavHostController, naviga
 @Composable
 private fun VaultHome(navController: NavHostController) {
     val go: (String) -> Unit = { route -> navController.navigate(route) { launchSingleTop = true } }
+    SecureScreenEffect()
     GcContentWidth {
         com.gatecontrol.android.ui.vault.VaultScreen(
             com.gatecontrol.android.ui.vault.VaultNav(

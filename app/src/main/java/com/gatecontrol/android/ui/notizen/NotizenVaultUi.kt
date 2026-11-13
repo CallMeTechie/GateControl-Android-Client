@@ -53,6 +53,7 @@ import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.components.SecureScreenEffect
 import com.gatecontrol.android.ui.components.rememberGcDeviceAuth
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
@@ -75,6 +76,8 @@ internal fun RecoveryKeyDialog(keys: List<Pair<String, String>>, onConfirm: () -
         onDismissRequest = { onDismiss?.invoke() },
         title = { Text(stringResource(R.string.notizen_recovery_title)) },
         text = {
+            // The dialog's own window: the pages it shows over are not secure.
+            SecureScreenEffect()
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.notizen_recovery_text), style = MaterialTheme.typography.bodyMedium)
                 keys.forEach { (name, key) ->
@@ -146,6 +149,8 @@ fun NotizenVaultScreen(onBack: () -> Unit, onOpened: () -> Unit, stayAfterUnlock
     val authTitle = stringResource(R.string.notizen_tresor_auth)
     var recovery by rememberSaveable { mutableStateOf("") }
     val x = GateControlTheme.extraColors
+    // The Tresor's page (unlock, recovery key, devices): no screenshot, no picture in the recent apps.
+    SecureScreenEffect()
     val openNow: () -> Unit = {
         auth.authenticate(authTitle, null) { r ->
             when (r) {
