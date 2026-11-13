@@ -15,7 +15,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +32,7 @@ import com.gatecontrol.android.chat.ChatDeviceSettings
 import com.gatecontrol.android.ui.components.DeviceAuthResult
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.rememberGcDeviceAuth
+import com.gatecontrol.android.ui.start.PageArrivalEffect
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.util.findComponentActivity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -112,7 +112,8 @@ fun ChatSecureGate(content: @Composable () -> Unit) {
             if (r == DeviceAuthResult.SUCCESS || r == DeviceAuthResult.UNAVAILABLE) ChatLock.unlock()
         }
     }
-    LaunchedEffect(Unit) { ask() }
+    // Only on the page in front: beside Start the pager composes the chats ahead of showing them.
+    PageArrivalEffect { ask() }
     val extra = GateControlTheme.extraColors
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
         Column(Modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {

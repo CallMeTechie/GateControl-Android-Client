@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -243,13 +244,7 @@ fun StartPager(
             )
         },
     ) { dotsHeight ->
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-            key = { index -> currentIds.getOrElse(index) { index } },
-            verticalAlignment = Alignment.Top,
-        ) { index ->
-            val id = currentIds.getOrNull(index) ?: return@HorizontalPager
+        StartPagerPages(state = pagerState, ids = { currentIds }) { id ->
             // Start and the widget pages scroll on under the dots (their columns keep [dotsHeight]
             // free at the end); a function's own screen and the plus page stay above them.
             val clear = if (id == START_PAGE || StartPages.isWidgets(id)) Modifier else Modifier.padding(bottom = dotsHeight)
@@ -294,6 +289,32 @@ fun StartPager(
             onConfirm = { removing = null; unpinNow(id) },
             onDismiss = { removing = null },
         )
+    }
+}
+
+/**
+ * The pages of Start's pager, one per id of [ids]. The pager composes a page
+ * before it is shown (the next one while swiping towards its neighbour, the
+ * one swiped in); each page knows by [LocalStartPageSettled] whether the
+ * pager rests on it.
+ */
+@Composable
+internal fun StartPagerPages(
+    state: PagerState,
+    ids: () -> List<String>,
+    modifier: Modifier = Modifier,
+    page: @Composable (id: String) -> Unit,
+) {
+    HorizontalPager(
+        state = state,
+        modifier = modifier.fillMaxSize(),
+        key = { index -> ids().getOrElse(index) { index } },
+        verticalAlignment = Alignment.Top,
+    ) { index ->
+        val id = ids().getOrNull(index) ?: return@HorizontalPager
+        CompositionLocalProvider(LocalStartPageSettled provides startPageSettled(index, state.settledPage)) {
+            page(id)
+        }
     }
 }
 

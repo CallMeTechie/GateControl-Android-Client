@@ -70,6 +70,7 @@ import com.gatecontrol.android.ui.components.GcSecondaryButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.start.PageArrivalEffect
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
 import com.gatecontrol.android.vault.Entry
@@ -147,7 +148,7 @@ private fun VaultIntro(onStart: () -> Unit) {
 
 /** Mockup A3: fingerprint first, the master password below; works offline. */
 @Composable
-private fun VaultUnlock(viewModel: VaultViewModel, onForgot: () -> Unit) {
+internal fun VaultUnlock(viewModel: VaultViewModel, onForgot: () -> Unit) {
     val x = GateControlTheme.extraColors
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -170,7 +171,8 @@ private fun VaultUnlock(viewModel: VaultViewModel, onForgot: () -> Unit) {
             }
         }
     }
-    LaunchedEffect(Unit) { if (bio) finger() }
+    // Only on the page in front: beside Start the pager composes this screen ahead of showing it.
+    PageArrivalEffect(enabled = bio) { finger() }
 
     fun submit() {
         if (password.isEmpty() || busy) return

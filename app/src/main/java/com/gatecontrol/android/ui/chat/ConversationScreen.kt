@@ -132,6 +132,7 @@ import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.scan.rememberScanGate
 import com.gatecontrol.android.ui.scan.scanDriveText
+import com.gatecontrol.android.ui.start.LocalStartPageSettled
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.util.findComponentActivity
 import kotlinx.coroutines.flow.first
@@ -213,14 +214,21 @@ fun ConversationScreen(
     var attachHint by remember { mutableStateOf<String?>(null) }
     var arrivalPlacesHint by remember { mutableStateOf(false) }
 
-    LifecycleResumeEffect(conversationId) {
-        viewModel.setVisible(true)
+    // Wide windows, the chats a page beside Start: the pager composes the open chat ahead of showing it.
+    // Seen (read, no notifications for it) is it only on the page in front.
+    val onPage = LocalStartPageSettled.current
+    LifecycleResumeEffect(conversationId, onPage) {
         // The system links this screen to the chat's shortcut and notification (LocusId).
         val activity = runCatching { context.findComponentActivity() }.getOrNull()
-        runCatching { activity?.setLocusContext(LocusIdCompat(ChatShortcutLogic.id(conversationId)).toLocusId(), null) }
+        if (onPage) {
+            viewModel.setVisible(true)
+            runCatching { activity?.setLocusContext(LocusIdCompat(ChatShortcutLogic.id(conversationId)).toLocusId(), null) }
+        }
         onPauseOrDispose {
-            viewModel.setVisible(false)
-            runCatching { activity?.setLocusContext(null, null) }
+            if (onPage) {
+                viewModel.setVisible(false)
+                runCatching { activity?.setLocusContext(null, null) }
+            }
         }
     }
 
