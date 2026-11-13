@@ -1,13 +1,9 @@
 package com.gatecontrol.android.ui.drive
 
-import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.os.Build
 import android.view.SurfaceView
-import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
@@ -62,6 +58,7 @@ import com.gatecontrol.android.drive.vault.DriveVaultView
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.components.SecureScreenEffect
 import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 
@@ -107,31 +104,6 @@ internal fun vaultViewText(context: Context, code: String): String? = when (code
     else -> null
 }
 
-private fun Context.activity(): Activity? {
-    var c: Context? = this
-    while (c is ContextWrapper) {
-        if (c is Activity) return c
-        c = c.baseContext
-    }
-    return null
-}
-
-/** While shown: no screenshot, no screen recording of it, no picture in the recent apps. */
-@Composable
-private fun SecureWindow() {
-    val activity = LocalContext.current.activity()
-    DisposableEffect(activity) {
-        val window = activity?.window
-        val had = window != null && (window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE) != 0
-        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(false)
-        onDispose {
-            if (!had) window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(true)
-        }
-    }
-}
-
 /** The viewer full screen over the vault page; [onUse] counts as use of the vault (its lock timer starts again). */
 @Composable
 internal fun DriveVaultViewerScreen(
@@ -141,7 +113,7 @@ internal fun DriveVaultViewerScreen(
     onLock: () -> Unit,
     onOpenWith: () -> Unit,
 ) {
-    SecureWindow()
+    SecureScreenEffect()
     BackHandler(onBack = onClose)
     var menu by remember { mutableStateOf(false) }
     var askOpenWith by remember { mutableStateOf(false) }

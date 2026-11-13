@@ -1,6 +1,5 @@
 package com.gatecontrol.android.ui.chat
 
-import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,11 +13,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -31,10 +28,10 @@ import com.gatecontrol.android.chat.ChatDeviceConfig
 import com.gatecontrol.android.chat.ChatDeviceSettings
 import com.gatecontrol.android.ui.components.DeviceAuthResult
 import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.SecureScreenEffect
 import com.gatecontrol.android.ui.components.rememberGcDeviceAuth
 import com.gatecontrol.android.ui.start.PageArrivalEffect
 import com.gatecontrol.android.ui.theme.GateControlTheme
-import com.gatecontrol.android.util.findComponentActivity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,12 +86,8 @@ fun ChatSecureGate(content: @Composable () -> Unit) {
     val vm: ChatGateViewModel = hiltViewModel()
     val config by vm.config.collectAsStateWithLifecycle()
     val unlocked by ChatLock.unlocked.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    DisposableEffect(config.secure) {
-        val window = runCatching { context.findComponentActivity().window }.getOrNull()
-        if (config.secure) window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        onDispose { if (config.secure) window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
-    }
+    // Counted per window and only while a part of the chats shows: beside Start the pager composes them ahead.
+    SecureScreenEffect(active = config.secure)
     LifecycleResumeEffect(Unit) {
         ChatLock.resumed(System.currentTimeMillis())
         onPauseOrDispose { ChatLock.paused(System.currentTimeMillis()) }

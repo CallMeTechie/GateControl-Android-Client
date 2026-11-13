@@ -35,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -296,7 +297,7 @@ fun StartPager(
  * The pages of Start's pager, one per id of [ids]. The pager composes a page
  * before it is shown (the next one while swiping towards its neighbour, the
  * one swiped in); each page knows by [LocalStartPageSettled] whether the
- * pager rests on it.
+ * pager rests on it and by [LocalStartPageVisible] whether a part of it shows.
  */
 @Composable
 internal fun StartPagerPages(
@@ -312,7 +313,14 @@ internal fun StartPagerPages(
         verticalAlignment = Alignment.Top,
     ) { index ->
         val id = ids().getOrNull(index) ?: return@HorizontalPager
-        CompositionLocalProvider(LocalStartPageSettled provides startPageSettled(index, state.settledPage)) {
+        // Only its changes recompose the page, not every pixel of a swipe.
+        val visible by remember(state, index) {
+            derivedStateOf { startPageVisible(index, state.currentPage, state.currentPageOffsetFraction) }
+        }
+        CompositionLocalProvider(
+            LocalStartPageSettled provides startPageSettled(index, state.settledPage),
+            LocalStartPageVisible provides visible,
+        ) {
             page(id)
         }
     }

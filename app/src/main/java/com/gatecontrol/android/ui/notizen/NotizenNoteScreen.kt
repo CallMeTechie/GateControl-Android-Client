@@ -1,13 +1,8 @@
 package com.gatecontrol.android.ui.notizen
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Build
-import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,7 +52,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,6 +93,7 @@ import com.gatecontrol.android.notizen.NotizenJson
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.components.SecureScreenEffect
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import com.gatecontrol.android.ui.theme.MonoFontFamily
@@ -108,31 +103,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.resume
-
-private fun Context.activity(): Activity? {
-    var c: Context? = this
-    while (c is ContextWrapper) {
-        if (c is Activity) return c
-        c = c.baseContext
-    }
-    return null
-}
-
-/** While a Tresor note is open: no screenshot, no picture in the recent apps (as Drive's vault viewer). */
-@Composable
-private fun SecureWindow() {
-    val activity = LocalContext.current.activity()
-    DisposableEffect(activity) {
-        val window = activity?.window
-        val had = window != null && (window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE) != 0
-        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(false)
-        onDispose {
-            if (!had) window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(true)
-        }
-    }
-}
 
 /** The text a picture shows, read on the phone (ML Kit, nothing leaves it for that); null without text. */
 internal suspend fun recognizeText(bytes: ByteArray): String? = withContext(Dispatchers.Default) {
@@ -167,7 +137,8 @@ fun NotizenNoteScreen(nav: NotizenNav, vm: NotizenNoteViewModel = hiltViewModel(
     if (field.text != ui.body && !ui.editing) field = TextFieldValue(ui.body)
     LaunchedEffect(ui.editing) { if (ui.editing) field = TextFieldValue(ui.body, TextRange(ui.body.length)) }
     val note = ui.note
-    if (ui.vaultId != null) SecureWindow()
+    // A Tresor note: no screenshot, no picture in the recent apps (as Drive's vault viewer).
+    SecureScreenEffect(active = ui.vaultId != null)
     BackHandler(ui.editing) { vm.stopEditing() }
     val maxBytes = (ui.me?.attachMB ?: 25) * 1024L * 1024L
     val tooLarge = stringResource(R.string.notizen_msg_too_large)
