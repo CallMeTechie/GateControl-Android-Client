@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.107.0] - 2026-11-14
+
+### Features
+- Aufgaben und Erinnerungen – Knöpfe an der Erinnerung, eigener Alarm des Handys, „Gestern offen geblieben“, Kalender (#226)
+
+---
+
 ## [1.106.2] - 2026-11-13
 
 ### Fixes
