@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.113.0] - 2026-11-14
+
+### Features
+- Chats – Chats über eine Brücke (WhatsApp, Messenger 1.14) (#232)
+
+---
+
 ## [1.112.0] - 2026-11-14
 
 ### Features
