@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * `data.notizen = { kind, area, taskId | listId | notebookId | vaultId, … }`; 1.0 sent `{ task | list | notebook |
  * vault }` only — both are read:
  * - `reminder` (topic `reminders`), `assigned` (topic `shared`) → the task;
+ * - `place_consent` (plugin 1.5.0, topic `shared`, „… möchte dich an einem Ort erinnern“) → the task; its buttons
+ *   „Annehmen“ / „Ablehnen“ are callbacks GateControl sends to the plugin;
  * - `shared_list` → the list; `shared_notebook` → the notebook (a Tresor: its page, which unlocks first);
  * - `vault_request` (topic `vault`) → the Tresor's page with the device to approve (unlocked first);
  * - `listday` (plugin 1.2.0, topic `listday`, „Heute ist Einkaufstag“) → the list, in its area;
@@ -74,7 +76,8 @@ object NotizenPush {
         val vault = NotizenJson.vaultId(n.str("vaultId") ?: n.str("vault"))
         return when (n.str("kind")) {
             "yesterday" -> Yesterday(Y_OPEN, ids(n), area)
-            "reminder", "assigned" -> task?.let { Task(it, area) }
+            // `place_consent` (plugin 1.5.0, topic `shared`): „… möchte dich erinnern“ — the task, with Annehmen / Ablehnen
+            "reminder", "assigned", "place_consent" -> task?.let { Task(it, area) }
             "shared_list", "listday" -> list?.let { ListPage(it, area) }
             "shared_notebook" -> notebook?.let { nb -> vault?.let { Tresor(nb, it, area) } ?: Notebook(nb, area) }
             "vault_request" -> vault?.let { VaultRequest(it, area) }

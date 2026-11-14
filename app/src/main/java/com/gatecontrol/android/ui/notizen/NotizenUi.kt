@@ -302,6 +302,8 @@ internal fun NEntryRow(
                         item.progress?.let { meta.add("${it.done}/${it.total}") }
                     }
                     task?.attachedList?.let { NListMark(it, ctx.openList) }
+                    // plugin 1.5.0: the place the task hangs on („Baumarkt Nord · beim Ankommen“)
+                    task?.place?.let { NPlaceMark(it) }
                     if (task != null) NSyncMark(task.pending, task.conflict)
                     if (task != null) {
                         ctx.listPath(task.listId)?.let { meta.add(it) }
@@ -512,6 +514,12 @@ internal fun messageText(code: String): String = when (code) {
     "notebook_left" -> stringResource(R.string.notizen_msg_notebook_left)
     "restored" -> stringResource(R.string.notizen_msg_restored)
     "saved" -> stringResource(R.string.notizen_msg_saved)
+    "place_offline" -> stringResource(R.string.notizen_pl_msg_offline)
+    "place_waiting" -> stringResource(R.string.notizen_pl_msg_waiting)
+    "place_saved" -> stringResource(R.string.notizen_pl_msg_saved)
+    "place_not_here" -> stringResource(R.string.notizen_pl_msg_not_here)
+    "place_consent_other" -> stringResource(R.string.notizen_pl_msg_consent_other)
+    "too_many" -> stringResource(R.string.notizen_pl_msg_too_many)
     else -> stringResource(R.string.notizen_msg_failed, code)
 }
 

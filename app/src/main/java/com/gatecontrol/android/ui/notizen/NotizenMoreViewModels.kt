@@ -39,8 +39,91 @@ import javax.inject.Inject
  * quick entry; with plugin 1.2.0 „Mein Tag“, „Beim Öffnen“ and the pushes.
  */
 @HiltViewModel
-class NotizenSourcesViewModel @Inject constructor(private val repo: NotizenRepository) : ViewModel() {
-    data class Ui(val me: NMe? = null, val prefs: NPrefs = NPrefs(), val sources: List<NSourceStatus> = emptyList(), val loading: Boolean = true, val offline: Boolean = false)
+class NotizenSourcesViewModel @Inject constructor(
+    private val repo: NotizenRepository,
+    private val geofences: com.gatecontrol.android.notizen.NotizenGeofences,
+) : ViewModel() {
+    data class Ui(
+        val me: NMe? = null,
+        val prefs: NPrefs = NPrefs(),
+        val sources: List<NSourceStatus> = emptyList(),
+        val loading: Boolean = true,
+        val offline: Boolean = false,
+        /** Plugin 1.5.0 (`places`): „Meine Orte“, the places of the family, what is remembered for which kind. */
+        val places: com.gatecontrol.android.notizen.NPlaces = com.gatecontrol.android.notizen.NPlaces(),
+    )
+
+    // ── Orte (plugin 1.5.0) ─────────────────────────────────
+
+    /** Can this phone remind at a place (Play services, the location also in the background). */
+    fun placeReadiness() = geofences.readiness()
+
+    /** The location was just allowed: the places of my tasks become geofences now. */
+    fun placePermissionChanged() = geofences.syncSoon()
+
+    suspend fun position(): Pair<Double, Double>? = geofences.position()
+
+    private fun loadPlaces() {
+        viewModelScope.launch {
+            if (_ui.value.me?.taskPlaces != true) return@launch
+            (repo.api.places() as? NResult.Ok)?.value?.let { p -> _ui.update { it.copy(places = p) } }
+        }
+    }
+
+    /** `prefs.places`: the place search for me, the hint „in der Nähe“, its quiet hours — `me.places` and the phone's places follow. */
+    private fun putPlaces(body: com.google.gson.JsonObject) {
+        viewModelScope.launch {
+            val r = repo.api.putPrefs(body)
+            if (r is NResult.Ok) {
+                repo.setPrefs(r.value)
+                _ui.update { it.copy(prefs = r.value) }
+                repo.refreshMe()?.let { me -> _ui.update { it.copy(me = me.value) } }
+                repo.touched("places")
+            } else {
+                _message.value = r.code()
+            }
+        }
+    }
+
+    fun setPlaceSearch(on: Boolean) = putPlaces(com.gatecontrol.android.notizen.NotizenPlacesJson.placePrefsBody(search = on))
+    fun setPlaceNearby(on: Boolean) = putPlaces(com.gatecontrol.android.notizen.NotizenPlacesJson.placePrefsBody(nearby = on))
+
+    /** The quiet hours of the hint „in der Nähe“; null: none. The same time twice would be none — refused here. */
+    fun setPlaceQuiet(q: com.gatecontrol.android.notizen.NQuiet?) {
+        if (q != null && q.from == q.to) return
+        putPlaces(com.gatecontrol.android.notizen.NotizenPlacesJson.placePrefsBody(quiet = q, noQuiet = q == null))
+    }
+
+    private fun placeChange(call: suspend () -> NResult<*>, ok: String? = null) {
+        viewModelScope.launch {
+            val r = call()
+            _message.value = when {
+                r is NResult.Ok -> ok
+                r is NResult.Offline -> "place_offline"
+                r is NResult.Failed && r.code == "too_many" -> "too_many"
+                else -> r.code()
+            }
+            loadPlaces()
+            if (r is NResult.Ok) repo.touched("places")
+        }
+    }
+
+    /** „Neuen Ort merken“: a point of the map with a name. */
+    fun addPlace(name: String, lat: Double, lon: Double) {
+        if (name.isBlank()) return
+        placeChange({ repo.api.createPlace(com.gatecontrol.android.notizen.NotizenPlacesJson.newPlaceBody(name, lat, lon, null, null, null)) }, "place_saved")
+    }
+
+    fun renamePlace(id: Long, name: String) {
+        if (name.isBlank()) return
+        placeChange({ repo.api.patchPlace(id, com.google.gson.JsonObject().apply { addProperty("name", name.trim().take(80)); addProperty("named", true) }) })
+    }
+
+    /** Tasks that hang on the place keep it. */
+    fun deletePlace(id: Long) = placeChange({ repo.api.deletePlace(id) })
+
+    /** „Nicht mehr merken für: Baumarkt“. */
+    fun forgetPlace(key: String) = placeChange({ repo.api.placeFav(key, null) })
 
     private val _ui = MutableStateFlow(Ui())
     val ui: StateFlow<Ui> = _ui.asStateFlow()
@@ -56,6 +139,7 @@ class NotizenSourcesViewModel @Inject constructor(private val repo: NotizenRepos
             val me = repo.refreshMe()
             val s = repo.api.sources()
             _ui.update { it.copy(me = me?.value, prefs = me?.value?.prefs ?: it.prefs, sources = s.valueOrNull() ?: it.sources, loading = false, offline = s is NResult.Offline) }
+            loadPlaces()
             if (s is NResult.Failed) _message.value = s.code()
         }
     }

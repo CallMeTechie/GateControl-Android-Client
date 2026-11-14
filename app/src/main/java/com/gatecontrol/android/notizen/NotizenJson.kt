@@ -92,6 +92,14 @@ object NotizenJson {
             notify = NNotifyPrefs(notify?.bool("reminders") ?: true, notify?.bool("shared") ?: true, notify?.bool("listday") ?: true, notify?.bool("yesterday") ?: true),
             yesterdayAt = time(o.str("yesterdayAt")) ?: "07:30",
             calendarTasks = o.obj("calendar")?.bool("tasks") ?: true,
+            places = o.obj("places").let { p ->
+                // `quiet: null` = no quiet hours; an answer without the field (an older plugin): the default
+                val quiet = when {
+                    p == null || !p.has("quiet") -> NPlacePrefs().quiet
+                    else -> p.obj("quiet")?.let { q -> time(q.str("from"))?.let { f -> time(q.str("to"))?.takeIf { it != f }?.let { NQuiet(f, it) } } }
+                }
+                NPlacePrefs(p?.bool("search") ?: true, p?.bool("nearby") ?: true, quiet)
+            },
         )
     }
 
@@ -115,6 +123,7 @@ object NotizenJson {
             listIcons = o.arr("listIcons")?.mapNotNull { runCatching { it.asString }.getOrNull()?.takeIf { ICON.matches(it) } }?.distinct()?.take(40).orEmpty(),
             calendar = o.obj("calendar")?.let { c -> NCalendarInfo(c.bool("available") ?: false, c.bool("enabled") ?: false, c.bool("mine") ?: false, c.text("name", 80)) },
             shoppingFamily = o.obj("shopping")?.obj("family")?.let { f -> NShoppingFamily(f.bool("available") ?: false, f.bool("bound") ?: false, f.bool("parent") ?: false) },
+            places = NotizenPlacesJson.info(o.obj("places")),
         )
     }
 
@@ -284,6 +293,7 @@ object NotizenJson {
             missedReminder = o.bool("missedReminder") ?: false,
             calendar = taskCalendar(o.obj("calendar")),
             attachedList = attached(o.obj("attachedList")),
+            place = NotizenPlacesJson.place(o.obj("place")),
         )
     }
 
