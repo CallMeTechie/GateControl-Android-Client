@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.111.0] - 2026-11-14
+
+### Features
+- Aufgaben und Erinnerungen – Fristen aus Drive als Aufgabe, „Datei öffnen“ an Erinnerung und Aufgabe, „über Notizen & Aufgaben“ in Drive (#230)
+
+---
+
 ## [1.110.0] - 2026-11-14
 
 ### Features
