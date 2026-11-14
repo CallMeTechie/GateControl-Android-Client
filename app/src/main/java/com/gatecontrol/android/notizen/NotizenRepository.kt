@@ -259,6 +259,92 @@ class NotizenRepository @Inject constructor(
         }
     }
 
+    // ── „Später“, „Verschieben“, „Gestern offen geblieben“ (plugin 1.3.0) ──
+
+    /** How a button of a reminder or of the card went. */
+    enum class Acted { DONE, QUEUED, GONE, READ_ONLY, FAILED }
+
+    /**
+     * „Später“ ([until]: `1h` | `evening` | `tomorrow`) for the reminder [tag] of task [id]. Sent twice it moves once
+     * (the tag), so without a connection it waits in the outbox. „Heute Abend“ after the evening: in an hour instead.
+     */
+    suspend fun snoozeTask(id: Long, until: String, tag: String?): Acted {
+        val body = NotizenJson.snoozeBody(until, tag)
+        return action(NotizenOutbox.SNOOZE, id, body) { sid ->
+            val r = api.snoozeTaskBody(sid, body)
+            if (until == "evening" && r is NResult.Failed && r.http == 400) api.snoozeTask(sid, "1h", tag) else r
+        }
+    }
+
+    /** „Heute“ / „Verschieben“ ([to]: `today` | `tomorrow` | `weekend` | a date); the same target twice changes nothing. */
+    suspend fun moveTask(id: Long, to: String): Acted {
+        val body = NotizenJson.moveBody(NotizenJson.moveTarget(to) ?: return Acted.FAILED)
+        return action(NotizenOutbox.MOVE, id, body) { sid -> api.moveTask(sid, body) }
+    }
+
+    private suspend fun action(what: String, id: Long, body: JsonObject, direct: suspend (Long) -> NResult<*>): Acted {
+        ensureLoaded()
+        val sid = serverId(id)
+        if (sid == null || hasWaiting()) {
+            enqueueAction(what, id, body)
+            flushSoon()
+            return Acted.QUEUED
+        }
+        return when (val r = direct(sid)) {
+            is NResult.Ok -> { _changed.tryEmit(setOf("tasks")); Acted.DONE }
+            NResult.Offline -> { enqueueAction(what, sid, body); Acted.QUEUED }
+            is NResult.Failed -> when {
+                r.http == 404 -> Acted.GONE
+                r.http == 403 -> Acted.READ_ONLY
+                else -> Acted.FAILED
+            }
+            NResult.NotConfigured -> Acted.FAILED
+        }
+    }
+
+    private suspend fun enqueueAction(what: String, id: Long, body: JsonObject) {
+        outboxLock.withLock {
+            val s = _state.value
+            save(s.copy(ops = NotizenOutbox.add(s.ops, NotizenOutbox.Op(NotizenOutbox.ACTION, id, false, System.currentTimeMillis(), what, body, uid = newUid()), sending)))
+            NotizenOutboxWorker.enqueue(context)
+        }
+        _changed.tryEmit(setOf("tasks"))
+    }
+
+    /**
+     * The whole card at once (`POST yesterday`): [action] `done` | `today` | `move` (with [to]) for [ids]. Without a
+     * connection each task waits by itself in the outbox (a tick, a move) — sent twice they change nothing.
+     */
+    suspend fun yesterdayAll(action: String, ids: List<Long>, to: String? = null): Acted {
+        ensureLoaded()
+        if (ids.isEmpty()) return Acted.DONE
+        val target = if (action == "today") "today" else to
+        if (action != "done" && NotizenJson.moveTarget(target) == null) return Acted.FAILED
+        if (!hasWaiting() && ids.all { it > 0 }) {
+            when (val r = api.postYesterday(action, to.takeIf { action == "move" }, ids)) {
+                is NResult.Ok -> { _changed.tryEmit(setOf("tasks")); return if (r.value.failed.isEmpty()) Acted.DONE else Acted.READ_ONLY }
+                is NResult.Failed -> return if (r.http == 403) Acted.READ_ONLY else if (r.http == 404) Acted.GONE else Acted.FAILED
+                NResult.NotConfigured -> return Acted.FAILED
+                NResult.Offline -> Unit
+            }
+        }
+        for (id in ids) {
+            if (action == "done") enqueue(NotizenOutbox.Op(NotizenOutbox.TASK, serverId(id) ?: continue, true, System.currentTimeMillis(), uid = newUid()))
+            else enqueueAction(NotizenOutbox.MOVE, id, NotizenJson.moveBody(target!!))
+        }
+        flushSoon()
+        return Acted.QUEUED
+    }
+
+    /** What waits in the outbox, read from the phone first (a process an alarm just started). */
+    suspend fun waiting(): List<NotizenOutbox.Op> {
+        ensureLoaded()
+        return _pending.value
+    }
+
+    /** `GET me` as this phone last kept it, without asking the server (the alarms after a boot). */
+    suspend fun cachedMe(): NMe? = _me.value ?: cache.get("me")?.let { NotizenJson.me(it.first) }?.also { if (_me.value == null) _me.value = it }
+
     // ── creates, changes, deletes (plugin 1.1.0: queued while offline) ──
 
     private fun hasWaiting(): Boolean = _pending.value.any { !it.conflict }
@@ -438,6 +524,7 @@ class NotizenRepository @Inject constructor(
             NotizenOutbox.NOTEBOOK -> api.createNotebookBody(body).map { it.id }
             else -> api.createNote(body).map { revs[it.summary.id] = it.summary.rev; it.summary.id }
         }
+        NotizenOutbox.ACTION -> (if (op.what == NotizenOutbox.MOVE) api.moveTask(id, body) else api.snoozeTaskBody(id, body)).map { 0L }
         NotizenOutbox.PATCH -> if (op.what == NotizenOutbox.NOTE) api.patchNote(id, body).map { revs[id] = it.summary.rev; 0L } else api.patchTask(id, body).map { 0L }
         else -> (if (op.what == NotizenOutbox.NOTE) api.deleteNote(id) else api.deleteTask(id)).goneOk().map { 0L }
     }

@@ -99,4 +99,29 @@ class NotizenPushTest {
         assertEquals("gone", NotizenDeepLink.takeHint())
         assertNull(NotizenDeepLink.takeHint())
     }
+
+    @Test
+    fun `plugin 1_3 - the morning hint opens Mein Tag with the card, its buttons the question or the choice of days`() {
+        val hint = """{"kind":"yesterday","day":"2026-11-18","count":2,"taskIds":[41,42],"area":null}"""
+        val d = dest("reminders", hint)
+        assertEquals("yesterday:open:41-42", d)
+        assertEquals(NotizenPush.Yesterday(NotizenPush.Y_OPEN, listOf(41, 42)), NotizenPush.decode(d))
+        assertEquals(listOf(NotizenPush.Tab), NotizenPush.steps(d, listed = true), "the tab's „Mein Tag“ — no page on top")
+        // „Erledigt“ of several and „Verschieben“ come as a portal link: the app opens its own card
+        assertEquals("yesterday:done:41-42", NotizenPush.yesterdayButton(d, "done_ask"))
+        assertEquals("yesterday:move:41-42", NotizenPush.yesterdayButton(d, "move"))
+        assertEquals(NotizenPush.Yesterday(NotizenPush.Y_MOVE, listOf(41, 42)), NotizenPush.decode(NotizenPush.yesterdayButton(d, "move")))
+        // „Heute“ and „Erledigt“ of a single task are callbacks; the tap itself is no button
+        assertNull(NotizenPush.yesterdayButton(d, "today"))
+        assertNull(NotizenPush.yesterdayButton(d, "done"))
+        assertNull(NotizenPush.yesterdayButton(d, null))
+        assertNull(NotizenPush.yesterdayButton("task:12", "move"), "a button of another message")
+        // at most 20 tasks, an area when the plugin names one, no ids at all
+        val many = dest("reminders", """{"kind":"yesterday","taskIds":[${(1..30).joinToString(",")}],"area":"work"}""")
+        assertEquals(NotizenPush.Yesterday(NotizenPush.Y_OPEN, (1L..20L).toList(), "work"), NotizenPush.decode(many))
+        assertEquals("yesterday:open", dest("reminders", """{"kind":"yesterday","taskIds":["x",-4]}"""))
+        assertEquals(NotizenPush.Yesterday(NotizenPush.Y_OPEN, emptyList()), NotizenPush.decode("yesterday:open"))
+        assertNull(NotizenPush.decode("yesterday:delete:41"))
+        assertNull(NotizenPush.decode("yesterday:done:41;drop"))
+    }
 }

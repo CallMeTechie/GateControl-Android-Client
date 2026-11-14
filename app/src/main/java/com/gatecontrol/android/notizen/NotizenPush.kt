@@ -15,10 +15,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * - `reminder` (topic `reminders`), `assigned` (topic `shared`) → the task;
  * - `shared_list` → the list; `shared_notebook` → the notebook (a Tresor: its page, which unlocks first);
  * - `vault_request` (topic `vault`) → the Tresor's page with the device to approve (unlocked first);
- * - `listday` (plugin 1.2.0, topic `listday`, „Heute ist Einkaufstag“) → the list, in its area.
+ * - `listday` (plugin 1.2.0, topic `listday`, „Heute ist Einkaufstag“) → the list, in its area;
+ * - `yesterday` (plugin 1.3.0, topic `reminders`, „Gestern offen geblieben“) → „Mein Tag“ with the card; its buttons
+ *   „Erledigt“ (several tasks: `done_ask`) and „Verschieben“ (`move`) open the same, with the question or the choice.
  *
  * The destination travels as text in the notification's intent: `task:<id>`, `list:<id>`, `notebook:<id>`,
- * `tresor:<notebookId>:<vaultId>`, `vault:<vaultId>`, each with `@private` / `@work` when the push names the area.
+ * `tresor:<notebookId>:<vaultId>`, `vault:<vaultId>`, `yesterday:<open|done|move>[:<id>-<id>…]`, each with `@private` /
+ * `@work` when the push names the area.
  */
 object NotizenPush {
     private const val TOPIC_PREFIX = "plugin:$NOTIZEN_PLUGIN:"
@@ -35,6 +38,16 @@ object NotizenPush {
     data class Tresor(val notebookId: Long, val vaultId: String, override val area: String? = null) : Target
     /** A device asks for a Tresor: its page with the requests (unlock first). */
     data class VaultRequest(val vaultId: String, override val area: String? = null) : Target
+    /**
+     * „Gestern offen geblieben“: „Mein Tag“ with the card. [action]: [Y_OPEN] (the message was tapped), [Y_DONE] (ask
+     * once „Alle N abhaken?“) or [Y_MOVE] (the choice of days) for the tasks [ids] of the message (at most 20).
+     */
+    data class Yesterday(val action: String, val ids: List<Long>, override val area: String? = null) : Target
+
+    const val Y_OPEN = "open"
+    const val Y_DONE = "done"
+    const val Y_MOVE = "move"
+    private const val Y_MAX = 20
 
     fun isNotizenMessage(message: PushMessage): Boolean = message.topic.startsWith(TOPIC_PREFIX)
 
@@ -54,6 +67,7 @@ object NotizenPush {
         val notebook = n.id("notebookId") ?: n.id("notebook")
         val vault = NotizenJson.vaultId(n.str("vaultId") ?: n.str("vault"))
         return when (n.str("kind")) {
+            "yesterday" -> Yesterday(Y_OPEN, ids(n), area)
             "reminder", "assigned" -> task?.let { Task(it, area) }
             "shared_list", "listday" -> list?.let { ListPage(it, area) }
             "shared_notebook" -> notebook?.let { nb -> vault?.let { Tresor(nb, it, area) } ?: Notebook(nb, area) }
@@ -69,19 +83,55 @@ object NotizenPush {
         }
     }
 
+    private fun ids(n: JsonObject): List<Long> = n.get("taskIds")?.takeIf { it.isJsonArray }?.asJsonArray
+        ?.mapNotNull { e -> runCatching { e.asJsonPrimitive.takeIf { it.isNumber }?.asLong }.getOrNull()?.takeIf { it > 0 } }?.distinct()?.take(Y_MAX).orEmpty()
+
+    /**
+     * The reminder a push is about (`task:<id>:<atMs>`, plugin 1.3.0) — the name it shares with the phone's own alarm;
+     * null for every other message (also the reminders of an older plugin, which carry none).
+     */
+    fun reminderTag(message: PushMessage): String? {
+        if (message.topic != TOPIC_REMINDERS) return null
+        val n = runCatching { JsonParser.parseString(message.dataJson ?: return null).asJsonObject.get("notizen") }.getOrNull()
+            ?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        if (n.str("kind") != "reminder") return null
+        return NotizenJson.reminderTag(n.str("tag"))
+    }
+
+    /**
+     * The destination of a button of the morning hint that opens the app: `done_ask` → the card with the question,
+     * `move` → with the choice of days. null: not such a button (GateControl sends them as a portal link — the app has
+     * the screen itself).
+     */
+    fun yesterdayButton(dest: String?, actionId: String?): String? {
+        val y = decode(dest) as? Yesterday ?: return null
+        return when (actionId) {
+            "done_ask" -> encode(y.copy(action = Y_DONE))
+            "move" -> encode(y.copy(action = Y_MOVE))
+            else -> null
+        }
+    }
+
     fun encode(t: Target): String = when (t) {
         is Task -> "task:${t.id}"
         is ListPage -> "list:${t.id}"
         is Notebook -> "notebook:${t.id}"
         is Tresor -> "tresor:${t.notebookId}:${t.vaultId}"
         is VaultRequest -> "vault:${t.vaultId}"
+        is Yesterday -> "yesterday:${t.action}" + if (t.ids.isEmpty()) "" else ":" + t.ids.take(Y_MAX).joinToString("-")
     } + (t.area?.let { "@$it" } ?: "")
+
+    private val YDEST = Regex("^yesterday:(open|done|move)(?::([1-9]\\d{0,14}(?:-[1-9]\\d{0,14}){0,19}))?(?:@(private|work))?$")
 
     private val DEST = Regex("^(task|list|notebook|tresor|vault):([A-Za-z0-9_:-]{1,80})(?:@(private|work))?$")
 
     /** A destination of [destination] again; null when it is not one. */
     fun decode(dest: String?): Target? {
-        val m = DEST.matchEntire(dest ?: return null) ?: return null
+        YDEST.matchEntire(dest ?: return null)?.let { y ->
+            val ids = y.groupValues[2].split('-').mapNotNull { it.toLongOrNull() }
+            return Yesterday(y.groupValues[1], ids, y.groupValues[3].takeIf { it.isNotEmpty() })
+        }
+        val m = DEST.matchEntire(dest) ?: return null
         val area = m.groupValues[3].takeIf { it.isNotEmpty() }
         val rest = m.groupValues[2]
         val id = rest.toLongOrNull()?.takeIf { it > 0 }
@@ -117,6 +167,8 @@ object NotizenPush {
             is Notebook -> emptyList()
             is Tresor -> listOf(Route(NotizenRoutes.vault(t.vaultId)))
             is VaultRequest -> listOf(Route(NotizenRoutes.vault(t.vaultId, requests = true)))
+            // „Mein Tag“ of the tab, with the card (NotizenDeepLink)
+            is Yesterday -> emptyList()
         }
     }
 
@@ -129,7 +181,7 @@ object NotizenPush {
  * comes back to (`gone`: the task or list of a push is not there any more).
  */
 object NotizenDeepLink {
-    data class Open(val area: String?, val notebook: Long?)
+    data class Open(val area: String?, val notebook: Long?, val yesterday: NotizenPush.Yesterday? = null)
 
     private val _open = MutableStateFlow<Open?>(null)
     val open: StateFlow<Open?> = _open.asStateFlow()
@@ -140,7 +192,7 @@ object NotizenDeepLink {
     /** Before the tab opens for [t]. */
     fun request(t: NotizenPush.Target?) {
         if (t == null) return
-        _open.value = Open(t.area, (t as? NotizenPush.Notebook)?.id ?: (t as? NotizenPush.Tresor)?.notebookId)
+        _open.value = Open(t.area, (t as? NotizenPush.Notebook)?.id ?: (t as? NotizenPush.Tresor)?.notebookId, t as? NotizenPush.Yesterday)
     }
 
     fun take(): Open? = _open.value.also { _open.value = null }

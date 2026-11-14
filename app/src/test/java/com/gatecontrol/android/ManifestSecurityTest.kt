@@ -189,6 +189,30 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `the reminder alarm of Notizen und Aufgaben - its receiver is private, exact alarms only by the user's own switch`() {
+        val receiver = components("receiver").first { it.androidAttr("name").endsWith("NotizenReminderReceiver") }
+        assertEquals("false", receiver.androidAttr("exported"))
+        assertEquals(0, receiver.getElementsByTagName("intent-filter").length)
+        // the system's broadcasts after which Android has dropped or shifted the alarms
+        val system = components("receiver").first { it.androidAttr("name").endsWith("NotizenReminderSystemReceiver") }
+        val actions = system.getElementsByTagName("action").let { l -> (0 until l.length).map { (l.item(it) as org.w3c.dom.Element).androidAttr("name") } }.toSet()
+        assertEquals(
+            setOf(
+                "android.intent.action.BOOT_COMPLETED",
+                "android.intent.action.MY_PACKAGE_REPLACED",
+                "android.intent.action.TIMEZONE_CHANGED",
+                "android.intent.action.TIME_SET",
+                "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED",
+            ),
+            actions,
+        )
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        assertTrue("android.permission.SCHEDULE_EXACT_ALARM" in permissions)
+        // USE_EXACT_ALARM is for alarm clocks and calendars only (Google Play): never
+        assertFalse("android.permission.USE_EXACT_ALARM" in permissions)
+    }
+
+    @Test
     fun `push permissions are declared`() {
         val permissions = components("uses-permission").map { it.androidAttr("name") }
         assertTrue("android.permission.POST_NOTIFICATIONS" in permissions)

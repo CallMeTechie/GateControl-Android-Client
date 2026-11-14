@@ -56,13 +56,23 @@ data class NPrefs(
     val startArea: String = "last",
     /** Plugin 1.2.0: which pushes the server sends to this person (on top of GateControl's own switches). */
     val notify: NNotifyPrefs = NNotifyPrefs(),
+    /** Plugin 1.3.0 (`yesterdayOpen`): when the morning hint „Gestern offen geblieben“ comes (HH:MM). */
+    val yesterdayAt: String = "07:30",
+    /** Plugin 1.3.0 (`taskCalendar`, `prefs.calendar.tasks`): my tasks with a time go into my calendar in Mail. */
+    val calendarTasks: Boolean = true,
 )
 
 /** `prefs.myday` (plugin 1.2.0): the list-day cards on top, the tasks done today at the end. */
 data class NMyDayPrefs(val listdays: Boolean = true, val showDone: Boolean = true)
 
-/** `prefs.notify` (plugin 1.2.0): reminders, shared and assigned, the list day in the morning. */
-data class NNotifyPrefs(val reminders: Boolean = true, val shared: Boolean = true, val listday: Boolean = true)
+/** `prefs.notify` (plugin 1.2.0): reminders, shared and assigned, the list day in the morning; 1.3.0: the morning hint. */
+data class NNotifyPrefs(val reminders: Boolean = true, val shared: Boolean = true, val listday: Boolean = true, val yesterday: Boolean = true)
+
+/** `me.calendar` (plugin 1.3.0): Mail offers the calendar „Aufgaben“, the administrator's switch, my own switch. */
+data class NCalendarInfo(val available: Boolean = false, val enabled: Boolean = false, val mine: Boolean = false, val name: String? = null) {
+    /** The chip „Kalender“ and the mark „im Kalender“ show only with all three. */
+    val shown: Boolean get() = available && enabled && mine
+}
 
 /** `GET me`. */
 data class NMe(
@@ -83,11 +93,33 @@ data class NMe(
     val readOnly: Boolean,
     /** Plugin 1.2.0 (`listIcons`): the icons a list may have. */
     val listIcons: List<String> = emptyList(),
+    /** Plugin 1.3.0 (`taskCalendar`); null with an older plugin. */
+    val calendar: NCalendarInfo? = null,
 ) {
     fun has(feature: String) = feature in features
+
+    /** Reminder pushes with buttons, „Später“, `GET reminders` (the phone's own alarms). */
+    val reminderActions: Boolean get() = has(NFeature.REMINDER_ACTIONS)
+
+    /** The card „Gestern offen geblieben“ and its morning hint. */
+    val yesterdayOpen: Boolean get() = has(NFeature.YESTERDAY_OPEN)
+
+    /** The chip „Kalender“ and the mark „im Kalender“: the feature and all three switches of [calendar]. */
+    val calendarShown: Boolean get() = has(NFeature.TASK_CALENDAR) && calendar?.shown == true
 }
 
 data class NDue(val date: String, val time: String? = null)
+
+/**
+ * The reminder of a task still to come (plugin 1.3.0, `reminderActions`). [tag] = `task:<id>:<atMs>` names one task at
+ * one moment; [mine]: the server sends its push to me (only then the phone sets an alarm of its own).
+ */
+data class NReminder(val tag: String, val at: String?, val atMs: Long, val mine: Boolean, val snoozed: Boolean)
+
+/** A task's event in Mail's calendar „Aufgaben“ (plugin 1.3.0, `taskCalendar`): `synced` | `pending`. */
+data class NTaskCalendar(val state: String, val eventId: Long?, val calendarId: Long?, val mine: Boolean) {
+    val synced: Boolean get() = state == "synced"
+}
 /**
  * A person of a list or notebook. [role] and [since] (plugin 1.2.0, `shareRoles`): `read` | `write` of a member,
  * since when (ms).
@@ -138,6 +170,14 @@ data class NTask(
     val canComplete: Boolean = true,
     /** Plugin 1.2.0: false in a list I may only view (no changing, deleting, sub tasks, attachments). */
     val canEdit: Boolean = true,
+    /** Plugin 1.3.0: the reminder still to come (null: none, sent already, or the task is done). */
+    val reminder: NReminder? = null,
+    /** Plugin 1.3.0: the reminder was moved with „Später“. */
+    val snoozed: Boolean = false,
+    /** Plugin 1.3.0: the reminder could not be sent any more (the task is under „Gestern offen geblieben“). */
+    val missedReminder: Boolean = false,
+    /** Plugin 1.3.0: the task's event in the calendar (null: none). */
+    val calendar: NTaskCalendar? = null,
 ) : NEntry {
     override val uid: String get() = "t:$id"
 }
@@ -183,7 +223,38 @@ data class NView(
     val plugin: String? = null,
     /** Plugin 1.2.0 (`listDays`, „Mein Tag“ only): the lists whose day is today, as cards on top. */
     val listdays: List<NListDay> = emptyList(),
+    /** Plugin 1.3.0 (`yesterdayOpen`, „Mein Tag“ only): the card „Gestern offen geblieben“ (null with an older plugin). */
+    val yesterday: NYesterday? = null,
 )
+
+/** `GET yesterday` / `yesterday` of „Mein Tag“ (plugin 1.3.0): what stayed open yesterday and where it can go. */
+data class NYesterday(val day: String?, val title: String, val count: Int, val items: List<NTask>, val moveOptions: List<NMoveOption>)
+
+/** A choice of „Verschieben“: `tomorrow` | `weekend`, its date and the server's word for it. */
+data class NMoveOption(val to: String, val date: String?, val label: String)
+
+/** `POST yesterday` → how many changed, which the person may not change, the card as it is now. */
+data class NYesterdayResult(val changed: Int, val failed: List<Long>, val yesterday: NYesterday?)
+
+/** A button of a reminder (`GET reminders`): `done`, `snooze_1h`, `snooze_eve`, `snooze_tom`. */
+data class NReminderAction(val id: String, val label: String)
+
+/** One reminder the server would send me (`GET reminders`) — what the phone's own alarm shows, unchanged. */
+data class NReminderEntry(
+    val tag: String,
+    val taskId: Long,
+    val listId: Long?,
+    val area: String?,
+    val title: String,
+    val body: String,
+    val atMs: Long,
+    val important: Boolean,
+    val collapseKey: String,
+    val actions: List<NReminderAction>,
+)
+
+/** `GET reminders`: [enabled] false — the person switched „Erinnerungen an Aufgaben“ off (no alarms). */
+data class NReminderFeed(val nowMs: Long, val enabled: Boolean, val reminders: List<NReminderEntry>)
 
 /** A card „Heute ist Einkaufstag“ of „Mein Tag“: the list, its first open tasks (to tick off) and how many more. */
 data class NListDay(val list: NList, val title: String, val open: Int, val assignedToMe: Int, val items: List<NTask>, val more: Int)
@@ -412,4 +483,12 @@ object NFeature {
     const val DELETE_KEEP = "deleteKeep"
     /** Lists with an icon. */
     const val LIST_ICONS = "listIcons"
+
+    // plugin 1.3.0 — never a version, only these words
+    /** Reminder pushes with buttons and a `tag`, `POST tasks/<id>/snooze`, `Task.reminder`, `GET reminders`. */
+    const val REMINDER_ACTIONS = "reminderActions"
+    /** „Gestern offen geblieben“: `GET/POST yesterday`, `POST tasks/<id>/move`, `yesterday` of „Mein Tag“, its push. */
+    const val YESTERDAY_OPEN = "yesterdayOpen"
+    /** `Task.calendar`, `me.calendar`, `prefs.calendar`. */
+    const val TASK_CALENDAR = "taskCalendar"
 }

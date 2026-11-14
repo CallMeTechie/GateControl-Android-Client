@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: reminders with buttons, the phone's own alarm, „Gestern offen geblieben“, the calendar (plugin gatecontrol-notizen 1.3.0). -->
+<resources>
+    <string name="notizen_mark_calendar">in the calendar</string>
+    <string name="notizen_mark_reminder">Reminder</string>
+    <string name="notizen_quick_calendar">Calendar: %1$s</string>
+    <string name="notizen_quick_calendar_hint">Tasks with a time are entered as an event in the calendar “%1$s” in Mail. You can switch this off in the settings.</string>
+    <string name="notizen_reminder_channel">Task reminders</string>
+    <string name="notizen_set_calendar">Calendar</string>
+    <string name="notizen_set_calendar_tasks">Enter tasks with a time in my calendar</string>
+    <string name="notizen_set_calendar_tasks_hint">As an event in the calendar “%1$s” in Mail</string>
+    <string name="notizen_set_local_alarm">This phone also keeps the reminders itself. They then come even without a connection to the server.</string>
+    <string name="notizen_set_local_alarm_allow">Allow the exact time</string>
+    <string name="notizen_set_local_alarm_inexact">This phone also keeps the reminders itself. Without a connection to the server a reminder can come a few minutes late, and later still while the phone is idle.</string>
+    <string name="notizen_set_notify_yesterday">Left open yesterday</string>
+    <string name="notizen_set_notify_yesterday_hint">A message in the morning when something stayed open yesterday</string>
+    <string name="notizen_set_yesterday_at">Time in the morning</string>
+    <string name="notizen_y_action_cd">%1$s: %2$s</string>
+    <string name="notizen_y_all_today">All today</string>
+    <string name="notizen_y_ask_done">Tick off all %1$d?</string>
+    <string name="notizen_y_ask_done_confirm">Tick off</string>
+    <string name="notizen_y_ask_done_text">The tasks of yesterday then count as done.</string>
+    <string name="notizen_y_ask_move">Move to</string>
+    <string name="notizen_y_done">Done</string>
+    <string name="notizen_y_move">Move</string>
+    <string name="notizen_y_other_date">Another date</string>
+    <string name="notizen_y_title">Left open yesterday</string>
+    <string name="notizen_y_today">Today</string>
+    <string name="notizen_y_tomorrow">Tomorrow</string>
+    <string name="notizen_y_weekend">At the weekend</string>
+</resources>

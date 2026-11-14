@@ -127,6 +127,13 @@ class GateControlApp : Application() {
             Timber.w(e, "Mail: not started")
         }
 
+        // Notizen & Aufgaben: the phone's own alarms for the reminders of tasks (plugin 1.3.0; nothing with an older one).
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.notizen.NotizenReminderEntryPoint::class.java).notizenReminderCenter().start()
+        } catch (e: Throwable) {
+            Timber.w(e, "Notizen: reminders not started")
+        }
+
         // Google Play build: in-app update (network watch, install in the background).
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
             try {

@@ -42,13 +42,18 @@ object NotizenOutbox {
     const val CREATE = "create"
     const val PATCH = "patch"
     const val DELETE = "delete"
+    /** Plugin 1.3.0: a `POST tasks/<id>/<what>` that may be sent again ([Op.what]: [SNOOZE] with its tag, [MOVE]). */
+    const val ACTION = "action"
+    const val SNOOZE = "snooze"
+    const val MOVE = "move"
     const val LIST = "list"
     const val NOTEBOOK = "notebook"
     const val NOTE = "note"
 
     const val MAX = 500
     private const val MAX_IDS = 500
-    private val KINDS = setOf(TASK, ITEM, CREATE, PATCH, DELETE)
+    private val KINDS = setOf(TASK, ITEM, CREATE, PATCH, DELETE, ACTION)
+    private val ACTIONS = setOf(SNOOZE, MOVE)
     private val WHATS = setOf(TASK, LIST, NOTEBOOK, NOTE)
     private val CLIENT_ID = Regex("^[A-Za-z0-9_-]{8,64}$")
 
@@ -73,6 +78,11 @@ object NotizenOutbox {
             return Op(kind, id, done, at, uid = o.str("uid").orEmpty())
         }
         if (id == 0L) return null
+        if (kind == ACTION) {
+            val what = o.str("what")?.takeIf { it in ACTIONS } ?: return null
+            val body = o.get("body")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+            return Op(kind, id, false, at, what, body, uid = o.str("uid").orEmpty())
+        }
         val what = o.str("what")?.takeIf { it in WHATS } ?: return null
         val body = o.get("body")?.takeIf { it.isJsonObject }?.asJsonObject
         if (kind != DELETE && body == null) return null
@@ -140,6 +150,8 @@ object NotizenOutbox {
                 if (made) rest else rest + op
             }
             CREATE -> ops + op
+            // a later „Verschieben“ or „Später“ of the same task takes the place of one still waiting
+            ACTION -> ops.filterNot { it.kind == ACTION && objectOf(it) == key && free(it) } + op
             else -> ops
         }
         return out.takeLast(MAX)
@@ -291,7 +303,15 @@ object NotizenOutbox {
                 else -> false
             }
         }
-        var sections = view.sections.map { s -> s.copy(items = s.items.filterNot { it is NTask && it.id in deleted }.map { entryOver(it, ops) }) }
+        // „Heute“ / „Verschieben“ still waiting (plugin 1.3.0): the task is no longer overdue nor in the card of yesterday
+        val moved = ops.filter { it.kind == ACTION && it.what == MOVE }.map { it.id }.toSet()
+        var sections = view.sections.map { s ->
+            s.copy(items = s.items.filterNot { it is NTask && (it.id in deleted || (s.id == "overdue" && it.id in moved)) }.map { entryOver(it, ops) })
+        }
+        val yesterday = view.yesterday?.let { y ->
+            val left = y.items.filterNot { it.id in deleted || it.id in moved }.map { taskOver(it, ops) }.filterNot { it.done }
+            y.copy(items = left, count = left.size)
+        }
         if (adds.isNotEmpty()) {
             val into = when {
                 listId != null -> "open"
@@ -304,7 +324,7 @@ object NotizenOutbox {
                 listOf(NSection(into, "", adds.size, adds, false)) + sections
             }
         }
-        return view.copy(sections = sections)
+        return view.copy(sections = sections, yesterday = yesterday)
     }
 
     /** A task's page as the person sees it: its waiting changes and ticks, sub tasks made, ticked or deleted offline. */

@@ -31,6 +31,7 @@ class PushActionReceiver : BroadcastReceiver() {
     @Inject lateinit var repository: PushRepository
     @Inject lateinit var quickActions: QuickActionRepository
     @Inject lateinit var notifier: PushNotifier
+    @Inject lateinit var notizenReminders: com.gatecontrol.android.notizen.NotizenReminderCenter
 
     override fun onReceive(context: Context, intent: Intent) {
         val op = intent.action ?: return
@@ -45,6 +46,8 @@ class PushActionReceiver : BroadcastReceiver() {
         scope.launch {
             try {
                 withTimeoutOrNull(TIMEOUT_MS) {
+                    // a reminder of a task decided here: the phone's own alarm for it stays quiet
+                    runCatching { notizenReminders.pushDecided(id) }
                     when (op) {
                         ACTION_READ -> repository.markRead(listOf(id))
                         ACTION_DISMISSED -> repository.dismissed(id)

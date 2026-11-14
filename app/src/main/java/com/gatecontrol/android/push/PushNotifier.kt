@@ -63,6 +63,7 @@ class PushNotifier @Inject constructor(
     private val gatedrop: dagger.Lazy<com.gatecontrol.android.gatedrop.GateDropPushHandler>,
     private val vault: dagger.Lazy<com.gatecontrol.android.vault.VaultRepository>,
     private val driveSettings: dagger.Lazy<com.gatecontrol.android.drive.DriveSettings>,
+    private val notizenReminders: dagger.Lazy<com.gatecontrol.android.notizen.NotizenReminderCenter>,
 ) : PushPresenter {
 
     companion object {
@@ -153,12 +154,16 @@ class PushNotifier @Inject constructor(
         if (runCatching { gatedrop.get().show(message, notificationId, quiet) }.getOrDefault(false)) return
         // Drive-Einstellungen › Benachrichtigungen: deadlines and vault requests can stay off this phone (still in the inbox)
         if (!com.gatecontrol.android.drive.DrivePush.shown(message, driveSettings.get().current)) return
+        // Notizen & Aufgaben 1.3.0: a reminder the phone's own alarm shows already is replaced without a second sound;
+        // one decided here already is not shown again (acknowledged as read)
+        val twin = runCatching { notizenReminders.get().onPush(message) }.getOrDefault(com.gatecontrol.android.notizen.ReminderGuard.Push.SHOW)
+        if (twin == com.gatecontrol.android.notizen.ReminderGuard.Push.HIDE) return
         val ctx = localized()
         if (nm.getNotificationChannel(channel.id) == null) createChannels(ctx, listOf(channel))
 
         val builder = baseBuilder(ctx, message, channel.id)
             .setOnlyAlertOnce(message.priorityLevel != PushPriority.CRITICAL)
-            .setSilent(quiet || message.silent)
+            .setSilent(quiet || message.silent || twin == com.gatecontrol.android.notizen.ReminderGuard.Push.REPLACE)
             .setDeleteIntent(receiverIntent(PushActionReceiver.ACTION_DISMISSED, message, null, slot = 1))
         addButtons(ctx, builder, message, notificationId)
 

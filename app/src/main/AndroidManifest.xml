@@ -24,6 +24,10 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Notizen & Aufgaben: the reminder of a task at its minute, also without a connection to the
+         server. Used only while Android allows it (never asked for by a dialog); without it the
+         phone rings within a window. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Chats (messenger plugin): voice messages, recorded only while the
@@ -253,6 +257,26 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <!-- Notizen & Aufgaben: the phone's own alarm of a task's reminder and the buttons of
+             its notification. NOT exported: only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".notizen.NotizenReminderReceiver"
+            android:exported="false" />
+
+        <!-- Notizen & Aufgaben: Android drops or shifts the alarms on a boot, an app update,
+             a change of the clock or the time zone, and when exact alarms are allowed or withdrawn. -->
+        <receiver
+            android:name=".notizen.NotizenReminderSystemReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".receiver.BootReceiver"
