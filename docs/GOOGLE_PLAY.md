@@ -66,7 +66,7 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | Datentyp | Pflicht/optional | Wofür |
 |---|---|---|
 | **Persönliche Daten → Name** | optional | Familie: Namen in Notfallkontakten und frei eingetragene Fahrer („Oma“); Chats: Gruppennamen. Konto- und Anzeigenamen legt der Server-Betreiber an. |
-| **Persönliche Daten → Telefonnummer** | optional | Familie: Notfallnummern auf der Notfall-Karte |
+| **Persönliche Daten → Telefonnummer** | optional | Familie: Notfallnummern auf der Notfall-Karte; Chats › Verknüpfte Dienste: die eigene WhatsApp-Nummer beim Verknüpfen per Code (geht an den eigenen Server, dessen Brücke gibt sie an WhatsApp weiter; in der App nicht gespeichert) |
 | **Finanzinformationen → Kaufverlauf** | optional | Familie: Ausgaben im Haushaltsbuch (reine Buchhaltung, keine Zahlungen) |
 | **Finanzinformationen → Sonstige Finanzinformationen** | optional | Familie: Taschengeld (Guthaben, Buchungen, Regeln) |
 | **Standort → Ungefährer Standort** | optional | Familie: Anwesenheit „zuhause/unterwegs“ (Heimnetz-Erkennung, kein GPS) und „angekommen/verlassen“ bei Orten für Regeln (ohne Position). Notizen & Aufgaben (Plugin ab 1.5.0): eine auf dem Gerät auf etwa einen Kilometer gerundete Position an den eigenen Server – für die Ortssuche („Welcher Baumarkt?“) und für die Orte in der Nähe; nur bei eingeschalteter Ortssuche, sonst verlässt keine Position das Gerät. Der genaue Standort bleibt dabei auf dem Gerät (Geofencing, Entfernungen) |

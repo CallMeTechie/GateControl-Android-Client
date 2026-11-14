@@ -119,6 +119,11 @@ object ChatJson {
     fun errorCode(o: JsonObject?): String? =
         o?.str("code")?.takeIf { it.length <= 40 && it.all { c -> c.isLetterOrDigit() || c == '_' } }
 
+    /** `reason` of an error answer (a bridge's refusal, Messenger 1.12): a short lower-case word, else null. */
+    fun errorReason(o: JsonObject?): String? = o?.str("reason")?.takeIf { REASON_RE.matches(it) }
+
+    private val REASON_RE = Regex("^[a-z][a-z0-9_]{0,39}$")
+
     // ─── people ─────────────────────────────────────────────────────
 
     /** A person: `userId` (members, peer) or `id` (people). */

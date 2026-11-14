@@ -734,6 +734,44 @@ Unterschied. Unbekannte Nachrichtenarten neuerer Server zeigt der Chat als
   Ankünfte und Erinnerungen kommen vom Server; Tippen öffnet den Chat an
   der richtigen Nachricht, der Abfahrt-Hinweis die Live-Ankunft.
 
+### Messenger 1.13 – Verknüpfte Dienste (WhatsApp)
+
+Wenn der Server eine Brücke zu einem anderen Messenger anbietet und sie
+eingeschaltet ist (`features.linked_services` in `GET me`), zeigen die
+**Chat-Einstellungen** den Eintrag **„Verknüpfte Dienste“** – sonst nicht.
+Heute gibt es einen Dienst: WhatsApp (auch Konten der WhatsApp-Business-App).
+Verhalten und Texte entsprechen der gleichnamigen Seite im Portal.
+
+- **In dieser Version wird verknüpft.** Die Chats mit Kontakten des Dienstes
+  folgen in einer späteren Version; die Seite sagt das.
+- **Übersicht:** je Dienst der Zustand des eigenen Kontos – noch nicht
+  verknüpft, verknüpft (seit wann, eigene Nummer), abgemeldet („Neu
+  verknüpfen“, „Eintrag entfernen“), Fehler, für Kinder gesperrt (bis die
+  Eltern den Dienst im Familie-Plugin freischalten), Brücke startet / nicht
+  erreichbar / veraltet (aktualisiert der Administrator, nichts muss neu
+  verknüpft werden) – und wo die Brücken laufen.
+- **Hinweise vor dem ersten Verknüpfen**, je Dienst einmal mit Haken zu
+  bestätigen: kein offizielles Programm von WhatsApp, WhatsApp kann Konten
+  sperren, das Handy muss mindestens alle 14 Tage online sein, die
+  Ende-zu-Ende-Verschlüsselung endet an der Brücke auf dem eigenen Server.
+- **Mit Code (dieses Handy):** Nummer mit Ländervorwahl eingeben → der
+  Kopplungscode erscheint groß, lässt sich kopieren (als vertraulich
+  markiert, nach einer Minute aus der Zwischenablage entfernt) und wird in
+  WhatsApp unter *Einstellungen › Verknüpfte Geräte › Gerät hinzufügen ›
+  Stattdessen mit Telefonnummer verknüpfen* eingegeben. Die Seite wartet auf
+  die Bestätigung – auch während man in WhatsApp ist.
+- **QR-Code (zweites Gerät):** für den Fall, dass WhatsApp auf einem anderen
+  Handy läuft. Ein Handy kann seinen eigenen Bildschirm nicht scannen; der
+  Hinweis darunter verweist auf den Weg „Mit Code“.
+- **Abgelaufen / abgelehnt / keine Verbindung:** die Seite sagt, was war, und
+  bietet „Neuen Code anfordern“ bzw. „Neuen QR-Code anzeigen“. Wer die Seite
+  verlässt oder den Weg wechselt, bricht die Anmeldung auch bei der Brücke ab.
+- **Trennen** mit Nachfrage; das Konto beim Dienst bleibt, wie es ist.
+- **Schutz:** Nummer und Code stehen nur im Arbeitsspeicher, solange sie zu
+  sehen sind – nicht in Einstellungen, Protokoll, Absturzbericht oder
+  gespeichertem Zustand. Die Seite ist gegen Bildschirmfotos und
+  -aufnahmen geschützt (wie Tresor und Vault).
+
 ---
 
 ## Vault (Plugin `gatecontrol-vault` 1.0)

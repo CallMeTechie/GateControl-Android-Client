@@ -16,7 +16,7 @@ import javax.inject.Singleton
  * Pure, unit-tested.
  */
 object ChatFeatureHint {
-    /** Every key of the `features` object this app knows (Messenger ≤ 1.11.0). */
+    /** Every key of the `features` object this app knows (Messenger ≤ 1.13.0). */
     val KNOWN: Set<String> = setOf(
         "direct", "groups", "voice", "files", "location", "reactions", "edit", "search", "disappearing",
         "bridges", "e2e",
@@ -27,6 +27,8 @@ object ChatFeatureHint {
         "notice_routes",
         // 1.11.0: Virenscan an Dateien (`media.scan`, MediaScan)
         "scan",
+        // 1.13.0: „Verknüpfte Dienste“ (Chat-Einstellungen, ChatLinkedServicesPage)
+        ChatBridges.FEATURE,
     ) + ChatFeatures14.ALL
 
     /** The keys the server switches on that this app does not know. */
