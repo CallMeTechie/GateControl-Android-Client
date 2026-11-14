@@ -321,12 +321,21 @@ class NotizenReminderCenter @Inject constructor(
         }
         // the server's buttons for this moment, unchanged — here they go straight to the API; „Liste öffnen“ (plugin
         // 1.4.0, a task with a shopping list) opens that list in the app, to tick off
-        ReminderPlan.buttons(r).forEachIndexed { i, a ->
+        // plugin 1.7.0 (`driveDeadlines`): the reminder of a deadline in Drive gets „Datei öffnen“ — the file's page in the app
+        val openFile = ctx.getString(R.string.notizen_dl_open_file).takeIf { repo.cachedMe()?.driveDeadlines == true }
+        ReminderPlan.buttons(r, openFile).forEachIndexed { i, a ->
             val list = r.attachedList?.takeIf { a.id == NotizenPush.ACTION_OPEN_LIST }
+            val node = NotizenPush.fileNode(r.deadline)?.takeIf { a.id == NotizenPush.ACTION_OPEN_FILE }
             val intent = if (list != null) {
                 PendingIntent.getActivity(
                     context, 0,
                     PushOpenActivity.notizenIntent(context, NotizenPush.encode(NotizenPush.Shopping(list.uid, r.area)), r.tag).setData("gatecontrol-notizen://list/${r.collapseKey}".toUri()),
+                    flags,
+                )
+            } else if (node != null) {
+                PendingIntent.getActivity(
+                    context, 0,
+                    PushOpenActivity.notizenIntent(context, NotizenPush.encode(NotizenPush.File(node, r.taskId, r.area)), r.tag).setData("gatecontrol-notizen://file/${r.collapseKey}".toUri()),
                     flags,
                 )
             } else {
@@ -336,10 +345,31 @@ class NotizenReminderCenter @Inject constructor(
         }
         return try {
             NotificationManagerCompat.from(context).notify(id, builder.build())
+            if (r.deadline != null) scope.launch { runCatching { noteDeadline(r.taskId) } }
             true
         } catch (_: SecurityException) {
             false
         }
+    }
+
+    /**
+     * The phone's alarm showed the reminder of a deadline in Drive (task [taskId]): which deadline it is (`Task.source`)
+     * is kept for a day, so Drive's own message of it is not shown beside ([driveTwin]).
+     */
+    private suspend fun noteDeadline(taskId: Long) {
+        val task = withTimeoutOrNull(CHECK_MS) { repo.task(taskId) } as? NResult.Ok ?: return
+        val deadline = ReminderGuard.deadlineId(task.value.value.task.source) ?: return
+        update { it.copy(deadlines = ReminderGuard.deadlineShown(it.deadlines, deadline, clock())) }
+    }
+
+    /**
+     * Drive's own message [message] of a deadline (topic `deadline`) would be a second one: the phone's alarm showed the
+     * hub's reminder of that deadline within the last day. Rare — the hub could not be asked at that moment, so Drive
+     * sent it itself (apps' contract, stage 5, § 3.2). The message stays in „Mitteilungen“.
+     */
+    suspend fun driveTwin(message: PushMessage): Boolean {
+        val deadline = com.gatecontrol.android.drive.DrivePush.deadlineOf(message) ?: return false
+        return ReminderGuard.driveTwin(lock.withLock { cache.reminders() }.deadlines, deadline, clock())
     }
 
     /** A button of the phone's alarm: the notification goes, the server is told (or the outbox keeps it). */

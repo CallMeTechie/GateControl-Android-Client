@@ -136,7 +136,7 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
                 if (ui.loading) item { NotizenLoading() }
                 ui.sources.forEach { s ->
                     item(key = s.plugin) {
-                        SourceCard(s, ui.prefs.sources[s.plugin] ?: NSourcePrefs(), ui.prefs.groups, ui.prefs.evening, vm, onTime = { time = s.plugin })
+                        SourceCard(s, ui.prefs.sources[s.plugin] ?: NSourcePrefs(), ui.prefs.groups, ui.prefs.evening, vm, onTime = { time = s.plugin }, deadlines = s.plugin == DRIVE_PLUGIN && ui.me?.driveDeadlinesActive == true)
                     }
                 }
                 if (!ui.loading && ui.sources.isEmpty()) item { Text(stringResource(R.string.notizen_sources_none), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(horizontal = 16.dp)) }
@@ -340,7 +340,16 @@ private fun SettingSwitch(title: String, hint: String?, value: Boolean, enabled:
 }
 
 @Composable
-private fun SourceCard(s: NSourceStatus, p: NSourcePrefs, groups: Map<String, String>, evening: String, vm: NotizenSourcesViewModel, onTime: () -> Unit) {
+private fun SourceCard(
+    s: NSourceStatus,
+    p: NSourcePrefs,
+    groups: Map<String, String>,
+    evening: String,
+    vm: NotizenSourcesViewModel,
+    onTime: () -> Unit,
+    /** Plugin 1.7.0 (`me.driveDeadlines.active`): Drive hands the reminders of its deadlines over right now. */
+    deadlines: Boolean = false,
+) {
     val x = GateControlTheme.extraColors
     val on = p.on != false && s.enabled
     Column(Modifier.padding(bottom = 12.dp)) {
@@ -356,6 +365,7 @@ private fun SourceCard(s: NSourceStatus, p: NSourcePrefs, groups: Map<String, St
                         else -> null
                     }
                     status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                    if (deadlines) Text(stringResource(R.string.notizen_dl_settings_on), style = MaterialTheme.typography.bodySmall, color = x.muted)
                 }
                 GcSwitch(on, if (s.enabled) { v -> vm.setSource(s.plugin, NSourcePrefs(on = v)) } else null, enabled = s.enabled)
             }

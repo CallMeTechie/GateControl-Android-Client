@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive 1.30.0: the reminders of the deadlines ring from „Notizen & Aufgaben“ (`Deadline.reminder.by`). -->
+<resources>
+    <string name="drive_deadline_by_hub">through Notes &amp; Tasks</string>
+    <string name="drive_deadline_by_hub_line">Reminder through Notes &amp; Tasks</string>
+</resources>

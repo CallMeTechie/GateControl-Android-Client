@@ -20,7 +20,7 @@ object NotizenOpen {
     data class Tab(val plugin: String) : Target
 
     private const val MAIL = "gatecontrol-mail"
-    private const val DRIVE = "gatecontrol-drive"
+    internal const val DRIVE = "gatecontrol-drive"
     private const val FAMILIE = "gatecontrol-familie"
     private const val SCHULE = "gatecontrol-schule"
     private const val ALLTAG = "gatecontrol-alltag"

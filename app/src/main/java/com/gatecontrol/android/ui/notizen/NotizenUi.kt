@@ -53,6 +53,7 @@ import com.gatecontrol.android.notizen.NArea
 import com.gatecontrol.android.notizen.NEntry
 import com.gatecontrol.android.notizen.NItem
 import com.gatecontrol.android.notizen.NotizenFormat
+import com.gatecontrol.android.notizen.NDue
 import com.gatecontrol.android.notizen.NMe
 import com.gatecontrol.android.notizen.NTask
 import com.gatecontrol.android.ui.components.GcIcons
@@ -243,6 +244,17 @@ internal fun NListMark(list: com.gatecontrol.android.notizen.NAttached, onOpen: 
     }
 }
 
+/** The plugin whose deadlines a task can remind of (plugin 1.7.0) — the colour of its badge. */
+internal const val DRIVE_PLUGIN = "gatecontrol-drive"
+
+/** „3 Tage vorher“ / „1 Tag vorher“ / „Erinnerung am Tag selbst“ — what the person chose at the deadline in Drive. */
+@Composable
+internal fun deadlineBefore(days: Int): String = when (days) {
+    0 -> stringResource(R.string.notizen_dl_before_0)
+    1 -> stringResource(R.string.notizen_dl_before_1)
+    else -> stringResource(R.string.notizen_dl_before_n, days)
+}
+
 /** A little mark of a row with its sign: „Erinnerung“, „im Kalender“ (plugin 1.3.0, mockup „Am nächsten Tag in ‚Mein Tag‘“). */
 @Composable
 private fun NRowMark(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, lead: Boolean) {
@@ -306,13 +318,18 @@ internal fun NEntryRow(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     val meta = mutableListOf<String>()
                     if (item != null) NSourceBadge(item.plugin, badgeText(item))
-                    val dueText = if (ctx.timeFirst) null else NotizenFormat.due(due, ctx.today, ctx.lang, ctx.words)
-                    if (dueText != null && (ctx.showDay || due?.time != null)) {
-                        val text = if (!ctx.showDay && due?.date == ctx.today) NotizenFormat.time(due.time) ?: dueText else dueText
+                    // plugin 1.7.0 (`driveDeadlines`): the task reminds of a deadline in Drive — „Drive“, „Frist <Tag>“
+                    // (always with its day: the reminder comes days before), the file, „3 Tage vorher“
+                    val deadline = task?.deadline
+                    val deadlineDay = deadline?.let { d -> NotizenFormat.due((d.date ?: due?.date)?.let { NDue(it, null) }, ctx.today, ctx.lang, ctx.words) }
+                    if (deadline != null) NSourceBadge(DRIVE_PLUGIN, stringResource(R.string.notizen_dl_source))
+                    val dueText = if (ctx.timeFirst) null else if (deadline != null) deadlineDay?.let { stringResource(R.string.notizen_dl_line, it) } else NotizenFormat.due(due, ctx.today, ctx.lang, ctx.words)
+                    if (dueText != null && (deadline != null || ctx.showDay || due?.time != null)) {
+                        val text = if (deadline == null && !ctx.showDay && due?.date == ctx.today) NotizenFormat.time(due.time) ?: dueText else dueText
                         Text(text, style = MaterialTheme.typography.bodySmall, color = if (overdue) scheme.error else x.muted, fontWeight = if (overdue) FontWeight.SemiBold else null)
                     }
                     // plugin 1.3.0: a reminder still to come, the task's event in my calendar
-                    val shown = dueText != null && (ctx.showDay || due?.time != null)
+                    val shown = dueText != null && (deadline != null || ctx.showDay || due?.time != null)
                     val reminder = task != null && !task.done && task.reminder != null
                     if (reminder) NRowMark(GcIcons.Bell, stringResource(R.string.notizen_mark_reminder), lead = shown)
                     val inCalendar = task != null && ctx.calendar && task.calendar?.synced == true && task.calendar.mine
@@ -333,6 +350,10 @@ internal fun NEntryRow(
                     if (task != null) NSyncMark(task.pending, task.conflict)
                     // plugin 1.6.0: whose turn it is, and for whom it was ticked off
                     val turn = task?.let { turnText(it, ctx.meId) }
+                    if (deadline != null) {
+                        deadline.file?.let { meta.add(it) }
+                        meta.add(deadlineBefore(deadline.daysBefore))
+                    }
                     if (task != null) {
                         turn?.let { meta.add(it) }
                         val doneBy = task.doneBy?.name?.takeIf { task.done && (task.family || task.turn != null) }
@@ -345,7 +366,7 @@ internal fun NEntryRow(
                     }
                     if (meta.isNotEmpty()) {
                         Text(
-                            (if (dueText != null || item != null || reminder || inCalendar) "· " else "") + meta.joinToString(" · "),
+                            (if (dueText != null || item != null || deadline != null || reminder || inCalendar) "· " else "") + meta.joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
                             color = x.muted,
                         )

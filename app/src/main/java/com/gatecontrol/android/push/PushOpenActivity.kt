@@ -116,7 +116,9 @@ class PushOpenActivity : ComponentActivity() {
 
         // „Liste öffnen“ of a reminder (Notizen & Aufgaben 1.4.0): GateControl sends the plugin's tab as the route — the
         // app opens the shopping list the task carries, to tick off.
-        com.gatecontrol.android.notizen.NotizenPush.listButton(intent.getStringExtra(EXTRA_NOTIZEN_LIST), actionId)?.let { dest ->
+        // „Datei öffnen“ of the reminder of a deadline in Drive (1.7.0) comes as a portal link — the app has the file's page.
+        val notizenButton = intent.getStringExtra(EXTRA_NOTIZEN_LIST)
+        (com.gatecontrol.android.notizen.NotizenPush.listButton(notizenButton, actionId) ?: com.gatecontrol.android.notizen.NotizenPush.fileButton(notizenButton, actionId))?.let { dest ->
             PushNavigation.request(PushNavTarget.Notizen(dest, id))
             startActivity(
                 Intent(this, MainActivity::class.java)
@@ -193,7 +195,7 @@ class PushOpenActivity : ComponentActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
 
         private const val EXTRA_SHARED = "com.gatecontrol.android.push.extra.SHARED"
-        /** Notizen & Aufgaben 1.4.0: the shopping list „Liste öffnen“ of this reminder opens. */
+        /** Notizen & Aufgaben 1.4.0: the shopping list „Liste öffnen“ of this reminder opens; 1.7.0: the file of „Datei öffnen“. */
         private const val EXTRA_NOTIZEN_LIST = "com.gatecontrol.android.push.extra.NOTIZEN_LIST"
         private const val EXTRA_NOTIZEN_LOCAL = "com.gatecontrol.android.push.extra.NOTIZEN_LOCAL"
         private const val EXTRA_NOTIZEN_TAG = "com.gatecontrol.android.push.extra.NOTIZEN_TAG"

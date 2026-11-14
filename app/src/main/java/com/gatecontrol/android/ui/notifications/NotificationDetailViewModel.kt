@@ -127,6 +127,13 @@ class NotificationDetailViewModel @Inject constructor(
                     }
                     PushActionType.OPEN_PORTAL -> {
                         repository.markRead(listOf(id), action.id)
+                        // „Datei öffnen“ of the reminder of a deadline in Drive (Notizen & Aufgaben 1.7.0) comes as a
+                        // portal link — the app has the file's page
+                        val file = repository.inbox.get(id)?.let { m -> com.gatecontrol.android.notizen.NotizenPush.fileButton(com.gatecontrol.android.notizen.NotizenPush.fileDestination(m), action.id) }
+                        if (file != null) {
+                            effects.send(DetailEffect.Navigate(PushNavTarget.Notizen(file, id)))
+                            return@launch
+                        }
                         val url = portalLinkResolver.resolve(action.target)
                         effects.send(if (url != null) DetailEffect.OpenUrl(url) else DetailEffect.PortalUnavailable)
                     }

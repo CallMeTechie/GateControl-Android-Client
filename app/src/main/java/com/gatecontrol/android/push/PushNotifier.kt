@@ -154,6 +154,9 @@ class PushNotifier @Inject constructor(
         if (runCatching { gatedrop.get().show(message, notificationId, quiet) }.getOrDefault(false)) return
         // Drive-Einstellungen › Benachrichtigungen: deadlines and vault requests can stay off this phone (still in the inbox)
         if (!com.gatecontrol.android.drive.DrivePush.shown(message, driveSettings.get().current)) return
+        // Notizen & Aufgaben 1.7.0 / Drive 1.30.0: Drive's own reminder of a deadline the phone's alarm of the hub showed
+        // already (the hub could not be asked, so Drive sent it too) — one message, not two; it stays in the inbox
+        if (runCatching { notizenReminders.get().driveTwin(message) }.getOrDefault(false)) return
         // Notizen & Aufgaben 1.3.0: a reminder the phone's own alarm shows already is replaced without a second sound;
         // one decided here already is not shown again (acknowledged as read)
         val twin = runCatching { notizenReminders.get().onPush(message) }.getOrDefault(com.gatecontrol.android.notizen.ReminderGuard.Push.SHOW)
@@ -225,7 +228,8 @@ class PushNotifier @Inject constructor(
             return
         }
         val seen = PushAction(ACTION_SEEN, ctx.getString(R.string.push_action_seen), PushActionType.ACK)
-        NotificationQuickActions.plan(message.actions, seen).forEachIndexed { i, button ->
+        // Notizen & Aufgaben 1.7.0: the reminder of a deadline brings four buttons — „Datei öffnen“ is among the three shown
+        NotificationQuickActions.plan(com.gatecontrol.android.notizen.NotizenPush.buttons(message), seen).forEachIndexed { i, button ->
             val action = button.action
             val pi = when (button.kind) {
                 ButtonKind.SEEN -> receiverIntent(PushActionReceiver.ACTION_READ, message, null, slot = 2 + i)
@@ -336,7 +340,9 @@ class PushNotifier @Inject constructor(
         // Notizen & Aufgaben: a reminder or an assignment opens the task, a share the list or notebook, a request the Tresor
         val notizenDest = com.gatecontrol.android.notizen.NotizenPush.destination(message)
         // … and „Liste öffnen“ of a reminder whose task carries a shopping list opens that list (1.4.0)
+        // … and „Datei öffnen“ of the reminder of a deadline in Drive the file's page in the app (1.7.0)
         val notizenList = com.gatecontrol.android.notizen.NotizenPush.listButton(com.gatecontrol.android.notizen.NotizenPush.listDestination(message), action?.id)
+            ?: com.gatecontrol.android.notizen.NotizenPush.fileButton(com.gatecontrol.android.notizen.NotizenPush.fileDestination(message), action?.id)
         val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest, notizenDest, notizenList).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
