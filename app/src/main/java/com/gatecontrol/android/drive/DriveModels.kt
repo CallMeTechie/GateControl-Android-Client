@@ -119,6 +119,11 @@ data class DMe(
         const val FEATURE_PHOTO_PEOPLE = "photoPeople"
         /** Drive 1.17: deadlines into a calendar of the mail plugin too (`deadlines/calendars`, `deadlines/targets`). */
         const val FEATURE_DEADLINE_MAIL_CALENDAR = "deadlineMailCalendar"
+        /**
+         * Drive 1.30.0: listed only while „Notizen & Aufgaben“ rings the reminders of the deadlines (the administrator's
+         * choice, and that plugin takes them) — `Deadline.reminder.by` says it for each one.
+         */
+        const val FEATURE_DEADLINE_HUB = "deadlineHub"
         /** Drive 1.18: the overview of Drive in one call (`GET overview`); without it the app builds it from the rest. */
         const val FEATURE_OVERVIEW = "overview"
         /** Drive 1.20: "Offline verfügbar" marks (`GET offline`, `PUT|DELETE nodes/<id>/offline`). */
@@ -510,7 +515,20 @@ data class DDeadline(
 /** A deadline's entry in the family calendar (Drive 1.14) or, Drive 1.17, in a mail calendar ([target]; null: the family's). */
 data class DCalendarEntry(val eventId: String?, val at: String?, val target: DDeadlineTarget? = null)
 
-data class DReminder(val at: String?, val daysBefore: Int, val sent: Boolean)
+/**
+ * My reminder of a deadline. [by] (Drive 1.30.0): who rings it — [BY_HUB] while „Notizen & Aufgaben“ has taken it (it
+ * comes as that plugin's reminder of a task, Drive sends no message of its own), else `drive` (also with an older Drive,
+ * which does not say). It is set, changed and removed in Drive either way.
+ */
+data class DReminder(val at: String?, val daysBefore: Int, val sent: Boolean, val by: String = BY_DRIVE) {
+    /** „Notizen & Aufgaben“ rings this reminder — „· über Notizen & Aufgaben“. */
+    val byHub: Boolean get() = by == BY_HUB
+
+    companion object {
+        const val BY_DRIVE = "drive"
+        const val BY_HUB = "notizen"
+    }
+}
 
 /** `POST nodes/<id>/insight/apply` → the renamed / moved file and its insight now. */
 data class DInsightApplied(val node: DNode, val insight: DInsight?)

@@ -448,12 +448,16 @@ internal fun DeadlineReminderRow(d: DDeadline, onRemind: (DDeadline, Int?) -> Un
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(GcIcons.Bell, contentDescription = null, tint = x.muted, modifier = Modifier.size(18.dp))
                 Box(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text(
-                        remindText(days),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = x.accentText,
-                        modifier = Modifier.clickable(role = Role.Button) { pick = true }.padding(vertical = 6.dp),
-                    )
+                    Column {
+                        Text(
+                            remindText(days),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = x.accentText,
+                            modifier = Modifier.clickable(role = Role.Button) { pick = true }.padding(vertical = 6.dp),
+                        )
+                        // Drive 1.30.0: „Notizen & Aufgaben“ rings this reminder — set and removed here all the same
+                        if (d.reminder?.byHub == true) Text(stringResource(R.string.drive_deadline_by_hub), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    }
                     DropdownMenu(expanded = pick, onDismissRequest = { pick = false }) {
                         DriveLogic.REMIND_DAYS.forEach { n ->
                             DropdownMenuItem(
@@ -471,7 +475,12 @@ internal fun DeadlineReminderRow(d: DDeadline, onRemind: (DDeadline, Int?) -> Un
                 GcSwitch(checked = d.reminder != null, onCheckedChange = { on -> onRemind(d, if (on) days else null) })
             }
         } else if (d.reminder?.sent == true) {
-            Text(stringResource(R.string.drive_deadline_sent), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(start = 16.dp, bottom = 10.dp))
+            Text(
+                listOfNotNull(stringResource(R.string.drive_deadline_sent), stringResource(R.string.drive_deadline_by_hub).takeIf { d.reminder.byHub }).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = x.muted,
+                modifier = Modifier.padding(start = 16.dp, bottom = 10.dp),
+            )
         }
     }
 }

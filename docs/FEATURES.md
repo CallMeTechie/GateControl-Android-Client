@@ -1162,6 +1162,43 @@ Herunterziehen lädt neu.
     Familien-Plugin gehört („Bescheid sagen“, ausgeschaltete), mit dem Hinweis
     „Orts-Erinnerungen findest du jetzt unter Aufgaben.“ Keine neue
     Berechtigung.
+- **Aufgaben und Erinnerungen, Stufe 5 – Fristen aus Drive (Plugin 1.7.0,
+  Drive 1.30.0):** erkannt nur am Wort `driveDeadlines` in `me.features`
+  (Notizen & Aufgaben) bzw. an `Deadline.reminder.by` und `deadlineHub`
+  (Drive); nie an Versionen. Keine neue Route, kein neuer Push: eine
+  Fristen-Erinnerung ist eine gewöhnliche Aufgabe mit gewöhnlicher
+  Erinnerung. Mit älteren Plugins ändert sich nichts.
+  - **Zeile und Aufgabe** (`Task.deadline`): Badge „Drive“, „Frist <Tag>“
+    (immer mit Tag, auch in „Mein Tag“), Dateiname, „3 Tage vorher“ / „1 Tag
+    vorher“ / „Erinnerung am Tag selbst“. In der Aufgabe dieselbe Zeile mit
+    **„Datei öffnen“** (`deadline.open` → Seite der Datei im Drive-Tab, wie
+    bei getragenen Einträgen über `NotizenOpen`) und dem Hinweis, dass Frist
+    und „Tage vorher“ an der Datei in Drive bleiben.
+  - **Löschen** einer Fristen-Aufgabe fragt vorher: „Löschen entfernt die
+    Erinnerung an diese Frist. Die Frist bleibt in Drive.“
+  - **Eigener Alarm des Handys** (`GET reminders`, `deadline` am Eintrag):
+    die App ergänzt „Datei öffnen“ selbst. Android zeigt drei Knöpfe:
+    „Erledigt“, das erste „Später“, „Datei öffnen“ (`ReminderPlan.buttons`);
+    das zweite „Später“ gibt es in der Aufgabe.
+  - **Push** (vier Knöpfe, der vierte ein `open_portal`): dieselben drei wie
+    am eigenen Alarm (`NotizenPush.buttons`); „Datei öffnen“ öffnet die Datei
+    in der App statt im Portal (`data.notizen.deadline.open`, Ziel
+    `file:<Knoten>:<Aufgabe>`). Ohne Drive-Tab öffnet sich die Aufgabe.
+  - **Drive-Seiten** („Fristen“, Datei-Details): an einer Erinnerung mit
+    `reminder.by: "notizen"` steht „über Notizen & Aufgaben“. „Erinnern“ und
+    „Erinnerung entfernen“ bleiben dort bedienbar. Die App setzt für
+    Drive-Fristen keine eigenen Alarme – der Alarm kommt über `GET reminders`
+    des Hubs.
+  - **Eine Meldung, nie zwei:** zeigt der eigene Alarm die Erinnerung des
+    Hubs und sendet Drive ausnahmsweise selbst (der Hub war in dem Moment
+    nicht erreichbar), blendet die App Drives Mitteilung derselben Frist
+    (`data.drive.deadline`) für 24 Stunden aus (`ReminderGuard.driveTwin`);
+    sie bleibt unter „Mitteilungen“.
+  - **Einstellungen › Quellen:** an „Drive“ der Hinweis, dass Drive seine
+    Fristen von hier erinnern lässt (`me.driveDeadlines.active`).
+  - **Tresor:** Dateien in einem Tresor haben keine Fristen; in Mitteilung
+    und Alarm steht nie ein Tresor-Name (Vertrag § 5), die App fügt keinen
+    Text hinzu.
 - **Liste:** offene und erledigte Aufgaben, unten ein Feld für eine neue
   Aufgabe (nicht bei „nur ansehen“).
 - **Aufgabe:** Titel, Wichtig, Unteraufgaben (hinzufügen, abhaken,

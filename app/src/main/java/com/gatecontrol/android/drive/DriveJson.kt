@@ -760,7 +760,8 @@ internal object DriveJson {
             kind = o.str("kind")?.takeIf { it in DEADLINE_KINDS } ?: return null,
             date = o.str("date")?.takeIf { DATE.matches(it) } ?: return null,
             label = o.str("label")?.trim()?.take(200)?.ifEmpty { null },
-            reminder = r?.let { DReminder(it.str("at")?.take(40), it.int("daysBefore")?.coerceIn(0, 90) ?: 0, it.bool("sent") ?: false) },
+            // Drive 1.30.0: `by` — 'notizen' while „Notizen & Aufgaben“ rings it; missing (an older Drive) or anything else: Drive
+            reminder = r?.let { DReminder(it.str("at")?.take(40), it.int("daysBefore")?.coerceIn(0, 90) ?: 0, it.bool("sent") ?: false, if (it.str("by") == DReminder.BY_HUB) DReminder.BY_HUB else DReminder.BY_DRIVE) },
             node = node(o.obj("node")),
             calendar = o.obj("calendar")?.let { c -> DCalendarEntry(c.idString("eventId")?.take(200), c.str("at")?.take(40), deadlineTarget(c.obj("target"))) },
             nodeId = o.long("nodeId")?.takeIf { it > 0 },

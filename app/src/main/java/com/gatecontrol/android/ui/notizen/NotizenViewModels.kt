@@ -726,6 +726,9 @@ class NotizenTaskViewModel @Inject constructor(
         }
     }
 
+    /** „Datei öffnen“ of a deadline: the app has no page for it here (the Drive tab is not there). */
+    fun notHere() { _message.value = "not_here" }
+
     fun delete(done: () -> Unit) {
         viewModelScope.launch {
             val r = repo.deleteTask(id)

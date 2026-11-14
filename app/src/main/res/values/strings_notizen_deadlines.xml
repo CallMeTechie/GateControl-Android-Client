@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: the reminders of Drive's deadlines ring from here (plugin gatecontrol-notizen 1.7.0, Drive 1.30.0). -->
+<resources>
+    <string name="notizen_dl_before_0">Reminder on the day itself</string>
+    <string name="notizen_dl_before_1">1 day before</string>
+    <string name="notizen_dl_before_n">%1$d days before</string>
+    <string name="notizen_dl_delete_text">Deleting removes the reminder of this deadline. The deadline stays in Drive.</string>
+    <string name="notizen_dl_delete_title">Delete the reminder of this deadline?</string>
+    <string name="notizen_dl_hint">The deadline belongs to the file in Drive. How many days before you are reminded is set there; “Done” ticks it off in Drive too.</string>
+    <string name="notizen_dl_line">Deadline %1$s</string>
+    <string name="notizen_dl_open_file">Open file</string>
+    <string name="notizen_dl_settings_on">Drive has its deadlines remind from here – with “Done” and “Later” like any task. The deadline and how many days before stay with the file in Drive.</string>
+    <string name="notizen_dl_source" translatable="false">Drive</string>
+</resources>

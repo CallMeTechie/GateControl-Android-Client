@@ -108,8 +108,16 @@ data class NMe(
     val places: NPlacesInfo? = null,
     /** Plugin 1.6.0 (`familyTasks`, `me.familyTasks`); null with an older plugin. */
     val familyTasks: NFamilyTasks? = null,
+    /** Plugin 1.7.0 (`driveDeadlines`, `me.driveDeadlines`); null with an older plugin. */
+    val driveDeadlineInfo: NDriveDeadlines? = null,
 ) {
     fun has(feature: String) = feature in features
+
+    /** The reminders of Drive's deadlines can ring from here: `Task.deadline`, „Datei öffnen“ (never a version — this word). */
+    val driveDeadlines: Boolean get() = has(NFeature.DRIVE_DEADLINES)
+
+    /** Drive hands its reminders over right now — there are tasks with [NTask.deadline] (a hint for the settings). */
+    val driveDeadlinesActive: Boolean get() = driveDeadlines && driveDeadlineInfo?.active == true
 
     /** „Wer ist dran?“: `Task.turn` / `Task.people`, in every shared list (never a version — this word). */
     val taskTurns: Boolean get() = has(NFeature.TASK_TURNS)
@@ -217,6 +225,16 @@ data class NProgress(val done: Int, val total: Int)
 data class NOpen(val plugin: String, val route: String)
 data class NSourceRef(val plugin: String, val id: String)
 
+/** `me.driveDeadlines` (plugin 1.7.0): Drive can be asked ([available]) and hands reminders over right now ([active]). */
+data class NDriveDeadlines(val available: Boolean, val active: Boolean)
+
+/**
+ * The deadline of a file in Drive a task reminds of (plugin 1.7.0, `driveDeadlines`): the deadline and the person's
+ * reminder stay in Drive — here they only show. [date] `YYYY-MM-DD`; [kind] `payment` | `cancellation` | `objection` |
+ * `warranty` | `renewal` or null; [daysBefore] as chosen in Drive (0: on the day itself); [open]: the file.
+ */
+data class NDeadline(val date: String?, val kind: String?, val file: String?, val daysBefore: Int, val open: NOpen?)
+
 /** One row of a list: an own task or an item of another plugin. */
 sealed interface NEntry {
     val uid: String
@@ -280,6 +298,8 @@ data class NTask(
     val doneBy: NPerson? = null,
     /** Plugin 1.6.0: a task of the family's list. */
     val family: Boolean = false,
+    /** Plugin 1.7.0 (`driveDeadlines`): the deadline in Drive this task reminds of (null: any other task, an older plugin). */
+    val deadline: NDeadline? = null,
 ) : NEntry {
     override val uid: String get() = "t:$id"
 }
@@ -355,6 +375,8 @@ data class NReminderEntry(
     val actions: List<NReminderAction>,
     /** Plugin 1.4.0: the list the task carries — the button `open_list` opens it. */
     val attachedList: NAttached? = null,
+    /** Plugin 1.7.0: the reminder of a deadline in Drive — the phone adds „Datei öffnen“ itself (the server names three buttons). */
+    val deadline: NDeadline? = null,
 )
 
 /** `GET reminders`: [enabled] false — the person switched „Erinnerungen an Aufgaben“ off (no alarms). */
@@ -625,4 +647,8 @@ object NFeature {
     const val DONE_FEEDBACK = "doneFeedback"
     /** `Task.place.mine` and `Task.place.canConsent`. */
     const val PLACE_MINE = "placeMine"
+
+    // plugin 1.7.0
+    /** `Task.deadline`; `deadline` in `GET reminders` and in the reminder's push, its button `open_file`; `me.driveDeadlines`. */
+    const val DRIVE_DEADLINES = "driveDeadlines"
 }

@@ -46,13 +46,25 @@ object ReminderPlan {
         return Plan(set, scheduled - keys)
     }
 
+    /** Android shows three buttons at a notification. */
+    const val MAX_BUTTONS = 3
+
     /**
      * The buttons the phone's alarm shows for [r] — the server's, unchanged and in its order, as far as the phone can
      * do them: „Erledigt“, „Später“ (`snooze_*`), and „Liste öffnen“ (plugin 1.4.0) only while the reminder names the
      * list ([NReminderEntry.attachedList]).
+     *
+     * Plugin 1.7.0 (`driveDeadlines`): the reminder of a deadline in Drive gets „Datei öffnen“ ([openFile], its text;
+     * null: the plugin does not know deadlines — nothing is added) — the server names its three buttons only. Of the
+     * [MAX_BUTTONS] Android shows it is the last: „Erledigt“, the first „Später“, „Datei öffnen“; the other „Später“
+     * is at the task in the app.
      */
-    fun buttons(r: NReminderEntry): List<NReminderAction> = r.actions.filter { a ->
-        a.id == "done" || ReminderGuard.untilOf(a.id) != null || (a.id == NotizenPush.ACTION_OPEN_LIST && r.attachedList != null)
+    fun buttons(r: NReminderEntry, openFile: String? = null): List<NReminderAction> {
+        val own = r.actions.filter { a ->
+            a.id == "done" || ReminderGuard.untilOf(a.id) != null || (a.id == NotizenPush.ACTION_OPEN_LIST && r.attachedList != null)
+        }
+        if (openFile == null || NotizenPush.fileNode(r.deadline) == null) return own
+        return own.take(MAX_BUTTONS - 1) + NReminderAction(NotizenPush.ACTION_OPEN_FILE, openFile)
     }
 
     /**
@@ -141,6 +153,27 @@ object ReminderGuard {
 
     private fun minutes(hhmm: String): Int? = NotizenJson.time(hhmm)?.let { it.substring(0, 2).toInt() * 60 + it.substring(3).toInt() }?.takeIf { it < 24 * 60 }
 
+    /**
+     * Plugin 1.7.0, Drive 1.30.0: the phone's alarm showed the reminder of Drive's deadline [deadlineId] — kept for
+     * [DRIVE_TWIN_MS], so Drive's own message of the same deadline is not shown beside it ([driveTwin]).
+     */
+    fun deadlineShown(shown: Map<Long, Long>, deadlineId: Long, nowMs: Long): Map<Long, Long> =
+        shown.filterValues { nowMs - it in 0 until DRIVE_TWIN_MS }.entries.sortedBy { it.value }.takeLast(MAX - 1).associate { it.key to it.value } + (deadlineId to nowMs)
+
+    /**
+     * Drive's own message of deadline [deadlineId] (topic `deadline`) would be a second one: the phone's alarm of the
+     * hub showed that deadline within the last [DRIVE_TWIN_MS] (the hub could not be asked at that moment, so Drive
+     * sent it itself).
+     */
+    fun driveTwin(shown: Map<Long, Long>, deadlineId: Long?, nowMs: Long): Boolean =
+        deadlineId != null && shown[deadlineId]?.let { nowMs - it in 0 until DRIVE_TWIN_MS } == true
+
+    const val DRIVE_TWIN_MS = 24 * 3_600_000L
+
+    /** `deadline:<n>` (`Task.source.id` of a task that reminds of Drive's deadline n) → n; null: not one. */
+    fun deadlineId(source: NSourceRef?): Long? =
+        source?.takeIf { it.plugin == NotizenOpen.DRIVE }?.let { Regex("^deadline:([1-9]\\d{0,14})$").matchEntire(it.id)?.groupValues?.get(1)?.toLongOrNull() }
+
     /** The reminder a button of the phone's alarm asks for: `done`, or „Später“ `until` of `snooze_*`; null: unknown. */
     fun untilOf(actionId: String): String? = when (actionId) {
         "snooze_1h" -> "1h"
@@ -156,6 +189,8 @@ data class ReminderState(
     /** The [ReminderPlan.Alarm.key]s with an alarm set. */
     val alarms: Set<String> = emptySet(),
     val seen: Map<String, ReminderGuard.Seen> = emptyMap(),
+    /** Plugin 1.7.0: Drive's deadlines (their ids) the phone's alarm showed, and when ([ReminderGuard.driveTwin]). */
+    val deadlines: Map<Long, Long> = emptyMap(),
 ) {
     fun toJson() = JsonObject().apply {
         add("reminders", JsonArray().apply {
@@ -177,11 +212,21 @@ data class ReminderState(
                             addProperty("open", l.open); addProperty("total", l.total)
                         })
                     }
+                    r.deadline?.let { d ->
+                        add("deadline", JsonObject().apply {
+                            d.date?.let { addProperty("date", it) }
+                            d.kind?.let { addProperty("kind", it) }
+                            d.file?.let { addProperty("file", it) }
+                            addProperty("daysBefore", d.daysBefore)
+                            d.open?.let { o -> add("open", JsonObject().apply { addProperty("plugin", o.plugin); addProperty("route", o.route) }) }
+                        })
+                    }
                 })
             }
         })
         add("alarms", JsonArray().apply { alarms.forEach { add(it) } })
         add("seen", JsonObject().apply { seen.forEach { (k, v) -> add(k, JsonObject().apply { addProperty("state", v.state); addProperty("at", v.atMs) }) } })
+        if (deadlines.isNotEmpty()) add("deadlines", JsonObject().apply { deadlines.forEach { (k, v) -> addProperty(k.toString(), v) } })
     }
 
     companion object {
@@ -201,7 +246,12 @@ data class ReminderState(
                     tag to ReminderGuard.Seen(state, runCatching { s.get("at").asLong }.getOrNull() ?: return@mapNotNull null)
                 }?.toMap()
             }.getOrNull().orEmpty()
-            return ReminderState(reminders, alarms, seen)
+            val deadlines = runCatching {
+                o.getAsJsonObject("deadlines")?.entrySet()?.mapNotNull { (k, v) ->
+                    (k.toLongOrNull()?.takeIf { it > 0 } ?: return@mapNotNull null) to (runCatching { v.asLong }.getOrNull() ?: return@mapNotNull null)
+                }?.toMap()
+            }.getOrNull().orEmpty()
+            return ReminderState(reminders, alarms, seen, deadlines)
         }
     }
 }

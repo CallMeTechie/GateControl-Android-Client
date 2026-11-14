@@ -230,6 +230,8 @@ internal fun DeadlineCard(
                 RemindButton(d, open, onRemind)
             }
         }
+        // Drive 1.30.0: „Notizen & Aufgaben“ rings this reminder (as a task, with „Erledigt“ and „Später“) — set and removed here
+        if (d.reminder?.byHub == true) Text(stringResource(R.string.drive_deadline_by_hub_line), style = MaterialTheme.typography.bodySmall, color = x.muted)
     }
 }
 

@@ -1334,11 +1334,19 @@ private fun openPushTarget(
     when (target) {
         // the tab first (Back leads there; it says itself when the plugin is missing or not licensed), then the page
         is PushNavTarget.Notizen -> {
-            com.gatecontrol.android.notizen.NotizenDeepLink.request(com.gatecontrol.android.notizen.NotizenPush.decode(target.dest))
-            com.gatecontrol.android.notizen.NotizenPush.steps(target.dest, notizen).forEach { step ->
-                when (step) {
-                    com.gatecontrol.android.notizen.NotizenPush.Tab -> navigateToTab(NotizenRoutes.TAB)
-                    is com.gatecontrol.android.notizen.NotizenPush.Route -> navController.navigate(step.route) { launchSingleTop = true }
+            // „Datei öffnen“ of a deadline's reminder (Notizen & Aufgaben 1.7.0): the file's page in Drive; without
+            // the Drive tab the task, which names the file
+            val file = com.gatecontrol.android.notizen.NotizenPush.driveFile(target.dest)
+            if (drive && file != null) {
+                navigateToTab(Screen.Drive.route)
+                navController.navigate(Screen.DriveFile.create(file)) { launchSingleTop = true }
+            } else {
+                com.gatecontrol.android.notizen.NotizenDeepLink.request(com.gatecontrol.android.notizen.NotizenPush.decode(target.dest))
+                com.gatecontrol.android.notizen.NotizenPush.steps(target.dest, notizen).forEach { step ->
+                    when (step) {
+                        com.gatecontrol.android.notizen.NotizenPush.Tab -> navigateToTab(NotizenRoutes.TAB)
+                        is com.gatecontrol.android.notizen.NotizenPush.Route -> navController.navigate(step.route) { launchSingleTop = true }
+                    }
                 }
             }
         }

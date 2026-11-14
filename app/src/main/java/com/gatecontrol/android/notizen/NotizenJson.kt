@@ -144,6 +144,25 @@ object NotizenJson {
             shoppingFamily = o.obj("shopping")?.obj("family")?.let { f -> NShoppingFamily(f.bool("available") ?: false, f.bool("bound") ?: false, f.bool("parent") ?: false) },
             places = NotizenPlacesJson.info(o.obj("places")),
             familyTasks = familyTasks(o.obj("familyTasks")),
+            driveDeadlineInfo = o.obj("driveDeadlines")?.let { d -> NDriveDeadlines(d.bool("available") ?: false, d.bool("active") ?: false) },
+        )
+    }
+
+    // ── a deadline of Drive a task reminds of (plugin 1.7.0) ──
+
+    private val DEADLINE_KINDS = setOf("payment", "cancellation", "objection", "warranty", "renewal")
+
+    /** `deadline` of a task, a reminder or a reminder's push; null: none (any other task, an older plugin). */
+    fun deadline(o: JsonObject?): NDeadline? = o?.let { d ->
+        NDeadline(
+            date = date(d.str("date")),
+            kind = d.str("kind")?.takeIf { it in DEADLINE_KINDS },
+            file = d.text("file", 200),
+            daysBefore = d.int("daysBefore")?.coerceIn(0, 366) ?: 0,
+            open = d.obj("open")?.let { op ->
+                val p = op.str("plugin")?.takeIf { PLUGIN.matches(it) } ?: return@let null
+                NOpen(p, op.str("route")?.takeIf { ROUTE.matches(it) } ?: "")
+            },
         )
     }
 
@@ -277,6 +296,7 @@ object NotizenJson {
                     collapseKey = r.str("collapseKey")?.takeIf { COLLAPSE.matches(it) } ?: "task:$taskId",
                     actions = r.arr("actions").each { a -> NReminderAction(a.str("id")?.takeIf { ACTION_ID.matches(it) } ?: return@each null, a.text("label", 40) ?: return@each null) }.take(3),
                     attachedList = attached(r.obj("attachedList")),
+                    deadline = deadline(r.obj("deadline")),
                 )
             }.take(200),
         )
@@ -344,6 +364,7 @@ object NotizenJson {
             stars = o.int("stars")?.coerceIn(0, 10) ?: 0,
             doneBy = person(o.obj("doneBy")),
             family = o.bool("family") ?: false,
+            deadline = deadline(o.obj("deadline")),
         )
     }
 

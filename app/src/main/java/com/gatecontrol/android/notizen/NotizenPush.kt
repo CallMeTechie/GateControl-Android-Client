@@ -25,8 +25,9 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * The destination travels as text in the notification's intent: `task:<id>`, `list:<id>`, `notebook:<id>`,
  * `tresor:<notebookId>:<vaultId>`, `vault:<vaultId>`, `yesterday:<open|done|move>[:<id>-<id>…]`, `shop:<list uid>`
- * (plugin 1.4.0: „Liste öffnen“ of a reminder whose task carries a shopping list), each with `@private` /
- * `@work` when the push names the area.
+ * (plugin 1.4.0: „Liste öffnen“ of a reminder whose task carries a shopping list), `file:<node>:<task id>` (plugin
+ * 1.7.0: „Datei öffnen“ of the reminder of a deadline in Drive), each with `@private` / `@work` when the push names
+ * the area.
  */
 object NotizenPush {
     private const val TOPIC_PREFIX = "plugin:$NOTIZEN_PLUGIN:"
@@ -51,8 +52,17 @@ object NotizenPush {
     /** Plugin 1.4.0: the shopping list a reminded task carries (the button „Liste öffnen“), to tick off. */
     data class Shopping(val uid: String, override val area: String? = null) : Target
 
+    /**
+     * Plugin 1.7.0 (`driveDeadlines`): the file in Drive the deadline of the reminded task [taskId] hangs on (the button
+     * „Datei öffnen“) — its page in the Drive tab; without that tab the task.
+     */
+    data class File(val node: Long, val taskId: Long, override val area: String? = null) : Target
+
     /** The button of a reminder with a list: not a callback — the app opens the list itself. */
     const val ACTION_OPEN_LIST = "open_list"
+
+    /** The button of the reminder of a deadline in Drive (plugin 1.7.0): the server sends a portal link — the app has the file's page. */
+    const val ACTION_OPEN_FILE = "open_file"
 
     const val Y_OPEN = "open"
     const val Y_DONE = "done"
@@ -137,6 +147,40 @@ object NotizenPush {
     fun listButton(listDest: String?, actionId: String?): String? =
         listDest?.takeIf { actionId == ACTION_OPEN_LIST && decode(it) is Shopping }
 
+    /** The file's node in Drive of [deadline] (`open { plugin: gatecontrol-drive, route: node/<id> }`); null: none the app can open. */
+    fun fileNode(deadline: NDeadline?): Long? =
+        (NotizenOpen.target(deadline?.open, NotizenOpen.Have(mail = false, drive = true, familie = false, schule = false)) as? NotizenOpen.DriveFile)?.id
+
+    /**
+     * Where „Datei öffnen“ of the reminder of a deadline leads (plugin 1.7.0, `data.notizen.deadline.open`); null: the
+     * push carries none (the button then opens the portal, as for an app that does not know deadlines).
+     */
+    fun fileDestination(message: PushMessage): String? {
+        if (message.topic != TOPIC_REMINDERS) return null
+        val n = runCatching { JsonParser.parseString(message.dataJson ?: return null).asJsonObject.get("notizen") }.getOrNull()
+            ?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        if (n.str("kind") != "reminder") return null
+        val node = fileNode(NotizenJson.deadline(n.get("deadline")?.takeIf { it.isJsonObject }?.asJsonObject)) ?: return null
+        val task = n.id("taskId") ?: n.id("task") ?: return null
+        return encode(File(node, task, n.str("area")?.takeIf { it == NArea.PRIVATE || it == NArea.WORK }))
+    }
+
+    /** The destination of the button [actionId] of a push whose file is [fileDest]: the file for „Datei öffnen“, else null. */
+    fun fileButton(fileDest: String?, actionId: String?): String? =
+        fileDest?.takeIf { actionId == ACTION_OPEN_FILE && decode(it) is File }
+
+    /**
+     * The buttons of [message] for a notification with room for [max]: the push of a deadline brings four — „Erledigt“,
+     * two „Später“ and „Datei öffnen“ (plugin 1.7.0). Android shows three: „Erledigt“, the first „Später“ and „Datei
+     * öffnen“, as the phone's own alarm shows them ([ReminderPlan.buttons]). Every other message: its buttons, unchanged.
+     */
+    fun buttons(message: PushMessage, max: Int = ReminderPlan.MAX_BUTTONS): List<com.gatecontrol.android.notify.model.PushAction> {
+        val actions = message.actions
+        val file = actions.firstOrNull { it.id == ACTION_OPEN_FILE }
+        if (file == null || actions.size <= max || actions.indexOf(file) < max || fileDestination(message) == null) return actions
+        return actions.filter { it !== file }.take(max - 1) + file
+    }
+
     /**
      * The destination of a button of the morning hint that opens the app: `done_ask` → the card with the question,
      * `move` → with the choice of days. null: not such a button (GateControl sends them as a portal link — the app has
@@ -159,11 +203,12 @@ object NotizenPush {
         is VaultRequest -> "vault:${t.vaultId}"
         is Yesterday -> "yesterday:${t.action}" + if (t.ids.isEmpty()) "" else ":" + t.ids.take(Y_MAX).joinToString("-")
         is Shopping -> "shop:${t.uid}"
+        is File -> "file:${t.node}:${t.taskId}"
     } + (t.area?.let { "@$it" } ?: "")
 
     private val YDEST = Regex("^yesterday:(open|done|move)(?::([1-9]\\d{0,14}(?:-[1-9]\\d{0,14}){0,19}))?(?:@(private|work))?$")
 
-    private val DEST = Regex("^(task|list|notebook|tresor|vault|shop):([A-Za-z0-9_:-]{1,80})(?:@(private|work))?$")
+    private val DEST = Regex("^(task|list|notebook|tresor|vault|shop|file):([A-Za-z0-9_:-]{1,80})(?:@(private|work))?$")
 
     /** A destination of [destination] again; null when it is not one. */
     fun decode(dest: String?): Target? {
@@ -180,6 +225,10 @@ object NotizenPush {
             "list" -> id?.let { ListPage(it, area) }
             "notebook" -> id?.let { Notebook(it, area) }
             "shop" -> NotizenJson.listUid(rest)?.let { Shopping(it, area) }
+            "file" -> {
+                val node = rest.substringBefore(':').toLongOrNull()?.takeIf { it > 0 } ?: return null
+                rest.substringAfter(':', "").toLongOrNull()?.takeIf { it > 0 }?.let { File(node, it, area) }
+            }
             "tresor" -> {
                 val nb = rest.substringBefore(':').toLongOrNull()?.takeIf { it > 0 } ?: return null
                 NotizenJson.vaultId(rest.substringAfter(':', ""))?.let { Tresor(nb, it, area) }
@@ -211,8 +260,13 @@ object NotizenPush {
             // „Mein Tag“ of the tab, with the card (NotizenDeepLink)
             is Yesterday -> emptyList()
             is Shopping -> listOf(Route(NotizenRoutes.shopping(t.uid)))
+            // without the Drive tab (else [driveFile] leads there): the task, which names the file
+            is File -> listOf(Route(NotizenRoutes.task(t.taskId)))
         }
     }
+
+    /** [dest] is „Datei öffnen“ of a deadline's reminder → the file's node in Drive (the app opens its page there). */
+    fun driveFile(dest: String?): Long? = (decode(dest) as? File)?.node
 
     private fun JsonObject.str(k: String): String? = get(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
     private fun JsonObject.id(k: String): Long? = get(k)?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asString.trim().toLong() }.getOrNull() }?.takeIf { it > 0 }

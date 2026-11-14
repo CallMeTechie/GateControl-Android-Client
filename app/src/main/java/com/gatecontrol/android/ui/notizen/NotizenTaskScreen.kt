@@ -330,7 +330,8 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                     Box {
                         GcIconButton(GcIcons.MoreVertical, stringResource(R.string.notizen_more), { more = true })
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.notizen_delete)) }, onClick = { more = false; vm.delete(nav.back) }, leadingIcon = { Icon(GcIcons.Trash, null) })
+                            // plugin 1.7.0: deleting the task of a deadline in Drive means „no reminder“ — said before it goes
+                            DropdownMenuItem(text = { Text(stringResource(R.string.notizen_delete)) }, onClick = { more = false; if (d.task.deadline != null) dialog = "delete_deadline" else vm.delete(nav.back) }, leadingIcon = { Icon(GcIcons.Trash, null) })
                         }
                     }
                 }
@@ -378,8 +379,14 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                         )
                     }
                 }
-                d.sourceItem?.let { src ->
-                    item { SourceLine(src, nav) }
+                // plugin 1.7.0 (`driveDeadlines`): the deadline in Drive this task reminds of, with „Datei öffnen“
+                val deadline = d.task.deadline
+                if (deadline != null) {
+                    item { DeadlineLine(deadline, d.task.due?.date, today, lang, words) { open -> if (!nav.openSource(open)) vm.notHere() } }
+                } else {
+                    d.sourceItem?.let { src ->
+                        item { SourceLine(src, nav) }
+                    }
                 }
                 // plugin 1.6.0: for whom it was ticked off — and, for a parent of the family, „Noch nicht fertig“ (the
                 // task is open again, the stars are taken back)
@@ -502,7 +509,7 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                         Text(stringResource(R.string.notizen_note), style = MaterialTheme.typography.titleSmall)
                         OutlinedTextField(note, { note = it.take(20_000) }, readOnly = ro, modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).onFocusLost { vm.setNote(note) }, placeholder = { Text(stringResource(R.string.notizen_note_hint)) })
                         val src = d.sourceItem
-                        if (src != null) Text(stringResource(R.string.notizen_done_there, src.sourceLabel), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                        if (src != null && d.task.deadline == null) Text(stringResource(R.string.notizen_done_there, src.sourceLabel), style = MaterialTheme.typography.bodySmall, color = x.muted)
                     }
                 }
             }
@@ -524,6 +531,13 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                     val shopping by vm.shopping.collectAsStateWithLifecycle()
                     AttachDialog(shopping, d.task.attachedList?.uid, me?.userName, { no -> dialog = null; vm.setAttached(no) }, { dialog = "attach_new" }, { dialog = null })
                 }
+                "delete_deadline" -> AlertDialog(
+                    onDismissRequest = { dialog = null },
+                    title = { Text(stringResource(R.string.notizen_dl_delete_title)) },
+                    text = { Text(stringResource(R.string.notizen_dl_delete_text)) },
+                    confirmButton = { TextButton(onClick = { dialog = null; vm.delete(nav.back) }) { Text(stringResource(R.string.notizen_delete), color = MaterialTheme.colorScheme.error) } },
+                    dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.notizen_cancel)) } },
+                )
                 "attach_new" -> NameDialog(
                     title = stringResource(R.string.notizen_attached_new),
                     onDismiss = { dialog = null },
@@ -577,6 +591,40 @@ private fun SourceLine(src: NItem, nav: NotizenNav) {
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { nav.openSource(src.open) }.padding(6.dp),
             )
         }
+    }
+}
+
+/**
+ * „Drive · Frist 30.11. · Versicherungsschein.pdf · 3 Tage vorher · Datei öffnen“ and what belongs where (plugin 1.7.0,
+ * `driveDeadlines`): the deadline and its reminder stay at the file in Drive. [onOpen]: the file's page.
+ */
+@Composable
+internal fun DeadlineLine(deadline: com.gatecontrol.android.notizen.NDeadline, due: String?, today: String, lang: String, words: Triple<String, String, String>, onOpen: (com.gatecontrol.android.notizen.NOpen) -> Unit) {
+    val x = GateControlTheme.extraColors
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(12.dp)).background(x.panel2).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NSourceBadge(DRIVE_PLUGIN, stringResource(R.string.notizen_dl_source))
+            val day = NotizenFormat.due((deadline.date ?: due)?.let { NDue(it, null) }, today, lang, words)
+            Text(
+                listOfNotNull(day?.let { stringResource(R.string.notizen_dl_line, it) }, deadline.file, deadlineBefore(deadline.daysBefore)).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = x.muted,
+                modifier = Modifier.weight(1f),
+                maxLines = 3,
+            )
+            deadline.open?.let { open ->
+                Text(
+                    stringResource(R.string.notizen_dl_open_file),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { onOpen(open) }.padding(6.dp),
+                )
+            }
+        }
+        Text(stringResource(R.string.notizen_dl_hint), style = MaterialTheme.typography.bodySmall, color = x.muted)
     }
 }
 

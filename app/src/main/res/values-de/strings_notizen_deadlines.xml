@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: the reminders of Drive's deadlines ring from here (plugin gatecontrol-notizen 1.7.0, Drive 1.30.0). -->
+<resources>
+    <string name="notizen_dl_before_0">Erinnerung am Tag selbst</string>
+    <string name="notizen_dl_before_1">1 Tag vorher</string>
+    <string name="notizen_dl_before_n">%1$d Tage vorher</string>
+    <string name="notizen_dl_delete_text">Löschen entfernt die Erinnerung an diese Frist. Die Frist bleibt in Drive.</string>
+    <string name="notizen_dl_delete_title">Erinnerung an die Frist löschen?</string>
+    <string name="notizen_dl_hint">Die Frist steht an der Datei in Drive. Wie viele Tage vorher erinnert wird, stellst du dort ein; „Erledigt“ hakt sie auch in Drive ab.</string>
+    <string name="notizen_dl_line">Frist %1$s</string>
+    <string name="notizen_dl_open_file">Datei öffnen</string>
+    <string name="notizen_dl_settings_on">Drive lässt an seine Fristen von hier erinnern – mit „Erledigt“ und „Später“ wie bei jeder Aufgabe. Die Frist und wie viele Tage vorher bleiben an der Datei in Drive.</string>
+</resources>

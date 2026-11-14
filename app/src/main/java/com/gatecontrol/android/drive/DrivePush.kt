@@ -33,6 +33,16 @@ object DrivePush {
         }
     }
 
+    /**
+     * The deadline a push of the topic `deadline` reminds of (`data.drive.deadline`) — Drive's own reminder, which it
+     * only sends for a deadline „Notizen & Aufgaben“ does not ring (Drive 1.30.0); null for every other message.
+     */
+    fun deadlineOf(message: PushMessage): Long? {
+        if (message.topic != TOPIC_PREFIX + "deadline") return null
+        return runCatching { JsonParser.parseString(message.dataJson ?: return null).asJsonObject.get("drive") }.getOrNull()
+            ?.takeIf { it.isJsonObject }?.asJsonObject?.id("deadline")
+    }
+
     private fun JsonObject.id(key: String): Long? = get(key)?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asLong }.getOrNull() }?.takeIf { it > 0 }
 
     /** A destination of [destination] → the file's node id, or null. */
