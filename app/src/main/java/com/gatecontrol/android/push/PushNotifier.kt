@@ -335,7 +335,9 @@ class PushNotifier @Inject constructor(
         val mailDest = com.gatecontrol.android.mail.MailPush.destination(message)
         // Notizen & Aufgaben: a reminder or an assignment opens the task, a share the list or notebook, a request the Tresor
         val notizenDest = com.gatecontrol.android.notizen.NotizenPush.destination(message)
-        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest, notizenDest).setData(uri(message, slot))
+        // … and „Liste öffnen“ of a reminder whose task carries a shopping list opens that list (1.4.0)
+        val notizenList = com.gatecontrol.android.notizen.NotizenPush.listButton(com.gatecontrol.android.notizen.NotizenPush.listDestination(message), action?.id)
+        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest, notizenDest, notizenList).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 

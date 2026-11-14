@@ -213,6 +213,56 @@ internal fun PeopleDialog(people: List<NPersonPick>, current: Long?, onPick: (Lo
     )
 }
 
+/**
+ * „Liste anhängen“ (plugin 1.4.0, mockup „Oder du wählst sie aus“): my shopping lists and those shared with me —
+ * „Familie · 8 offen“, „nur ich · 2 offen“ or the names — „Keine Liste“ and „Neue Liste“. A list made on this phone
+ * that the server does not know yet has no number and is not offered.
+ */
+@Composable
+internal fun AttachDialog(
+    view: com.gatecontrol.android.familie.shopping.ShoppingSnapshot,
+    current: String?,
+    me: String?,
+    onPick: (Long?) -> Unit,
+    onNew: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val x = GateControlTheme.extraColors
+    val counts = com.gatecontrol.android.familie.shopping.ShoppingLogic.openCounts(view)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.notizen_attached_pick)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (current != null) {
+                    Text(stringResource(R.string.notizen_attached_none), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(role = Role.RadioButton) { onPick(null) }.padding(vertical = 12.dp, horizontal = 4.dp))
+                }
+                view.lists.filter { it.listNo != null }.forEach { l ->
+                    val with = com.gatecontrol.android.notizen.NotizenShoppingLogic.sharedWith(l, me)
+                    val who = when {
+                        with == null -> stringResource(R.string.notizen_shop_family)
+                        with.isEmpty() -> stringResource(R.string.notizen_attached_only_me)
+                        else -> with.joinToString(", ")
+                    }
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(role = Role.RadioButton) { onPick(l.listNo) }.padding(vertical = 10.dp, horizontal = 4.dp)) {
+                        Text(l.name, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (l.id == current) FontWeight.Bold else FontWeight.Medium))
+                        Text(stringResource(R.string.notizen_attached_who_open, who, counts[l.id] ?: 0), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onNew).padding(vertical = 12.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(GcIcons.Plus, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.notizen_attached_new), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.notizen_cancel)) } },
+    )
+}
+
 /** One row of the details (`label … value ›`). */
 @Composable
 internal fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, onClick: (() -> Unit)?, trailing: (@Composable () -> Unit)? = null) {
@@ -364,6 +414,29 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                         DetailRow(GcIcons.Bell, stringResource(R.string.notizen_reminder), NotizenFormat.due(remind, today, lang, words) ?: stringResource(R.string.notizen_none), if (ro) null else ({ dialog = "remind" }))
                         DetailRow(GcIcons.Refresh, stringResource(R.string.notizen_repeat), NRepeat.describe(d.task.repeat, lang), if (ro) null else ({ dialog = "repeat" }))
                         DetailRow(GcIcons.User, stringResource(R.string.notizen_assigned), d.task.assignee?.let { a -> if (a.id == me?.userId) stringResource(R.string.notizen_me) else a.name } ?: stringResource(R.string.notizen_nobody), if (ro) null else ({ dialog = "people" }))
+                        // plugin 1.4.0 (`taskList`, mockup „Oder du wählst sie aus“): the shopping list this task carries
+                        val attached = d.task.attachedList
+                        if (me?.taskList == true && d.task.parentId == null && (attached != null || !ro)) {
+                            DetailRow(
+                                GcIcons.Cart,
+                                stringResource(R.string.notizen_attached_list),
+                                stringResource(R.string.notizen_attached_choose),
+                                if (!ro) ({ dialog = "attach" }) else attached?.let { a -> { nav.shopping(a.uid) } },
+                                trailing = attached?.let { a ->
+                                    {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(stringResource(R.string.notizen_attached_count, a.name, a.done, a.total), style = MaterialTheme.typography.titleSmall, color = x.muted, maxLines = 1)
+                                            Text(
+                                                stringResource(R.string.notizen_attached_open),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { nav.shopping(a.uid) }.padding(horizontal = 6.dp, vertical = 8.dp),
+                                            )
+                                        }
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
                 item {
@@ -391,6 +464,15 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                 }
                 "repeat" -> RepeatDialog(d.task.repeat, d.task.due?.date, today, lang, { r -> dialog = null; vm.setRepeat(r) }, { dialog = null })
                 "people" -> PeopleDialog(ui.people, d.task.assignee?.id, { p -> dialog = null; vm.setAssignee(p) }, { dialog = null })
+                "attach" -> {
+                    val shopping by vm.shopping.collectAsStateWithLifecycle()
+                    AttachDialog(shopping, d.task.attachedList?.uid, me?.userName, { no -> dialog = null; vm.setAttached(no) }, { dialog = "attach_new" }, { dialog = null })
+                }
+                "attach_new" -> NameDialog(
+                    title = stringResource(R.string.notizen_attached_new),
+                    onDismiss = { dialog = null },
+                    onDone = { name -> dialog = null; vm.attachNew(name) },
+                )
             }
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp)) { Snackbar(it) }
@@ -565,7 +647,7 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
                     }
                 }
             }
-            val rc = rowCtx(me.today, me.lang, { null })
+            val rc = rowCtx(me.today, me.lang, { null }, openList = nav.shopping)
             val shared = list?.shared == true
             val canAssign = shared && list?.canEdit != false && !me.readOnly
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {

@@ -47,6 +47,15 @@ object ReminderPlan {
     }
 
     /**
+     * The buttons the phone's alarm shows for [r] — the server's, unchanged and in its order, as far as the phone can
+     * do them: „Erledigt“, „Später“ (`snooze_*`), and „Liste öffnen“ (plugin 1.4.0) only while the reminder names the
+     * list ([NReminderEntry.attachedList]).
+     */
+    fun buttons(r: NReminderEntry): List<NReminderAction> = r.actions.filter { a ->
+        a.id == "done" || ReminderGuard.untilOf(a.id) != null || (a.id == NotizenPush.ACTION_OPEN_LIST && r.attachedList != null)
+    }
+
+    /**
      * The person settled task [taskId] on this phone already and it only waits for a connection ([ops], the outbox):
      * ticked off, deleted, or its reminder moved with „Später“ — its alarm stays quiet.
      */
@@ -162,6 +171,12 @@ data class ReminderState(
                     addProperty("important", r.important)
                     addProperty("collapseKey", r.collapseKey)
                     add("actions", JsonArray().apply { r.actions.forEach { a -> add(JsonObject().apply { addProperty("id", a.id); addProperty("label", a.label) }) } })
+                    r.attachedList?.let { l ->
+                        add("attachedList", JsonObject().apply {
+                            addProperty("id", l.id); addProperty("uid", l.uid); addProperty("name", l.name)
+                            addProperty("open", l.open); addProperty("total", l.total)
+                        })
+                    }
                 })
             }
         })

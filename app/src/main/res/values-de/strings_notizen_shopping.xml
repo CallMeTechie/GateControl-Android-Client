@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: shopping lists in the hub, the list a task carries (plugin gatecontrol-notizen 1.4.0). -->
+<resources>
+    <string name="notizen_attached_choose">Liste wählen …</string>
+    <string name="notizen_attached_list">Angehängte Liste</string>
+    <string name="notizen_attached_new">Neue Liste</string>
+    <string name="notizen_attached_none">Keine Liste</string>
+    <string name="notizen_attached_only_me">nur ich</string>
+    <string name="notizen_attached_open">Liste öffnen</string>
+    <string name="notizen_attached_pick">Liste anhängen</string>
+    <string name="notizen_attached_who_open">%1$s · %2$d offen</string>
+    <string name="notizen_msg_list_later">Die Liste ist angelegt. Anhängen kannst du sie, sobald eine Verbindung besteht.</string>
+    <string name="notizen_quick_attach">Liste: %1$s · %2$d offen</string>
+    <string name="notizen_quick_attach_choose">Einkaufsliste anhängen …</string>
+    <string name="notizen_quick_attach_hint">„%1$s“ passt zur Liste %2$s. Der Baustein lässt sich wegnehmen oder gegen eine andere Liste tauschen.</string>
+    <string name="notizen_shop_add">Punkt hinzufügen</string>
+    <string name="notizen_shop_all_done_task">Alles abgehakt. „%1$s“ ist erledigt.</string>
+    <string name="notizen_shop_all_done_tasks">Alles abgehakt. %1$d Aufgaben sind erledigt.</string>
+    <string name="notizen_shop_belongs">gehört zu „%1$s“</string>
+    <string name="notizen_shop_belongs_progress">gehört zu „%1$s“ · %2$d von %3$d</string>
+    <string name="notizen_shop_clear_checked">Abgehakte entfernen</string>
+    <string name="notizen_shop_delete_shared_text">„%1$s“ mit allen Punkten für alle löschen, mit denen sie geteilt ist? Sie liegt noch 30 Tage im Papierkorb.</string>
+    <string name="notizen_shop_delete_text">„%1$s“ mit allen Punkten löschen? Sie liegt noch 30 Tage im Papierkorb.</string>
+    <string name="notizen_shop_edit_item">Punkt ändern</string>
+    <string name="notizen_shop_empty">Die Liste ist leer. Schreib unten den ersten Punkt.</string>
+    <string name="notizen_shop_family">Familie</string>
+    <string name="notizen_shop_gone">Diese Liste gibt es nicht mehr, oder sie ist nicht mehr mit dir geteilt.</string>
+    <string name="notizen_shop_item">Punkt</string>
+    <string name="notizen_shop_lists">Einkaufslisten</string>
+    <string name="notizen_shop_new">Neue Einkaufsliste</string>
+    <string name="notizen_shop_none">Noch keine Einkaufsliste.</string>
+    <string name="notizen_shop_progress">%1$d von %2$d abgehakt</string>
+    <string name="notizen_shop_read_only">Du kannst diese Liste nur ansehen.</string>
+    <string name="notizen_shop_title">Einkaufsliste</string>
+    <string name="notizen_shop_undo">Rückgängig</string>
+    <string name="notizen_shop_undone">Die Aufgabe ist wieder offen.</string>
+    <string name="notizen_shop_undone_queued">Die Aufgabe ist wieder offen. Das wird gesendet, sobald eine Verbindung besteht.</string>
+</resources>

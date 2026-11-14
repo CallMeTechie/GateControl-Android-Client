@@ -206,6 +206,32 @@ class NotizenApi @Inject constructor(
     /** `GET reminders`: what the server would remind me of in the next 30 days (for the phone's own alarms). */
     suspend fun reminders(): NResult<NReminderFeed> = get("reminders", parse = NotizenJson::reminders)
 
+    // ── shopping lists (plugin 1.4.0, `shoppingLists`) ──────
+
+    /** `GET shopping[?since=<serverTime>]`: every list I see; with [since] the entries changed since, with tombstones. */
+    suspend fun shopping(since: String?): NResult<com.gatecontrol.android.familie.shopping.ShoppingSnapshot> =
+        get("shopping", if (since != null) mapOf("since" to since) else emptyMap()) { com.gatecontrol.android.familie.FamilieJson.shopping(it) }
+
+    /** `POST shopping/ops { ops }`: at most 200, in order, safe to send again. */
+    suspend fun shoppingOps(ops: List<com.gatecontrol.android.familie.shopping.ShoppingOp>): NResult<com.gatecontrol.android.familie.FamilieJson.OpsResult> =
+        post("shopping/ops", com.gatecontrol.android.familie.FamilieJson.opsBody(ops)) { com.gatecontrol.android.familie.FamilieJson.opsResult(it) }
+
+    /** „Ich gehe einkaufen“ for the family list [uid] (`familyShopping`). */
+    suspend fun shoppingGoing(uid: String): NResult<Unit> {
+        val id = NotizenJson.listUid(uid) ?: return NResult.Failed("invalid", 0)
+        return post("shopping/lists/$id/going", parse = unit)
+    }
+
+    /** „Kannst du einkaufen gehen?“: asks [userId] (null: nobody any more) for the family list [uid]; → `notified` as the Familie plugin says it. */
+    suspend fun shoppingAssign(uid: String, userId: Int?, dueAt: String?, notify: String): NResult<NDelivery> {
+        val id = NotizenJson.listUid(uid) ?: return NResult.Failed("invalid", 0)
+        return post("shopping/lists/$id/assign", NotizenJson.shoppingAssignBody(userId, dueAt, notify), parse = NotizenJson::delivery)
+    }
+
+    /** `POST parse { text, area }` → the list the server suggests for the line (`taskList`); null inside: none. */
+    suspend fun parseAttach(text: String, area: String): NResult<NParseAttach> =
+        post("parse", NotizenJson.parseBody(text, area)) { o -> NParseAttach(NotizenJson.attach(o.get("attach")?.takeIf { it.isJsonObject }?.asJsonObject)) }
+
     suspend fun item(id: Long): NResult<Pair<NItem, Long?>> = get("items/$id", parse = NotizenJson::itemAnswer)
 
     suspend fun completeItem(id: Long, done: Boolean): NResult<NItem> = post("items/$id/complete", NotizenJson.doneBody(done)) { o -> NotizenJson.itemAnswer(o)?.first }

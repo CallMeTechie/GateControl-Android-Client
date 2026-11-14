@@ -302,9 +302,20 @@ class NotizenReminderCenter @Inject constructor(
             builder.setContentText(r.body.lineSequence().first())
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(r.body))
         }
-        // the server's buttons for this moment, unchanged — here they go straight to the API
-        r.actions.filter { it.id == ACTION_DONE || ReminderGuard.untilOf(it.id) != null }.forEachIndexed { i, a ->
-            builder.addAction(0, a.label, PendingIntent.getBroadcast(context, 0, NotizenReminderReceiver.intent(context, NotizenReminderReceiver.ACTION_BUTTON, r, a.id, i), flags))
+        // the server's buttons for this moment, unchanged — here they go straight to the API; „Liste öffnen“ (plugin
+        // 1.4.0, a task with a shopping list) opens that list in the app, to tick off
+        ReminderPlan.buttons(r).forEachIndexed { i, a ->
+            val list = r.attachedList?.takeIf { a.id == NotizenPush.ACTION_OPEN_LIST }
+            val intent = if (list != null) {
+                PendingIntent.getActivity(
+                    context, 0,
+                    PushOpenActivity.notizenIntent(context, NotizenPush.encode(NotizenPush.Shopping(list.uid, r.area)), r.tag).setData("gatecontrol-notizen://list/${r.collapseKey}".toUri()),
+                    flags,
+                )
+            } else {
+                PendingIntent.getBroadcast(context, 0, NotizenReminderReceiver.intent(context, NotizenReminderReceiver.ACTION_BUTTON, r, a.id, i), flags)
+            }
+            builder.addAction(0, a.label, intent)
         }
         return try {
             NotificationManagerCompat.from(context).notify(id, builder.build())

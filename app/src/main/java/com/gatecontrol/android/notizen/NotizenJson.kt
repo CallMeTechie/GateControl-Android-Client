@@ -114,7 +114,53 @@ object NotizenJson {
             readOnly = o.bool("readOnly") ?: false,
             listIcons = o.arr("listIcons")?.mapNotNull { runCatching { it.asString }.getOrNull()?.takeIf { ICON.matches(it) } }?.distinct()?.take(40).orEmpty(),
             calendar = o.obj("calendar")?.let { c -> NCalendarInfo(c.bool("available") ?: false, c.bool("enabled") ?: false, c.bool("mine") ?: false, c.text("name", 80)) },
+            shoppingFamily = o.obj("shopping")?.obj("family")?.let { f -> NShoppingFamily(f.bool("available") ?: false, f.bool("bound") ?: false, f.bool("parent") ?: false) },
         )
+    }
+
+    // ── shopping lists, the list a task carries (plugin 1.4.0) ──
+
+    private val LIST_UID = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$")
+
+    /** The id a device gave a shopping list (8–64 of `[A-Za-z0-9_-]`); anything else is not one. */
+    fun listUid(v: String?): String? = v?.takeIf { LIST_UID.matches(it) }
+
+    /** `attachedList` of a task, a reminder or a suggestion; without its number and id it is none. */
+    fun attached(o: JsonObject?): NAttached? = o?.let { a ->
+        val total = a.int("total")?.coerceAtLeast(0) ?: 0
+        val open = a.int("open")?.coerceIn(0, total) ?: 0
+        NAttached(
+            id = a.id("id") ?: return null,
+            uid = listUid(a.str("uid")) ?: return null,
+            name = a.text("name", 40)?.takeIf { it.isNotBlank() } ?: return null,
+            icon = a.str("icon")?.takeIf { ICON.matches(it) },
+            open = open,
+            total = total,
+            done = a.int("done")?.coerceIn(0, total) ?: (total - open),
+            family = a.bool("family") ?: false,
+        )
+    }
+
+    /** `POST parse` → `attach` (null: no suggestion; an older plugin has no such field). */
+    fun attach(o: JsonObject?): NAttach? = o?.let { a ->
+        val via = a.str("via")?.takeIf { it == "tag" || it == "name" || it == "word" } ?: return null
+        val lists = a.arr("lists").each(::attached).take(20)
+        val one = attached(a.obj("list"))
+        if (one == null && lists.isEmpty()) return null
+        NAttach(via, a.text("word", 40), one, lists.ifEmpty { listOfNotNull(one) })
+    }
+
+    /** `notified` of `POST shopping/lists/<uid>/assign`. */
+    fun delivery(o: JsonObject): NDelivery = o.obj("notified").let { n -> NDelivery(n?.bool("ok"), n?.text("code", 40)) }
+
+    /** `POST parse { text, area }`. */
+    fun parseBody(text: String, area: String) = JsonObject().apply { addProperty("text", text.take(1000)); addProperty("area", area) }
+
+    /** `POST shopping/lists/<uid>/assign { userId | null, dueAt?, notify? }`. */
+    fun shoppingAssignBody(userId: Int?, dueAt: String?, notify: String?) = JsonObject().apply {
+        if (userId != null) addProperty("userId", userId) else add("userId", JsonNull.INSTANCE)
+        dueAt?.let { addProperty("dueAt", it) }
+        notify?.let { addProperty("notify", it) }
     }
 
     // ── reminders, „Gestern offen geblieben“, the calendar (plugin 1.3.0) ──
@@ -179,6 +225,7 @@ object NotizenJson {
                     important = r.bool("important") ?: false,
                     collapseKey = r.str("collapseKey")?.takeIf { COLLAPSE.matches(it) } ?: "task:$taskId",
                     actions = r.arr("actions").each { a -> NReminderAction(a.str("id")?.takeIf { ACTION_ID.matches(it) } ?: return@each null, a.text("label", 40) ?: return@each null) }.take(3),
+                    attachedList = attached(r.obj("attachedList")),
                 )
             }.take(200),
         )
@@ -236,6 +283,7 @@ object NotizenJson {
             snoozed = o.bool("snoozed") ?: false,
             missedReminder = o.bool("missedReminder") ?: false,
             calendar = taskCalendar(o.obj("calendar")),
+            attachedList = attached(o.obj("attachedList")),
         )
     }
 
@@ -457,6 +505,19 @@ object NotizenJson {
             notesTotal = notes?.int("total") ?: 0,
             notebooks = notes?.arr("notebooks").each(::notebook),
             tags = tags(notes?.arr("tags")),
+            shopping = o.arr("shopping").each { l ->
+                NNavShop(
+                    uid = listUid(l.str("id")) ?: return@each null,
+                    listNo = l.id("listId"),
+                    name = l.text("name", 40) ?: return@each null,
+                    icon = l.str("icon")?.takeIf { ICON.matches(it) },
+                    open = l.int("open")?.coerceAtLeast(0) ?: 0,
+                    total = l.int("total")?.coerceAtLeast(0) ?: 0,
+                    family = l.bool("family") ?: false,
+                    shared = l.bool("shared") ?: false,
+                    role = l.str("role")?.takeIf { it == "owner" || it == "write" || it == "read" },
+                )
+            },
         )
     }
 

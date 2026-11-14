@@ -172,14 +172,52 @@ data class RowCtx(
     val showDay: Boolean = true,
     /** Plugin 1.3.0: the mark „im Kalender“ shows (Mail offers the calendar, the administrator and I have it on). */
     val calendar: Boolean = false,
+    /** Plugin 1.4.0: a tap on „Einkauf 0/8“ of a task opens that shopping list (its id); null: the mark is not a button. */
+    val openList: ((String) -> Unit)? = null,
 )
 
 @Composable
-internal fun rowCtx(today: String, lang: String, listPath: (Long?) -> String?, showDay: Boolean = true, timeFirst: Boolean = false, calendar: Boolean = false) = RowCtx(
+internal fun rowCtx(
+    today: String,
+    lang: String,
+    listPath: (Long?) -> String?,
+    showDay: Boolean = true,
+    timeFirst: Boolean = false,
+    calendar: Boolean = false,
+    openList: ((String) -> Unit)? = null,
+) = RowCtx(
     today, lang, listPath,
     Triple(stringResource(R.string.notizen_today_word), stringResource(R.string.notizen_tomorrow_word), stringResource(R.string.notizen_yesterday_word)),
-    timeFirst, showDay, calendar,
+    timeFirst, showDay, calendar, openList,
 )
+
+/**
+ * The shopping list a task carries and how far it is ticked off: „Einkauf 0/8“ (plugin 1.4.0, mockup „Aufgabe mit
+ * Liste in ‚Mein Tag‘“). A tap opens the list; the row around it still opens the task.
+ */
+@Composable
+internal fun NListMark(list: com.gatecontrol.android.notizen.NAttached, onOpen: ((String) -> Unit)?) {
+    val x = GateControlTheme.extraColors
+    Row(
+        Modifier
+            .heightIn(min = 28.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, x.border2, RoundedCornerShape(14.dp))
+            .then(if (onOpen != null) Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.notizen_attached_open)) { onOpen(list.uid) } else Modifier)
+            .padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Icon(GcIcons.Cart, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(13.dp))
+        Text(
+            stringResource(R.string.notizen_attached_count, list.name, list.done, list.total),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
 /** A little mark of a row with its sign: „Erinnerung“, „im Kalender“ (plugin 1.3.0, mockup „Am nächsten Tag in ‚Mein Tag‘“). */
 @Composable
@@ -263,6 +301,7 @@ internal fun NEntryRow(
                         item.meta["amount"]?.let { meta.add(it) }
                         item.progress?.let { meta.add("${it.done}/${it.total}") }
                     }
+                    task?.attachedList?.let { NListMark(it, ctx.openList) }
                     if (task != null) NSyncMark(task.pending, task.conflict)
                     if (task != null) {
                         ctx.listPath(task.listId)?.let { meta.add(it) }
@@ -441,6 +480,7 @@ internal fun messageText(code: String): String = when (code) {
     "task_saved" -> stringResource(R.string.notizen_msg_task_saved)
     "note_saved" -> stringResource(R.string.notizen_msg_note_saved)
     "list_created" -> stringResource(R.string.notizen_msg_list_created)
+    "list_later" -> stringResource(R.string.notizen_msg_list_later)
     "next" -> stringResource(R.string.notizen_msg_next)
     "sync_scheduled" -> stringResource(R.string.notizen_msg_sync_scheduled)
     "sync_recent" -> stringResource(R.string.notizen_msg_sync_recent)

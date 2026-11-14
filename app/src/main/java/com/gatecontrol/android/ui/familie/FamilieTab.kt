@@ -42,7 +42,8 @@ fun FamiliePage(
 ) {
     when (dest) {
         FamilieDest.Home -> FamilieHomeScreen(onOpen = onOpen, onOpenProfile = onOpenProfile)
-        is FamilieDest.Shopping -> ShoppingScreen(onBack = onBack, initialListId = dest.listId, onOpen = onOpen)
+        // Familie 1.21: once the lists live in „Notizen & Aufgaben“ the hub's list opens (same ids), else Familie's page
+        is FamilieDest.Shopping -> ShoppingEntry(listId = dest.listId, onBack = onBack, onOpen = onOpen)
         FamilieDest.Tasks -> TasksScreen(onBack = onBack)
         FamilieDest.Dates -> DatesScreen(onBack = onBack)
         is FamilieDest.Locate -> LocateParentScreen(childId = dest.childId, requestId = dest.requestId, onBack = onBack)

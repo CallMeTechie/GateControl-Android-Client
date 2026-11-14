@@ -540,6 +540,15 @@ private fun ShoppingCard(view: ShoppingSnapshot, selected: FamilieDest?, onOpen:
                 selected = (selected as? FamilieDest.Shopping)?.listId == list.id,
             )
         }
+        // Familie 1.21: the lists live in „Notizen & Aufgaben“ now — this is its copy, „Öffnen“ leads to the list there
+        if (com.gatecontrol.android.notizen.ShoppingHome.moved(view.home)) {
+            Text(
+                stringResource(R.string.familie_shopping_from_hub),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.muted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
     }
 }
 

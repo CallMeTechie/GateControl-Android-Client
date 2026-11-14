@@ -24,7 +24,7 @@ object ShoppingLogic {
             val id = op.id ?: return snap
             val name = op.name ?: return snap
             if (snap.lists.any { it.id == id }) snap
-            else snap.copy(lists = snap.lists + ShoppingList(id, name, op.icon, sort = (snap.lists.maxOfOrNull { it.sort } ?: 0) + 1))
+            else snap.copy(lists = snap.lists + ShoppingList(id, name, op.icon, sort = (snap.lists.maxOfOrNull { it.sort } ?: 0) + 1, area = op.area, family = op.family == true))
         }
         ShoppingOp.LIST_RENAME -> snap.copy(lists = snap.lists.map { if (it.id == op.id && op.name != null) it.copy(name = op.name) else it })
         ShoppingOp.LIST_DELETE -> snap.copy(
@@ -72,19 +72,45 @@ object ShoppingLogic {
     /**
      * Merges a `GET shopping` answer. [full] (no `since`): the answer is the
      * whole truth. Else: changed entries replace or join, tombstones go.
+     * [listsComplete] (the hub, „Notizen & Aufgaben“): `lists` names every
+     * list the person sees even with `since` — a known list that is missing
+     * was left or is no longer shared and goes with its entries.
      */
-    fun merge(server: ShoppingSnapshot, answer: ShoppingSnapshot, full: Boolean): ShoppingSnapshot {
+    fun merge(server: ShoppingSnapshot, answer: ShoppingSnapshot, full: Boolean, listsComplete: Boolean = false): ShoppingSnapshot {
         if (full) {
             return ShoppingSnapshot(
                 lists = answer.lists.filter { !it.deleted },
                 items = answer.items.filter { !it.deleted },
                 serverTime = answer.serverTime ?: server.serverTime,
+                home = answer.home,
             )
         }
-        val lists = upsert(server.lists, answer.lists, { it.id }, { it.deleted })
+        val lists = if (listsComplete) answer.lists.filter { !it.deleted } else upsert(server.lists, answer.lists, { it.id }, { it.deleted })
         val listIds = lists.map { it.id }.toSet()
         val items = upsert(server.items, answer.items, { it.id }, { it.deleted }).filter { it.listId in listIds }
-        return ShoppingSnapshot(lists, items, answer.serverTime ?: server.serverTime)
+        return ShoppingSnapshot(lists, items, answer.serverTime ?: server.serverTime, answer.home)
+    }
+
+    /**
+     * The lists of a `since` answer the device does not know yet (shared with
+     * the person meanwhile): their entries are older than `since`, so
+     * everything is loaded once more.
+     */
+    fun unknownLists(server: ShoppingSnapshot, answer: ShoppingSnapshot): Set<String> {
+        val known = server.lists.map { it.id }.toSet()
+        return answer.lists.filter { !it.deleted && it.id !in known }.map { it.id }.toSet()
+    }
+
+    /** Open / all entries of [listId] in [view]. */
+    fun progress(view: ShoppingSnapshot, listId: String): Pair<Int, Int> {
+        val items = view.items.filter { it.listId == listId }
+        return items.count { !it.checked } to items.size
+    }
+
+    /** The entries of [listId] as the list shows them: the open ones first, each group in the server's order. */
+    fun ordered(view: ShoppingSnapshot, listId: String): List<ShoppingItem> {
+        val items = view.items.filter { it.listId == listId }
+        return items.filter { !it.checked } + items.filter { it.checked }
     }
 
     private fun <T> upsert(current: List<T>, changes: List<T>, key: (T) -> String, deleted: (T) -> Boolean): List<T> {

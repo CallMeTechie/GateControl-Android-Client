@@ -12,10 +12,12 @@ import com.gatecontrol.android.familie.rides.RideDraft
 import com.gatecontrol.android.familie.rides.RideDriver
 import com.gatecontrol.android.familie.rides.RidePerson
 import com.gatecontrol.android.familie.rides.RideRule
+import com.gatecontrol.android.familie.shopping.ShoppingCompleted
 import com.gatecontrol.android.familie.shopping.ShoppingItem
 import com.gatecontrol.android.familie.shopping.ShoppingList
 import com.gatecontrol.android.familie.shopping.ShoppingOp
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
+import com.gatecontrol.android.familie.shopping.ShoppingTaskRef
 import com.gatecontrol.android.familie.presence.PresenceState
 import com.gatecontrol.android.profile.AvatarInitials
 import com.gatecontrol.android.profile.AvatarPalette
@@ -268,6 +270,7 @@ object FamilieJson {
         lists = o.arr("lists")?.objects()?.mapNotNull(::shoppingList).orEmpty(),
         items = o.arr("items")?.objects()?.mapNotNull(::shoppingItem).orEmpty(),
         serverTime = stamp(o.str("serverTime")),
+        home = o.obj("home")?.str("home")?.takeIf { it == "notizen" || it == "familie" },
     )
 
     private fun shoppingList(o: JsonObject): ShoppingList? {
@@ -284,6 +287,19 @@ object FamilieJson {
             assignedBy = o.obj("assignee")?.int("by") ?: o.int("assignedBy"),
             assigneeState = o.obj("assignee")?.str("state")?.takeIf { it == "open" || it == "taken" || it == "declined" },
             dueAt = stamp(o.str("dueAt")),
+            // „Notizen & Aufgaben“ 1.4.0: the same lists there carry who may do what and the tasks they hang on
+            listNo = o.el("listId")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong?.takeIf { it > 0 },
+            area = o.str("area")?.takeIf { it == "private" || it == "work" },
+            canEdit = o.bool("canEdit"),
+            canManage = o.bool("canManage"),
+            family = o.bool("family") == true,
+            shared = o.bool("shared") == true,
+            ownerName = o.obj("owner")?.str("name")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
+            memberNames = o.arr("members")?.objects()?.mapNotNull { m -> m.str("name")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() } }?.take(50),
+            tasks = o.arr("tasks")?.objects()?.mapNotNull { t ->
+                val id = t.el("id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong?.takeIf { it > 0 } ?: return@mapNotNull null
+                ShoppingTaskRef(id, clean(t.str("title"), 200).ifBlank { return@mapNotNull null })
+            }?.take(5),
         )
     }
 
@@ -318,12 +334,15 @@ object FamilieJson {
                     op.text?.let { addProperty("text", it) }
                     op.qty?.let { addProperty("qty", it) }
                     op.checked?.let { addProperty("checked", it) }
+                    op.area?.let { addProperty("area", it) }
+                    op.family?.let { addProperty("family", it) }
                 })
             }
         })
     }
 
-    data class OpsResult(val applied: Int, val rejected: List<Pair<Int, String>>, val serverTime: String?)
+    /** [completed] (the hub only): the tasks „alles abgehakt“ just completed. */
+    data class OpsResult(val applied: Int, val rejected: List<Pair<Int, String>>, val serverTime: String?, val completed: List<ShoppingCompleted> = emptyList())
 
     fun opsResult(o: JsonObject): OpsResult = OpsResult(
         applied = o.int("applied") ?: 0,
@@ -332,6 +351,11 @@ object FamilieJson {
             i to (errorCode(JsonObject().apply { r.el("code")?.let { add("code", it) } }) ?: "rejected")
         }.orEmpty(),
         serverTime = stamp(o.str("serverTime")),
+        completed = o.arr("completed")?.objects()?.mapNotNull { c ->
+            val task = c.el("taskId")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong?.takeIf { it > 0 } ?: return@mapNotNull null
+            val list = c.str("listId")?.takeIf { UUID_RE.matches(it) } ?: return@mapNotNull null
+            ShoppingCompleted(task, clean(c.str("title"), 200), list)
+        }?.take(20).orEmpty(),
     )
 
     // ─── tasks ───────────────────────────────────────────────────────

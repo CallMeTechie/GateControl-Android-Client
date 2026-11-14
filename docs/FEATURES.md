@@ -999,6 +999,46 @@ Herunterziehen lädt neu.
     Schalter „Aufgaben mit Uhrzeit in meinen Kalender eintragen“
     (`prefs.calendar.tasks`) sowie der Morgen-Hinweis mit Uhrzeit
     (`prefs.notify.yesterday`, `prefs.yesterdayAt`).
+- **Aufgaben und Erinnerungen, Stufe 2 (Plugin 1.4.0, Familie 1.21.0):**
+  erkannt nur an den Wörtern in `me.features` – `shoppingLists`, `taskList`,
+  `familyShopping` – und an `home` in Familie's `GET shopping`; mit älteren
+  Plugins bleibt alles wie bisher.
+  - **Einkaufslisten in „Aufgaben“** (`shoppingLists`): Abschnitt
+    „Einkaufslisten“ im Seitenmenü (die Listen des Bereichs, „+“ legt eine
+    an), die Liste zum Abhaken unter `notizen/shopping/<uid>`
+    (`NotizenShoppingScreen`): offene Punkte zuerst, Menge am Ende, Tippen
+    hakt ab, langes Drücken ändert oder löscht, unten „Punkt hinzufügen“,
+    „Abgehakte entfernen“, im Menü Umbenennen und Löschen (nur wer
+    `canManage` hat); bei „nur ansehen“ nichts davon. Offline-fähig über
+    denselben Speicher wie die Einkaufsliste der Familie (`ShoppingStore`,
+    `files/familie/hub-shopping.json`): Änderungen warten im Postausgang und
+    gehen in Reihenfolge an `POST shopping/ops`, danach
+    `GET shopping?since=<serverTime>`; der Hub nennt jede Liste in jeder
+    Antwort – eine fehlende wird entfernt, für eine neue wird einmal alles
+    geladen. „Ich gehe einkaufen“ / „… bitten“ nur bei Familien-Listen und
+    nur mit `familyShopping` (und `me.shopping.family.available`).
+  - **Liste an der Aufgabe** (`taskList`): „Einkauf 0/8“ an der Zeile (Mein
+    Tag, Listen, Suche) – Tippen darauf öffnet die Liste, die Zeile selbst
+    die Aufgabe; in der Aufgabe die Zeile „Angehängte Liste“ mit Auswahl
+    („Familie · 8 offen“, „nur ich“, die Namen), „Keine Liste“, „Neue Liste“
+    und „Liste öffnen“ (`attachedListId` in `PATCH tasks/<id>`, mit `base`).
+    Die Schnell-Eingabe fragt den Server (`POST parse` → `attach`) und zeigt
+    den Baustein „Liste: Einkauf · 8 offen“ (wegnehmen oder tauschen; bei
+    mehreren die Auswahl); der Parser auf dem Gerät bleibt unverändert,
+    offline gibt es keinen Vorschlag.
+  - **„Alles abgehakt“:** nennt die Antwort von `POST shopping/ops`
+    `completed`, zeigt die offene Liste „Alles abgehakt. ‚…‘ ist erledigt.“
+    mit „Rückgängig“ (`POST tasks/<id>/complete { done: false }`).
+  - **Erinnerung mit Liste:** der Knopf „Liste öffnen“ (Push: Aktion
+    `open_list` mit `data.notizen.attachedList`; lokaler Alarm: `actions` aus
+    `GET reminders`) öffnet die angehängte Liste direkt
+    (`NotizenPush.listButton`), Text und Knöpfe bleiben die des Servers.
+  - **Familien-Karte „Einkaufsliste“** (`ShoppingHome`, `ShoppingEntry`):
+    meldet Familie `home: notizen`, steht an der Karte „aus Notizen &
+    Aufgaben“, und „Öffnen“ – ebenso die Orts-Erinnerung mit Liste und die
+    Einkaufs-Pushes der Familie – führt in die Liste des Hubs mit derselben
+    Kennung, sofern die App dort `shoppingLists` kennt und eine Kopie hat;
+    sonst wie bisher auf die Seite des Familien-Plugins.
 - **Liste:** offene und erledigte Aufgaben, unten ein Feld für eine neue
   Aufgabe (nicht bei „nur ansehen“).
 - **Aufgabe:** Titel, Wichtig, Unteraufgaben (hinzufügen, abhaken,

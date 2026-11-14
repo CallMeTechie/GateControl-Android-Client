@@ -168,6 +168,13 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                             if (e.important) Chip(stringResource(R.string.notizen_important), colors.getValue("important"), GcIcons.Star) { vm.drop("important") }
                             val listName = e.listId?.let { id -> ui.nav?.lists?.firstOrNull { it.id == id }?.name } ?: e.newList?.let { stringResource(R.string.notizen_quick_new_list, it) }
                             Chip(stringResource(R.string.notizen_quick_list, listName ?: (ui.nav?.lists?.firstOrNull { it.isDefault }?.name ?: stringResource(R.string.notizen_default_list))), colors.getValue("list"), GcIcons.Tasks) { dialog = "list" }
+                            // plugin 1.4.0 (mockup „Die Liste hängt sich von selbst an“): the shopping list the server suggests
+                            val attached = e.attached
+                            if (attached != null) {
+                                Chip(stringResource(R.string.notizen_quick_attach, attached.name, attached.open), colors.getValue("list"), GcIcons.Cart) { dialog = "attach" }
+                            } else if (QuickAttach.asks(ui.attach, ui.attachPick, ui.attachOff)) {
+                                Chip(stringResource(R.string.notizen_quick_attach_choose), x.panel2, GcIcons.Cart) { dialog = "attach" }
+                            }
                             if (e.assigneeId != null) {
                                 Chip(ui.people.firstOrNull { it.id == e.assigneeId }?.name ?: p.assignee?.name.orEmpty(), colors.getValue("person"), GcIcons.User) { vm.drop("person") }
                             } else if (p.assigneeName != null && "person" !in ui.off) {
@@ -175,6 +182,10 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                             }
                             Chip(areaLabel(ui.area), x.panel2, if (ui.area == NArea.WORK) GcIcons.Briefcase else GcIcons.House) { vm.setArea(if (ui.area == NArea.WORK) NArea.PRIVATE else NArea.WORK) }
                         }
+                    }
+                    val fits = ui.attach?.takeIf { it.via == "word" && it.word != null && !ui.attachOff && ui.attachPick == null }?.let { a -> a.list?.let { a.word to it.name } }
+                    if (fits != null && ui.text.isNotBlank()) {
+                        Text(stringResource(R.string.notizen_quick_attach_hint, fits.first.orEmpty(), fits.second), style = MaterialTheme.typography.bodySmall, color = x.muted)
                     }
                     Text(stringResource(R.string.notizen_quick_help), style = MaterialTheme.typography.bodySmall, color = x.muted)
                 } else {
@@ -205,6 +216,26 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                 NTimePicker(e?.due?.time, { t -> dialog = null; vm.pickDue(NDue(day!!, t)) }, { dialog = null })
             }
         }
+        "attach" -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = { Text(stringResource(R.string.notizen_attached_pick)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    QuickAttach.choices(ui.attach).forEach { l ->
+                        Column(Modifier.fillMaxWidth().clickable(role = Role.RadioButton) { dialog = null; vm.pickAttach(l) }.padding(vertical = 10.dp)) {
+                            Text(l.name, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (l.id == vm.effective()?.attached?.id) FontWeight.Bold else null))
+                            Text(
+                                stringResource(R.string.notizen_attached_who_open, stringResource(if (l.family) R.string.notizen_shop_family else R.string.notizen_shop_title), l.open),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = x.muted,
+                            )
+                        }
+                    }
+                    Text(stringResource(R.string.notizen_attached_none), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth().clickable(role = Role.RadioButton) { dialog = null; vm.dropAttach() }.padding(vertical = 12.dp))
+                }
+            },
+            confirmButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.notizen_cancel)) } },
+        )
         "list" -> AlertDialog(
             onDismissRequest = { dialog = null },
             title = { Text(stringResource(R.string.notizen_list)) },
