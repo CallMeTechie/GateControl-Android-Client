@@ -114,6 +114,18 @@ class PushOpenActivity : ComponentActivity() {
             return
         }
 
+        // „Liste öffnen“ of a reminder (Notizen & Aufgaben 1.4.0): GateControl sends the plugin's tab as the route — the
+        // app opens the shopping list the task carries, to tick off.
+        com.gatecontrol.android.notizen.NotizenPush.listButton(intent.getStringExtra(EXTRA_NOTIZEN_LIST), actionId)?.let { dest ->
+            PushNavigation.request(PushNavTarget.Notizen(dest, id))
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+            return
+        }
+
         if (actionType == PushActionType.OPEN_PORTAL) {
             // Stays (invisible) until the link is there: starting the browser
             // from the background after finishing would be blocked.
@@ -181,6 +193,8 @@ class PushOpenActivity : ComponentActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
 
         private const val EXTRA_SHARED = "com.gatecontrol.android.push.extra.SHARED"
+        /** Notizen & Aufgaben 1.4.0: the shopping list „Liste öffnen“ of this reminder opens. */
+        private const val EXTRA_NOTIZEN_LIST = "com.gatecontrol.android.push.extra.NOTIZEN_LIST"
         private const val EXTRA_NOTIZEN_LOCAL = "com.gatecontrol.android.push.extra.NOTIZEN_LOCAL"
         private const val EXTRA_NOTIZEN_TAG = "com.gatecontrol.android.push.extra.NOTIZEN_TAG"
 
@@ -219,9 +233,11 @@ class PushOpenActivity : ComponentActivity() {
             driveDest: String? = null,
             mailDest: String? = null,
             notizenDest: String? = null,
+            notizenList: String? = null,
         ): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_ID, id)
+                .apply { if (notizenList != null) putExtra(EXTRA_NOTIZEN_LIST, notizenList) }
                 .apply { if (notizenDest != null) putExtra(EXTRA_NOTIZEN_DEST, notizenDest) }
                 .apply { if (driveDest != null) putExtra(EXTRA_DRIVE_DEST, driveDest) }
                 .apply { if (mailDest != null) putExtra(EXTRA_MAIL_DEST, mailDest) }

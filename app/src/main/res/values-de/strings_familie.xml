@@ -59,6 +59,7 @@
     <string name="familie_no_tasks_today">Heute steht für dich nichts an.</string>
     <string name="familie_shopping_title">Einkaufsliste</string>
     <string name="familie_shopping_none">Noch keine Liste.</string>
+    <string name="familie_shopping_from_hub">aus Notizen &amp; Aufgaben</string>
     <string name="familie_shopping_all_done">Alles erledigt</string>
     <string name="familie_locate_title">Kinder orten</string>
     <string name="familie_locate_action">Orten</string>

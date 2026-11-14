@@ -459,6 +459,7 @@ object NotizenOutbox {
             "assigneeId" -> d.task.assignee?.id?.let { addProperty(f, it) } ?: add(f, JsonNull.INSTANCE)
             "listId" -> d.task.listId?.takeIf { it > 0 }?.let { addProperty(f, it) }
             "myDay" -> addProperty(f, d.task.myDay)
+            "attachedListId" -> d.task.attachedList?.id?.let { addProperty(f, it) } ?: add(f, JsonNull.INSTANCE)
         }
     }
 

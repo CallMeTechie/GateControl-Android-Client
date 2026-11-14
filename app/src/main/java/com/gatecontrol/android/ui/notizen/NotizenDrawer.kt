@@ -70,6 +70,9 @@ internal class NotizenDrawerActions(
     /** Null: Tresore are not allowed here. */
     val newTresor: (() -> Unit)?,
     val settings: () -> Unit,
+    /** Plugin 1.4.0: a shopping list (its id) to tick off; „+“ makes a new one. */
+    val shopping: (String) -> Unit = {},
+    val newShopping: () -> Unit = {},
 )
 
 /**
@@ -88,6 +91,8 @@ internal fun NotizenDrawer(
     collapsed: Set<Long>,
     notebookName: (NNotebook) -> String?,
     actions: NotizenDrawerActions,
+    /** Plugin 1.4.0 (`shoppingLists`): the shopping lists of the area with their open entries; null: the plugin has none. */
+    shopping: List<Pair<com.gatecontrol.android.familie.shopping.ShoppingList, Int>>? = null,
 ) {
     val default = NotizenLists.defaultList(nav)
     val rows = NotizenLists.rows(nav, collapsed)
@@ -122,6 +127,32 @@ internal fun NotizenDrawer(
             if (rows.isEmpty() && nav != null) {
                 item(key = "lists-empty") {
                     Text(stringResource(R.string.notizen_lists_none), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                }
+            }
+            if (shopping != null) {
+                item(key = "l-shopping") {
+                    GcDrawerLabel(stringResource(R.string.notizen_shop_lists), action = if (canWrite) ({ PlusButton(stringResource(R.string.notizen_shop_new), actions.newShopping) }) else null)
+                }
+                items(shopping, key = { "shop" + it.first.id }) { (l, open) ->
+                    NavRow(
+                        GcIcons.Cart,
+                        l.name,
+                        open,
+                        false,
+                        { actions.shopping(l.id) },
+                        mark = {
+                            if (l.family) {
+                                Text(stringResource(R.string.notizen_shop_family), style = MaterialTheme.typography.labelSmall, color = GateControlTheme.extraColors.muted)
+                            } else if (l.shared) {
+                                Icon(GcIcons.Users, stringResource(R.string.notizen_shared_mark), tint = GateControlTheme.extraColors.muted, modifier = Modifier.size(16.dp))
+                            }
+                        },
+                    )
+                }
+                if (shopping.isEmpty()) {
+                    item(key = "shopping-empty") {
+                        Text(stringResource(R.string.notizen_shop_none), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                    }
                 }
             }
             val sources = nav?.sources.orEmpty()

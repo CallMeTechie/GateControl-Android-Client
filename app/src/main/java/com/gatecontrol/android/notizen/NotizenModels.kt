@@ -95,8 +95,19 @@ data class NMe(
     val listIcons: List<String> = emptyList(),
     /** Plugin 1.3.0 (`taskCalendar`); null with an older plugin. */
     val calendar: NCalendarInfo? = null,
+    /** Plugin 1.4.0 (`shoppingLists`, `me.shopping.family`); null with an older plugin. */
+    val shoppingFamily: NShoppingFamily? = null,
 ) {
     fun has(feature: String) = feature in features
+
+    /** Shopping lists in the hub: `GET shopping`, `POST shopping/ops`, `nav.shopping`. */
+    val shoppingLists: Boolean get() = has(NFeature.SHOPPING_LISTS)
+
+    /** A task may carry a shopping list (needs the lists themselves). */
+    val taskList: Boolean get() = shoppingLists && has(NFeature.TASK_LIST)
+
+    /** „Ich gehe einkaufen“ / „Kannst du einkaufen gehen?“ for family lists: the feature and the Familie plugin offering it. */
+    val familyShopping: Boolean get() = shoppingLists && has(NFeature.FAMILY_SHOPPING) && shoppingFamily?.available == true
 
     /** Reminder pushes with buttons, „Später“, `GET reminders` (the phone's own alarms). */
     val reminderActions: Boolean get() = has(NFeature.REMINDER_ACTIONS)
@@ -109,6 +120,30 @@ data class NMe(
 }
 
 data class NDue(val date: String, val time: String? = null)
+
+/** `me.shopping.family` (plugin 1.4.0): Familie offers its part, the family is known to the hub (the move was made), I am a parent. */
+data class NShoppingFamily(val available: Boolean = false, val bound: Boolean = false, val parent: Boolean = false)
+
+/**
+ * The shopping list a task carries (`Task.attachedList`, plugin 1.4.0 `taskList`): [id] the hub's number of the list,
+ * [uid] the id the device knows it by ([com.gatecontrol.android.familie.shopping.ShoppingList.id]).
+ */
+data class NAttached(val id: Long, val uid: String, val name: String, val icon: String?, val open: Int, val total: Int, val done: Int, val family: Boolean)
+
+/**
+ * `attach` of `POST parse` (plugin 1.4.0): the server's suggestion for the line. [via] `tag` | `name` | `word`;
+ * [list]: exactly one fits; else the choice among [lists].
+ */
+data class NAttach(val via: String, val word: String?, val list: NAttached?, val lists: List<NAttached>)
+
+/** The answer of `POST parse` as far as the app uses it: the suggestion (the line itself is read on the phone). */
+data class NParseAttach(val attach: NAttach?)
+
+/** `notified` of „Kannst du einkaufen gehen?“ as the Familie plugin says it: [ok] null when nothing was sent. */
+data class NDelivery(val ok: Boolean?, val code: String?)
+
+/** A shopping list of the side menu (`nav.shopping`). */
+data class NNavShop(val uid: String, val listNo: Long?, val name: String, val icon: String?, val open: Int, val total: Int, val family: Boolean, val shared: Boolean, val role: String?)
 
 /**
  * The reminder of a task still to come (plugin 1.3.0, `reminderActions`). [tag] = `task:<id>:<atMs>` names one task at
@@ -178,6 +213,8 @@ data class NTask(
     val missedReminder: Boolean = false,
     /** Plugin 1.3.0: the task's event in the calendar (null: none). */
     val calendar: NTaskCalendar? = null,
+    /** Plugin 1.4.0 (`taskList`): the shopping list this task carries (null: none, deleted, or not shared with me). */
+    val attachedList: NAttached? = null,
 ) : NEntry {
     override val uid: String get() = "t:$id"
 }
@@ -236,7 +273,7 @@ data class NMoveOption(val to: String, val date: String?, val label: String)
 /** `POST yesterday` → how many changed, which the person may not change, the card as it is now. */
 data class NYesterdayResult(val changed: Int, val failed: List<Long>, val yesterday: NYesterday?)
 
-/** A button of a reminder (`GET reminders`): `done`, `snooze_1h`, `snooze_eve`, `snooze_tom`. */
+/** A button of a reminder (`GET reminders`): `done`, `snooze_1h`, `snooze_eve`, `snooze_tom`; with a list (1.4.0) `open_list`. */
 data class NReminderAction(val id: String, val label: String)
 
 /** One reminder the server would send me (`GET reminders`) — what the phone's own alarm shows, unchanged. */
@@ -251,6 +288,8 @@ data class NReminderEntry(
     val important: Boolean,
     val collapseKey: String,
     val actions: List<NReminderAction>,
+    /** Plugin 1.4.0: the list the task carries — the button `open_list` opens it. */
+    val attachedList: NAttached? = null,
 )
 
 /** `GET reminders`: [enabled] false — the person switched „Erinnerungen an Aufgaben“ off (no alarms). */
@@ -335,6 +374,8 @@ data class NNav(
     val notesTotal: Int,
     val notebooks: List<NNotebook>,
     val tags: List<NTag>,
+    /** Plugin 1.4.0 (`shoppingLists`): the shopping lists of the area. */
+    val shopping: List<NNavShop> = emptyList(),
 )
 
 data class NNoteSummary(
@@ -491,4 +532,12 @@ object NFeature {
     const val YESTERDAY_OPEN = "yesterdayOpen"
     /** `Task.calendar`, `me.calendar`, `prefs.calendar`. */
     const val TASK_CALENDAR = "taskCalendar"
+
+    // plugin 1.4.0
+    /** `GET shopping`, `POST shopping/ops`, `me.shopping`, the event `changed { what: ['shopping'] }`. */
+    const val SHOPPING_LISTS = "shoppingLists"
+    /** `Task.attachedList`, `attachedListId` when writing, `attach` of `POST parse`, „alles abgehakt“, the button „Liste öffnen“. */
+    const val TASK_LIST = "taskList"
+    /** Family lists: `POST shopping/lists/<id>/going`, `…/assign`. */
+    const val FAMILY_SHOPPING = "familyShopping"
 }

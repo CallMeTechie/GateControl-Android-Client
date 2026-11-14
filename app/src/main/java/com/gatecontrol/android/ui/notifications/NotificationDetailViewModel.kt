@@ -118,8 +118,11 @@ class NotificationDetailViewModel @Inject constructor(
                     PushActionType.OPEN_APP_ROUTE -> {
                         repository.markRead(listOf(id), action.id)
                         // Routes without a screen in the app (gateways, plugins) end here, on the message.
-                        val doorDest = repository.inbox.get(id)?.let { DoorPush.destination(it)?.key }
-                        val target = PushNavTarget.forRoute(action.target, id, doorDest)
+                        val message = repository.inbox.get(id)
+                        val doorDest = message?.let { DoorPush.destination(it)?.key }
+                        // „Liste öffnen“ of a reminder (Notizen & Aufgaben 1.4.0): the shopping list the task carries
+                        val list = message?.let { m -> com.gatecontrol.android.notizen.NotizenPush.listButton(com.gatecontrol.android.notizen.NotizenPush.listDestination(m), action.id) }
+                        val target = list?.let { PushNavTarget.Notizen(it, id) } ?: PushNavTarget.forRoute(action.target, id, doorDest)
                         if (target != PushNavTarget.Detail(id)) effects.send(DetailEffect.Navigate(target))
                     }
                     PushActionType.OPEN_PORTAL -> {

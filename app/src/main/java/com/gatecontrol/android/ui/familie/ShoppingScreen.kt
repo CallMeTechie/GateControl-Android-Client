@@ -161,7 +161,7 @@ fun ShoppingScreen(
                 }
             }
         }
-        SyncLine(sync, pending, Modifier.padding(start = 24.dp, end = 16.dp))
+        ShoppingSyncLine(sync, pending, Modifier.padding(start = 24.dp, end = 16.dp))
 
         PullToRefreshBox(
             isRefreshing = sync == ShoppingSync.Syncing,
@@ -312,8 +312,9 @@ fun ShoppingScreen(
     }
 }
 
+/** Where the device's copy stands (also under the lists of „Notizen & Aufgaben“, which keep theirs the same way). */
 @Composable
-private fun SyncLine(sync: ShoppingSync, pending: Int, modifier: Modifier = Modifier) {
+internal fun ShoppingSyncLine(sync: ShoppingSync, pending: Int, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
     val (text, color) = when {
         sync == ShoppingSync.Syncing -> stringResource(R.string.familie_sync_running) to extra.muted

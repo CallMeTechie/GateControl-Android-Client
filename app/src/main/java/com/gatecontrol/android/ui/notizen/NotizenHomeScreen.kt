@@ -87,6 +87,8 @@ data class NotizenNav(
     /** The original of an item in its plugin; false when this app has no screen for it. */
     val openSource: (NOpen) -> Boolean,
     val back: () -> Unit,
+    /** Plugin 1.4.0: a shopping list of the hub by its id (a task's „Einkauf 0/8“, the side menu). */
+    val shopping: (String) -> Unit = {},
 )
 
 /** Opens [e]: a task here, an item's details (its original stays in its plugin). */
@@ -121,6 +123,8 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
         }
     }
     var askNotebook by rememberSaveable { mutableStateOf(false) }
+    var askShopping by rememberSaveable { mutableStateOf(false) }
+    val shopping by vm.shopping.collectAsStateWithLifecycle()
     var newTresor by rememberSaveable { mutableStateOf(false) }
     val manageState = remember { NotizenManageState() }
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -169,7 +173,11 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
                         newNotebook = { askNotebook = true },
                         newTresor = if (me?.vaults == true && me.has("vault")) ({ newTresor = true }) else null,
                         settings = { closeDrawer(); nav.sources() },
+                        shopping = { uid -> closeDrawer(); nav.shopping(uid) },
+                        newShopping = { askShopping = true },
                     ),
+                    // plugin 1.4.0: the shopping lists of the area (the phone's copy: also offline, with what waits)
+                    shopping = if (me?.shoppingLists == true) com.gatecontrol.android.notizen.NotizenShoppingLogic.menu(shopping, ui.area) else null,
                 )
             }
         },
@@ -264,6 +272,17 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
             },
         )
     }
+    if (askShopping) {
+        NameDialog(
+            title = stringResource(R.string.notizen_shop_new),
+            onDismiss = { askShopping = false },
+            onDone = { name ->
+                askShopping = false
+                closeDrawer()
+                vm.createShopping(name, nav.shopping)
+            },
+        )
+    }
     if (newTresor) {
         NewTresorFlow(vm.vault, ui.area, onDone = { newTresor = false; vm.load(quiet = true) })
     }
@@ -346,8 +365,8 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
         if (ui.loading) NotizenLoading()
         return
     }
-    val rc = rowCtx(me.today, me.lang, path, showDay = false, calendar = me.calendarShown)
-    val rcDays = rowCtx(me.today, me.lang, path, showDay = true, calendar = me.calendarShown)
+    val rc = rowCtx(me.today, me.lang, path, showDay = false, calendar = me.calendarShown, openList = nav.shopping)
+    val rcDays = rowCtx(me.today, me.lang, path, showDay = true, calendar = me.calendarShown, openList = nav.shopping)
     // plugin 1.3.0: „Gestern offen geblieben“ above „Heute“ — its tasks are under „Überfällig“ as well, not twice here
     val yesterday = com.gatecontrol.android.notizen.NotizenYesterday.card(day, me.yesterdayOpen)
     val sections = com.gatecontrol.android.notizen.NotizenYesterday.sections(day, yesterday)
@@ -569,7 +588,7 @@ internal fun ListDayCard(card: com.gatecontrol.android.notizen.NListDay, me: com
     val x = GateControlTheme.extraColors
     val l = card.list
     val others = com.gatecontrol.android.notizen.NotizenLists.others(l, me.userId)
-    val rc = rowCtx(me.today, me.lang, { null })
+    val rc = rowCtx(me.today, me.lang, { null }, openList = nav.shopping)
     NCard(Modifier.padding(top = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.view("list:" + l.id) }.padding(14.dp),

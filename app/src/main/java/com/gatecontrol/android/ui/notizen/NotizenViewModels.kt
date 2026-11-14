@@ -34,6 +34,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -57,7 +59,20 @@ class NotizenHomeViewModel @Inject constructor(
     private val repo: NotizenRepository,
     val vault: NotizenVaultSession,
     private val saved: SavedStateHandle,
+    private val hub: com.gatecontrol.android.notizen.NotizenShopping,
 ) : ViewModel() {
+
+    /** Plugin 1.4.0: the shopping lists as the phone has them (with what waits) — the side menu's „Einkaufslisten“. */
+    val shopping: StateFlow<com.gatecontrol.android.familie.shopping.ShoppingSnapshot> = hub.data
+        .map { com.gatecontrol.android.familie.shopping.ShoppingLogic.view(it) }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), com.gatecontrol.android.familie.shopping.ShoppingSnapshot())
+
+    /** A new shopping list of mine in the area shown (made on the phone at once, also offline) → [open] with its id. */
+    fun createShopping(name: String, open: (String) -> Unit) {
+        if (name.isBlank()) return
+        viewModelScope.launch { open(hub.addList(name.trim().take(40), _ui.value.area)) }
+    }
+
 
     data class Ui(
         val me: NMe? = null,
@@ -165,6 +180,8 @@ class NotizenHomeViewModel @Inject constructor(
             }
             val area = repo.currentArea()
             _ui.update { it.copy(me = me.value, meError = null, area = area, offlineEdits = me.value.has(NotizenRepository.FEATURE_OFFLINE)) }
+            // plugin 1.4.0: the shopping lists of the side menu (their copy on the phone follows)
+            if (me.value.shoppingLists && !me.offline) hub.syncAsync()
             val nav = repo.nav(area)
             val day = repo.view("myday", area)
             val nb = _ui.value.notebook
@@ -406,6 +423,7 @@ class NotizenViewViewModel @Inject constructor(
 @HiltViewModel
 class NotizenTaskViewModel @Inject constructor(
     private val repo: NotizenRepository,
+    private val hub: com.gatecontrol.android.notizen.NotizenShopping,
     saved: SavedStateHandle,
 ) : ViewModel() {
     val id: Long = saved.get<String>("id")?.toLongOrNull() ?: 0L
@@ -434,7 +452,10 @@ class NotizenTaskViewModel @Inject constructor(
         load()
         viewModelScope.launch { repo.api.people().valueOrNull()?.let { p -> _ui.update { it.copy(people = p) } } }
         // what waits was sent (or refused): the page as it is now
-        viewModelScope.launch { repo.changed.collect { if (it.isEmpty() || "tasks" in it) { delay(300); load() } } }
+        // … or the entries of the list it carries changed („Einkauf 3/8“)
+        viewModelScope.launch { repo.changed.collect { if (it.isEmpty() || "tasks" in it || "shopping" in it) { delay(300); load() } } }
+        // the lists to choose from for „Angehängte Liste“
+        hub.syncAsync()
     }
 
     fun consumeMessage() { _message.value = null }
@@ -516,6 +537,29 @@ class NotizenTaskViewModel @Inject constructor(
     fun setRepeat(r: NRepeat.Rule?) = patch("repeat" to (r?.let { NRepeat.toJson(it) }))
     fun setAssignee(id: Long?) = patch("assigneeId" to id)
     fun setList(listId: Long) = patch("listId" to listId)
+
+    /** Plugin 1.4.0 (`taskList`): the shopping list this task carries ([listNo]: the hub's number of it; null: none). */
+    fun setAttached(listNo: Long?) {
+        if (_ui.value.detail?.task?.attachedList?.id != listNo) patch("attachedListId" to listNo)
+    }
+
+    /** The shopping lists to choose from (the phone's copy, with what waits). */
+    val shopping: StateFlow<com.gatecontrol.android.familie.shopping.ShoppingSnapshot> = hub.data
+        .map { com.gatecontrol.android.familie.shopping.ShoppingLogic.view(it) }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), com.gatecontrol.android.familie.shopping.ShoppingSnapshot())
+
+    /** „Neue Liste“ in the choice: made (also offline), sent, then attached by the number the server gave it. */
+    fun attachNew(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            _ui.update { it.copy(busy = true) }
+            val uid = hub.addList(name, _ui.value.detail?.listArea ?: repo.currentArea())
+            hub.sync()
+            val no = hub.current().server.lists.firstOrNull { it.id == uid }?.listNo
+            _ui.update { it.copy(busy = false) }
+            if (no != null) setAttached(no) else _message.value = "list_later"
+        }
+    }
 
     fun complete() {
         val t = _ui.value.detail?.task ?: return
@@ -678,7 +722,44 @@ class NotizenQuickViewModel @Inject constructor(
         val listId: Long? = null,
         val busy: Boolean = false,
         val done: Boolean = false,
+        /** Plugin 1.4.0 (`taskList`): the shopping list the server suggests for the line (null: none, or offline). */
+        val attach: com.gatecontrol.android.notizen.NAttach? = null,
+        /** The person chose this shopping list instead. */
+        val attachPick: com.gatecontrol.android.notizen.NAttached? = null,
+        /** The person took the shopping list away. */
+        val attachOff: Boolean = false,
     )
+
+    private var attachJob: Job? = null
+
+    private companion object {
+        /** A pause in typing before the server is asked. */
+        const val SUGGEST_MS = 350L
+    }
+
+    /**
+     * Asks the server which shopping list fits the line (`POST parse` → `attach`; the line itself is read on the phone,
+     * the parser knows nothing of lists). Without a connection or with an older plugin: no suggestion.
+     */
+    private fun suggest() {
+        attachJob?.cancel()
+        val u = _ui.value
+        if (u.note || u.me?.taskList != true || u.text.isBlank()) {
+            _ui.update { it.copy(attach = null) }
+            return
+        }
+        attachJob = viewModelScope.launch {
+            delay(SUGGEST_MS)
+            val r = repo.api.parseAttach(u.text, u.area)
+            _ui.update { it.copy(attach = (r as? NResult.Ok)?.value?.attach) }
+        }
+    }
+
+    /** The chip „Liste: Einkauf“ was taken away. */
+    fun dropAttach() = _ui.update { it.copy(attachOff = true, attachPick = null) }
+
+    /** Another shopping list from the choice. */
+    fun pickAttach(l: com.gatecontrol.android.notizen.NAttached) = _ui.update { it.copy(attachPick = l, attachOff = false) }
 
     private val _ui = MutableStateFlow(Ui(text = saved.get<String>("text").orEmpty(), note = saved.get<String>("mode") == "note"))
     val ui: StateFlow<Ui> = _ui.asStateFlow()
@@ -692,6 +773,7 @@ class NotizenQuickViewModel @Inject constructor(
             val nav = repo.nav(area).valueOrNull()?.value
             _ui.update { it.copy(me = me, nav = nav, area = area) }
             reparse()
+            suggest()
             repo.api.people().valueOrNull()?.let { p -> _ui.update { it.copy(people = p) }; reparse() }
         }
     }
@@ -701,12 +783,17 @@ class NotizenQuickViewModel @Inject constructor(
     fun setText(t: String) {
         _ui.update { it.copy(text = t.take(1000)) }
         reparse()
+        suggest()
     }
 
-    fun setNote(v: Boolean) = _ui.update { it.copy(note = v) }
+    fun setNote(v: Boolean) {
+        _ui.update { it.copy(note = v) }
+        suggest()
+    }
 
     fun setArea(a: String) {
-        _ui.update { it.copy(area = NArea.of(a), listId = null) }
+        _ui.update { it.copy(area = NArea.of(a), listId = null, attachPick = null) }
+        suggest()
         viewModelScope.launch {
             val nav = repo.nav(NArea.of(a)).valueOrNull()?.value
             _ui.update { it.copy(nav = nav) }
@@ -743,9 +830,11 @@ class NotizenQuickViewModel @Inject constructor(
             remind = if ("time" in off || due?.time == null) null else due,
             important = p.important && "important" !in off,
             listId = u.listId ?: p.list?.id?.takeIf { "list" !in off },
-            newList = if (u.listId == null && "list" !in off) p.listName else null,
+            // `#einkauf` names a shopping list (the server says so): the word is not a new task list
+            newList = if (u.listId == null && "list" !in off && !QuickAttach.tagIsShopping(u.attach)) p.listName else null,
             assigneeId = p.assignee?.id?.takeIf { "person" !in off },
             repeat = p.repeat?.takeIf { "repeat" !in off },
+            attached = QuickAttach.effective(u.attach, u.attachPick, u.attachOff),
         )
     }
 
@@ -758,6 +847,8 @@ class NotizenQuickViewModel @Inject constructor(
         val newList: String?,
         val assigneeId: Long?,
         val repeat: NRepeat.Rule?,
+        /** Plugin 1.4.0: the shopping list the task will carry (the chip the person kept or chose). */
+        val attached: com.gatecontrol.android.notizen.NAttached? = null,
     )
 
     fun save() {
@@ -782,12 +873,35 @@ class NotizenQuickViewModel @Inject constructor(
                 e.assigneeId?.let { addProperty("assigneeId", it) }
                 e.repeat?.let { add("repeat", NRepeat.toJson(it)) }
                 if (e.due?.date == u.me?.today) addProperty("myDay", true)
+                // an older plugin would pass the field over silently: only with `taskList`
+                if (u.me?.taskList == true) e.attached?.let { addProperty("attachedListId", it.id) }
             }
             val r = repo.createTask(body)
             _ui.update { it.copy(busy = false, done = r is NResult.Ok) }
             _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else "task_saved"
         }
     }
+}
+
+/** The suggestion „Liste anhängen“ of the quick entry (plugin 1.4.0, pure, unit-tested). */
+object QuickAttach {
+    /**
+     * The shopping list the new task carries: the one the person chose ([pick]), else the server's suggestion while
+     * exactly one fits — nothing once the person took the chip away ([off]) or with several to choose from.
+     */
+    fun effective(attach: com.gatecontrol.android.notizen.NAttach?, pick: com.gatecontrol.android.notizen.NAttached?, off: Boolean): com.gatecontrol.android.notizen.NAttached? =
+        if (off) null else pick ?: attach?.list
+
+    /** Several lists fit and none is chosen yet: the choice is offered instead of a chip of one list. */
+    fun asks(attach: com.gatecontrol.android.notizen.NAttach?, pick: com.gatecontrol.android.notizen.NAttached?, off: Boolean): Boolean =
+        !off && pick == null && attach != null && attach.list == null && attach.lists.size > 1
+
+    /** `#einkauf` names a shopping list: the parser's `listName` is not a new task list then. */
+    fun tagIsShopping(attach: com.gatecontrol.android.notizen.NAttach?): Boolean = attach?.via == "tag"
+
+    /** The lists of the choice: the server's candidates, the suggested one first. */
+    fun choices(attach: com.gatecontrol.android.notizen.NAttach?): List<com.gatecontrol.android.notizen.NAttached> =
+        (listOfNotNull(attach?.list) + attach?.lists.orEmpty()).distinctBy { it.id }
 }
 
 /** The search over tasks and notes (`GET search`, the server's full-text index). */

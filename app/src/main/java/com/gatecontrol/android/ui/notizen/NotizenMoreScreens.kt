@@ -515,7 +515,7 @@ fun NotizenSearchScreen(nav: NotizenNav, vm: NotizenSearchViewModel = hiltViewMo
         ui.error?.let { Text(messageText(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
         val r = ui.result ?: return@Column
         val today = java.time.LocalDate.now().toString()
-        val rc = rowCtx(today, java.util.Locale.getDefault().language.takeIf { it == "en" } ?: "de", { null })
+        val rc = rowCtx(today, java.util.Locale.getDefault().language.takeIf { it == "en" } ?: "de", { null }, openList = nav.shopping)
         LazyColumn(contentPadding = PaddingValues(bottom = 32.dp)) {
             val entries = r.tasks + r.items
             if (entries.isNotEmpty()) {

@@ -45,7 +45,7 @@ every other call of the app.
 | `familie/FamilieApi.kt` | one method per B3 endpoint, `FamilieResult` (Ok / Failed(code, http) / Offline / NotConfigured), never throws |
 | `familie/FamilieJson.kt` | parsers (lenient booleans, strict ids, plain capped text) and request bodies |
 | `familie/FamilieRepository.kt` | `GET me` cached in `files/familie/profile.json` (offline start, background work), push events for open screens, SOS state |
-| `familie/shopping/` | offline shopping lists: `ShoppingLogic` (view = server snapshot + outbox, merge), `ShoppingSyncEngine`, `ShoppingRepository`, `ShoppingSyncWorker` |
+| `familie/shopping/` | offline shopping lists: `ShoppingLogic` (view = server snapshot + outbox, merge), `ShoppingStore` + `ShoppingSyncEngine` (shared with the hub's lists), `ShoppingRepository`, `ShoppingSyncWorker` |
 | `familie/push/` | `FamiliePush` (parse `data.familie`, routing, buttons), `FamiliePushHandler`, `FamilieActionReceiver`, `FamilieLocateActivity`, `FamilieOpenActivity`, `FamilieLocalNotifier` |
 | `familie/locate/` | `LocateAnswerer` (fix + answer/fail), `FamiliePermissions` (pure permission decisions) |
 | `familie/places/` | `GeofenceRegistrar`, `GeofenceReceiver`, `PlaceTriggerWorker` |
@@ -133,6 +133,14 @@ instead of an error. Unknown fields are ignored everywhere.
    (it never succeeds); offline / other errors keep it;
 2. `GET shopping?since=<serverTime>` (or without `since` the first time and
    after 25 days, tombstones live 30) and merge — the server wins.
+
+The copy and its outbox are `ShoppingStore` (file, debounce, sync), shared
+with the shopping lists of „Notizen & Aufgaben“ 1.4.0 (`NotizenShopping`,
+`files/familie/hub-shopping.json`; there every answer names all lists and a
+403 batch is dropped as well). Familie 1.21 adds `home { home: 'notizen' |
+'familie' }` to `GET shopping`: after the move the lists live in the hub and
+this file is Familie's copy — `ShoppingEntry` then opens the hub's list with
+the same id (`ShoppingHome`), the start card says "aus Notizen & Aufgaben".
 
 Triggers: screen open, pull to refresh, 1.5 s after an edit, VPN connected,
 app start with waiting ops, a "going shopping" push, and — while ops wait

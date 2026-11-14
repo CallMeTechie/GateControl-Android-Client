@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: shopping lists in the hub, the list a task carries (plugin gatecontrol-notizen 1.4.0). -->
+<resources>
+    <string name="notizen_attached_choose">Choose a list …</string>
+    <string name="notizen_attached_count" translatable="false">%1$s %2$d/%3$d</string>
+    <string name="notizen_attached_list">Attached list</string>
+    <string name="notizen_attached_new">New list</string>
+    <string name="notizen_attached_none">No list</string>
+    <string name="notizen_attached_only_me">only me</string>
+    <string name="notizen_attached_open">Open list</string>
+    <string name="notizen_attached_pick">Attach a list</string>
+    <string name="notizen_attached_who_open">%1$s · %2$d open</string>
+    <string name="notizen_msg_list_later">The list has been created. You can attach it as soon as there is a connection.</string>
+    <string name="notizen_quick_attach">List: %1$s · %2$d open</string>
+    <string name="notizen_quick_attach_choose">Attach a shopping list …</string>
+    <string name="notizen_quick_attach_hint">“%1$s” fits the list %2$s. You can remove the chip or swap it for another list.</string>
+    <string name="notizen_shop_add">Add item</string>
+    <string name="notizen_shop_all_done_task">Everything ticked off. “%1$s” is done.</string>
+    <string name="notizen_shop_all_done_tasks">Everything ticked off. %1$d tasks are done.</string>
+    <string name="notizen_shop_belongs">belongs to “%1$s”</string>
+    <string name="notizen_shop_belongs_progress">belongs to “%1$s” · %2$d of %3$d</string>
+    <string name="notizen_shop_clear_checked">Remove ticked items</string>
+    <string name="notizen_shop_delete_shared_text">Delete “%1$s” with all its items for everyone it is shared with? It stays in the trash for 30 days.</string>
+    <string name="notizen_shop_delete_text">Delete “%1$s” with all its items? It stays in the trash for 30 days.</string>
+    <string name="notizen_shop_edit_item">Change item</string>
+    <string name="notizen_shop_empty">The list is empty. Write the first item below.</string>
+    <string name="notizen_shop_family">Family</string>
+    <string name="notizen_shop_gone">This list no longer exists, or it is no longer shared with you.</string>
+    <string name="notizen_shop_item">Item</string>
+    <string name="notizen_shop_lists">Shopping lists</string>
+    <string name="notizen_shop_new">New shopping list</string>
+    <string name="notizen_shop_none">No shopping list yet.</string>
+    <string name="notizen_shop_progress">%1$d of %2$d ticked off</string>
+    <string name="notizen_shop_read_only">You can only view this list.</string>
+    <string name="notizen_shop_title">Shopping list</string>
+    <string name="notizen_shop_undo">Undo</string>
+    <string name="notizen_shop_undone">The task is open again.</string>
+    <string name="notizen_shop_undone_queued">The task is open again. This is sent as soon as there is a connection.</string>
+</resources>

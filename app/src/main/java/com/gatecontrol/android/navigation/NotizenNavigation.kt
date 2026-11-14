@@ -15,6 +15,7 @@ import com.gatecontrol.android.ui.notizen.NotizenNav
 import com.gatecontrol.android.ui.notizen.NotizenNoteScreen
 import com.gatecontrol.android.ui.notizen.NotizenQuickScreen
 import com.gatecontrol.android.ui.notizen.NotizenSearchScreen
+import com.gatecontrol.android.ui.notizen.NotizenShoppingScreen
 import com.gatecontrol.android.ui.notizen.NotizenSourcesScreen
 import com.gatecontrol.android.ui.notizen.NotizenTaskScreen
 import com.gatecontrol.android.ui.notizen.NotizenVaultScreen
@@ -36,6 +37,7 @@ internal object NotizenRoutes {
     const val IMPORT = "notizen/import"
     const val SEARCH = "notizen/search"
     const val VAULT = "notizen/vault/{vault}?requests={requests}"
+    const val SHOPPING = "notizen/shopping/{uid}"
 
     fun view(name: String) = "notizen/view/" + MailRoutes.enc(name)
     fun task(id: Long) = "notizen/task/$id"
@@ -44,6 +46,9 @@ internal object NotizenRoutes {
     fun note(id: Long, notebook: Long? = null, text: String? = null) = MailRoutes.build("notizen/note/$id", "notebook" to notebook?.toString(), "text" to text?.take(20_000))
     /** A Tresor's page; [requests] (a push „Neues Gerät möchte Zugriff“): it stays after unlocking, with the device to approve. */
     fun vault(id: String, requests: Boolean = false) = "notizen/vault/$id" + if (requests) "?requests=1" else ""
+
+    /** A shopping list of the hub (plugin 1.4.0) to tick off; [uid]: the id its device gave it. */
+    fun shopping(uid: String) = "notizen/shopping/" + MailRoutes.enc(uid)
 
     /** The tab of a plugin this app has (an item's original whose route it has no screen for). */
     fun tabOf(plugin: String): String? = when (plugin) {
@@ -69,6 +74,7 @@ private fun notizenNav(navController: NavHostController, have: () -> NotizenOpen
         import = { go(NotizenRoutes.IMPORT) },
         search = { go(NotizenRoutes.SEARCH) },
         vault = { go(NotizenRoutes.vault(it)) },
+        shopping = { go(NotizenRoutes.shopping(it)) },
         openSource = { open ->
             when (val t = NotizenOpen.target(open, have())) {
                 is NotizenOpen.MailMessage -> { go(Screen.MailMessage.create(t.id)); true }
@@ -100,6 +106,10 @@ internal fun NavGraphBuilder.notizenRoutes(navController: NavHostController, hav
     composable(NotizenRoutes.ITEM, arguments = listOf(navArgument("id") { type = NavType.StringType })) { GcContentWidth { NotizenItemScreen(remember { nav() }) } }
     composable(NotizenRoutes.QUICK, arguments = listOf(str("mode"), str("text"))) { GcContentWidth { NotizenQuickScreen(remember { nav() }) } }
     composable(NotizenRoutes.NOTE, arguments = listOf(navArgument("id") { type = NavType.StringType }, str("notebook"), str("text"))) { GcContentWidth { NotizenNoteScreen(remember { nav() }) } }
+    composable(NotizenRoutes.SHOPPING, arguments = listOf(navArgument("uid") { type = NavType.StringType })) { entry ->
+        val uid = entry.arguments?.getString("uid").orEmpty()
+        GcContentWidth { NotizenShoppingScreen(uid, onBack = { navController.popBackStack() }, onTask = { navController.navigate(NotizenRoutes.task(it)) { launchSingleTop = true } }) }
+    }
     composable(NotizenRoutes.SOURCES) { GcContentWidth { NotizenSourcesScreen(remember { nav() }) } }
     composable(NotizenRoutes.IMPORT) { GcContentWidth { NotizenImportScreen(remember { nav() }) } }
     composable(NotizenRoutes.SEARCH) { GcContentWidth { NotizenSearchScreen(remember { nav() }) } }

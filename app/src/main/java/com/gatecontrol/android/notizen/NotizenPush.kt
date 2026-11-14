@@ -20,7 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *   „Erledigt“ (several tasks: `done_ask`) and „Verschieben“ (`move`) open the same, with the question or the choice.
  *
  * The destination travels as text in the notification's intent: `task:<id>`, `list:<id>`, `notebook:<id>`,
- * `tresor:<notebookId>:<vaultId>`, `vault:<vaultId>`, `yesterday:<open|done|move>[:<id>-<id>…]`, each with `@private` /
+ * `tresor:<notebookId>:<vaultId>`, `vault:<vaultId>`, `yesterday:<open|done|move>[:<id>-<id>…]`, `shop:<list uid>`
+ * (plugin 1.4.0: „Liste öffnen“ of a reminder whose task carries a shopping list), each with `@private` /
  * `@work` when the push names the area.
  */
 object NotizenPush {
@@ -43,6 +44,11 @@ object NotizenPush {
      * once „Alle N abhaken?“) or [Y_MOVE] (the choice of days) for the tasks [ids] of the message (at most 20).
      */
     data class Yesterday(val action: String, val ids: List<Long>, override val area: String? = null) : Target
+    /** Plugin 1.4.0: the shopping list a reminded task carries (the button „Liste öffnen“), to tick off. */
+    data class Shopping(val uid: String, override val area: String? = null) : Target
+
+    /** The button of a reminder with a list: not a callback — the app opens the list itself. */
+    const val ACTION_OPEN_LIST = "open_list"
 
     const val Y_OPEN = "open"
     const val Y_DONE = "done"
@@ -99,6 +105,22 @@ object NotizenPush {
     }
 
     /**
+     * Where „Liste öffnen“ of a reminder leads (plugin 1.4.0, `data.notizen.attachedList.uid`); null: the push carries
+     * no list (GateControl's route then opens the tab, as for an app that does not know lists).
+     */
+    fun listDestination(message: PushMessage): String? {
+        if (message.topic != TOPIC_REMINDERS) return null
+        val n = runCatching { JsonParser.parseString(message.dataJson ?: return null).asJsonObject.get("notizen") }.getOrNull()
+            ?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        val uid = NotizenJson.attached(n.get("attachedList")?.takeIf { it.isJsonObject }?.asJsonObject)?.uid ?: return null
+        return encode(Shopping(uid, n.str("area")?.takeIf { it == NArea.PRIVATE || it == NArea.WORK }))
+    }
+
+    /** The destination of the button [actionId] of a push whose list is [listDest]: the list for „Liste öffnen“, else null. */
+    fun listButton(listDest: String?, actionId: String?): String? =
+        listDest?.takeIf { actionId == ACTION_OPEN_LIST && decode(it) is Shopping }
+
+    /**
      * The destination of a button of the morning hint that opens the app: `done_ask` → the card with the question,
      * `move` → with the choice of days. null: not such a button (GateControl sends them as a portal link — the app has
      * the screen itself).
@@ -119,11 +141,12 @@ object NotizenPush {
         is Tresor -> "tresor:${t.notebookId}:${t.vaultId}"
         is VaultRequest -> "vault:${t.vaultId}"
         is Yesterday -> "yesterday:${t.action}" + if (t.ids.isEmpty()) "" else ":" + t.ids.take(Y_MAX).joinToString("-")
+        is Shopping -> "shop:${t.uid}"
     } + (t.area?.let { "@$it" } ?: "")
 
     private val YDEST = Regex("^yesterday:(open|done|move)(?::([1-9]\\d{0,14}(?:-[1-9]\\d{0,14}){0,19}))?(?:@(private|work))?$")
 
-    private val DEST = Regex("^(task|list|notebook|tresor|vault):([A-Za-z0-9_:-]{1,80})(?:@(private|work))?$")
+    private val DEST = Regex("^(task|list|notebook|tresor|vault|shop):([A-Za-z0-9_:-]{1,80})(?:@(private|work))?$")
 
     /** A destination of [destination] again; null when it is not one. */
     fun decode(dest: String?): Target? {
@@ -139,6 +162,7 @@ object NotizenPush {
             "task" -> id?.let { Task(it, area) }
             "list" -> id?.let { ListPage(it, area) }
             "notebook" -> id?.let { Notebook(it, area) }
+            "shop" -> NotizenJson.listUid(rest)?.let { Shopping(it, area) }
             "tresor" -> {
                 val nb = rest.substringBefore(':').toLongOrNull()?.takeIf { it > 0 } ?: return null
                 NotizenJson.vaultId(rest.substringAfter(':', ""))?.let { Tresor(nb, it, area) }
@@ -169,6 +193,7 @@ object NotizenPush {
             is VaultRequest -> listOf(Route(NotizenRoutes.vault(t.vaultId, requests = true)))
             // „Mein Tag“ of the tab, with the card (NotizenDeepLink)
             is Yesterday -> emptyList()
+            is Shopping -> listOf(Route(NotizenRoutes.shopping(t.uid)))
         }
     }
 

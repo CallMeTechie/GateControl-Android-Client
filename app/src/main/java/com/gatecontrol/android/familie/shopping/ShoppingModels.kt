@@ -15,7 +15,36 @@ data class ShoppingList(
     val dueAt: String? = null,
     /** open | taken | declined (Familie 1.9 `assignee.state`). */
     val assigneeState: String? = null,
-)
+    // ── a list of „Notizen & Aufgaben“ (1.4.0, `shoppingLists`); all unset for a list of the Familie plugin ──
+    /** The hub's number of the list (`listId` there): `PATCH lists/<n>`, attaching it to a task. */
+    val listNo: Long? = null,
+    /** `private` | `work`. */
+    val area: String? = null,
+    /** false: I may only look (`role: read`). */
+    val canEdit: Boolean? = null,
+    /** false: renaming and deleting are the owner's (a family list: the parents'). */
+    val canManage: Boolean? = null,
+    /** Shared with the whole family. */
+    val family: Boolean = false,
+    val shared: Boolean = false,
+    val ownerName: String? = null,
+    /** The names of the others it is shared with. */
+    val memberNames: List<String>? = null,
+    /** My open tasks this list hangs on („gehört zu ‚Bei Lidl einkaufen‘“). */
+    val tasks: List<ShoppingTaskRef>? = null,
+) {
+    /** Entries may be added, ticked and changed (a list of the Familie plugin: always). */
+    val editable: Boolean get() = canEdit != false
+
+    /** The list may be renamed and deleted. */
+    val manageable: Boolean get() = canManage != false
+}
+
+/** A task a shopping list hangs on (`lists[].tasks[]` of the hub). */
+data class ShoppingTaskRef(val id: Long, val title: String)
+
+/** A task „alles abgehakt“ completed (`completed[]` of the hub's `POST shopping/ops`). */
+data class ShoppingCompleted(val taskId: Long, val title: String, val listId: String)
 
 /** An entry of a list (`GET shopping` → `items[]`). */
 data class ShoppingItem(
@@ -35,6 +64,11 @@ data class ShoppingSnapshot(
     val lists: List<ShoppingList> = emptyList(),
     val items: List<ShoppingItem> = emptyList(),
     val serverTime: String? = null,
+    /**
+     * Familie 1.21 (`shoppingHome`): `notizen` — the lists live in „Notizen & Aufgaben“ and this is Familie's copy;
+     * `familie` or null (an older plugin): they are Familie's own.
+     */
+    val home: String? = null,
 )
 
 /**
@@ -51,6 +85,10 @@ data class ShoppingOp(
     val text: String? = null,
     val qty: String? = null,
     val checked: Boolean? = null,
+    /** `list_add` in the hub: `private` | `work`. */
+    val area: String? = null,
+    /** `list_add` in the hub: shared with the whole family (parents only). */
+    val family: Boolean? = null,
 ) {
     companion object {
         const val LIST_ADD = "list_add"
