@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.112.0] - 2026-11-14
+
+### Features
+- Chats – „Verknüpfte Dienste“ (WhatsApp verknüpfen), Update-Hinweis verschwindet (#231)
+
+---
+
 ## [1.111.0] - 2026-11-14
 
 ### Features
