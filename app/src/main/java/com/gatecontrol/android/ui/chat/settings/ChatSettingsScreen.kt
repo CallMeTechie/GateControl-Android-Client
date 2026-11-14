@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
@@ -92,6 +93,7 @@ import com.gatecontrol.android.chat.ChatStatus
 import com.gatecontrol.android.chat.ChatSystemBubbles
 import com.gatecontrol.android.chat.actions
 import com.gatecontrol.android.chat.events
+import com.gatecontrol.android.chat.linkedServices
 import com.gatecontrol.android.chat.msgTools
 import com.gatecontrol.android.chat.privacy2
 import com.gatecontrol.android.chat.status
@@ -127,7 +129,10 @@ object ChatSettingsPage {
     const val LISTS = "lists"
     const val HOME = "home"
     const val HELP = "help"
-    val ALL = setOf(MAIN, PRIVACY, BLOCKS, CHATS, LOOK, NOTIFY, STORAGE, DEVICES, LISTS, HOME, HELP)
+
+    /** „Verknüpfte Dienste“ (Messenger 1.13.0): only with `features.linked_services`. */
+    const val LINKED = "linked"
+    val ALL = setOf(MAIN, PRIVACY, BLOCKS, CHATS, LOOK, NOTIFY, STORAGE, DEVICES, LISTS, HOME, HELP, LINKED)
 }
 
 /**
@@ -179,11 +184,14 @@ fun ChatSettingsScreen(
             ChatSettingsPage.LISTS -> R.string.chat_settings_lists
             ChatSettingsPage.HOME -> R.string.chat_settings_home
             ChatSettingsPage.HELP -> R.string.chat_settings_help
+            ChatSettingsPage.LINKED -> R.string.chat_linked_title
             else -> R.string.chat_settings_title
         },
     )
+    // „Verknüpfte Dienste“ has steps of its own: the way back leads to its overview first.
+    val linked: LinkedServicesViewModel? = if (page == ChatSettingsPage.LINKED) hiltViewModel() else null
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        GcSubpageBar(title = title, onBack = onBack, backDescription = stringResource(R.string.chat_back))
+        GcSubpageBar(title = title, onBack = { if (linked?.back() != true) onBack() }, backDescription = stringResource(R.string.chat_back))
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -199,6 +207,7 @@ fun ChatSettingsScreen(
                 ChatSettingsPage.LISTS -> ListsPage(viewModel)
                 ChatSettingsPage.HOME -> HomePage(viewModel)
                 ChatSettingsPage.HELP -> HelpPage(viewModel)
+                ChatSettingsPage.LINKED -> linked?.let { ChatLinkedServicesPage(it) }
                 else -> MainPage(viewModel, onOpenPage, onOpenStatus, onOpenRoutes)
             }
             Spacer(Modifier.height(24.dp))
@@ -308,6 +317,10 @@ private fun MainPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit, on
         }
         if (f?.actions == true) {
             NavRow(Icons.Outlined.Home, extra.warn, extra.warnBg, stringResource(R.string.chat_settings_home), stringResource(R.string.chat_settings_home_desc)) { onOpenPage(ChatSettingsPage.HOME) }
+        }
+        if (f?.linkedServices == true) {
+            // Messenger 1.13.0: only while the server offers a bridge and it is switched on.
+            NavRow(Icons.Outlined.Link, extra.accentText, extra.accentBg, stringResource(R.string.chat_linked_title), stringResource(R.string.chat_linked_entry_desc)) { onOpenPage(ChatSettingsPage.LINKED) }
         }
         NavRow(Icons.AutoMirrored.Outlined.HelpOutline, extra.muted, extra.panel2, stringResource(R.string.chat_settings_help), stringResource(R.string.chat_settings_help_desc, vm.serverHost)) { onOpenPage(ChatSettingsPage.HELP) }
     }

@@ -75,6 +75,17 @@ Nur, wenn dein Server Drive 1.16 oder neuer anbietet.
 
 Nichts davon geht an CallMeTechie, Google oder andere Dritte.
 
+### Verknüpfte Dienste: WhatsApp (Plugin „Messenger“ deines Servers)
+
+Nur, wenn dein Server den Messenger 1.13 oder neuer hat, dein Administrator dort die Brücke zu WhatsApp eingeschaltet hat **und du selbst** dein Konto verknüpfst (Chats › Einstellungen › Verknüpfte Dienste). Bei Kindern erst, wenn die Eltern den Dienst freigeschaltet haben. Vor dem ersten Verknüpfen zeigt die App die Hinweise dazu; du bestätigst sie mit einem Haken.
+
+- **Telefonnummer:** Für das Verknüpfen per Code gibst du deine WhatsApp-Nummer ein. Die App schickt sie an **deinen eigenen GateControl-Server**; die Brücke dort gibt sie an **WhatsApp** weiter, damit WhatsApp den Kopplungscode ausstellt. Die App speichert die Nummer nicht, schreibt sie in kein Protokoll und in keinen Absturzbericht; sie ist nur im Arbeitsspeicher, solange das Feld zu sehen ist. Verknüpfst du per QR-Code, gibst du keine Nummer ein.
+- **Kopplungscode und QR-Code:** kommen von WhatsApp über deinen Server, werden nur angezeigt und nicht gespeichert. Kopierst du den Code, liegt er als „vertraulich“ markiert in der Zwischenablage und wird nach einer Minute wieder entfernt. Die Seite lässt sich nicht als Bildschirmfoto oder Bildschirmaufnahme festhalten.
+- **Was danach bei WhatsApp und auf deinem Server liegt:** Die Brücke auf deinem Server ist ein „verknüpftes Gerät“ deines WhatsApp-Kontos; die Sitzung liegt dort, nicht auf dem Handy. Die Ende-zu-Ende-Verschlüsselung von WhatsApp endet an dieser Brücke. Die Brücke ist kein offizielles Programm von WhatsApp; für das, was WhatsApp verarbeitet, gelten die Bedingungen von WhatsApp. In der App zeigt die Übersicht dein eigenes Konto beim Dienst (deine Nummer) und seit wann es verknüpft ist — geladen von deinem Server, nicht gespeichert.
+- **Trennen:** jederzeit in der App („Trennen“) oder in WhatsApp unter „Verknüpfte Geräte“.
+
+Die App selbst sendet nichts an WhatsApp und nichts an CallMeTechie; sie spricht nur mit deinem Server.
+
 ### Kamera
 
 Nur zum Scannen des Einrichtungs-QR-Codes, wenn du den Scanner öffnest. Bilder werden weder gespeichert noch übertragen. Die Erkennung (Google ML Kit) läuft vollständig auf dem Gerät.
@@ -176,6 +187,17 @@ Only when your server offers Drive 1.16 or later.
 - **People (face features):** only when you switch on "Recognise people" (off by default). Your phone then finds faces in your photos — **on the device**, with the YuNet and SFace models, on Wi-Fi and by default only while charging — and sends for each face only a series of numbers (the face feature), the face's position in the picture and how sure the detection is to **your own server**. No photo leaves the phone or your server for this. The recognition model this needs (SFace, 39 MB) is downloaded once when you switch it on — from the app's release page on GitHub, else from OpenCV Zoo on GitHub or from Hugging Face, by default only on Wi-Fi. These providers only learn the phone's IP address and the usual connection data, no photos and nothing of your server; switching off deletes the model again. For photos no longer on the phone the app loads the preview from your server. Your server groups the features into people; only you see your people and names. Switching off deletes all face data (features, people, names) on the server. Children's folders are left out unless you switch on "Include the children's folders".
 
 None of this goes to CallMeTechie, Google or other third parties.
+
+### Linked services: WhatsApp (your server's "Messenger" plugin)
+
+Only when your server has Messenger 1.13 or later, your administrator switched the bridge to WhatsApp on there **and you yourself** link your account (Chats › Settings › Linked services). For children only after the parents allowed the service. Before the first link the app shows the notes about it; you confirm them with a tick.
+
+- **Phone number:** to link with a code you enter your WhatsApp number. The app sends it to **your own GateControl server**; the bridge there passes it on to **WhatsApp** so that WhatsApp issues the pairing code. The app does not store the number and writes it to no log and no crash report; it is in memory only while the field shows. Linking with a QR code needs no number.
+- **Pairing code and QR code:** come from WhatsApp through your server, are shown only and not stored. If you copy the code it is put on the clipboard marked as sensitive and removed again after a minute. The page cannot be captured in a screenshot or a screen recording.
+- **What is at WhatsApp and on your server afterwards:** the bridge on your server is a "linked device" of your WhatsApp account; the session is kept there, not on the phone. WhatsApp's end-to-end encryption ends at that bridge. The bridge is not an official WhatsApp program; WhatsApp's terms apply to what WhatsApp processes. In the app the overview shows your own account at the service (your number) and since when it is linked — loaded from your server, not stored.
+- **Unlinking:** at any time in the app ("Unlink") or in WhatsApp under "Linked devices".
+
+The app itself sends nothing to WhatsApp and nothing to CallMeTechie; it talks to your server only.
 
 ### Camera
 

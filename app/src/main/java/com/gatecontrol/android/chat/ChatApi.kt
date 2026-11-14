@@ -28,8 +28,11 @@ import javax.inject.Singleton
 sealed interface ChatResult<out T> {
     data class Ok<T>(val value: T) : ChatResult<T>
 
-    /** The server answered with an error: [code] from `{ok:false, code}` or `http_<status>`. */
-    data class Failed(val code: String, val http: Int) : ChatResult<Nothing>
+    /**
+     * The server answered with an error: [code] from `{ok:false, code}` or `http_<status>`; [reason] says more
+     * where the messenger sends one (a bridge's refusal, Messenger 1.12).
+     */
+    data class Failed(val code: String, val http: Int, val reason: String? = null) : ChatResult<Nothing>
 
     /** No answer (network, VPN, timeout). */
     data object Offline : ChatResult<Nothing>
@@ -64,6 +67,9 @@ class ChatApi @Inject constructor(
         private const val TIMEOUT_MS = 20_000L
         private const val UPLOAD_TIMEOUT_MS = 10 * 60_000L
 
+        /** A bridge login step waits for the phone on the server (up to 15 s). */
+        private const val BRIDGE_STEP_TIMEOUT_MS = 30_000L
+
         /** `conversations/<id>/messages` of a push's `reply` action, nothing else. */
         val REPLY_PATH_RE = Regex("^conversations/[1-9][0-9]{0,14}/messages$")
 
@@ -88,7 +94,7 @@ class ChatApi @Inject constructor(
             if (response.isSuccessful) {
                 val body = response.body() ?: JsonObject()
                 if (body.has("ok") && body.get("ok").let { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean && !it.asBoolean }) {
-                    return ChatResult.Failed(ChatJson.errorCode(body) ?: "failed", response.code())
+                    return ChatResult.Failed(ChatJson.errorCode(body) ?: "failed", response.code(), ChatJson.errorReason(body))
                 }
                 parse(body)?.let { ChatResult.Ok(it) } ?: ChatResult.Failed(CODE_INVALID, response.code())
             } else {
@@ -97,7 +103,7 @@ class ChatApi @Inject constructor(
                         ?.let { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }
                 }.getOrNull()
                 Timber.d("Chats: HTTP %d", response.code())
-                ChatResult.Failed(ChatJson.errorCode(err) ?: "http_${response.code()}", response.code())
+                ChatResult.Failed(ChatJson.errorCode(err) ?: "http_${response.code()}", response.code(), ChatJson.errorReason(err))
             }
         } catch (e: CancellationException) {
             throw e
@@ -237,6 +243,51 @@ class ChatApi @Inject constructor(
             before?.let { put("before", it.toString()) }
         }
         return get("conversations/$conversationId/media", q, ChatJson::mediaPage)
+    }
+
+    // ─── Messenger 1.12/1.13: „Verknüpfte Dienste“ (bridges) ───────
+    // The viewer's own account only. A number or a pairing code is never logged here: [call] logs the HTTP status
+    // and nothing of a body.
+
+    private fun <T> noPath(): ChatResult<T> = ChatResult.Failed("invalid", 0)
+
+    /** `GET bridges` → the services and the viewer's own links. */
+    suspend fun bridges(): ChatResult<ChatBridgesInfo> = get("bridges", parse = ChatBridgesJson::info)
+
+    /** `POST bridges/:network/consent` — the notes before the first link were read. */
+    suspend fun bridgeConsent(network: String): ChatResult<Unit> {
+        val path = ChatBridges.path(network, "consent") ?: return noPath()
+        return post(path, JsonObject().apply { addProperty("accept", true) }, unit)
+    }
+
+    /** `POST bridges/:network/login { flow }` → the first step. */
+    suspend fun bridgeLoginStart(network: String, flow: String): ChatResult<ChatBridgeLoginState> {
+        val path = ChatBridges.path(network, "login") ?: return noPath()
+        return post(path, JsonObject().apply { addProperty("flow", flow) }, ChatBridgesJson::loginState)
+    }
+
+    /**
+     * `POST bridges/:network/login/:process/:step` — with [input] the answer to a question (the number), without
+     * it the wait for the phone: the server holds that call for up to 15 s, hence the patient client.
+     */
+    suspend fun bridgeLoginStep(network: String, processId: String, stepId: String, input: Map<String, String>? = null): ChatResult<ChatBridgeLoginState> {
+        val path = ChatBridges.path(network, "login", processId, stepId) ?: return noPath()
+        val body = JsonObject()
+        if (input != null) body.add("input", JsonObject().apply { input.forEach { (k, v) -> addProperty(k, v) } })
+        val q = lang()?.let { mapOf("lang" to it) } ?: emptyMap()
+        return call(timeoutMs = BRIDGE_STEP_TIMEOUT_MS, media = true, request = { pluginPost(MESSENGER_PLUGIN, path, body, q) }, parse = ChatBridgesJson::loginState)
+    }
+
+    /** `DELETE bridges/:network/login/:process` — drop a login in progress. */
+    suspend fun bridgeLoginCancel(network: String, processId: String): ChatResult<Unit> {
+        val path = ChatBridges.path(network, "login", processId) ?: return noPath()
+        return del(path, unit)
+    }
+
+    /** `DELETE bridges/:network/logins/:id` — unlink (always allowed for one's own account). */
+    suspend fun bridgeUnlink(network: String, loginId: String): ChatResult<Unit> {
+        val path = ChatBridges.path(network, "logins", loginId) ?: return noPath()
+        return del(path, unit)
     }
 
     // ─── Messenger 1.4: status and stories ──────────────────────────
