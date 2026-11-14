@@ -954,6 +954,51 @@ Herunterziehen lädt neu.
 - **Mein Tag am Listen-Tag (1.2.0):** oben die Karte „Heute ist
   Einkaufstag“ (`listdays` von `views/myday`) mit Zahl der offenen Dinge, den
   ersten Einträgen zum Abhaken und „Ganze Liste öffnen“.
+- **Aufgaben und Erinnerungen, Stufe 1 (Plugin 1.3.0):** erkannt nur an den
+  Wörtern in `me.features` – `reminderActions`, `yesterdayOpen`,
+  `taskCalendar` –, nie an einer Version; ohne sie bleibt alles wie bisher.
+  - **Meldung zur Fälligkeit mit Knöpfen** (Erledigt · In 1 Std. · Heute
+    Abend / Morgen früh): `data.actions` vom Typ `callback` gehen wie jede
+    Callback-Aktion als `POST push/ack { seqs, state: "read", action }` an den
+    Server (`PushActionReceiver`), ohne „Gesehen“ daneben.
+  - **Das Handy merkt sich die Erinnerung selbst** (`NotizenReminderCenter`):
+    `GET reminders` liegt in der Kopie des Plugins auf dem Gerät und wird
+    nach dem Start, nach `changed` mit `tasks`, nach eigenem Schreiben, nach
+    Boot, App-Update, Uhr- oder Zeitzonenwechsel und täglich (WorkManager)
+    neu geholt; `ReminderPlan` stellt daraus die Alarme (die nächsten 60, je
+    Aufgabe einen, Verpasstes bis 24 Stunden sofort). **Exakt** nur, wenn
+    Android es erlaubt (`SCHEDULE_EXACT_ALARM`, `canScheduleExactAlarms()` –
+    bis Android 13 von selbst, ab Android 14 nur mit dem Schalter „Wecker
+    und Erinnerungen“; die App fragt nie per Dialog danach, in den
+    Einstellungen steht ein Hinweis mit Link). Sonst zwei ungenaue Alarme:
+    einer im 10-Minuten-Fenster, einer, der auch im Ruhezustand kommen darf.
+    `USE_EXACT_ALARM` wird nicht verwendet (bei Google Play Weckern und
+    Kalendern vorbehalten). Die lokale Meldung zeigt Titel, Text und Knöpfe
+    aus `GET reminders` unverändert; die Knöpfe gehen direkt an die API
+    (`tasks/<id>/complete`, `tasks/<id>/snooze { until, tag }`), ohne Netz in
+    den Postausgang. Der Schalter „Mitteilungen“ und das Thema des Geräts
+    gelten auch hier, in der Ruhezeit kommt sie stumm.
+  - **Keine doppelten Meldungen** (`ReminderGuard`): Alarm und Push teilen
+    eine Benachrichtigung (die Id des `collapse_key` `task:<id>`, derselbe
+    Kanal). Wer zuerst kommt, wird gezeigt, der andere ersetzt ihn still;
+    ein `tag`, den die Person entschieden hat (Knopf, weggewischt, geöffnet),
+    wird 48 Stunden lang nicht wieder gezeigt – ein Push dazu wird still als
+    gelesen quittiert. Vor dem Zeigen prüft der Alarm mit Netz, ob der `tag`
+    noch in `GET reminders` steht.
+  - **„Gestern offen geblieben“:** Karte in „Mein Tag“ über „Heute“
+    (`yesterday` von `views/myday`; ihre Aufgaben fehlen dann unter
+    „Überfällig“), je Zeile Erledigt · Heute · Verschieben (`moveOptions` +
+    „Anderes Datum“), im Kopf „Alle heute“ (`POST yesterday`). Der
+    Morgen-Hinweis (`kind: 'yesterday'`) öffnet beim Antippen die Karte;
+    „Erledigt“ bei mehreren fragt einmal „Alle N abhaken?“, „Verschieben“
+    bietet die Tage an – beides fängt die App ab, statt das Portal zu öffnen
+    (`NotizenPush.yesterdayButton`); „Heute“ ist ein Callback.
+  - **Kalender:** Chip „Kalender: Aufgaben“ in der Schnell-Eingabe (bei
+    Datum mit Uhrzeit) und das Zeichen „im Kalender“ an der Aufgabe, nur wenn
+    `me.calendar.available && enabled && mine`. In den Einstellungen der
+    Schalter „Aufgaben mit Uhrzeit in meinen Kalender eintragen“
+    (`prefs.calendar.tasks`) sowie der Morgen-Hinweis mit Uhrzeit
+    (`prefs.notify.yesterday`, `prefs.yesterdayAt`).
 - **Liste:** offene und erledigte Aufgaben, unten ein Feld für eine neue
   Aufgabe (nicht bei „nur ansehen“).
 - **Aufgabe:** Titel, Wichtig, Unteraufgaben (hinzufügen, abhaken,

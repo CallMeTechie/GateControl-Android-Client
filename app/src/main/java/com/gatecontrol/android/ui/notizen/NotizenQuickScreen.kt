@@ -111,6 +111,10 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     var dialog by rememberSaveable { mutableStateOf<String?>(null) }
+    /** The chip „Kalender“ was tapped: what it means (the calendar's name). */
+    var calendarHint by remember { mutableStateOf<String?>(null) }
+    val calendarText = calendarHint?.let { stringResource(R.string.notizen_quick_calendar_hint, it) }
+    LaunchedEffect(calendarHint) { if (calendarText != null) { snack.showSnackbar(calendarText); calendarHint = null } }
     val x = GateControlTheme.extraColors
     val kinds = listOf("date", "time", "repeat", "important", "list", "person")
     val colors = kinds.associateWith { markColor(it) }
@@ -153,6 +157,13 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                                 Chip(stringResource(R.string.notizen_quick_add_date), x.panel2, GcIcons.Calendar) { dialog = "date" }
                             }
                             e.remind?.time?.let { Chip(stringResource(R.string.notizen_quick_remind, NotizenFormat.time(it) ?: it), colors.getValue("time"), GcIcons.Bell) { vm.drop("time") } }
+                            // plugin 1.3.0: a task with a time becomes an event in my calendar in Mail (only while Mail
+                            // offers it and the administrator and I have it on) — the chip says so, the switch is in the settings
+                            val calendar = ui.me?.takeIf { it.calendarShown && e.due?.time != null }?.calendar
+                            if (calendar != null) {
+                                val name = calendar.name ?: stringResource(R.string.notizen_default_list)
+                                Chip(stringResource(R.string.notizen_quick_calendar, name), MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), GcIcons.Calendar) { calendarHint = name }
+                            }
                             e.repeat?.let { Chip(NRepeat.describe(it, lang), colors.getValue("repeat"), GcIcons.Refresh) { vm.drop("repeat") } }
                             if (e.important) Chip(stringResource(R.string.notizen_important), colors.getValue("important"), GcIcons.Star) { vm.drop("important") }
                             val listName = e.listId?.let { id -> ui.nav?.lists?.firstOrNull { it.id == id }?.name } ?: e.newList?.let { stringResource(R.string.notizen_quick_new_list, it) }

@@ -252,6 +252,8 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
         manageState, manage, me, ui.nav, ui.area, snack, vm::notebookName,
         onGone = { kind, id -> if (kind == "notebook" && ui.notebook == id) vm.selectNotebook(null) },
     )
+    val yAsk = ui.yAsk
+    if (yAsk != null && me != null) YesterdayAsk(yAsk, me.today, vm::yesterdayAll, vm::dismissYesterdayAsk)
     if (askNotebook) {
         NameDialog(
             title = stringResource(R.string.notizen_new_notebook),
@@ -344,14 +346,30 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
         if (ui.loading) NotizenLoading()
         return
     }
-    val rc = rowCtx(me.today, me.lang, path, showDay = false)
-    val rcDays = rowCtx(me.today, me.lang, path, showDay = true)
+    val rc = rowCtx(me.today, me.lang, path, showDay = false, calendar = me.calendarShown)
+    val rcDays = rowCtx(me.today, me.lang, path, showDay = true, calendar = me.calendarShown)
+    // plugin 1.3.0: „Gestern offen geblieben“ above „Heute“ — its tasks are under „Überfällig“ as well, not twice here
+    val yesterday = com.gatecontrol.android.notizen.NotizenYesterday.card(day, me.yesterdayOpen)
+    val sections = com.gatecontrol.android.notizen.NotizenYesterday.sections(day, yesterday)
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
+        if (yesterday != null) {
+            item(key = "yesterday") {
+                YesterdayCard(
+                    yesterday, rcDays, canWrite = !me.readOnly,
+                    actions = YesterdayActions(
+                        open = { nav.open(it) },
+                        done = vm::yesterdayDone,
+                        move = vm::yesterdayMove,
+                        allToday = { vm.yesterdayAll("today", yesterday.items.filter { it.canEdit }.map { it.id }) },
+                    ),
+                )
+            }
+        }
         // plugin 1.2.0: „Heute ist Einkaufstag“ — the lists whose day is today, on top
         day.listdays.forEach { card ->
             item(key = "ld-" + card.list.id) { ListDayCard(card, me, vm::toggle, nav) }
         }
-        for (s in day.sections) {
+        for (s in sections) {
             val open = s.items.filter { !it.done || s.id == "done" }
             if (s.id == "done") {
                 if (open.isNotEmpty()) {
@@ -381,7 +399,7 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
                 EntryCard(open, if (s.id == "events") rc.copy(timeFirst = true) else if (s.id == "upcoming" || s.id == "overdue") rcDays else rc, vm::toggle, nav)
             }
         }
-        if (day.listdays.isEmpty() && day.sections.all { s -> s.id == "done" || s.items.none { !it.done } }) {
+        if (yesterday == null && day.listdays.isEmpty() && day.sections.all { s -> s.id == "done" || s.items.none { !it.done } }) {
             item { Text(stringResource(R.string.notizen_day_empty), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(24.dp)) }
         }
     }

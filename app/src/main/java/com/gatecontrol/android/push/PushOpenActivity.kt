@@ -34,6 +34,7 @@ class PushOpenActivity : ComponentActivity() {
     @Inject lateinit var repository: PushRepository
     @Inject lateinit var portalLinkResolver: PortalLinkResolver
     @Inject lateinit var chatNotifier: com.gatecontrol.android.chat.ChatNotifier
+    @Inject lateinit var notizenReminders: com.gatecontrol.android.notizen.NotizenReminderCenter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +50,17 @@ class PushOpenActivity : ComponentActivity() {
             val message = intent.getLongExtra(EXTRA_CHAT_MESSAGE, 0L).takeIf { it > 0 && conv != null }
             val open = intent.getStringExtra(EXTRA_CHAT_OPEN)?.takeIf { it in com.gatecontrol.android.chat.ChatNotifyLogic.OPEN_TARGETS }
             PushNavigation.request(PushNavTarget.Chat(conv, message, open))
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+            return
+        }
+        // Notizen & Aufgaben: the phone's own alarm of a reminder was tapped — the task (no message behind it).
+        intent.getStringExtra(EXTRA_NOTIZEN_LOCAL)?.let { dest ->
+            intent.getStringExtra(EXTRA_NOTIZEN_TAG)?.let { tag -> ackScope.launch { notizenReminders.decided(tag) } }
+            PushNavigation.request(PushNavTarget.Notizen(dest))
             startActivity(
                 Intent(this, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
@@ -85,7 +97,22 @@ class PushOpenActivity : ComponentActivity() {
             finish()
             return
         }
-        ackScope.launch { repository.markRead(listOf(id), actionId) }
+        ackScope.launch {
+            runCatching { notizenReminders.pushDecided(id) }
+            repository.markRead(listOf(id), actionId)
+        }
+
+        // „Gestern offen geblieben“ (Notizen & Aufgaben 1.3.0): „Erledigt“ and „Verschieben“ come as a portal link —
+        // the app has the card itself: „Mein Tag“, with the question or the choice of days.
+        com.gatecontrol.android.notizen.NotizenPush.yesterdayButton(intent.getStringExtra(EXTRA_NOTIZEN_DEST), actionId)?.let { dest ->
+            PushNavigation.request(PushNavTarget.Notizen(dest, id))
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+            return
+        }
 
         if (actionType == PushActionType.OPEN_PORTAL) {
             // Stays (invisible) until the link is there: starting the browser
@@ -154,6 +181,15 @@ class PushOpenActivity : ComponentActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
 
         private const val EXTRA_SHARED = "com.gatecontrol.android.push.extra.SHARED"
+        private const val EXTRA_NOTIZEN_LOCAL = "com.gatecontrol.android.push.extra.NOTIZEN_LOCAL"
+        private const val EXTRA_NOTIZEN_TAG = "com.gatecontrol.android.push.extra.NOTIZEN_TAG"
+
+        /** Opens [dest] of „Notizen & Aufgaben“ from the phone's own alarm of the reminder [tag] (no message behind it). */
+        fun notizenIntent(context: Context, dest: String, tag: String): Intent =
+            Intent(context, PushOpenActivity::class.java)
+                .putExtra(EXTRA_NOTIZEN_LOCAL, dest)
+                .putExtra(EXTRA_NOTIZEN_TAG, tag)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
 
         /** Opens "Geteilt" (GateDrop) on [tab]; [messageId] (a push of the inbox) is marked read. */
         fun sharedIntent(context: Context, tab: String, messageId: Long? = null): Intent =

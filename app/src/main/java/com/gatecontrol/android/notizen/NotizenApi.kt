@@ -184,6 +184,28 @@ class NotizenApi @Inject constructor(
 
     suspend fun deleteTask(id: Long): NResult<Unit> = del("tasks/$id", unit)
 
+    // ── reminders and „Gestern offen geblieben“ (plugin 1.3.0; an older plugin answers 404) ──
+
+    /** `POST tasks/<id>/snooze` („Später“) → whether it moved; with [tag] only while the task still has that reminder. */
+    suspend fun snoozeTask(id: Long, until: String, tag: String?): NResult<Boolean> =
+        post("tasks/$id/snooze", NotizenJson.snoozeBody(until, tag), parse = NotizenJson::snoozeAnswer)
+
+    /** `POST tasks/<id>/snooze` with a body of its own (the outbox). */
+    suspend fun snoozeTaskBody(id: Long, body: JsonObject): NResult<Boolean> = post("tasks/$id/snooze", body, parse = NotizenJson::snoozeAnswer)
+
+    /** `POST tasks/<id>/move { to }`: the due day goes there (`today`, `tomorrow`, `weekend`, a date). */
+    suspend fun moveTask(id: Long, body: JsonObject): NResult<NTask> = post("tasks/$id/move", body, parse = NotizenJson::taskAnswer)
+
+    /** `GET yesterday` — [area] null: both areas. */
+    suspend fun yesterday(area: String?): NResult<NYesterday> = get("yesterday", area?.let { mapOf("area" to it) }.orEmpty()) { NotizenJson.yesterday(it) }
+
+    /** `POST yesterday`: all of the card (or [ids]) done, to today, or moved. */
+    suspend fun postYesterday(action: String, to: String? = null, ids: List<Long>? = null, area: String? = null): NResult<NYesterdayResult> =
+        post("yesterday", NotizenJson.yesterdayBody(action, to, ids, area)) { NotizenJson.yesterdayResult(it) }
+
+    /** `GET reminders`: what the server would remind me of in the next 30 days (for the phone's own alarms). */
+    suspend fun reminders(): NResult<NReminderFeed> = get("reminders", parse = NotizenJson::reminders)
+
     suspend fun item(id: Long): NResult<Pair<NItem, Long?>> = get("items/$id", parse = NotizenJson::itemAnswer)
 
     suspend fun completeItem(id: Long, done: Boolean): NResult<NItem> = post("items/$id/complete", NotizenJson.doneBody(done)) { o -> NotizenJson.itemAnswer(o)?.first }

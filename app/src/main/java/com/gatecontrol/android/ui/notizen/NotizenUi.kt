@@ -170,14 +170,27 @@ data class RowCtx(
     val timeFirst: Boolean = false,
     /** The due day is written (the rows of „Demnächst“, „Geplant“, a list). */
     val showDay: Boolean = true,
+    /** Plugin 1.3.0: the mark „im Kalender“ shows (Mail offers the calendar, the administrator and I have it on). */
+    val calendar: Boolean = false,
 )
 
 @Composable
-internal fun rowCtx(today: String, lang: String, listPath: (Long?) -> String?, showDay: Boolean = true, timeFirst: Boolean = false) = RowCtx(
+internal fun rowCtx(today: String, lang: String, listPath: (Long?) -> String?, showDay: Boolean = true, timeFirst: Boolean = false, calendar: Boolean = false) = RowCtx(
     today, lang, listPath,
     Triple(stringResource(R.string.notizen_today_word), stringResource(R.string.notizen_tomorrow_word), stringResource(R.string.notizen_yesterday_word)),
-    timeFirst, showDay,
+    timeFirst, showDay, calendar,
 )
+
+/** A little mark of a row with its sign: „Erinnerung“, „im Kalender“ (plugin 1.3.0, mockup „Am nächsten Tag in ‚Mein Tag‘“). */
+@Composable
+private fun NRowMark(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, lead: Boolean) {
+    val x = GateControlTheme.extraColors
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        if (lead) Text("·", style = MaterialTheme.typography.bodySmall, color = x.muted)
+        Icon(icon, null, tint = x.muted, modifier = Modifier.size(12.dp))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = x.muted)
+    }
+}
 
 /**
  * A row of a list: a task of the hub or an item of another plugin (mockup Main / Listen). [showAssignee] (a shared
@@ -236,6 +249,12 @@ internal fun NEntryRow(
                         val text = if (!ctx.showDay && due?.date == ctx.today) NotizenFormat.time(due.time) ?: dueText else dueText
                         Text(text, style = MaterialTheme.typography.bodySmall, color = if (overdue) scheme.error else x.muted, fontWeight = if (overdue) FontWeight.SemiBold else null)
                     }
+                    // plugin 1.3.0: a reminder still to come, the task's event in my calendar
+                    val shown = dueText != null && (ctx.showDay || due?.time != null)
+                    val reminder = task != null && !task.done && task.reminder != null
+                    if (reminder) NRowMark(GcIcons.Bell, stringResource(R.string.notizen_mark_reminder), lead = shown)
+                    val inCalendar = task != null && ctx.calendar && task.calendar?.synced == true && task.calendar.mine
+                    if (inCalendar) NRowMark(GcIcons.Calendar, stringResource(R.string.notizen_mark_calendar), lead = shown || reminder)
                     if (item != null) {
                         item.subtitle?.let { meta.add(it) }
                         item.meta["child"]?.let { meta.add(it) }
@@ -254,7 +273,7 @@ internal fun NEntryRow(
                     }
                     if (meta.isNotEmpty()) {
                         Text(
-                            (if (dueText != null || item != null) "· " else "") + meta.joinToString(" · "),
+                            (if (dueText != null || item != null || reminder || inCalendar) "· " else "") + meta.joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
                             color = x.muted,
                         )

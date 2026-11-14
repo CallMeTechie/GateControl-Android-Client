@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: reminders with buttons, the phone's own alarm, „Gestern offen geblieben“, the calendar (plugin gatecontrol-notizen 1.3.0). -->
+<resources>
+    <string name="notizen_mark_calendar">im Kalender</string>
+    <string name="notizen_mark_reminder">Erinnerung</string>
+    <string name="notizen_quick_calendar">Kalender: %1$s</string>
+    <string name="notizen_quick_calendar_hint">Aufgaben mit Uhrzeit stehen als Termin im Kalender „%1$s“ in Mail. Abschalten kannst du das in den Einstellungen.</string>
+    <string name="notizen_reminder_channel">Erinnerungen an Aufgaben</string>
+    <string name="notizen_set_calendar">Kalender</string>
+    <string name="notizen_set_calendar_tasks">Aufgaben mit Uhrzeit in meinen Kalender eintragen</string>
+    <string name="notizen_set_calendar_tasks_hint">Als Termin im Kalender „%1$s“ in Mail</string>
+    <string name="notizen_set_local_alarm">Dieses Handy merkt sich die Erinnerungen zusätzlich selbst. Sie kommen dann auch ohne Verbindung zum Server.</string>
+    <string name="notizen_set_local_alarm_allow">Genaue Uhrzeit erlauben</string>
+    <string name="notizen_set_local_alarm_inexact">Dieses Handy merkt sich die Erinnerungen zusätzlich selbst. Ohne Verbindung zum Server kann eine Erinnerung einige Minuten später kommen, im Ruhezustand des Handys auch später.</string>
+    <string name="notizen_set_notify_yesterday">Gestern offen geblieben</string>
+    <string name="notizen_set_notify_yesterday_hint">Am Morgen eine Meldung, wenn gestern etwas offen blieb</string>
+    <string name="notizen_set_yesterday_at">Uhrzeit am Morgen</string>
+    <string name="notizen_y_action_cd">%1$s: %2$s</string>
+    <string name="notizen_y_all_today">Alle heute</string>
+    <string name="notizen_y_ask_done">Alle %1$d abhaken?</string>
+    <string name="notizen_y_ask_done_confirm">Abhaken</string>
+    <string name="notizen_y_ask_done_text">Die Aufgaben von gestern gelten dann als erledigt.</string>
+    <string name="notizen_y_ask_move">Verschieben auf</string>
+    <string name="notizen_y_done">Erledigt</string>
+    <string name="notizen_y_move">Verschieben</string>
+    <string name="notizen_y_other_date">Anderes Datum</string>
+    <string name="notizen_y_title">Gestern offen geblieben</string>
+    <string name="notizen_y_today">Heute</string>
+    <string name="notizen_y_tomorrow">Morgen</string>
+    <string name="notizen_y_weekend">Am Wochenende</string>
+</resources>

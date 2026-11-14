@@ -182,6 +182,7 @@ Only to scan the setup QR code when you open the scanner. No images are stored o
 | Notifications | VPN status and messages from your server |
 | Foreground service | Notification center connection and remote desktop sessions |
 | Start at boot | optional: connect automatically |
+| Alarms & reminders (exact alarms) | optional, Notes & Tasks: the reminder of a task at its minute, also without a connection to your server. The app never asks for it in a dialog; from Android 14 on it is off until you switch it on in Android's settings (without it a reminder kept on the phone can come a few minutes late). Nothing is sent for it |
 | Ignore battery optimisation | optional: notifications while the device sleeps |
 | Location (incl. background) | optional: Wi-Fi names for trusted Wi-Fi; location on tap to your own server; Family: location on a parent's request, "I've arrived"/SOS, place reminders (see above) |
 | Camera | Setup QR code |

@@ -79,7 +79,19 @@ class NotizenHomeViewModel @Inject constructor(
         val offlineEdits: Boolean = false,
         /** Pulled down: loading again. */
         val refreshing: Boolean = false,
+        /** A button of the morning hint „Gestern offen geblieben“ opened the app: the question or the choice of days. */
+        val yAsk: YAsk? = null,
     )
+
+    /**
+     * What a button of the morning hint asks (plugin 1.3.0): [action] `done` — „Alle N abhaken?“ once; `move` — the
+     * choice „Morgen · Am Wochenende · Anderes Datum“ — for the tasks [ids].
+     */
+    data class YAsk(val action: String, val ids: List<Long>, val options: List<com.gatecontrol.android.notizen.NMoveOption> = emptyList())
+
+    /** The morning hint's button waiting for „Mein Tag“ to be loaded; [yTriedOther]: the other area was looked at. */
+    private var yPending: com.gatecontrol.android.notizen.NotizenPush.Yesterday? = null
+    private var yTriedOther = false
 
     private val _ui = MutableStateFlow(Ui(notebook = saved.get<Long>(KEY_NB)?.takeIf { it > 0 }))
     val ui: StateFlow<Ui> = _ui.asStateFlow()
@@ -145,6 +157,12 @@ class NotizenHomeViewModel @Inject constructor(
                 setSegment(SEG_NOTES)
             }
             com.gatecontrol.android.notizen.NotizenDeepLink.takeHint()?.let { _message.value = it }
+            // the morning hint „Gestern offen geblieben“: „Mein Tag“ with the card
+            link?.yesterday?.let { y ->
+                yPending = y
+                yTriedOther = link.area != null
+                setSegment(SEG_DAY)
+            }
             val area = repo.currentArea()
             _ui.update { it.copy(me = me.value, meError = null, area = area, offlineEdits = me.value.has(NotizenRepository.FEATURE_OFFLINE)) }
             val nav = repo.nav(area)
@@ -167,6 +185,7 @@ class NotizenHomeViewModel @Inject constructor(
                 )
             }
             if (nav is NResult.Failed) _message.value = nav.code()
+            if (yPending != null && !openYesterday(me.value, day.valueOrNull()?.value)) return@launch
             // the notebook of a push is not there (any more): the notes of all notebooks, and a hint
             val shownNav = nav.valueOrNull()?.value
             if (link?.notebook != null && shownNav != null && shownNav.notebooks.none { it.id == link.notebook }) {
@@ -207,6 +226,78 @@ class NotizenHomeViewModel @Inject constructor(
                 NotizenRepository.Tick.DONE -> Unit
             }
         }
+    }
+
+    // ── „Gestern offen geblieben“ (plugin 1.3.0) ────────────
+
+    /**
+     * The morning hint opened the app: its card may be in the other area (the hint counts both) — then that one is
+     * shown; „Erledigt“ asks once for the tasks of the hint still open, „Verschieben“ offers the days. False: loading
+     * again (the other area).
+     */
+    private suspend fun openYesterday(me: NMe, day: NView?): Boolean {
+        val y = yPending ?: return true
+        if (!me.yesterdayOpen) { yPending = null; return true }
+        val card = com.gatecontrol.android.notizen.NotizenYesterday.card(day, true)
+        if (card == null && !yTriedOther) {
+            yTriedOther = true
+            val other = if (_ui.value.area == NArea.WORK) NArea.PRIVATE else NArea.WORK
+            val there = repo.view("myday", other).valueOrNull()?.value
+            if (com.gatecontrol.android.notizen.NotizenYesterday.card(there, true) != null) {
+                setArea(other)
+                return false
+            }
+        }
+        yPending = null
+        if (y.action == com.gatecontrol.android.notizen.NotizenPush.Y_OPEN) return true
+        // what is still open, in both areas (offline: what the hint named)
+        val open = repo.api.yesterday(null).valueOrNull()
+        val ids = com.gatecontrol.android.notizen.NotizenYesterday.asked(y.ids, open?.items?.map { it.id } ?: card?.items?.map { it.id }.takeIf { y.ids.isEmpty() })
+        if (ids.isEmpty()) return true
+        _ui.update { it.copy(yAsk = YAsk(y.action, ids, open?.moveOptions ?: card?.moveOptions.orEmpty())) }
+        return true
+    }
+
+    fun dismissYesterdayAsk() = _ui.update { it.copy(yAsk = null) }
+
+    private fun acted(r: NotizenRepository.Acted) {
+        when (r) {
+            NotizenRepository.Acted.QUEUED -> _message.value = "queued"
+            NotizenRepository.Acted.READ_ONLY -> { _message.value = "read_only"; load(quiet = true) }
+            NotizenRepository.Acted.GONE -> { _message.value = "gone"; load(quiet = true) }
+            NotizenRepository.Acted.FAILED -> { _message.value = "failed"; load(quiet = true) }
+            NotizenRepository.Acted.DONE -> Unit
+        }
+    }
+
+    /** Gone from the card (and from „Überfällig“) at once; the next load says how it is. */
+    private fun decided(ids: Collection<Long>) = _ui.update { u -> u.copy(myDay = u.myDay?.let { com.gatecontrol.android.notizen.NotizenYesterday.without(it, ids.toSet()) }) }
+
+    /** A row's „Erledigt“. */
+    fun yesterdayDone(task: NTask) {
+        decided(listOf(task.id))
+        viewModelScope.launch {
+            when (repo.completeTask(task.id, true).first) {
+                NotizenRepository.Tick.QUEUED -> _message.value = "queued"
+                NotizenRepository.Tick.READ_ONLY -> { _message.value = "read_only"; load(quiet = true) }
+                NotizenRepository.Tick.FAILED -> { _message.value = "failed"; load(quiet = true) }
+                NotizenRepository.Tick.DONE -> Unit
+            }
+        }
+    }
+
+    /** A row's „Heute“ ([to] `today`) or „Verschieben“ (`tomorrow`, `weekend`, a date). */
+    fun yesterdayMove(task: NTask, to: String) {
+        decided(listOf(task.id))
+        viewModelScope.launch { acted(repo.moveTask(task.id, to)) }
+    }
+
+    /** „Alle heute“ at the head of the card, „Alle N abhaken“ and the choice of days of the morning hint. */
+    fun yesterdayAll(action: String, ids: List<Long>, to: String? = null) {
+        _ui.update { it.copy(yAsk = null) }
+        if (ids.isEmpty()) return
+        decided(ids)
+        viewModelScope.launch { acted(repo.yesterdayAll(action, ids, to)) }
     }
 
     fun createNotebook(name: String) {

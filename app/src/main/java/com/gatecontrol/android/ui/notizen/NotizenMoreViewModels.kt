@@ -66,7 +66,8 @@ class NotizenSourcesViewModel @Inject constructor(private val repo: NotizenRepos
             if (r is NResult.Ok) {
                 _ui.update { it.copy(prefs = r.value) }
                 repo.setPrefs(r.value)
-                repo.touched("items")
+                // „Erinnerungen an Aufgaben“ off or on: the phone's own alarms follow
+                repo.touched("items", "tasks")
             } else {
                 _message.value = r.code()
             }
@@ -88,6 +89,24 @@ class NotizenSourcesViewModel @Inject constructor(private val repo: NotizenRepos
 
     /** Plugin 1.2.0: `prefs.notify.reminders` / `shared` / `listday`. */
     fun setNotify(key: String, value: Boolean) = put(NotizenJson.prefsBody(notify = mapOf(key to value)))
+
+    /** Plugin 1.3.0: when the morning hint „Gestern offen geblieben“ comes. */
+    fun setYesterdayAt(time: String) = put(NotizenJson.prefsBody(yesterdayAt = time))
+
+    /** Plugin 1.3.0 (`prefs.calendar.tasks`): my tasks with a time in my calendar in Mail — `me.calendar.mine` follows. */
+    fun setCalendarTasks(value: Boolean) {
+        viewModelScope.launch {
+            val r = repo.api.putPrefs(NotizenJson.prefsBody(calendarTasks = value))
+            if (r is NResult.Ok) {
+                repo.setPrefs(r.value)
+                _ui.update { it.copy(prefs = r.value) }
+                repo.refreshMe()?.let { me -> _ui.update { it.copy(me = me.value) } }
+                repo.touched("tasks")
+            } else {
+                _message.value = r.code()
+            }
+        }
+    }
 
     /** Plugin 1.2.0: „Beim Öffnen“ — `last`, `private`, `work`. */
     fun setStartArea(value: String) = put(NotizenJson.prefsBody(startArea = value))

@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -109,6 +110,15 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
     var word by remember { mutableStateOf<String?>(null) }
     val me = ui.me
     val v12 = me?.has(com.gatecontrol.android.notizen.NFeature.LIST_DAYS) == true
+    /** The time of the morning hint is being picked (plugin 1.3.0). */
+    var yesterdayAt by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var exact by remember { mutableStateOf(com.gatecontrol.android.notizen.notizenExactAlarms(context)) }
+    // back from Android's „Wecker und Erinnerungen“
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        exact = com.gatecontrol.android.notizen.notizenExactAlarms(context)
+        onPauseOrDispose { }
+    }
     val canWrite = me?.readOnly != true
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize()) {
@@ -164,9 +174,65 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
                             SettingSwitch(stringResource(R.string.notizen_set_notify_shared), null, ui.prefs.notify.shared, canWrite) { vm.setNotify("shared", it) }
                             Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
                             SettingSwitch(stringResource(R.string.notizen_set_notify_listday), null, ui.prefs.notify.listday, canWrite) { vm.setNotify("listday", it) }
+                            // plugin 1.3.0: the morning hint „Gestern offen geblieben“ and its time
+                            if (me?.yesterdayOpen == true) {
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+                                SettingSwitch(stringResource(R.string.notizen_set_notify_yesterday), stringResource(R.string.notizen_set_notify_yesterday_hint), ui.prefs.notify.yesterday, canWrite) { vm.setNotify("yesterday", it) }
+                                if (ui.prefs.notify.yesterday) {
+                                    DetailRow(GcIcons.Clock, stringResource(R.string.notizen_set_yesterday_at), NotizenFormat.time(ui.prefs.yesterdayAt).orEmpty(), if (canWrite) ({ yesterdayAt = true }) else null)
+                                }
+                            }
                         }
                     }
-                    item { Text(stringResource(R.string.notizen_set_notify_hint), style = MaterialTheme.typography.bodySmall, color = x.faint, modifier = Modifier.padding(16.dp)) }
+                    item { Text(stringResource(R.string.notizen_set_notify_hint), style = MaterialTheme.typography.bodySmall, color = x.faint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) }
+                    // plugin 1.3.0: the phone rings by itself as well — at the minute only where Android allows it
+                    if (me?.reminderActions == true && ui.prefs.notify.reminders) {
+                        item {
+                            Text(
+                                stringResource(if (exact) R.string.notizen_set_local_alarm else R.string.notizen_set_local_alarm_inexact),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = x.faint,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                            )
+                        }
+                        if (!exact) {
+                            item {
+                                Text(
+                                    stringResource(R.string.notizen_set_local_alarm_allow),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .padding(horizontal = 10.dp)
+                                        .heightIn(min = 48.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                                            runCatching {
+                                                context.startActivity(
+                                                    android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, ("package:" + context.packageName).toUri())
+                                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                                )
+                                            }
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 14.dp),
+                                )
+                            }
+                        }
+                    }
+                    item { NSpacer(8) }
+                }
+                // ── Kalender (1.3.0): only while Mail offers the calendar and the administrator has it on ──
+                val cal = me?.calendar
+                if (me?.has(com.gatecontrol.android.notizen.NFeature.TASK_CALENDAR) == true && cal != null && cal.available && cal.enabled) {
+                    item { NSectionHeader(stringResource(R.string.notizen_set_calendar), null) }
+                    item {
+                        NCard {
+                            SettingSwitch(
+                                stringResource(R.string.notizen_set_calendar_tasks),
+                                stringResource(R.string.notizen_set_calendar_tasks_hint, cal.name ?: stringResource(R.string.notizen_default_list)),
+                                ui.prefs.calendarTasks, canWrite,
+                            ) { vm.setCalendarTasks(it) }
+                        }
+                    }
                 }
                 // ── Umziehen ──
                 if (me?.imports?.let { it.mstodo || it.dsnote } == true && canWrite) {
@@ -186,6 +252,9 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
     time?.let { plugin ->
         val cur = ui.prefs.sources[plugin]?.evening ?: ui.prefs.evening
         NTimePicker(cur, { t -> time = null; if (t != null) vm.setSource(plugin, NSourcePrefs(evening = t)) }, { time = null })
+    }
+    if (yesterdayAt) {
+        NTimePicker(ui.prefs.yesterdayAt, { t -> yesterdayAt = false; if (t != null) vm.setYesterdayAt(t) }, { yesterdayAt = false })
     }
     word?.let { k ->
         val cur = ui.prefs.times[k] ?: com.gatecontrol.android.notizen.QuickParse.DEFAULT_TIMES[k]

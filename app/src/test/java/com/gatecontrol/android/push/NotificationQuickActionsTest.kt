@@ -90,4 +90,28 @@ class NotificationQuickActionsTest {
         assertEquals(listOf("charge", "snooze_1h", "done"), plan.map { it.action.id })
         assertEquals(listOf(ButtonKind.QUICK_ACTION, ButtonKind.BACKGROUND, ButtonKind.BACKGROUND), plan.map { it.kind })
     }
+
+    @Test
+    fun `Notizen und Aufgaben 1_3 - a reminder's three callbacks run in the background, without Gesehen`() {
+        val actions = listOf(
+            PushAction("done", "Erledigt", PushActionType.CALLBACK),
+            PushAction("snooze_1h", "In 1 Std.", PushActionType.CALLBACK),
+            PushAction("snooze_eve", "Heute Abend", PushActionType.CALLBACK),
+        )
+        val plan = NotificationQuickActions.plan(actions, seen)
+        assertEquals(listOf("done", "snooze_1h", "snooze_eve"), plan.map { it.action.id })
+        assertTrue(plan.all { it.kind == ButtonKind.BACKGROUND && !it.authRequired }, "each one is acknowledged with its id (push/ack state read)")
+    }
+
+    @Test
+    fun `Notizen und Aufgaben 1_3 - the morning hint - Erledigt and Verschieben open, Heute is a callback`() {
+        val actions = listOf(
+            PushAction("done_ask", "Erledigt", PushActionType.OPEN_PORTAL, target = "/portal#plg-gatecontrol-notizen"),
+            PushAction("today", "Heute", PushActionType.CALLBACK),
+            PushAction("move", "Verschieben", PushActionType.OPEN_PORTAL, target = "/portal#plg-gatecontrol-notizen"),
+        )
+        val plan = NotificationQuickActions.plan(actions, seen)
+        assertEquals(listOf(ButtonKind.OPEN, ButtonKind.BACKGROUND, ButtonKind.OPEN), plan.map { it.kind })
+        assertEquals(listOf("done_ask", "today", "move"), plan.map { it.action.id })
+    }
 }

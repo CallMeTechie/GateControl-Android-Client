@@ -89,7 +89,9 @@ object NotizenJson {
             times,
             myday = NMyDayPrefs(myday?.bool("listdays") ?: true, myday?.bool("showDone") ?: true),
             startArea = o.str("startArea")?.takeIf { it in setOf("last", NArea.PRIVATE, NArea.WORK) } ?: "last",
-            notify = NNotifyPrefs(notify?.bool("reminders") ?: true, notify?.bool("shared") ?: true, notify?.bool("listday") ?: true),
+            notify = NNotifyPrefs(notify?.bool("reminders") ?: true, notify?.bool("shared") ?: true, notify?.bool("listday") ?: true, notify?.bool("yesterday") ?: true),
+            yesterdayAt = time(o.str("yesterdayAt")) ?: "07:30",
+            calendarTasks = o.obj("calendar")?.bool("tasks") ?: true,
         )
     }
 
@@ -111,7 +113,95 @@ object NotizenJson {
             attachMB = o.int("attachMB")?.coerceIn(1, 100) ?: 25,
             readOnly = o.bool("readOnly") ?: false,
             listIcons = o.arr("listIcons")?.mapNotNull { runCatching { it.asString }.getOrNull()?.takeIf { ICON.matches(it) } }?.distinct()?.take(40).orEmpty(),
+            calendar = o.obj("calendar")?.let { c -> NCalendarInfo(c.bool("available") ?: false, c.bool("enabled") ?: false, c.bool("mine") ?: false, c.text("name", 80)) },
         )
+    }
+
+    // ── reminders, „Gestern offen geblieben“, the calendar (plugin 1.3.0) ──
+
+    private val TAG = Regex("^task:[1-9]\\d{0,14}:\\d{1,16}$")
+    private val COLLAPSE = Regex("^task:[1-9]\\d{0,14}$")
+    private val ACTION_ID = Regex("^[a-z0-9_]{1,32}$")
+
+    /** `task:<id>:<atMs>` — the name of one reminder; anything else is not one. */
+    fun reminderTag(v: String?): String? = v?.takeIf { TAG.matches(it) }
+
+    private fun reminder(o: JsonObject?): NReminder? = o?.let { r ->
+        NReminder(reminderTag(r.str("tag")) ?: return null, r.text("at", 40), r.long("atMs")?.takeIf { it > 0 } ?: return null, r.bool("mine") ?: false, r.bool("snoozed") ?: false)
+    }
+
+    private fun taskCalendar(o: JsonObject?): NTaskCalendar? = o?.let { c ->
+        NTaskCalendar(c.str("state")?.takeIf { it == "synced" || it == "pending" } ?: return null, c.id("eventId"), c.id("calendarId"), c.bool("mine") ?: false)
+    }
+
+    /** `GET yesterday`, or `yesterday` of „Mein Tag“. */
+    fun yesterday(o: JsonObject?): NYesterday? {
+        if (o == null) return null
+        val items = o.arr("items").each(::task)
+        return NYesterday(
+            day = date(o.str("day")),
+            title = o.text("title", 120) ?: "",
+            count = items.size,
+            items = items,
+            moveOptions = o.arr("moveOptions").each { m ->
+                NMoveOption(m.str("to")?.takeIf { it == "tomorrow" || it == "weekend" } ?: return@each null, date(m.str("date")), m.text("label", 60) ?: return@each null)
+            },
+        )
+    }
+
+    fun yesterdayResult(o: JsonObject): NYesterdayResult = NYesterdayResult(
+        changed = o.int("changed")?.coerceAtLeast(0) ?: 0,
+        failed = o.arr("failed").each { it.id("id") },
+        yesterday = yesterday(o.obj("yesterday")),
+    )
+
+    /** `POST tasks/<id>/snooze` → whether the reminder moved (false: pressed twice, done, another reminder by now). */
+    fun snoozeAnswer(o: JsonObject): Boolean? = o.bool("snoozed")
+
+    /** `GET reminders`: a reminder without a usable tag, time or task is dropped (not the list). */
+    fun reminders(o: JsonObject): NReminderFeed? {
+        val list = o.arr("reminders") ?: return null
+        return NReminderFeed(
+            nowMs = o.long("nowMs") ?: 0,
+            enabled = o.bool("enabled") ?: true,
+            reminders = list.each { r ->
+                val taskId = r.id("taskId") ?: return@each null
+                val atMs = r.long("atMs")?.takeIf { it > 0 } ?: return@each null
+                val tag = reminderTag(r.str("tag"))?.takeIf { it == "task:$taskId:$atMs" } ?: return@each null
+                NReminderEntry(
+                    tag = tag,
+                    taskId = taskId,
+                    listId = r.id("listId"),
+                    area = r.str("area")?.takeIf { it == NArea.PRIVATE || it == NArea.WORK },
+                    title = r.text("title", 200) ?: return@each null,
+                    body = r.text("body", 1000) ?: "",
+                    atMs = atMs,
+                    important = r.bool("important") ?: false,
+                    collapseKey = r.str("collapseKey")?.takeIf { COLLAPSE.matches(it) } ?: "task:$taskId",
+                    actions = r.arr("actions").each { a -> NReminderAction(a.str("id")?.takeIf { ACTION_ID.matches(it) } ?: return@each null, a.text("label", 40) ?: return@each null) }.take(3),
+                )
+            }.take(200),
+        )
+    }
+
+    /** `POST tasks/<id>/snooze { until, tag? }`. */
+    fun snoozeBody(until: String, tag: String?) = JsonObject().apply {
+        addProperty("until", until)
+        reminderTag(tag)?.let { addProperty("tag", it) }
+    }
+
+    /** `POST tasks/<id>/move { to }`: `today` | `tomorrow` | `weekend` | a date. */
+    fun moveBody(to: String) = JsonObject().apply { addProperty("to", to) }
+
+    /** A target of „Verschieben“ the server knows; null: not one. */
+    fun moveTarget(to: String?): String? = to?.takeIf { it == "today" || it == "tomorrow" || it == "weekend" || DATE.matches(it) }
+
+    /** `POST yesterday { action, to?, ids?, area? }`. */
+    fun yesterdayBody(action: String, to: String? = null, ids: List<Long>? = null, area: String? = null) = JsonObject().apply {
+        addProperty("action", action)
+        to?.let { addProperty("to", it) }
+        ids?.let { l -> add("ids", JsonArray().apply { l.forEach { add(it) } }) }
+        area?.let { addProperty("area", it) }
     }
 
     // ── tasks and items ─────────────────────────────────────
@@ -142,6 +232,10 @@ object NotizenJson {
             updatedAt = o.long("updatedAt") ?: 0,
             canComplete = o.bool("canComplete") ?: true,
             canEdit = o.bool("canEdit") ?: true,
+            reminder = reminder(o.obj("reminder")),
+            snoozed = o.bool("snoozed") ?: false,
+            missedReminder = o.bool("missedReminder") ?: false,
+            calendar = taskCalendar(o.obj("calendar")),
         )
     }
 
@@ -210,6 +304,7 @@ object NotizenJson {
             list = list(o.obj("list")),
             plugin = o.str("plugin")?.takeIf { PLUGIN.matches(it) },
             listdays = o.arr("listdays").each(::listDay),
+            yesterday = yesterday(o.obj("yesterday")),
         )
     }
 
@@ -605,7 +700,11 @@ object NotizenJson {
         myday: Map<String, Boolean> = emptyMap(),
         notify: Map<String, Boolean> = emptyMap(),
         startArea: String? = null,
+        yesterdayAt: String? = null,
+        calendarTasks: Boolean? = null,
     ) = JsonObject().apply {
+        time(yesterdayAt)?.let { addProperty("yesterdayAt", it) }
+        calendarTasks?.let { add("calendar", JsonObject().apply { addProperty("tasks", it) }) }
         area?.let { addProperty("area", it) }
         evening?.let { addProperty("evening", it) }
         startArea?.let { addProperty("startArea", it) }

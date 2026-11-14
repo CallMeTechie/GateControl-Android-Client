@@ -91,6 +91,13 @@ class NotizenCache @Inject constructor(
         io { dir -> write(File(dir, "outbox.json"), NotizenOutbox.stateToJson(state)) }
     }
 
+    /** The reminders the phone rings for by itself ([ReminderState]: `GET reminders` as kept, the alarms set, the tags seen). */
+    suspend fun reminders(): ReminderState = ReminderState.fromJson(io { dir -> read(File(dir, "reminders.json")) })
+
+    suspend fun putReminders(state: ReminderState) {
+        io { dir -> write(File(dir, "reminders.json"), state.toJson()) }
+    }
+
     /** Everything of this plugin on the phone goes (another login, the plugin gone). */
     suspend fun wipe() {
         withContext(Dispatchers.IO) { mutex.withLock { runCatching { root().deleteRecursively() } } }
