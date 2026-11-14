@@ -1081,7 +1081,9 @@ Herunterziehen lädt neu.
     Stelle** (`GeofenceBudget`): Android erlaubt 100 je App, die
     Familien-Geofences (höchstens 90) haben Vorrang und werden nie verdrängt,
     4 bleiben frei, 1 braucht der Hub selbst (der Kreis um die Gegend, für die
-    die Orte gewählt wurden – wer ihn verlässt, fragt neu). Neu geholt wird
+    die Orte gewählt wurden – wer ihn verlässt, fragt neu). Meldet die Familie
+    mehr Orte an, nimmt der Hub vorher seine unwichtigsten zurück
+    (`GeofenceRegistrar.makeRoom`, `GeofenceBudget.keep`). Neu geholt wird
     beim Start, nach Neustart und App-Update, bei `changed` mit `places` /
     `tasks`, wenn die Familie andere Orte anmeldet, wenn der Standort wieder
     eingeschaltet wird – nie in festen Abständen. `near` nur bei eingeschalteter

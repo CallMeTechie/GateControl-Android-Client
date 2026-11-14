@@ -433,6 +433,12 @@ class NotizenStage3Test {
             assertTrue(hub >= 5, "the family at its limit still leaves the hub a few")
         }
         assertEquals(GeofenceBudget.FAMILY_MAX, GeofenceRegistrar.MAX_FENCES, "one number, kept in one place")
+        // the family registers more: the hub's least important fences (the end of the server's order) make room first
+        val mine = (1..60).map { "p:$it" }
+        assertEquals(mine, GeofenceBudget.keep(mine, 30))
+        assertEquals(mine.take(25), GeofenceBudget.keep(mine, 70))
+        assertEquals(mine.take(5), GeofenceBudget.keep(mine, 90))
+        assertEquals(listOf("p:1"), GeofenceBudget.keep(listOf("p:1"), 90))
         // the server's order is the importance: the phone registers from the top as far as the room goes
         val w = watch
         assertEquals(listOf("osm:W101", "osm:W102", "p:2"), PlaceLogic.select(w.fences, 60).map { it.id })

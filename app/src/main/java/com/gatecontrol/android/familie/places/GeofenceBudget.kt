@@ -27,4 +27,10 @@ object GeofenceBudget {
      */
     fun notizen(familyRegistered: Int): Int =
         (ANDROID_MAX - RESERVE - MOVE_FENCE - familyRegistered.coerceIn(0, FAMILY_MAX)).coerceIn(0, NOTIZEN_MAX)
+
+    /**
+     * The Familie plugin is about to register [family] fences: which of the hub's [registered] ones (in the server's
+     * order, the most important first) may stay — the rest make room first, so the family's are never refused.
+     */
+    fun keep(registered: List<String>, family: Int): List<String> = registered.take(notizen(family))
 }

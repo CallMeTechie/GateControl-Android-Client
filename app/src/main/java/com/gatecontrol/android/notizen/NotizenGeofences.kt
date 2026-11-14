@@ -114,6 +114,8 @@ class NotizenGeofences @Inject constructor(
         scope.launch { wanted.collectLatest { delay(DEBOUNCE_MS); runCatching { sync() } } }
         scope.launch { repo.changed.collect { if (it.isEmpty() || "places" in it || "tasks" in it) wanted.tryEmit(Unit) } }
         scope.launch { repo.me.distinctUntilChangedBy { it?.taskPlaces to it?.placeSearch }.collect { if (it != null) wanted.tryEmit(Unit) } }
+        // the Familie plugin comes first: before it registers more places, the hub's least important ones make room
+        registrar.makeRoom = ::makeRoom
         // the Familie plugin registered other places: the room left for the hub may have changed
         scope.launch { registrar.changes.collect { if (askedBudget >= 0 && askedBudget != budget()) wanted.tryEmit(Unit) } }
         scope.launch {
@@ -228,6 +230,21 @@ class NotizenGeofences @Inject constructor(
             if (registrar.playServicesAvailable()) await(LocationServices.getGeofencingClient(context).removeGeofences(pendingIntent(context)))
         }
         publish()
+    }
+
+    /**
+     * The Familie plugin is about to register [family] fences: the hub's fences beyond what is left for it are taken
+     * away first (the last of the server's order — the least important), so Android never refuses the family's. The
+     * next question to the server then goes out with the smaller budget.
+     */
+    private suspend fun makeRoom(family: Int) = registerLock.withLock {
+        val registered = lock.withLock { cache.placeState() }.registered
+        val keep = GeofenceBudget.keep(registered, family)
+        if (keep.size == registered.size) return@withLock
+        val drop = registered.drop(keep.size)
+        if (registrar.playServicesAvailable()) await(LocationServices.getGeofencingClient(context).removeGeofences(drop.map { REQUEST_PREFIX + it }))
+        update { s -> s.copy(registered = keep, inside = s.inside - drop.toSet()) }
+        Timber.i("Notizen: %d places made room for the Familie plugin's", drop.size)
     }
 
     /** After a boot or the app's start: the places of the last answer again. */

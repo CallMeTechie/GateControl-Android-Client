@@ -75,6 +75,12 @@ class GeofenceRegistrar @Inject constructor(
     /** The fences of the Familie plugin were registered again — whoever shares Android's 100 with them ([GeofenceBudget]) looks again. */
     val changes: SharedFlow<Unit> = _changes.asSharedFlow()
 
+    /**
+     * Called right before the Familie plugin's fences are registered, with their number: whoever shares Android's 100
+     * with them takes away what no longer fits ([GeofenceBudget.keep]) — the family's come first.
+     */
+    @Volatile var makeRoom: (suspend (family: Int) -> Unit)? = null
+
     /** How many of Android's 100 geofences the Familie plugin takes on this phone (reminders and rule places, as kept). */
     fun plannedCount(): Int = combinedIds(stored(), storedRules()).size
 
@@ -182,6 +188,7 @@ class GeofenceRegistrar @Inject constructor(
             Timber.i("Familie: %d geofences wait for the location permission", geofences.size)
             return@withLock
         }
+        runCatching { makeRoom?.invoke(geofences.size) }
         val request = GeofencingRequest.Builder()
             // No trigger for being inside already: re-registering (boot, app start) must not remind or report again.
             .setInitialTrigger(0)
