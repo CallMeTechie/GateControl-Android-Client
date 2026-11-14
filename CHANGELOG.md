@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.110.0] - 2026-11-14
+
+### Features
+- Aufgaben und Erinnerungen – Wer ist dran, Sterne, Familien-Aufgaben in „Aufgaben“, Orts-Erinnerungen nach dem Umzug (#229)
+
+---
+
 ## [1.109.0] - 2026-11-14
 
 ### Features
