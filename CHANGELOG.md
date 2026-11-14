@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.109.0] - 2026-11-14
+
+### Features
+- Aufgaben und Erinnerungen – Ort an der Aufgabe, Ortssuche über den eigenen Server, Erinnerung am Ort (#228)
+
+---
+
 ## [1.108.0] - 2026-11-14
 
 ### Features
