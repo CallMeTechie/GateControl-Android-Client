@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.108.0] - 2026-11-14
+
+### Features
+- Aufgaben und Erinnerungen – Einkaufslisten in „Aufgaben“, Liste an der Aufgabe, „Liste öffnen“ an der Erinnerung (#227)
+
+---
+
 ## [1.107.0] - 2026-11-14
 
 ### Features
