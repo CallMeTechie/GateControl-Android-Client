@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notes & Tasks 1.6.0: whose turn, stars, the family's list -->
+    <string name="notizen_turn_title">Whose turn?</string>
+    <string name="notizen_turn_one">One person</string>
+    <string name="notizen_turn_rotate">In turns</string>
+    <string name="notizen_turn_first">Whoever is first</string>
+    <string name="notizen_turn_hint">In turns: after it is ticked off, the next person is on. Whoever is first: the task goes to everybody, the first one does it for all.</string>
+    <string name="notizen_turn_rotate_me">In turns · it is your turn</string>
+    <string name="notizen_turn_rotate_other">In turns · %1$s is on</string>
+    <string name="notizen_turn_rotate_first">In turns · %1$s first</string>
+    <string name="notizen_turn_two">This needs at least two people.</string>
+    <string name="notizen_stars_title">Stars</string>
+    <string name="notizen_stars_none">Stars: none</string>
+    <string name="notizen_stars_hint">The stars are counted and settled in the Family plugin.</string>
+    <string name="notizen_done_by">Done by %1$s</string>
+    <string name="notizen_not_done_yet">Not done yet</string>
+    <string name="notizen_tick_for">Tick off for …</string>
+    <string name="notizen_msg_parents_only">Only the parents can change this.</string>
+    <string name="notizen_msg_family_list">The family\'s list is managed by the Family plugin.</string>
+    <string name="notizen_msg_not_member">One of the people does not belong to this list.</string>
+    <string name="notizen_moved_title">Move finished</string>
+    <string name="notizen_moved_count">Taken over from Family: %1$d tasks and %2$d place reminders.</string>
+    <string name="notizen_moved_kept">Repeats, assignments and whose turn it is came along.</string>
+    <string name="notizen_moved_places">Place reminders are tasks with a place now – your own in your list “Tasks”, those for someone else in a list just for the two of you.</string>
+    <string name="notizen_moved_stars">The stars are still counted by the Family plugin.</string>
+    <string name="notizen_moved_copy">The Family plugin keeps a copy. The way back stays open.</string>
+    <string name="notizen_moved_view">Have a look</string>
+    <string name="notizen_set_feedback">Message when a child ticks off</string>
+    <string name="notizen_set_feedback_all">For every task</string>
+    <string name="notizen_set_feedback_stars">Only for tasks with stars</string>
+    <string name="notizen_set_feedback_off">Never</string>
+    <!-- Family 1.24.0: after the move of the tasks and place reminders -->
+    <string name="familie_tasks_from_hub">from Notes &amp; Tasks</string>
+    <string name="familie_places_moved">You find place reminders under Tasks now.</string>
+    <string name="familie_places_sub_left">Telling others at a place – you find all the others under Tasks now</string>
+</resources>

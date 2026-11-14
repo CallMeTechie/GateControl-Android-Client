@@ -261,6 +261,7 @@ object FamilieJson {
             presenceShare = o.obj("presence")?.bool("share"),
             wishes = FamilieJson12.overviewWishes(o.obj("wishes")),
             expenses = FamilieJson12.overviewExpenses(o.obj("expenses")),
+            tasksHome = home(tasks?.obj("home")),
         )
     }
 
@@ -387,8 +388,12 @@ object FamilieJson {
         return TasksPayload(
             tasks = o.arr("tasks")?.objects()?.mapNotNull(::task).orEmpty(),
             stars = stars?.let { StarsBoard(userMap(it.obj("week")), userMap(it.obj("goal"))) },
+            home = home(o.obj("home")),
         )
     }
+
+    /** `home: { home, since }` (1.21 shopping, 1.24 tasks and places): `notizen` | `familie`; anything else: not said. */
+    private fun home(o: JsonObject?): String? = o?.str("home")?.takeIf { it == "notizen" || it == "familie" }
 
     private fun userMap(o: JsonObject?): Map<Int, Int> =
         o?.entrySet()?.mapNotNull { (k, _) ->
@@ -558,6 +563,8 @@ object FamilieJson {
             } ?: FamiliePlace.CONSENT_ACCEPTED,
             ownerName = o.str("ownerName")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
             targetName = o.str("targetName")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
+            home = o.str("home")?.takeIf { it == "notizen" || it == "familie" },
+            moved = o.bool("moved") == true,
         )
     }
 

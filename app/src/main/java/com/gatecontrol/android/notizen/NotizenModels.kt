@@ -62,6 +62,8 @@ data class NPrefs(
     val calendarTasks: Boolean = true,
     /** Plugin 1.5.0 (`places`, `prefs.places`): the place search for me, the hint „in der Nähe“ and its quiet hours. */
     val places: NPlacePrefs = NPlacePrefs(),
+    /** Plugin 1.6.0 (`doneFeedback`, `prefs.feedback`): the message when a child ticks off — `all` | `stars` | `off`. */
+    val feedback: String = "all",
 )
 
 /** `prefs.places` (plugin 1.5.0). [quiet] null: no quiet hours. */
@@ -104,8 +106,28 @@ data class NMe(
     val shoppingFamily: NShoppingFamily? = null,
     /** Plugin 1.5.0 (`places`, `me.places`); null with an older plugin. */
     val places: NPlacesInfo? = null,
+    /** Plugin 1.6.0 (`familyTasks`, `me.familyTasks`); null with an older plugin. */
+    val familyTasks: NFamilyTasks? = null,
 ) {
     fun has(feature: String) = feature in features
+
+    /** „Wer ist dran?“: `Task.turn` / `Task.people`, in every shared list (never a version — this word). */
+    val taskTurns: Boolean get() = has(NFeature.TASK_TURNS)
+
+    /** The family's list of the hub is there for me: the move was made and I belong to the family. */
+    val familyList: Long? get() = familyTasks?.takeIf { has(NFeature.FAMILY_TASKS) && it.bound }?.listId
+
+    /** Stars show at a task: the feature, the family's list, and the Familie plugin counts them. */
+    val taskStars: Boolean get() = has(NFeature.TASK_STARS) && familyList != null && familyTasks?.stars == true
+
+    /** I am a parent of the family whose list the hub holds (ticks for a child, takes a tick back, gives stars). */
+    val familyParent: Boolean get() = familyList != null && familyTasks?.parent == true
+
+    /** „Meldung, wenn ein Kind abhakt“ (`prefs.feedback`) — a setting of the parents only. */
+    val doneFeedback: Boolean get() = has(NFeature.DONE_FEEDBACK) && familyParent
+
+    /** `Task.place.mine` / `canConsent` say who may agree to a place (else the app guesses as before). */
+    val placeMine: Boolean get() = has(NFeature.PLACE_MINE)
 
     /** A task may hang on a place: `Task.place`, „Meine Orte“, the geofences of the phone (never a version — this word). */
     val taskPlaces: Boolean get() = has(NFeature.PLACES)
@@ -133,6 +155,24 @@ data class NMe(
 }
 
 data class NDue(val date: String, val time: String? = null)
+
+/**
+ * `me.familyTasks` (plugin 1.6.0): Familie offers its part ([available]), the move was made and I belong to the family
+ * ([bound] — only then there is the family's list [listId]), I am a parent, the Familie plugin counts stars.
+ */
+data class NFamilyTasks(
+    val available: Boolean = false,
+    val bound: Boolean = false,
+    val listId: Long? = null,
+    val parent: Boolean = false,
+    val stars: Boolean = false,
+    val starsMax: Int = 10,
+    /** The move, for the note „Umzug abgeschlossen“ (null: none, or not for me). */
+    val moved: NFamilyMoved? = null,
+)
+
+/** `me.familyTasks.moved`: when, how many tasks and place reminders came over, and whether I read the note. */
+data class NFamilyMoved(val at: String?, val tasks: Int, val places: Int, val seen: Boolean)
 
 /** `me.shopping.family` (plugin 1.4.0): Familie offers its part, the family is known to the hub (the move was made), I am a parent. */
 data class NShoppingFamily(val available: Boolean = false, val bound: Boolean = false, val parent: Boolean = false)
@@ -230,6 +270,16 @@ data class NTask(
     val attachedList: NAttached? = null,
     /** Plugin 1.5.0 (`places`): the place this task hangs on (null: none, or an older plugin). */
     val place: NPlace? = null,
+    /** Plugin 1.6.0 (`taskTurns`): [TurnWords.ROTATE] (reihum: [assignee] is on), [TurnWords.FIRST] (wer zuerst: for all of [people]) or null. */
+    val turn: String? = null,
+    /** Plugin 1.6.0: the people of [turn], in their order (empty without a turn). */
+    val people: List<NPerson> = emptyList(),
+    /** Plugin 1.6.0 (`taskStars`): the stars of a task of the family's list (0: none). */
+    val stars: Int = 0,
+    /** Plugin 1.6.0 (`familyTasks`): for whom it was ticked off (null while open). */
+    val doneBy: NPerson? = null,
+    /** Plugin 1.6.0: a task of the family's list. */
+    val family: Boolean = false,
 ) : NEntry {
     override val uid: String get() = "t:$id"
 }
@@ -342,6 +392,8 @@ data class NList(
     val mydayOff: Boolean = false,
     /** Plugin 1.2.0: today is one of [days]. */
     val dayToday: Boolean = false,
+    /** Plugin 1.6.0 (`familyTasks`): the family's list — the Familie plugin says who belongs to it. */
+    val family: Boolean = false,
 ) {
     val isOwner: Boolean get() = role == null || role == "owner"
 }
@@ -561,4 +613,16 @@ object NFeature {
     const val PLACES = "places"
     /** The route `POST places/search` is there; whether it is on says `me.places.search.state`. */
     const val PLACE_SEARCH = "placeSearch"
+
+    // plugin 1.6.0
+    /** `Task.turn`, `Task.people`; `turn` / `people` when writing and in `POST parse`; the push `reminder_done`. */
+    const val TASK_TURNS = "taskTurns"
+    /** `Task.stars`; `stars` when writing and in `POST parse`. */
+    const val TASK_STARS = "taskStars"
+    /** The family's list: `List.family`, `Task.family`, `me.familyTasks`, `complete { userId }`, `POST family/seen`, `Task.doneBy`. */
+    const val FAMILY_TASKS = "familyTasks"
+    /** The push `done_feedback` with „Noch nicht fertig“, `prefs.feedback`. */
+    const val DONE_FEEDBACK = "doneFeedback"
+    /** `Task.place.mine` and `Task.place.canConsent`. */
+    const val PLACE_MINE = "placeMine"
 }

@@ -80,22 +80,28 @@ object NotizenLists {
         // made offline and not on the server yet: nothing to change there
         if (me == null || me.readOnly || list.pending || list.id <= 0) return emptyList()
         val days = me.has(NFeature.LIST_DAYS)
+        // plugin 1.6.0: the family's list — who belongs to it says the Familie plugin (no sharing, leaving, deleting)
+        val family = list.family
         return if (list.isOwner) {
             buildList {
                 add(Action.EDIT)
-                if (me.sharing != "off" && !list.isDefault) add(Action.SHARE)
+                if (me.sharing != "off" && !list.isDefault && !family) add(Action.SHARE)
                 if (!list.isDefault) add(Action.MOVE)
                 if (days) add(Action.DAYS)
-                if (!list.isDefault) add(Action.DELETE)
+                if (!list.isDefault && !family) add(Action.DELETE)
             }
         } else {
             buildList {
                 add(Action.MOVE)
                 if (days) add(Action.MYDAY)
-                add(Action.LEAVE)
+                if (!family) add(Action.LEAVE)
             }
         }
     }
+
+    /** „Liste verlassen“ / „Liste löschen“ are offered for [list] (never for the family's list). */
+    fun mayLeave(list: NList, me: NMe?): Boolean = Action.LEAVE in actions(list, me)
+    fun mayDelete(list: NList, me: NMe?): Boolean = Action.DELETE in actions(list, me)
 
     /** May I add tasks to this list here (the field at its end)? */
     fun canAdd(list: NList?, me: NMe?): Boolean = me != null && !me.readOnly && (list == null || list.canEdit)

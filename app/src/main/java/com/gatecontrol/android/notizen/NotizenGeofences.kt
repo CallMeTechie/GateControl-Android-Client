@@ -96,6 +96,8 @@ class NotizenGeofences @Inject constructor(
     /** The phone's last position (never kept on disk, never sent as it is) and when it was taken. */
     @Volatile private var lastFix: Triple<Double, Double, Long>? = null
     @Volatile private var cleared = false
+    /** The move the Familie plugin was last asked again for ([TasksHome.askFamilyAgain]). */
+    @Volatile private var familyAsked: String? = null
     @Volatile private var probed = false
 
     /** What the phone watches and remembers — for „Gerade in der Nähe“ and the hints of a task. */
@@ -194,6 +196,9 @@ class NotizenGeofences @Inject constructor(
                 val tasks = r.value.first.fences.flatMap { f -> f.tasks.map { it.taskId } }.toSet()
                 update { PlaceGuard.pruned(it, clock(), tasks) }
                 register()
+                // stage 4, contract § 9: first the hub is asked, then the Familie plugin — only for a phone that asks
+                // the hub it reports the reminders that moved as not active (no second geofence, nothing twice)
+                TasksHome.askFamilyAgain(me, familyAsked)?.let { familyAsked = it; registrar.syncAsync() }
                 true
             }
             // the plugin is older again, gone, or the login: no places of it stay

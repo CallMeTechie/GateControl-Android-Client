@@ -51,7 +51,7 @@ internal fun <T> NResult<T>.code(): String? = when (this) {
 }
 
 /** The `reason` of a refusal that has a text of its own (plugin 1.2.0: `owner`, `default`, `bound`). */
-private val REASONS = setOf("login", "read_only", "off", "owner", "default", "bound")
+private val REASONS = setOf("login", "read_only", "off", "owner", "default", "bound", "parents_only", "family")
 
 /** „Mein Tag“, „Aufgaben“ (the lists) and „Notizen“ — the tab of the plugin (mockups Main, Listen, Notizen). */
 @HiltViewModel
@@ -169,6 +169,12 @@ class NotizenHomeViewModel @Inject constructor(
     }
 
     fun consumeMessage() { _message.value = null }
+
+    /** „Umzug abgeschlossen“ was read („OK“ or „Ansehen“, plugin 1.6.0): it does not come again. */
+    fun familySeen() {
+        _ui.update { u -> u.copy(me = u.me?.let { m -> m.copy(familyTasks = m.familyTasks?.let { f -> f.copy(moved = f.moved?.copy(seen = true)) }) }) }
+        viewModelScope.launch { repo.familySeen() }
+    }
 
     fun setSegment(s: String) {
         _segment.value = s
@@ -509,6 +515,8 @@ class NotizenTaskViewModel @Inject constructor(
         val detail: NTaskDetail? = null,
         val me: NMe? = null,
         val people: List<NPersonPick> = emptyList(),
+        /** Plugin 1.6.0: the list the task is in (its people for „Wer ist dran?“); null: not known. */
+        val list: com.gatecontrol.android.notizen.NList? = null,
         val loading: Boolean = true,
         val offline: Boolean = false,
         val gone: Boolean = false,
@@ -541,8 +549,16 @@ class NotizenTaskViewModel @Inject constructor(
         viewModelScope.launch {
             val me = repo.meOrCached()
             when (val r = repo.task(id)) {
-                is NResult.Ok -> _ui.update {
-                    it.copy(detail = r.value.value, me = me, loading = false, offline = r.value.offline, conflict = refused != null || repo.conflictFor(NotizenOutbox.TASK, id) != null)
+                is NResult.Ok -> {
+                    _ui.update {
+                        it.copy(detail = r.value.value, me = me, loading = false, offline = r.value.offline, conflict = refused != null || repo.conflictFor(NotizenOutbox.TASK, id) != null)
+                    }
+                    // plugin 1.6.0: the people of the task's list, for „Wer ist dran?“ and „Abhaken für …“
+                    val d = r.value.value
+                    if (me?.taskTurns == true && d.task.listId != null && _ui.value.list?.id != d.task.listId) {
+                        val list = repo.nav(d.listArea?.let { NArea.of(it) } ?: repo.currentArea()).valueOrNull()?.value?.lists?.firstOrNull { it.id == d.task.listId }
+                        _ui.update { it.copy(list = list) }
+                    }
                 }
                 is NResult.Failed -> {
                     val gone = r.http == 404 || r.code == "not_found"
@@ -614,6 +630,37 @@ class NotizenTaskViewModel @Inject constructor(
     fun setRepeat(r: NRepeat.Rule?) = patch("repeat" to (r?.let { NRepeat.toJson(it) }))
     fun setAssignee(id: Long?) = patch("assigneeId" to id)
     fun setList(listId: Long) = patch("listId" to listId)
+
+    /**
+     * „Wer ist dran?“ (plugin 1.6.0): [mode] [NotizenTurns.ONE] makes an ordinary task again (the first of [people] is
+     * assigned), `rotate` / `first` go to [people] — with „reihum“ the person who is on stays on when still among them.
+     */
+    fun setTurn(mode: String, people: List<Long>) {
+        val t = _ui.value.detail?.task ?: return
+        val turn = NotizenJson.turn(mode)
+        val fields = NotizenJson.turnFields(turn, people).toMutableList()
+        when {
+            fields.first().second == null -> fields += "assigneeId" to people.firstOrNull()
+            turn == com.gatecontrol.android.notizen.TurnWords.ROTATE -> fields += "assigneeId" to (t.assignee?.id?.takeIf { it in people } ?: people.first())
+        }
+        patch(*fields.toTypedArray())
+    }
+
+    /** The stars of a task of the family's list (plugin 1.6.0; the parents only — the server says so too). */
+    fun setStars(n: Int) {
+        if (_ui.value.detail?.task?.stars != n) patch("stars" to n.coerceIn(0, 10))
+    }
+
+    /** A parent ticks the task off for [userId] of the family (the stars go to that person). */
+    fun completeFor(userId: Long) {
+        viewModelScope.launch {
+            _ui.update { it.copy(busy = true) }
+            val r = repo.completeTaskFor(id, userId)
+            _ui.update { it.copy(busy = false) }
+            _message.value = if (r is NResult.Offline) "offline_write" else r.code()
+            load()
+        }
+    }
 
     /** Plugin 1.4.0 (`taskList`): the shopping list this task carries ([listNo]: the hub's number of it; null: none). */
     fun setAttached(listNo: Long?) {
@@ -836,7 +883,27 @@ class NotizenQuickViewModel @Inject constructor(
         val placeOff: Boolean = false,
         /** The person turned the chip „Beim Ankommen“ over. */
         val placeTrigger: String? = null,
+        /** Plugin 1.6.0 (`taskTurns`): the choice of „Wer ist dran?“ ([NotizenTurns.ONE], `rotate`, `first`; null: what the line says). */
+        val turnPick: String? = null,
     )
+
+    /** „Wer ist dran?“ was chosen in the quick entry. */
+    fun pickTurn(mode: String) = _ui.update { it.copy(turnPick = mode) }
+
+    /** The list the new task goes to as far as the line and the person say it (the default list: null). */
+    private fun targetList(u: Ui): Long? = u.listId ?: u.parsed?.list?.id?.takeIf { "list" !in u.off }
+
+    /** Plugin 1.6.0: several people, „reihum“ / „wer zuerst“ and stars of the line (null without `taskTurns`: all as before). */
+    fun turns(): com.gatecontrol.android.notizen.NotizenTurns.Quick? {
+        val u = _ui.value
+        // the chip „2 Sterne“ taken away: the words stay in the title
+        val read = com.gatecontrol.android.notizen.NotizenTurns.read(u.parsed, u.people.map { QuickParse.Ref(it.id, it.name) }, u.me, targetList(u).takeIf { "stars" !in u.off })
+        // the list the task goes to: the one named or chosen, else „Aufgaben“ — a list still to be made has nobody yet
+        val list = u.nav?.let { n -> targetList(u)?.let { id -> n.lists.firstOrNull { it.id == id } } ?: com.gatecontrol.android.notizen.NotizenLists.defaultList(n) }
+        val newList = u.listId == null && "list" !in u.off && u.parsed?.listName != null && !QuickAttach.tagIsShopping(u.attach)
+        val members = if (newList) emptySet() else com.gatecontrol.android.notizen.NotizenTurns.members(list)
+        return com.gatecontrol.android.notizen.NotizenTurns.effective(read, u.turnPick, u.off, members)
+    }
 
     private var attachJob: Job? = null
 
@@ -861,7 +928,7 @@ class NotizenQuickViewModel @Inject constructor(
         attachJob = viewModelScope.launch {
             delay(SUGGEST_MS)
             // one question for both: the list (1.4.0) and the place (1.5.0) — an older plugin leaves the field out
-            val v = (repo.api.parse(u.text, u.area) as? NResult.Ok)?.value
+            val v = (repo.api.parse(u.text, u.area, targetList(u)?.takeIf { u.me?.taskTurns == true }) as? NResult.Ok)?.value
             _ui.update { it.copy(attach = v?.attach?.takeIf { lists }, place = v?.place?.takeIf { places }, serverTitle = v?.title) }
         }
     }
@@ -935,16 +1002,19 @@ class NotizenQuickViewModel @Inject constructor(
         val p = u.parsed ?: return null
         val off = u.off
         val due = u.due ?: if ("date" in off) null else p.date?.let { NDue(it, if ("time" in off) null else p.time) }
+        // plugin 1.6.0: the further „@Name“, „reihum“ / „wer zuerst“ and „2 Sterne“ leave the title
+        val turns = turns()
         return Effective(
-            title = p.title.ifBlank { u.text.trim() },
+            title = (turns?.title ?: p.title).ifBlank { u.text.trim() },
             due = due,
             remind = if ("time" in off || due?.time == null) null else due,
             important = p.important && "important" !in off,
             listId = u.listId ?: p.list?.id?.takeIf { "list" !in off },
             // `#einkauf` names a shopping list (the server says so): the word is not a new task list
             newList = if (u.listId == null && "list" !in off && !QuickAttach.tagIsShopping(u.attach)) p.listName else null,
-            assigneeId = p.assignee?.id?.takeIf { "person" !in off },
+            assigneeId = if (turns != null) com.gatecontrol.android.notizen.NotizenTurns.assignee(turns) else p.assignee?.id?.takeIf { "person" !in off },
             repeat = p.repeat?.takeIf { "repeat" !in off },
+            turns = turns,
             attached = QuickAttach.effective(u.attach, u.attachPick, u.attachOff),
             place = QuickPlace.effective(u.place, u.placePick, u.placeOff, u.placeTrigger),
         )
@@ -963,6 +1033,8 @@ class NotizenQuickViewModel @Inject constructor(
         val attached: com.gatecontrol.android.notizen.NAttached? = null,
         /** Plugin 1.5.0: the place the task will hang on (decided by the line, or chosen). */
         val place: PlacePicked? = null,
+        /** Plugin 1.6.0: the people, whose turn it is and the stars (null with an older plugin). */
+        val turns: com.gatecontrol.android.notizen.NotizenTurns.Quick? = null,
     )
 
     fun save() {
@@ -993,6 +1065,12 @@ class NotizenQuickViewModel @Inject constructor(
                 if (e.due?.date == u.me?.today) addProperty("myDay", true)
                 // an older plugin would pass the field over silently: only with `taskList`
                 if (u.me?.taskList == true) e.attached?.let { addProperty("attachedListId", it.id) }
+                // plugin 1.6.0 — only with its words: „reihum“ / „wer zuerst“ with their people; the stars where I may give them
+                e.turns?.takeIf { u.me?.taskTurns == true && it.turn != null }?.let { t ->
+                    addProperty("turn", t.turn)
+                    add("people", com.google.gson.JsonArray().apply { t.people.forEach { add(it.id) } })
+                }
+                e.turns?.stars?.takeIf { com.gatecontrol.android.notizen.NotizenTurns.mayGiveStars(u.me, listId) }?.let { addProperty("stars", it) }
             }
             val r = repo.createTask(body)
             _ui.update { it.copy(busy = false, done = r is NResult.Ok) }

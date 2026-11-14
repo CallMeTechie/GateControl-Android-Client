@@ -110,7 +110,7 @@ internal fun NotizenManageHost(
             l, m, groups.filter { it.area == l.area },
             onDismiss = { state.listEdit = null },
             onSave = { body -> vm.patchList(l, body, "saved") },
-            onDelete = if (l.isOwner && !l.isDefault) ({ vm.loadListUsage(l); state.listDelete = l }) else null,
+            onDelete = if (l.isOwner && !l.isDefault && !l.family) ({ vm.loadListUsage(l); state.listDelete = l }) else null,
         )
     }
     state.listMove?.let { l ->

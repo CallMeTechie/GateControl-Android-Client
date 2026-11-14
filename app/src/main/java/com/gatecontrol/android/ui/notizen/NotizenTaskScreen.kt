@@ -351,7 +351,8 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
             val ro = !d.task.canEdit || me?.readOnly == true
             if (!d.task.canEdit) {
                 Text(
-                    stringResource(if (d.task.canComplete) R.string.notizen_task_read_only_tick else R.string.notizen_task_read_only),
+                    // plugin 1.6.0: in the family's list a child may not change what a parent made
+                    stringResource(if (d.task.family) R.string.notizen_msg_parents_only else if (d.task.canComplete) R.string.notizen_task_read_only_tick else R.string.notizen_task_read_only),
                     style = MaterialTheme.typography.bodySmall,
                     color = x.muted,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -379,6 +380,22 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                 }
                 d.sourceItem?.let { src ->
                     item { SourceLine(src, nav) }
+                }
+                // plugin 1.6.0: for whom it was ticked off — and, for a parent of the family, „Noch nicht fertig“ (the
+                // task is open again, the stars are taken back)
+                val doneBy = d.task.doneBy?.name?.takeIf { d.task.done && (d.task.family || d.task.turn != null) }
+                if (doneBy != null) {
+                    item {
+                        Row(Modifier.padding(start = 20.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                listOfNotNull(stringResource(R.string.notizen_done_by, doneBy), d.task.stars.takeIf { it > 0 && com.gatecontrol.android.notizen.NotizenTurns.starsShown(me, d.task) }?.let { starsText(it) }).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = x.muted,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (com.gatecontrol.android.notizen.NotizenTurns.mayReject(me, d.task)) TextButton(onClick = vm::complete) { Text(stringResource(R.string.notizen_not_done_yet)) }
+                        }
+                    }
                 }
                 item {
                     NCard(Modifier.padding(top = 12.dp)) {
@@ -413,7 +430,28 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                         val remind = NotizenFormat.remindParts(d.task.remindAt)
                         DetailRow(GcIcons.Bell, stringResource(R.string.notizen_reminder), NotizenFormat.due(remind, today, lang, words) ?: stringResource(R.string.notizen_none), if (ro) null else ({ dialog = "remind" }))
                         DetailRow(GcIcons.Refresh, stringResource(R.string.notizen_repeat), NRepeat.describe(d.task.repeat, lang), if (ro) null else ({ dialog = "repeat" }))
-                        DetailRow(GcIcons.User, stringResource(R.string.notizen_assigned), d.task.assignee?.let { a -> if (a.id == me?.userId) stringResource(R.string.notizen_me) else a.name } ?: stringResource(R.string.notizen_nobody), if (ro) null else ({ dialog = "people" }))
+                        // „wer zuerst“ (plugin 1.6.0): nobody is assigned — the task is for all of its people
+                        if (d.task.turn != com.gatecontrol.android.notizen.TurnWords.FIRST) {
+                            DetailRow(GcIcons.User, stringResource(R.string.notizen_assigned), d.task.assignee?.let { a -> if (a.id == me?.userId) stringResource(R.string.notizen_me) else a.name } ?: stringResource(R.string.notizen_nobody), if (ro) null else ({ dialog = "people" }))
+                        }
+                        // plugin 1.6.0 (`taskTurns`, mockup „Anlegen“): one person, each in turn, or whoever is first
+                        if (d.task.parentId == null && com.gatecontrol.android.notizen.NotizenTurns.offered(me, ui.list, d.task)) {
+                            DetailRow(GcIcons.Users, stringResource(R.string.notizen_turn_title), turnValue(d.task, me?.userId), if (ro || ui.list == null) null else ({ dialog = "turn" }))
+                        }
+                        // plugin 1.6.0 (`taskStars`): the stars of a task of the family's list — only the parents set them
+                        if (d.task.parentId == null && com.gatecontrol.android.notizen.NotizenTurns.starsShown(me, d.task)) {
+                            DetailRow(
+                                GcIcons.Star,
+                                stringResource(R.string.notizen_stars_title),
+                                if (d.task.stars > 0) starsText(d.task.stars) else stringResource(R.string.notizen_stars_none),
+                                if (!ro && com.gatecontrol.android.notizen.NotizenTurns.mayGiveStars(me, d.task.listId)) ({ dialog = "stars" }) else null,
+                            )
+                        }
+                        // a parent ticks off for one of the family (nobody is assigned, or „wer zuerst“)
+                        val tickFor = com.gatecontrol.android.notizen.NotizenTurns.tickFor(me, d.task, ui.list)
+                        if (tickFor.isNotEmpty()) {
+                            DetailRow(GcIcons.Check, stringResource(R.string.notizen_tick_for), "", { dialog = "tick_for" })
+                        }
                         // plugin 1.4.0 (`taskList`, mockup „Oder du wählst sie aus“): the shopping list this task carries
                         val attached = d.task.attachedList
                         if (me?.taskList == true && d.task.parentId == null && (attached != null || !ro)) {
@@ -479,6 +517,9 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                 }
                 "repeat" -> RepeatDialog(d.task.repeat, d.task.due?.date, today, lang, { r -> dialog = null; vm.setRepeat(r) }, { dialog = null })
                 "people" -> PeopleDialog(ui.people, d.task.assignee?.id, { p -> dialog = null; vm.setAssignee(p) }, { dialog = null })
+                "turn" -> TurnDialog(d.task, com.gatecontrol.android.notizen.NotizenTurns.candidates(ui.list), me?.userId, { mode, people -> dialog = null; vm.setTurn(mode, people) }, { dialog = null })
+                "stars" -> StarsDialog(d.task.stars, com.gatecontrol.android.notizen.NotizenTurns.starsMax(me), { n -> dialog = null; vm.setStars(n) }, { dialog = null })
+                "tick_for" -> TickForDialog(com.gatecontrol.android.notizen.NotizenTurns.tickFor(me, d.task, ui.list), me?.userId, { id -> dialog = null; vm.completeFor(id) }, { dialog = null })
                 "attach" -> {
                     val shopping by vm.shopping.collectAsStateWithLifecycle()
                     AttachDialog(shopping, d.task.attachedList?.uid, me?.userName, { no -> dialog = null; vm.setAttached(no) }, { dialog = "attach_new" }, { dialog = null })
@@ -662,7 +703,7 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
                     }
                 }
             }
-            val rc = rowCtx(me.today, me.lang, { null }, openList = nav.shopping)
+            val rc = rowCtx(me.today, me.lang, { null }, openList = nav.shopping, me = me)
             val shared = list?.shared == true
             val canAssign = shared && list?.canEdit != false && !me.readOnly
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -696,7 +737,8 @@ fun NotizenViewScreen(nav: NotizenNav, vm: NotizenViewViewModel = hiltViewModel(
                                         { nav.open(e) },
                                         divider = i < items.size - 1,
                                         showAssignee = shared,
-                                        onAssignee = if (canAssign && t != null) ({ assignFor = t }) else null,
+                                        // plugin 1.6.0: not at a task I may not change (a parent's, for a child in the family's list)
+                                        onAssignee = if (canAssign && t != null && t.canEdit) ({ assignFor = t }) else null,
                                     )
                                 }
                             }
@@ -755,7 +797,8 @@ private fun ListHead(list: com.gatecontrol.android.notizen.NList, me: com.gateco
             }
         }
         val parts = listOfNotNull(
-            when (NotizenLists.shared(list)) {
+            if (list.family) stringResource(R.string.notizen_msg_family_list) else null,
+            if (list.family) null else when (NotizenLists.shared(list)) {
                 NotizenLists.Shared.BY_ME -> stringResource(R.string.notizen_shared_with, NotizenLists.others(list, me.userId).joinToString(", "))
                 NotizenLists.Shared.WITH_ME -> stringResource(if (list.canEdit) R.string.notizen_shared_by else R.string.notizen_shared_by_read, list.owner?.name.orEmpty())
                 NotizenLists.Shared.NO -> null
@@ -763,7 +806,8 @@ private fun ListHead(list: com.gatecontrol.android.notizen.NList, me: com.gateco
             days?.let { stringResource(R.string.notizen_days_in_myday, it) },
         )
         Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.weight(1f))
-        if (list.shared && !list.isOwner && !me.readOnly) {
+        // plugin 1.6.0: the family's list cannot be left — the Familie plugin says who belongs to it
+        if (list.shared && !list.isOwner && !me.readOnly && !list.family) {
             TextButton(onClick = onLeave) { Text(stringResource(R.string.notizen_leave), color = MaterialTheme.colorScheme.error) }
         }
     }
@@ -794,8 +838,11 @@ internal fun PlaceNotes(
     ) { granted -> if (granted) { state = ready; onPermission() } }
     Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val small = MaterialTheme.typography.bodySmall
+        // plugin 1.6.0 (`placeMine`): the server says who may agree (`canConsent`) — everyone else of a shared list only
+        // sees the state; without the word the app guesses as before
+        val mayConsent = com.gatecontrol.android.notizen.NotizenTurns.canConsent(place, me)
         when (place.consent) {
-            com.gatecontrol.android.notizen.NPlace.PENDING -> if (place.by != me.userId && !me.readOnly) {
+            com.gatecontrol.android.notizen.NPlace.PENDING -> if (mayConsent) {
                 Text(stringResource(R.string.notizen_pl_consent_me), style = small, color = x.muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { onConsent(true) }) { Text(stringResource(R.string.notizen_pl_accept)) }
@@ -804,7 +851,11 @@ internal fun PlaceNotes(
             } else {
                 Text(stringResource(R.string.notizen_pl_consent_wait), style = small, color = x.muted)
             }
-            com.gatecontrol.android.notizen.NPlace.DECLINED -> Text(stringResource(R.string.notizen_pl_consent_no), style = small, color = x.muted)
+            com.gatecontrol.android.notizen.NPlace.DECLINED -> {
+                Text(stringResource(R.string.notizen_pl_consent_no), style = small, color = x.muted)
+                // declined before: the person asked may still agree
+                if (mayConsent) TextButton(onClick = { onConsent(true) }) { Text(stringResource(R.string.notizen_pl_accept)) }
+            }
             else -> Unit
         }
         if (place.nearby && place.label != null) Text(stringResource(R.string.notizen_pl_nearby_hint, place.label), style = small, color = x.muted)

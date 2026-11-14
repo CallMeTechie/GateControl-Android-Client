@@ -174,6 +174,9 @@ class NotizenSourcesViewModel @Inject constructor(
     /** Plugin 1.2.0: `prefs.notify.reminders` / `shared` / `listday`. */
     fun setNotify(key: String, value: Boolean) = put(NotizenJson.prefsBody(notify = mapOf(key to value)))
 
+    /** Plugin 1.6.0 (`prefs.feedback`): the message when a child ticks off — `all` | `stars` | `off`. */
+    fun setFeedback(value: String) = put(NotizenJson.prefsBody(feedback = value))
+
     /** Plugin 1.3.0: when the morning hint „Gestern offen geblieben“ comes. */
     fun setYesterdayAt(time: String) = put(NotizenJson.prefsBody(yesterdayAt = time))
 

@@ -262,6 +262,11 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
     )
     val yAsk = ui.yAsk
     if (yAsk != null && me != null) YesterdayAsk(yAsk, me.today, vm::yesterdayAll, vm::dismissYesterdayAsk)
+    // plugin 1.6.0 (mockup „Umzug“): once per person, after the family's tasks moved here
+    val moved = me?.familyTasks?.moved?.takeIf { !it.seen && me.familyList != null && !me.readOnly }
+    if (moved != null && yAsk == null) {
+        FamilyMovedDialog(moved, onView = { val list = me.familyList; vm.familySeen(); list?.let { nav.view("list:$it") } }, onOk = vm::familySeen)
+    }
     if (askNotebook) {
         NameDialog(
             title = stringResource(R.string.notizen_new_notebook),
@@ -365,8 +370,8 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
         if (ui.loading) NotizenLoading()
         return
     }
-    val rc = rowCtx(me.today, me.lang, path, showDay = false, calendar = me.calendarShown, openList = nav.shopping)
-    val rcDays = rowCtx(me.today, me.lang, path, showDay = true, calendar = me.calendarShown, openList = nav.shopping)
+    val rc = rowCtx(me.today, me.lang, path, showDay = false, calendar = me.calendarShown, openList = nav.shopping, me = me)
+    val rcDays = rowCtx(me.today, me.lang, path, showDay = true, calendar = me.calendarShown, openList = nav.shopping, me = me)
     // plugin 1.3.0: „Gestern offen geblieben“ above „Heute“ — its tasks are under „Überfällig“ as well, not twice here
     val yesterday = com.gatecontrol.android.notizen.NotizenYesterday.card(day, me.yesterdayOpen)
     val sections = com.gatecontrol.android.notizen.NotizenYesterday.sections(day, yesterday)
@@ -593,7 +598,7 @@ internal fun ListDayCard(card: com.gatecontrol.android.notizen.NListDay, me: com
     val x = GateControlTheme.extraColors
     val l = card.list
     val others = com.gatecontrol.android.notizen.NotizenLists.others(l, me.userId)
-    val rc = rowCtx(me.today, me.lang, { null }, openList = nav.shopping)
+    val rc = rowCtx(me.today, me.lang, { null }, openList = nav.shopping, me = me)
     NCard(Modifier.padding(top = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.view("list:" + l.id) }.padding(14.dp),

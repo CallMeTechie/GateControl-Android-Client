@@ -351,6 +351,10 @@ internal fun ListSheet(
         if (NotizenLists.Action.MYDAY in actions) {
             Text(stringResource(R.string.notizen_member_own_hint), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(12.dp))
         }
+        // plugin 1.6.0: no sharing, leaving or deleting here
+        if (list.family) {
+            Text(stringResource(R.string.notizen_msg_family_list), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(12.dp))
+        }
     }
 }
 

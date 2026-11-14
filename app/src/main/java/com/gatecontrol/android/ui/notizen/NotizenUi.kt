@@ -53,6 +53,7 @@ import com.gatecontrol.android.notizen.NArea
 import com.gatecontrol.android.notizen.NEntry
 import com.gatecontrol.android.notizen.NItem
 import com.gatecontrol.android.notizen.NotizenFormat
+import com.gatecontrol.android.notizen.NMe
 import com.gatecontrol.android.notizen.NTask
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -174,6 +175,10 @@ data class RowCtx(
     val calendar: Boolean = false,
     /** Plugin 1.4.0: a tap on „Einkauf 0/8“ of a task opens that shopping list (its id); null: the mark is not a button. */
     val openList: ((String) -> Unit)? = null,
+    /** Plugin 1.6.0: who I am („Reihum · du bist dran“). */
+    val meId: Long? = null,
+    /** Plugin 1.6.0: the stars of a task of the family's list show (the Familie plugin counts them). */
+    val stars: Boolean = false,
 )
 
 @Composable
@@ -185,11 +190,30 @@ internal fun rowCtx(
     timeFirst: Boolean = false,
     calendar: Boolean = false,
     openList: ((String) -> Unit)? = null,
+    me: NMe? = null,
 ) = RowCtx(
     today, lang, listPath,
     Triple(stringResource(R.string.notizen_today_word), stringResource(R.string.notizen_tomorrow_word), stringResource(R.string.notizen_yesterday_word)),
-    timeFirst, showDay, calendar, openList,
+    timeFirst, showDay, calendar, openList, me?.userId, me?.taskStars == true,
 )
+
+/** „Reihum · du bist dran“ / „Reihum · Lena ist dran“ / „Wer zuerst“ (plugin 1.6.0, `taskTurns`); null: an ordinary task. */
+@Composable
+internal fun turnText(task: NTask, meId: Long?): String? = when (val l = com.gatecontrol.android.notizen.NotizenTurns.line(task, meId)) {
+    com.gatecontrol.android.notizen.NotizenTurns.Line.RotateMe -> stringResource(R.string.notizen_turn_rotate_me)
+    is com.gatecontrol.android.notizen.NotizenTurns.Line.Rotate -> l.name?.let { stringResource(R.string.notizen_turn_rotate_other, it.substringBefore(' ')) } ?: stringResource(R.string.notizen_turn_rotate)
+    com.gatecontrol.android.notizen.NotizenTurns.Line.First -> stringResource(R.string.notizen_turn_first)
+    null -> null
+}
+
+/** The stars of a task of the family's list: „2 Sterne“ with its sign. */
+@Composable
+internal fun NStarsMark(n: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Icon(GcIcons.StarFilled, null, tint = Color(0xFFB45309), modifier = Modifier.size(12.dp))
+        Text(starsText(n), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface)
+    }
+}
 
 /**
  * The shopping list a task carries and how far it is ticked off: „Einkauf 0/8“ (plugin 1.4.0, mockup „Aufgabe mit
@@ -304,12 +328,19 @@ internal fun NEntryRow(
                     task?.attachedList?.let { NListMark(it, ctx.openList) }
                     // plugin 1.5.0: the place the task hangs on („Baumarkt Nord · beim Ankommen“)
                     task?.place?.let { NPlaceMark(it) }
+                    // plugin 1.6.0: the stars of a task of the family's list
+                    if (task != null && ctx.stars && task.stars > 0) NStarsMark(task.stars)
                     if (task != null) NSyncMark(task.pending, task.conflict)
+                    // plugin 1.6.0: whose turn it is, and for whom it was ticked off
+                    val turn = task?.let { turnText(it, ctx.meId) }
                     if (task != null) {
+                        turn?.let { meta.add(it) }
+                        val doneBy = task.doneBy?.name?.takeIf { task.done && (task.family || task.turn != null) }
+                        doneBy?.let { meta.add(stringResource(R.string.notizen_done_by, it.substringBefore(' '))) }
                         ctx.listPath(task.listId)?.let { meta.add(it) }
                         task.progress?.takeIf { it.total > 0 }?.let { meta.add(stringResource(R.string.notizen_subtasks_n, it.done, it.total)) }
                         task.repeatText?.let { meta.add(stringResource(R.string.notizen_repeats, it.replaceFirstChar { c -> c.lowercase() })) }
-                        if (!showAssignee) task.assignee?.name?.let { meta.add(it) }
+                        if (!showAssignee && turn == null && doneBy == null) task.assignee?.name?.let { meta.add(it) }
                         if (task.attachments > 0) meta.add(stringResource(R.string.notizen_attachments_n, task.attachments))
                     }
                     if (meta.isNotEmpty()) {
@@ -359,7 +390,7 @@ private fun AssigneeChip(who: com.gatecontrol.android.notizen.NPerson?, onClick:
 }
 
 @Composable
-private fun starsText(n: Int): String = if (n == 1) stringResource(R.string.notizen_star_one) else stringResource(R.string.notizen_stars_n, n)
+internal fun starsText(n: Int): String = if (n == 1) stringResource(R.string.notizen_star_one) else stringResource(R.string.notizen_stars_n, n)
 
 /** A section title with its count (`.sec`): „Überfällig“ in red. */
 @Composable
@@ -520,6 +551,9 @@ internal fun messageText(code: String): String = when (code) {
     "place_not_here" -> stringResource(R.string.notizen_pl_msg_not_here)
     "place_consent_other" -> stringResource(R.string.notizen_pl_msg_consent_other)
     "too_many" -> stringResource(R.string.notizen_pl_msg_too_many)
+    "parents_only" -> stringResource(R.string.notizen_msg_parents_only)
+    "family" -> stringResource(R.string.notizen_msg_family_list)
+    "not_member" -> stringResource(R.string.notizen_msg_not_member)
     else -> stringResource(R.string.notizen_msg_failed, code)
 }
 

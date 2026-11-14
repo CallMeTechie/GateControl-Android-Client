@@ -1105,6 +1105,63 @@ Herunterziehen lädt neu.
   - **Berechtigungen:** keine neue. Derselbe Ablauf wie bei den
     Orts-Erinnerungen der Familie (Erklärung vor der Abfrage, „Immer
     zulassen“ für den Hintergrund).
+- **Aufgaben und Erinnerungen, Stufe 4 – Wer ist dran, Sterne, Familie
+  (Plugin 1.6.0, Familie 1.24.0):** erkannt nur an den Wörtern `taskTurns`,
+  `taskStars`, `familyTasks`, `doneFeedback`, `placeMine` in `me.features`,
+  an `me.familyTasks` und – im Familien-Plugin – an `home` (`GET tasks`,
+  `GET places`, `overview.tasks.home`); nie an Versionen. Mit älteren Plugins
+  zeigt die App nichts davon und sendet keines der neuen Felder.
+  - **Wer ist dran?** (`Task.turn`, `Task.people`; Logik in `NotizenTurns`):
+    „Eine Person · Reihum · Wer zuerst“ in jeder geteilten Liste – in der
+    Schnell-Eingabe ab zwei Personen und als Zeile in der Aufgabe
+    (`TurnChoice`, `TurnDialog`). An der Zeile steht „Reihum · du bist dran“ /
+    „Reihum · Lena ist dran“ / „Wer zuerst“, nach dem Abhaken „Erledigt von
+    …“ (`Task.doneBy`). Bei „wer zuerst“ ersetzt der Push `reminder_done`
+    („Erledigt von Lena“) die offene Erinnerung der anderen, der eigene Alarm
+    des Handys wird neu abgefragt.
+  - **Schnell-Eingabe:** ein zweites Parser-Modul `TurnWords` (1:1-Portierung
+    von `ui/turnwords.js`, alle 16 Vektoren aus `turnwords.json` als Test)
+    liest nach `QuickParse` jedes weitere „@Name“, „reihum“ / „abwechselnd“ /
+    „wer zuerst“ und „2 Sterne“. `QuickParse` und seine Vektoren sind
+    unverändert. Bausteine „Mia, Jonas“, „Reihum · zuerst Mia“ / „Wer zuerst“,
+    „2 Sterne“; Sterne liest die App nur, wo die Person sie vergeben darf
+    (Elternteil, Ziel ist die Familienliste) – sonst bleibt „Hotel 4 Sterne
+    buchen“ unangetastet.
+  - **Familienliste** (`List.family`, `me.familyTasks.listId`): eine
+    gewöhnliche Liste; „Teilen …“, „Liste verlassen“ und „Löschen“ sind dort
+    ausgeblendet („Die Liste der Familie verwaltet das Familien-Plugin.“). Was
+    ein Kind darf, sagen `canEdit` / `canComplete` der Aufgabe („Das können
+    nur die Eltern ändern.“).
+  - **Sterne** (`Task.stars`): Anzeige an Zeile und Aufgabe, Vergabe nur durch
+    Eltern in der Familienliste (0 … `starsMax`). Gezählt und abgerechnet wird
+    weiter im Familien-Plugin; Stand, Wochenziel, Taschengeld und Wünsche
+    liest die App unverändert dort.
+  - **Für ein Kind abhaken / Abnahme:** Eltern haken über „Abhaken für …“
+    für ein Familienmitglied ab (`POST tasks/<id>/complete { userId }`, nur
+    mit Verbindung). Der Push „… hat … erledigt“ (`done_feedback`) öffnet mit
+    „Ansehen“ die Aufgabe; „Noch nicht fertig“ ist ein Knopf am Push
+    (Callback des Servers) und in der Aufgabe (`complete { done: false }`).
+    Einstellung für Eltern: „Meldung, wenn ein Kind abhakt“
+    (`prefs.feedback`: jede Aufgabe / nur mit Sternen / nie).
+  - **Ort an der Aufgabe:** „Annehmen“ / „Ablehnen“ nur, wenn
+    `Task.place.canConsent` es sagt; Dritte sehen den Zustand. Ohne
+    `placeMine` entscheidet die App wie bisher.
+  - **Nach dem Umzug** (`home: notizen`): einmal je Person der Hinweis „Umzug
+    abgeschlossen“ (`POST family/seen`). Im Familien-Tab bleibt die Karte
+    „Heute“ (Kopie des Familien-Plugins, Hinweis „aus Notizen & Aufgaben“);
+    „Alle Aufgaben“ öffnet die Familienliste im Tab „Aufgaben“ (`TasksHome`,
+    `TasksEntry` – das Muster von `ShoppingHome`). Sterne, Taschengeld und
+    Wünsche bleiben Seiten des Familien-Plugins.
+  - **Orts-Erinnerungen nach dem Umzug:** umgezogene Erinnerungen (`active:
+    false`, `home: notizen`, `moved`) meldet die App nicht mehr als
+    Familien-Geofence an (`GeofenceRegistrar.select`) – sie kommen als
+    Aufgaben mit Ort aus `POST places/watch`; das Budget bleibt in der Summe
+    gleich. Reihenfolge: erst der Hub, dann fragt die App das Familien-Plugin
+    erneut (`TasksHome.askFamilyAgain`, einmal je App-Start und Umzug). Die
+    Seite „Orts-Erinnerungen“ der Familie zeigt nur noch, was dem
+    Familien-Plugin gehört („Bescheid sagen“, ausgeschaltete), mit dem Hinweis
+    „Orts-Erinnerungen findest du jetzt unter Aufgaben.“ Keine neue
+    Berechtigung.
 - **Liste:** offene und erledigte Aufgaben, unten ein Feld für eine neue
   Aufgabe (nicht bei „nur ansehen“).
 - **Aufgabe:** Titel, Wichtig, Unteraufgaben (hinzufügen, abhaken,

@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * - `shared_list` → the list; `shared_notebook` → the notebook (a Tresor: its page, which unlocks first);
  * - `vault_request` (topic `vault`) → the Tresor's page with the device to approve (unlocked first);
  * - `listday` (plugin 1.2.0, topic `listday`, „Heute ist Einkaufstag“) → the list, in its area;
+ * - `done_feedback` (plugin 1.6.0, topic `shared`, „… hat … erledigt“) and `reminder_done` (topic `reminders`, „Erledigt
+ *   von …“ for the others of „wer zuerst“) → the task;
  * - `yesterday` (plugin 1.3.0, topic `reminders`, „Gestern offen geblieben“) → „Mein Tag“ with the card; its buttons
  *   „Erledigt“ (several tasks: `done_ask`) and „Verschieben“ (`move`) open the same, with the question or the choice.
  *
@@ -77,7 +79,10 @@ object NotizenPush {
         return when (n.str("kind")) {
             "yesterday" -> Yesterday(Y_OPEN, ids(n), area)
             // `place_consent` (plugin 1.5.0, topic `shared`): „… möchte dich erinnern“ — the task, with Annehmen / Ablehnen
-            "reminder", "assigned", "place_consent" -> task?.let { Task(it, area) }
+            // `done_feedback` (plugin 1.6.0, topic `shared`): „Lena hat … erledigt“ — „Ansehen“ opens the task, „Noch nicht
+            // fertig“ is a callback GateControl sends to the plugin; `reminder_done` (topic `reminders`, „Erledigt von
+            // Lena“): takes the place of the reminder of „wer zuerst“ (the same collapse key), without buttons
+            "reminder", "assigned", "place_consent", "done_feedback", "reminder_done" -> task?.let { Task(it, area) }
             "shared_list", "listday" -> list?.let { ListPage(it, area) }
             "shared_notebook" -> notebook?.let { nb -> vault?.let { Tresor(nb, it, area) } ?: Notebook(nb, area) }
             "vault_request" -> vault?.let { VaultRequest(it, area) }
@@ -105,6 +110,15 @@ object NotizenPush {
             ?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         if (n.str("kind") != "reminder") return null
         return NotizenJson.reminderTag(n.str("tag"))
+    }
+
+    /** The task a push `reminder_done` (plugin 1.6.0) is about: someone else did it — the phone's own alarm for it goes. */
+    fun doneElsewhere(message: PushMessage): Long? {
+        if (message.topic != TOPIC_REMINDERS) return null
+        val n = runCatching { JsonParser.parseString(message.dataJson ?: return null).asJsonObject.get("notizen") }.getOrNull()
+            ?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+        if (n.str("kind") != "reminder_done") return null
+        return n.id("taskId") ?: n.id("task")
     }
 
     /**

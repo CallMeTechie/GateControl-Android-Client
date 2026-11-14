@@ -104,7 +104,14 @@ fun PlacesScreen(
             }
 
             val p = profile
-            val list = places
+            // Familie 1.24: the reminders that moved are tasks with a place in „Notizen & Aufgaben“ — not listed here any more
+            val moved = places?.any { it.inHub } == true
+            val list = places?.let { com.gatecontrol.android.familie.places.GeofenceRegistrar.shown(it) }
+            if (moved) {
+                GcBanner(tone = GcTone.Info, icon = GcIcons.Pin) {
+                    Text(stringResource(R.string.familie_places_moved), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
             when {
                 list == null && error != null -> FamilieErrorBanner(error, onRetry = viewModel::refresh)
                 list == null || p == null -> FamilieLoading()

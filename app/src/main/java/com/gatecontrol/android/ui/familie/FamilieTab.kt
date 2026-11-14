@@ -44,7 +44,8 @@ fun FamiliePage(
         FamilieDest.Home -> FamilieHomeScreen(onOpen = onOpen, onOpenProfile = onOpenProfile)
         // Familie 1.21: once the lists live in „Notizen & Aufgaben“ the hub's list opens (same ids), else Familie's page
         is FamilieDest.Shopping -> ShoppingEntry(listId = dest.listId, onBack = onBack, onOpen = onOpen)
-        FamilieDest.Tasks -> TasksScreen(onBack = onBack)
+        // Familie 1.24: once the tasks live in „Notizen & Aufgaben“ the hub's family list opens, else Familie's page
+        FamilieDest.Tasks -> TasksEntry(onBack = onBack)
         FamilieDest.Dates -> DatesScreen(onBack = onBack)
         is FamilieDest.Locate -> LocateParentScreen(childId = dest.childId, requestId = dest.requestId, onBack = onBack)
         is FamilieDest.Sos -> LocateParentScreen(childId = dest.userId, sos = dest, onBack = onBack)

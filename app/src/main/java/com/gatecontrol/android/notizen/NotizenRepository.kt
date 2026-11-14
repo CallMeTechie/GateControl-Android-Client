@@ -231,6 +231,24 @@ class NotizenRepository @Inject constructor(
     /** A task (or sub task) ticked off or back. */
     suspend fun completeTask(id: Long, done: Boolean): Pair<Tick, NTask?> = tick(NotizenOutbox.TASK, id, done)
 
+    /**
+     * A parent ticks task [id] off for [userId] (plugin 1.6.0, the family's list: the stars go to that person). It
+     * needs the server — who it is for is not kept in the outbox: without a connection [NResult.Offline].
+     */
+    suspend fun completeTaskFor(id: Long, userId: Long): NResult<NTask> {
+        ensureLoaded()
+        if (hasWaiting()) flush()
+        val sid = serverId(id)
+        if (sid == null || hasWaiting()) return NResult.Offline
+        return api.completeTaskFor(sid, true, userId).map { it.first }.also { if (it is NResult.Ok) _changed.tryEmit(setOf("tasks", "items")) }
+    }
+
+    /** „Umzug abgeschlossen“ was read (`POST family/seen`): the note does not come again — here at once, on the server for every device. */
+    suspend fun familySeen() {
+        _me.value = _me.value?.let { m -> m.copy(familyTasks = m.familyTasks?.let { f -> f.copy(moved = f.moved?.copy(seen = true)) }) }
+        if (api.familySeen() is NResult.Ok) refreshMe()
+    }
+
     private suspend fun tick(kind: String, id: Long, done: Boolean): Pair<Tick, NTask?> {
         ensureLoaded()
         val sid = if (kind == NotizenOutbox.TASK) serverId(id) else id

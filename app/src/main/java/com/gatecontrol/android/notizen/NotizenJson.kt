@@ -100,6 +100,25 @@ object NotizenJson {
                 }
                 NPlacePrefs(p?.bool("search") ?: true, p?.bool("nearby") ?: true, quiet)
             },
+            feedback = feedback(o.str("feedback")) ?: "all",
+        )
+    }
+
+    /** `prefs.feedback` (plugin 1.6.0): `all` | `stars` | `off`; anything else is none of them. */
+    fun feedback(v: String?): String? = v?.takeIf { it == "all" || it == "stars" || it == "off" }
+
+    /** `me.familyTasks` (plugin 1.6.0); a list number only while [NFamilyTasks.bound]. */
+    fun familyTasks(o: JsonObject?): NFamilyTasks? = o?.let { f ->
+        val bound = f.bool("bound") ?: false
+        val listId = f.id("listId").takeIf { bound }
+        NFamilyTasks(
+            available = f.bool("available") ?: false,
+            bound = bound && listId != null,
+            listId = listId,
+            parent = f.bool("parent") ?: false,
+            stars = f.bool("stars") ?: false,
+            starsMax = f.int("starsMax")?.coerceIn(1, 10) ?: 10,
+            moved = f.obj("moved")?.let { m -> NFamilyMoved(m.text("at", 40), m.int("tasks")?.coerceAtLeast(0) ?: 0, m.int("places")?.coerceAtLeast(0) ?: 0, m.bool("seen") ?: false) },
         )
     }
 
@@ -124,6 +143,7 @@ object NotizenJson {
             calendar = o.obj("calendar")?.let { c -> NCalendarInfo(c.bool("available") ?: false, c.bool("enabled") ?: false, c.bool("mine") ?: false, c.text("name", 80)) },
             shoppingFamily = o.obj("shopping")?.obj("family")?.let { f -> NShoppingFamily(f.bool("available") ?: false, f.bool("bound") ?: false, f.bool("parent") ?: false) },
             places = NotizenPlacesJson.info(o.obj("places")),
+            familyTasks = familyTasks(o.obj("familyTasks")),
         )
     }
 
@@ -163,7 +183,29 @@ object NotizenJson {
     fun delivery(o: JsonObject): NDelivery = o.obj("notified").let { n -> NDelivery(n?.bool("ok"), n?.text("code", 40)) }
 
     /** `POST parse { text, area }`. */
-    fun parseBody(text: String, area: String) = JsonObject().apply { addProperty("text", text.take(1000)); addProperty("area", area) }
+    fun parseBody(text: String, area: String, listId: Long? = null) = JsonObject().apply {
+        addProperty("text", text.take(1000))
+        addProperty("area", area)
+        // plugin 1.6.0: the list the line is typed for (only there the server reads stars)
+        listId?.takeIf { it > 0 }?.let { addProperty("listId", it) }
+    }
+
+    /** `POST tasks/<id>/complete { done, userId? }` — [userId] (plugin 1.6.0, parents in the family's list): ticked off for that person. */
+    fun completeBody(done: Boolean, userId: Long?) = JsonObject().apply {
+        addProperty("done", done)
+        userId?.takeIf { it > 0 }?.let { addProperty("userId", it) }
+    }
+
+    /**
+     * `turn` / `people` / `stars` of `POST tasks` and `PATCH tasks/<id>` (plugin 1.6.0). [turn] null: „Eine Person“ —
+     * `turn: null`, the people are left out (the assignee says who). [stars] null: not sent.
+     */
+    fun turnFields(turn: String?, people: List<Long>, stars: Int? = null): List<Pair<String, Any?>> = buildList {
+        val t = turn(turn)?.takeIf { people.distinct().size >= 2 }
+        add("turn" to t)
+        if (t != null) add("people" to JsonArray().apply { people.distinct().forEach { add(it) } })
+        stars?.let { add("stars" to it.coerceIn(0, 10)) }
+    }
 
     /** `POST shopping/lists/<uid>/assign { userId | null, dueAt?, notify? }`. */
     fun shoppingAssignBody(userId: Int?, dueAt: String?, notify: String?) = JsonObject().apply {
@@ -264,6 +306,9 @@ object NotizenJson {
 
     fun task(o: JsonObject?): NTask? {
         if (o == null) return null
+        // plugin 1.6.0: a turn needs at least two people (the server says `turn: null` with fewer)
+        val people = o.arr("people").each { person(it)?.takeIf { p -> p.id != null } }.distinctBy { it.id }.take(50)
+        val turn = turn(o.str("turn"))?.takeIf { people.size >= 2 }
         return NTask(
             id = o.id("id") ?: return null,
             listId = o.id("listId"),
@@ -294,8 +339,16 @@ object NotizenJson {
             calendar = taskCalendar(o.obj("calendar")),
             attachedList = attached(o.obj("attachedList")),
             place = NotizenPlacesJson.place(o.obj("place")),
+            turn = turn,
+            people = if (turn == null) emptyList() else people,
+            stars = o.int("stars")?.coerceIn(0, 10) ?: 0,
+            doneBy = person(o.obj("doneBy")),
+            family = o.bool("family") ?: false,
         )
     }
+
+    /** `turn` of a task or of `POST parse`: `rotate` | `first`, else none. */
+    fun turn(v: String?): String? = v?.takeIf { it == TurnWords.ROTATE || it == TurnWords.FIRST }
 
     fun item(o: JsonObject?): NItem? {
         if (o == null) return null
@@ -436,6 +489,7 @@ object NotizenJson {
             remind = time(o.str("remind")),
             mydayOff = o.bool("mydayOff") ?: false,
             dayToday = o.bool("dayToday") ?: false,
+            family = o.bool("family") ?: false,
         )
     }
 
@@ -773,7 +827,9 @@ object NotizenJson {
         startArea: String? = null,
         yesterdayAt: String? = null,
         calendarTasks: Boolean? = null,
+        feedback: String? = null,
     ) = JsonObject().apply {
+        feedback(feedback)?.let { addProperty("feedback", it) }
         time(yesterdayAt)?.let { addProperty("yesterdayAt", it) }
         calendarTasks?.let { add("calendar", JsonObject().apply { addProperty("tasks", it) }) }
         area?.let { addProperty("area", it) }
