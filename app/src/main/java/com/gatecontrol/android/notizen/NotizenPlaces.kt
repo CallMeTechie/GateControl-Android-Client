@@ -52,6 +52,10 @@ data class NPlace(
     val nearby: Boolean,
     val skipped: Int,
     val later: String?,
+    /** Plugin 1.6.0 (`placeMine`): the phone of THIS person is to watch the place (null: an older plugin). */
+    val mine: Boolean? = null,
+    /** Plugin 1.6.0 (`placeMine`): this person may agree or decline (null: an older plugin — the app guesses). */
+    val canConsent: Boolean? = null,
 ) {
     val any: Boolean get() = mode == ANY
 
@@ -277,6 +281,8 @@ object NotizenPlacesJson {
             nearby = o.bool("nearby") ?: false,
             skipped = o.int("skipped")?.coerceAtLeast(0) ?: 0,
             later = o.text("later", 40),
+            mine = o.bool("mine"),
+            canConsent = o.bool("canConsent"),
         )
     }
 

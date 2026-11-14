@@ -368,6 +368,9 @@ class NotizenReminderCenter @Inject constructor(
      * acknowledged as read, quietly), [ReminderGuard.Push.REPLACE] when the phone's alarm shows it (no second sound).
      */
     suspend fun onPush(message: PushMessage): ReminderGuard.Push {
+        // plugin 1.6.0, „wer zuerst“: someone else did it — the push takes the reminder's place (the same collapse key),
+        // and the phone's own alarms are asked again, so none rings for a task that is done
+        if (NotizenPush.doneElsewhere(message) != null) wanted.tryEmit(Unit)
         val tag = NotizenPush.reminderTag(message) ?: return ReminderGuard.Push.SHOW
         val now = clock()
         var verdict = ReminderGuard.Push.SHOW

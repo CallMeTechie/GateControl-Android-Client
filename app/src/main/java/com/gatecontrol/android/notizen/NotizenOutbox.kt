@@ -469,6 +469,10 @@ object NotizenOutbox {
             "listId" -> d.task.listId?.takeIf { it > 0 }?.let { addProperty(f, it) }
             "myDay" -> addProperty(f, d.task.myDay)
             "attachedListId" -> d.task.attachedList?.id?.let { addProperty(f, it) } ?: add(f, JsonNull.INSTANCE)
+            // plugin 1.6.0: who is on, the stars
+            "turn" -> d.task.turn?.let { addProperty(f, it) } ?: add(f, JsonNull.INSTANCE)
+            "people" -> add(f, com.google.gson.JsonArray().apply { d.task.people.mapNotNull { it.id }.forEach { add(it) } })
+            "stars" -> addProperty(f, d.task.stars)
         }
     }
 

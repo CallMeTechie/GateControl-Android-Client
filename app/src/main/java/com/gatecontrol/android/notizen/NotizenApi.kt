@@ -182,6 +182,13 @@ class NotizenApi @Inject constructor(
 
     suspend fun completeTask(id: Long, done: Boolean): NResult<Pair<NTask, NTask?>> = post("tasks/$id/complete", NotizenJson.doneBody(done), parse = NotizenJson::completeAnswer)
 
+    /** `POST tasks/<id>/complete { done, userId }` (plugin 1.6.0, `familyTasks`): a parent ticks off for a member of the family. */
+    suspend fun completeTaskFor(id: Long, done: Boolean, userId: Long?): NResult<Pair<NTask, NTask?>> =
+        post("tasks/$id/complete", NotizenJson.completeBody(done, userId), parse = NotizenJson::completeAnswer)
+
+    /** `POST family/seen` (plugin 1.6.0): the note „Umzug abgeschlossen“ was read. */
+    suspend fun familySeen(): NResult<Unit> = post("family/seen", parse = unit)
+
     suspend fun deleteTask(id: Long): NResult<Unit> = del("tasks/$id", unit)
 
     // ── reminders and „Gestern offen geblieben“ (plugin 1.3.0; an older plugin answers 404) ──
@@ -235,7 +242,7 @@ class NotizenApi @Inject constructor(
     // ── places (plugin 1.5.0, `places`; an older plugin answers 404 — the app does not call these without the word) ──
 
     /** `POST parse { text, area }` → the list (`taskList`) and the place (`places`) the server suggests for the line. */
-    suspend fun parse(text: String, area: String): NResult<NParsed> = post("parse", NotizenJson.parseBody(text, area)) { NotizenPlacesJson.parsed(it) }
+    suspend fun parse(text: String, area: String, listId: Long? = null): NResult<NParsed> = post("parse", NotizenJson.parseBody(text, area, listId)) { NotizenPlacesJson.parsed(it) }
 
     /** `GET places`: „Meine Orte“, the places of the family, the remembered place per kind. */
     suspend fun places(): NResult<NPlaces> = get("places") { NotizenPlacesJson.places(it) }

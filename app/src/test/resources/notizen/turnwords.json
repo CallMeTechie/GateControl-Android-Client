@@ -1,0 +1,216 @@
+{
+ "$comment": "Whose turn and stars (ui/turnwords.js), applied to the result of quickparse.parse(input, ctx): every port (Android, Windows) must give exactly these results. `stars: false` on a case: the person may not give stars (ctx.stars false) — else true.",
+ "version": 1,
+ "ctx": {
+  "today": "2026-11-08",
+  "now": "10:00",
+  "people": [
+   {
+    "id": 12,
+    "name": "Jenny Muster"
+   },
+   {
+    "id": 15,
+    "name": "Noah"
+   },
+   {
+    "id": 16,
+    "name": "Noemi"
+   },
+   {
+    "id": 20,
+    "name": "Mia"
+   },
+   {
+    "id": 21,
+    "name": "Jonas"
+   }
+  ]
+ },
+ "cases": [
+  {
+   "input": "@Mia @Jonas Spülmaschine ausräumen täglich 18 Uhr reihum",
+   "expect": {
+    "title": "Spülmaschine ausräumen",
+    "people": [
+     20,
+     21
+    ],
+    "turn": "rotate",
+    "stars": null
+   }
+  },
+  {
+   "input": "@Mia @Jonas @Jenny Blumen gießen wer zuerst",
+   "expect": {
+    "title": "Blumen gießen",
+    "people": [
+     20,
+     21,
+     12
+    ],
+    "turn": "first",
+    "stars": null
+   }
+  },
+  {
+   "input": "@Mia @Jonas Zimmer aufräumen",
+   "expect": {
+    "title": "Zimmer aufräumen",
+    "people": [
+     20,
+     21
+    ],
+    "turn": null,
+    "stars": null
+   }
+  },
+  {
+   "input": "@Mia Zimmer aufräumen 2 Sterne",
+   "expect": {
+    "title": "Zimmer aufräumen",
+    "people": [
+     20
+    ],
+    "turn": null,
+    "stars": 2
+   }
+  },
+  {
+   "input": "@Mia Zimmer aufräumen 2 Sterne",
+   "stars": false,
+   "expect": {
+    "title": "Zimmer aufräumen 2 Sterne",
+    "people": [
+     20
+    ],
+    "turn": null,
+    "stars": null
+   }
+  },
+  {
+   "input": "@Mia reihum Müll rausbringen",
+   "expect": {
+    "title": "reihum Müll rausbringen",
+    "people": [
+     20
+    ],
+    "turn": null,
+    "stars": null
+   }
+  },
+  {
+   "input": "@Jonas @Mia Altpapier, abwechselnd, jeden Montag",
+   "expect": {
+    "title": "Altpapier",
+    "people": [
+     21,
+     20
+    ],
+    "turn": "rotate",
+    "stars": null
+   }
+  },
+  {
+   "input": "@Mia @Jonas tidy up, taking turns, 3 stars",
+   "expect": {
+    "title": "tidy up",
+    "people": [
+     20,
+     21
+    ],
+    "turn": "rotate",
+    "stars": 3
+   }
+  },
+  {
+   "input": "@Mia @Jonas water the plants whoever is first",
+   "expect": {
+    "title": "water the plants",
+    "people": [
+     20,
+     21
+    ],
+    "turn": "first",
+    "stars": null
+   }
+  },
+  {
+   "input": "@Noah @Noemi @Mia in turns Tisch decken 1 Stern",
+   "expect": {
+    "title": "Tisch decken",
+    "people": [
+     15,
+     16,
+     20
+    ],
+    "turn": "rotate",
+    "stars": 1
+   }
+  },
+  {
+   "input": "@Mia @Mia @Jonas doppelt reihum",
+   "expect": {
+    "title": "doppelt",
+    "people": [
+     20,
+     21
+    ],
+    "turn": "rotate",
+    "stars": null
+   }
+  },
+  {
+   "input": "@Mia @Unbekannt Aufgabe reihum",
+   "expect": {
+    "title": "@Unbekannt Aufgabe reihum",
+    "people": [
+     20
+    ],
+    "turn": null,
+    "stars": null
+   }
+  },
+  {
+   "input": "Hotel 4 Sterne buchen",
+   "expect": {
+    "title": "Hotel buchen",
+    "people": [],
+    "turn": null,
+    "stars": 4
+   }
+  },
+  {
+   "input": "12 Sterne sind zu viel @Mia",
+   "expect": {
+    "title": "12 Sterne sind zu viel",
+    "people": [
+     20
+    ],
+    "turn": null,
+    "stars": null
+   }
+  },
+  {
+   "input": "@Mia @Jonas wer zuerst reihum Katze füttern",
+   "expect": {
+    "title": "reihum Katze füttern",
+    "people": [
+     20,
+     21
+    ],
+    "turn": "first",
+    "stars": null
+   }
+  },
+  {
+   "input": "Wer zuerst kommt, mahlt zuerst",
+   "expect": {
+    "title": "Wer zuerst kommt, mahlt zuerst",
+    "people": [],
+    "turn": null,
+    "stars": null
+   }
+  }
+ ]
+}

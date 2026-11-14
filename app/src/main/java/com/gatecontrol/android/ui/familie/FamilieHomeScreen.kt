@@ -109,6 +109,7 @@ fun FamilieHomeScreen(
     val schoolError by viewModel.schoolError.collectAsStateWithLifecycle()
     val schoolInbox by viewModel.schoolInbox.collectAsStateWithLifecycle()
     val internet by viewModel.internet.collectAsStateWithLifecycle()
+    val placesHome by viewModel.placesHome.collectAsStateWithLifecycle()
     // „Internet zu Hause“ has no module: the card is there when the server lists children for it.
     val hasInternet = internet?.payload?.visible == true
     val context = LocalContext.current
@@ -175,7 +176,7 @@ fun FamilieHomeScreen(
                 else -> {
                     val order = FamilieLayout.visible(FamilieLayout.merge(layout.familie, FamilieCards.available(p, schule, hasInternet)), layout.familieHidden)
                     HomeCards(
-                        p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange,
+                        p, order, overview, shopping, selected, myAvatar, onOpen, onOpenProfile, viewModel::taskDone, openArrange, placesHome,
                         internetCard = { internet?.let { InternetHomeCard(it, selected == FamilieDest.Internet, onOpen) } },
                     ) {
                         SchoolCard(schoolSnapshot, schoolError, selected is FamilieDest.School, onOpen, schoolInbox)
@@ -238,6 +239,7 @@ private fun HomeCards(
     onOpenProfile: () -> Unit,
     onTaskDone: (Int) -> Unit,
     onArrange: () -> Unit,
+    placesHome: com.gatecontrol.android.familie.places.PlacesHome?,
     internetCard: @Composable () -> Unit,
     schoolCard: @Composable () -> Unit,
 ) {
@@ -301,13 +303,24 @@ private fun HomeCards(
                         selected = selected is FamilieDest.Expenses,
                         onClick = { onOpen(FamilieDest.Expenses()) },
                     )
-                    FamilieLayout.PLACES -> NavCard(
-                        icon = GcIcons.Pin,
-                        title = stringResource(R.string.familie_places_title),
-                        subtitle = stringResource(R.string.familie_places_sub),
-                        selected = selected == FamilieDest.Places,
-                        onClick = { onOpen(FamilieDest.Places) },
-                    )
+                    // Familie 1.24: after the move the place reminders are tasks with a place — the card stays only for
+                    // those that still belong to the Familie plugin („Bescheid sagen“, switched off)
+                    FamilieLayout.PLACES -> if (placesHome?.moved == true && placesHome.left == 0) {
+                        Text(
+                            stringResource(R.string.familie_places_moved),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GateControlTheme.extraColors.muted,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                        )
+                    } else {
+                        NavCard(
+                            icon = GcIcons.Pin,
+                            title = stringResource(R.string.familie_places_title),
+                            subtitle = stringResource(if (placesHome?.moved == true) R.string.familie_places_sub_left else R.string.familie_places_sub),
+                            selected = selected == FamilieDest.Places,
+                            onClick = { onOpen(FamilieDest.Places) },
+                        )
+                    }
                 }
             }
         }
@@ -484,6 +497,15 @@ private fun TodayCard(p: FamilieProfile, overview: FamilieOverview?, selected: B
             )
         } else {
             mine.take(5).forEach { t -> TaskLine(t, p, onDone = { onTaskDone(t.id) }) }
+        }
+        // Familie 1.24: the tasks live in „Notizen & Aufgaben“ now — this is its copy, „Alle Aufgaben“ leads to the list there
+        if (com.gatecontrol.android.notizen.TasksHome.moved(overview?.tasksHome)) {
+            Text(
+                stringResource(R.string.familie_tasks_from_hub),
+                style = MaterialTheme.typography.bodySmall,
+                color = extra.muted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
         }
     }
 }

@@ -52,6 +52,12 @@ data class StoredFence(
 )
 
 /**
+ * After the move of the place reminders (Familie 1.24): [moved] some of them live in „Notizen & Aufgaben“ now, [left]
+ * how many still belong to the Familie plugin („Bescheid sagen“, switched off, not taken over).
+ */
+data class PlacesHome(val moved: Boolean, val left: Int)
+
+/**
  * Place reminders run on the phone (contract C4): the places where this
  * user is the target, active and accepted, become Play services geofences.
  * Registered on app start, after boot, after `GET places` and after any
@@ -74,6 +80,10 @@ class GeofenceRegistrar @Inject constructor(
     private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** The fences of the Familie plugin were registered again — whoever shares Android's 100 with them ([GeofenceBudget]) looks again. */
     val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+
+    private val _home = kotlinx.coroutines.flow.MutableStateFlow<PlacesHome?>(null)
+    /** What `GET places` last said about the move to „Notizen & Aufgaben“ (null: not asked yet in this process). */
+    val home: kotlinx.coroutines.flow.StateFlow<PlacesHome?> = _home
 
     /**
      * Called right before the Familie plugin's fences are registered, with their number: whoever shares Android's 100
@@ -117,6 +127,7 @@ class GeofenceRegistrar @Inject constructor(
     suspend fun syncFromServer(): FamilieResult<List<FamiliePlace>> {
         val me = repository.cachedProfile() ?: repository.profileOrCached()
         val result = api.places()
+        if (result is FamilieResult.Ok) _home.value = placesHome(result.value)
         if (result is FamilieResult.Ok && me != null) {
             apply(if (me.modules.places) select(result.value, me.me.userId) else emptyList())
         } else if (result is FamilieResult.Failed && (result.code == "module_off" || result.code == "not_member" || result.http == 404)) {
@@ -216,11 +227,20 @@ class GeofenceRegistrar @Inject constructor(
         private const val REQUEST_PREFIX = "familie-place-"
         private const val RULE_PREFIX = "familie-rule-"
 
-        /** Which places this phone watches (pure): mine as target, active, accepted. */
+        /**
+         * Which places this phone watches (pure): mine as target, active, accepted — and never one that moved to
+         * „Notizen & Aufgaben“ (Familie 1.24: `active: false`, `home: notizen`, `moved`): the hub tells the phone to
+         * watch it as a task with a place, so it does not take a second geofence or speak up twice.
+         */
         fun select(places: List<FamiliePlace>, meId: Int): List<FamiliePlace> = places
-            .filter { it.targetUserId == meId && it.active && it.consent == FamiliePlace.CONSENT_ACCEPTED }
+            .filter { it.targetUserId == meId && it.active && !it.inHub && it.consent == FamiliePlace.CONSENT_ACCEPTED }
             .distinctBy { it.id }
             .take(MAX_FENCES)
+
+        /** The reminders the Familie plugin's page still lists: not those that moved (they are tasks with a place now). */
+        fun shown(places: List<FamiliePlace>): List<FamiliePlace> = places.filter { !it.inHub }
+
+        fun placesHome(places: List<FamiliePlace>): PlacesHome = PlacesHome(moved = places.any { it.inHub }, left = shown(places).size)
 
         fun toFence(p: FamiliePlace) = StoredFence(
             placeId = p.id,

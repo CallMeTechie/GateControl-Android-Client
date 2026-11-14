@@ -191,12 +191,28 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                                     Chip(stringResource(R.string.notizen_pl_chip, sp.label), x.panel2, GcIcons.Pin) { vm.openPlace() }
                                 }
                             }
-                            if (e.assigneeId != null) {
+                            // plugin 1.6.0 (mockup „Anlegen“): „Mia, Jonas“, „Reihum · zuerst Mia“ / „Wer zuerst“, „2 Sterne“
+                            val turns = e.turns
+                            if (turns != null && turns.people.size >= 2) {
+                                Chip(turns.people.joinToString(", ") { it.name.substringBefore(' ') }, colors.getValue("person"), GcIcons.Users) { vm.drop("person") }
+                                when (turns.turn) {
+                                    com.gatecontrol.android.notizen.TurnWords.ROTATE ->
+                                        Chip(stringResource(R.string.notizen_turn_rotate_first, turns.people.first().name.substringBefore(' ')), colors.getValue("person"), GcIcons.Refresh) { vm.pickTurn(com.gatecontrol.android.notizen.NotizenTurns.ONE) }
+                                    com.gatecontrol.android.notizen.TurnWords.FIRST ->
+                                        Chip(stringResource(R.string.notizen_turn_first), colors.getValue("person"), GcIcons.Users) { vm.pickTurn(com.gatecontrol.android.notizen.NotizenTurns.ONE) }
+                                }
+                            } else if (e.assigneeId != null) {
                                 Chip(ui.people.firstOrNull { it.id == e.assigneeId }?.name ?: p.assignee?.name.orEmpty(), colors.getValue("person"), GcIcons.User) { vm.drop("person") }
                             } else if (p.assigneeName != null && "person" !in ui.off) {
                                 Text(stringResource(R.string.notizen_quick_no_person, p.assigneeName), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                             }
+                            turns?.stars?.let { n -> Chip(starsText(n), colors.getValue("important"), GcIcons.Star) { vm.drop("stars") } }
                             Chip(areaLabel(ui.area), x.panel2, if (ui.area == NArea.WORK) GcIcons.Briefcase else GcIcons.House) { vm.setArea(if (ui.area == NArea.WORK) NArea.PRIVATE else NArea.WORK) }
+                        }
+                        // from two people on: who is on — one of them, each in turn, or whoever is first
+                        val turns = e.turns
+                        if (turns != null && turns.people.size >= 2) {
+                            TurnChoice(com.gatecontrol.android.notizen.NotizenTurns.mode(turns.turn), vm::pickTurn)
                         }
                     }
                     val fits = ui.attach?.takeIf { it.via == "word" && it.word != null && !ui.attachOff && ui.attachPick == null }?.let { a -> a.list?.let { a.word to it.name } }

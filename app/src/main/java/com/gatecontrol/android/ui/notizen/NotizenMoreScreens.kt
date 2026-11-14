@@ -187,6 +187,20 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
                                     DetailRow(GcIcons.Clock, stringResource(R.string.notizen_set_yesterday_at), NotizenFormat.time(ui.prefs.yesterdayAt).orEmpty(), if (canWrite) ({ yesterdayAt = true }) else null)
                                 }
                             }
+                            // plugin 1.6.0 (`doneFeedback`): the message when a child ticks off — for the parents of the family only
+                            if (me?.doneFeedback == true && canWrite) {
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+                                ChoiceRow(
+                                    stringResource(R.string.notizen_set_feedback),
+                                    ui.prefs.feedback,
+                                    listOf(
+                                        "all" to stringResource(R.string.notizen_set_feedback_all),
+                                        "stars" to stringResource(R.string.notizen_set_feedback_stars),
+                                        "off" to stringResource(R.string.notizen_set_feedback_off),
+                                    ),
+                                    vm::setFeedback,
+                                )
+                            }
                         }
                     }
                     item { Text(stringResource(R.string.notizen_set_notify_hint), style = MaterialTheme.typography.bodySmall, color = x.faint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) }

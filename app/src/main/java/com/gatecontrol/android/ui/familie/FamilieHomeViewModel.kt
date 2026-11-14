@@ -45,7 +45,11 @@ class FamilieHomeViewModel @Inject constructor(
     private val plugins: PluginDirectory,
     private val school: SchoolRepository,
     private val internetRepository: InternetRepository,
+    registrar: com.gatecontrol.android.familie.places.GeofenceRegistrar,
 ) : ViewModel() {
+
+    /** Familie 1.24: what `GET places` last said about the move of the place reminders to „Notizen & Aufgaben“. */
+    val placesHome: StateFlow<com.gatecontrol.android.familie.places.PlacesHome?> = registrar.home
 
     /** „Internet zu Hause“ for its card; null until the server answered (or without the function). */
     val internet: StateFlow<InternetSnapshot?> = internetRepository.snapshot

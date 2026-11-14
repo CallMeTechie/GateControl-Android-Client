@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notizen & Aufgaben 1.6.0: Wer ist dran, Sterne, die Familienliste -->
+    <string name="notizen_turn_title">Wer ist dran?</string>
+    <string name="notizen_turn_one">Eine Person</string>
+    <string name="notizen_turn_rotate">Reihum</string>
+    <string name="notizen_turn_first">Wer zuerst</string>
+    <string name="notizen_turn_hint">Reihum: Nach dem Abhaken ist die nächste Person dran. Wer zuerst: Die Aufgabe geht an alle, der Erste erledigt sie für alle.</string>
+    <string name="notizen_turn_rotate_me">Reihum · du bist dran</string>
+    <string name="notizen_turn_rotate_other">Reihum · %1$s ist dran</string>
+    <string name="notizen_turn_rotate_first">Reihum · zuerst %1$s</string>
+    <string name="notizen_turn_two">Dafür braucht es mindestens zwei Personen.</string>
+    <string name="notizen_stars_title">Sterne</string>
+    <string name="notizen_stars_none">Sterne: keine</string>
+    <string name="notizen_stars_hint">Gezählt und abgerechnet werden die Sterne im Familien-Plugin.</string>
+    <string name="notizen_done_by">Erledigt von %1$s</string>
+    <string name="notizen_not_done_yet">Noch nicht fertig</string>
+    <string name="notizen_tick_for">Abhaken für …</string>
+    <string name="notizen_msg_parents_only">Das können nur die Eltern ändern.</string>
+    <string name="notizen_msg_family_list">Die Liste der Familie verwaltet das Familien-Plugin.</string>
+    <string name="notizen_msg_not_member">Eine der Personen gehört nicht zu dieser Liste.</string>
+    <string name="notizen_moved_title">Umzug abgeschlossen</string>
+    <string name="notizen_moved_count">Aus Familie übernommen: %1$d Aufgaben und %2$d Orts-Erinnerungen.</string>
+    <string name="notizen_moved_kept">Wiederholungen, Zuweisungen und wer bei „reihum“ gerade dran ist, sind dabei.</string>
+    <string name="notizen_moved_places">Orts-Erinnerungen sind jetzt Aufgaben mit Ort – eigene in deiner Liste „Aufgaben“, solche für andere in einer Liste nur für euch beide.</string>
+    <string name="notizen_moved_stars">Die Sterne zählt weiter das Familien-Plugin.</string>
+    <string name="notizen_moved_copy">Das Familien-Plugin behält eine Kopie. Der Weg zurück bleibt offen.</string>
+    <string name="notizen_moved_view">Ansehen</string>
+    <string name="notizen_set_feedback">Meldung, wenn ein Kind abhakt</string>
+    <string name="notizen_set_feedback_all">Bei jeder Aufgabe</string>
+    <string name="notizen_set_feedback_stars">Nur bei Aufgaben mit Sternen</string>
+    <string name="notizen_set_feedback_off">Nie</string>
+    <!-- Familie 1.24.0: nach dem Umzug der Aufgaben und Orts-Erinnerungen -->
+    <string name="familie_tasks_from_hub">aus Notizen &amp; Aufgaben</string>
+    <string name="familie_places_moved">Orts-Erinnerungen findest du jetzt unter Aufgaben.</string>
+    <string name="familie_places_sub_left">Bescheid sagen am Ort – alle anderen findest du jetzt unter Aufgaben</string>
+</resources>

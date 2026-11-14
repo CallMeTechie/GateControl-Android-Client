@@ -187,6 +187,8 @@ data class FamilieOverview(
     val wishes: com.gatecontrol.android.familie.money.OverviewWishes? = null,
     /** 1.2, parents, null when off. */
     val expenses: com.gatecontrol.android.familie.money.OverviewExpenses? = null,
+    /** 1.24 (`tasksHome`): where the tasks live — `notizen` after the move to „Notizen & Aufgaben“, `familie`; null: an older plugin. */
+    val tasksHome: String? = null,
 )
 
 // ─── Tasks ────────────────────────────────────────────────────────────
@@ -226,7 +228,8 @@ data class FamilieTask(
 /** Stars per child: this week's total and the goal (keys = user ids). */
 data class StarsBoard(val week: Map<Int, Int>, val goal: Map<Int, Int>)
 
-data class TasksPayload(val tasks: List<FamilieTask>, val stars: StarsBoard?)
+/** [home] (1.24, `tasksHome`): `notizen` after the move to „Notizen & Aufgaben“ (this is then the plugin's copy), `familie`; null: an older plugin. */
+data class TasksPayload(val tasks: List<FamilieTask>, val stars: StarsBoard?, val home: String? = null)
 
 /** Body of `POST tasks` / `PATCH tasks/<id>`. */
 data class TaskDraft(
@@ -363,7 +366,14 @@ data class FamiliePlace(
     val consent: String,
     val ownerName: String? = null,
     val targetName: String? = null,
+    /** 1.24: `notizen` — the reminder is a task with a place in „Notizen & Aufgaben“ now; `familie`; null: an older plugin. */
+    val home: String? = null,
+    /** 1.24: the reminder moved (the hub reminds, this phone must not watch it for the Familie plugin any more). */
+    val moved: Boolean = false,
 ) {
+    /** The reminder lives in „Notizen & Aufgaben“: not the Familie plugin's any more (no geofence, not on its page). */
+    val inHub: Boolean get() = moved || home == "notizen"
+
     companion object {
         const val TRIGGER_ENTER = "enter"
         const val TRIGGER_EXIT = "exit"
