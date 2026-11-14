@@ -353,7 +353,7 @@ val faceModels = tasks.register<FaceModelsTask>("faceModels") {
 // Robolectric's Android jar (Compose UI tests) through Gradle and its cache, not Robolectric's own downloader
 val robolectricJars: Configuration by configurations.creating
 dependencies {
-    robolectricJars("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
+    robolectricJars("org.robolectric:android-all-instrumented:17-robolectric-15733970-i7")
 }
 val robolectricDeps = tasks.register<Sync>("robolectricDeps") {
     from(robolectricJars)
