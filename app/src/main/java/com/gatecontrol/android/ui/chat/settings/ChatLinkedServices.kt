@@ -108,7 +108,7 @@ class LinkedActions(
  * The page shows a phone number and a pairing code: no screenshot, no recording, no picture in the recent apps.
  */
 @Composable
-fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel) {
+fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = false) {
     SecureScreenEffect()
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
@@ -144,6 +144,7 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel) {
                 Toast.makeText(ctx, R.string.chat_linked_code_copied, Toast.LENGTH_SHORT).show()
             },
         ),
+        chats = chats,
     )
 
     asking?.let { net ->
@@ -181,9 +182,12 @@ internal fun errorText(e: ChatBridgeError): Int = when (e) {
 internal fun linkedDate(iso: String?, locale: Locale, zone: ZoneId = ZoneId.systemDefault()): String =
     runCatching { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(Instant.parse(iso).atZone(zone).toLocalDate()) }.getOrDefault("")
 
-/** The page without its view model: [ui] drawn, taps handed to [actions]. */
+/**
+ * The page without its view model: [ui] drawn, taps handed to [actions]. [chats]: the person has chats over a bridge
+ * (Messenger 1.14, `features.bridge_chats`) — the note at the end says how they work instead of "follow later".
+ */
 @Composable
-fun LinkedServicesContent(ui: LinkedUiState, actions: LinkedActions) {
+fun LinkedServicesContent(ui: LinkedUiState, actions: LinkedActions, chats: Boolean = false) {
     val info = ui.info
     when (val view = ui.view) {
         is LinkedView.Notes -> NotesView(view, actions)
@@ -195,7 +199,7 @@ fun LinkedServicesContent(ui: LinkedUiState, actions: LinkedActions) {
                 GcOutlineButton(text = stringResource(R.string.chat_retry), onClick = actions.refresh, icon = GcIcons.Refresh)
             }
             !info.available || info.networks.isEmpty() -> Muted(stringResource(R.string.chat_linked_none_offered))
-            else -> Overview(info, ui.unlinking, actions)
+            else -> Overview(info, ui.unlinking, actions, chats)
         }
     }
 }
@@ -231,7 +235,7 @@ private fun Note(text: String, tone: GcTone = GcTone.Info, lock: Boolean = false
 // ─── overview ───────────────────────────────────────────────────────
 
 @Composable
-private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedActions) {
+private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedActions, chats: Boolean) {
     val outdated = info.networks.filter { it.outdated }
     Muted(stringResource(R.string.chat_linked_lead))
     outdated.firstOrNull()?.let { Note(stringResource(R.string.chat_linked_outdated_banner, stringResource(networkName(it.id))), GcTone.Warn) }
@@ -254,7 +258,7 @@ private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedA
     }
     if (outdated.isNotEmpty()) Small(stringResource(R.string.chat_linked_outdated_hint))
     Small(stringResource(R.string.chat_linked_foot_unlink))
-    Note(stringResource(R.string.chat_linked_foot_preview), lock = true)
+    Note(stringResource(if (chats) R.string.chat_linked_foot_chats else R.string.chat_linked_foot_preview), lock = true)
 }
 
 @Composable

@@ -3,7 +3,19 @@ package com.gatecontrol.android.ui.chat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.coerceIn
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
@@ -93,9 +105,49 @@ fun ChatPersonAvatar(person: ChatPerson?, size: Dp, modifier: Modifier = Modifie
     )
 }
 
-/** Avatar of a conversation: the other person, or the group's picture / a group symbol. */
+/**
+ * Avatar of a conversation: the other person, or the group's picture / a group symbol. A chat over a bridge
+ * (Messenger 1.14) carries the service's mark at the lower right ("WA"); contacts have no picture yet.
+ */
 @Composable
 fun ConversationAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modifier) {
+    val bridge = c.bridge
+    if (bridge != null) {
+        val via = stringResource(R.string.chat_bridged_via, bridge.label)
+        Box(modifier.size(size).semantics { contentDescription = via }) {
+            if (c.isGroup) PlainAvatar(c, size)
+            else GcAvatar(url = null, initials = ChatPerson.initialsOf(c.title), colorHex = null, ring = AvatarRing.None, size = size)
+            BridgeMark(bridge, size, Modifier.align(Alignment.BottomEnd))
+        }
+        return
+    }
+    PlainAvatar(c, size, modifier)
+}
+
+/** The service's mark of a bridged chat: two letters on the accent colour, ringed in the page's colour. */
+@Composable
+private fun BridgeMark(bridge: com.gatecontrol.android.chat.ChatConvBridge, avatar: Dp, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val h = (avatar * 0.4f).coerceIn(14.dp, 22.dp)
+    Box(
+        modifier.offset(x = 3.dp, y = 2.dp).height(h).widthIn(min = h * 1.3f)
+            .clip(RoundedCornerShape(h / 3)).background(scheme.background).padding(1.5.dp)
+            .clip(RoundedCornerShape(h / 3)).background(scheme.primary).padding(horizontal = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            com.gatecontrol.android.chat.ChatBridgeChat.mark(bridge),
+            color = scheme.onPrimary,
+            fontSize = (h.value * 0.48f).sp,
+            lineHeight = (h.value * 0.5f).sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun PlainAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modifier) {
     if (!c.isGroup) {
         ChatPersonAvatar(c.peer, size, modifier)
         return
@@ -115,14 +167,18 @@ fun ConversationAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modif
     }
 }
 
-/** Ticks of an own message: pending clock, sent ✓, delivered ✓✓, read ✓✓ in the accent colour. */
+/**
+ * Ticks of an own message: pending clock, sent ✓, delivered ✓✓, read ✓✓ in the accent colour — in a bridged chat
+ * (Messenger 1.14) also "on its way to the bridge" (clock) and "not sent" (a mark in the error colour).
+ */
 @Composable
 fun ChatTicks(status: String?, pending: Boolean, modifier: Modifier = Modifier, tint: Color = GateControlTheme.extraColors.muted) {
     val size = Modifier.size(16.dp)
     when {
-        pending -> Icon(Icons.Outlined.Schedule, contentDescription = stringResource(R.string.chat_status_pending), tint = tint, modifier = modifier.then(size))
+        pending || status == ChatMessage.STATUS_SENDING -> Icon(Icons.Outlined.Schedule, contentDescription = stringResource(R.string.chat_status_pending), tint = tint, modifier = modifier.then(size))
         status == ChatMessage.STATUS_READ -> Icon(Icons.Filled.DoneAll, contentDescription = stringResource(R.string.chat_status_read), tint = MaterialTheme.colorScheme.primary, modifier = modifier.then(size))
         status == ChatMessage.STATUS_DELIVERED -> Icon(Icons.Filled.DoneAll, contentDescription = stringResource(R.string.chat_status_delivered), tint = tint, modifier = modifier.then(size))
         status == ChatMessage.STATUS_SENT -> Icon(Icons.Filled.Done, contentDescription = stringResource(R.string.chat_status_sent), tint = tint, modifier = modifier.then(size))
+        status == ChatMessage.STATUS_FAILED -> Icon(Icons.Outlined.ErrorOutline, contentDescription = stringResource(R.string.chat_bridged_status_failed), tint = MaterialTheme.colorScheme.error, modifier = modifier.then(size))
     }
 }

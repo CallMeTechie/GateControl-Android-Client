@@ -75,6 +75,9 @@ class ChatApi @Inject constructor(
 
         /** `conversations/<id>/read` of a push's `mark_read` action, nothing else. */
         val READ_PATH_RE = Regex("^conversations/[1-9][0-9]{0,14}/read$")
+
+        /** Sent with every call (see [query]). */
+        val BRIDGED: Map<String, String> = mapOf(ChatBridgeChat.QUERY to "1")
     }
 
     private suspend fun lang(): String? =
@@ -115,21 +118,29 @@ class ChatApi @Inject constructor(
         }
     }
 
+    /**
+     * The query of every call: the language, and the mark of a client that knows chats over a bridge (Messenger
+     * 1.14, `?bridged=1`) — without it such chats do not exist for the caller (missing in the list, 404 on every
+     * route). Older messengers ignore the word.
+     */
+    private suspend fun query(extra: Map<String, String> = emptyMap()): Map<String, String> =
+        (lang()?.let { extra + ("lang" to it) } ?: extra) + BRIDGED
+
     private suspend fun <T> get(path: String, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?): ChatResult<T> {
-        val q = lang()?.let { query + ("lang" to it) } ?: query
+        val q = query(query)
         return call(request = { pluginGet(MESSENGER_PLUGIN, path, q) }, parse = parse)
     }
 
     private suspend fun <T> post(path: String, body: JsonObject = JsonObject(), parse: (JsonObject) -> T?): ChatResult<T> {
-        val q = lang()?.let { mapOf("lang" to it) } ?: emptyMap()
+        val q = query()
         return call(request = { pluginPost(MESSENGER_PLUGIN, path, body, q) }, parse = parse)
     }
 
     private suspend fun <T> patch(path: String, body: JsonObject, parse: (JsonObject) -> T?): ChatResult<T> =
-        call(request = { pluginPatch(MESSENGER_PLUGIN, path, body) }, parse = parse)
+        call(request = { pluginPatch(MESSENGER_PLUGIN, path, body, BRIDGED) }, parse = parse)
 
     private suspend fun <T> put(path: String, body: JsonObject, parse: (JsonObject) -> T?): ChatResult<T> =
-        call(request = { pluginPut(MESSENGER_PLUGIN, path, body) }, parse = parse)
+        call(request = { pluginPut(MESSENGER_PLUGIN, path, body, BRIDGED) }, parse = parse)
 
     private val unit: (JsonObject) -> Unit = { }
 
@@ -211,12 +222,18 @@ class ChatApi @Inject constructor(
         return post(path, body) { ChatJson.unreadOf(it) }
     }
 
+    /**
+     * `POST messages/:id/resend` (Messenger 1.14): an own message of a bridged chat the bridge did not take, again →
+     * the message as it stands now (sent, or failed again with its reason).
+     */
+    suspend fun resend(messageId: Long): ChatResult<ChatMessage> = post("messages/$messageId/resend", parse = ChatJson::messageOf)
+
     suspend fun edit(messageId: Long, text: String): ChatResult<ChatMessage> =
         patch("messages/$messageId", JsonObject().apply { addProperty("text", text) }, ChatJson::messageOf)
 
     /** [forAll] false: hidden for the caller only. Answers the tombstone for everyone (null for me). */
     suspend fun delete(messageId: Long, forAll: Boolean): ChatResult<ChatDeleted> =
-        call(request = { pluginDelete(MESSENGER_PLUGIN, "messages/$messageId", mapOf("for" to if (forAll) "all" else "me")) }) { o ->
+        call(request = { pluginDelete(MESSENGER_PLUGIN, "messages/$messageId", BRIDGED + ("for" to if (forAll) "all" else "me")) }) { o ->
             ChatDeleted(ChatJson.messageOf(o))
         }
 
@@ -274,7 +291,7 @@ class ChatApi @Inject constructor(
         val path = ChatBridges.path(network, "login", processId, stepId) ?: return noPath()
         val body = JsonObject()
         if (input != null) body.add("input", JsonObject().apply { input.forEach { (k, v) -> addProperty(k, v) } })
-        val q = lang()?.let { mapOf("lang" to it) } ?: emptyMap()
+        val q = query()
         return call(timeoutMs = BRIDGE_STEP_TIMEOUT_MS, media = true, request = { pluginPost(MESSENGER_PLUGIN, path, body, q) }, parse = ChatBridgesJson::loginState)
     }
 
@@ -293,7 +310,7 @@ class ChatApi @Inject constructor(
     // ─── Messenger 1.4: status and stories ──────────────────────────
 
     private suspend fun <T> del(path: String, parse: (JsonObject) -> T?): ChatResult<T> =
-        call(request = { pluginDelete(MESSENGER_PLUGIN, path) }, parse = parse)
+        call(request = { pluginDelete(MESSENGER_PLUGIN, path, BRIDGED) }, parse = parse)
 
     /** `PUT status` → `{ status }` (null: cleared). */
     suspend fun putStatus(status: ChatStatus): ChatResult<ChatStatus?> =
@@ -422,8 +439,10 @@ class ChatApi @Inject constructor(
     /** Answers `{ message }` (the changed message) or just `{ ok }` (null: fetch the change). */
     private val messageOrNull: (JsonObject) -> ChatMessage? = { o -> ChatJson.messageOf(o) }
 
-    private suspend fun messagePost(path: String, body: JsonObject = JsonObject()): ChatResult<ChatMessage?> =
-        call(request = { pluginPost(MESSENGER_PLUGIN, path, body, lang()?.let { mapOf("lang" to it) } ?: emptyMap()) }) { o -> Optional(messageOrNull(o)) }.unwrap()
+    private suspend fun messagePost(path: String, body: JsonObject = JsonObject()): ChatResult<ChatMessage?> {
+        val q = query()
+        return call(request = { pluginPost(MESSENGER_PLUGIN, path, body, q) }) { o -> Optional(messageOrNull(o)) }.unwrap()
+    }
 
     suspend fun vote(messageId: Long, optionIds: List<String>) = messagePost("messages/$messageId/vote", ChatJson14.voteBody(optionIds))
 
@@ -448,7 +467,7 @@ class ChatApi @Inject constructor(
     }
 
     suspend fun patchEvent(messageId: Long, body: JsonObject): ChatResult<ChatMessage?> =
-        call(request = { pluginPatch(MESSENGER_PLUGIN, "messages/$messageId/event", body) }) { o -> Optional(messageOrNull(o)) }.unwrap()
+        call(request = { pluginPatch(MESSENGER_PLUGIN, "messages/$messageId/event", body, BRIDGED) }) { o -> Optional(messageOrNull(o)) }.unwrap()
 
     /** → whether the destination is reached now (`{ accepted, arrived }`). */
     suspend fun arrivalPosition(messageId: Long, body: JsonObject): ChatResult<Boolean> =

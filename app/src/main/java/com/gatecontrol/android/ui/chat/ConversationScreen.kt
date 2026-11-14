@@ -55,6 +55,7 @@ import androidx.compose.ui.draw.paint
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Refresh
@@ -97,6 +98,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -161,6 +164,8 @@ fun ConversationScreen(
     onOpenUpdates: () -> Unit = {},
     /** The own profile ("Orte für Regeln teilen" for a live arrival); null: only the hint. */
     onOpenProfile: (() -> Unit)? = null,
+    /** Messenger 1.14: "Verknüpfte Dienste" (a bridged chat whose account must be linked again); null: no button. */
+    onOpenLinked: (() -> Unit)? = null,
     viewModel: ConversationViewModel = hiltViewModel(key = "conversation-$conversationId"),
     homeViewModel: ChatHomeViewModel = hiltViewModel(key = "chat-home-$conversationId"),
 ) {
@@ -267,6 +272,7 @@ fun ConversationScreen(
                 )
                 ConversationNotice.RecordingFailed -> resources.getString(R.string.chat_rec_failed)
                 ConversationNotice.Left -> resources.getString(R.string.chat_left)
+                is ConversationNotice.NotSent -> resources.getString(R.string.chat_bridged_failed) + " " + ChatText.bridgeReason(context, n.reason)
                 is ConversationNotice.Done -> if (n.arg != null) resources.getString(n.res, n.arg) else resources.getString(n.res)
                 is ConversationNotice.ArrivalStarted -> {
                     // The position goes out from a foreground service while the arrival is live.
@@ -420,6 +426,7 @@ fun ConversationScreen(
             onSeek = { m, f -> viewModel.player.seek("m:${m.id}", f, m.meta?.durationMs ?: 0L) },
             onReact = viewModel::react,
             onQuote = jumpTo,
+            onResend = viewModel::resend,
             rich = RichActions(
                 onVote = { m, ids -> viewModel.vote(m, ids) },
                 onAddOption = { addOptionFor = it },
@@ -513,8 +520,9 @@ fun ConversationScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        val typing = ChatText.typing(context, c, state.typing, myId)
-                        val sub = typing ?: c?.takeIf { it.isGroup }?.let { conv ->
+                        val typing = ChatText.typing(context, c, state.typing, myId, state.contactTyping)
+                        // Messenger 1.14: a chat over a bridge says so under its name ("über WhatsApp").
+                        val sub = typing ?: c?.bridge?.let { stringResource(R.string.chat_bridged_via, it.label) } ?: c?.takeIf { it.isGroup }?.let { conv ->
                             conv.members.filter { it.userId != myId }.joinToString(", ") { ChatText.name(context, it) } +
                                 ", " + resources.getString(R.string.chat_you_lower)
                         } ?: c?.takeIf { !it.isGroup }?.let { ChatText.presence(context, it.peer) }
@@ -542,6 +550,16 @@ fun ConversationScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = extra.muted,
                 modifier = Modifier.fillMaxWidth().background(extra.panel2).padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+
+        // Messenger 1.14: where a chat over a bridge runs, and why it cannot send right now.
+        c?.bridge?.let { b ->
+            BridgeBar(
+                bridge = b,
+                seen = b.network in state.bridgeSeen,
+                onSeen = { viewModel.setBridgeSeen(b.network, it) },
+                onOpenLinked = onOpenLinked,
             )
         }
 
@@ -666,7 +684,11 @@ fun ConversationScreen(
         // ─── composer ───
         if (c != null && (c.readonly || !c.can.send)) {
             Text(
-                stringResource(if (c.readonly) R.string.chat_readonly else R.string.chat_cannot_send),
+                when {
+                    // Messenger 1.14: the bar above says why; here only that the history stays
+                    c.bridge != null -> stringResource(if (c.bridge.closed) R.string.chat_bridged_closed else R.string.chat_bridged_cannot_send, c.bridge.label)
+                    else -> stringResource(if (c.readonly) R.string.chat_readonly else R.string.chat_cannot_send)
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = extra.muted,
                 modifier = Modifier.fillMaxWidth().background(extra.panel2).padding(16.dp),
@@ -674,7 +696,8 @@ fun ConversationScreen(
         } else {
             state.shared?.let { sh ->
                 SharedBar(
-                    count = sh.files.size,
+                    // a chat over a bridge takes text only (Messenger 1.14): shared files are not offered
+                    count = if (c?.bridge != null) 0 else sh.files.size,
                     onSend = viewModel::sendShared,
                     onDrop = viewModel::dropShared,
                 )
@@ -682,7 +705,7 @@ fun ConversationScreen(
             state.replyTo?.let { r ->
                 ComposerBar(
                     icon = Icons.AutoMirrored.Outlined.Reply,
-                    title = stringResource(R.string.chat_reply_to, ChatText.nameOf(context, c, r.senderId, myId)),
+                    title = stringResource(R.string.chat_reply_to, ChatText.senderOf(context, c, r, myId)),
                     text = ChatText.content(context, r, c, myId),
                     onClose = viewModel::cancelReply,
                 )
@@ -707,7 +730,10 @@ fun ConversationScreen(
                 editing = state.editing != null,
                 busy = state.busy,
                 enterSends = deviceConfig.enterSends,
-                voice = state.profile?.features?.voice != false,
+                voice = state.profile?.features?.voice != false && c?.bridge == null,
+                // Messenger 1.14: a chat over a bridge takes text only — no attachments, no voice message
+                attach = c?.bridge == null,
+                hint = c?.bridge?.let { stringResource(R.string.chat_bridged_placeholder, it.label) },
                 recorder = viewModel.recorder,
                 onSend = { if (viewModel.send(draft)) draft = "" },
                 onAttach = { showAttach = true },
@@ -974,10 +1000,13 @@ fun ConversationScreen(
 
     actionsFor?.let { m ->
         val tools = state.profile?.features?.msgTools == true && !m.deleted && !m.isSystem
+        // Messenger 1.14: in a bridged chat only what the other messenger got can be answered, changed or reacted to.
+        val bridged = c?.bridge != null
+        val out = c == null || com.gatecontrol.android.chat.ChatBridgeChat.actsOut(c, m)
         val familie = state.profile?.familie
         // "Auf Einkaufsliste" / "Termin anlegen": what the server finds in the text (loaded with the menu).
         val suggestion by androidx.compose.runtime.produceState<com.gatecontrol.android.chat.ChatSuggestion?>(null, m.id, tools) {
-            value = if (tools && !m.text.isNullOrBlank()) viewModel.suggest(m) else null
+            value = if (tools && !bridged && !m.text.isNullOrBlank()) viewModel.suggest(m) else null
         }
         val pinnedNow = c?.pinned?.contains(m.id) == true
         MessageActionsSheet(
@@ -1002,11 +1031,12 @@ fun ConversationScreen(
                 actionsFor = null
                 viewModel.toCalendar(m, d)
             },
-            reactions = state.profile?.features?.reactions != false && !m.deleted,
+            reactions = state.profile?.features?.reactions != false && !m.deleted && out,
             myReaction = m.reactions.firstOrNull { r -> myId != null && myId in r.userIds }?.emoji,
-            canEdit = viewModel.canEdit(m),
-            canDeleteForAll = viewModel.canDeleteForAll(m),
-            canReply = c?.can?.send != false && c?.readonly != true && !m.deleted,
+            canEdit = viewModel.canEdit(m) && out,
+            // a bridged chat: for everyone only while the deletion can cross — or the message never went out
+            canDeleteForAll = viewModel.canDeleteForAll(m) && (!bridged || c?.can?.send == true || m.bridge?.failed == true),
+            canReply = c?.can?.send != false && c?.readonly != true && !m.deleted && out,
             onReact = { e ->
                 actionsFor = null
                 viewModel.react(m, e)
@@ -1129,7 +1159,7 @@ private fun SearchResults(results: List<ChatMessage>, state: ConversationUiState
             Column(Modifier.fillMaxWidth().clickable { onPick(m) }.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 Row {
                     Text(
-                        ChatText.nameOf(context, state.conversation, m.senderId, state.myId),
+                        ChatText.senderOf(context, state.conversation, m, state.myId),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
@@ -1212,6 +1242,10 @@ private fun Composer(
     enterSends: Boolean,
     voice: Boolean,
     recorder: com.gatecontrol.android.chat.VoiceRecorder,
+    /** The "+" of the attach sheet (not in a chat over a bridge). */
+    attach: Boolean = true,
+    /** The field's placeholder (a bridged chat: "Nachricht über WhatsApp"); null: "Nachricht". */
+    hint: String? = null,
     onSend: () -> Unit,
     onAttach: () -> Unit,
     onRecordStart: () -> Boolean,
@@ -1246,11 +1280,12 @@ private fun Composer(
                 )
             }
         } else {
-            GcIconButton(Icons.Outlined.AddCircleOutline, stringResource(R.string.chat_attach), onClick = onAttach, enabled = !editing && !busy, tint = extra.muted)
+            if (attach) GcIconButton(Icons.Outlined.AddCircleOutline, stringResource(R.string.chat_attach), onClick = onAttach, enabled = !editing && !busy, tint = extra.muted)
+            else Spacer(Modifier.width(4.dp))
             OutlinedTextField(
                 value = draft,
                 onValueChange = { onDraft(it.take(com.gatecontrol.android.chat.ChatJson.TEXT_MAX)) },
-                placeholder = { Text(stringResource(R.string.chat_message_hint)) },
+                placeholder = { Text(hint ?: stringResource(R.string.chat_message_hint)) },
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp).then(
                     // Messenger 1.4 settings: Enter sends (a hardware keyboard's Enter; Shift+Enter a new line).
                     if (enterSends) {
@@ -1543,3 +1578,81 @@ internal fun openLocation(context: Context, lat: Double, lon: Double, label: Str
 
 /** Message kinds whose file can go into Drive (Messenger 1.10 `to-drive`). */
 private val DRIVE_KINDS = setOf("image", "voice", "file")
+
+/**
+ * Messenger 1.14, a chat over a bridge: why it cannot send right now (the account signed out, the bridge away, …),
+ * the note at the first visit of a service's chat ("Chat über WhatsApp") and afterwards the thin strip that says
+ * where the chat runs — "Mehr" shows the note again.
+ */
+@Composable
+internal fun BridgeBar(bridge: com.gatecontrol.android.chat.ChatConvBridge, seen: Boolean, onSeen: (Boolean) -> Unit, onOpenLinked: (() -> Unit)?) {
+    val extra = GateControlTheme.extraColors
+    val name = bridge.label
+    val bar = com.gatecontrol.android.chat.ChatBridgeChat.bar(bridge)
+    if (bar != null) {
+        val warn = bar == com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unreachable || bar == com.gatecontrol.android.chat.ChatBridgeChat.Bar.LoggedOut
+        val text = when (bar) {
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Closed -> stringResource(R.string.chat_bridged_closed, name)
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unreachable -> stringResource(R.string.chat_bridged_state_unreachable, name)
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.LoggedOut -> stringResource(R.string.chat_bridged_state_logged_out, name)
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unlinked -> stringResource(R.string.chat_bridged_state_unlinked, name)
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Locked -> stringResource(R.string.chat_linked_sub_locked)
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Off -> stringResource(R.string.chat_bridged_state_off, name)
+        }
+        val link = when (bar) {
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.LoggedOut -> R.string.chat_linked_relink
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unlinked -> R.string.chat_linked_link
+            else -> null
+        }
+        Row(
+            Modifier.fillMaxWidth().background(if (warn) extra.warnBg else extra.panel2).padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+                .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                if (bar == com.gatecontrol.android.chat.ChatBridgeChat.Bar.Locked) Icons.Outlined.Lock else Icons.Outlined.Info,
+                contentDescription = null,
+                tint = if (warn) extra.warn else extra.muted,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            if (link != null && onOpenLinked != null) TextButton(onClick = onOpenLinked) { Text(stringResource(link)) }
+        }
+    }
+    if (!seen) {
+        Column(
+            Modifier.fillMaxWidth().background(extra.panel2).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(stringResource(R.string.chat_bridged_first_title, name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.chat_bridged_first_lead), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+            listOf(
+                stringResource(R.string.chat_bridged_first_1, name),
+                stringResource(R.string.chat_bridged_first_2),
+                stringResource(R.string.chat_bridged_first_3, name),
+            ).forEach { line ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("•", style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                }
+            }
+            com.gatecontrol.android.ui.components.GcPrimaryButton(
+                text = stringResource(R.string.chat_bridged_first_ok),
+                onClick = { onSeen(true) },
+                modifier = Modifier.padding(top = 4.dp),
+                fillWidth = false,
+            )
+        }
+    } else {
+        Row(
+            Modifier.fillMaxWidth().background(extra.panel2).padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Outlined.Info, contentDescription = null, tint = extra.muted, modifier = Modifier.size(16.dp))
+            Text(stringResource(R.string.chat_bridged_strip, name), style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.weight(1f).padding(vertical = 6.dp))
+            TextButton(onClick = { onSeen(false) }) { Text(stringResource(R.string.chat_bridged_more)) }
+        }
+    }
+}

@@ -115,6 +115,10 @@ class ChatInfoViewModel @Inject constructor(
 ) : ViewModel() {
     private val id = MutableStateFlow<Long?>(null)
 
+    /** Messenger 1.14: the person has chats over a bridge ("only on your server" is not said then). */
+    val bridgeChats: StateFlow<Boolean> = combine(repository.profile, repository.conversations) { p, list -> com.gatecontrol.android.chat.ChatBridgeChat.any(p?.features, list) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     // ─── Messenger 1.4: archive, block, export ───
     private val exportCh = Channel<Pair<java.io.File, Boolean>>(Channel.BUFFERED)
     /** An exported chat to share (file, truncated). */
@@ -412,7 +416,9 @@ fun ChatInfoScreen(
                 Text(ChatText.title(ctx, conv), style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold), color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
                 val sub = buildList {
                     add(resources.getString(if (conv.isGroup) R.string.chat_kind_group else R.string.chat_kind_direct))
-                    if (conv.isGroup) add(resources.getQuantityString(R.plurals.chat_members, conv.members.size, conv.members.size))
+                    // Messenger 1.14: a chat over a bridge has one member (the caller) — it names the service instead
+                    if (conv.bridge != null) add(resources.getString(R.string.chat_bridged_via, conv.bridge.label))
+                    else if (conv.isGroup) add(resources.getQuantityString(R.plurals.chat_members, conv.members.size, conv.members.size))
                     if (conv.isNotice) add(resources.getString(R.string.chat_notice_tag))
                     else if (conv.managedBy != null) add(resources.getString(R.string.chat_managed_short))
                 }.joinToString(" · ")
@@ -420,13 +426,16 @@ fun ChatInfoScreen(
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp)) }
 
-            GcListRow(
-                title = stringResource(R.string.chat_media_title),
-                description = stringResource(R.string.chat_media_row_desc),
-                onClick = onOpenMedia,
-                leading = { Icon(Icons.Outlined.PermMedia, contentDescription = null, tint = extra.muted) },
-                trailing = { GcChevron() },
-            )
+            // No files cross a bridge yet (Messenger 1.14): nothing to list there.
+            if (conv.bridge == null) {
+                GcListRow(
+                    title = stringResource(R.string.chat_media_title),
+                    description = stringResource(R.string.chat_media_row_desc),
+                    onClick = onOpenMedia,
+                    leading = { Icon(Icons.Outlined.PermMedia, contentDescription = null, tint = extra.muted) },
+                    trailing = { GcChevron() },
+                )
+            }
 
             GcSectionLabel(stringResource(R.string.chat_settings), Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp))
             if (conv.isGroup && conv.can.editInfo && conv.managedBy == null) {
@@ -445,7 +454,7 @@ fun ChatInfoScreen(
                 onClick = { muting = true },
                 trailing = { GcChevron() },
             )
-            if (profile?.features?.disappearing == true || conv.disappearingS > 0) {
+            if (conv.bridge == null && (profile?.features?.disappearing == true || conv.disappearingS > 0)) {
                 GcRowDivider(Modifier.padding(horizontal = 16.dp))
                 GcListRow(
                     title = stringResource(R.string.chat_disappearing),
@@ -456,7 +465,8 @@ fun ChatInfoScreen(
                 )
             }
 
-            if (conv.isGroup) {
+            // A bridged group's people are contacts of the service, not members here (Messenger 1.14).
+            if (conv.isGroup && conv.bridge == null) {
                 GcSectionLabel(
                     stringResource(R.string.chat_members_label, conv.members.size),
                     Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
@@ -536,7 +546,16 @@ fun ChatInfoScreen(
                     leading = { Icon(Icons.AutoMirrored.Outlined.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 )
             }
-            Text(stringResource(R.string.chat_footer), style = MaterialTheme.typography.bodySmall, color = extra.faint, modifier = Modifier.padding(24.dp))
+            val bridgeChats by viewModel.bridgeChats.collectAsStateWithLifecycle()
+            when {
+                // Messenger 1.14: a chat over a bridge says where it runs and what does not work there.
+                conv.bridge != null -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.chat_bridged_info_note, conv.bridge.label), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    Text(stringResource(R.string.chat_bridged_info_not), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                }
+                // "Alle Chats liegen nur auf deinem GateControl-Server" is not true for somebody with bridged chats.
+                !bridgeChats -> Text(stringResource(R.string.chat_footer), style = MaterialTheme.typography.bodySmall, color = extra.faint, modifier = Modifier.padding(24.dp))
+            }
         }
     }
 

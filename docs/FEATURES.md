@@ -742,8 +742,11 @@ eingeschaltet ist (`features.linked_services` in `GET me`), zeigen die
 Heute gibt es einen Dienst: WhatsApp (auch Konten der WhatsApp-Business-App).
 Verhalten und Texte entsprechen der gleichnamigen Seite im Portal.
 
-- **In dieser Version wird verknüpft.** Die Chats mit Kontakten des Dienstes
-  folgen in einer späteren Version; die Seite sagt das.
+- **Verknüpfen und – ab Messenger 1.14 – schreiben.** Mit einem Server, der
+  Chats über die Brücke liefert, erscheinen sie in der Chatliste (nächster
+  Abschnitt). Solange die Person keinen solchen Chat hat, sagt die Seite
+  weiter, dass die Chats später folgen – der Server nennt das Wort dafür erst
+  mit dem ersten Chat.
 - **Übersicht:** je Dienst der Zustand des eigenen Kontos – noch nicht
   verknüpft, verknüpft (seit wann, eigene Nummer), abgemeldet („Neu
   verknüpfen“, „Eintrag entfernen“), Fehler, für Kinder gesperrt (bis die
@@ -771,6 +774,46 @@ Verhalten und Texte entsprechen der gleichnamigen Seite im Portal.
   sehen sind – nicht in Einstellungen, Protokoll, Absturzbericht oder
   gespeichertem Zustand. Die Seite ist gegen Bildschirmfotos und
   -aufnahmen geschützt (wie Tresor und Vault).
+
+### Messenger 1.14 – Chats über eine Brücke (WhatsApp)
+
+Mit Messenger 1.14 (und einem GateControl-Server, dessen Brücke Chats
+liefert) erscheinen die Chats eines verknüpften Kontos **in der Chatliste**,
+neben den Chats innerhalb von GateControl. Ein Chat erscheint mit seiner
+ersten neuen Nachricht; älterer Verlauf wird nicht geladen. Verhalten und
+Texte entsprechen dem Portal. Die App sagt dem Server bei jedem Aufruf, dass
+sie solche Chats kennt (`?bridged=1`); mit einem älteren Messenger ändert
+sich nichts.
+
+- **Chatliste:** das Kennzeichen des Dienstes am Profilbild („WA“), ein
+  Filter je Dienst und „Nur GateControl“, sobald es einen solchen Chat gibt.
+  Ein Kontakt ohne Namen heißt „Unbekannter Kontakt“.
+- **Im Chat geht Text** – mit Antworten, Reaktionen, Bearbeiten und Löschen
+  für alle, „gelesen“ und „schreibt …“. Die Eingabe hat keinen Anhang und
+  keine Sprachnachricht; der Platzhalter heißt „Nachricht über WhatsApp“.
+- **Zustellung eigener Nachrichten:** unterwegs, gesendet, zugestellt,
+  gelesen – oder **nicht gesendet** mit dem Grund und „Erneut senden“. Auf
+  eine nicht gesendete Nachricht lässt sich nicht antworten oder reagieren.
+  Es gibt keine Warteschlange: Ist die Brücke weg, nimmt der Server nichts
+  an, und die App sendet nichts von selbst erneut.
+- **Bilder, Dateien, Sprachnachrichten** kommen noch nicht herüber. Im Chat
+  steht dafür eine Zeile („Bild · grill.jpg – folgt; in WhatsApp ansehen“);
+  nichts wird verschluckt.
+- **Wo der Chat läuft:** beim ersten Öffnen ein Hinweis („Chat über
+  WhatsApp“: die Ende-zu-Ende-Verschlüsselung des Dienstes endet an der
+  Brücke, was geht und was nicht), danach eine schmale Leiste „Dieser Chat
+  läuft über WhatsApp – nicht nur über deinen Server.“ mit „Mehr“. Der Satz
+  „Alle Chats liegen nur auf deinem GateControl-Server“ steht nicht mehr,
+  sobald jemand Chats über eine Brücke hat.
+- **Wenn Senden nicht geht:** Brücke nicht erreichbar, vom Dienst abgemeldet
+  („Neu verknüpfen“ → Verknüpfte Dienste), nicht mehr verknüpft, für ein
+  Kind gesperrt, am Server ausgeschaltet oder nicht mehr im Chat – der
+  Verlauf bleibt lesbar, die Eingabe ist weg.
+- **Chat-Info:** Stummschalten, Archivieren, Exportieren; keine Mitglieder,
+  kein Titel, kein Bild, keine selbstlöschenden Nachrichten.
+- **Mitteilungen** wie bei anderen Chats, mit „Antworten“ und „Als gelesen
+  markieren“; ohne Vorschau steht nur „Neue Nachricht über WhatsApp“.
+- **Teilen aus anderen Apps** bietet solche Chats nicht an (nur Text geht).
 
 ---
 

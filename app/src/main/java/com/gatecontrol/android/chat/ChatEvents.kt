@@ -19,6 +19,8 @@ sealed interface ChatEvent {
         val messageId: Long,
         val senderId: Long?,
         val clientId: String?,
+        /** Messenger 1.14: the message belongs to a chat over this service (`bridge: "whatsapp"`), else null. */
+        val bridge: String? = null,
     ) : ChatEvent
 
     data class MessageUpdate(override val conversationId: Long, val messageId: Long) : ChatEvent
@@ -39,6 +41,8 @@ sealed interface ChatEvent {
      * [self] = read on one of the caller's own devices, with [unread] left.
      * [upTo] (Messenger 1.1.0): the conversation's `readUpTo` /
      * `deliveredUpTo` for the caller right now; null from older servers.
+     * [userId] 0 (Messenger 1.14): the other side of a bridged chat read —
+     * contacts are no accounts, only [upTo] counts.
      */
     data class Read(
         override val conversationId: Long,
@@ -55,6 +59,12 @@ sealed interface ChatEvent {
 
     /** "schreibt …" until [untilMs] (epoch ms); null = stopped. */
     data class Typing(override val conversationId: Long, val userId: Long, val untilMs: Long?) : ChatEvent
+
+    /**
+     * Messenger 1.14: contacts of a bridged chat type (`typing` with `userId: null`) — [contacts] are those who
+     * type now (their names null when the service knows none), until [untilMs]; empty or null = stopped.
+     */
+    data class ContactTyping(override val conversationId: Long, val contacts: List<TypingContact>, val untilMs: Long?) : ChatEvent
 
     data class ConversationUpdate(override val conversationId: Long, val reasons: Set<String>) : ChatEvent {
         /** No longer managed by a plugin (1.1.0): a normal group now, its info editable again. */
@@ -76,6 +86,9 @@ sealed interface ChatEvent {
         override val conversationId: Long get() = 0L
     }
 
+    /** A contact of a bridged chat who types. */
+    data class TypingContact(val contactId: Long, val name: String?)
+
     companion object {
         const val REASON_DELETED = "deleted"
         const val REASON_RELEASED = "released"
@@ -91,6 +104,7 @@ object ChatEvents {
     private val REASON_RE = Regex("^[a-z_]{1,32}$")
     /** "schreibt …" never shows longer than this, whatever the server says. */
     const val TYPING_MAX_MS = 15_000L
+    private const val MAX_TYPING_CONTACTS = 20
 
     fun parse(plugin: String, type: String, data: JsonElement?, nowMs: Long = System.currentTimeMillis()): ChatEvent? {
         if (plugin != MESSENGER_PLUGIN) return null
@@ -107,6 +121,7 @@ object ChatEvents {
                 messageId = o.id("messageId") ?: return null,
                 senderId = o.id("senderId"),
                 clientId = o.str("clientId")?.takeIf { ChatJson.isClientId(it) },
+                bridge = ChatJson.token(o.str("bridge")),
             )
             "message.update" -> ChatEvent.MessageUpdate(conv, o.id("messageId") ?: return null)
             // Messenger 1.4: a poll's votes, an event's answers, a live arrival moved — the message changed.
@@ -125,7 +140,8 @@ object ChatEvents {
             )
             "read" -> ChatEvent.Read(
                 conversationId = conv,
-                userId = o.id("userId") ?: return null,
+                // Messenger 1.14: `userId: null` — the other side of a bridged chat (only with the marks it carries)
+                userId = o.id("userId") ?: if (o.get("userId")?.isJsonNull == true && (o.has("readUpTo") || o.has("deliveredUpTo"))) 0L else return null,
                 lastReadId = o.id("lastReadId"),
                 lastDeliveredId = o.id("lastDeliveredId"),
                 self = o.flag("self") == true,
@@ -133,8 +149,17 @@ object ChatEvents {
                 upTo = if (o.has("readUpTo") || o.has("deliveredUpTo")) ChatEvent.UpTo(o.id("readUpTo"), o.id("deliveredUpTo")) else null,
             )
             "typing" -> {
-                val until = ChatJson.time(o.str("until"))?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
-                ChatEvent.Typing(conv, o.id("userId") ?: return null, until?.coerceAtMost(nowMs + TYPING_MAX_MS))
+                val until = ChatJson.time(o.str("until"))?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }?.coerceAtMost(nowMs + TYPING_MAX_MS)
+                val contacts = o.get("contacts")?.takeIf { it.isJsonArray }?.asJsonArray
+                if (o.id("userId") == null && contacts != null) {
+                    // Messenger 1.14: contacts of a bridged chat
+                    val list = contacts.mapNotNull { e ->
+                        val c = e.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                        ChatEvent.TypingContact(c.id("contactId") ?: return@mapNotNull null, ChatJson.line(c.str("name"), 120))
+                    }.distinctBy { it.contactId }.take(MAX_TYPING_CONTACTS)
+                    return ChatEvent.ContactTyping(conv, list, until)
+                }
+                ChatEvent.Typing(conv, o.id("userId") ?: return null, until)
             }
             "conversation.update" -> ChatEvent.ConversationUpdate(
                 conversationId = conv,

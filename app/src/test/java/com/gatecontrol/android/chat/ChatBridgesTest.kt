@@ -69,8 +69,10 @@ class ChatBridgesTest {
         val off = ChatJson.profile(json("""{$me,"features":{"direct":true,"bridges":false}}"""))!!.features
         assertFalse(off.linkedServices, "bridges off or not offered: the key is absent")
         assertFalse(ChatJson.profile(json("""{$me,"features":{"linked_services":false}}"""))!!.features.linkedServices)
-        val newer = ChatJson.profile(json("""{$me,"features":{"linked_services":true,"bridge_chats":true}}"""))!!.features
-        assertEquals(setOf("bridge_chats"), ChatFeatureHint.unknown(newer))
+        // `bridge_chats` (Messenger 1.14.0) is known since the app shows chats over a bridge; a later word is not
+        assertEquals(emptySet<String>(), ChatFeatureHint.unknown(ChatJson.profile(json("""{$me,"features":{"linked_services":true,"bridge_chats":true}}"""))!!.features))
+        val newer = ChatJson.profile(json("""{$me,"features":{"linked_services":true,"bridge_chats":true,"bridge_media":true}}"""))!!.features
+        assertEquals(setOf("bridge_media"), ChatFeatureHint.unknown(newer))
         assertTrue(ChatFeatureHint.show(newer, null))
         // dismissed for the old word: the hint is gone now, nothing is left to dismiss
         assertFalse(ChatFeatureHint.show(ChatFeatures(tokens = setOf(ChatBridges.FEATURE)), "linked_services"))

@@ -172,7 +172,16 @@ fun ChatListScreen(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                GcFilterChip(stringResource(R.string.chat_filter_all), state.filter == ChatFilter.All, { viewModel.setFilter(ChatFilter.All) })
+                GcFilterChip(stringResource(R.string.chat_filter_all), state.filter == ChatFilter.All && state.net == null, {
+                    viewModel.setFilter(ChatFilter.All)
+                    viewModel.setNet(null)
+                })
+                // Messenger 1.14: one filter per service once a chat over a bridge exists.
+                if (state.networks.isNotEmpty()) {
+                    val gc = com.gatecontrol.android.chat.ChatBridgeChat.NET_GC
+                    GcFilterChip(stringResource(R.string.chat_bridged_only_gc), state.net == gc, { viewModel.setNet(gc) })
+                    state.networks.forEach { (id, label) -> GcFilterChip(label, state.net == id, { viewModel.setNet(id) }) }
+                }
                 GcFilterChip(
                     stringResource(R.string.chat_filter_unread) + if (state.unreadChats > 0) " · ${state.unreadChats}" else "",
                     state.filter == ChatFilter.Unread,
@@ -212,7 +221,7 @@ fun ChatListScreen(
                         items(state.pinned, key = { "p" + it.id }) { c ->
                             ConversationRow(
                                 c = c,
-                                typingText = state.typing[c.id]?.let { ChatText.typing(context, c, it, myId) },
+                                typingText = ChatText.typing(context, c, state.typing[c.id].orEmpty(), myId, state.contactTyping[c.id]),
                                 myId = myId,
                                 selected = c.id == selectedId,
                                 onClick = { onOpen(c.id) },
@@ -237,7 +246,7 @@ fun ChatListScreen(
                     items(state.conversations, key = { it.id }) { c ->
                         ConversationRow(
                             c = c,
-                            typingText = state.typing[c.id]?.let { ChatText.typing(context, c, it, myId) },
+                            typingText = ChatText.typing(context, c, state.typing[c.id].orEmpty(), myId, state.contactTyping[c.id]),
                             myId = myId,
                             selected = c.id == selectedId,
                             onClick = { onOpen(c.id) },
@@ -276,7 +285,7 @@ fun ChatListScreen(
                                 stringResource(
                                     when {
                                         !state.loaded -> R.string.chat_loading
-                                        state.query.isNotBlank() || state.filter != ChatFilter.All -> R.string.chat_empty_filtered
+                                        state.query.isNotBlank() || state.filter != ChatFilter.All || state.net != null -> R.string.chat_empty_filtered
                                         state.sync is ChatSync.Failed -> R.string.chat_load_failed
                                         else -> R.string.chat_empty
                                     },
@@ -288,7 +297,9 @@ fun ChatListScreen(
                             )
                         }
                     }
-                    item(key = "footer") {
+                    // "Alle Chats liegen nur auf deinem GateControl-Server" is not true for somebody with chats over a
+                    // bridge (Messenger 1.14): the sentence is left out then — each such chat says where it runs.
+                    if (!state.bridged) item(key = "footer") {
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -497,7 +508,7 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
                     val prefix = when {
                         last == null || last.isSystem -> ""
                         last.mine -> ""
-                        c.isGroup -> ChatText.nameOf(ctx, c, last.senderId, myId) + ": "
+                        c.isGroup -> ChatText.senderOf(ctx, c, last, myId) + ": "
                         else -> ""
                     }
                     Text(

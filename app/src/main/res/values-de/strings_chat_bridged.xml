@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chats über eine Brücke (Messenger 1.14.0): chats of a linked account at another messenger, shown beside the chats
+     inside GateControl. The texts are the messenger plugin's own (server/texts.json, bc.*), so that app and portal
+     say the same; the few without a text there (locked, the list's footer, send errors) follow their wording. -->
+<resources>
+    <string name="chat_bridged_via">über %1$s</string>
+    <string name="chat_bridged_only_gc">Nur GateControl</string>
+    <string name="chat_bridged_unknown_contact">Unbekannter Kontakt</string>
+    <string name="chat_bridged_placeholder">Nachricht über %1$s</string>
+    <string name="chat_bridged_strip">Dieser Chat läuft über %1$s – nicht nur über deinen Server.</string>
+    <string name="chat_bridged_more">Mehr</string>
+    <string name="chat_bridged_first_title">Chat über %1$s</string>
+    <string name="chat_bridged_first_lead">Dein Gegenüber schreibt mit der gewohnten App und sieht dich wie immer. Die Nachrichten laufen über die Brücke neben deinem GateControl-Server:</string>
+    <string name="chat_bridged_first_1">%1$s verschlüsselt bis zur Brücke; dort endet die Ende-zu-Ende-Verschlüsselung. Auf dem Server liegen die Nachrichten danach verschlüsselt gespeichert.</string>
+    <string name="chat_bridged_first_2">Im Moment geht Text – mit Antworten, Reaktionen, Bearbeiten und Löschen. Bilder, Dateien und Sprachnachrichten folgen; bis dahin steht im Chat, dass etwas kam.</string>
+    <string name="chat_bridged_first_3">Anrufe, Status und GateControl-Extras (Abstimmungen, Termine, Haus-Aktionen, Karten, Standort) gibt es in einem Chat über %1$s nicht.</string>
+    <string name="chat_bridged_first_ok">Verstanden</string>
+    <string name="chat_bridged_state_unreachable">Die Brücke zu %1$s ist gerade nicht erreichbar. Der Verlauf bleibt lesbar; senden geht wieder, sobald sie läuft. Neue Nachrichten kommen dann nach.</string>
+    <string name="chat_bridged_state_logged_out">%1$s hat die Brücke abgemeldet. Der Verlauf bleibt, senden geht erst wieder nach dem Verknüpfen. Seitdem können Nachrichten fehlen.</string>
+    <string name="chat_bridged_state_unlinked">Dein Konto bei %1$s ist nicht verknüpft. Der Verlauf bleibt; neue Nachrichten kommen hier nicht mehr an.</string>
+    <string name="chat_bridged_state_off">Die Brücke zu %1$s ist auf diesem Server ausgeschaltet. Der Verlauf bleibt lesbar.</string>
+    <string name="chat_bridged_closed">Du bist bei %1$s nicht mehr in diesem Chat. Der Verlauf bleibt lesbar.</string>
+    <string name="chat_bridged_cannot_send">Senden über %1$s geht gerade nicht – der Verlauf bleibt lesbar.</string>
+    <string name="chat_bridged_ph_image">Bild</string>
+    <string name="chat_bridged_ph_video">Video</string>
+    <string name="chat_bridged_ph_audio">Audio</string>
+    <string name="chat_bridged_ph_voice">Sprachnachricht</string>
+    <string name="chat_bridged_ph_file">Datei</string>
+    <string name="chat_bridged_ph_sticker">Sticker</string>
+    <string name="chat_bridged_ph_location">Standort</string>
+    <string name="chat_bridged_ph_unsupported">Nachricht dieser Art wird hier noch nicht angezeigt – in %1$s ansehen.</string>
+    <string name="chat_bridged_ph_later">%1$s – folgt; in %2$s ansehen</string>
+    <string name="chat_bridged_failed">Nicht gesendet.</string>
+    <string name="chat_bridged_resend">Erneut senden</string>
+    <string name="chat_bridged_status_failed">Nicht gesendet</string>
+    <string name="chat_bridged_reason_bridge_error">Die Brücke hat die Nachricht nicht angenommen.</string>
+    <string name="chat_bridged_reason_unreachable">Die Brücke antwortet nicht.</string>
+    <string name="chat_bridged_reason_not_running">Die Brücke läuft gerade nicht.</string>
+    <string name="chat_bridged_reason_timeout">Die Brücke hat nicht rechtzeitig geantwortet.</string>
+    <string name="chat_bridged_reason_network_error">Der Dienst war nicht erreichbar.</string>
+    <string name="chat_bridged_reason_no_permission">Der Dienst erlaubt das in diesem Chat nicht.</string>
+    <string name="chat_bridged_reason_too_old">Die Nachricht war zu lange unterwegs.</string>
+    <string name="chat_bridged_reason_unsupported">Der Dienst kennt diese Art Nachricht nicht.</string>
+    <string name="chat_bridged_reason_not_handled">Die Brücke konnte die Nachricht nicht weitergeben.</string>
+    <string name="chat_bridged_reason_bridge_unavailable">Die Brücke ist gerade nicht mit dem Dienst verbunden.</string>
+    <string name="chat_bridged_reason_chat_closed">Du bist in diesem Chat nicht mehr dabei.</string>
+    <string name="chat_bridged_info_note">Dieser Chat läuft über %1$s. Die Ende-zu-Ende-Verschlüsselung des Dienstes endet an der Brücke neben deinem GateControl-Server; dort gespeichert sind die Nachrichten verschlüsselt, und niemand außer dir sieht diesen Chat in GateControl.</string>
+    <string name="chat_bridged_info_not">Was hier nicht geht: Bilder, Dateien und Sprachnachrichten (folgen), Anrufe, Status, selbstlöschende Nachrichten und GateControl-Extras wie Abstimmungen, Termine, Haus-Aktionen und Karten.</string>
+    <string name="chat_bridged_err_text_only">In einem Chat über einen verknüpften Dienst geht im Moment nur Text.</string>
+    <string name="chat_bridged_err_unlinked">Dein Konto bei dem Dienst ist nicht mehr verknüpft. Verknüpfe es neu, dann geht Senden wieder.</string>
+    <string name="chat_bridged_err_unreachable">Die Brücke ist gerade nicht erreichbar. Sende die Nachricht noch einmal, sobald sie wieder läuft.</string>
+    <string name="chat_bridged_err_off">Die Brücken sind auf diesem Server ausgeschaltet.</string>
+    <string name="chat_bridged_err_locked">Für dein Konto ist dieser Dienst gesperrt, bis deine Eltern ihn freischalten.</string>
+    <string name="chat_bridged_err_failed">Die Brücke hat das nicht angenommen.</string>
+    <string name="chat_linked_foot_chats">Chats mit Kontakten des Dienstes erscheinen in deiner Chatliste, sobald dort eine neue Nachricht eintrifft – älterer Verlauf wird nicht geladen. Im Moment gehen Texte mit Antworten und Reaktionen; Bilder und Dateien folgen.</string>
+</resources>

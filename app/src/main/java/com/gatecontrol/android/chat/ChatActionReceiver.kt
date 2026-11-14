@@ -62,7 +62,10 @@ class ChatActionReceiver : BroadcastReceiver() {
             return
         }
         when (val r = repository.sendFromNotification(conv, t, repository.newClientId())) {
-            is ChatResult.Ok -> {
+            // Messenger 1.14: stored, but the bridge of a bridged chat did not take it — the chat shows why ("Erneut senden")
+            is ChatResult.Ok -> if (r.value.bridge?.failed == true) {
+                notifier.replyFailed(conv, queued = false)
+            } else {
                 notifier.replied(conv, t)
                 // Sending moved the read mark already; mark_read acks the pushes.
                 shown.readPath?.let { path -> api.readPath(path, body(shown.readBody, r.value.id)) }

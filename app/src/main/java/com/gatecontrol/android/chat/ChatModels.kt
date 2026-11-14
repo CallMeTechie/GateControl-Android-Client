@@ -112,6 +112,8 @@ data class ChatConversation(
      * "Mitteilungen" in the list.
      */
     val notice: ChatNotice? = null,
+    /** Messenger 1.14: the chat runs over a bridge to another messenger (one member — the caller — and no `peer`). */
+    val bridge: ChatConvBridge? = null,
 ) {
     val isGroup: Boolean get() = kind == KIND_GROUP
 
@@ -178,9 +180,13 @@ data class ChatReplyRef(
     val text: String?,
     val deleted: Boolean,
     val missing: Boolean,
+    /** Messenger 1.14: the quoted message is a contact's (a bridged chat), with the contact's name when known. */
+    val contactId: Long? = null,
+    val senderName: String? = null,
 )
 
-data class ChatReaction(val emoji: String, val count: Int, val userIds: List<Long>)
+/** [contactIds] (Messenger 1.14): contacts of a bridged chat who reacted — [count] counts them too. */
+data class ChatReaction(val emoji: String, val count: Int, val userIds: List<Long>, val contactIds: List<Long> = emptyList())
 
 /** `system` of a system message: [event] plus what it names. */
 data class ChatSystem(
@@ -225,7 +231,7 @@ data class ChatMessage(
     val location: ChatLocation?,
     val system: ChatSystem?,
     val reactions: List<ChatReaction>,
-    /** Own messages only: sent | delivered | read. */
+    /** Own messages only: sent | delivered | read — in a bridged chat (Messenger 1.14) also sending | failed. */
     val status: String?,
     /** Video files only (servers with `video_meta`). */
     val video: ChatVideo? = null,
@@ -236,6 +242,8 @@ data class ChatMessage(
     val action: ChatActionCard? = null,
     val card: ChatPluginCard? = null,
     val replyStory: ChatReplyStory? = null,
+    /** Messenger 1.14: set in a chat over a bridge (the contact who wrote it, what became of an own message). */
+    val bridge: ChatMessageBridge? = null,
 ) {
     val isSystem: Boolean get() = kind == KIND_SYSTEM
 
@@ -269,6 +277,9 @@ data class ChatMessage(
         const val STATUS_SENT = "sent"
         const val STATUS_DELIVERED = "delivered"
         const val STATUS_READ = "read"
+        /** Bridged chats (Messenger 1.14): on its way to the bridge / not taken by it. */
+        const val STATUS_SENDING = "sending"
+        const val STATUS_FAILED = "failed"
     }
 }
 

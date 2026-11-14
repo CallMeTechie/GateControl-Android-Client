@@ -122,7 +122,7 @@ class ChatNotifier @Inject constructor(
         val line = ChatNotifLine(
             seq = message.seq,
             pushId = message.id,
-            senderKey = payload.senderId?.toString() ?: "gatecontrol",
+            senderKey = payload.senderId?.toString() ?: payload.senderKey ?: "gatecontrol",
             senderName = senderName,
             avatarUrl = payload.senderAvatarUrl,
             text = text,
@@ -136,7 +136,7 @@ class ChatNotifier @Inject constructor(
         }
         post(ctx, updated, silent = quiet || message.silent)
         // The conversation list shows the new message right away.
-        repository.get().onEvent(ChatEvent.MessageNew(conv, payload.messageId ?: 0L, payload.senderId, null))
+        repository.get().onEvent(ChatEvent.MessageNew(conv, payload.messageId ?: 0L, payload.senderId, null, bridge = payload.bridge))
     }
 
     private suspend fun post(ctx: Context, c: ChatNotifConversation, silent: Boolean, hint: String? = null, keepBubbleOnly: Boolean = false) {

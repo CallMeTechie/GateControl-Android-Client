@@ -204,7 +204,10 @@ class ChatVideoTest {
         val newer = ChatJson.profile(json("""{$me,"features":{"video_meta":true,"polls":true,"calls":true,"stickers":false}}"""))!!.features
         assertEquals(setOf("calls"), ChatFeatureHint.unknown(newer), "only keys switched on count, Messenger 1.4 keys are known")
         assertTrue(ChatFeatureHint.show(newer, null))
-        assertFalse(ChatFeatureHint.unknown(ChatFeatures(tokens = setOf("e2e", "bridges"))).isNotEmpty(), "known keys switched on are no reason")
+        // `bridges` and `e2e` are named by the messenger but kept `false`: the app has nothing for them, so a server
+        // that switches them on one day shows the hint like for any other unknown word
+        assertEquals(setOf("e2e", "bridges"), ChatFeatureHint.unknown(ChatFeatures(tokens = setOf("e2e", "bridges"))), "words the app cannot handle are not known")
+        assertFalse(ChatFeatureHint.show(ChatFeatures(tokens = setOf("video_meta", "file_thumbs", "scan")), null), "known keys switched on are no reason")
         assertFalse(ChatFeatureHint.show(null, null))
     }
 

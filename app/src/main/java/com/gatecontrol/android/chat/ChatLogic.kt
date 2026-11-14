@@ -47,6 +47,9 @@ data class ChatPending(
     }
 }
 
+/** Messenger 1.14: the contacts of a bridged chat who type ([names]; null = no name known) until [untilMs]. */
+data class ChatContactTyping(val names: List<String?>, val untilMs: Long)
+
 /** One row of the conversation screen. */
 sealed interface TimelineItem {
     val key: String
@@ -84,6 +87,8 @@ object ChatTimeline {
     /** Tick of an own message: the newer of the message's status and the conversation's receipts. */
     fun status(message: ChatMessage, readUpTo: Long?, deliveredUpTo: Long?): String? {
         if (!message.mine || message.isSystem || message.deleted) return null
+        // A bridged chat (Messenger 1.14): not taken by the bridge, or still on its way — whatever the receipts say.
+        if (message.status == ChatMessage.STATUS_FAILED || message.status == ChatMessage.STATUS_SENDING) return message.status
         val fromReceipts = when {
             readUpTo != null && message.id <= readUpTo -> ChatMessage.STATUS_READ
             deliveredUpTo != null && message.id <= deliveredUpTo -> ChatMessage.STATUS_DELIVERED
@@ -117,7 +122,7 @@ object ChatTimeline {
         val waiting = pending.filter { it.clientId !in storedClientIds }.sortedBy { it.createdAtMs }
         val out = ArrayList<TimelineItem>(stored.size + waiting.size + 8)
         var lastDay: LocalDate? = null
-        var lastSender: Long? = null
+        var lastSender: String? = null
         var lastWasSystem = true
         var previous: ChatMessage? = null
         for (m in stored) {
@@ -131,9 +136,9 @@ object ChatTimeline {
                 lastDay = day
                 lastWasSystem = true
             }
-            val showSender = conversation?.isGroup == true && !m.mine && !m.isSystem && (lastWasSystem || lastSender != m.senderId)
+            val showSender = conversation?.isGroup == true && !m.mine && !m.isSystem && (lastWasSystem || lastSender != ChatBridgeChat.senderKey(m))
             out += TimelineItem.Message(m, status(m, conversation?.readUpTo, conversation?.deliveredUpTo), showSender)
-            lastSender = m.senderId
+            lastSender = ChatBridgeChat.senderKey(m)
             lastWasSystem = m.isSystem
         }
         for (p in waiting) {
@@ -178,6 +183,10 @@ object ChatTimeline {
     fun badge(conversations: List<ChatConversation>): Int =
         conversations.filter { !it.muted }.sumOf { it.unread }.coerceAtMost(999)
 
+    /** The contacts of bridged chat [conversationId] who type right now (null: nobody). */
+    fun contactsTypingNow(typing: Map<Long, ChatContactTyping>, conversationId: Long, nowMs: Long): List<String?>? =
+        typing[conversationId]?.takeIf { it.untilMs > nowMs && it.names.isNotEmpty() }?.names
+
     /** Who types in [conversationId] right now, without the caller. */
     fun typingNow(typing: Map<Long, Map<Long, Long>>, conversationId: Long, myId: Long?, nowMs: Long): List<Long> =
         typing[conversationId].orEmpty().filter { (uid, until) -> until > nowMs && uid != myId }.keys.toList()
@@ -214,6 +223,9 @@ object ChatOutboxLogic {
         ChatResult.Offline, ChatResult.NotConfigured ->
             if (attempts >= MAX_ATTEMPTS) OutboxStep.GiveUp("offline") else OutboxStep.Retry(nowMs + backoffMs(attempts))
         is ChatResult.Failed -> when {
+            // A bridged chat (Messenger 1.14): the bridge is away, signed out, locked or takes text only. There is no
+            // queue over there, so nothing is sent again by itself — the person sees why and decides.
+            result.code in ChatBridgeChat.REFUSALS -> OutboxStep.GiveUp(result.code)
             result.code == "media_invalid" && hadUpload && attempts < 3 -> OutboxStep.Reupload
             result.http == 429 || result.http == 408 || result.http >= 500 || result.http == 0 && result.code != ChatApi.CODE_INVALID ->
                 if (attempts >= MAX_ATTEMPTS) OutboxStep.GiveUp(result.code) else OutboxStep.Retry(nowMs + backoffMs(attempts))
@@ -290,6 +302,7 @@ object ChatJsonPatch {
                     addProperty("emoji", r.emoji)
                     addProperty("count", r.count)
                     add("userIds", JsonArray().apply { r.userIds.forEach { add(it) } })
+                    if (r.contactIds.isNotEmpty()) add("contactIds", JsonArray().apply { r.contactIds.forEach { add(it) } })
                 })
             }
         })
@@ -316,7 +329,8 @@ object ChatJsonPatch {
         val upTo = e.upTo ?: return out
         out.put("readUpTo", upTo.readUpTo)
         out.put("deliveredUpTo", upTo.deliveredUpTo)
-        if (!e.self) {
+        // userId 0: the other side of a bridged chat (Messenger 1.14) — contacts have no entry in `receipts`
+        if (!e.self && e.userId > 0) {
             val receipts = out.get("receipts")?.takeIf { it.isJsonArray }?.asJsonArray ?: JsonArray().also { out.add("receipts", it) }
             val entry = receipts.firstOrNull { it.isJsonObject && ChatJson.idOf(it.asJsonObject.get("userId")) == e.userId }?.asJsonObject
                 ?: JsonObject().also {

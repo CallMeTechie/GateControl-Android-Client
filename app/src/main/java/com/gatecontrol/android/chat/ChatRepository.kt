@@ -114,6 +114,10 @@ class ChatRepository @Inject constructor(
     private val _typing = MutableStateFlow<Map<Long, Map<Long, Long>>>(emptyMap())
     val typing: StateFlow<Map<Long, Map<Long, Long>>> = _typing.asStateFlow()
 
+    private val _contactTyping = MutableStateFlow<Map<Long, ChatContactTyping>>(emptyMap())
+    /** Messenger 1.14: conversation → the contacts of a bridged chat who type right now. */
+    val contactTyping: StateFlow<Map<Long, ChatContactTyping>> = _contactTyping.asStateFlow()
+
     private val _active = MutableStateFlow<Long?>(null)
     /** The conversation open and visible right now (no notification for it). */
     val activeConversation: StateFlow<Long?> = _active.asStateFlow()
@@ -178,6 +182,7 @@ class ChatRepository @Inject constructor(
             dao.clearAll()
             dao.putKv(KvEntity(KV_OWNER, owner))
             _typing.value = emptyMap()
+            _contactTyping.value = emptyMap()
             _dropped.value = emptySet()
             _gaps.value = emptyMap()
             // The old login's conversations are no shortcuts any more.
@@ -523,6 +528,12 @@ class ChatRepository @Inject constructor(
         when (event) {
             is ChatEvent.MessageNew -> {
                 event.senderId?.let { clearTyping(conv, it) }
+                if (event.bridge != null) {
+                    // A contact's message ends their "schreibt …". The first chat over a bridge: the server names the
+                    // feature from now on (`features.bridge_chats`).
+                    if (event.senderId == null) _contactTyping.update { it - conv }
+                    if (profile.value?.features?.tokens?.contains(ChatBridgeChat.FEATURE) != true) coalesce("profile", 1_000L) { refreshProfile() }
+                }
                 coalesce("new:$conv") { if (hasCache(conv)) fetchNewer(conv) }
                 coalesce("list") { syncConversations() }
             }
@@ -562,6 +573,15 @@ class ChatRepository @Inject constructor(
                 }
             }
             is ChatEvent.Typing -> setTyping(conv, event.userId, event.untilMs)
+            is ChatEvent.ContactTyping -> {
+                val until = event.untilMs
+                if (until == null || until <= clock() || event.contacts.isEmpty()) {
+                    _contactTyping.update { it - conv }
+                } else {
+                    _contactTyping.update { it + (conv to ChatContactTyping(event.contacts.map { c -> c.name }, until)) }
+                    coalesce("ctyping:$conv:$until", until - clock() + 100) { prune() }
+                }
+            }
             is ChatEvent.ConversationUpdate -> {
                 coalesce("conv:$conv", 300L) { refreshConversation(conv) }
                 // Released by its plugin (managedBy null): the list shows it as a normal group.
@@ -615,6 +635,7 @@ class ChatRepository @Inject constructor(
     private fun prune() {
         val now = clock()
         _typing.update { m -> m.mapValues { (_, v) -> v.filterValues { it > now } }.filterValues { it.isNotEmpty() } }
+        _contactTyping.update { m -> m.filterValues { it.untilMs > now } }
     }
 
     // ─── presence in a conversation ─────────────────────────────────
@@ -915,6 +936,16 @@ class ChatRepository @Inject constructor(
         val t = ChatJson.text(text.trim()) ?: return ChatResult.Failed("invalid", 400)
         val r = api.edit(message.id, t)
         if (r is ChatResult.Ok) storeMessages(listOf(r.value))
+        return r
+    }
+
+    /**
+     * Messenger 1.14: an own message of a bridged chat that did not go out, again. The answer is the message as it
+     * stands now — sent, or failed again with its reason (an Ok either way).
+     */
+    suspend fun resend(message: ChatMessage): ChatResult<ChatMessage> {
+        val r = api.resend(message.id)
+        if (r is ChatResult.Ok) storeSent(r.value)
         return r
     }
 
