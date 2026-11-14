@@ -1039,6 +1039,72 @@ Herunterziehen lädt neu.
     Einkaufs-Pushes der Familie – führt in die Liste des Hubs mit derselben
     Kennung, sofern die App dort `shoppingLists` kennt und eine Kopie hat;
     sonst wie bisher auf die Seite des Familien-Plugins.
+- **Aufgaben und Erinnerungen, Stufe 3 – Ort (Plugin 1.5.0, Familie 1.22.0):**
+  erkannt nur an den Wörtern `places` und `placeSearch` in `me.features`
+  (`NMe.taskPlaces`, `NMe.placeSearch`); ohne sie – Plugin 1.4.0 und älter –
+  zeigt die App keinen Ort, sendet kein `place`, fragt keine der neuen Routen
+  und meldet keine Geofences an.
+  - **Ort an der Aufgabe** (`Task.place`, `NPlace`): „Baumarkt Nord · beim
+    Ankommen“ als Baustein an der Zeile (Mein Tag, Listen, Suche, „Gestern
+    offen geblieben“) und als Zeile „Ort“ in der Aufgabe. Tippen öffnet die
+    Auswahl „Welcher Baumarkt?“ / „Ort wählen“ (`PlaceDialog`, Logik in
+    `PlaceChooser` / `PlaceChoices`): Treffer der Suche mit Minuten und
+    Entfernung (geschätzt, so steht es da), „Jeder Lidl“, „Meine Orte“ (eigene,
+    gemerkte, Orte der Familie), „Ort auf der Karte wählen“, „Beim Ankommen“ /
+    „Beim Verlassen“, „Als meinen Ort für … merken“, „Ohne Ort“. Geschrieben
+    wird mit `PATCH tasks/<id> { place }` – nie über den Postausgang: Ein Ort
+    braucht den Server. Darunter Hinweise: Zustimmung offen („Annehmen“ /
+    „Ablehnen“, `POST tasks/<id>/place/consent`), „meldet sich auch an anderen
+    Orten der Art“, „Braucht die Ortssuche“ bei „Jeder …“ ohne Suche, und –
+    Hinweis, kein Verbot – dass dieses Handy noch nicht erinnert, solange der
+    Standort (auch im Hintergrund) fehlt.
+  - **Schnell-Eingabe:** `POST parse` liefert neben `attach` den Ort der
+    Zeile; der Parser auf dem Gerät und seine Testvektoren sind unverändert,
+    offline gibt es keinen Vorschlag. Steht der Ort fest (eigener Ort, Ort der
+    Familie, gemerkter Ort) und ist sicher gemeint: Bausteine „Bäckerei am
+    Markt · ändern“ und „Beim Ankommen“ (Tippen dreht um), darunter „Dein
+    üblicher Ort für …“. Sonst „Ort: Baumarkt …“ – erst das Antippen sucht.
+    Die Worte des Orts sind im Text gefärbt und verlassen den Titel
+    (`PlaceLogic.titleWithout`).
+  - **Ortssuche:** nur `POST places/search` des eigenen Servers, nur auf
+    „Suchen“ oder den angetippten Baustein, nie je Tastendruck, nie in
+    Zeitabständen. Die Position wird auf dem Handy gerundet
+    (`PlaceLogic.near`, `me.places.search.decimals`); ohne Position sucht die
+    App in der Nähe eines eigenen Orts (`nearFamilyId` / `nearPlaceId`). Der
+    genaue Standort bleibt auf dem Handy und ordnet die Treffer neu
+    (`PlaceLogic.measured`). Wo Treffer stehen, steht „© OpenStreetMap“
+    (antippbar) und „Fahrzeit geschätzt aus der Entfernung“.
+  - **Geofences** (`NotizenGeofences`, `NotizenPlaceReceiver`):
+    `POST places/watch { near?, budget }` nennt die Orte und den fertigen Text
+    der Meldung; die Antwort bleibt auf dem Gerät. Angemeldet wird in der
+    Reihenfolge des Servers, so viele wie Platz ist. **Ein Budget an einer
+    Stelle** (`GeofenceBudget`): Android erlaubt 100 je App, die
+    Familien-Geofences (höchstens 90) haben Vorrang und werden nie verdrängt,
+    4 bleiben frei, 1 braucht der Hub selbst (der Kreis um die Gegend, für die
+    die Orte gewählt wurden – wer ihn verlässt, fragt neu). Meldet die Familie
+    mehr Orte an, nimmt der Hub vorher seine unwichtigsten zurück
+    (`GeofenceRegistrar.makeRoom`, `GeofenceBudget.keep`). Neu geholt wird
+    beim Start, nach Neustart und App-Update, bei `changed` mit `places` /
+    `tasks`, wenn die Familie andere Orte anmeldet, wenn der Standort wieder
+    eingeschaltet wird – nie in festen Abständen. `near` nur bei eingeschalteter
+    Suche.
+  - **Am Ort:** Das Handy fragt `POST places/fired`, solange der Server
+    erreichbar ist (höchstens 4 s), sonst entscheidet es selbst nach denselben
+    Regeln (`PlaceGuard`: einmal je Ort und Aufgabe in drei Stunden, „in der
+    Nähe“ einmal je Aufgabe in drei Stunden, nicht in der Ruhezeit, nicht nach
+    „Später“ / „Nicht hier“). Die Meldung ist die des Servers, im Kanal
+    „Erinnerungen an Aufgaben“ und unter demselben Schlüssel wie der
+    Fälligkeits-Push. Knöpfe: „Erledigt“, „Später“, „Nicht hier“ und – mit
+    angehängter Liste – „Liste öffnen“; sie wirken sofort auf dem Gerät und
+    warten ohne Verbindung im Postausgang.
+  - **„Gerade in der Nähe“** in „Mein Tag“: aus den Geofences, in denen das
+    Handy gerade ist; mit „Nicht hier“. Entsteht auf dem Handy.
+  - **Einstellungen › Orte:** Ortssuche für mich, Hinweis „in der Nähe“,
+    Ruhezeit, ob dieses Handy erinnern darf, und „Meine Orte“ (umbenennen,
+    löschen, „nicht mehr merken“, „Neuen Ort merken“ über die Karte).
+  - **Berechtigungen:** keine neue. Derselbe Ablauf wie bei den
+    Orts-Erinnerungen der Familie (Erklärung vor der Abfrage, „Immer
+    zulassen“ für den Hintergrund).
 - **Liste:** offene und erledigte Aufgaben, unten ein Feld für eine neue
   Aufgabe (nicht bei „nur ansehen“).
 - **Aufgabe:** Titel, Wichtig, Unteraufgaben (hinzufügen, abhaken,

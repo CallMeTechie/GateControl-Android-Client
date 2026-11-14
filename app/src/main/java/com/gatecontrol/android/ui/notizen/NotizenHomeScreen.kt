@@ -370,7 +370,12 @@ private fun MyDayPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
     // plugin 1.3.0: „Gestern offen geblieben“ above „Heute“ — its tasks are under „Überfällig“ as well, not twice here
     val yesterday = com.gatecontrol.android.notizen.NotizenYesterday.card(day, me.yesterdayOpen)
     val sections = com.gatecontrol.android.notizen.NotizenYesterday.sections(day, yesterday)
+    val near by vm.near.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
+        // plugin 1.5.0: „Gerade in der Nähe“ — on top while the phone is at a place of a task (made on the phone)
+        if (near.isNotEmpty()) {
+            item(key = "near") { NearNowCard(near, me.lang, canWrite = !me.readOnly, onOpen = { nav.task(it) }, onNotHere = vm::notHere) }
+        }
         if (yesterday != null) {
             item(key = "yesterday") {
                 YesterdayCard(

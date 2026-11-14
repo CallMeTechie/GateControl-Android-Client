@@ -350,6 +350,13 @@
             android:name=".familie.places.GeofenceReceiver"
             android:exported="false" />
 
+        <!-- Notizen & Aufgaben: geofence transitions of the places of tasks
+             (Play services, through the app's own PendingIntent) and the
+             buttons of their reminders. NOT exported. -->
+        <receiver
+            android:name=".notizen.NotizenPlaceReceiver"
+            android:exported="false" />
+
         <!-- Familie: opens a screen of the Familie tab from the app's own
              notifications. NOT exported. -->
         <activity

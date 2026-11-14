@@ -98,6 +98,20 @@ class NotizenCache @Inject constructor(
         io { dir -> write(File(dir, "reminders.json"), state.toJson()) }
     }
 
+    /** `POST places/watch` as it came last (plugin 1.5.0): the places to watch and what their reminders say — also without a connection. */
+    suspend fun watch(): NWatch = io { dir -> read(File(dir, "places-watch.json"))?.let { NotizenPlacesJson.watch(it) } } ?: NWatch()
+
+    suspend fun putWatch(raw: JsonObject?) {
+        io { dir -> File(dir, "places-watch.json").let { f -> if (raw == null) f.delete() else write(f, raw) } }
+    }
+
+    /** What the phone remembers about its places ([PlaceState]). */
+    suspend fun placeState(): PlaceState = PlaceState.fromJson(io { dir -> read(File(dir, "places-state.json")) })
+
+    suspend fun putPlaceState(state: PlaceState) {
+        io { dir -> write(File(dir, "places-state.json"), state.toJson()) }
+    }
+
     /** Everything of this plugin on the phone goes (another login, the plugin gone). */
     suspend fun wipe() {
         withContext(Dispatchers.IO) { mutex.withLock { runCatching { root().deleteRecursively() } } }

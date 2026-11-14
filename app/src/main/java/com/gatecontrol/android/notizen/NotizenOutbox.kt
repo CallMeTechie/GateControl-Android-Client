@@ -46,6 +46,9 @@ object NotizenOutbox {
     const val ACTION = "action"
     const val SNOOZE = "snooze"
     const val MOVE = "move"
+    /** Plugin 1.5.0: „Später“ at a place (`POST tasks/<id>/place/later`) and „Nicht hier“ (`…/place/skip { fence }`). */
+    const val PLACE_LATER = "place/later"
+    const val PLACE_SKIP = "place/skip"
     const val LIST = "list"
     const val NOTEBOOK = "notebook"
     const val NOTE = "note"
@@ -53,7 +56,8 @@ object NotizenOutbox {
     const val MAX = 500
     private const val MAX_IDS = 500
     private val KINDS = setOf(TASK, ITEM, CREATE, PATCH, DELETE, ACTION)
-    private val ACTIONS = setOf(SNOOZE, MOVE)
+    private val ACTIONS = setOf(SNOOZE, MOVE, PLACE_LATER, PLACE_SKIP)
+    private val PLACE_ACTIONS = setOf(PLACE_LATER, PLACE_SKIP)
     private val WHATS = setOf(TASK, LIST, NOTEBOOK, NOTE)
     private val CLIENT_ID = Regex("^[A-Za-z0-9_-]{8,64}$")
 
@@ -151,7 +155,12 @@ object NotizenOutbox {
             }
             CREATE -> ops + op
             // a later „Verschieben“ or „Später“ of the same task takes the place of one still waiting
-            ACTION -> ops.filterNot { it.kind == ACTION && objectOf(it) == key && free(it) } + op
+            // „Später“ / „Nicht hier“ at a place stand beside them: only the same one (the same place) is replaced
+            ACTION -> if (op.what in PLACE_ACTIONS) {
+                ops.filterNot { it.kind == ACTION && it.what == op.what && it.id == op.id && it.body == op.body && free(it) } + op
+            } else {
+                ops.filterNot { it.kind == ACTION && it.what !in PLACE_ACTIONS && objectOf(it) == key && free(it) } + op
+            }
             else -> ops
         }
         return out.takeLast(MAX)

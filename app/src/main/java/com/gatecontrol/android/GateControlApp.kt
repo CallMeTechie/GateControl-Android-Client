@@ -134,6 +134,13 @@ class GateControlApp : Application() {
             Timber.w(e, "Notizen: reminders not started")
         }
 
+        // Notizen & Aufgaben: the places of tasks as geofences (plugin 1.5.0; nothing with an older one).
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.notizen.NotizenGeofencesEntryPoint::class.java).notizenGeofences().start()
+        } catch (e: Throwable) {
+            Timber.w(e, "Notizen: places not started")
+        }
+
         // Google Play build: in-app update (network watch, install in the background).
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
             try {

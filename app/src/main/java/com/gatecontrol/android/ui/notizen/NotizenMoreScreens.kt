@@ -65,6 +65,7 @@ import com.gatecontrol.android.notizen.NSourcePrefs
 import com.gatecontrol.android.notizen.NSourceStatus
 import com.gatecontrol.android.notizen.NotizenFormat
 import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
@@ -120,6 +121,10 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
         onPauseOrDispose { }
     }
     val canWrite = me?.readOnly != true
+    /** Plugin 1.5.0: which end of the quiet hours is being picked; a dialog of „Meine Orte“ and the place it is about. */
+    var quietPick by remember { mutableStateOf<String?>(null) }
+    var placeDialog by remember { mutableStateOf<String?>(null) }
+    var placeEdit by remember { mutableStateOf<com.gatecontrol.android.notizen.NSpot?>(null) }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize()) {
             GcSubpageBar(stringResource(R.string.notizen_settings), nav.back, stringResource(R.string.notizen_back))
@@ -234,6 +239,11 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
                         }
                     }
                 }
+                // ── Orte (1.5.0): only with `places` in the plugin's features ──
+                if (me?.taskPlaces == true) {
+                    item { NSectionHeader(stringResource(R.string.notizen_pl_field) + " · " + stringResource(R.string.notizen_pl_mine), null) }
+                    item { PlaceSettings(ui, vm, canWrite, onQuiet = { quietPick = it }, onNew = { placeDialog = "new" }, onRename = { placeEdit = it; placeDialog = "rename" }, onDelete = { placeEdit = it; placeDialog = "delete" }) }
+                }
                 // ── Umziehen ──
                 if (me?.imports?.let { it.mstodo || it.dsnote } == true && canWrite) {
                     item { NSectionHeader(stringResource(R.string.notizen_import), null) }
@@ -252,6 +262,39 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
     time?.let { plugin ->
         val cur = ui.prefs.sources[plugin]?.evening ?: ui.prefs.evening
         NTimePicker(cur, { t -> time = null; if (t != null) vm.setSource(plugin, NSourcePrefs(evening = t)) }, { time = null })
+    }
+    quietPick?.let { which ->
+        val q = ui.prefs.places.quiet ?: com.gatecontrol.android.notizen.NQuiet("21:00", "07:00")
+        NTimePicker(if (which == "from") q.from else q.to, { t -> quietPick = null; if (t != null) vm.setPlaceQuiet(if (which == "from") q.copy(from = t) else q.copy(to = t)) }, { quietPick = null })
+    }
+    when (placeDialog) {
+        "new" -> {
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            var start by remember { mutableStateOf<com.gatecontrol.android.ui.familie.LatLon?>(null) }
+            MapPointDialog(
+                initial = start,
+                title = stringResource(R.string.notizen_pl_new),
+                onHere = if (com.gatecontrol.android.location.DeviceLocator.hasPermission(context)) {
+                    { vm.position()?.let { com.gatecontrol.android.ui.familie.LatLon(it.first, it.second) } }
+                } else {
+                    null
+                },
+                onDismiss = { placeDialog = null },
+                onDone = { name, lat, lon -> placeDialog = null; vm.addPlace(name, lat, lon) },
+            )
+        }
+        "rename" -> placeEdit?.let { p ->
+            NameDialog(title = stringResource(R.string.notizen_pl_rename), initial = p.name, onDismiss = { placeDialog = null }) { name -> placeDialog = null; p.placeId?.let { vm.renamePlace(it, name) } }
+        }
+        "delete" -> placeEdit?.let { p ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { placeDialog = null },
+                title = { Text(stringResource(R.string.notizen_pl_delete_title)) },
+                text = { Text(stringResource(R.string.notizen_pl_delete_text, p.name)) },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { placeDialog = null; p.placeId?.let(vm::deletePlace) }) { Text(stringResource(R.string.notizen_delete)) } },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { placeDialog = null }) { Text(stringResource(R.string.notizen_cancel)) } },
+            )
+        }
     }
     if (yesterdayAt) {
         NTimePicker(ui.prefs.yesterdayAt, { t -> yesterdayAt = false; if (t != null) vm.setYesterdayAt(t) }, { yesterdayAt = false })
@@ -537,6 +580,103 @@ fun NotizenSearchScreen(nav: NotizenNav, vm: NotizenSearchViewModel = hiltViewMo
                 }
             }
             if (entries.isEmpty() && r.notes.isEmpty()) item { Text(stringResource(R.string.notizen_search_none), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(16.dp)) }
+        }
+    }
+}
+
+/**
+ * „Orte“ of the settings (plugin 1.5.0, as the portal's page): the place search for me, the hint „in der Nähe“ and its
+ * quiet hours, whether this phone may remind at a place, and „Meine Orte“ — the family's (to look at), my own and the
+ * ones remembered for a kind (rename, delete, „nicht mehr merken“).
+ */
+@Composable
+private fun PlaceSettings(
+    ui: NotizenSourcesViewModel.Ui,
+    vm: NotizenSourcesViewModel,
+    canWrite: Boolean,
+    onQuiet: (String) -> Unit,
+    onNew: () -> Unit,
+    onRename: (com.gatecontrol.android.notizen.NSpot) -> Unit,
+    onDelete: (com.gatecontrol.android.notizen.NSpot) -> Unit,
+) {
+    val x = GateControlTheme.extraColors
+    val info = ui.me?.places ?: return
+    val p = ui.prefs.places
+    val ready = com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness.READY
+    val unavailable = com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness.UNAVAILABLE
+    var state by remember { mutableStateOf(vm.placeReadiness()) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        state = vm.placeReadiness()
+        onPauseOrDispose { }
+    }
+    val ask = com.gatecontrol.android.ui.familie.rememberLocationPermissionFlow(
+        background = true,
+        foregroundText = R.string.notizen_pl_perm_text,
+        backgroundText = R.string.notizen_pl_perm_bg_text,
+    ) { granted -> if (granted) { state = ready; vm.placePermissionChanged() } }
+    Column {
+        Text(stringResource(R.string.notizen_pl_phone_hint), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp))
+        NCard {
+            // the search: mine to switch only while the route is there and the administrator has it on
+            if (ui.me.has(com.gatecontrol.android.notizen.NFeature.PLACE_SEARCH)) {
+                val hint = when {
+                    !info.searchEnabled -> stringResource(R.string.notizen_pl_set_search_admin)
+                    info.searchState == "unavailable" -> stringResource(R.string.notizen_pl_set_search_unavailable)
+                    else -> stringResource(R.string.notizen_pl_set_search_hint)
+                }
+                SettingSwitch(stringResource(R.string.notizen_pl_set_search), hint, info.searchEnabled && p.search, canWrite && info.searchEnabled) { vm.setPlaceSearch(it) }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+            }
+            SettingSwitch(stringResource(R.string.notizen_pl_set_nearby), stringResource(R.string.notizen_pl_set_nearby_hint), p.nearby, canWrite) { vm.setPlaceNearby(it) }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+            SettingSwitch(stringResource(R.string.notizen_pl_set_quiet), stringResource(R.string.notizen_pl_set_quiet_hint), p.quiet != null, canWrite) {
+                vm.setPlaceQuiet(if (it) com.gatecontrol.android.notizen.NQuiet("21:00", "07:00") else null)
+            }
+            p.quiet?.let { q ->
+                DetailRow(GcIcons.Clock, stringResource(R.string.notizen_pl_set_quiet_from), NotizenFormat.time(q.from).orEmpty(), if (canWrite) ({ onQuiet("from") }) else null)
+                DetailRow(GcIcons.Clock, stringResource(R.string.notizen_pl_set_quiet_to), NotizenFormat.time(q.to).orEmpty(), if (canWrite) ({ onQuiet("to") }) else null)
+            }
+        }
+        if (info.searchOn) {
+            Text(stringResource(R.string.notizen_pl_search_privacy), style = MaterialTheme.typography.bodySmall, color = x.faint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
+        }
+        // this phone: a hint and the way to allow it — never a ban (places can be shown and changed without)
+        Text(
+            stringResource(if (state == ready) R.string.notizen_pl_perm_ok else if (state == unavailable) R.string.notizen_pl_perm_none else R.string.notizen_pl_perm_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = x.faint,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp),
+        )
+        if (state != ready && state != unavailable) {
+            Text(
+                stringResource(R.string.familie_perm_grant),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 10.dp).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = ask).padding(horizontal = 6.dp, vertical = 14.dp),
+            )
+        }
+        NSpacer(10)
+        NCard {
+            val all = ui.places.family + ui.places.places
+            if (all.isEmpty()) Text(stringResource(R.string.notizen_pl_mine_none), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(14.dp))
+            all.forEach { s ->
+                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                        Text(s.name, style = MaterialTheme.typography.bodyMedium)
+                        val sub = if (s.family) stringResource(R.string.notizen_pl_family) else listOfNotNull(s.address, s.favFor.firstOrNull()?.let { stringResource(R.string.notizen_pl_fav_for, it.label) }).joinToString(" · ")
+                        if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    }
+                    if (s.family) {
+                        Icon(GcIcons.House, null, tint = x.muted, modifier = Modifier.padding(end = 14.dp).size(18.dp))
+                    } else if (canWrite) {
+                        s.favFor.firstOrNull()?.let { k -> GcIconButton(GcIcons.Close, stringResource(R.string.notizen_pl_forget, k.label), { vm.forgetPlace(k.key) }, iconSize = 18.dp) }
+                        GcIconButton(GcIcons.Edit, stringResource(R.string.notizen_pl_rename_cd, s.name), { onRename(s) }, iconSize = 18.dp)
+                        GcIconButton(GcIcons.Trash, stringResource(R.string.notizen_pl_delete_cd, s.name), { onDelete(s) }, iconSize = 18.dp)
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+            }
+            if (canWrite) DetailRow(GcIcons.Plus, stringResource(R.string.notizen_pl_new), "", onNew) { Icon(GcIcons.ChevronRight, null, tint = x.muted) }
         }
     }
 }

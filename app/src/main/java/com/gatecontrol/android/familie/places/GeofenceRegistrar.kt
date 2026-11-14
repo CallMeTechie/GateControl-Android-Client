@@ -23,6 +23,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -66,6 +70,19 @@ class GeofenceRegistrar @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
+
+    private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** The fences of the Familie plugin were registered again — whoever shares Android's 100 with them ([GeofenceBudget]) looks again. */
+    val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+
+    /**
+     * Called right before the Familie plugin's fences are registered, with their number: whoever shares Android's 100
+     * with them takes away what no longer fits ([GeofenceBudget.keep]) — the family's come first.
+     */
+    @Volatile var makeRoom: (suspend (family: Int) -> Unit)? = null
+
+    /** How many of Android's 100 geofences the Familie plugin takes on this phone (reminders and rule places, as kept). */
+    fun plannedCount(): Int = combinedIds(stored(), storedRules()).size
 
     fun playServicesAvailable(): Boolean = runCatching {
         GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
@@ -152,8 +169,16 @@ class GeofenceRegistrar @Inject constructor(
         if (changed) register(fences, rules)
     }
 
+    private suspend fun register(fences: List<StoredFence>, rules: List<RuleFence>) {
+        try {
+            registerLocked(fences, rules)
+        } finally {
+            _changes.tryEmit(Unit)
+        }
+    }
+
     @SuppressLint("MissingPermission") // checked by readiness()
-    private suspend fun register(fences: List<StoredFence>, rules: List<RuleFence>) = mutex.withLock {
+    private suspend fun registerLocked(fences: List<StoredFence>, rules: List<RuleFence>) = mutex.withLock {
         if (!playServicesAvailable()) return@withLock
         val client = LocationServices.getGeofencingClient(context)
         await(client.removeGeofences(pendingIntent(context)))
@@ -163,6 +188,7 @@ class GeofenceRegistrar @Inject constructor(
             Timber.i("Familie: %d geofences wait for the location permission", geofences.size)
             return@withLock
         }
+        runCatching { makeRoom?.invoke(geofences.size) }
         val request = GeofencingRequest.Builder()
             // No trigger for being inside already: re-registering (boot, app start) must not remind or report again.
             .setInitialTrigger(0)
@@ -185,8 +211,8 @@ class GeofenceRegistrar @Inject constructor(
     companion object {
         private const val FILE = "geofences.json"
         private const val TASK_TIMEOUT_MS = 15_000L
-        /** Android allows 100 geofences per app; the server caps 50 active places per user. */
-        const val MAX_FENCES = 90
+        /** Android allows 100 geofences per app; the server caps 50 active places per user ([GeofenceBudget]). */
+        const val MAX_FENCES = GeofenceBudget.FAMILY_MAX
         private const val REQUEST_PREFIX = "familie-place-"
         private const val RULE_PREFIX = "familie-rule-"
 

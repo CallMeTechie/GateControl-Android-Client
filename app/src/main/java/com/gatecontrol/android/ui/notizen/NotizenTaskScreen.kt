@@ -437,7 +437,21 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                                 },
                             )
                         }
+                        // plugin 1.5.0 (`places`): the place the task hangs on — not for sub tasks, not with an older plugin
+                        val place = d.task.place
+                        if (me?.taskPlaces == true && d.task.parentId == null && (place != null || !ro)) {
+                            DetailRow(
+                                GcIcons.Pin,
+                                stringResource(R.string.notizen_pl_field),
+                                place?.let { placeLine(it) } ?: stringResource(R.string.notizen_pl_choose),
+                                if (ro) null else vm::choosePlace,
+                            )
+                        }
                     }
+                }
+                val place = d.task.place
+                if (me?.taskPlaces == true && place != null) {
+                    item { PlaceNotes(place, me, ro, vm.placeReadiness(), vm::placeConsent, vm::placePermissionChanged) }
                 }
                 item {
                     NCard(Modifier.padding(top = 12.dp)) {
@@ -454,6 +468,7 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                     }
                 }
             }
+            PlaceChoiceHost(vm.placeChooser, onPicked = { vm.setPlace(it.arg) }, onRemove = { vm.setPlace(null) })
             when (dialog) {
                 "due" -> NDatePicker(d.task.due?.date, today, { day -> dialog = null; vm.setDue(NDue(day, d.task.due?.time)) }, { dialog = null }, onClear = { dialog = null; vm.setDue(null) })
                 "remind" -> {
@@ -750,6 +765,54 @@ private fun ListHead(list: com.gatecontrol.android.notizen.NList, me: com.gateco
         Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.weight(1f))
         if (list.shared && !list.isOwner && !me.readOnly) {
             TextButton(onClick = onLeave) { Text(stringResource(R.string.notizen_leave), color = MaterialTheme.colorScheme.error) }
+        }
+    }
+}
+
+/**
+ * What there is to say about the place of a task, under its details (plugin 1.5.0): someone else set it and my phone
+ * waits for my consent („Annehmen“ / „Ablehnen“); the task also speaks up at other places of the kind; „Jeder …“ needs
+ * the place search; and — hints, never a ban — this phone cannot remind yet (the location, also in the background).
+ */
+@Composable
+internal fun PlaceNotes(
+    place: com.gatecontrol.android.notizen.NPlace,
+    me: com.gatecontrol.android.notizen.NMe,
+    readOnly: Boolean,
+    readiness: com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness,
+    onConsent: (Boolean) -> Unit,
+    onPermission: () -> Unit,
+) {
+    val x = GateControlTheme.extraColors
+    val ready = com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness.READY
+    val unavailable = com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness.UNAVAILABLE
+    var state by remember { mutableStateOf(readiness) }
+    val ask = com.gatecontrol.android.ui.familie.rememberLocationPermissionFlow(
+        background = true,
+        foregroundText = R.string.notizen_pl_perm_text,
+        backgroundText = R.string.notizen_pl_perm_bg_text,
+    ) { granted -> if (granted) { state = ready; onPermission() } }
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val small = MaterialTheme.typography.bodySmall
+        when (place.consent) {
+            com.gatecontrol.android.notizen.NPlace.PENDING -> if (place.by != me.userId && !me.readOnly) {
+                Text(stringResource(R.string.notizen_pl_consent_me), style = small, color = x.muted)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onConsent(true) }) { Text(stringResource(R.string.notizen_pl_accept)) }
+                    TextButton(onClick = { onConsent(false) }) { Text(stringResource(R.string.notizen_pl_decline)) }
+                }
+            } else {
+                Text(stringResource(R.string.notizen_pl_consent_wait), style = small, color = x.muted)
+            }
+            com.gatecontrol.android.notizen.NPlace.DECLINED -> Text(stringResource(R.string.notizen_pl_consent_no), style = small, color = x.muted)
+            else -> Unit
+        }
+        if (place.nearby && place.label != null) Text(stringResource(R.string.notizen_pl_nearby_hint, place.label), style = small, color = x.muted)
+        if (place.any && !me.placeSearch) Text(stringResource(R.string.notizen_pl_needs_search, place.name), style = small, color = x.muted)
+        // only where this phone is the one to watch the place
+        if (place.watch && state != ready) {
+            Text(stringResource(if (state == unavailable) R.string.notizen_pl_perm_none else R.string.notizen_pl_perm_hint), style = small, color = x.muted)
+            if (state != unavailable && !readOnly) TextButton(onClick = ask) { Text(stringResource(R.string.familie_perm_grant)) }
         }
     }
 }

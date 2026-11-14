@@ -80,6 +80,7 @@ private fun markColor(kind: String): Color {
         "important" -> Color(0xFFFDE7C8)
         "list" -> Color(0xFFDCEFE5)
         "person" -> Color(0xFFFCE7F3)
+        "place" -> Color(0xFFCCFBF1)
         else -> Color(0xFFE5E7EB)
     }
     return if (dark) c.copy(alpha = 0.28f) else c
@@ -116,7 +117,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
     val calendarText = calendarHint?.let { stringResource(R.string.notizen_quick_calendar_hint, it) }
     LaunchedEffect(calendarHint) { if (calendarText != null) { snack.showSnackbar(calendarText); calendarHint = null } }
     val x = GateControlTheme.extraColors
-    val kinds = listOf("date", "time", "repeat", "important", "list", "person")
+    val kinds = listOf("date", "time", "repeat", "important", "list", "person", "place")
     val colors = kinds.associateWith { markColor(it) }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize().keyboardPadding()) {
@@ -129,7 +130,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                     vm::setText,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, fontSize = 17.sp),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    visualTransformation = if (ui.note) VisualTransformation.None else MarksTransformation(ui.parsed?.marks.orEmpty().filter { it.kind !in ui.off }, colors),
+                    visualTransformation = if (ui.note) VisualTransformation.None else MarksTransformation(ui.parsed?.marks.orEmpty().filter { it.kind !in ui.off } + placeMarks(ui), colors),
                     keyboardOptions = KeyboardOptions(imeAction = if (ui.note) ImeAction.Default else ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { vm.save() }),
                     minLines = if (ui.note) 6 else 2,
@@ -175,6 +176,21 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                             } else if (QuickAttach.asks(ui.attach, ui.attachPick, ui.attachOff)) {
                                 Chip(stringResource(R.string.notizen_quick_attach_choose), x.panel2, GcIcons.Cart) { dialog = "attach" }
                             }
+                            // plugin 1.5.0 (mockup „Orte aus dem getippten Text“): the place the line names — decided
+                            // („Bäckerei am Markt · ändern“ and when), or to choose („Ort: Baumarkt …“; the tap searches)
+                            val sp = ui.place
+                            if (ui.me?.taskPlaces == true && sp != null && !ui.placeOff) {
+                                val place = e.place
+                                if (place != null) {
+                                    Chip(stringResource(R.string.notizen_pl_chip_change, place.name), colors.getValue("place"), GcIcons.Pin) { vm.openPlace() }
+                                    Chip(
+                                        stringResource(if (place.trigger == com.gatecontrol.android.notizen.NPlace.EXIT) R.string.notizen_pl_exit else R.string.notizen_pl_enter),
+                                        colors.getValue("place"), GcIcons.Refresh,
+                                    ) { vm.togglePlaceTrigger() }
+                                } else {
+                                    Chip(stringResource(R.string.notizen_pl_chip, sp.label), x.panel2, GcIcons.Pin) { vm.openPlace() }
+                                }
+                            }
                             if (e.assigneeId != null) {
                                 Chip(ui.people.firstOrNull { it.id == e.assigneeId }?.name ?: p.assignee?.name.orEmpty(), colors.getValue("person"), GcIcons.User) { vm.drop("person") }
                             } else if (p.assigneeName != null && "person" !in ui.off) {
@@ -186,6 +202,10 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                     val fits = ui.attach?.takeIf { it.via == "word" && it.word != null && !ui.attachOff && ui.attachPick == null }?.let { a -> a.list?.let { a.word to it.name } }
                     if (fits != null && ui.text.isNotBlank()) {
                         Text(stringResource(R.string.notizen_quick_attach_hint, fits.first.orEmpty(), fits.second), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    }
+                    val usual = QuickPlace.usual(ui.place, ui.placePick, ui.placeOff).takeIf { ui.me?.taskPlaces == true && ui.text.isNotBlank() }
+                    if (usual != null) {
+                        Text(stringResource(R.string.notizen_pl_usual, usual.first, usual.second), style = MaterialTheme.typography.bodySmall, color = x.muted)
                     }
                     Text(stringResource(R.string.notizen_quick_help), style = MaterialTheme.typography.bodySmall, color = x.muted)
                 } else {
@@ -205,6 +225,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 88.dp)) { Snackbar(it) }
     }
+    PlaceChoiceHost(vm.placeChooser, onPicked = vm::pickPlace, onRemove = vm::dropPlace)
     when (dialog) {
         "date" -> {
             var day by rememberSaveable { mutableStateOf<String?>(null) }
@@ -267,4 +288,11 @@ private fun Chip(label: String, bg: Color, icon: androidx.compose.ui.graphics.ve
         Icon(icon, null, modifier = Modifier.size(16.dp))
         Text(label, style = MaterialTheme.typography.labelLarge)
     }
+}
+
+/** The words of the place in the line („beim Baumarkt“), coloured like its chip — while the chip is there. */
+private fun placeMarks(ui: NotizenQuickViewModel.Ui): List<QuickParse.Mark> {
+    val sp = ui.place?.takeIf { ui.me?.taskPlaces == true && !ui.placeOff } ?: return emptyList()
+    val r = com.gatecontrol.android.notizen.PlaceLogic.wordRange(ui.text, sp.word) ?: return emptyList()
+    return listOf(QuickParse.Mark(r.first, r.last + 1, "place"))
 }

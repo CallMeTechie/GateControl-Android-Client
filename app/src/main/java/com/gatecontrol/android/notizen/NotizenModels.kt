@@ -60,7 +60,12 @@ data class NPrefs(
     val yesterdayAt: String = "07:30",
     /** Plugin 1.3.0 (`taskCalendar`, `prefs.calendar.tasks`): my tasks with a time go into my calendar in Mail. */
     val calendarTasks: Boolean = true,
+    /** Plugin 1.5.0 (`places`, `prefs.places`): the place search for me, the hint „in der Nähe“ and its quiet hours. */
+    val places: NPlacePrefs = NPlacePrefs(),
 )
+
+/** `prefs.places` (plugin 1.5.0). [quiet] null: no quiet hours. */
+data class NPlacePrefs(val search: Boolean = true, val nearby: Boolean = true, val quiet: NQuiet? = NQuiet("21:00", "07:00"))
 
 /** `prefs.myday` (plugin 1.2.0): the list-day cards on top, the tasks done today at the end. */
 data class NMyDayPrefs(val listdays: Boolean = true, val showDone: Boolean = true)
@@ -97,8 +102,16 @@ data class NMe(
     val calendar: NCalendarInfo? = null,
     /** Plugin 1.4.0 (`shoppingLists`, `me.shopping.family`); null with an older plugin. */
     val shoppingFamily: NShoppingFamily? = null,
+    /** Plugin 1.5.0 (`places`, `me.places`); null with an older plugin. */
+    val places: NPlacesInfo? = null,
 ) {
     fun has(feature: String) = feature in features
+
+    /** A task may hang on a place: `Task.place`, „Meine Orte“, the geofences of the phone (never a version — this word). */
+    val taskPlaces: Boolean get() = has(NFeature.PLACES)
+
+    /** `POST places/search` may be asked now: the route is there, the administrator and I have it on, the service is set up. */
+    val placeSearch: Boolean get() = taskPlaces && has(NFeature.PLACE_SEARCH) && places?.searchOn == true
 
     /** Shopping lists in the hub: `GET shopping`, `POST shopping/ops`, `nav.shopping`. */
     val shoppingLists: Boolean get() = has(NFeature.SHOPPING_LISTS)
@@ -215,6 +228,8 @@ data class NTask(
     val calendar: NTaskCalendar? = null,
     /** Plugin 1.4.0 (`taskList`): the shopping list this task carries (null: none, deleted, or not shared with me). */
     val attachedList: NAttached? = null,
+    /** Plugin 1.5.0 (`places`): the place this task hangs on (null: none, or an older plugin). */
+    val place: NPlace? = null,
 ) : NEntry {
     override val uid: String get() = "t:$id"
 }
@@ -540,4 +555,10 @@ object NFeature {
     const val TASK_LIST = "taskList"
     /** Family lists: `POST shopping/lists/<id>/going`, `…/assign`. */
     const val FAMILY_SHOPPING = "familyShopping"
+
+    // plugin 1.5.0
+    /** `Task.place`, `place` when writing and in `POST parse`, `GET places`, `POST places/watch` / `fired`, `me.places`. */
+    const val PLACES = "places"
+    /** The route `POST places/search` is there; whether it is on says `me.places.search.state`. */
+    const val PLACE_SEARCH = "placeSearch"
 }

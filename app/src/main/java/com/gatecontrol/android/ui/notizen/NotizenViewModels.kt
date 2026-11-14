@@ -60,7 +60,38 @@ class NotizenHomeViewModel @Inject constructor(
     val vault: NotizenVaultSession,
     private val saved: SavedStateHandle,
     private val hub: com.gatecontrol.android.notizen.NotizenShopping,
+    private val geofences: com.gatecontrol.android.notizen.NotizenGeofences,
 ) : ViewModel() {
+
+    private val _near = MutableStateFlow<List<com.gatecontrol.android.notizen.NNearNow>>(emptyList())
+    /**
+     * Plugin 1.5.0 („Gerade in der Nähe“): the tasks whose place the phone is at right now — worked out on the phone
+     * from its geofences; the server gets nothing of it. Empty with an older plugin.
+     */
+    val near: StateFlow<List<com.gatecontrol.android.notizen.NNearNow>> = _near.asStateFlow()
+
+    private var nearJob: Job? = null
+
+    private fun refreshNear() {
+        nearJob?.cancel()
+        nearJob = viewModelScope.launch {
+            _near.value = if (_ui.value.me?.taskPlaces == true) runCatching { geofences.nearNow() }.getOrDefault(emptyList()) else emptyList()
+        }
+    }
+
+    /** „Nicht hier“ of the card: this one place is not offered for the task any more (at once; sent now or later). */
+    fun notHere(n: com.gatecontrol.android.notizen.NNearNow) {
+        _near.update { l -> l.filterNot { it.task.taskId == n.task.taskId && it.fence.id == n.fence.id } }
+        viewModelScope.launch {
+            val r = geofences.notHere(n.task.taskId, n.fence.id)
+            _message.value = when (r) {
+                NotizenRepository.Acted.QUEUED -> "queued"
+                NotizenRepository.Acted.READ_ONLY -> "read_only"
+                NotizenRepository.Acted.FAILED -> "failed"
+                else -> "place_not_here"
+            }
+        }
+    }
 
     /** Plugin 1.4.0: the shopping lists as the phone has them (with what waits) — the side menu's „Einkaufslisten“. */
     val shopping: StateFlow<com.gatecontrol.android.familie.shopping.ShoppingSnapshot> = hub.data
@@ -132,6 +163,8 @@ class NotizenHomeViewModel @Inject constructor(
             }
         }
         viewModelScope.launch { repo.pending.collect { p -> _ui.update { it.copy(pending = p.count { !it.conflict }) } } }
+        // the phone entered or left a place of a task while the page is open
+        viewModelScope.launch { geofences.snapshot.collect { refreshNear() } }
         load()
     }
 
@@ -202,6 +235,7 @@ class NotizenHomeViewModel @Inject constructor(
                 )
             }
             if (nav is NResult.Failed) _message.value = nav.code()
+            refreshNear()
             if (yPending != null && !openYesterday(me.value, day.valueOrNull()?.value)) return@launch
             // the notebook of a push is not there (any more): the notes of all notebooks, and a hint
             val shownNav = nav.valueOrNull()?.value
@@ -424,9 +458,52 @@ class NotizenViewViewModel @Inject constructor(
 class NotizenTaskViewModel @Inject constructor(
     private val repo: NotizenRepository,
     private val hub: com.gatecontrol.android.notizen.NotizenShopping,
+    private val geofences: com.gatecontrol.android.notizen.NotizenGeofences,
     saved: SavedStateHandle,
 ) : ViewModel() {
     val id: Long = saved.get<String>("id")?.toLongOrNull() ?: 0L
+
+    /** Plugin 1.5.0 (`places`): the choice „Welcher Baumarkt?“ for this task's place. */
+    val placeChooser = PlaceChooser(repo, viewModelScope) { geofences.position() }
+
+    /** Can this phone remind at a place (Play services, the location also in the background). */
+    fun placeReadiness() = geofences.readiness()
+
+    /** The location was just allowed: the places of my tasks become geofences now. */
+    fun placePermissionChanged() = geofences.syncSoon()
+
+    fun choosePlace() {
+        val u = _ui.value
+        placeChooser.open(u.detail?.task?.place, null, u.me)
+    }
+
+    /** What the choice gave ([place] as `PATCH tasks` takes it; null: „Ohne Ort“). A place needs the server: never queued. */
+    fun setPlace(place: JsonObject?) {
+        viewModelScope.launch {
+            _ui.update { it.copy(busy = true) }
+            val r = repo.setTaskPlace(id, place)
+            _ui.update { it.copy(busy = false, detail = (r as? NResult.Ok)?.value ?: it.detail) }
+            _message.value = when {
+                r is NResult.Ok -> null
+                r is NResult.Offline -> "place_offline"
+                else -> r.code()
+            }
+        }
+    }
+
+    /** „Annehmen“ / „Ablehnen“: someone else set the place — my phone watches it only once I agree. */
+    fun placeConsent(accept: Boolean) {
+        viewModelScope.launch {
+            val r = repo.placeConsent(id, accept)
+            _message.value = when {
+                r is NResult.Ok -> null
+                r is NResult.Offline -> "place_offline"
+                r is NResult.Failed && r.http == 403 -> "place_consent_other"
+                else -> r.code()
+            }
+            load()
+        }
+    }
 
     data class Ui(
         val detail: NTaskDetail? = null,
@@ -704,8 +781,29 @@ class NotizenItemViewModel @Inject constructor(
 @HiltViewModel
 class NotizenQuickViewModel @Inject constructor(
     private val repo: NotizenRepository,
+    private val geofences: com.gatecontrol.android.notizen.NotizenGeofences,
     saved: SavedStateHandle,
 ) : ViewModel() {
+
+    /** Plugin 1.5.0 (`places`): the choice „Welcher Baumarkt?“ for the place the line names. */
+    val placeChooser = PlaceChooser(repo, viewModelScope) { geofences.position() }
+
+    /** The chip of the place was tapped: the choice — and, for a kind without a remembered place, the search (the tap confirms it). */
+    fun openPlace() {
+        val u = _ui.value
+        placeChooser.open(null, u.place, u.me, search = true, picked = u.placePick?.spot, trigger = QuickPlace.effective(u.place, u.placePick, u.placeOff, u.placeTrigger)?.trigger, removable = true)
+    }
+
+    fun pickPlace(p: PlacePicked) = _ui.update { it.copy(placePick = p, placeOff = false, placeTrigger = null) }
+
+    /** „Ohne Ort“: the task is made without a place, its title stays whole. */
+    fun dropPlace() = _ui.update { it.copy(placeOff = true, placePick = null) }
+
+    /** „Beim Ankommen“ ⇄ „Beim Verlassen“ on the chip. */
+    fun togglePlaceTrigger() = _ui.update { u ->
+        val now = QuickPlace.effective(u.place, u.placePick, u.placeOff, u.placeTrigger)?.trigger ?: return@update u
+        u.copy(placeTrigger = if (now == com.gatecontrol.android.notizen.NPlace.EXIT) com.gatecontrol.android.notizen.NPlace.ENTER else com.gatecontrol.android.notizen.NPlace.EXIT)
+    }
 
     data class Ui(
         val text: String = "",
@@ -728,6 +826,16 @@ class NotizenQuickViewModel @Inject constructor(
         val attachPick: com.gatecontrol.android.notizen.NAttached? = null,
         /** The person took the shopping list away. */
         val attachOff: Boolean = false,
+        /** Plugin 1.5.0 (`places`): the place the server reads in the line (null: none, an older plugin, or offline). */
+        val place: com.gatecontrol.android.notizen.NPlaceSuggest? = null,
+        /** The title the server read for the line (its `parsed.title`) — [place]'s title belongs to it. */
+        val serverTitle: String? = null,
+        /** The person chose this place in the choice. */
+        val placePick: PlacePicked? = null,
+        /** The person took the place away. */
+        val placeOff: Boolean = false,
+        /** The person turned the chip „Beim Ankommen“ over. */
+        val placeTrigger: String? = null,
     )
 
     private var attachJob: Job? = null
@@ -744,14 +852,17 @@ class NotizenQuickViewModel @Inject constructor(
     private fun suggest() {
         attachJob?.cancel()
         val u = _ui.value
-        if (u.note || u.me?.taskList != true || u.text.isBlank()) {
-            _ui.update { it.copy(attach = null) }
+        val lists = u.me?.taskList == true
+        val places = u.me?.taskPlaces == true
+        if (u.note || !(lists || places) || u.text.isBlank()) {
+            _ui.update { it.copy(attach = null, place = null, serverTitle = null) }
             return
         }
         attachJob = viewModelScope.launch {
             delay(SUGGEST_MS)
-            val r = repo.api.parseAttach(u.text, u.area)
-            _ui.update { it.copy(attach = (r as? NResult.Ok)?.value?.attach) }
+            // one question for both: the list (1.4.0) and the place (1.5.0) — an older plugin leaves the field out
+            val v = (repo.api.parse(u.text, u.area) as? NResult.Ok)?.value
+            _ui.update { it.copy(attach = v?.attach?.takeIf { lists }, place = v?.place?.takeIf { places }, serverTitle = v?.title) }
         }
     }
 
@@ -835,6 +946,7 @@ class NotizenQuickViewModel @Inject constructor(
             assigneeId = p.assignee?.id?.takeIf { "person" !in off },
             repeat = p.repeat?.takeIf { "repeat" !in off },
             attached = QuickAttach.effective(u.attach, u.attachPick, u.attachOff),
+            place = QuickPlace.effective(u.place, u.placePick, u.placeOff, u.placeTrigger),
         )
     }
 
@@ -849,6 +961,8 @@ class NotizenQuickViewModel @Inject constructor(
         val repeat: NRepeat.Rule?,
         /** Plugin 1.4.0: the shopping list the task will carry (the chip the person kept or chose). */
         val attached: com.gatecontrol.android.notizen.NAttached? = null,
+        /** Plugin 1.5.0: the place the task will hang on (decided by the line, or chosen). */
+        val place: PlacePicked? = null,
     )
 
     fun save() {
@@ -866,7 +980,11 @@ class NotizenQuickViewModel @Inject constructor(
             val e = effective() ?: run { _ui.update { it.copy(busy = false) }; return@launch }
             var listId = e.listId
             if (listId == null && e.newList != null) listId = repo.createList(e.newList.replaceFirstChar { it.uppercase() }, u.area).valueOrNull()?.id
-            val body = NotizenJson.taskBody(e.title.ifBlank { u.text.trim() }, area = u.area, listId = listId).apply {
+            // an older plugin would pass `place` over silently: only with `places`; the place's words leave the title
+            val place = e.place?.takeIf { u.me?.taskPlaces == true }
+            val title = e.title.ifBlank { u.text.trim() }.let { t -> if (place != null) com.gatecontrol.android.notizen.PlaceLogic.titleWithout(t, u.place, u.serverTitle) else t }
+            val body = NotizenJson.taskBody(title, area = u.area, listId = listId).apply {
+                place?.let { add("place", it.arg) }
                 e.due?.let { add("due", NotizenJson.dueBody(it)) }
                 e.remind?.let { add("remindAt", NotizenJson.dueBody(it)) }
                 if (e.important) addProperty("important", true)
@@ -881,6 +999,37 @@ class NotizenQuickViewModel @Inject constructor(
             _message.value = r.code() ?: if (r.valueOrNull()?.offline == true) "queued" else "task_saved"
         }
     }
+}
+
+/** The place of the quick entry (plugin 1.5.0, pure, unit-tested). */
+object QuickPlace {
+    /**
+     * The place the new task hangs on: the one the person chose ([pick]); else the one the line decides — an own place,
+     * a place of the family, the remembered one of the kind — but only where a place is surely meant
+     * ([com.gatecontrol.android.notizen.NPlaceSuggest.certain]). Nothing once the chip was taken away ([off]). [trigger]:
+     * the chip „Beim Ankommen“ turned over.
+     */
+    fun effective(suggest: com.gatecontrol.android.notizen.NPlaceSuggest?, pick: PlacePicked?, off: Boolean, trigger: String?): PlacePicked? {
+        // a choice belongs to the place the line names: once the line names none, nothing hangs on the task unseen
+        if (off || suggest == null) return null
+        if (pick != null) {
+            if (trigger == null || trigger == pick.trigger) return pick
+            return pick.copy(arg = pick.arg.deepCopy().apply { addProperty("trigger", trigger) }, trigger = trigger)
+        }
+        val s = suggest.takeIf { it.certain } ?: return null
+        val spot = s.place ?: return null
+        val t = trigger ?: s.trigger
+        val arg = com.gatecontrol.android.notizen.NotizenPlacesJson.placeArg(spot, false, s.key, s.label.takeIf { s.key != null }, t) ?: return null
+        return PlacePicked(arg, spot.name, t, spot)
+    }
+
+    /** The line names a place that is not decided: the chip „Ort: Baumarkt …“ asks. */
+    fun asks(suggest: com.gatecontrol.android.notizen.NPlaceSuggest?, pick: PlacePicked?, off: Boolean): Boolean =
+        !off && pick == null && suggest != null && effective(suggest, null, false, null) == null
+
+    /** „Dein üblicher Ort für ‚Bäcker‘, zuletzt sechsmal gewählt“: the remembered place of a kind was put in by itself. */
+    fun usual(suggest: com.gatecontrol.android.notizen.NPlaceSuggest?, pick: PlacePicked?, off: Boolean): Pair<String, Int>? =
+        suggest?.takeIf { !off && pick == null && it.certain && it.place != null && it.key != null && it.uses > 0 }?.let { it.label to it.uses }
 }
 
 /** The suggestion „Liste anhängen“ of the quick entry (plugin 1.4.0, pure, unit-tested). */

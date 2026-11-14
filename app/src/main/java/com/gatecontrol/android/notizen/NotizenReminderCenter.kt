@@ -260,7 +260,31 @@ class NotizenReminderCenter @Inject constructor(
     }
 
     /** The same notification the push of this reminder uses (its id of the collapse key), on the same channel. */
-    private fun notificationId(key: String): Int = PushChannels.notificationId(0, key)
+    internal fun notificationId(key: String): Int = PushChannels.notificationId(0, key)
+
+    /** The channel „Erinnerungen an Aufgaben“ — made as the push would make it while the push stream never said this topic yet. */
+    internal fun channel(ctx: Context): String {
+        val channel = PushChannels.topicChannelId(NotizenPush.TOPIC_REMINDERS)
+        if (nm.getNotificationChannel(channel) == null) {
+            nm.createNotificationChannelGroup(NotificationChannelGroup(CHANNEL_GROUP, ctx.getString(R.string.push_channel_group)))
+            nm.createNotificationChannel(
+                NotificationChannel(channel, ctx.getString(R.string.notizen_reminder_channel), NotificationManager.IMPORTANCE_DEFAULT).apply { group = CHANNEL_GROUP },
+            )
+        }
+        return channel
+    }
+
+    /**
+     * A reminder the phone makes itself (an alarm, a place): null — „Mitteilungen“ or this topic are off on this phone
+     * (nothing is shown); else whether it comes without sound („1 h stumm“, the person's quiet hours).
+     */
+    internal suspend fun shade(now: Long): Boolean? {
+        val settings = pushPrefs.current()
+        if (!settings.enabled || NotizenPush.TOPIC_REMINDERS in settings.mutedTopics) return null
+        val hours = runCatching { pushPrefs.quiet.first().hours }.getOrNull()
+        return settings.isLocallyMuted(NotizenPush.TOPIC_REMINDERS, now) ||
+            (hours != null && ReminderGuard.inQuietHours(hours.from, hours.to, hours.tz ?: repo.cachedMe()?.timezone, now))
+    }
 
     private suspend fun show(r: NReminderEntry, quiet: Boolean): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -269,14 +293,7 @@ class NotizenReminderCenter @Inject constructor(
             return false
         }
         val ctx = familieLocalized(context, settingsRepository)
-        val channel = PushChannels.topicChannelId(NotizenPush.TOPIC_REMINDERS)
-        if (nm.getNotificationChannel(channel) == null) {
-            // the push stream never said this topic yet: its channel as the push would make it
-            nm.createNotificationChannelGroup(NotificationChannelGroup(CHANNEL_GROUP, ctx.getString(R.string.push_channel_group)))
-            nm.createNotificationChannel(
-                NotificationChannel(channel, ctx.getString(R.string.notizen_reminder_channel), NotificationManager.IMPORTANCE_DEFAULT).apply { group = CHANNEL_GROUP },
-            )
-        }
+        val channel = channel(ctx)
         val id = notificationId(r.collapseKey)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val dest = NotizenPush.encode(NotizenPush.Task(r.taskId, r.area))
@@ -462,10 +479,13 @@ class NotizenReminderReceiver : BroadcastReceiver() {
 class NotizenReminderSystemReceiver : BroadcastReceiver() {
 
     @Inject lateinit var center: NotizenReminderCenter
+    @Inject lateinit var places: NotizenGeofences
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in ACTIONS) return
         val pending = goAsync()
+        // Android dropped the geofences as well (boot, an update of the app): the kept places again
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) places.onSystemChange()
         scope.launch {
             try {
                 withTimeoutOrNull(TIMEOUT_MS) { center.onSystemChange() }

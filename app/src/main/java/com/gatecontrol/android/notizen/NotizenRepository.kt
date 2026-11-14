@@ -282,6 +282,38 @@ class NotizenRepository @Inject constructor(
         return action(NotizenOutbox.MOVE, id, body) { sid -> api.moveTask(sid, body) }
     }
 
+    /**
+     * The place of task [id] (plugin 1.5.0): [place] as [NotizenPlacesJson.placeArg] builds it, null takes it away. A
+     * place needs the server (it keeps the places and tells the phones which to watch), so this never waits in the
+     * outbox: without a connection [NResult.Offline]; while something of the task still waits, that goes first.
+     */
+    suspend fun setTaskPlace(id: Long, place: JsonObject?): NResult<NTaskDetail> {
+        ensureLoaded()
+        if (hasWaiting()) flush()
+        val sid = serverId(id)
+        if (sid == null || hasWaiting()) return NResult.Failed(CODE_PLACE_WAITING, 0)
+        val body = JsonObject().apply { add("place", place ?: com.google.gson.JsonNull.INSTANCE) }
+        return api.patchTask(sid, body).also { if (it is NResult.Ok) _changed.tryEmit(setOf("tasks", "places")) }
+    }
+
+    /** `POST tasks/<id>/place/consent` — the person whose phone is to watch the place agrees or declines. */
+    suspend fun placeConsent(id: Long, accept: Boolean): NResult<String> {
+        val sid = serverId(id) ?: return NResult.Offline
+        return api.placeConsent(sid, accept).also { if (it is NResult.Ok) _changed.tryEmit(setOf("tasks", "places")) }
+    }
+
+    /** „Später“ at a place (plugin 1.5.0): three hours of quiet for this task; waits in the outbox without a connection. */
+    suspend fun placeLater(id: Long): Acted {
+        val body = JsonObject()
+        return action(NotizenOutbox.PLACE_LATER, id, body) { sid -> api.placeAction(sid, NotizenOutbox.PLACE_LATER, body) }
+    }
+
+    /** „Nicht hier“ (plugin 1.5.0): [fence] is not offered for this task any more; waits in the outbox without a connection. */
+    suspend fun placeSkip(id: Long, fence: String): Acted {
+        val body = NotizenPlacesJson.skipBody(fence)
+        return action(NotizenOutbox.PLACE_SKIP, id, body) { sid -> api.placeAction(sid, NotizenOutbox.PLACE_SKIP, body) }
+    }
+
     private suspend fun action(what: String, id: Long, body: JsonObject, direct: suspend (Long) -> NResult<*>): Acted {
         ensureLoaded()
         val sid = serverId(id)
@@ -524,7 +556,11 @@ class NotizenRepository @Inject constructor(
             NotizenOutbox.NOTEBOOK -> api.createNotebookBody(body).map { it.id }
             else -> api.createNote(body).map { revs[it.summary.id] = it.summary.rev; it.summary.id }
         }
-        NotizenOutbox.ACTION -> (if (op.what == NotizenOutbox.MOVE) api.moveTask(id, body) else api.snoozeTaskBody(id, body)).map { 0L }
+        NotizenOutbox.ACTION -> when (op.what) {
+            NotizenOutbox.MOVE -> api.moveTask(id, body).map { 0L }
+            NotizenOutbox.PLACE_LATER, NotizenOutbox.PLACE_SKIP -> api.placeAction(id, op.what, body).map { 0L }
+            else -> api.snoozeTaskBody(id, body).map { 0L }
+        }
         NotizenOutbox.PATCH -> if (op.what == NotizenOutbox.NOTE) api.patchNote(id, body).map { revs[id] = it.summary.rev; 0L } else api.patchTask(id, body).map { 0L }
         else -> (if (op.what == NotizenOutbox.NOTE) api.deleteNote(id) else api.deleteTask(id)).goneOk().map { 0L }
     }
@@ -621,6 +657,8 @@ class NotizenRepository @Inject constructor(
     companion object {
         /** `GET me` → features: creates, changes and deletes may be sent again (plugin 1.1.0). */
         const val FEATURE_OFFLINE = "offlineEdits"
+        /** [setTaskPlace]: something of the task still waits for a connection. */
+        const val CODE_PLACE_WAITING = "place_waiting"
     }
 }
 

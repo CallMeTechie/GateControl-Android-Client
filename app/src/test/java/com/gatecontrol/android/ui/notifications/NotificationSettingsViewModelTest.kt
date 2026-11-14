@@ -23,7 +23,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -89,7 +88,8 @@ class NotificationSettingsViewModelTest {
     fun tearDown() {
         // Nothing may resume on Dispatchers.Main after resetMain (it would fail a later test).
         runBlocking { viewModels.forEach { it.viewModelScope.coroutineContext[Job]!!.cancelAndJoin() } }
-        storeScope.cancel()
+        // … and the store must have finished writing before JUnit deletes its directory (else: "Failed to delete temp directory").
+        runBlocking { storeScope.coroutineContext[Job]!!.cancelAndJoin() }
         Dispatchers.resetMain()
         mainThread.close()
     }

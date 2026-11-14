@@ -94,7 +94,8 @@ internal fun YesterdayCard(card: NYesterday, ctx: RowCtx, canWrite: Boolean, act
             Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
             Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { actions.open(t) }.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(t.title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                val meta = listOfNotNull(NotizenFormat.due(t.due, ctx.today, ctx.lang, ctx.words), ctx.listPath(t.listId)).joinToString(" · ")
+                // a task with a place names the place instead of the list, as the morning hint does (plugin 1.5.0)
+                val meta = listOfNotNull(NotizenFormat.due(t.due, ctx.today, ctx.lang, ctx.words), t.place?.name ?: ctx.listPath(t.listId)).joinToString(" · ")
                 if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodySmall, color = x.muted)
                 if (canWrite && (t.canComplete || t.canEdit)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

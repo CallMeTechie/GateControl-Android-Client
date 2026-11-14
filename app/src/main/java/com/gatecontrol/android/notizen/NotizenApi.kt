@@ -232,6 +232,50 @@ class NotizenApi @Inject constructor(
     suspend fun parseAttach(text: String, area: String): NResult<NParseAttach> =
         post("parse", NotizenJson.parseBody(text, area)) { o -> NParseAttach(NotizenJson.attach(o.get("attach")?.takeIf { it.isJsonObject }?.asJsonObject)) }
 
+    // ── places (plugin 1.5.0, `places`; an older plugin answers 404 — the app does not call these without the word) ──
+
+    /** `POST parse { text, area }` → the list (`taskList`) and the place (`places`) the server suggests for the line. */
+    suspend fun parse(text: String, area: String): NResult<NParsed> = post("parse", NotizenJson.parseBody(text, area)) { NotizenPlacesJson.parsed(it) }
+
+    /** `GET places`: „Meine Orte“, the places of the family, the remembered place per kind. */
+    suspend fun places(): NResult<NPlaces> = get("places") { NotizenPlacesJson.places(it) }
+
+    suspend fun createPlace(body: JsonObject): NResult<NSpot> = post("places", body, parse = NotizenPlacesJson::placeAnswer)
+
+    suspend fun patchPlace(id: Long, body: JsonObject): NResult<NSpot> = patch("places/$id", body, NotizenPlacesJson::placeAnswer)
+
+    /** Tasks that hang on the place keep it. */
+    suspend fun deletePlace(id: Long): NResult<Unit> = del("places/$id", unit)
+
+    /** `PUT places/favs { key, placeId | null }`: remember / no longer remember → the favourites. */
+    suspend fun placeFav(key: String, placeId: Long?): NResult<List<NFav>> = put("places/favs", NotizenPlacesJson.favBody(key, placeId)) { NotizenPlacesJson.favs(it) }
+
+    /**
+     * `POST places/search` (POST: the position is in no URL). [near] must be rounded already ([PlaceLogic.near]) — the
+     * only place search the app knows: it never asks a map service itself. The server queues its requests to the map
+     * service, so this may take some seconds.
+     */
+    suspend fun placeSearch(key: String?, q: String?, near: Pair<Double, Double>?, nearSpot: NSpot? = null): NResult<NPlaceSearch> =
+        post("places/search", NotizenPlacesJson.searchBody(key, q, near, nearSpot), timeoutMs = 40_000L) { NotizenPlacesJson.search(it) }
+
+    /** `POST places/watch { near?, budget }` → the places this phone is to watch, with the raw answer (kept for offline). */
+    suspend fun placesWatch(near: Pair<Double, Double>?, budget: Int): NResult<Pair<NWatch, JsonObject>> =
+        post("places/watch", NotizenPlacesJson.watchBody(near, budget), timeoutMs = 40_000L) { o -> NotizenPlacesJson.watch(o) to o }
+
+    /** `POST places/fired` — carries no position: only "this place fired for this task". */
+    suspend fun placeFired(taskId: Long, fence: String, transition: String, timeoutMs: Long): NResult<NFired> =
+        post("places/fired", NotizenPlacesJson.firedBody(taskId, fence, transition), timeoutMs = timeoutMs) { NotizenPlacesJson.fired(it) }
+
+    /** `POST tasks/<id>/place/<later|skip>` with a body of its own (also from the outbox). */
+    suspend fun placeAction(id: Long, what: String, body: JsonObject): NResult<Unit> {
+        if (what != NotizenOutbox.PLACE_LATER && what != NotizenOutbox.PLACE_SKIP) return NResult.Failed("invalid", 0)
+        return post("tasks/$id/$what", body, parse = unit)
+    }
+
+    /** `POST tasks/<id>/place/consent { accept }` → `accepted` | `declined`. */
+    suspend fun placeConsent(id: Long, accept: Boolean): NResult<String> =
+        post("tasks/$id/place/consent", NotizenPlacesJson.consentBody(accept)) { o -> o.get("consent")?.takeIf { it.isJsonPrimitive }?.asString }
+
     suspend fun item(id: Long): NResult<Pair<NItem, Long?>> = get("items/$id", parse = NotizenJson::itemAnswer)
 
     suspend fun completeItem(id: Long, done: Boolean): NResult<NItem> = post("items/$id/complete", NotizenJson.doneBody(done)) { o -> NotizenJson.itemAnswer(o)?.first }
