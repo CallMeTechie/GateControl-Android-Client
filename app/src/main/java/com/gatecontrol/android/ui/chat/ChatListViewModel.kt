@@ -54,6 +54,15 @@ data class ChatListUiState(
     val showArchived: Boolean = false,
     /** Messenger 1.4: the status strip. */
     val feed: com.gatecontrol.android.chat.ChatStatusFeed? = null,
+    /**
+     * Messenger 1.14, chats over a bridge: the services of the listed chats (id → name; a filter each once there is
+     * one), the filter picked ([com.gatecontrol.android.chat.ChatBridgeChat.NET_GC] = only GateControl), whether the
+     * person has such chats at all, and conversation → the contacts typing there.
+     */
+    val networks: List<Pair<String, String>> = emptyList(),
+    val net: String? = null,
+    val bridged: Boolean = false,
+    val contactTyping: Map<Long, List<String?>> = emptyMap(),
 )
 
 /** The chat list: cached conversations, the pinned GateControl inbox, filters and the chat preferences. */
@@ -67,13 +76,15 @@ class ChatListViewModel @Inject constructor(
 
     private val listId = MutableStateFlow<String?>(null)
     private val showArchived = MutableStateFlow(false)
-    private val extra14 = combine(extras.lists, listId, showArchived, extras.feed) { l, id, a, f -> Extra14(l, id?.takeIf { i -> l.any { it.id == i } }, a, f) }
+    private val net = MutableStateFlow<String?>(null)
+    private val extra14 = combine(extras.lists, listId, showArchived, extras.feed, net) { l, id, a, f, n -> Extra14(l, id?.takeIf { i -> l.any { it.id == i } }, a, f, n) }
 
     private data class Extra14(
         val lists: List<com.gatecontrol.android.chat.ChatList>,
         val listId: String?,
         val showArchived: Boolean,
         val feed: com.gatecontrol.android.chat.ChatStatusFeed?,
+        val net: String?,
     )
 
     /** The server offers chat features this app does not know yet (and the hint was not dismissed for them). */
@@ -100,16 +111,21 @@ class ChatListViewModel @Inject constructor(
         base,
         inbox,
         combine(repository.profile, repository.sync) { p, s -> p to s },
-        combine(repository.typing, now) { t, n -> t to n },
+        combine(repository.typing, repository.contactTyping, now) { t, ct, n -> Triple(t, ct, n) },
         ChatShareHandover.pending,
-    ) { b, (latest, inboxUnread), (profile, sync), (typing, nowMs), share ->
+    ) { b, (latest, inboxUnread), (profile, sync), (typing, contactTyping, nowMs), share ->
         val myId = profile?.user?.userId
-        val all = b.convs.sortedByDescending { it.activityAt }
+        val listed = b.convs.sortedByDescending { it.activityAt }
+        // Messenger 1.14: a chat over a bridge takes text only — what is shared from another app (files) cannot go there.
+        val all = if (share != null) listed.filter { it.bridge == null } else listed
+        val networks = com.gatecontrol.android.chat.ChatBridgeChat.networks(all)
+        // a filter whose service has no chat any more is none
+        val netNow = b.e.net?.takeIf { n -> networks.isNotEmpty() && (n == com.gatecontrol.android.chat.ChatBridgeChat.NET_GC || networks.any { it.first == n }) }
         // Messenger 1.4: archived chats live in their own section (search finds them too).
         val q = b.query.trim().lowercase()
         val sorted = if (q.isEmpty()) all.filter { !it.archived } else all
         val inList = com.gatecontrol.android.chat.ChatToolsLogic.inList(sorted, b.e.lists, b.e.listId)
-        val visible = inList.filter { c ->
+        val visible = inList.filter { com.gatecontrol.android.chat.ChatBridgeChat.inNet(it, netNow) }.filter { c ->
             when (b.filter) {
                 ChatFilter.All -> true
                 ChatFilter.Unread -> c.unread > 0
@@ -140,6 +156,10 @@ class ChatListViewModel @Inject constructor(
             archived = all.filter { it.archived },
             showArchived = b.e.showArchived,
             feed = b.e.feed,
+            networks = networks,
+            net = netNow,
+            bridged = com.gatecontrol.android.chat.ChatBridgeChat.any(profile?.features, listed),
+            contactTyping = sorted.mapNotNull { c -> ChatTimeline.contactsTypingNow(contactTyping, c.id, nowMs)?.let { c.id to it } }.toMap(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatListUiState())
 
@@ -182,6 +202,11 @@ class ChatListViewModel @Inject constructor(
     /** A custom list as filter (null: none). */
     fun setList(id: String?) {
         listId.value = id
+    }
+
+    /** Messenger 1.14: only the chats of one service ([net] null: all, picked again: all). */
+    fun setNet(n: String?) {
+        net.value = if (net.value == n) null else n
     }
 
     fun toggleArchived() {

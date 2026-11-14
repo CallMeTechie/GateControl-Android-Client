@@ -16,10 +16,13 @@ import javax.inject.Singleton
  * Pure, unit-tested.
  */
 object ChatFeatureHint {
-    /** Every key of the `features` object this app knows (Messenger ≤ 1.13.0). */
+    /**
+     * Every key of the `features` object this app can handle (Messenger ≤ 1.14.0). `bridges` and `e2e` are words the
+     * messenger names but keeps `false`: the app has nothing for them, so they are not here — switched on one day,
+     * they show the hint like any other unknown word.
+     */
     val KNOWN: Set<String> = setOf(
         "direct", "groups", "voice", "files", "location", "reactions", "edit", "search", "disappearing",
-        "bridges", "e2e",
         ChatFeatures.VIDEO_META, ChatFeatures.FILE_THUMBS,
         // 1.5.0: Freigaben anfragen (approvers), „Am Ende ausschalten“
         "action_requests", "grant_off",
@@ -29,6 +32,8 @@ object ChatFeatureHint {
         "scan",
         // 1.13.0: „Verknüpfte Dienste“ (Chat-Einstellungen, ChatLinkedServicesPage)
         ChatBridges.FEATURE,
+        // 1.14.0: Chats über eine Brücke (`conversation.bridge`, `?bridged=1`)
+        ChatBridgeChat.FEATURE,
     ) + ChatFeatures14.ALL
 
     /** The keys the server switches on that this app does not know. */

@@ -35,6 +35,13 @@ data class ChatPushPayload(
      * `arrival` (a departure hint: share the arrival), else the message.
      */
     val open: String? = null,
+    /**
+     * Messenger 1.14: who wrote it when that is no account — `ext-<contactId>` for a contact of a bridged chat (each
+     * contact a person of its own in the notification); null otherwise.
+     */
+    val senderKey: String? = null,
+    /** Messenger 1.14: the service of a bridged chat (`data.bridge`), else null. */
+    val bridge: String? = null,
 )
 
 /** One message line of a conversation's notification. */
@@ -120,8 +127,13 @@ object ChatNotifyLogic {
             readBody = readBody,
             // `deepLink` (Messenger 1.4: `arrival` for a departure hint), `open` as an alias.
             open = (data.str("deepLink") ?: data.str("open"))?.takeIf { it in OPEN_TARGETS },
+            senderKey = sender?.str("id")?.takeIf { EXT_SENDER_RE.matches(it) },
+            bridge = ChatJson.token(data.str("bridge")),
         )
     }
+
+    /** `data.sender.id` of a bridged chat's contact (Messenger 1.14). */
+    private val EXT_SENDER_RE = Regex("^ext-[1-9][0-9]{0,14}$")
 
     /** `data.open` values of Messenger 1.4 pushes the app acts on. */
     val OPEN_TARGETS = setOf(OPEN_ARRIVAL, OPEN_MESSAGE)

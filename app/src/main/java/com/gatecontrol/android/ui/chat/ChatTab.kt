@@ -61,6 +61,8 @@ fun ChatsTwoPane(
     onOpenSettings: () -> Unit = {},
     onOpenStory: (Long) -> Unit = {},
     onOpenStoryComposer: () -> Unit = {},
+    /** Messenger 1.14: "Verknüpfte Dienste" from a bridged chat whose account must be linked again. */
+    onOpenLinked: (() -> Unit)? = null,
 ) {
     var selected by rememberSaveable(initial) { mutableStateOf(initial) }
     // The conversation picked for what was shared from another app (a sharing shortcut: that chat).
@@ -110,6 +112,7 @@ fun ChatsTwoPane(
                         onOpenImage = onOpenImage,
                         share = shareFor == id,
                         onOpenUpdates = onOpenUpdates,
+                        onOpenLinked = onOpenLinked,
                     )
                 }
             }

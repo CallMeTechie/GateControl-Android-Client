@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chats über eine Brücke (Messenger 1.14.0): chats of a linked account at another messenger, shown beside the chats
+     inside GateControl. The texts are the messenger plugin's own (server/texts.json, bc.*), so that app and portal
+     say the same; the few without a text there (locked, the list's footer, send errors) follow their wording. -->
+<resources>
+    <string name="chat_bridged_via">over %1$s</string>
+    <string name="chat_bridged_only_gc">GateControl only</string>
+    <string name="chat_bridged_unknown_contact">Unknown contact</string>
+    <string name="chat_bridged_placeholder">Message over %1$s</string>
+    <string name="chat_bridged_strip">This chat runs over %1$s – not only over your server.</string>
+    <string name="chat_bridged_more">More</string>
+    <string name="chat_bridged_first_title">Chat over %1$s</string>
+    <string name="chat_bridged_first_lead">The other person writes with their usual app and sees you as always. The messages run over the bridge next to your GateControl server:</string>
+    <string name="chat_bridged_first_1">%1$s encrypts up to the bridge; its end-to-end encryption ends there. On the server the messages are then stored encrypted.</string>
+    <string name="chat_bridged_first_2">For now text works – with replies, reactions, editing and deleting. Pictures, files and voice messages follow; until then the chat says that something arrived.</string>
+    <string name="chat_bridged_first_3">Calls, status and GateControl extras (polls, events, home actions, cards, location) do not exist in a chat over %1$s.</string>
+    <string name="chat_bridged_first_ok">Got it</string>
+    <string name="chat_bridged_state_unreachable">The bridge to %1$s cannot be reached right now. The history stays readable; sending works again once it runs. New messages arrive then.</string>
+    <string name="chat_bridged_state_logged_out">%1$s has signed the bridge out. The history stays, sending works again only after linking. Messages since then may be missing.</string>
+    <string name="chat_bridged_state_unlinked">Your account at %1$s is not linked. The history stays; new messages no longer arrive here.</string>
+    <string name="chat_bridged_state_off">The bridge to %1$s is switched off on this server. The history stays readable.</string>
+    <string name="chat_bridged_closed">You are no longer in this chat at %1$s. The history stays readable.</string>
+    <string name="chat_bridged_cannot_send">Sending over %1$s does not work right now – the history stays readable.</string>
+    <string name="chat_bridged_ph_image">Picture</string>
+    <string name="chat_bridged_ph_video">Video</string>
+    <string name="chat_bridged_ph_audio">Audio</string>
+    <string name="chat_bridged_ph_voice">Voice message</string>
+    <string name="chat_bridged_ph_file">File</string>
+    <string name="chat_bridged_ph_sticker">Sticker</string>
+    <string name="chat_bridged_ph_location">Location</string>
+    <string name="chat_bridged_ph_unsupported">This kind of message is not shown here yet – see it in %1$s.</string>
+    <string name="chat_bridged_ph_later">%1$s – follows; see it in %2$s</string>
+    <string name="chat_bridged_failed">Not sent.</string>
+    <string name="chat_bridged_resend">Send again</string>
+    <string name="chat_bridged_status_failed">Not sent</string>
+    <string name="chat_bridged_reason_bridge_error">The bridge did not take the message.</string>
+    <string name="chat_bridged_reason_unreachable">The bridge does not answer.</string>
+    <string name="chat_bridged_reason_not_running">The bridge is not running right now.</string>
+    <string name="chat_bridged_reason_timeout">The bridge did not answer in time.</string>
+    <string name="chat_bridged_reason_network_error">The service could not be reached.</string>
+    <string name="chat_bridged_reason_no_permission">The service does not allow that in this chat.</string>
+    <string name="chat_bridged_reason_too_old">The message was on its way for too long.</string>
+    <string name="chat_bridged_reason_unsupported">The service does not know this kind of message.</string>
+    <string name="chat_bridged_reason_not_handled">The bridge could not pass the message on.</string>
+    <string name="chat_bridged_reason_bridge_unavailable">The bridge is not connected to the service right now.</string>
+    <string name="chat_bridged_reason_chat_closed">You are no longer part of this chat.</string>
+    <string name="chat_bridged_info_note">This chat runs over %1$s. The service’s end-to-end encryption ends at the bridge next to your GateControl server; stored there the messages are encrypted, and nobody but you sees this chat in GateControl.</string>
+    <string name="chat_bridged_info_not">What does not work here: pictures, files and voice messages (to follow), calls, status, disappearing messages and GateControl extras such as polls, events, home actions and cards.</string>
+    <string name="chat_bridged_err_text_only">A chat over a linked service takes only text for now.</string>
+    <string name="chat_bridged_err_unlinked">Your account at the service is no longer linked. Link it again, then sending works again.</string>
+    <string name="chat_bridged_err_unreachable">The bridge cannot be reached right now. Send the message again once it runs.</string>
+    <string name="chat_bridged_err_off">Bridges are switched off on this server.</string>
+    <string name="chat_bridged_err_locked">This service is locked for your account until your parents allow it.</string>
+    <string name="chat_bridged_err_failed">The bridge did not take that.</string>
+    <string name="chat_linked_foot_chats">Chats with the service’s contacts appear in your chat list as soon as a new message arrives there – older history is not loaded. For now texts with replies and reactions work; pictures and files follow.</string>
+</resources>

@@ -121,6 +121,7 @@
                 <li><span class="highlight">Phone number</span> — to link with a code you enter your WhatsApp number. The app sends it to <span class="highlight">your own server</span>; the bridge there passes it on to WhatsApp so that WhatsApp issues the pairing code. The app does not store the number and writes it to no log and no crash report. Linking with a QR code needs no number.</li>
                 <li><span class="highlight">Pairing code and QR code</span> — come from WhatsApp through your server, are shown only and not stored. A copied code is marked as sensitive on the clipboard and removed after a minute. The page cannot be captured in a screenshot or a screen recording.</li>
                 <li><span class="highlight">Afterwards</span> — the bridge on your server is a "linked device" of your WhatsApp account; the session is kept there, not on the phone, and WhatsApp's end-to-end encryption ends at that bridge. The bridge is not an official WhatsApp program; WhatsApp's terms apply to what WhatsApp processes. You can unlink at any time in the app or in WhatsApp under "Linked devices".</li>
+                <li><span class="highlight">Chats over WhatsApp</span> (from Messenger 1.14) — messages your linked account receives at WhatsApp are filed by the bridge on <span class="highlight">your server</span> as chats for you alone; the app loads them from there like your other chats and keeps the same copy on the device. What you write in such a chat goes to your server, and the bridge there passes it on to WhatsApp — to the contacts you write with. These chats do not run over your server only; the app says so in every such chat. For now only text works. With read receipts or "typing …" switched on, the other side at WhatsApp learns about them too.</li>
             </ul>
             <p>The app itself sends nothing to WhatsApp; it talks to your server only.</p>
         </div>
@@ -145,7 +146,7 @@
             <p>For privacy-related inquiries, please open an issue on our <a href="https://github.com/CallMeTechie/GateControl-Android-Client">GitHub repository</a> or contact the server administrator of your GateControl instance.</p>
         </div>
 
-        <p class="updated">Last updated: November 1, 2026</p>
+        <p class="updated">Last updated: November 14, 2026</p>
     </div>
 </body>
 </html>

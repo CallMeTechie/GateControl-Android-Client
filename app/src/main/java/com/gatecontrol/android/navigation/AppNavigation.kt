@@ -402,6 +402,7 @@ fun AppNavigation(
                     onOpenSettings = chatSettings,
                     onOpenStory = openStory,
                     onOpenStoryComposer = storyComposer,
+                    onOpenLinked = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.LINKED)) { launchSingleTop = true } },
                 )
             } else {
                 GcContentWidth {
@@ -806,6 +807,7 @@ fun AppNavigation(
                         onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
                         onOpenUpdates = openSettings,
                         onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+                        onOpenLinked = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.LINKED)) { launchSingleTop = true } },
                     )
                 } }
             }

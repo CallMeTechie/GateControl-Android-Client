@@ -71,6 +71,10 @@ data class ConversationUiState(
     val loaded: Boolean = false,
     /** The conversation is gone for the caller (left, removed). */
     val gone: Boolean = false,
+    /** Messenger 1.14, a chat over a bridge: the contacts typing now (null: nobody). */
+    val contactTyping: List<String?>? = null,
+    /** The services whose "Chat über …" note was read on this device (then only the thin strip shows). */
+    val bridgeSeen: Set<String> = emptySet(),
 ) {
     val myId: Long? get() = profile?.user?.userId
 }
@@ -82,6 +86,8 @@ sealed interface ConversationNotice {
     data class Location(val result: LocateResult) : ConversationNotice
     data object RecordingFailed : ConversationNotice
     data object Left : ConversationNotice
+    /** Messenger 1.14: a message of a bridged chat failed again ([reason] of the bridge). */
+    data class NotSent(val reason: String?) : ConversationNotice
     /** Messenger 1.4: a short confirmation (string resource). */
     data class Done(val res: Int, val arg: String? = null) : ConversationNotice
     /** A live arrival was sent: start sharing the position. */
@@ -104,6 +110,7 @@ class ConversationViewModel @Inject constructor(
     private val media: ChatMediaStore,
     private val extras: com.gatecontrol.android.chat.ChatExtrasRepository,
     private val device: com.gatecontrol.android.chat.ChatDeviceSettings,
+    private val bridgeHints: com.gatecontrol.android.chat.ChatBridgeHints,
 ) : ViewModel() {
 
     /** Messenger 1.4: home actions, Familie places and this device's chat settings. */
@@ -139,20 +146,21 @@ class ConversationViewModel @Inject constructor(
     private val gaps = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.gaps(it) }
     private val fillingGap = MutableStateFlow<ChatGap?>(null)
 
-    private data class Ui(val replyTo: ChatMessage?, val editing: ChatMessage?, val shared: SharePayload?, val busy: Boolean)
+    private data class Ui(val replyTo: ChatMessage?, val editing: ChatMessage?, val shared: SharePayload?, val busy: Boolean, val bridgeSeen: Set<String>)
+    private data class Live(val profile: ChatProfile?, val typing: Map<Long, Map<Long, Long>>, val contactTyping: Map<Long, com.gatecontrol.android.chat.ChatContactTyping>, val nowMs: Long)
     private data class Paging(val hasOlder: Boolean, val loadingOlder: Boolean, val loaded: Boolean)
 
-    private val ui = combine(replyTo, editing, shared, busy) { r, e, s, b -> Ui(r, e, s, b) }
+    private val ui = combine(replyTo, editing, shared, busy, bridgeHints.seen) { r, e, s, b, seen -> Ui(r, e, s, b, seen) }
     private val paging = combine(hasOlder, loadingOlder, loaded) { h, l, d -> Paging(h, l, d) }
     private val searchState = combine(search, searching) { r, s -> r to s }
 
     val uiState: StateFlow<ConversationUiState> = combine(
         combine(id, conversation.stateInNull(), messages, outbox, gaps) { i, c, m, o, g -> Quad(i, c, m, o, g) },
-        combine(repository.profile, repository.typing, now) { p, t, n -> Triple(p, t, n) },
+        combine(repository.profile, repository.typing, repository.contactTyping, now) { p, t, ct, n -> Live(p, t, ct, n) },
         ui,
         paging,
         combine(searchState, repository.dropped) { s, d -> s to d },
-    ) { (cid, c, msgs, pend, gapList), (profile, typing, nowMs), u, pg, (search, dropped) ->
+    ) { (cid, c, msgs, pend, gapList), (profile, typing, contactTyping, nowMs), u, pg, (search, dropped) ->
         val (results, isSearching) = search
         ConversationUiState(
             conversationId = cid,
@@ -170,6 +178,8 @@ class ConversationViewModel @Inject constructor(
             searching = isSearching,
             loaded = pg.loaded || msgs.isNotEmpty(),
             gone = cid != null && cid in dropped,
+            contactTyping = cid?.let { ChatTimeline.contactsTypingNow(contactTyping, it, nowMs) },
+            bridgeSeen = u.bridgeSeen,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationUiState())
 
@@ -527,6 +537,29 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Messenger 1.14: an own message of a bridged chat that did not go out, again. A refusal (the bridge away, the
+     * account signed out) and a message that failed again both say why.
+     */
+    fun resend(m: ChatMessage) {
+        if (!resending.add(m.id)) return
+        viewModelScope.launch {
+            try {
+                when (val r = repository.resend(m)) {
+                    is ChatResult.Ok -> r.value.bridge?.takeIf { it.failed }?.let { notices.trySend(ConversationNotice.NotSent(it.reason)) }
+                    else -> notices.trySend(ConversationNotice.Error(codeOf(r)))
+                }
+            } finally {
+                resending.remove(m.id)
+            }
+        }
+    }
+
+    private val resending = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+
+    /** The "Chat über …" note of [network] was read ([seen] false: "Mehr" shows it again). */
+    fun setBridgeSeen(network: String, seen: Boolean) = bridgeHints.setSeen(network, seen)
+
     fun retry(clientId: String) = repository.retry(clientId)
 
     fun discard(clientId: String) = repository.discard(clientId)
@@ -539,7 +572,8 @@ class ConversationViewModel @Inject constructor(
 
     fun canEdit(m: ChatMessage): Boolean {
         val p = uiState.value.profile ?: return false
-        return p.features.edit && ChatTimeline.canEdit(m, p.limits.editWindowS, System.currentTimeMillis())
+        // a bridged chat (Messenger 1.14): only what is at the other side and was written here
+        return p.features.edit && ChatTimeline.canEdit(m, p.limits.editWindowS, System.currentTimeMillis()) && com.gatecontrol.android.chat.ChatBridgeChat.editable(m)
     }
 
     fun canDeleteForAll(m: ChatMessage): Boolean {

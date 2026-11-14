@@ -2,6 +2,11 @@ package com.gatecontrol.android.ui.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.ui.text.style.TextDecoration
+import com.gatecontrol.android.ui.components.GcAvatar
+import com.gatecontrol.android.profile.AvatarRing
+import com.gatecontrol.android.chat.ChatPerson
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -91,6 +96,8 @@ class BubbleActions(
     val onSeek: (ChatMessage, Float) -> Unit,
     val onReact: (ChatMessage, String) -> Unit,
     val onQuote: (Long) -> Unit,
+    /** Messenger 1.14: "Erneut senden" of an own message the bridge did not take. */
+    val onResend: (ChatMessage) -> Unit = {},
     /** Messenger 1.4 cards: polls, events, arrival, actions, plugin cards. */
     val rich: RichActions = RichActions(),
 )
@@ -111,9 +118,18 @@ fun MessageBubble(
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
     if (m.isSystem) {
-        SystemLine(ChatText.system(ctx, m, conversation, myId), notice = m.system?.event == "notice" || m.system == null, via = m.via)
+        // Messenger 1.14: what the bridge itself says carries the service's name, not "GateControl".
+        val bridgeNotice = m.system?.event == com.gatecontrol.android.chat.ChatBridgeChat.EVENT_NOTICE
+        SystemLine(
+            ChatText.system(ctx, m, conversation, myId),
+            notice = m.system?.event == "notice" || m.system == null || bridgeNotice,
+            via = m.via,
+            label = if (bridgeNotice) conversation?.bridge?.label ?: stringResource(R.string.chat_linked_title) else null,
+        )
         return
     }
+    val bridge = conversation?.bridge
+    val failed = m.mine && !m.deleted && m.bridge?.failed == true
     val colors = bubbleColors(m.mine)
     // Pictures and videos fill the bubble up to a small margin.
     // the virus scan blocked the file (Messenger 1.11): a mark instead of the picture, player or file
@@ -127,7 +143,12 @@ fun MessageBubble(
             if (conversation?.isGroup == true && !m.mine) {
                 if (showSender) {
                     val sender = conversation.members.firstOrNull { it.userId == m.senderId }
-                    ChatPersonAvatar(sender, 28.dp)
+                    // a contact of a bridged chat: initials of the name (no pictures of contacts yet)
+                    if (sender == null && m.bridge?.fromContact == true) {
+                        GcAvatar(url = null, initials = ChatPerson.initialsOf(m.bridge.senderName), colorHex = null, ring = AvatarRing.None, size = 28.dp)
+                    } else {
+                        ChatPersonAvatar(sender, 28.dp)
+                    }
                 } else {
                     Spacer(Modifier.width(28.dp))
                 }
@@ -156,13 +177,31 @@ fun MessageBubble(
             ) {
                 if (showSender && conversation?.isGroup == true && !m.mine) {
                     Text(
-                        ChatText.nameOf(ctx, conversation, m.senderId, myId),
+                        ChatText.senderOf(ctx, conversation, m, myId),
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
                         color = extra.accentText,
                         modifier = Modifier.padding(start = if (visual) 6.dp else 0.dp, bottom = 2.dp),
                     )
                 }
-                m.replyTo?.let { r -> Quote(r.senderId, if (r.deleted || r.missing) null else r.text, r.kind, r.deleted || r.missing, conversation, myId) { actions.onQuote(r.id) } }
+                m.replyTo?.let { r ->
+                    Quote(r.senderId, if (r.deleted || r.missing) null else r.text, r.kind, r.deleted || r.missing, conversation, myId, name = ChatText.quotedOf(ctx, conversation, r, myId)) { actions.onQuote(r.id) }
+                }
+                // Messenger 1.14: a file or kind of message that does not cross the bridge yet — a line says it arrived.
+                m.bridge?.placeholder?.takeIf { !m.deleted }?.let { ph ->
+                    Row(Modifier.padding(bottom = if (m.text.isNullOrBlank()) 0.dp else 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(
+                            if (ph.kind == "image") Icons.Outlined.Image else Icons.Outlined.Info,
+                            contentDescription = null,
+                            tint = colors.meta,
+                            modifier = Modifier.padding(top = 2.dp).size(16.dp),
+                        )
+                        Text(
+                            ChatText.placeholder(ctx, ph, bridge?.label ?: stringResource(R.string.chat_linked_title)),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                            color = colors.meta,
+                        )
+                    }
+                }
                 m.replyStory?.let { r -> if (!m.deleted) ReplyStoryQuote(r, conversation, myId) }
                 when {
                     m.deleted -> Text(
@@ -219,6 +258,23 @@ fun MessageBubble(
                         ),
                     )
                 }
+                // Messenger 1.14: the bridge did not take it — why, and again (while sending works at all).
+                if (failed) {
+                    Text(
+                        stringResource(R.string.chat_bridged_failed) + " " + ChatText.bridgeReason(ctx, m.bridge?.reason),
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = colors.fg,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    if (conversation?.can?.send == true) {
+                        Text(
+                            stringResource(R.string.chat_bridged_resend),
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline),
+                            color = colors.fg,
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { actions.onResend(m) }.heightIn(min = 32.dp).padding(vertical = 6.dp),
+                        )
+                    }
+                }
                 MetaLine(
                     time = ChatText.clock(ctx, m.createdAt),
                     edited = m.editedAt != null && !m.deleted,
@@ -230,7 +286,8 @@ fun MessageBubble(
                 )
             }
         }
-        if (m.reactions.isNotEmpty()) Reactions(m.reactions, myId, m.mine) { e -> actions.onReact(m, e) }
+        // a bridged chat: a reaction goes to the other messenger first — not while nothing crosses
+        if (m.reactions.isNotEmpty()) Reactions(m.reactions, myId, m.mine) { e -> if (conversation == null || com.gatecontrol.android.chat.ChatBridgeChat.actsOut(conversation, m)) actions.onReact(m, e) }
     }
 }
 
@@ -312,7 +369,7 @@ fun DaySeparator(text: String) {
 }
 
 @Composable
-private fun SystemLine(text: String, notice: Boolean, via: String?) {
+private fun SystemLine(text: String, notice: Boolean, via: String?, label: String? = null) {
     val extra = GateControlTheme.extraColors
     Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
         Column(
@@ -321,7 +378,7 @@ private fun SystemLine(text: String, notice: Boolean, via: String?) {
         ) {
             if (notice) {
                 Text(
-                    stringResource(R.string.chat_gatecontrol),
+                    label ?: stringResource(R.string.chat_gatecontrol),
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold),
                     color = extra.blue,
                 )
@@ -342,7 +399,17 @@ private fun MetaLine(time: String, edited: Boolean, disappearing: Boolean, statu
 }
 
 @Composable
-fun Quote(senderId: Long?, text: String?, kind: String?, gone: Boolean, conversation: ChatConversation?, myId: Long?, onClick: (() -> Unit)? = null) {
+fun Quote(
+    senderId: Long?,
+    text: String?,
+    kind: String?,
+    gone: Boolean,
+    conversation: ChatConversation?,
+    myId: Long?,
+    /** Who is quoted when it is not an account (a contact of a bridged chat, Messenger 1.14). */
+    name: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
     Row(
@@ -356,7 +423,7 @@ fun Quote(senderId: Long?, text: String?, kind: String?, gone: Boolean, conversa
         Box(Modifier.width(3.dp).fillMaxHeight().heightIn(min = 40.dp).background(MaterialTheme.colorScheme.primary))
         Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
             Text(
-                ChatText.nameOf(ctx, conversation, senderId, myId),
+                name ?: ChatText.nameOf(ctx, conversation, senderId, myId),
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                 color = extra.accentText,
                 maxLines = 1,

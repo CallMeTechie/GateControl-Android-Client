@@ -69,8 +69,8 @@ object ChatShortcutLogic {
     fun recent(conversations: List<ChatConversation>, max: Int = MAX_RECENT): List<ChatConversation> =
         if (max <= 0) emptyList() else conversations.sortedByDescending { it.activityAt }.take(max)
 
-    /** Something can be shared into [c] (a sharing shortcut). */
-    fun shareable(c: ChatConversation): Boolean = c.can.send && !c.readonly
+    /** Something can be shared into [c] (a sharing shortcut) — not into a chat over a bridge, which takes text only (Messenger 1.14). */
+    fun shareable(c: ChatConversation): Boolean = c.can.send && !c.readonly && c.bridge == null
 
     /** Chat shortcuts among [existingIds] whose conversation is not in [keep]. */
     fun stale(existingIds: Collection<String>, keep: Set<Long>): List<String> =
@@ -241,6 +241,8 @@ class ChatShortcuts @Inject constructor(
 
     private fun titleOf(ctx: Context, c: ChatConversation): String = when {
         !c.title.isNullOrBlank() -> c.title
+        // Messenger 1.14: a chat over a bridge with a contact the service knows no name of
+        c.bridge != null -> ctx.getString(R.string.chat_bridged_unknown_contact)
         c.isGroup -> ctx.getString(R.string.chat_group_fallback)
         c.peer?.gone == true -> ctx.getString(R.string.chat_deleted_account)
         else -> ctx.getString(R.string.chat_unknown_person)

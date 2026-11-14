@@ -26,7 +26,9 @@ object ChatJson {
     private val MIME_RE = Regex("^[a-z0-9.+-]{1,40}/[A-Za-z0-9.+-]{1,120}$")
     /** `/avatars/…` or `/plugin-media/…` of the own server, nothing else. */
     private val AVATAR_PATH_RE = Regex("^/(?:avatars|plugin-media)/[A-Za-z0-9._~%-]{1,200}$")
-    private val STATUSES = setOf(ChatMessage.STATUS_SENT, ChatMessage.STATUS_DELIVERED, ChatMessage.STATUS_READ)
+    private val STATUSES = setOf(
+        ChatMessage.STATUS_SENT, ChatMessage.STATUS_DELIVERED, ChatMessage.STATUS_READ, ChatMessage.STATUS_SENDING, ChatMessage.STATUS_FAILED,
+    )
     const val TEXT_MAX = 4000
     private const val MAX_MEMBERS = 300
     private const val MAX_REACTIONS = 32
@@ -275,6 +277,7 @@ object ChatJson {
             nextEvent = ChatJson14.nextEvent(o.obj("nextEvent")),
             listPinned = o.flag("listPinned") == true,
             notice = notice(o.obj("notice")),
+            bridge = ChatBridgeChat.conversation(o.obj("bridge")),
         )
     }
 
@@ -346,6 +349,7 @@ object ChatJson {
             action = if (deleted || kind != ChatMessage.KIND_ACTION) null else ChatJson14.action(o.obj("action")),
             card = if (deleted || kind != ChatMessage.KIND_CARD) null else ChatJson14.card(o.obj("card"), media(o.obj("media"))?.id),
             replyStory = if (deleted) null else ChatJson14.replyStory(o.obj("replyStory")),
+            bridge = ChatBridgeChat.message(o.obj("bridge")),
         )
     }
 
@@ -369,6 +373,8 @@ object ChatJson {
             text = text(o.str("text"), 200),
             deleted = o.flag("deleted") == true,
             missing = o.flag("missing") == true,
+            contactId = o.id("contactId"),
+            senderName = line(o.str("senderName"), 120),
         )
     }
 
@@ -435,8 +441,10 @@ object ChatJson {
             val r = e.objOrNull() ?: return@mapNotNull null
             val emoji = r.str("emoji")?.takeIf { it.isNotBlank() && it.length <= 16 && !LINE_CONTROL_RE.containsMatchIn(it) } ?: return@mapNotNull null
             val users = r.ids("userIds")
-            val count = r.int("count")?.coerceAtLeast(0) ?: users.size
-            if (count <= 0) null else ChatReaction(emoji, count, users)
+            // Messenger 1.14: reactions of a bridged chat's contacts (`count` counts them too)
+            val contacts = r.ids("contactIds")
+            val count = r.int("count")?.coerceAtLeast(0) ?: (users.size + contacts.size)
+            if (count <= 0) null else ChatReaction(emoji, count, users, contacts)
         }?.distinctBy { it.emoji }?.take(MAX_REACTIONS).orEmpty()
 
     fun messagePage(o: JsonObject): ChatMessagePage? {

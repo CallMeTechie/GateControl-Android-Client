@@ -54,6 +54,8 @@ object ChatSerializer {
                 put("text", r.text)
                 addProperty("deleted", r.deleted)
                 addProperty("missing", r.missing)
+                r.contactId?.let { addProperty("contactId", it) }
+                r.senderName?.let { addProperty("senderName", it) }
             }
         } ?: JsonNull.INSTANCE)
         add("media", m.media?.let { md ->
@@ -113,6 +115,7 @@ object ChatSerializer {
         m.action?.let { add("action", ChatJson14.writeAction(it)) }
         m.card?.let { add("card", ChatJson14.writeCard(it)) }
         m.replyStory?.let { add("replyStory", ChatJson14.writeReplyStory(it)) }
+        m.bridge?.let { add("bridge", ChatBridgeChat.write(it)) }
     }
 
     fun conversation(c: ChatConversation): JsonObject = JsonObject().apply {
@@ -169,6 +172,7 @@ object ChatSerializer {
                 put("label", n.label)
             })
         }
+        c.bridge?.let { add("bridge", ChatBridgeChat.write(it)) }
     }
 
     fun profile(p: ChatProfile): JsonObject = JsonObject().apply {

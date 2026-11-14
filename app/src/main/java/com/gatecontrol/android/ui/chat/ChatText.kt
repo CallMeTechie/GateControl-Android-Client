@@ -31,17 +31,81 @@ object ChatText {
         else -> name(ctx, c?.members?.firstOrNull { it.userId == id } ?: c?.peer?.takeIf { it.userId == id })
     }
 
-    /** Title of a conversation: the group's title or the other person's name. */
+    /** Title of a conversation: the group's title or the other person's name (a bridged chat: the contact's). */
     fun title(ctx: Context, c: ChatConversation): String = when {
         !c.title.isNullOrBlank() -> c.title
+        // Messenger 1.14: a chat over a bridge has no `peer` — a contact without a name is not a deleted account.
+        c.bridge != null -> ctx.getString(R.string.chat_bridged_unknown_contact)
         c.isGroup -> ctx.getString(R.string.chat_group_fallback)
         else -> name(ctx, c.peer)
     }
+
+    /**
+     * Who wrote [m]: the account as [nameOf] reads it — in a bridged chat (Messenger 1.14) the contact, and the
+     * service's name for what the bridge itself says (never "GateControl").
+     */
+    fun senderOf(ctx: Context, c: ChatConversation?, m: ChatMessage, myId: Long?): String {
+        val b = m.bridge
+        return when {
+            m.senderId != null -> nameOf(ctx, c, m.senderId, myId)
+            b?.fromContact == true -> b.senderName ?: ctx.getString(R.string.chat_bridged_unknown_contact)
+            c?.bridge != null -> c.bridge.label
+            else -> nameOf(ctx, c, null, myId)
+        }
+    }
+
+    /** Who a quoted message is from (a contact's in a bridged chat). */
+    fun quotedOf(ctx: Context, c: ChatConversation?, r: com.gatecontrol.android.chat.ChatReplyRef, myId: Long?): String = when {
+        r.contactId != null -> r.senderName ?: ctx.getString(R.string.chat_bridged_unknown_contact)
+        r.senderId == null && c?.bridge != null -> c.bridge.label
+        else -> nameOf(ctx, c, r.senderId, myId)
+    }
+
+    /** "Bild · grill.jpg – folgt; in WhatsApp ansehen": a file or kind of message that does not cross the bridge yet. */
+    fun placeholder(ctx: Context, p: com.gatecontrol.android.chat.ChatBridgePlaceholder, network: String): String {
+        val kind = placeholderKind(ctx, p) ?: return ctx.getString(R.string.chat_bridged_ph_unsupported, network)
+        return ctx.getString(R.string.chat_bridged_ph_later, listOfNotNull(kind, p.name).joinToString(" · "), network)
+    }
+
+    /** The short word of a placeholder ("Bild", "Sprachnachricht"; null: a kind without a name of its own). */
+    private fun placeholderKind(ctx: Context, p: com.gatecontrol.android.chat.ChatBridgePlaceholder): String? = when (p.kind) {
+        "image" -> R.string.chat_bridged_ph_image
+        "video" -> R.string.chat_bridged_ph_video
+        "audio" -> R.string.chat_bridged_ph_audio
+        "voice" -> R.string.chat_bridged_ph_voice
+        "file" -> R.string.chat_bridged_ph_file
+        "sticker" -> R.string.chat_bridged_ph_sticker
+        "location" -> R.string.chat_bridged_ph_location
+        else -> null
+    }?.let { ctx.getString(it) }
+
+    /** Why the bridge did not take an own message ([com.gatecontrol.android.chat.ChatMessageBridge.reason]). */
+    fun bridgeReason(ctx: Context, reason: String?): String = ctx.getString(
+        when (com.gatecontrol.android.chat.ChatBridgeChat.reason(reason)) {
+            "unreachable" -> R.string.chat_bridged_reason_unreachable
+            "not_running" -> R.string.chat_bridged_reason_not_running
+            "timeout" -> R.string.chat_bridged_reason_timeout
+            "network_error" -> R.string.chat_bridged_reason_network_error
+            "no_permission" -> R.string.chat_bridged_reason_no_permission
+            "too_old" -> R.string.chat_bridged_reason_too_old
+            "unsupported" -> R.string.chat_bridged_reason_unsupported
+            "not_handled" -> R.string.chat_bridged_reason_not_handled
+            "bridge_unavailable" -> R.string.chat_bridged_reason_bridge_unavailable
+            "chat_closed" -> R.string.chat_bridged_reason_chat_closed
+            else -> R.string.chat_bridged_reason_bridge_error
+        },
+    )
 
     /** Short description of a message's content (list preview, reply quote, notification). */
     fun content(ctx: Context, m: ChatMessage, c: ChatConversation?, myId: Long?): String {
         if (m.deleted) return ctx.getString(if (m.mine) R.string.chat_deleted_by_me else R.string.chat_deleted)
         if (m.undecryptable) return ctx.getString(R.string.chat_undecryptable)
+        // Messenger 1.14: something arrived over the bridge that is not shown here yet — never swallowed.
+        m.bridge?.placeholder?.let { p ->
+            val kind = placeholderKind(ctx, p)
+                ?: return m.text?.takeIf { it.isNotBlank() } ?: ctx.getString(R.string.chat_bridged_ph_unsupported, c?.bridge?.label ?: ctx.getString(R.string.chat_linked_title))
+            return prefixed(kind, m.text ?: p.name)
+        }
         if (m.isVideo) {
             val len = m.videoDurationMs?.takeIf { it > 0 }?.let { VoiceWave.clock(it) }
             return prefixed(ctx.getString(R.string.chat_kind_video), listOfNotNull(len, m.text?.takeIf { it.isNotBlank() }).joinToString(" · "))
@@ -171,7 +235,14 @@ object ChatText {
     }
 
     /** "schreibt …" / "Anna schreibt …" / "Anna und Tim schreiben …". */
-    fun typing(ctx: Context, c: ChatConversation?, users: List<Long>, myId: Long?): String? {
+    fun typing(ctx: Context, c: ChatConversation?, users: List<Long>, myId: Long?, contacts: List<String?>? = null): String? {
+        // Messenger 1.14: the contacts of a bridged chat (no accounts, their names come with the event).
+        if (c?.bridge != null) {
+            if (contacts.isNullOrEmpty()) return null
+            if (!c.isGroup) return ctx.getString(R.string.chat_typing)
+            val names = contacts.take(2).map { it ?: ctx.getString(R.string.chat_bridged_unknown_contact) }
+            return if (names.size == 1) ctx.getString(R.string.chat_typing_one, names[0]) else ctx.getString(R.string.chat_typing_many, names[0], names[1])
+        }
         if (users.isEmpty()) return null
         if (c?.isGroup != true) return ctx.getString(R.string.chat_typing)
         val names = users.take(2).map { nameOf(ctx, c, it, myId) }
@@ -191,6 +262,8 @@ object ChatText {
             "http_507", "quota_exceeded" -> R.string.chat_err_quota
             "not_found" -> R.string.chat_err_gone
             "blocked" -> R.string.chat_err_blocked
+            // Messenger 1.14: the bridge of a bridged chat refused (nothing is queued over there)
+            "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed" -> bridgeError(code)
             // the virus scan (Messenger 1.11): "Nicht gesendet – Schadsoftware gefunden" (never sent again by itself)
             MediaScanJson.INFECTED, MediaScanJson.QUARANTINED -> R.string.scan_chat_not_sent_infected
             MediaScanJson.SCAN_BLOCKED -> R.string.scan_chat_not_sent_unscannable
@@ -236,7 +309,19 @@ object ChatText {
             "not_licensed" -> R.string.chat_err_drive_not_licensed
             "quota" -> R.string.chat_err_drive_quota
             "forbidden" -> R.string.chat_err_drive_forbidden
+            // Messenger 1.14: a change in a bridged chat goes to the other messenger first — refused there
+            "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed" -> bridgeError(code)
             else -> R.string.chat_err_generic
         },
     )
+
+    /** The server's refusals around a bridge (Messenger 1.14). */
+    private fun bridgeError(code: String?): Int = when (code) {
+        "bridge_text_only" -> R.string.chat_bridged_err_text_only
+        "bridge_unlinked" -> R.string.chat_bridged_err_unlinked
+        "bridge_unreachable" -> R.string.chat_bridged_err_unreachable
+        "bridge_off" -> R.string.chat_bridged_err_off
+        "bridge_locked" -> R.string.chat_bridged_err_locked
+        else -> R.string.chat_bridged_err_failed
+    }
 }
