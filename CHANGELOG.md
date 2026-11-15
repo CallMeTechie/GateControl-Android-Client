@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.116.1] - 2026-11-15
+
+### Fixes
+- Initialen ohne halbe Emojis – nur Buchstaben und Ziffern, sonst Personen-Symbol (#236)
+
+---
+
 ## [1.116.0] - 2026-11-15
 
 ### Features
