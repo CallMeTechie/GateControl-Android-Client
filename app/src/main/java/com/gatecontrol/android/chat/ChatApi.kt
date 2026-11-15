@@ -80,6 +80,15 @@ class ChatApi @Inject constructor(
         val BRIDGED: Map<String, String> = mapOf(ChatBridgeChat.QUERY to "1")
     }
 
+    /**
+     * Messenger 1.20 (`features.bridge_channels`): the app keeps channels apart — `?channels=1` with every call. Set by
+     * [ChatRepository] from the person's profile; off: channels are read-only chats in the list as before.
+     */
+    @Volatile var channels: Boolean = false
+
+    /** `?bridged=1`, and `&channels=1` while [channels]. */
+    private fun marks(): Map<String, String> = if (channels) BRIDGED + (ChatBridgeChat.QUERY_CHANNELS to "1") else BRIDGED
+
     private suspend fun lang(): String? =
         runCatching { settingsRepository.getLocale().first() }.getOrNull()?.takeIf { it == "de" || it == "en" }
 
@@ -124,7 +133,7 @@ class ChatApi @Inject constructor(
      * route). Older messengers ignore the word.
      */
     private suspend fun query(extra: Map<String, String> = emptyMap()): Map<String, String> =
-        (lang()?.let { extra + ("lang" to it) } ?: extra) + BRIDGED
+        (lang()?.let { extra + ("lang" to it) } ?: extra) + marks()
 
     private suspend fun <T> get(path: String, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?): ChatResult<T> {
         val q = query(query)
@@ -137,10 +146,10 @@ class ChatApi @Inject constructor(
     }
 
     private suspend fun <T> patch(path: String, body: JsonObject, parse: (JsonObject) -> T?): ChatResult<T> =
-        call(request = { pluginPatch(MESSENGER_PLUGIN, path, body, BRIDGED) }, parse = parse)
+        call(request = { pluginPatch(MESSENGER_PLUGIN, path, body, marks()) }, parse = parse)
 
     private suspend fun <T> put(path: String, body: JsonObject, parse: (JsonObject) -> T?): ChatResult<T> =
-        call(request = { pluginPut(MESSENGER_PLUGIN, path, body, BRIDGED) }, parse = parse)
+        call(request = { pluginPut(MESSENGER_PLUGIN, path, body, marks()) }, parse = parse)
 
     private val unit: (JsonObject) -> Unit = { }
 
@@ -164,6 +173,10 @@ class ChatApi @Inject constructor(
 
     suspend fun conversations(since: String?): ChatResult<ChatConversationList> =
         get("conversations", if (since != null) mapOf("since" to since) else emptyMap(), ChatJson::conversationList)
+
+    /** Messenger 1.20 `GET channels` (with `?channels=1`): the page „Kanäle“. */
+    suspend fun channels(since: String?): ChatResult<ChatChannelList> =
+        get("channels", if (since != null) mapOf("since" to since) else emptyMap(), ChatChannels::channelList)
 
     suspend fun conversation(id: Long): ChatResult<ChatConversation> = get("conversations/$id", parse = ChatJson::conversationOf)
 
@@ -230,7 +243,8 @@ class ChatApi @Inject constructor(
 
     /**
      * `POST messages/:id/fetch` (Messenger 1.17): a file of the older history of a bridged chat, fetched now because the
-     * person asks for it → the message, its placeholder then `loading` (the file follows with `message.update`).
+     * person asks for it → the message, its placeholder then `loading` (the file follows with `message.update`). Since
+     * 1.19 also a file that failed with `retry: true` („Erneut versuchen“).
      */
     suspend fun fetchBridged(messageId: Long): ChatResult<ChatMessage> = post("messages/$messageId/fetch", parse = ChatJson::messageOf)
 
@@ -239,7 +253,7 @@ class ChatApi @Inject constructor(
 
     /** [forAll] false: hidden for the caller only. Answers the tombstone for everyone (null for me). */
     suspend fun delete(messageId: Long, forAll: Boolean): ChatResult<ChatDeleted> =
-        call(request = { pluginDelete(MESSENGER_PLUGIN, "messages/$messageId", BRIDGED + ("for" to if (forAll) "all" else "me")) }) { o ->
+        call(request = { pluginDelete(MESSENGER_PLUGIN, "messages/$messageId", marks() + ("for" to if (forAll) "all" else "me")) }) { o ->
             ChatDeleted(ChatJson.messageOf(o))
         }
 
@@ -372,7 +386,7 @@ class ChatApi @Inject constructor(
     // ─── Messenger 1.4: status and stories ──────────────────────────
 
     private suspend fun <T> del(path: String, parse: (JsonObject) -> T?): ChatResult<T> =
-        call(request = { pluginDelete(MESSENGER_PLUGIN, path, BRIDGED) }, parse = parse)
+        call(request = { pluginDelete(MESSENGER_PLUGIN, path, marks()) }, parse = parse)
 
     /** `PUT status` → `{ status }` (null: cleared). */
     suspend fun putStatus(status: ChatStatus): ChatResult<ChatStatus?> =
@@ -529,7 +543,7 @@ class ChatApi @Inject constructor(
     }
 
     suspend fun patchEvent(messageId: Long, body: JsonObject): ChatResult<ChatMessage?> =
-        call(request = { pluginPatch(MESSENGER_PLUGIN, "messages/$messageId/event", body, BRIDGED) }) { o -> Optional(messageOrNull(o)) }.unwrap()
+        call(request = { pluginPatch(MESSENGER_PLUGIN, "messages/$messageId/event", body, marks()) }) { o -> Optional(messageOrNull(o)) }.unwrap()
 
     /** → whether the destination is reached now (`{ accepted, arrived }`). */
     suspend fun arrivalPosition(messageId: Long, body: JsonObject): ChatResult<Boolean> =

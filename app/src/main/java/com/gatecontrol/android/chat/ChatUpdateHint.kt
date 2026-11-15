@@ -17,7 +17,7 @@ import javax.inject.Singleton
  */
 object ChatFeatureHint {
     /**
-     * Every key of the `features` object this app can handle (Messenger ≤ 1.18.0). `bridges` and `e2e` are words the
+     * Every key of the `features` object this app can handle (Messenger ≤ 1.20.0). `bridges` and `e2e` are words the
      * messenger names but keeps `false`: the app has nothing for them, so they are not here — switched on one day,
      * they show the hint like any other unknown word.
      */
@@ -41,6 +41,8 @@ object ChatFeatureHint {
         ChatBridgeChat.FEATURE_HISTORY,
         // 1.18.0: „Neuer Chat“ mit Kontakten (GateControl, WhatsApp, Adressbuch; NewChatScreen)
         ChatBridgeChat.FEATURE_CONTACTS,
+        // 1.20.0: Kanäle auf eigener Seite (`GET channels`, `?channels=1`), Seitenmenü und TV-Symbol
+        ChatBridgeChat.FEATURE_CHANNELS,
     ) + ChatFeatures14.ALL
 
     /** The keys the server switches on that this app does not know. */

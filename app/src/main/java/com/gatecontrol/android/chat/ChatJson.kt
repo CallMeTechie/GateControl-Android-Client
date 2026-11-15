@@ -276,6 +276,8 @@ object ChatJson {
                 leave = can?.flag("leave") ?: false,
                 setDisappearing = can?.flag("setDisappearing") ?: false,
                 pin = can?.flag("pin") ?: true,
+                sendReason = can?.str("sendReason")?.takeIf { it == ChatBridgeChat.READ_ONLY_CHANNEL || it == ChatBridgeChat.READ_ONLY_ADMINS },
+                react = can?.flag("react") ?: true,
             ),
             archived = o.flag("archived") == true,
             pinned = o.ids("pinned").take(10),
@@ -308,6 +310,7 @@ object ChatJson {
             conversations = arr.mapNotNull { conversation(it.objOrNull()) }.distinctBy { it.id },
             removed = o.ids("removed"),
             serverTime = time(o.str("serverTime")),
+            channels = ChatChannels.summary(o.obj("channels")),
         )
     }
 
@@ -355,6 +358,8 @@ object ChatJson {
             card = if (deleted || kind != ChatMessage.KIND_CARD) null else ChatJson14.card(o.obj("card"), media(o.obj("media"))?.id),
             replyStory = if (deleted) null else ChatJson14.replyStory(o.obj("replyStory")),
             bridge = ChatBridgeChat.message(o.obj("bridge")),
+            marks = if (deleted) null else ChatFormat.marks(o.arr("marks")),
+            preview = if (deleted || kind != ChatMessage.KIND_TEXT) null else ChatChannels.preview(o.obj("preview")),
         )
     }
 

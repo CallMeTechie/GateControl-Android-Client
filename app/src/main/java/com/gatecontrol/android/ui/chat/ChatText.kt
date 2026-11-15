@@ -283,6 +283,8 @@ object ChatText {
             "blocked" -> R.string.chat_err_blocked
             // Messenger 1.14: the bridge of a bridged chat refused (nothing is queued over there)
             "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed", "bridge_media_type" -> bridgeError(code)
+            // Messenger 1.20: a channel, or a group where only the admins write
+            com.gatecontrol.android.chat.ChatBridgeChat.READ_ONLY -> R.string.chat_bridged_err_read_only
             // the virus scan (Messenger 1.11): "Nicht gesendet – Schadsoftware gefunden" (never sent again by itself)
             MediaScanJson.INFECTED, MediaScanJson.QUARANTINED -> R.string.scan_chat_not_sent_infected
             MediaScanJson.SCAN_BLOCKED -> R.string.scan_chat_not_sent_unscannable
@@ -330,6 +332,8 @@ object ChatText {
             "forbidden" -> R.string.chat_err_drive_forbidden
             // Messenger 1.14: a change in a bridged chat goes to the other messenger first — refused there
             "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed", "bridge_media_type" -> bridgeError(code)
+            // Messenger 1.20: a channel, or a group where only the admins write
+            com.gatecontrol.android.chat.ChatBridgeChat.READ_ONLY -> R.string.chat_bridged_err_read_only
             else -> R.string.chat_err_generic
         },
     )

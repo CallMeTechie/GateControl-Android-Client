@@ -96,6 +96,8 @@ sealed interface ConversationNotice {
     data class ArrivalStarted(val messageId: Long, val label: String) : ConversationNotice
     /** Messenger 1.11: "In Drive speichern" refused, the virus scan holds the file back ([code] as `heldBack` reads it). */
     data class DriveHeldBack(val code: String, val finding: String?) : ConversationNotice
+    /** Messenger 1.20: reacting in channels is off — the bridge ([label]) refused a reaction. */
+    data class ReactionsOff(val label: String) : ConversationNotice
 }
 
 /**
@@ -554,7 +556,13 @@ class ConversationViewModel @Inject constructor(
         val mine = m.reactions.firstOrNull { r -> uiState.value.myId?.let { it in r.userIds } == true }?.emoji
         viewModelScope.launch {
             val r = repository.react(m, if (mine == emoji) null else emoji)
-            if (r !is ChatResult.Ok) notices.trySend(ConversationNotice.Error(codeOf(r)))
+            when {
+                r is ChatResult.Ok -> Unit
+                // Messenger 1.20: the bridge refused a reaction in a channel before — reacting there is off
+                r is ChatResult.Failed && r.code == com.gatecontrol.android.chat.ChatBridgeChat.READ_ONLY && r.reason == com.gatecontrol.android.chat.ChatBridgeChat.READ_ONLY_REACTIONS ->
+                    notices.trySend(ConversationNotice.ReactionsOff(repository.cachedConversation(m.conversationId)?.bridge?.label ?: "WhatsApp"))
+                else -> notices.trySend(ConversationNotice.Error(codeOf(r)))
+            }
         }
     }
 
@@ -590,7 +598,9 @@ class ConversationViewModel @Inject constructor(
      * says "wird geladen …" and the file follows like any other over the bridge. [done] when the answer is there.
      */
     fun fetchOld(m: ChatMessage, done: () -> Unit = {}) {
-        if (m.bridge?.placeholder?.onRequest != true || !fetching.add(m.id)) return done()
+        // Messenger 1.19: also „Erneut versuchen“ of a file that failed with `retry`
+        val ph = m.bridge?.placeholder
+        if ((ph?.onRequest != true && ph?.retryable != true) || !fetching.add(m.id)) return done()
         viewModelScope.launch {
             try {
                 val r = repository.fetchBridged(m)
@@ -603,6 +613,18 @@ class ConversationViewModel @Inject constructor(
     }
 
     private val fetching = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+
+    /**
+     * Messenger 1.20: the bell of a channel — its posts as a push ([on]: `notify: "all"`) or not (`"none"`); a
+     * channel starts without.
+     */
+    fun setChannelPush(on: Boolean) {
+        val cid = id.value ?: return
+        viewModelScope.launch {
+            val r = repository.patch(cid, com.gatecontrol.android.chat.ChatPatches.notify(on))
+            if (r !is ChatResult.Ok) notices.trySend(ConversationNotice.Error(codeOf(r)))
+        }
+    }
 
     /** The "Chat über …" note of [network] was read ([seen] false: "Mehr" shows it again). */
     fun setBridgeSeen(network: String, seen: Boolean) = bridgeHints.setSeen(network, seen)

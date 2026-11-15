@@ -107,7 +107,7 @@ fun ChatPersonAvatar(person: ChatPerson?, size: Dp, modifier: Modifier = Modifie
 
 /**
  * Avatar of a conversation: the other person, or the group's picture / a group symbol. A chat over a bridge
- * (Messenger 1.14) carries the service's mark at the lower right ("WA"); since 1.15 with the picture of the contact or
+ * (Messenger 1.14) carries the service's mark at the lower right (since 1.20 its logo); since 1.15 with the picture of the contact or
  * the group (`avatarMediaId`), else initials or the group symbol.
  */
 @Composable
@@ -126,26 +126,10 @@ fun ConversationAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modif
     PlainAvatar(c, size, modifier)
 }
 
-/** The service's mark of a bridged chat: two letters on the accent colour, ringed in the page's colour. */
+/** The service's mark of a bridged chat (Messenger 1.20: its logo, no longer two letters), ringed in the page's colour. */
 @Composable
 internal fun BridgeMark(bridge: com.gatecontrol.android.chat.ChatConvBridge, avatar: Dp, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val h = (avatar * 0.4f).coerceIn(14.dp, 22.dp)
-    Box(
-        modifier.offset(x = 3.dp, y = 2.dp).height(h).widthIn(min = h * 1.3f)
-            .clip(RoundedCornerShape(h / 3)).background(scheme.background).padding(1.5.dp)
-            .clip(RoundedCornerShape(h / 3)).background(scheme.primary).padding(horizontal = 2.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            com.gatecontrol.android.chat.ChatBridgeChat.mark(bridge),
-            color = scheme.onPrimary,
-            fontSize = (h.value * 0.48f).sp,
-            lineHeight = (h.value * 0.5f).sp,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-        )
-    }
+    ChatNetCorner(bridge.network, avatar, modifier.offset(x = 3.dp, y = 2.dp))
 }
 
 @Composable

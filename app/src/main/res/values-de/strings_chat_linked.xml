@@ -76,7 +76,6 @@
     <string name="chat_linked_new_code">Neuen Code anfordern</string>
     <string name="chat_linked_new_qr">Neuen QR-Code anzeigen</string>
     <string name="chat_linked_net_whatsapp">WhatsApp</string>
-    <string name="chat_linked_mark_whatsapp">WA</string>
     <string name="chat_linked_err_off">Die Brücken sind auf diesem Server ausgeschaltet.</string>
     <string name="chat_linked_err_unreachable">Die Brücke antwortet gerade nicht.</string>
     <string name="chat_linked_err_unsupported">Diesen Anmeldeschritt kann GateControl nicht anzeigen. Bitte den anderen Weg wählen (Code oder QR-Code).</string>

@@ -63,7 +63,11 @@ fun ChatsTwoPane(
     onOpenStoryComposer: () -> Unit = {},
     /** Messenger 1.14: "Verknüpfte Dienste" from a bridged chat whose account must be linked again. */
     onOpenLinked: (() -> Unit)? = null,
+    /** A page of the chat settings from the side menu (Chats v2). */
+    onOpenSettingsPage: (String) -> Unit = { onOpenSettings() },
 ) {
+    // Messenger 1.20: the page „Kanäle“ takes the list's place; a channel opens beside it
+    var channels by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable(initial) { mutableStateOf(initial) }
     // The conversation picked for what was shared from another app (a sharing shortcut: that chat).
     var shareFor by rememberSaveable(initial, share) { mutableStateOf(if (share) initial else null) }
@@ -85,7 +89,10 @@ fun ChatsTwoPane(
     GcTwoPane(
         listWidth = 400.dp,
         list = {
-            ChatListScreen(
+            if (channels) {
+                androidx.activity.compose.BackHandler { channels = false }
+                ChatChannelsScreen(onBack = { channels = false }, onOpen = { id -> selected = id }, selectedId = selected)
+            } else ChatListScreen(
                 onOpen = { id ->
                     if (share || ChatShareHandover.pending.value != null) shareFor = id
                     selected = id
@@ -97,6 +104,8 @@ fun ChatsTwoPane(
                 onOpenSettings = onOpenSettings,
                 onOpenStory = onOpenStory,
                 onOpenStoryComposer = onOpenStoryComposer,
+                onOpenChannels = { channels = true },
+                onOpenSettingsPage = onOpenSettingsPage,
             )
         },
         detail = {

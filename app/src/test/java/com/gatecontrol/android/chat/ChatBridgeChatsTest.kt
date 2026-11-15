@@ -137,8 +137,10 @@ class ChatBridgeChatsTest {
         assertEquals(listOf(wa, gc, other), listOf(wa, gc, other).filter { ChatBridgeChat.inNet(it, null) })
         assertEquals(listOf(gc), listOf(wa, gc, other).filter { ChatBridgeChat.inNet(it, ChatBridgeChat.NET_GC) })
         assertEquals(listOf(wa), listOf(wa, gc, other).filter { ChatBridgeChat.inNet(it, "whatsapp") })
-        assertEquals("WA", ChatBridgeChat.mark(wa.bridge!!))
-        assertEquals("SI", ChatBridgeChat.mark(other.bridge!!))
+        // Messenger 1.20: the logo of the service, no longer its letters; a service this app does not know: a speech bubble
+        assertEquals(ChatBridgeChat.Logo.WhatsApp, ChatBridgeChat.logo(wa.bridge!!.network))
+        assertEquals(ChatBridgeChat.Logo.Other, ChatBridgeChat.logo(other.bridge!!.network))
+        assertEquals(ChatBridgeChat.Logo.GateControl, ChatBridgeChat.logo(ChatBridgeChat.NET_GC))
         // text only: nothing can be shared into such a chat from another app
         assertFalse(ChatShortcutLogic.shareable(wa))
         assertTrue(ChatShortcutLogic.shareable(gc))
@@ -360,7 +362,7 @@ class ChatBridgeChatsTest {
         }
         // any other 503 of the server is still tried again
         assertInstanceOf(OutboxStep.Retry::class.java, ChatOutboxLogic.step(ChatResult.Failed("http_503", 503), 1, hadUpload = false, nowMs = 0))
-        assertEquals(ChatBridgeChat.REFUSALS, setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked", "bridge_media_type"))
+        assertEquals(ChatBridgeChat.REFUSALS, setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked", "bridge_media_type", "bridge_read_only"))
     }
 
     // ─── the API: the mark on every call ────────────────────────────

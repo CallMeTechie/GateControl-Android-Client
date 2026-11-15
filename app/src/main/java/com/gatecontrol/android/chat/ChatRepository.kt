@@ -155,6 +155,7 @@ class ChatRepository @Inject constructor(
         scope.launch {
             setupRepository.revision.drop(1).collect {
                 runCatching { ensureOwner() }
+                api.channels = false
                 _profile.value = null
                 lastListSyncMs = 0L
                 lastProfileMs = 0L
@@ -168,7 +169,12 @@ class ChatRepository @Inject constructor(
         scope.launch {
             runCatching {
                 ensureOwner()
-                dao.kv(KV_PROFILE)?.let { raw -> parseObj(raw)?.let { ChatJson.profile(it) } }?.let { if (_profile.value == null) _profile.value = it }
+                dao.kv(KV_PROFILE)?.let { raw -> parseObj(raw)?.let { ChatJson.profile(it) } }?.let {
+                    if (_profile.value == null) {
+                        api.channels = ChatChannels.on(it.features)
+                        _profile.value = it
+                    }
+                }
                 if (dao.outbox().any { it.state == OutboxEntity.STATE_QUEUED }) kickOutbox()
             }.onFailure { Timber.w("Chats: cache not opened (%s)", it.javaClass.simpleName) }
         }
@@ -206,8 +212,26 @@ class ChatRepository @Inject constructor(
 
     // ─── observing ──────────────────────────────────────────────────
 
-    val conversations: Flow<List<ChatConversation>> = dao.observeConversations().map { list ->
+    /** Every cached conversation, the channels too (Messenger 1.20). */
+    val allConversations: Flow<List<ChatConversation>> = dao.observeConversations().map { list ->
         list.mapNotNull { e -> parseObj(e.json)?.let { ChatJson.conversation(it) } }
+    }
+
+    /**
+     * Messenger 1.20 (`features.bridge_channels`): channels have a page of their own — the app sends `?channels=1`
+     * and keeps them out of the list, „Ungelesen“ and the badge. Without the word: as before.
+     */
+    val channelsOn: StateFlow<Boolean> = _profile.map { ChatChannels.on(it?.features) }
+        .stateIn(scope, SharingStarted.Eagerly, false)
+
+    /** The chats of the list: without the channels once they have a page of their own. */
+    val conversations: Flow<List<ChatConversation>> = combine(allConversations, channelsOn) { list, on ->
+        if (on) list.filter { ChatChannels.inList(it, true) } else list
+    }
+
+    /** Messenger 1.20: the cached channels (the page „Kanäle“); none without `bridge_channels`. */
+    val channels: Flow<List<ChatConversation>> = combine(allConversations, channelsOn) { list, on ->
+        if (on) list.filter { it.bridge?.channel == true } else emptyList()
     }
 
     init {
@@ -280,13 +304,18 @@ class ChatRepository @Inject constructor(
     private suspend fun refreshAll() {
         refreshProfile()
         syncConversations(full = true)
+        syncChannels(full = true)
     }
 
     suspend fun refreshProfile(): ChatResult<ChatProfile> {
         val r = api.me()
         if (r is ChatResult.Ok) {
             lastProfileMs = clock()
+            val wasOn = api.channels
+            api.channels = ChatChannels.on(r.value.features)
             _profile.value = r.value
+            // channels got a page of their own: they leave the list (the next full list no longer names them)
+            if (api.channels && !wasOn) coalesce("channels", 500L) { syncChannels(full = true) }
             runCatching {
                 ensureOwner()
                 dao.putKv(KvEntity(KV_PROFILE, ChatSerializer.profile(r.value).toString()))
@@ -307,14 +336,19 @@ class ChatRepository @Inject constructor(
             is ChatResult.Ok -> {
                 val list = r.value
                 if (since == null) {
-                    // A full list: what is missing is gone for the caller.
+                    // A full list: what is missing is gone for the caller — the channels are not in it (Messenger 1.20).
                     val keep = list.conversations.map { it.id }.toSet()
-                    val gone = dao.conversations().map { it.id }.filter { it !in keep }
+                    val gone = dao.conversations().filter { it.id !in keep && !(api.channels && isChannel(it.json)) }.map { it.id }
                     drop(gone)
                 }
                 storeConversations(list.conversations)
                 drop(list.removed)
                 list.serverTime?.let { dao.putKv(KvEntity(KV_LIST_SINCE, it)) }
+                // Messenger 1.20: the channels' numbers moved (a post, read elsewhere) — their page catches up
+                list.channels?.let { s ->
+                    val cached = ChatChannels.summary(cachedChannels())
+                    if (s != cached || dao.kv(KV_CHANNELS_SINCE) == null) coalesce("channels", 300L) { syncChannels() }
+                }
                 lastListSyncMs = clock()
                 ChatSync.Synced
             }
@@ -324,6 +358,37 @@ class ChatRepository @Inject constructor(
         }
         _sync.value = result
         result
+    }
+
+    private fun isChannel(json: String): Boolean = parseObj(json)?.let { ChatJson.conversation(it) }?.bridge?.channel == true
+
+    private suspend fun cachedChannels(): List<ChatConversation> =
+        dao.conversations().mapNotNull { e -> parseObj(e.json)?.let { ChatJson.conversation(it) } }.filter { it.bridge?.channel == true }
+
+    /**
+     * Messenger 1.20 `GET channels?since=` (everything when [full] or never loaded): the page „Kanäle“ — changed
+     * channels upserted, removed ones dropped; a full answer drops the cached channels it does not name.
+     */
+    suspend fun syncChannels(full: Boolean = false): ChatSync {
+        if (!api.channels) return ChatSync.Idle
+        ensureOwner()
+        val since = if (full) null else dao.kv(KV_CHANNELS_SINCE)
+        return when (val r = api.channels(since)) {
+            is ChatResult.Ok -> {
+                val list = r.value
+                if (since == null) {
+                    val keep = list.channels.map { it.id }.toSet()
+                    drop(cachedChannels().map { it.id }.filter { it !in keep })
+                }
+                storeConversations(list.channels)
+                drop(list.removed)
+                list.serverTime?.let { dao.putKv(KvEntity(KV_CHANNELS_SINCE, it)) }
+                ChatSync.Synced
+            }
+            is ChatResult.Failed -> ChatSync.Failed(r.code)
+            ChatResult.Offline -> ChatSync.Offline
+            ChatResult.NotConfigured -> ChatSync.Idle
+        }
     }
 
     /** Stored in the server's shape (ChatSerializer), parsed again on every read. */
@@ -536,6 +601,11 @@ class ChatRepository @Inject constructor(
                 }
                 coalesce("new:$conv") { if (hasCache(conv)) fetchNewer(conv) }
                 coalesce("list") { syncConversations() }
+                // Messenger 1.20: a post of a channel (or of a chat not in the list yet) — not in `GET conversations`
+                if (api.channels) scope.launch {
+                    val cached = cachedConversation(conv)
+                    if (cached == null || cached.bridge?.channel == true) coalesce("conv:$conv", 300L) { refreshConversation(conv) }
+                }
             }
             is ChatEvent.MessageUpdate -> coalesce("changed:$conv") { if (hasCache(conv)) fetchChanged(conv) }
             is ChatEvent.MessageDelete -> scope.launch {
@@ -940,6 +1010,8 @@ class ChatRepository @Inject constructor(
     private suspend fun giveUp(e: OutboxEntity, code: String): ChatResult<ChatMessage> {
         Timber.w("Chats: message not sent (%s)", code)
         dao.upsertOutbox(e.copy(state = OutboxEntity.STATE_FAILED, error = code))
+        // Messenger 1.20: a channel or a group where only the admins write — the chat says so once it is fresh
+        if (code == ChatBridgeChat.READ_ONLY) coalesce("conv:${e.conversationId}", 300L) { refreshConversation(e.conversationId) }
         return ChatResult.Failed(code, 0)
     }
 
@@ -999,6 +1071,8 @@ class ChatRepository @Inject constructor(
                 parseObj(e.json)?.let { dao.upsertMessages(listOf(e.copy(json = ChatJsonPatch.reactions(it, r.value).toString()))) }
             }
         }
+        // Messenger 1.20: reacting in channels went off (the bridge refused one) — `can.react` follows with the chat
+        if (r is ChatResult.Failed && r.code == ChatBridgeChat.READ_ONLY) coalesce("conv:${message.conversationId}", 300L) { refreshConversation(message.conversationId) }
         return r
     }
 
@@ -1128,6 +1202,7 @@ class ChatRepository @Inject constructor(
         private const val KV_OWNER = "owner"
         private const val KV_PROFILE = "me"
         private const val KV_LIST_SINCE = "list_since"
+        private const val KV_CHANNELS_SINCE = "channels_since"
         private const val KV_CHANGED = "changed:"
         private const val KV_OLDER = "older:"
         private const val KV_GAPS = "gaps:"

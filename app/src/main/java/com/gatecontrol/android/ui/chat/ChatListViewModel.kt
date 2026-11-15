@@ -72,7 +72,32 @@ class ChatListViewModel @Inject constructor(
     pushRepository: PushRepository,
     private val updateHint: ChatUpdateHint,
     private val extras: com.gatecontrol.android.chat.ChatExtrasRepository,
+    private val bridges: com.gatecontrol.android.chat.ChatBridgesRepository,
 ) : ViewModel() {
+
+    /**
+     * Messenger 1.20 (`bridge_channels`): the channels kept apart — how many have a post (the TV symbol), their new
+     * posts (its grey dot); null without the word.
+     */
+    val channels: StateFlow<com.gatecontrol.android.chat.ChatChannelSummary?> =
+        combine(repository.channels, repository.channelsOn) { list, on -> if (on) com.gatecontrol.android.chat.ChatChannels.summary(list) else null }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _linked = MutableStateFlow<List<com.gatecontrol.android.chat.ChatBridgeNetwork>?>(null)
+
+    /** The side menu's „Verknüpfte Dienste“ (Messenger 1.13 `linked_services`); null: not loaded or not offered. */
+    val linked: StateFlow<List<com.gatecontrol.android.chat.ChatBridgeNetwork>?> = _linked
+
+    /** The side menu opened: the linked services as they stand now. */
+    fun loadLinked() {
+        if (repository.profile.value?.features?.tokens?.contains(com.gatecontrol.android.chat.ChatBridges.FEATURE) != true) {
+            _linked.value = null
+            return
+        }
+        viewModelScope.launch {
+            (bridges.load() as? com.gatecontrol.android.chat.ChatResult.Ok)?.let { r -> _linked.value = r.value.networks.takeIf { r.value.available } }
+        }
+    }
 
     private val listId = MutableStateFlow<String?>(null)
     private val showArchived = MutableStateFlow(false)
@@ -103,9 +128,10 @@ class ChatListViewModel @Inject constructor(
         items.firstOrNull() to items.count { it.isUnread }
     }
 
-    private val base = combine(repository.conversations, filter, query, loaded, extra14) { convs, f, q, l, e -> Base(convs, f, q, l, e) }
+    // Messenger 1.20: the channels are not in the list — a search finds them too (tagged „Kanal“)
+    private val base = combine(combine(repository.conversations, repository.channels) { a, b -> a to b }, filter, query, loaded, extra14) { (convs, ch), f, q, l, e -> Base(convs, f, q, l, e, ch) }
 
-    private data class Base(val convs: List<ChatConversation>, val filter: ChatFilter, val query: String, val loaded: Boolean, val e: Extra14)
+    private data class Base(val convs: List<ChatConversation>, val filter: ChatFilter, val query: String, val loaded: Boolean, val e: Extra14, val channels: List<ChatConversation> = emptyList())
 
     val uiState: StateFlow<ChatListUiState> = combine(
         base,
@@ -137,8 +163,10 @@ class ChatListViewModel @Inject constructor(
             q.isEmpty() || (c.title ?: c.peer?.name ?: "").lowercase().contains(q) ||
                 c.members.any { (it.name ?: "").lowercase().contains(q) }
         }
+        // Messenger 1.20: a search finds the channels too (not while sharing — nothing can be sent there)
+        val found = if (q.isEmpty() || share != null) emptyList() else com.gatecontrol.android.chat.ChatChannels.rows(b.channels, q).filter { com.gatecontrol.android.chat.ChatBridgeChat.inNet(it, netNow) }
         // Messenger 1.6: "Angeheftet" (GateControl, then the pinned chats) above "Chats" — not while searching or sharing.
-        val sections = com.gatecontrol.android.chat.ChatListSections.split(visible, sectioned = q.isEmpty() && share == null)
+        val sections = com.gatecontrol.android.chat.ChatListSections.split(visible + found, sectioned = q.isEmpty() && share == null)
         ChatListUiState(
             conversations = sections.chats,
             pinned = sections.pinned,
@@ -191,8 +219,8 @@ class ChatListViewModel @Inject constructor(
     /** Conversations dropped in this process (left, removed): the detail pane lets go of them. */
     val dropped: StateFlow<Set<Long>> = repository.dropped
 
-    /** Ids of the cached conversations; null until the list has been loaded once. */
-    val listedIds: StateFlow<Set<Long>?> = combine(repository.conversations, loaded) { convs, l ->
+    /** Ids of the cached conversations (the channels too); null until the list has been loaded once. */
+    val listedIds: StateFlow<Set<Long>?> = combine(repository.allConversations, loaded) { convs, l ->
         if (l || convs.isNotEmpty()) convs.map { it.id }.toSet() else null
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -212,6 +240,22 @@ class ChatListViewModel @Inject constructor(
 
     fun toggleArchived() {
         showArchived.value = !showArchived.value
+    }
+
+    /** The side menu's „Alle Chats“: no list, no filter, the archive folded away. */
+    fun showAll() {
+        listId.value = null
+        filter.value = ChatFilter.All
+        net.value = null
+        showArchived.value = false
+    }
+
+    /** The side menu's „Archiv“: the archived chats unfolded. */
+    fun showArchive() {
+        listId.value = null
+        filter.value = ChatFilter.All
+        net.value = null
+        showArchived.value = true
     }
 
     fun archive(c: ChatConversation, archived: Boolean) {

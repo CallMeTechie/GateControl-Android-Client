@@ -59,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
+import kotlinx.coroutines.launch
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -96,9 +98,20 @@ fun ChatListScreen(
     onOpenSettings: () -> Unit = {},
     onOpenStory: (Long) -> Unit = {},
     onOpenStoryComposer: () -> Unit = {},
+    /** Messenger 1.20: the page „Kanäle“ (the TV symbol, the side menu). */
+    onOpenChannels: () -> Unit = {},
+    /** A page of the chat settings ([com.gatecontrol.android.ui.chat.settings.ChatSettingsPage]) from the side menu. */
+    onOpenSettingsPage: (String) -> Unit = { onOpenSettings() },
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val channels by viewModel.channels.collectAsStateWithLifecycle()
+    val linked by viewModel.linked.collectAsStateWithLifecycle()
+    val drawer = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
+    androidx.activity.compose.BackHandler(enabled = drawer.isOpen) { closeDrawer() }
+    androidx.compose.runtime.LaunchedEffect(drawer.isOpen) { if (drawer.isOpen) viewModel.loadLinked() }
     val updateHint by viewModel.showUpdateHint.collectAsStateWithLifecycle()
     val extra = GateControlTheme.extraColors
     val context = LocalContext.current
@@ -108,23 +121,56 @@ fun ChatListScreen(
     val f14 = state.profile?.features
     val myId = state.profile?.user?.userId
 
+    // Chats v2: the side menu behind ☰ (as Drive and Notizen) — the views, the lists, the linked services and, at its
+    // foot, the settings (the gear left the head)
+    androidx.compose.material3.ModalNavigationDrawer(
+        drawerState = drawer,
+        gesturesEnabled = drawer.isOpen,
+        drawerContent = {
+            com.gatecontrol.android.ui.components.GcDrawerSheet {
+                ChatDrawer(
+                    ChatDrawerState(
+                        name = state.profile?.user?.name,
+                        status = state.profile?.status?.text?.takeIf { it.isNotBlank() },
+                        channels = channels,
+                        archived = state.archived.size,
+                        status14 = f14?.status == true || f14?.stories == true,
+                        lists = state.lists.takeIf { f14?.msgTools == true },
+                        listId = state.listId,
+                        showArchived = state.showArchived,
+                        linked = linked,
+                    ),
+                    ChatDrawerActions(
+                        all = { closeDrawer(); viewModel.showAll() },
+                        channels = { closeDrawer(); onOpenChannels() },
+                        archive = { closeDrawer(); viewModel.showArchive() },
+                        status = { closeDrawer(); if (f14?.status == true) showStatus = true else onOpenStoryComposer() },
+                        list = { id -> closeDrawer(); viewModel.setList(id) },
+                        page = { p -> closeDrawer(); onOpenSettingsPage(p) },
+                    ),
+                )
+            }
+        },
+    ) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+                Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                GcIconButton(GcIcons.Menu, stringResource(R.string.chat_dr_menu), onClick = { scope.launch { drawer.open() } }, tint = MaterialTheme.colorScheme.onBackground)
                 Text(
                     stringResource(R.string.chat_title),
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(start = 4.dp),
                 )
                 GcIconButton(GcIcons.Search, stringResource(R.string.chat_search), onClick = {
                     searching = !searching
                     if (!searching) viewModel.setQuery("")
                 })
-                GcIconButton(GcIcons.Settings, stringResource(R.string.chat_settings_title), onClick = onOpenSettings)
+                // Messenger 1.20: the channels — only once one has a post; a grey dot for new posts (no number)
+                if (com.gatecontrol.android.chat.ChatChannels.showTv(channels)) ChannelsButton(dot = com.gatecontrol.android.chat.ChatChannels.dot(channels), onClick = onOpenChannels)
                 // "⋯" of the page when Chats is pinned to Start.
                 com.gatecontrol.android.ui.start.StartPageMenuButton()
             }
@@ -180,7 +226,8 @@ fun ChatListScreen(
                 if (state.networks.isNotEmpty()) {
                     val gc = com.gatecontrol.android.chat.ChatBridgeChat.NET_GC
                     GcFilterChip(stringResource(R.string.chat_bridged_only_gc), state.net == gc, { viewModel.setNet(gc) })
-                    state.networks.forEach { (id, label) -> GcFilterChip(label, state.net == id, { viewModel.setNet(id) }) }
+                    // Messenger 1.20: the service's logo in its chip
+                    state.networks.forEach { (id, label) -> GcFilterChip(label, state.net == id, { viewModel.setNet(id) }, leading = { ChatNetLogo(id, 16.dp) }) }
                 }
                 GcFilterChip(
                     stringResource(R.string.chat_filter_unread) + if (state.unreadChats > 0) " · ${state.unreadChats}" else "",
@@ -323,6 +370,7 @@ fun ChatListScreen(
             )
         }
     }
+    }
 
     if (showStatus) {
         com.gatecontrol.android.ui.chat.status.StatusSheet(
@@ -343,6 +391,25 @@ fun ChatListScreen(
             onToggleList = { l -> viewModel.toggleInList(l, c) },
             onDismiss = { menuFor = null },
         )
+    }
+}
+
+/**
+ * The TV symbol beside the search (Messenger 1.20): the page „Kanäle“; a grey dot (like a muted chat's number) while
+ * there are new posts.
+ */
+@Composable
+private fun ChannelsButton(dot: Boolean, onClick: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Box {
+        GcIconButton(GcIcons.Tv, stringResource(if (dot) R.string.chat_ch_tv_new else R.string.chat_ch_tv), onClick = onClick, modifier = Modifier.testTag("channels-tv"))
+        if (dot) {
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(top = 11.dp, end = 10.dp).size(9.dp).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.background).padding(1.5.dp).clip(CircleShape).background(extra.muted)
+                    .testTag("channels-dot"),
+            )
+        }
     }
 }
 
@@ -482,6 +549,11 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
                     // Messenger 1.6: a notice channel (GateControl's notifications of one source, read only).
                     Spacer(Modifier.width(6.dp))
                     GcChip(stringResource(R.string.chat_notice_tag), tone = GcTone.Neutral, small = true)
+                }
+                if (c.bridge?.channel == true) {
+                    // Messenger 1.20: a channel among the search's hits
+                    Spacer(Modifier.width(6.dp))
+                    GcChip(stringResource(R.string.chat_ch_tag), tone = GcTone.Neutral, small = true)
                 }
                 if (c.muted) {
                     Spacer(Modifier.width(6.dp))

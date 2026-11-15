@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chats v2, part A (Messenger 1.20, drafts "Kanäle" and "Chats v2"; texts of the plugin): channels, the side menu, format and links, reactions in channels, groups where only the admins write. -->
+<resources>
+    <!-- side menu -->
+    <string name="chat_dr_menu">Menu</string>
+    <string name="chat_dr_views">Views</string>
+    <string name="chat_dr_lists">My lists</string>
+    <string name="chat_dr_linked">Linked services</string>
+    <string name="chat_dr_all">All chats</string>
+    <string name="chat_dr_channels">Channels</string>
+    <string name="chat_dr_archive">Archive</string>
+    <string name="chat_dr_status">Status</string>
+    <string name="chat_dr_new_n">%1$d new</string>
+    <string name="chat_dr_new_list">New list</string>
+    <string name="chat_dr_link">Link a service</string>
+    <string name="chat_dr_state_linked">connected</string>
+    <string name="chat_dr_state_logged_out">signed out</string>
+    <string name="chat_dr_state_starting">starting …</string>
+    <string name="chat_dr_state_unreachable">not reachable</string>
+    <string name="chat_dr_state_error">error</string>
+    <string name="chat_dr_state_locked">locked</string>
+    <string name="chat_dr_state_none">not linked</string>
+    <string name="chat_dr_blocked">Blocked</string>
+    <string name="chat_dr_storage">Storage</string>
+    <string name="chat_dr_devices">Devices</string>
+    <string name="chat_dr_help">Help</string>
+    <string name="chat_dr_settings">Settings</string>
+    <!-- channels: the TV symbol and the page -->
+    <string name="chat_ch_tv">Channels</string>
+    <string name="chat_ch_tv_new">Channels, new posts</string>
+    <string name="chat_ch_title">Channels</string>
+    <string name="chat_ch_note">Notifications are off for channels. The bell in a channel turns them on.</string>
+    <string name="chat_ch_empty">You don\'t follow any channels. Follow channels in WhatsApp under \"Updates\".</string>
+    <string name="chat_ch_search">Search channels</string>
+    <string name="chat_ch_tag">Channel</string>
+    <string name="chat_ch_mark_read">Mark as read</string>
+    <string name="chat_ch_mute_on">Mute</string>
+    <string name="chat_ch_mute_off">Unmute</string>
+    <!-- a channel -->
+    <string name="chat_ch_sub">Channel · %1$s</string>
+    <string name="chat_ch_hint">A %1$s channel. You can only read here; the channel writes the posts.</string>
+    <string name="chat_ch_hint_off">Notifications are off for this channel.</string>
+    <string name="chat_ch_hint_on">Turn on</string>
+    <string name="chat_ch_hint_more">More</string>
+    <string name="chat_ch_read_only">Read only. Only the channel posts here.</string>
+    <string name="chat_ch_empty_posts">No posts yet. New posts show up here as soon as the channel publishes something.</string>
+    <string name="chat_ch_unreachable">%1$s can\'t be reached right now. New posts arrive once the bridge is running again.</string>
+    <string name="chat_ch_bell_on">Turn on notifications for this channel</string>
+    <string name="chat_ch_bell_off">Turn off notifications for this channel</string>
+    <string name="chat_ch_info">Channel via %1$s · read only</string>
+    <string name="chat_ch_own_reaction">WhatsApp shows other people\'s reactions only in its own app. Here you see your own.</string>
+    <string name="chat_ch_reactions_off">Reactions don\'t work in channels: %1$s refused one.</string>
+    <!-- groups where only the admins write, refusals -->
+    <string name="chat_admins_only">Only admins can post in this group.</string>
+    <string name="chat_bridged_err_read_only">You can\'t write here: in channels only the channel posts, in some groups only the admins.</string>
+    <!-- format and links, files -->
+    <string name="chat_link_open">Open link</string>
+    <string name="chat_preview_loading">Loading picture…</string>
+    <string name="chat_bridged_ph_retry">Try again</string>
+</resources>

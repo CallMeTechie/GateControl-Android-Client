@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chats v2, Teil A (Messenger 1.20, Entwürfe „Kanäle“ und „Chats v2“; Texte des Plugins): Kanäle, Seitenmenü, Format und Links, Reaktionen in Kanälen, Gruppen, in denen nur Admins schreiben. -->
+<resources>
+    <!-- Seitenmenü -->
+    <string name="chat_dr_menu">Menü</string>
+    <string name="chat_dr_views">Ansichten</string>
+    <string name="chat_dr_lists">Meine Listen</string>
+    <string name="chat_dr_linked">Verknüpfte Dienste</string>
+    <string name="chat_dr_all">Alle Chats</string>
+    <string name="chat_dr_channels">Kanäle</string>
+    <string name="chat_dr_archive">Archiv</string>
+    <string name="chat_dr_status">Status</string>
+    <string name="chat_dr_new_n">%1$d neu</string>
+    <string name="chat_dr_new_list">Neue Liste</string>
+    <string name="chat_dr_link">Dienst verknüpfen</string>
+    <string name="chat_dr_state_linked">verbunden</string>
+    <string name="chat_dr_state_logged_out">abgemeldet</string>
+    <string name="chat_dr_state_starting">startet …</string>
+    <string name="chat_dr_state_unreachable">nicht erreichbar</string>
+    <string name="chat_dr_state_error">Fehler</string>
+    <string name="chat_dr_state_locked">gesperrt</string>
+    <string name="chat_dr_state_none">nicht verknüpft</string>
+    <string name="chat_dr_blocked">Blockiert</string>
+    <string name="chat_dr_storage">Speicher</string>
+    <string name="chat_dr_devices">Geräte</string>
+    <string name="chat_dr_help">Hilfe</string>
+    <string name="chat_dr_settings">Einstellungen</string>
+    <!-- Kanäle: TV-Symbol und Seite -->
+    <string name="chat_ch_tv">Kanäle</string>
+    <string name="chat_ch_tv_new">Kanäle, neue Beiträge</string>
+    <string name="chat_ch_title">Kanäle</string>
+    <string name="chat_ch_note">Benachrichtigungen sind für Kanäle aus. Die Glocke im Kanal schaltet sie ein.</string>
+    <string name="chat_ch_empty">Du folgst keinem Kanal. Kanäle abonnierst du in WhatsApp unter „Aktuelles“.</string>
+    <string name="chat_ch_search">Kanäle suchen</string>
+    <string name="chat_ch_tag">Kanal</string>
+    <string name="chat_ch_mark_read">Als gelesen markieren</string>
+    <string name="chat_ch_mute_on">Stummschalten</string>
+    <string name="chat_ch_mute_off">Stumm aus</string>
+    <!-- ein Kanal -->
+    <string name="chat_ch_sub">Kanal · %1$s</string>
+    <string name="chat_ch_hint">Ein Kanal von %1$s. Hier liest du nur mit, Beiträge schreibt der Kanal.</string>
+    <string name="chat_ch_hint_off">Benachrichtigungen sind für diesen Kanal aus.</string>
+    <string name="chat_ch_hint_on">Einschalten</string>
+    <string name="chat_ch_hint_more">Mehr</string>
+    <string name="chat_ch_read_only">Nur lesen. In Kanälen schreibt nur der Kanal.</string>
+    <string name="chat_ch_empty_posts">Noch keine Beiträge. Neue Beiträge erscheinen hier, sobald der Kanal etwas veröffentlicht.</string>
+    <string name="chat_ch_unreachable">%1$s ist gerade nicht erreichbar. Neue Beiträge kommen an, sobald die Brücke wieder läuft.</string>
+    <string name="chat_ch_bell_on">Benachrichtigungen für diesen Kanal einschalten</string>
+    <string name="chat_ch_bell_off">Benachrichtigungen für diesen Kanal ausschalten</string>
+    <string name="chat_ch_info">Kanal über %1$s · nur lesen</string>
+    <string name="chat_ch_own_reaction">Reaktionen anderer zeigt WhatsApp nur in der WhatsApp-App. Hier siehst du deine eigene.</string>
+    <string name="chat_ch_reactions_off">Reagieren geht in Kanälen nicht: %1$s hat eine Reaktion abgelehnt.</string>
+    <!-- Gruppen, in denen nur Admins schreiben; Ablehnungen -->
+    <string name="chat_admins_only">Nur Admins schreiben in dieser Gruppe.</string>
+    <string name="chat_bridged_err_read_only">Hier kannst du nicht schreiben: In Kanälen schreibt nur der Kanal, in manchen Gruppen nur die Admins.</string>
+    <!-- Format und Links, Dateien -->
+    <string name="chat_link_open">Link öffnen</string>
+    <string name="chat_preview_loading">Bild wird geladen …</string>
+    <string name="chat_bridged_ph_retry">Erneut versuchen</string>
+</resources>

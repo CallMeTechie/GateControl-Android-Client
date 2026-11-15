@@ -286,6 +286,8 @@ fun GcFilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** A small mark before the text (the logo of a messenger in the chats' filters). */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val extra = GateControlTheme.extraColors
     Box(
@@ -298,11 +300,14 @@ fun GcFilterChip(
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleSmall,
-            color = if (selected) extra.accentText else if (enabled) extra.muted else extra.faint,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            leading?.invoke()
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (selected) extra.accentText else if (enabled) extra.muted else extra.faint,
+            )
+        }
     }
 }
 

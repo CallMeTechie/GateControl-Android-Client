@@ -167,6 +167,9 @@ class ChatBridgedUiTest {
 
     private fun stubRepository() {
         every { repository.conversations } returns conversations
+        every { repository.allConversations } returns conversations
+        every { repository.channels } returns flowOf(emptyList())
+        every { repository.channelsOn } returns MutableStateFlow(false)
         every { repository.conversation(any()) } answers { val id = firstArg<Long>(); kotlinx.coroutines.flow.flow { conversations.collect { list -> emit(list.firstOrNull { it.id == id }) } } }
         every { repository.messages(any()) } returns messages
         every { repository.outbox(any()) } returns flowOf(emptyList())
@@ -209,7 +212,7 @@ class ChatBridgedUiTest {
         val inbox: InboxCache = mockk(relaxed = true)
         every { inbox.items } returns MutableStateFlow(emptyList())
         every { push.inbox } returns inbox
-        return ChatListViewModel(repository, push, ChatUpdateHint(context), extras).also { viewModels += it }
+        return ChatListViewModel(repository, push, ChatUpdateHint(context), extras, mockk(relaxed = true)).also { viewModels += it }
     }
 
     private class Shown(val dark: Boolean, val content: @androidx.compose.runtime.Composable () -> Unit)
