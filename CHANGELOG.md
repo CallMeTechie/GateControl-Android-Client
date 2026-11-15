@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.115.0] - 2026-11-15
+
+### Features
+- Chats – Brücken Stufe 5: älterer Verlauf, Handy-Hinweis, „Brücke veraltet“ (Messenger 1.17) (#234)
+
+---
+
 ## [1.114.0] - 2026-11-15
 
 ### Features
