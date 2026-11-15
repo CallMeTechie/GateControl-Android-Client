@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.118.0] - 2026-11-15
+
+### Features
+- Nutzerprofil – Felder, Telefonnummern, Erkennung, Meine Daten; Seitenmenüs öffnen das Profil (#238)
+
+---
+
 ## [1.117.0] - 2026-11-15
 
 ### Features
