@@ -470,10 +470,24 @@ fun AppNavigation(
         )
     }
 
+    // the person at the head of every side menu (Chats, Drive, Notizen, Mail): the own picture, a tap opens „Profil“
+    val myAvatarViewModel: com.gatecontrol.android.ui.profile.MyAvatarViewModel = hiltViewModel()
+    val myAvatar by myAvatarViewModel.ui.collectAsStateWithLifecycle()
+    val drawerMe = remember(myAvatar) {
+        com.gatecontrol.android.ui.components.GcDrawerMe(
+            name = myAvatar.name,
+            initials = myAvatar.initials,
+            colorHex = myAvatar.colorHex,
+            avatarUrl = myAvatar.avatarUrl,
+            onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
+        )
+    }
+
     CompositionLocalProvider(
         LocalGcWindowLayout provides layout,
         LocalPageSnack provides showSnack,
         com.gatecontrol.android.ui.mail.start.LocalMailStartNav provides mailStartNav,
+        com.gatecontrol.android.ui.components.LocalGcDrawerMe provides drawerMe,
     ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,

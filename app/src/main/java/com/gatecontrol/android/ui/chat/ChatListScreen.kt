@@ -127,7 +127,7 @@ fun ChatListScreen(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
-            com.gatecontrol.android.ui.components.GcDrawerSheet {
+            com.gatecontrol.android.ui.components.GcDrawerSheet(onClose = { closeDrawer() }) {
                 ChatDrawer(
                     ChatDrawerState(
                         name = state.profile?.user?.name,
