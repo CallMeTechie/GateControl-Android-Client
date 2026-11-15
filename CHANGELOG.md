@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.114.0] - 2026-11-15
+
+### Features
+- Chats – Brücken Stufe 4: Dateien, Profilbilder, neuer WhatsApp-Chat per Nummer (Messenger 1.15/1.16) (#233)
+
+---
+
 ## [1.113.0] - 2026-11-14
 
 ### Features
