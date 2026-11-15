@@ -40,7 +40,8 @@ class ProfileRepositoryTest {
     private val provider = mockk<ApiClientProvider> { every { getClient(any()) } returns api }
     private val loader = mockk<AvatarLoader>(relaxed = true)
 
-    private fun repo() = ProfileRepository(setup, settings, provider, loader)
+    private val secure = mockk<com.gatecontrol.android.data.EncryptedStorage>(relaxed = true)
+    private fun repo() = ProfileRepository(setup, settings, provider, loader, secure)
     private fun json(s: String): JsonObject = JsonParser.parseString(s).asJsonObject
 
     private val profile = """{"ok":true,"user":{"id":7,"name":"Anna","initials":"AN","color":"green","colorHex":"#22C55E","avatarUrl":null},
@@ -108,5 +109,77 @@ class ProfileRepositoryTest {
         assertEquals(ProfileResult.Ok, r.uploadAvatar(bytes, "image/webp"))
         coVerify { loader.prime("https://gc.example.com/avatars/AbCdEfGhIjKlMnOpQrStUv.webp", bytes) }
         assertEquals("/avatars/AbCdEfGhIjKlMnOpQrStUv.webp", r.state.value.profile?.avatarUrl)
+    }
+
+    // ─── the profile's fields (server 1.280) ──────────────────────
+
+    private val fields = """{"userId":7,"username":"anna","displayName":"Anna","phones":[],"family":false,
+        "recognition":{"byPhone":false,"phoneAnswered":false},"features":{"phones":true,"emailConfirm":true,"recognition":true}}"""
+    private val withFields = profile.trimEnd().removeSuffix("}") + ""","profile":$fields}"""
+
+    private fun bodyOf(b: RequestBody) = Buffer().also { b.writeTo(it) }.readUtf8()
+
+    @Test
+    fun `the fields come with the profile and go only to the encrypted storage`() = runTest {
+        coEvery { api.getMyProfile() } returns Response.success(json(withFields))
+        val r = repo()
+        val state = r.refresh()
+        assertEquals("anna", state.details?.username)
+        io.mockk.verify { secure.putString("profile_details_v1", match { it.contains("\"userId\":7") }) }
+        // the DataStore copy (plain) keeps picture and colour only
+        assertTrue(cache.value!!.contains("Anna") && !cache.value!!.contains("phones"))
+    }
+
+    @Test
+    fun `an older server has no fields - none kept`() = runTest {
+        coEvery { api.getMyProfile() } returns Response.success(json(profile))
+        val state = repo().refresh()
+        assertNull(state.details)
+        io.mockk.verify { secure.remove("profile_details_v1") }
+    }
+
+    @Test
+    fun `a change replaces the profile with the server's answer`() = runTest {
+        coEvery { api.getMyProfile() } returns Response.success(json(withFields))
+        val body = slot<RequestBody>()
+        val after = fields.replace("\"phones\":[]", "\"phones\":[{\"id\":11,\"kind\":\"mobile\",\"number\":\"+4915100000000\",\"visibility\":\"none\",\"useForRecognition\":true,\"state\":\"unconfirmed\"}]")
+        coEvery { api.addMyPhone(capture(body)) } returns Response.success(json("""{"ok":true,"phone":{"id":11},"profile":$after}"""))
+        val r = repo()
+        r.refresh()
+        val result = r.addPhone("mobile", "+4915100000000", "none", true)
+        assertTrue(result is ProfileEdit.Done)
+        assertEquals("""{"kind":"mobile","number":"+4915100000000","visibility":"none","useForRecognition":true}""", bodyOf(body.captured))
+        assertEquals(1, r.state.value.details?.phones?.size)
+        // no second question to the server
+        coVerify(exactly = 1) { api.getMyProfile() }
+    }
+
+    @Test
+    fun `a refusal names code, field and the server's text`() = runTest {
+        coEvery { api.patchMyPhone(11, any()) } returns Response.error(
+            409, """{"ok":false,"code":"DUPLICATE","error":"Diese Nummer steht schon in deinem Profil.","field":"number"}""".toResponseBody("application/json".toMediaType()),
+        )
+        assertEquals(
+            ProfileEdit.Refused("DUPLICATE", "number", "Diese Nummer steht schon in deinem Profil."),
+            repo().updatePhone(11, null, "+4915100000000", null, null),
+        )
+        coEvery { api.patchMyProfile(any()) } throws java.io.IOException("offline")
+        assertEquals(ProfileEdit.Refused(ProfileRepository.CODE_OFFLINE), repo().updateFields(com.google.gson.JsonObject()))
+        assertEquals("RATE_LIMITED", ProfileRepository.refusal(429, null).code)
+    }
+
+    @Test
+    fun `my data as a file with the server's name`() = kotlinx.coroutines.runBlocking {
+        // runBlocking: the file is read on Dispatchers.IO, under runTest's virtual time the timeout would win
+        coEvery { api.exportMyProfile() } returns Response.success(
+            "{\"account\":{}}".toResponseBody("application/json".toMediaType()),
+            okhttp3.Headers.headersOf("Content-Disposition", "attachment; filename=\"gatecontrol-meine-daten-2026-11-15.json\""),
+        )
+        val file = repo().export() as ProfileExport.File
+        assertEquals("gatecontrol-meine-daten-2026-11-15.json", file.name)
+        assertEquals("{\"account\":{}}", String(file.bytes))
+        coEvery { api.exportMyProfile() } returns Response.error(429, """{"ok":false,"code":"RATE_LIMITED"}""".toResponseBody("application/json".toMediaType()))
+        assertEquals(ProfileExport.Refused("RATE_LIMITED"), repo().export())
+        Unit
     }
 }

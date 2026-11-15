@@ -227,7 +227,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
-            GcDrawerSheet {
+            GcDrawerSheet(onClose = { scope.launch { drawer.close() } }) {
                 val close: () -> Unit = { scope.launch { drawer.close() } }
                 val areas = home?.areas.orEmpty().takeIf { usable }.orEmpty()
                 val personal = DriveTree.flatten(DriveTree.personal(areas), expanded, children)

@@ -144,7 +144,7 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
-            GcDrawerSheet {
+            GcDrawerSheet(onClose = { closeDrawer() }) {
                 NotizenDrawer(
                     me = me,
                     nav = ui.nav,

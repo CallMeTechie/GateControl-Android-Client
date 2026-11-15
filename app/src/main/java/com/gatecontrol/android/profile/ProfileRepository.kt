@@ -1,5 +1,6 @@
 package com.gatecontrol.android.profile
 
+import com.gatecontrol.android.data.EncryptedStorage
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.familie.PluginDirectory
@@ -17,7 +18,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.RequestBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
@@ -39,6 +42,8 @@ enum class ProfileSupport {
 data class ProfileState(
     val profile: MyProfile? = null,
     val support: ProfileSupport = ProfileSupport.UNKNOWN,
+    /** The profile's fields (server 1.280+); null: the server has none, the page shows picture and colour only. */
+    val details: ProfileDetails? = null,
 ) {
     /** Profile entry, own avatar on the start tab: only when the server has profiles. */
     val available: Boolean get() = support == ProfileSupport.SUPPORTED && profile != null
@@ -48,6 +53,23 @@ data class ProfileState(
 sealed interface ProfileResult {
     data object Ok : ProfileResult
     data class Failed(val code: String) : ProfileResult
+}
+
+/** Result of a change of the profile's fields. */
+sealed interface ProfileEdit {
+    /** Done: [details] is the whole profile from the answer; [codeSent] / [emailId] of a further address. */
+    data class Done(val details: ProfileDetails, val codeSent: Boolean = false, val emailId: Long? = null) : ProfileEdit
+
+    /** Refused: the server's [code] (`INVALID`, `LIMIT`, …, or [ProfileRepository.CODE_OFFLINE]), its [field] and its text (already translated). */
+    data class Refused(val code: String, val field: String? = null, val message: String? = null) : ProfileEdit
+}
+
+/** „Meine Daten“: the file, or why not. */
+sealed interface ProfileExport {
+    class File(val name: String, val bytes: ByteArray) : ProfileExport {
+        override fun toString(): String = "File($name, ${bytes.size} B)"
+    }
+    data class Refused(val code: String) : ProfileExport
 }
 
 /**
@@ -62,6 +84,8 @@ class ProfileRepository @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val apiClientProvider: ApiClientProvider,
     private val avatarLoader: AvatarLoader,
+    /** The fields hold phone numbers: their copy only in the encrypted app storage (as the tokens). */
+    private val secureStorage: EncryptedStorage,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
@@ -85,7 +109,10 @@ class ProfileRepository @Inject constructor(
 
     private suspend fun loadCache() {
         val cached = ProfileJson.decode(runCatching { settingsRepository.getProfileCache().first() }.getOrNull(), owner())
-        _state.value = if (cached != null) ProfileState(cached, ProfileSupport.SUPPORTED) else ProfileState()
+        val details = if (cached == null) null else withContext(Dispatchers.IO) {
+            ProfileDetailsJson.decode(runCatching { secureStorage.getString(KEY_DETAILS, "") }.getOrNull(), owner())?.second
+        }
+        _state.value = if (cached != null) ProfileState(cached, ProfileSupport.SUPPORTED, details) else ProfileState()
     }
 
     /** On start / foreground: refresh unless it was done a moment ago. */
@@ -107,7 +134,12 @@ class ProfileRepository @Inject constructor(
                 ?: return@withLock _state.value
             val body = response.body()
             when {
-                response.isSuccessful && body != null -> ProfileJson.parse(body)?.let { store(it) }
+                response.isSuccessful && body != null -> ProfileJson.parse(body)?.let { p ->
+                    val raw = body.get("profile")?.takeIf { it.isJsonObject }?.asJsonObject
+                    val details = raw?.let(ProfileDetailsJson::parse)
+                    storeDetails(if (details != null) raw else null)
+                    store(p, details)
+                }
                 response.code() == 404 -> forget(ProfileSupport.UNSUPPORTED)
                 response.code() == 403 -> forget(ProfileSupport.NO_USER)
                 else -> Timber.d("Profile: HTTP %d", response.code())
@@ -123,15 +155,133 @@ class ProfileRepository @Inject constructor(
     }
 
     // Cache first, then the state: a concurrent loadCache() never reads an older copy.
-    private suspend fun store(profile: MyProfile) {
+    private suspend fun store(profile: MyProfile, details: ProfileDetails? = _state.value.details) {
         runCatching { settingsRepository.setProfileCache(ProfileJson.encode(profile, owner())) }
-        _state.value = ProfileState(profile, ProfileSupport.SUPPORTED)
+        _state.value = ProfileState(profile, ProfileSupport.SUPPORTED, details)
+    }
+
+    /** The server's `profile` as it came (null: none) into the encrypted storage. */
+    private suspend fun storeDetails(raw: JsonObject?) = withContext(Dispatchers.IO) {
+        runCatching {
+            val encoded = raw?.let { ProfileDetailsJson.encode(it, owner()) }
+            if (encoded == null) secureStorage.remove(KEY_DETAILS) else secureStorage.putString(KEY_DETAILS, encoded)
+        }
     }
 
     private suspend fun forget(support: ProfileSupport) {
         runCatching { settingsRepository.setProfileCache(null) }
+        storeDetails(null)
         _state.value = ProfileState(null, support)
     }
+
+    // ─── The profile's fields: each answer carries the whole profile, which replaces ours ─────────
+
+    /** `PATCH /me/profile` with a part of the fields (see [ProfileDetailsJson]'s bodies). */
+    suspend fun updateFields(body: JsonObject): ProfileEdit = edit { it.patchMyProfile(body.toBody()) }
+
+    suspend fun addPhone(kind: String, number: String, visibility: String, useForRecognition: Boolean): ProfileEdit =
+        edit { it.addMyPhone(ProfileDetailsJson.phoneBody(kind, number, visibility, useForRecognition).toBody()) }
+
+    /** Only the given fields change (a new number starts unconfirmed). */
+    suspend fun updatePhone(id: Long, kind: String?, number: String?, visibility: String?, useForRecognition: Boolean?): ProfileEdit =
+        edit { it.patchMyPhone(id, ProfileDetailsJson.phoneBody(kind, number, visibility, useForRecognition).toBody()) }
+
+    suspend fun removePhone(id: Long): ProfileEdit = edit { it.deleteMyPhone(id) }
+
+    suspend fun addEmail(address: String): ProfileEdit =
+        edit { it.addMyEmail(JsonObject().apply { addProperty("address", address.trim()) }.toBody()) }
+
+    suspend fun confirmEmail(id: Long, code: String): ProfileEdit =
+        edit { it.confirmMyEmail(id, JsonObject().apply { addProperty("code", code.trim()) }.toBody()) }
+
+    suspend fun resendEmail(id: Long): ProfileEdit = edit { it.resendMyEmail(id) }
+
+    suspend fun removeEmail(id: Long): ProfileEdit = edit { it.deleteMyEmail(id) }
+
+    private fun JsonObject.toBody(): RequestBody = toString().toRequestBody(JSON)
+
+    private suspend fun edit(call: suspend (com.gatecontrol.android.network.ApiClient) -> Response<JsonObject>): ProfileEdit {
+        val url = setupRepository.getServerUrl()
+        if (url.isBlank()) return ProfileEdit.Refused(CODE_OFFLINE)
+        return try {
+            val response = withTimeoutOrNull(WRITE_TIMEOUT_MS) { call(apiClientProvider.getClient(url)) }
+                ?: return ProfileEdit.Refused(CODE_OFFLINE)
+            val body = response.body()
+            if (!response.isSuccessful || body == null ||
+                body.get("ok")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean == false
+            ) {
+                return refusal(response.code(), errorJson(response) ?: body)
+            }
+            val raw = body.get("profile")?.takeIf { it.isJsonObject }?.asJsonObject
+            val details = raw?.let(ProfileDetailsJson::parse)
+            if (raw == null || details == null) {
+                // Changed, but no usable profile in the answer: ask again.
+                lastRefreshMs = 0L
+                val now = refresh().details ?: return ProfileEdit.Refused(CODE_FAILED)
+                return ProfileEdit.Done(now)
+            }
+            mutex.withLock {
+                storeDetails(raw)
+                _state.value = _state.value.copy(details = details)
+            }
+            val email = body.get("email")?.takeIf { it.isJsonObject }?.asJsonObject
+            ProfileEdit.Done(
+                details,
+                codeSent = body.get("codeSent")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean == true,
+                emailId = email?.get("id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong,
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Profile edit failed (%s)", e.javaClass.simpleName)
+            ProfileEdit.Refused(CODE_OFFLINE)
+        }
+    }
+
+    /** `GET /me/profile/export`: „Meine Daten“ as a file (at most [MAX_EXPORT] bytes). */
+    suspend fun export(): ProfileExport {
+        val url = setupRepository.getServerUrl()
+        if (url.isBlank()) return ProfileExport.Refused(CODE_OFFLINE)
+        return try {
+            withTimeoutOrNull(EXPORT_TIMEOUT_MS) {
+                val response = apiClientProvider.getClient(url).exportMyProfile()
+                val body = response.body()
+                if (!response.isSuccessful || body == null) {
+                    val code = refusal(response.code(), errorJson(response)).code
+                    response.errorBody()?.close()
+                    return@withTimeoutOrNull ProfileExport.Refused(code)
+                }
+                body.use { b ->
+                    if (b.contentLength() > MAX_EXPORT) return@withTimeoutOrNull ProfileExport.Refused(CODE_TOO_LARGE)
+                    val bytes = withContext(Dispatchers.IO) { b.byteStream().use { readCapped(it, MAX_EXPORT + 1) } }
+                    if (bytes.size > MAX_EXPORT) return@withTimeoutOrNull ProfileExport.Refused(CODE_TOO_LARGE)
+                    ProfileExport.File(ProfileDetailsJson.exportName(response.headers()["Content-Disposition"], java.time.LocalDate.now()), bytes)
+                }
+            } ?: ProfileExport.Refused(CODE_OFFLINE)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Profile export failed (%s)", e.javaClass.simpleName)
+            ProfileExport.Refused(CODE_OFFLINE)
+        }
+    }
+
+    /** Up to [max] bytes of [input] (readNBytes needs API 33). */
+    private fun readCapped(input: java.io.InputStream, max: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(16 * 1024)
+        while (out.size() < max) {
+            val n = input.read(buf, 0, minOf(buf.size, max - out.size()))
+            if (n < 0) break
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
+
+    private fun errorJson(response: Response<*>): JsonObject? = runCatching {
+        val raw = response.errorBody()?.string()?.take(4_000) ?: return null
+        com.google.gson.JsonParser.parseString(raw).asJsonObject
+    }.getOrNull()
 
     /** Uploads [image] ([mime]: image/webp | image/jpeg | image/png), ≤ 96 KB, square. */
     suspend fun uploadAvatar(image: ByteArray, mime: String): ProfileResult = change { url ->
@@ -210,6 +360,9 @@ class ProfileRepository @Inject constructor(
         const val CODE_NO_USER = "no_user"
         const val CODE_FAILED = "failed"
 
+        private const val KEY_DETAILS = "profile_details_v1"
+        private const val EXPORT_TIMEOUT_MS = 60_000L
+        private const val MAX_EXPORT = 8 * 1024 * 1024
         private const val TIMEOUT_MS = 8_000L
         private const val WRITE_TIMEOUT_MS = 20_000L
         private const val MIN_INTERVAL_MS = 3 * 60_000L
@@ -220,6 +373,26 @@ class ProfileRepository @Inject constructor(
          * Core 1.168: 403 NO_USER, 429 RATE_LIMITED, 415 UNSUPPORTED_TYPE,
          * 413 TOO_LARGE, 400 INVALID_IMAGE (`reason`), 400 INVALID_COLOR, 404 = older server.
          */
+        /**
+         * Pure: the refusal of a change of the fields — the server's `code` (upper case), `field` and `error` (its own
+         * translated text, plain and capped); without a code the status names it.
+         */
+        fun refusal(status: Int, o: JsonObject?): ProfileEdit.Refused {
+            fun str(k: String) = o?.get(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+            val code = str("code")?.uppercase()?.takeIf { Regex("^[A-Z_]{2,40}$").matches(it) } ?: when (status) {
+                400, 422 -> "INVALID"
+                403 -> "NO_USER"
+                404 -> "NOT_FOUND"
+                409 -> "CONFLICT"
+                410 -> "CODE_EXPIRED"
+                429 -> "RATE_LIMITED"
+                else -> CODE_FAILED
+            }
+            val field = str("field")?.takeIf { Regex("^[A-Za-z]{1,40}$").matches(it) }
+            val message = str("error")?.filter { !it.isISOControl() }?.trim()?.take(300)?.ifEmpty { null }
+            return ProfileEdit.Refused(code, field, message)
+        }
+
         fun codeOf(status: Int, serverCode: String?): String {
             val c = serverCode?.uppercase()
             return when {
