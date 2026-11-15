@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.116.0] - 2026-11-15
+
+### Features
+- Chats – Brücken Stufe 4c: „Neuer Chat“ mit Kontakten (Messenger 1.18) (#235)
+
+---
+
 ## [1.115.0] - 2026-11-15
 
 ### Features
