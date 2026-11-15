@@ -301,6 +301,38 @@ class ChatApi @Inject constructor(
         return post(path, JsonObject().apply { addProperty("number", e164) }, ChatNewChat::chat)
     }
 
+    /**
+     * `GET contacts/new-chat?network=&q=` (Messenger 1.18) — "Neuer Chat" with contacts: GateControl, WhatsApp (no
+     * numbers), the address book. The search is in the query only; [call] logs nothing of it.
+     */
+    suspend fun newChatContacts(network: String, q: String): ChatResult<ChatNewChatContacts> {
+        if (ChatBridges.path(network) == null) return noPath()
+        val query = buildMap {
+            put("network", network)
+            if (q.isNotEmpty()) put("q", q)
+        }
+        return get("contacts/new-chat", query, ChatNewContacts::list)
+    }
+
+    /** `POST bridges/:network/chats { ref }` (Messenger 1.18) — the chat with a WhatsApp contact, made or found. */
+    suspend fun bridgeContactChat(network: String, ref: String): ChatResult<ChatNumberChat> {
+        val path = ChatNewChat.path(network, "chats") ?: return noPath()
+        return post(path, JsonObject().apply { addProperty("ref", ref) }, ChatNewChat::chat)
+    }
+
+    /**
+     * `POST bridges/:network/chats { contactId, phoneKind }` (Messenger 1.18) — the chat with a number of the address
+     * book: the server asks the service about exactly this one number (counted in the brake).
+     */
+    suspend fun bridgeBookChat(network: String, contactId: Long, phoneKey: String): ChatResult<ChatNumberChat> {
+        val path = ChatNewChat.path(network, "chats") ?: return noPath()
+        val body = JsonObject().apply {
+            addProperty("contactId", contactId)
+            addProperty("phoneKind", phoneKey)
+        }
+        return post(path, body, ChatNewChat::chat)
+    }
+
     /** `POST bridges/:network/consent` — the notes before the first link were read. */
     suspend fun bridgeConsent(network: String): ChatResult<Unit> {
         val path = ChatBridges.path(network, "consent") ?: return noPath()

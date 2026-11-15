@@ -111,6 +111,12 @@ object ChatBridgeChat {
      */
     const val FEATURE_HISTORY = "bridge_history"
 
+    /**
+     * Messenger 1.18 `features.bridge_contacts`: "Neuer Chat" with the person's contacts — GateControl, WhatsApp, the
+     * address book of Mail (`GET contacts/new-chat`, `POST bridges/:network/chats { ref | contactId }`).
+     */
+    const val FEATURE_CONTACTS = "bridge_contacts"
+
     /** The mark of a client that knows bridged chats (`?bridged=1`). */
     const val QUERY = "bridged"
 

@@ -830,6 +830,7 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() },
                         onNewGroup = { navController.navigate(Screen.ChatNew.create(group = true)) },
                         onNewNumber = { net -> navController.navigate(Screen.ChatNewNumber.create(net)) { launchSingleTop = true } },
+                        onOpenLinked = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.LINKED)) { launchSingleTop = true } },
                         onOpened = { id ->
                             // The new conversation replaces "Neuer Chat" (and "Neue Gruppe").
                             while (navController.currentDestination?.route == Screen.ChatNew.route) {

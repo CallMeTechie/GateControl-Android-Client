@@ -664,7 +664,11 @@ fun ConversationScreen(
                     if (rows.isEmpty() && started != null && c?.bridge != null) {
                         item(key = "started") {
                             Text(
-                                stringResource(R.string.chat_newnum_first_line, c.bridge.label, started.display, started.name ?: c.title.orEmpty()),
+                                when (started.kind) {
+                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.CONTACT -> stringResource(R.string.chat_ncc_first_line_contact, c.bridge.label, started.name ?: c.title.orEmpty())
+                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.BOOK -> stringResource(R.string.chat_ncc_first_line_book, c.bridge.label, started.name ?: c.title.orEmpty(), started.display.orEmpty())
+                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.NUMBER -> stringResource(R.string.chat_newnum_first_line, c.bridge.label, started.display.orEmpty(), started.name ?: c.title.orEmpty())
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = extra.muted,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,

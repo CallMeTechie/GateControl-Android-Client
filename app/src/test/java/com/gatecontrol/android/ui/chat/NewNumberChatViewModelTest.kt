@@ -147,8 +147,8 @@ class NewNumberChatViewModelTest {
         assertEquals(NumberPhase.Input, vm.state.value.phase)
         vm.other()
         assertEquals("", vm.state.value.input)
-        // a picked contact brings its own country
-        vm.picked("+41 79 123 45 67")
+        // a number given to the page brings its own country
+        vm.given("+41 79 123 45 67")
         assertEquals("CH", vm.state.value.country.iso)
         assertTrue(vm.state.value.number.ok)
     }
@@ -220,5 +220,22 @@ class NewNumberChatViewModelTest {
         assertEquals(NumberPhase.InvalidServer, vm.state.value.phase)
         vm.start()
         coVerify(exactly = 0) { repository.openNumberChat(any(), any()) }
+    }
+
+    @Test
+    fun `a number handed over by Neuer Chat - in the field and checked at once`() = scope.runTest {
+        coEvery { bridges.resolve(wa, "+4917155501230") } returns ChatResult.Ok(ChatNumberLookup(true, "Paul", null))
+        ChatNumberHandoff.put(wa, "+4917155501230")
+        val vm = vm()
+        vm.bind(wa)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { bridges.resolve(wa, "+4917155501230") }
+        assertInstanceOf(NumberPhase.Found::class.java, vm.state.value.phase)
+        assertEquals("+4917155501230", vm.state.value.input)
+        // taken once: the next page starts empty
+        val again = vm()
+        again.bind(wa)
+        advanceUntilIdle()
+        assertEquals("", again.state.value.input)
     }
 }

@@ -1,13 +1,6 @@
 package com.gatecontrol.android.ui.chat
 
-import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.ContactsContract
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +22,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.ContactPhone
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.automirrored.outlined.Logout
@@ -54,7 +46,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,7 +82,6 @@ import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -101,14 +91,38 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /*
  * "WhatsApp-Chat mit Nummer" (Messenger 1.15/1.16, draft "Neuer WhatsApp-Chat per Nummer", approved 15.11.): its own
  * page like "WhatsApp verknüpfen". The number lives in this view model's memory only while the page is open — not in
  * the saved state, a preference or a log, not in `toString()`.
+ *
+ * Since Messenger 1.18 ("Neuer Chat" with contacts) it is "Nicht dabei? Nummer eingeben", and a number typed into the
+ * search of "Neuer Chat" comes here through [ChatNumberHandoff] (memory only) and is checked at once. The system's
+ * contact picker is gone: contacts come from GateControl only.
  */
+
+/**
+ * A number "Neuer Chat" hands to this page ("+49 … bei WhatsApp prüfen"): in this process's memory, taken once by the
+ * page of that service — never in the navigation's arguments, so never in a saved state.
+ */
+object ChatNumberHandoff {
+    private class Entry(val network: String, val e164: String)
+
+    @Volatile private var entry: Entry? = null
+
+    fun put(network: String, e164: String) {
+        entry = Entry(network, e164)
+    }
+
+    /** The number for [network], once; null when there is none. */
+    fun take(network: String): String? = synchronized(this) {
+        val e = entry ?: return null
+        entry = null
+        e.e164.takeIf { e.network == network }
+    }
+}
 
 /** Where the page stands. Classes that carry a number keep it out of `toString()`. */
 sealed interface NumberPhase {
@@ -199,6 +213,11 @@ class NewNumberChatViewModel @Inject constructor(
                 }
             }
             (_state.value.phase as? NumberPhase.RateLimited)?.let { waitOut(it) }
+            // a number of the search of "Neuer Chat" ("… bei WhatsApp prüfen"): in the field and checked at once
+            ChatNumberHandoff.take(network)?.let { e164 ->
+                given(e164)
+                if (_state.value.phase == NumberPhase.Input) check()
+            }
         }
     }
 
@@ -224,8 +243,8 @@ class NewNumberChatViewModel @Inject constructor(
 
     private fun afterEdit(p: NumberPhase): NumberPhase = if (p is NumberPhase.RateLimited || p is NumberPhase.Blocked) p else NumberPhase.Input
 
-    /** A number from the phone's contacts (the system's picker); null: the contact has none. */
-    fun picked(raw: String) {
+    /** A number given to the page (the search of "Neuer Chat"): its country, then the field. */
+    fun given(raw: String) {
         val v = raw.trim().take(MAX_INPUT)
         ChatNewChat.countryOf(v)?.let { _state.update { s -> s.copy(country = it) } }
         setInput(v)
@@ -332,17 +351,8 @@ class NewNumberChatViewModel @Inject constructor(
     }
 }
 
-/** The number of a contact the system's picker returned ([uri] of a phone row; read with the picker's grant only). */
-private suspend fun pickedNumber(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
-    runCatching {
-        context.contentResolver.query(uri, arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER), null, null, null)?.use { c ->
-            if (c.moveToFirst()) c.getString(0) else null
-        }
-    }.getOrNull()?.takeIf { it.isNotBlank() }
-}
-
 /**
- * The page "WhatsApp-Chat mit Nummer": the number (country code, field, "Aus Kontakten wählen"), what the check found,
+ * The page "WhatsApp-Chat mit Nummer": the number (country code and field), what the check found,
  * one sentence on what happens to the number, the button of the moment.
  */
 @Composable
@@ -356,31 +366,12 @@ fun NewNumberChatScreen(
     LaunchedEffect(network) { viewModel.bind(network) }
     LaunchedEffect(Unit) { viewModel.open.collect { onOpened(it) } }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val noNumber = stringResource(R.string.chat_newnum_contacts_none)
-    // Only the system's own contact picker: no permission to read the contacts, nothing leaves the phone but the one
-    // number the person picked (and only on "Prüfen").
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
-        scope.launch {
-            val n = pickedNumber(context, uri)
-            if (n == null) Toast.makeText(context, noNumber, Toast.LENGTH_SHORT).show() else viewModel.picked(n)
-        }
-    }
     NewNumberChatContent(
         ui = state,
         name = stringResource(networkName(network)),
         onBack = onBack,
         onInput = viewModel::setInput,
         onCountry = viewModel::setCountry,
-        onContacts = {
-            try {
-                picker.launch(Intent(Intent.ACTION_PICK).setType(ContactsContract.CommonDataKinds.Phone.CONTENT_TYPE))
-            } catch (e: ActivityNotFoundException) {
-                Toast.makeText(context, noNumber, Toast.LENGTH_SHORT).show()
-            }
-        },
         onCheck = viewModel::check,
         onStart = viewModel::start,
         onOther = viewModel::other,
@@ -395,7 +386,6 @@ fun NewNumberChatContent(
     onBack: () -> Unit,
     onInput: (String) -> Unit,
     onCountry: (ChatCountry) -> Unit,
-    onContacts: () -> Unit,
     onCheck: () -> Unit,
     onStart: () -> Unit,
     onOther: () -> Unit,
@@ -415,7 +405,7 @@ fun NewNumberChatContent(
                     CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = extra.accentText)
                 }
             } else if (blocked == null) {
-                NumberField(ui, onInput, onCountry, onContacts, onCheck)
+                NumberField(ui, onInput, onCountry, onCheck)
             }
             if (!ui.loading) ResultCard(ui, name)
             if (!ui.loading && blocked == null) {
@@ -454,7 +444,7 @@ private fun Buttons(ui: NumberChatUi, onCheck: () -> Unit, onStart: () -> Unit, 
 }
 
 @Composable
-private fun NumberField(ui: NumberChatUi, onInput: (String) -> Unit, onCountry: (ChatCountry) -> Unit, onContacts: () -> Unit, onCheck: () -> Unit) {
+private fun NumberField(ui: NumberChatUi, onInput: (String) -> Unit, onCountry: (ChatCountry) -> Unit, onCheck: () -> Unit) {
     val extra = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val phase = ui.phase
@@ -528,14 +518,6 @@ private fun NumberField(ui: NumberChatUi, onInput: (String) -> Unit, onCountry: 
                     disabledTextColor = scheme.onSurface.copy(alpha = 0.6f),
                 ),
             )
-            val contacts = stringResource(R.string.chat_newnum_contacts)
-            Box(
-                Modifier.size(56.dp).clip(shape).border(1.dp, extra.border2, shape).background(scheme.background)
-                    .clickable(enabled = !locked, role = Role.Button, onClickLabel = contacts, onClick = onContacts),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Outlined.ContactPhone, contentDescription = contacts, tint = extra.accentText)
-            }
         }
         // under the field: how the number is read — not while a result stands in its place
         val result = phase is NumberPhase.Found || phase is NumberPhase.Checking || phase is NumberPhase.RateLimited ||
