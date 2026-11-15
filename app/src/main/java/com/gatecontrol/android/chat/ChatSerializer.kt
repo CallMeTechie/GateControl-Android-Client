@@ -118,6 +118,7 @@ object ChatSerializer {
         m.bridge?.let { add("bridge", ChatBridgeChat.write(it)) }
         m.marks?.let { add("marks", ChatFormat.write(it)) }
         m.preview?.let { add("preview", ChatChannels.write(it)) }
+        m.way?.let { addProperty("way", it) }
     }
 
     fun conversation(c: ChatConversation): JsonObject = JsonObject().apply {
@@ -177,6 +178,7 @@ object ChatSerializer {
             })
         }
         c.bridge?.let { add("bridge", ChatBridgeChat.write(it)) }
+        c.person?.let { add("person", ChatPeople.write(it)) }
     }
 
     fun profile(p: ChatProfile): JsonObject = JsonObject().apply {

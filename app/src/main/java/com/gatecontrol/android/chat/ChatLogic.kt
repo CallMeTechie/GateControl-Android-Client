@@ -116,8 +116,14 @@ object ChatTimeline {
         conversation: ChatConversation?,
         zone: ZoneId = ZoneId.systemDefault(),
         gaps: List<ChatGap> = emptyList(),
+        /**
+         * Messenger 1.21, the chat of a person: the messages of several ways mixed by time (`createdAt`, a tie by `id`),
+         * each with the ticks of its own way's conversation in [ways].
+         */
+        byTime: Boolean = false,
+        ways: Map<Long, ChatConversation> = emptyMap(),
     ): List<TimelineItem> {
-        val stored = messages.sortedBy { it.id }
+        val stored = if (byTime) messages.sortedWith(compareBy<ChatMessage> { it.createdAt }.thenBy { it.id }) else messages.sortedBy { it.id }
         val storedClientIds = stored.mapNotNullTo(HashSet()) { it.clientId }
         val waiting = pending.filter { it.clientId !in storedClientIds }.sortedBy { it.createdAtMs }
         val out = ArrayList<TimelineItem>(stored.size + waiting.size + 8)
@@ -137,7 +143,8 @@ object ChatTimeline {
                 lastWasSystem = true
             }
             val showSender = conversation?.isGroup == true && !m.mine && !m.isSystem && (lastWasSystem || lastSender != ChatBridgeChat.senderKey(m))
-            out += TimelineItem.Message(m, status(m, conversation?.readUpTo, conversation?.deliveredUpTo), showSender)
+            val own = ways[m.conversationId] ?: conversation
+            out += TimelineItem.Message(m, status(m, own?.readUpTo, own?.deliveredUpTo), showSender)
             lastSender = ChatBridgeChat.senderKey(m)
             lastWasSystem = m.isSystem
         }

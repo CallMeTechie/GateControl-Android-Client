@@ -120,6 +120,23 @@ fun ChatListScreen(
     var menuFor by remember { mutableStateOf<ChatConversation?>(null) }
     val f14 = state.profile?.features
     val myId = state.profile?.user?.userId
+    // Messenger 1.21: the suggestion card and its dialog „Zu einer Person zusammenführen?“
+    val suggestion by viewModel.suggestion.collectAsStateWithLifecycle()
+    val merging by viewModel.merging.collectAsStateWithLifecycle()
+    var mergeFor by remember { mutableStateOf<com.gatecontrol.android.chat.ChatPersonSuggestion?>(null) }
+    androidx.compose.runtime.LaunchedEffect(f14?.tokens?.contains(com.gatecontrol.android.chat.ChatPeople.FEATURE)) { viewModel.loadSuggestions() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.peopleNotice.collect { n ->
+            when (n) {
+                is ChatPeopleNotice.Merged -> {
+                    mergeFor = null
+                    android.widget.Toast.makeText(context, R.string.chat_pp_merged, android.widget.Toast.LENGTH_SHORT).show()
+                    onOpen(n.id)
+                }
+                is ChatPeopleNotice.Error -> android.widget.Toast.makeText(context, ChatText.actionError(context, n.code), android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     // Chats v2: the side menu behind ☰ (as Drive and Notizen) — the views, the lists, the linked services and, at its
     // foot, the settings (the gear left the head)
@@ -248,6 +265,9 @@ fun ChatListScreen(
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
                     val sectioned = !state.sharing && state.query.isBlank()
+                    // Messenger 1.21: one card above the list — the first suggestion
+                    val sugg = suggestion
+                    if (sectioned && sugg != null) item(key = "suggestion") { PersonSuggestionCard(sugg) { mergeFor = sugg } }
                     if (sectioned) {
                         // "Mein Status" above "Angeheftet"; there GateControl, then the chats pinned to the list (Messenger 1.6).
                         item(key = "pinned") {
@@ -378,6 +398,22 @@ fun ChatListScreen(
             onOpenStoryComposer = { showStatus = false; onOpenStoryComposer() },
             onOpenProfile = null,
             onViewOwnStories = if (state.feed?.me?.stories?.isNotEmpty() == true) ({ showStatus = false; onOpenStory(0L) }) else null,
+        )
+    }
+    mergeFor?.let { sg ->
+        PersonMergeSheet(
+            s = sg,
+            busy = merging,
+            onMerge = { name -> viewModel.mergeSuggestion(sg, name) },
+            onLater = {
+                mergeFor = null
+                viewModel.answerSuggestion(sg, com.gatecontrol.android.chat.ChatPeople.ACTION_LATER)
+            },
+            onNever = {
+                mergeFor = null
+                viewModel.answerSuggestion(sg, com.gatecontrol.android.chat.ChatPeople.ACTION_NEVER)
+            },
+            onDismiss = { mergeFor = null },
         )
     }
     menuFor?.let { c ->
@@ -534,7 +570,9 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        ConversationAvatar(c, 52.dp)
+        // Messenger 1.21: a person — its picture without a corner, the logos of its ways behind the name
+        val person = c.person?.takeIf { it.conversationId == c.id }
+        if (person != null) PersonAvatar(c, 52.dp) else ConversationAvatar(c, 52.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -545,6 +583,10 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                if (person != null) {
+                    Spacer(Modifier.width(6.dp))
+                    PersonWayLogos(person, 14.dp, Modifier.testTag("person-ways"))
+                }
                 if (c.isNotice) {
                     // Messenger 1.6: a notice channel (GateControl's notifications of one source, read only).
                     Spacer(Modifier.width(6.dp))

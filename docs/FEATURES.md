@@ -998,6 +998,50 @@ beiden Fällen nicht mehr.
 Ohne `bridge_channels` bleiben Kanäle wie bisher Chats in der Liste (nur
 lesen); Format, Links, Leisten, Reaktionen, Retry und Logos gelten trotzdem.
 
+### Messenger 1.21 – Chats v2, Teil B: Personen zusammenführen
+
+- **Eine Person, ein Chat** (`features.chat_people`): Die App schickt
+  `?people=1`; wer dir über GateControl und über WhatsApp schreibt, steht
+  einmal in der Liste – nur in deiner Sicht. Hinter dem Namen stehen die Logos
+  der Wege (Schild, WhatsApp-Glyph), am Bild kein Logo-Eck. Die übrigen Wege
+  bleiben mit ihren Nachrichten im Speicher des Geräts. Die Suche findet jeden
+  Namen („Schatz“ und „Jenny“), der Chip „WhatsApp“ zeigt Personen mit
+  WhatsApp-Weg, „Nur GateControl“ Personen mit GateControl-Weg; Ungelesen,
+  Archiv und eigene Listen zählen für die Person.
+- **Vorschlag:** Erkennt GateControl dieselbe Person (eigenes WhatsApp
+  verknüpft, bestätigte oder angegebene Nummer), steht eine Karte über der
+  Liste („„Schatzimausi 💕“ bei WhatsApp ist vielleicht Jenny Backes.“,
+  „Ansehen“). Der Dialog „Zu einer Person zusammenführen?“ zeigt das Paar, den
+  Grund, den Text und „Name in deiner Liste“ (Kontoname vorgewählt):
+  Zusammenführen · Nicht jetzt · Nicht mehr vorschlagen. Vorschläge werden beim
+  Öffnen von „Chats“ und höchstens alle 15 Minuten geholt.
+- **Gemeinsamer Chat:** Verlauf beider Wege nach Zeit gemischt, neben der
+  Uhrzeit das Logo des Weges („über WhatsApp“), Häkchen je Weg. Quellen-Chips
+  Alle · GateControl · WhatsApp. Im Kopf die Logos und „GateControl ·
+  WhatsApp“, die Suche läuft über alle Wege. Ältere Nachrichten lädt die App je
+  Weg nach; der gemischte Verlauf zeigt nur, was lückenlos da ist.
+- **Senden ohne Wegwahl:** Die Antwort geht über den Weg, den der Server nennt
+  (`person.reply`: Weg der letzten eingehenden Nachricht, sonst GateControl),
+  eine Antwort auf eine Nachricht über deren Weg. Der Platzhalter sagt
+  „Nachricht über WhatsApp“ / „Nachricht über GateControl“; über WhatsApp steht
+  darüber „Geht über WhatsApp. Die Verschlüsselung von WhatsApp endet an der
+  Brücke neben deinem Server.“ Anhänge und Sprachnachricht richten sich nach
+  diesem Weg.
+- **Chat-Info:** „Nur für dich zusammengeführt – … sieht davon nichts.“,
+  „Wege von …“ mit Logo, „Konto …“ / „als „…““ und **Trennen** (mit
+  Bestätigung, es geht keine Nachricht verloren), „Name in deiner Liste“ und
+  **„Mit Person zusammenführen …“** (auch in jedem Einzelchat und
+  Brücken-Einzelchat): GateControl-Konten und andere Chats mit Suche, danach
+  der Dialog mit Namenswahl. Stumm und Archiv gelten für alle Wege.
+- **Push:** Der Titel nennt Person und Weg („Jenny Backes · über WhatsApp“);
+  Antippen öffnet die Person, solange sie offen ist, kommt für keinen ihrer
+  Wege eine Benachrichtigung.
+- **Erkennung:** Nach dem Verknüpfen von WhatsApp fragt „Verknüpfte Dienste“
+  einmal „Dürfen andere auf diesem Server dich an deinem WhatsApp erkennen?“
+  (Nein · Ja, erkennen lassen), wenn der Server die Frage anbietet.
+
+Ohne `chat_people` stehen die Wege wie bisher als getrennte Chats in der Liste.
+
 ---
 
 ## Vault (Plugin `gatecontrol-vault` 1.0)

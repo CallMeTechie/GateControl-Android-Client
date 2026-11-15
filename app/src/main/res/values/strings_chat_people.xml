@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chats v2, part B (Messenger 1.21, draft "Chats v2" sections 2, 3, 6; texts of the plugin): persons — the suggestion, merging, the shared chat, separating, the recognition question. -->
+<resources>
+    <string name="chat_pp_card_sub">Merge into one chat?</string>
+    <string name="chat_pp_card_open">View</string>
+    <string name="chat_pp_merge_title">Merge into one person?</string>
+    <string name="chat_pp_merge_text">Both chats then show as one chat with a shared history. Only you see this.</string>
+    <string name="chat_pp_way_chat">%s chat</string>
+    <string name="chat_pp_name">Name in your list</string>
+    <string name="chat_pp_merge">Merge</string>
+    <string name="chat_pp_later">Not now</string>
+    <string name="chat_pp_never">Don\'t suggest again</string>
+    <string name="chat_pp_merged">Merged into one person.</string>
+    <string name="chat_pp_src">Source</string>
+    <string name="chat_pp_src_all">All</string>
+    <string name="chat_pp_placeholder">Message via %s</string>
+    <string name="chat_pp_hint">Sent via %1$s. %1$s\'s encryption ends at the bridge next to your server.</string>
+    <string name="chat_pp_via">via %s</string>
+    <string name="chat_pp_only_you">Merged for you only – %s sees nothing of it.</string>
+    <string name="chat_pp_ways_title">Ways to reach %s</string>
+    <string name="chat_pp_way_account">Account %s</string>
+    <string name="chat_pp_way_as">as \"%s\"</string>
+    <string name="chat_pp_split">Separate</string>
+    <string name="chat_pp_split_q">Show the %s chat separately again? No message is lost.</string>
+    <string name="chat_pp_split_note">Separating shows a way as its own chat again. No message is lost.</string>
+    <string name="chat_pp_split_done">Shown separately again. No message was lost.</string>
+    <string name="chat_pp_add">Merge with person …</string>
+    <string name="chat_pp_pick_title">Merge with person</string>
+    <string name="chat_pp_pick_accounts">GateControl accounts</string>
+    <string name="chat_pp_pick_chats">Other chats</string>
+    <string name="chat_pp_pick_hint">Pick a GateControl account or another chat with the same person. Only what you pick is merged – never guessed by name.</string>
+    <string name="chat_pp_pick_none">No matching chat.</string>
+    <string name="chat_pp_pick_search">Search</string>
+    <string name="chat_pp_rec_title">May others on this server recognise you by your WhatsApp?</string>
+    <string name="chat_pp_rec_text">If someone on this server has you as a WhatsApp contact, GateControl suggests merging your WhatsApp chat with your account. Nobody sees your number.</string>
+    <string name="chat_pp_rec_note">You can change this any time in \"My profile\" under \"Recognition\".</string>
+    <string name="chat_pp_rec_no">No</string>
+    <string name="chat_pp_rec_yes">Yes, allow</string>
+    <string name="chat_pp_rec_on">Others on this server can now recognise you by your WhatsApp.</string>
+    <string name="chat_pp_rec_off">Nobody recognises you by your WhatsApp.</string>
+    <string name="chat_pp_cannot_merge">These chats can\'t be merged: only chats with one person, never groups or channels, and at most one GateControl account.</string>
+</resources>

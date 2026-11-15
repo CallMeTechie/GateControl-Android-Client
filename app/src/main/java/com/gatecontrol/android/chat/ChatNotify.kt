@@ -42,6 +42,12 @@ data class ChatPushPayload(
     val senderKey: String? = null,
     /** Messenger 1.14: the service of a bridged chat (`data.bridge`), else null. */
     val bridge: String? = null,
+    /**
+     * Messenger 1.21: a way of a person (`data.person { id, conversationId }`) — the tap opens the person (its entry's
+     * [personConversationId]); the title names the person and the way („Jenny Backes · über WhatsApp“).
+     */
+    val personId: Long? = null,
+    val personConversationId: Long? = null,
 )
 
 /** One message line of a conversation's notification. */
@@ -129,6 +135,8 @@ object ChatNotifyLogic {
             open = (data.str("deepLink") ?: data.str("open"))?.takeIf { it in OPEN_TARGETS },
             senderKey = sender?.str("id")?.takeIf { EXT_SENDER_RE.matches(it) },
             bridge = ChatJson.token(data.str("bridge")),
+            personId = data.obj("person")?.id("id"),
+            personConversationId = data.obj("person")?.id("conversationId"),
         )
     }
 

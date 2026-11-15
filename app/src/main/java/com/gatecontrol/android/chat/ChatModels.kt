@@ -118,6 +118,11 @@ data class ChatConversation(
     val notice: ChatNotice? = null,
     /** Messenger 1.14: the chat runs over a bridge to another messenger (one member — the caller — and no `peer`). */
     val bridge: ChatConvBridge? = null,
+    /**
+     * Messenger 1.21 (`?people=1`): the entry of a person (its lead chat, [ChatMergedPerson.conversationId] = [id]) —
+     * or, on a way's own view, the person it belongs to.
+     */
+    val person: ChatMergedPerson? = null,
 ) {
     val isGroup: Boolean get() = kind == KIND_GROUP
 
@@ -252,6 +257,8 @@ data class ChatMessage(
     val marks: List<ChatMark>? = null,
     /** Messenger 1.20: a link's preview on top of the bubble. */
     val preview: ChatLinkPreview? = null,
+    /** Messenger 1.21 (`?people=1`): the way of the message — `gatecontrol` or the bridge's network. */
+    val way: String? = null,
 ) {
     val isSystem: Boolean get() = kind == KIND_SYSTEM
 
@@ -322,6 +329,8 @@ data class ChatConversationList(
     val serverTime: String?,
     /** Messenger 1.20 (`?channels=1`): the channels kept out of the list — how many have a post, the new posts. */
     val channels: ChatChannelSummary? = null,
+    /** Messenger 1.21 (`?people=1`): the ways of persons that left the list (they stay in the cache). */
+    val folded: List<Long> = emptyList(),
 )
 
 data class ChatPrefs(val readReceipts: Boolean = true, val typing: Boolean = true, val preview: Boolean = true)

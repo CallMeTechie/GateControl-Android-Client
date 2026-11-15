@@ -124,6 +124,10 @@ abstract class ChatDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY id")
     abstract fun observeMessages(conversationId: Long): Flow<List<MessageEntity>>
 
+    /** Messenger 1.21: the messages of a person's ways together (mixed by time where they are shown). */
+    @Query("SELECT * FROM messages WHERE conversationId IN (:conversationIds) ORDER BY id")
+    abstract fun observeMessagesIn(conversationIds: List<Long>): Flow<List<MessageEntity>>
+
     @Query("SELECT * FROM messages WHERE id = :id")
     abstract suspend fun message(id: Long): MessageEntity?
 
@@ -152,6 +156,9 @@ abstract class ChatDao {
 
     @Query("SELECT * FROM outbox WHERE conversationId = :conversationId ORDER BY createdAtMs")
     abstract fun observeOutbox(conversationId: Long): Flow<List<OutboxEntity>>
+
+    @Query("SELECT * FROM outbox WHERE conversationId IN (:conversationIds) ORDER BY createdAtMs")
+    abstract fun observeOutboxIn(conversationIds: List<Long>): Flow<List<OutboxEntity>>
 
     @Query("SELECT * FROM outbox ORDER BY createdAtMs")
     abstract fun observeAllOutbox(): Flow<List<OutboxEntity>>

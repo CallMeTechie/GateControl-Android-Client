@@ -170,6 +170,23 @@ fun ConversationScreen(
     homeViewModel: ChatHomeViewModel = hiltViewModel(key = "chat-home-$conversationId"),
 ) {
     LaunchedEffect(conversationId, share) { viewModel.bind(conversationId, share) }
+    // Messenger 1.21: a way of a person (a push, a shortcut) — the person's chat instead
+    val redirect by viewModel.redirect.collectAsStateWithLifecycle()
+    redirect?.let { lead ->
+        ConversationScreen(
+            conversationId = lead,
+            onBack = onBack,
+            onOpenInfo = onOpenInfo,
+            onOpenImage = onOpenImage,
+            share = share,
+            onOpenUpdates = onOpenUpdates,
+            onOpenProfile = onOpenProfile,
+            onOpenLinked = onOpenLinked,
+            viewModel = hiltViewModel(key = "conversation-$lead"),
+            homeViewModel = hiltViewModel(key = "chat-home-$lead"),
+        )
+        return
+    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val player by viewModel.player.state.collectAsState()
     val context = LocalContext.current
@@ -382,6 +399,9 @@ fun ConversationScreen(
 
     val c = state.conversation
     val myId = state.myId
+    // Messenger 1.21: the chat of a person — the composer writes to the way of the answer
+    val person = state.person
+    val cc = state.composer
     val currentRows by rememberUpdatedState(rows)
     val gapLoading by viewModel.gapLoading.collectAsStateWithLifecycle()
     // To a message (search result, quote): scrolled to when loaded, else loaded with its
@@ -515,7 +535,9 @@ fun ConversationScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    if (c != null) ConversationAvatar(c, 40.dp)
+                    if (c != null) {
+                        if (person != null) PersonAvatar(c, 40.dp) else ConversationAvatar(c, 40.dp)
+                    }
                     Column(Modifier.weight(1f)) {
                         Text(
                             c?.let { ChatText.title(context, it) } ?: "",
@@ -525,13 +547,20 @@ fun ConversationScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         val typing = ChatText.typing(context, c, state.typing, myId, state.contactTyping)
+                        // Messenger 1.21: a person — the logos of its ways and „GateControl · WhatsApp“
+                        if (person != null && typing == null) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                PersonWayLogos(person, 14.dp)
+                                Text(personWaysLine(person), style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                         // Messenger 1.14: a chat over a bridge says so under its name ("über WhatsApp").
                         // Messenger 1.20: a channel says „Kanal · WhatsApp“
                         val sub = typing ?: c?.bridge?.let { stringResource(if (it.channel) R.string.chat_ch_sub else R.string.chat_bridged_via, it.label) } ?: c?.takeIf { it.isGroup }?.let { conv ->
                             conv.members.filter { it.userId != myId }.joinToString(", ") { ChatText.name(context, it) } +
                                 ", " + resources.getString(R.string.chat_you_lower)
                         } ?: c?.takeIf { !it.isGroup }?.let { ChatText.presence(context, it.peer) }
-                        if (sub != null) {
+                        if (sub != null && (person == null || typing != null)) {
                             Text(
                                 sub,
                                 style = MaterialTheme.typography.bodySmall,
@@ -566,8 +595,11 @@ fun ConversationScreen(
             )
         }
 
+        // Messenger 1.21: the source chips of a person's chat (Alle · GateControl · WhatsApp)
+        if (person != null && person.kinds.size > 1) PersonSourceChips(person, state.source, viewModel::setSource)
+
         // Messenger 1.14: where a chat over a bridge runs, and why it cannot send right now.
-        c?.bridge?.let { b ->
+        c?.bridge?.takeIf { person == null }?.let { b ->
             BridgeBar(
                 bridge = b,
                 seen = b.network in state.bridgeSeen,
@@ -644,7 +676,10 @@ fun ConversationScreen(
                                 m = item.message,
                                 status = item.status,
                                 showSender = item.showSender,
-                                conversation = c,
+                                conversation = state.conversationOf(item.message),
+                                // Messenger 1.21: the logo of the message's way beside the time
+                                way = person?.let { com.gatecontrol.android.chat.ChatPeople.wayOf(item.message, it) },
+                                wayLabel = person?.let { com.gatecontrol.android.chat.ChatPeople.labelOf(it, com.gatecontrol.android.chat.ChatPeople.wayOf(item.message, it)) },
                                 myId = myId,
                                 player = player,
                                 actions = bubbleActions,
@@ -657,7 +692,7 @@ fun ConversationScreen(
                             )
                             is TimelineItem.Pending -> PendingBubble(
                                 p = item.pending,
-                                conversation = c,
+                                conversation = state.ways[item.pending.conversationId] ?: c,
                                 myId = myId,
                                 player = player,
                                 onLongPress = { pendingFor = it },
@@ -721,16 +756,16 @@ fun ConversationScreen(
         }
 
         // ─── composer ───
-        val readOnly = com.gatecontrol.android.chat.ChatBridgeChat.readOnly(c)
+        val readOnly = com.gatecontrol.android.chat.ChatBridgeChat.readOnly(cc)
         if (readOnly != null) {
             // Messenger 1.20: a channel (only the channel writes) or a group where only the admins write
             ReadOnlyBar(readOnly)
-        } else if (c != null && (c.readonly || !c.can.send)) {
+        } else if (cc != null && (cc.readonly || !cc.can.send)) {
             Text(
                 when {
                     // Messenger 1.14: the bar above says why; here only that the history stays
-                    c.bridge != null -> stringResource(if (c.bridge.closed) R.string.chat_bridged_closed else R.string.chat_bridged_cannot_send, c.bridge.label)
-                    else -> stringResource(if (c.readonly) R.string.chat_readonly else R.string.chat_cannot_send)
+                    cc.bridge != null -> stringResource(if (cc.bridge.closed) R.string.chat_bridged_closed else R.string.chat_bridged_cannot_send, cc.bridge.label)
+                    else -> stringResource(if (cc.readonly) R.string.chat_readonly else R.string.chat_cannot_send)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = extra.muted,
@@ -740,7 +775,7 @@ fun ConversationScreen(
             state.shared?.let { sh ->
                 SharedBar(
                     // a chat over a bridge took text only (Messenger 1.14); 1.15: files where the service takes them
-                    count = if (c?.bridge != null && !com.gatecontrol.android.chat.ChatBridgeChat.attach(c)) 0 else sh.files.size,
+                    count = if (cc?.bridge != null && !com.gatecontrol.android.chat.ChatBridgeChat.attach(cc)) 0 else sh.files.size,
                     onSend = viewModel::sendShared,
                     onDrop = viewModel::dropShared,
                 )
@@ -748,8 +783,8 @@ fun ConversationScreen(
             state.replyTo?.let { r ->
                 ComposerBar(
                     icon = Icons.AutoMirrored.Outlined.Reply,
-                    title = stringResource(R.string.chat_reply_to, ChatText.senderOf(context, c, r, myId)),
-                    text = ChatText.content(context, r, c, myId),
+                    title = stringResource(R.string.chat_reply_to, ChatText.senderOf(context, state.conversationOf(r), r, myId)),
+                    text = ChatText.content(context, r, state.conversationOf(r), myId),
                     onClose = viewModel::cancelReply,
                 )
             }
@@ -764,6 +799,8 @@ fun ConversationScreen(
                     },
                 )
             }
+            // Messenger 1.21: the answer goes over a bridge — where its encryption ends
+            person?.let { com.gatecontrol.android.chat.ChatPeople.hint(it, state.replyTo) }?.let { PersonWayHint(it) }
             Composer(
                 draft = draft,
                 onDraft = {
@@ -775,9 +812,11 @@ fun ConversationScreen(
                 enterSends = deviceConfig.enterSends,
                 // Messenger 1.14: a chat over a bridge took text only; 1.15 (`bridge.supports`, `mediaTypes`): the paper clip
                 // with files only, the microphone when the service takes the recording's type (AAC in MP4)
-                voice = state.profile?.features?.voice != false && com.gatecontrol.android.chat.ChatBridgeChat.voice(c, com.gatecontrol.android.chat.VoiceRecorder.MIME),
-                attach = com.gatecontrol.android.chat.ChatBridgeChat.attach(c),
-                hint = c?.bridge?.let { stringResource(R.string.chat_bridged_placeholder, it.label) },
+                voice = state.profile?.features?.voice != false && com.gatecontrol.android.chat.ChatBridgeChat.voice(cc, com.gatecontrol.android.chat.VoiceRecorder.MIME),
+                attach = com.gatecontrol.android.chat.ChatBridgeChat.attach(cc),
+                // Messenger 1.21: a person — the way of the answer („Nachricht über WhatsApp“, „Nachricht über GateControl“)
+                hint = person?.let { p -> com.gatecontrol.android.chat.ChatPeople.replyWay(p, state.replyTo)?.label?.let { stringResource(R.string.chat_pp_placeholder, it) } }
+                    ?: cc?.bridge?.let { stringResource(R.string.chat_bridged_placeholder, it.label) },
                 recorder = viewModel.recorder,
                 onSend = { if (viewModel.send(draft)) draft = "" },
                 onAttach = { showAttach = true },
@@ -800,9 +839,9 @@ fun ConversationScreen(
         val features = state.profile?.features
         val members = c?.members.orEmpty()
         val others = members.filter { it.userId != myId && !it.gone }
-        // Messenger 1.15, a chat over a bridge: files only — no location, no GateControl extras
-        val own = c?.bridge == null
-        val takes = { what: String -> com.gatecontrol.android.chat.ChatBridgeChat.takes(c, what) }
+        // Messenger 1.15, a chat over a bridge: files only — no location, no GateControl extras (1.21: of the way of the answer)
+        val own = cc?.bridge == null
+        val takes = { what: String -> com.gatecontrol.android.chat.ChatBridgeChat.takes(cc, what) }
         val actionsOn = own && features?.actions == true
         LaunchedEffect(Unit) { homeViewModel.prepare() }
         AttachSheet14(

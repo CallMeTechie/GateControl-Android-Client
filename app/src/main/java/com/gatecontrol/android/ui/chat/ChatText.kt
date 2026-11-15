@@ -324,6 +324,8 @@ object ChatText {
             "no_approver" -> R.string.chat_err_no_approver
             "rate_limited" -> R.string.chat_err_rate_limited
             "feature_off" -> R.string.chat_err_feature_off
+            // Messenger 1.21: these chats cannot be one person
+            com.gatecontrol.android.chat.ChatPeople.CANNOT_MERGE -> R.string.chat_pp_cannot_merge
             // Messenger 1.10: "In Drive speichern".
             "drive_unavailable" -> R.string.chat_err_drive_unavailable
             "no_seat" -> R.string.chat_err_drive_no_seat

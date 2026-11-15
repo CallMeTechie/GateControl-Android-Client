@@ -22,12 +22,19 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class ChatFilter { All, Unread, Groups, Events }
+
+/** Messenger 1.21: what became of a suggestion — merged (the person [id] opens) or refused ([code]). */
+sealed interface ChatPeopleNotice {
+    data class Merged(val id: Long) : ChatPeopleNotice
+    data class Error(val code: String?) : ChatPeopleNotice
+}
 
 data class ChatListUiState(
     /** Section "Chats" (while searching or sharing: every match, pinned ones too). */
@@ -82,6 +89,18 @@ class ChatListViewModel @Inject constructor(
     val channels: StateFlow<com.gatecontrol.android.chat.ChatChannelSummary?> =
         combine(repository.channels, repository.channelsOn) { list, on -> if (on) com.gatecontrol.android.chat.ChatChannels.summary(list) else null }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // Messenger 1.21: before the init blocks below (they load the suggestions)
+    private val _suggestion = MutableStateFlow<com.gatecontrol.android.chat.ChatPersonSuggestion?>(null)
+
+    /** The card above the list: the first suggestion (strong ones first); null: none, or not offered. */
+    val suggestion: StateFlow<com.gatecontrol.android.chat.ChatPersonSuggestion?> = _suggestion
+
+    private val _merging = MutableStateFlow(false)
+    val merging: StateFlow<Boolean> = _merging
+
+    private val peopleNotices = kotlinx.coroutines.channels.Channel<ChatPeopleNotice>(kotlinx.coroutines.channels.Channel.BUFFERED)
+    val peopleNotice: kotlinx.coroutines.flow.Flow<ChatPeopleNotice> = peopleNotices.receiveAsFlow()
 
     private val _linked = MutableStateFlow<List<com.gatecontrol.android.chat.ChatBridgeNetwork>?>(null)
 
@@ -145,14 +164,17 @@ class ChatListViewModel @Inject constructor(
         // Messenger 1.14: a chat over a bridge took text only — what is shared from another app (files) could not go there;
         // 1.15: it can where the service takes files (`bridge.supports`).
         val all = if (share != null) listed.filter { com.gatecontrol.android.chat.ChatBridgeChat.attach(it) } else listed
-        val networks = com.gatecontrol.android.chat.ChatBridgeChat.networks(all)
+        // Messenger 1.21: the bridged ways of persons count too
+        val networks = com.gatecontrol.android.chat.ChatPeople.networks(all)
         // a filter whose service has no chat any more is none
         val netNow = b.e.net?.takeIf { n -> networks.isNotEmpty() && (n == com.gatecontrol.android.chat.ChatBridgeChat.NET_GC || networks.any { it.first == n }) }
         // Messenger 1.4: archived chats live in their own section (search finds them too).
         val q = b.query.trim().lowercase()
         val sorted = if (q.isEmpty()) all.filter { !it.archived } else all
-        val inList = com.gatecontrol.android.chat.ChatToolsLogic.inList(sorted, b.e.lists, b.e.listId)
-        val visible = inList.filter { com.gatecontrol.android.chat.ChatBridgeChat.inNet(it, netNow) }.filter { c ->
+        // Messenger 1.21: a list naming any way of a person holds the person
+        val listIds = b.e.listId?.let { id -> b.e.lists.firstOrNull { it.id == id }?.conversationIds?.toSet() ?: emptySet() }
+        val inList = if (listIds == null) sorted else sorted.filter { com.gatecontrol.android.chat.ChatPeople.listed(it, listIds) }
+        val visible = inList.filter { com.gatecontrol.android.chat.ChatPeople.inNet(it, netNow) }.filter { c ->
             when (b.filter) {
                 ChatFilter.All -> true
                 ChatFilter.Unread -> c.unread > 0
@@ -160,8 +182,8 @@ class ChatListViewModel @Inject constructor(
                 ChatFilter.Events -> c.nextEvent != null
             }
         }.filter { c ->
-            q.isEmpty() || (c.title ?: c.peer?.name ?: "").lowercase().contains(q) ||
-                c.members.any { (it.name ?: "").lowercase().contains(q) }
+            // Messenger 1.21: every name of a person („Schatz“ and „Jenny“ find the same chat)
+            com.gatecontrol.android.chat.ChatPeople.matches(c, q)
         }
         // Messenger 1.20: a search finds the channels too (not while sharing — nothing can be sent there)
         val found = if (q.isEmpty() || share != null) emptyList() else com.gatecontrol.android.chat.ChatChannels.rows(b.channels, q).filter { com.gatecontrol.android.chat.ChatBridgeChat.inNet(it, netNow) }
@@ -177,7 +199,7 @@ class ChatListViewModel @Inject constructor(
             inboxUnread = inboxUnread,
             profile = profile,
             sync = sync,
-            typing = sorted.associate { it.id to ChatTimeline.typingNow(typing, it.id, myId, nowMs) }.filterValues { it.isNotEmpty() },
+            typing = sorted.associate { c -> c.id to (c.person?.wayIds ?: listOf(c.id)).flatMap { ChatTimeline.typingNow(typing, it, myId, nowMs) }.distinct() }.filterValues { it.isNotEmpty() },
             loaded = b.loaded || all.isNotEmpty(),
             sharing = share != null,
             lists = b.e.lists,
@@ -188,7 +210,7 @@ class ChatListViewModel @Inject constructor(
             networks = networks,
             net = netNow,
             bridged = com.gatecontrol.android.chat.ChatBridgeChat.any(profile?.features, listed),
-            contactTyping = sorted.mapNotNull { c -> ChatTimeline.contactsTypingNow(contactTyping, c.id, nowMs)?.let { c.id to it } }.toMap(),
+            contactTyping = sorted.mapNotNull { c -> (c.person?.wayIds ?: listOf(c.id)).firstNotNullOfOrNull { ChatTimeline.contactsTypingNow(contactTyping, it, nowMs) }?.let { c.id to it } }.toMap(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatListUiState())
 
@@ -204,6 +226,8 @@ class ChatListViewModel @Inject constructor(
             if (repository.profile.value == null) repository.refreshProfile()
             repository.syncConversations()
             loaded.value = true
+            // Messenger 1.21: the suggestion card (at most every 15 minutes)
+            loadSuggestions()
         }
         // "schreibt …" ends by itself; without live events the list is refreshed now and then.
         viewModelScope.launch {
@@ -259,7 +283,54 @@ class ChatListViewModel @Inject constructor(
     }
 
     fun archive(c: ChatConversation, archived: Boolean) {
-        viewModelScope.launch { extras.archive(c.id, archived) }
+        // Messenger 1.21: a person — every way
+        val p = c.person?.takeIf { it.conversationId == c.id }
+        viewModelScope.launch { if (p != null) repository.archivePerson(p.id, archived) else extras.archive(c.id, archived) }
+    }
+
+    // ─── Messenger 1.21: suggestions „… ist vielleicht …“ ───────────
+
+    /** On opening „Chats“ and then at most every 15 minutes (the repository keeps the time). */
+    fun loadSuggestions(force: Boolean = false) {
+        if (!com.gatecontrol.android.chat.ChatPeople.on(repository.profile.value?.features)) {
+            _suggestion.value = null
+            return
+        }
+        viewModelScope.launch {
+            repository.loadSuggestions(force)
+            _suggestion.value = repository.suggestions.value.firstOrNull()
+        }
+    }
+
+    /** „Zusammenführen“: one person named after [name] — then it opens ([ChatPeopleNotice.Merged]). */
+    fun mergeSuggestion(s: com.gatecontrol.android.chat.ChatPersonSuggestion, name: String) {
+        if (_merging.value) return
+        _merging.value = true
+        viewModelScope.launch {
+            try {
+                when (val r = repository.mergePerson(listOf(s.conversationId), s.userId, name)) {
+                    is com.gatecontrol.android.chat.ChatResult.Ok -> {
+                        _suggestion.value = repository.suggestions.value.firstOrNull { it.id != s.id }
+                        peopleNotices.trySend(ChatPeopleNotice.Merged(r.value.id))
+                    }
+                    is com.gatecontrol.android.chat.ChatResult.Failed -> peopleNotices.trySend(ChatPeopleNotice.Error(r.code))
+                    else -> peopleNotices.trySend(ChatPeopleNotice.Error("offline"))
+                }
+            } finally {
+                _merging.value = false
+            }
+        }
+    }
+
+    /** „Nicht jetzt“ ([com.gatecontrol.android.chat.ChatPeople.ACTION_LATER]) or „Nicht mehr vorschlagen“. */
+    fun answerSuggestion(s: com.gatecontrol.android.chat.ChatPersonSuggestion, action: String) {
+        viewModelScope.launch {
+            when (val r = repository.answerSuggestion(s, action)) {
+                is com.gatecontrol.android.chat.ChatResult.Ok -> _suggestion.value = repository.suggestions.value.firstOrNull { it.id != s.id }
+                is com.gatecontrol.android.chat.ChatResult.Failed -> peopleNotices.trySend(ChatPeopleNotice.Error(r.code))
+                else -> peopleNotices.trySend(ChatPeopleNotice.Error("offline"))
+            }
+        }
     }
 
     /** Adds [c] to list [l] (or takes it out). */

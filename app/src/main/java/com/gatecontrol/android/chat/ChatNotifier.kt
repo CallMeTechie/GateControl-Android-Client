@@ -110,14 +110,17 @@ class ChatNotifier @Inject constructor(
     suspend fun show(message: PushMessage, quiet: Boolean) {
         val payload = ChatNotifyLogic.payload(message) ?: return
         val conv = payload.conversationId
-        if (repository.get().activeConversation.value == conv) {
+        // Messenger 1.21: the chat of the person is open (any of its ways)
+        val open = repository.get().activeConversation.value
+        if (open == conv || (open != null && open == payload.personConversationId) || conv in repository.get().activeWays.value) {
             // Read right where it is shown.
             pushRepository.get().ackChatRead(listOf(message.seq))
             return
         }
         val ctx = localized()
         val timeMs = runCatching { Instant.parse(message.createdAt).toEpochMilli() }.getOrNull() ?: System.currentTimeMillis()
-        val senderName = payload.senderName ?: message.title
+        // Messenger 1.21: a way of a person — the server's title names the person and the way („Jenny Backes · über WhatsApp“)
+        val senderName = (if (payload.personId != null && message.body.isNotBlank()) ChatJson.line(message.title, 120) else null) ?: payload.senderName ?: message.title
         val text = message.body.ifBlank { message.title }
         val line = ChatNotifLine(
             seq = message.seq,
