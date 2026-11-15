@@ -813,7 +813,77 @@ sich nichts.
   kein Titel, kein Bild, keine selbstlöschenden Nachrichten.
 - **Mitteilungen** wie bei anderen Chats, mit „Antworten“ und „Als gelesen
   markieren“; ohne Vorschau steht nur „Neue Nachricht über WhatsApp“.
-- **Teilen aus anderen Apps** bietet solche Chats nicht an (nur Text geht).
+- **Teilen aus anderen Apps** bietet solche Chats nicht an (nur Text geht) –
+  ab Messenger 1.15 dort, wo der Dienst Dateien annimmt.
+
+### Messenger 1.15 – Dateien, Profilbilder, neuer Chat per Nummer
+
+Mit Messenger 1.15 und einem GateControl-Server, dessen Brücke Dateien trägt
+(`features.bridge_media`, je Chat `bridge.supports`/`bridge.mediaTypes`),
+gehen in Chats über eine Brücke auch Dateien – in beide Richtungen. Die App
+erkennt das nur an den Wörtern des Servers, nie an einer Versionsnummer;
+ohne sie bleibt alles wie in 1.14.
+
+- **Herein:** Bilder, Sticker, Videos, Sprachnachrichten und Dateien eines
+  Kontakts stehen zuerst als Zeile „Bild · grill.jpg – wird geladen …“ im
+  Chat (dezent pulsierend). Sobald der Server die Datei geholt und auf
+  Schadsoftware geprüft hat, wird daraus eine normale Nachricht – Bild,
+  Video mit Abspielen, Sprachnachricht mit Wellenform, Datei – mit den
+  bekannten Zuständen des Virenscans („Wird geprüft …“, „Datei gesperrt“).
+  Kommt eine Datei nicht, sagt die Zeile warum: zu groß, Art nicht
+  angenommen, Schadsoftware gefunden (ohne „ansehen“), kein Platz, nicht
+  mehr da, kam nicht an – jeweils mit „in WhatsApp ansehen“.
+- **Standort** eines Kontakts: „Standort“ mit „Auf der Karte ansehen“
+  (die vorhandene Kartenansicht).
+- **Hinaus:** die Büroklammer bietet nur Dateien an (Galerie, Kamera,
+  Datei – kein Standort, keine Abstimmung, kein Termin, keine Haus-Aktion),
+  das Mikrofon erscheint, wenn der Dienst Sprachnachrichten annimmt. Die
+  App nimmt Sprachnachrichten als AAC in MP4 auf (`audio/mp4`), Bilder gehen
+  als WebP – beides nimmt WhatsApp. Was der Dienst laut `mediaTypes` nicht
+  nimmt (z. B. ein Video, das kein MP4 ist), lehnt die App vor dem Senden
+  mit dem Satz des Servers ab; `409 bridge_media_type` ebenso. Läuft der
+  Virenscan der hochgeladenen Datei noch (`423 scan_pending`), sendet die
+  App sie nach ein paar Sekunden selbst erneut – mit derselben Kennung,
+  ohne neu hochzuladen. Eine Bildunterschrift lässt sich drüben nicht
+  bearbeiten.
+- **Profilbilder** der Kontakte und Gruppen: in der Chatliste, im Kopf des
+  Chats und neben den Nachrichten in Gruppen, sobald der Server sie geholt
+  hat; sonst Initialen bzw. das Gruppen-Symbol. Das Kennzeichen „WA“ bleibt.
+- **Chat-Info:** „Medien“ auch in solchen Chats; der Hinweis, was nicht
+  geht, nennt keine Dateien mehr.
+- **Ältere Server:** ohne die Wörter bleibt die Eingabe nur Text, Dateien
+  stehen als „– folgt; in WhatsApp ansehen“.
+
+**Neuer WhatsApp-Chat per Nummer** (`features.bridge_new_chat`, Messenger
+1.15/1.16): In „Neuer Chat“ steht unter „Neue Gruppe“ die Zeile
+„WhatsApp-Chat mit Nummer“ (mit „WA“) – nur, wenn die Person WhatsApp
+verknüpft hat (auch abgemeldet, nicht erreichbar oder für ein Kind
+gesperrt; dann sagt die Seite warum), nicht für ein Kind, dessen Eltern
+„Neue Chats per Nummer“ ausgeschaltet haben.
+
+- **Eigene Seite** wie „WhatsApp verknüpfen“: Ländervorwahl (+49
+  voreingestellt, Auswahl weiterer Länder), Nummernfeld, „Aus Kontakten
+  wählen“. Die führende 0 wird umgerechnet, Leerzeichen und Striche sind
+  egal, `+`/`00` bringen ihre eigene Vorwahl mit; unter dem Feld steht
+  „Wird geprüft als +49 151 23456789“. Was offensichtlich keine Nummer ist,
+  sagt das Feld sofort, ohne etwas zu senden.
+- **Geprüft wird nur auf „Prüfen“** (`POST bridges/:network/resolve`) – jede
+  Prüfung ist eine Anfrage an WhatsApp. Zustände wie im Entwurf: wird
+  geprüft, gefunden („Hat WhatsApp“, „Chat starten“, „Andere Nummer“), Chat
+  gibt es schon („Chat öffnen“), kein WhatsApp, ungültig, zu viele Prüfungen
+  (mit der Uhrzeit der nächsten), Brücke nicht erreichbar („Erneut
+  versuchen“, die Eingabe bleibt), abgemeldet („Neu verknüpfen“), von den
+  Eltern gesperrt, ausgeschaltet.
+- **„Chat starten“** (`POST bridges/:network/chats`) öffnet den Chat sofort
+  – mit der Leiste bzw. beim ersten Mal der Erklärkarte „Chat über
+  WhatsApp“.
+- **Kontaktauswahl** nur über die Auswahl des Systems: ein Kontakt wird
+  angetippt, eine Nummer kommt zurück. Die App hat keine Berechtigung
+  „Kontakte lesen“ und lädt kein Adressbuch hoch.
+- **Schutz:** Die Nummer steht nur im Arbeitsspeicher, solange die Seite
+  offen ist – nicht im gespeicherten Zustand, in keiner Einstellung, keinem
+  Protokoll, nicht in `toString()`. Ein Satz auf der Seite sagt, dass sie
+  zum Prüfen über die Brücke an WhatsApp geht.
 
 ---
 

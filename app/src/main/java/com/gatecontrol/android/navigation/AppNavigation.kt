@@ -123,6 +123,7 @@ import com.gatecontrol.android.ui.chat.ChatMediaScreen
 import com.gatecontrol.android.ui.chat.ChatsTwoPane
 import com.gatecontrol.android.ui.chat.ConversationScreen
 import com.gatecontrol.android.ui.chat.NewChatScreen
+import com.gatecontrol.android.ui.chat.NewNumberChatScreen
 import com.gatecontrol.android.chat.ChatShareHandover
 import com.gatecontrol.android.ui.gatedrop.SharedScreen
 import androidx.compose.material.icons.Icons
@@ -828,9 +829,35 @@ fun AppNavigation(
                         group = group,
                         onBack = { navController.popBackStack() },
                         onNewGroup = { navController.navigate(Screen.ChatNew.create(group = true)) },
+                        onNewNumber = { net -> navController.navigate(Screen.ChatNewNumber.create(net)) { launchSingleTop = true } },
                         onOpened = { id ->
                             // The new conversation replaces "Neuer Chat" (and "Neue Gruppe").
                             while (navController.currentDestination?.route == Screen.ChatNew.route) {
+                                if (!navController.popBackStack()) break
+                            }
+                            if (layout.twoPane) {
+                                openTab(Screen.Chats.create(conv = id))
+                            } else {
+                                navController.navigate(Screen.ChatConversation.create(id))
+                            }
+                        },
+                    )
+                }
+            }
+
+            composable(
+                route = Screen.ChatNewNumber.route,
+                arguments = listOf(navArgument(Screen.ChatNewNumber.ARG_NETWORK) { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val network = backStackEntry.arguments?.getString(Screen.ChatNewNumber.ARG_NETWORK).orEmpty()
+                GcContentWidth {
+                    NewNumberChatScreen(
+                        network = network,
+                        onBack = { navController.popBackStack() },
+                        onOpenLinked = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.LINKED)) { launchSingleTop = true } },
+                        onOpened = { id ->
+                            // The chat replaces "… mit Nummer" and "Neuer Chat".
+                            while (navController.currentDestination?.route == Screen.ChatNewNumber.route || navController.currentDestination?.route == Screen.ChatNew.route) {
                                 if (!navController.popBackStack()) break
                             }
                             if (layout.twoPane) {

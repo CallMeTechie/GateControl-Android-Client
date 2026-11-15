@@ -426,8 +426,8 @@ fun ChatInfoScreen(
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp)) }
 
-            // No files cross a bridge yet (Messenger 1.14): nothing to list there.
-            if (conv.bridge == null) {
+            // No files crossed a bridge in Messenger 1.14: nothing to list there; 1.15 where the service takes files.
+            if (conv.bridge == null || com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE in conv.bridge.supports) {
                 GcListRow(
                     title = stringResource(R.string.chat_media_title),
                     description = stringResource(R.string.chat_media_row_desc),
@@ -551,7 +551,7 @@ fun ChatInfoScreen(
                 // Messenger 1.14: a chat over a bridge says where it runs and what does not work there.
                 conv.bridge != null -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(stringResource(R.string.chat_bridged_info_note, conv.bridge.label), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-                    Text(stringResource(R.string.chat_bridged_info_not), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    Text(stringResource(if (com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE in conv.bridge.supports) R.string.chat_bridged_info_not_media else R.string.chat_bridged_info_not), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                 }
                 // "Alle Chats liegen nur auf deinem GateControl-Server" is not true for somebody with bridged chats.
                 !bridgeChats -> Text(stringResource(R.string.chat_footer), style = MaterialTheme.typography.bodySmall, color = extra.faint, modifier = Modifier.padding(24.dp))

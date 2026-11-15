@@ -37,6 +37,9 @@ data class PreparedImage(val file: File, val mime: String, val thumb: File?, val
  * frame, a PDF's first page) and [video] a video's length and size — both
  * only when the server takes them (`file_thumbs`, `video_meta`).
  */
+/** The type of a picture as [ChatMediaStore.prepareImage] makes it (scaled, WebP). */
+const val PREPARED_IMAGE_MIME = "image/webp"
+
 data class PreparedFile(
     val file: File,
     val mime: String,
@@ -255,7 +258,7 @@ class ChatMediaStore @Inject constructor(
             val thumbBytes = encodeWithin(thumbBmp, Bitmap.CompressFormat.WEBP_LOSSY, listOf(70, 55, 40, 25), thumbMax)
             if (thumbBmp !== bmp) thumbBmp.recycle()
             val thumb = thumbBytes?.let { File(outboxDir, "$clientId.thumb.webp").apply { writeBytes(it) } }
-            PreparedImage(main, "image/webp", thumb, bmp.width, bmp.height)
+            PreparedImage(main, PREPARED_IMAGE_MIME, thumb, bmp.width, bmp.height)
         } finally {
             bmp.recycle()
         }

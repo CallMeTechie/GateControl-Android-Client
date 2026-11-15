@@ -70,7 +70,7 @@ object ChatBridges {
         return out.toString()
     }
 
-    private val WORDS = setOf("consent", "login", "logins")
+    private val WORDS = setOf("consent", "login", "logins", "resolve", "chats")
 
     /**
      * A phone number as the bridge takes it: spaces, brackets, dots, slashes and dashes removed, `00` as `+`;
@@ -169,6 +169,8 @@ data class ChatBridgeNetwork(
     val version: String? = null,
     val wantVersion: String? = null,
     val logins: List<ChatBridgeLogin> = emptyList(),
+    /** Messenger 1.16: whether a new chat by number works for the person ([ChatNewChat]); null: the server says nothing. */
+    val newChat: ChatBridgeNewChat? = null,
 )
 
 data class ChatBridgesInfo(
@@ -233,6 +235,7 @@ object ChatBridgesJson {
             version = o.str("version")?.take(40),
             wantVersion = o.str("wantVersion")?.take(40),
             logins = o.arr("logins")?.mapNotNull { e -> login(e.takeIf { it.isJsonObject }?.asJsonObject) }.orEmpty().take(MAX_LOGINS),
+            newChat = ChatNewChat.newChat(o.obj("newChat")),
         )
     }
 

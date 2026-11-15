@@ -46,7 +46,7 @@
     <string name="chat_bridged_reason_chat_closed">You are no longer part of this chat.</string>
     <string name="chat_bridged_info_note">This chat runs over %1$s. The service’s end-to-end encryption ends at the bridge next to your GateControl server; stored there the messages are encrypted, and nobody but you sees this chat in GateControl.</string>
     <string name="chat_bridged_info_not">What does not work here: pictures, files and voice messages (to follow), calls, status, disappearing messages and GateControl extras such as polls, events, home actions and cards.</string>
-    <string name="chat_bridged_err_text_only">A chat over a linked service takes only text for now.</string>
+    <string name="chat_bridged_err_text_only">A chat over another messenger does not take this – there are no GateControl extras such as polls, events or cards, and pictures, files and voice messages only with a GateControl server that carries them.</string>
     <string name="chat_bridged_err_unlinked">Your account at the service is no longer linked. Link it again, then sending works again.</string>
     <string name="chat_bridged_err_unreachable">The bridge cannot be reached right now. Send the message again once it runs.</string>
     <string name="chat_bridged_err_off">Bridges are switched off on this server.</string>

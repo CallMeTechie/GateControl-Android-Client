@@ -64,7 +64,24 @@ object ChatText {
     /** "Bild · grill.jpg – folgt; in WhatsApp ansehen": a file or kind of message that does not cross the bridge yet. */
     fun placeholder(ctx: Context, p: com.gatecontrol.android.chat.ChatBridgePlaceholder, network: String): String {
         val kind = placeholderKind(ctx, p) ?: return ctx.getString(R.string.chat_bridged_ph_unsupported, network)
-        return ctx.getString(R.string.chat_bridged_ph_later, listOfNotNull(kind, p.name).joinToString(" · "), network)
+        val what = listOfNotNull(kind, p.name).joinToString(" · ")
+        // Messenger 1.15: a location with its place needs no "folgt" — the map shows it
+        if (p.geo) return what
+        return when {
+            p.loading -> ctx.getString(R.string.chat_bridged_ph_loading, what)
+            p.failed -> ctx.getString(
+                when (p.reason) {
+                    "too_large" -> R.string.chat_bridged_ph_failed_too_large
+                    "type" -> R.string.chat_bridged_ph_failed_type
+                    com.gatecontrol.android.chat.ChatBridgeChat.PH_REASON_INFECTED -> R.string.chat_bridged_ph_failed_infected
+                    "quota" -> R.string.chat_bridged_ph_failed_quota
+                    "gone" -> R.string.chat_bridged_ph_failed_gone
+                    else -> R.string.chat_bridged_ph_failed_unavailable
+                },
+                what, network,
+            )
+            else -> ctx.getString(R.string.chat_bridged_ph_later, what, network)
+        }
     }
 
     /** The short word of a placeholder ("Bild", "Sprachnachricht"; null: a kind without a name of its own). */
@@ -263,7 +280,7 @@ object ChatText {
             "not_found" -> R.string.chat_err_gone
             "blocked" -> R.string.chat_err_blocked
             // Messenger 1.14: the bridge of a bridged chat refused (nothing is queued over there)
-            "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed" -> bridgeError(code)
+            "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed", "bridge_media_type" -> bridgeError(code)
             // the virus scan (Messenger 1.11): "Nicht gesendet – Schadsoftware gefunden" (never sent again by itself)
             MediaScanJson.INFECTED, MediaScanJson.QUARANTINED -> R.string.scan_chat_not_sent_infected
             MediaScanJson.SCAN_BLOCKED -> R.string.scan_chat_not_sent_unscannable
@@ -310,7 +327,7 @@ object ChatText {
             "quota" -> R.string.chat_err_drive_quota
             "forbidden" -> R.string.chat_err_drive_forbidden
             // Messenger 1.14: a change in a bridged chat goes to the other messenger first — refused there
-            "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed" -> bridgeError(code)
+            "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed", "bridge_media_type" -> bridgeError(code)
             else -> R.string.chat_err_generic
         },
     )
@@ -322,6 +339,8 @@ object ChatText {
         "bridge_unreachable" -> R.string.chat_bridged_err_unreachable
         "bridge_off" -> R.string.chat_bridged_err_off
         "bridge_locked" -> R.string.chat_bridged_err_locked
+        // Messenger 1.15: a file in a format the service does not take
+        "bridge_media_type" -> R.string.chat_bridged_err_media_type
         else -> R.string.chat_bridged_err_failed
     }
 }

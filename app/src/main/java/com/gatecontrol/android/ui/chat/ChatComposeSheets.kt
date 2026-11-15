@@ -113,6 +113,8 @@ import java.util.Locale
  * tapped instead of vanishing.
  */
 data class AttachOptions(
+    /** Pictures and videos of the photo picker (a chat over a bridge: only where the service takes them). */
+    val gallery: Boolean = true,
     val camera: Boolean,
     val files: Boolean,
     val location: Boolean,
@@ -160,7 +162,7 @@ fun AttachSheet14(
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
         Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 4, horizontalArrangement = Arrangement.SpaceEvenly) {
-                AttachTile14(Icons.Outlined.PhotoLibrary, stringResource(R.string.chat_attach_gallery), extra.blue, extra.blueBg, onGallery)
+                if (options.gallery) AttachTile14(Icons.Outlined.PhotoLibrary, stringResource(R.string.chat_attach_gallery), extra.blue, extra.blueBg, onGallery)
                 if (options.camera) AttachTile14(Icons.Outlined.PhotoCamera, stringResource(R.string.chat_attach_camera), extra.pro, extra.proBg, onCamera)
                 if (options.location) AttachTile14(Icons.Outlined.Place, stringResource(R.string.chat_attach_location), extra.accentText, extra.accentBg, onLocation)
                 if (options.files) AttachTile14(Icons.Outlined.AttachFile, stringResource(R.string.chat_attach_file), extra.warn, extra.warnBg, onFile)

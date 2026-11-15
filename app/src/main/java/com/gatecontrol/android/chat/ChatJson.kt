@@ -126,6 +126,10 @@ object ChatJson {
 
     private val REASON_RE = Regex("^[a-z][a-z0-9_]{0,39}$")
 
+    /** `retryAfterS` of an error answer (`429 rate_limited`, Messenger 1.15): seconds, at most a day; else null. */
+    fun errorRetryAfter(o: JsonObject?): Int? =
+        o?.get("retryAfterS")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble?.takeIf { it.isFinite() && it >= 0 }?.let { kotlin.math.ceil(it).toInt().coerceAtMost(86_400) }
+
     // ─── people ─────────────────────────────────────────────────────
 
     /** A person: `userId` (members, peer) or `id` (people). */

@@ -982,6 +982,16 @@ class ChatRepository @Inject constructor(
 
     suspend fun people(): ChatResult<List<ChatPerson>> = api.people()
 
+    /**
+     * Messenger 1.15: the chat with a phone number over a bridge, made or found. It is not in `GET conversations`
+     * before something was written, so it is stored here and opened by its id.
+     */
+    suspend fun openNumberChat(network: String, e164: String): ChatResult<ChatNumberChat> {
+        val r = api.bridgeNewChat(network, e164)
+        if (r is ChatResult.Ok) storeConversation(r.value.conversation)
+        return r
+    }
+
     suspend fun openDirect(peerId: Long): ChatResult<ChatConversation> {
         val r = api.createDirect(peerId)
         if (r is ChatResult.Ok) storeConversation(r.value)

@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.GroupAdd
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -60,11 +61,19 @@ data class NewChatUiState(
     val loading: Boolean = true,
     val error: String? = null,
     val busy: Boolean = false,
+    /**
+     * Messenger 1.15/1.16 (`features.bridge_new_chat`): the linked services that offer "… -Chat mit Nummer" (ids,
+     * the server's order).
+     */
+    val numberNetworks: List<String> = emptyList(),
 )
 
 /** "Neuer Chat" / "Neue Gruppe": the people (`GET people`), direct chats and groups. */
 @HiltViewModel
-class NewChatViewModel @Inject constructor(private val repository: ChatRepository) : ViewModel() {
+class NewChatViewModel @Inject constructor(
+    private val repository: ChatRepository,
+    private val bridges: com.gatecontrol.android.chat.ChatBridgesRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow(NewChatUiState())
     val state: StateFlow<NewChatUiState> = _state.asStateFlow()
 
@@ -74,6 +83,18 @@ class NewChatViewModel @Inject constructor(private val repository: ChatRepositor
 
     init {
         load()
+        loadNumberNetworks()
+    }
+
+    /** "WhatsApp-Chat mit Nummer": only when the server can (`bridge_new_chat`) and the person linked the service. */
+    private fun loadNumberNetworks() {
+        val features = repository.profile.value?.features
+        if (features?.tokens?.contains(com.gatecontrol.android.chat.ChatBridgeChat.FEATURE_NEW_CHAT) != true) return
+        viewModelScope.launch {
+            val info = (bridges.load() as? ChatResult.Ok)?.value
+            val ids = com.gatecontrol.android.chat.ChatNewChat.networks(features, info).map { it.id }
+            _state.value = _state.value.copy(numberNetworks = ids)
+        }
     }
 
     fun load() {
@@ -128,6 +149,8 @@ fun NewChatScreen(
     onBack: () -> Unit,
     onNewGroup: () -> Unit,
     onOpened: (Long) -> Unit,
+    /** Messenger 1.15/1.16: "WhatsApp-Chat mit Nummer" of a linked service. */
+    onNewNumber: (String) -> Unit = {},
     viewModel: NewChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -182,6 +205,26 @@ fun NewChatScreen(
                         Column {
                             Text(stringResource(R.string.chat_new_group), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                             Text(stringResource(R.string.chat_new_group_desc), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                        }
+                    }
+                }
+                // Messenger 1.15/1.16: a chat by phone number over a linked service, right under "Neue Gruppe"
+                items(state.numberNetworks, key = { "num-$it" }) { net ->
+                    val name = stringResource(com.gatecontrol.android.ui.chat.settings.networkName(net))
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(role = Role.Button) { onNewNumber(net) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Box {
+                            Box(Modifier.size(44.dp).clip(CircleShape).background(extra.accentBg), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.Call, contentDescription = null, tint = extra.accentText)
+                            }
+                            BridgeMark(com.gatecontrol.android.chat.ChatConvBridge(net, name, com.gatecontrol.android.chat.ChatBridgeChat.OK), 44.dp, Modifier.align(Alignment.BottomEnd))
+                        }
+                        Column {
+                            Text(stringResource(R.string.chat_newnum_row, name), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(stringResource(R.string.chat_newnum_row_desc), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                         }
                     }
                 }

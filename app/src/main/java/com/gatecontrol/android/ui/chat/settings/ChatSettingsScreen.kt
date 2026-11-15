@@ -209,7 +209,7 @@ fun ChatSettingsScreen(
                 ChatSettingsPage.HELP -> HelpPage(viewModel)
                 ChatSettingsPage.LINKED -> linked?.let {
                     val profile by viewModel.profile.collectAsStateWithLifecycle()
-                    ChatLinkedServicesPage(it, chats = profile?.features?.tokens?.contains(com.gatecontrol.android.chat.ChatBridgeChat.FEATURE) == true)
+                    ChatLinkedServicesPage(it, chats = profile?.features?.tokens?.contains(com.gatecontrol.android.chat.ChatBridgeChat.FEATURE) == true, media = profile?.features?.tokens?.contains(com.gatecontrol.android.chat.ChatBridgeChat.FEATURE_MEDIA) == true)
                 }
                 else -> MainPage(viewModel, onOpenPage, onOpenStatus, onOpenRoutes)
             }

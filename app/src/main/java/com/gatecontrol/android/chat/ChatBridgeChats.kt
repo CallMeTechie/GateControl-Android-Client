@@ -23,8 +23,10 @@ import javax.inject.Singleton
  * `peer`; the people on the other side are contacts, never accounts.
  *
  * The app tells the server that it knows such chats with `?bridged=1` on every call ([ChatApi]); without that mark
- * they do not exist for a client. What crosses for now: text, replies, reactions, edits, deletions, "read" and
- * "schreibt …" — a file or another kind of message is a line that says something arrived.
+ * they do not exist for a client. What crosses: text, replies, reactions, edits, deletions, "read" and "schreibt …" —
+ * and with Messenger 1.15.0 (`features.bridge_media`, `bridge.supports`) pictures, videos, voice messages and files in
+ * both directions and the pictures of contacts and groups. A file first is a line ("wird geladen …", or why it did not
+ * come), then a normal message; a kind of message that does not cross is a line that says something arrived.
  */
 
 /**
@@ -37,10 +39,32 @@ data class ChatConvBridge(
     val state: String,
     val closed: Boolean = false,
     val supports: Set<String> = emptySet(),
+    /**
+     * Messenger 1.15: the types the service takes per kind (`image`, `video`, `voice`, `file`); a kind mapped to null
+     * takes any type. Null: the server names none (then only what [supports] says, without a check of the type).
+     */
+    val mediaTypes: Map<String, List<String>?>? = null,
 )
 
-/** A file or kind of message that does not cross yet ([kind] of [ChatBridgeChat.PLACEHOLDERS], the file's [name]). */
-data class ChatBridgePlaceholder(val kind: String, val name: String?)
+/**
+ * A file or kind of message that has not crossed ([kind] of [ChatBridgeChat.PLACEHOLDERS], the file's [name]).
+ * Messenger 1.15: [state] `loading` (the server fetches it), `failed` with [reason] (why it will not come), null
+ * (nothing to fetch — a location with [lat]/[lon], an older server).
+ */
+data class ChatBridgePlaceholder(
+    val kind: String,
+    val name: String?,
+    val state: String? = null,
+    val reason: String? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
+) {
+    val loading: Boolean get() = state == ChatBridgeChat.PH_LOADING
+    val failed: Boolean get() = state == ChatBridgeChat.PH_FAILED
+
+    /** A location with its place (shown on the existing map view). */
+    val geo: Boolean get() = lat != null && lon != null
+}
 
 /**
  * `bridge` of a message in a bridged chat. A contact's message names the contact ([contactId], [senderName] — null
@@ -54,6 +78,8 @@ data class ChatMessageBridge(
     val state: String? = null,
     val reason: String? = null,
     val placeholder: ChatBridgePlaceholder? = null,
+    /** Messenger 1.15: the contact's picture (`sender.avatarMediaId`), once the server fetched it. */
+    val senderAvatarMediaId: String? = null,
 ) {
     /** A contact wrote it (not the person, not the bridge itself). */
     val fromContact: Boolean get() = contactId != null
@@ -68,6 +94,12 @@ data class ChatMessageBridge(
 object ChatBridgeChat {
     /** `features.bridge_chats` of `GET me`: this person has a chat over a bridge. */
     const val FEATURE = "bridge_chats"
+
+    /** Messenger 1.15 `features.bridge_media`: files in both directions, pictures of contacts and groups. */
+    const val FEATURE_MEDIA = "bridge_media"
+
+    /** Messenger 1.15 `features.bridge_new_chat`: a new chat by phone number (`POST bridges/:network/resolve | chats`). */
+    const val FEATURE_NEW_CHAT = "bridge_new_chat"
 
     /** The mark of a client that knows bridged chats (`?bridged=1`). */
     const val QUERY = "bridged"
@@ -90,7 +122,23 @@ object ChatBridgeChat {
     private val MESSAGE_STATES = setOf(STATE_PENDING, STATE_SENT, STATE_DELIVERED, STATE_READ, STATE_FAILED)
 
     const val PH_UNSUPPORTED = "unsupported"
-    val PLACEHOLDERS: Set<String> = setOf("image", "video", "audio", "voice", "file", "sticker", "location", PH_UNSUPPORTED)
+    const val PH_LOCATION = "location"
+    val PLACEHOLDERS: Set<String> = setOf("image", "video", "audio", "voice", "file", "sticker", PH_LOCATION, PH_UNSUPPORTED)
+
+    // placeholder.state (Messenger 1.15)
+    const val PH_LOADING = "loading"
+    const val PH_FAILED = "failed"
+
+    /** Why a file did not come (`placeholder.reason`); another word reads like [PH_REASON_UNAVAILABLE]. */
+    const val PH_REASON_INFECTED = "infected"
+    const val PH_REASON_UNAVAILABLE = "unavailable"
+    val PH_REASONS: Set<String> = setOf("too_large", "type", PH_REASON_INFECTED, "quota", "gone", PH_REASON_UNAVAILABLE)
+
+    // bridge.supports / bridge.mediaTypes (Messenger 1.15)
+    const val TAKES_IMAGE = "image"
+    const val TAKES_VIDEO = "video"
+    const val TAKES_VOICE = "voice"
+    const val TAKES_FILE = "file"
 
     /** `system.event` of a note the bridge itself wrote into the chat. */
     const val EVENT_NOTICE = "bridge_notice"
@@ -103,11 +151,16 @@ object ChatBridgeChat {
     )
 
     /** The server's refusals around a bridge: never retried by themselves — there is no queue on the other side. */
-    val REFUSALS: Set<String> = setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked")
+    val REFUSALS: Set<String> = setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked", MEDIA_TYPE)
+
+    /** Messenger 1.15 `409 bridge_media_type` (`reason`: image | voice | video): the service does not take this format. */
+    const val MEDIA_TYPE = "bridge_media_type"
 
     private val NETWORK_RE = Regex("^[a-z][a-z0-9_-]{0,31}$")
     private val REASON_RE = Regex("^[a-z][a-z0-9_]{0,39}$")
     private const val MAX_SUPPORTS = 32
+    private const val MAX_TYPES = 16
+    private val MIME_RE = Regex("^[a-z][a-z0-9-]{0,30}/[a-z0-9][a-z0-9.+_-]{0,99}$")
 
     // ─── parsing ────────────────────────────────────────────────────
 
@@ -123,8 +176,26 @@ object ChatBridgeChat {
             closed = o.flag("closed") == true,
             supports = o.arr("supports")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString?.let { ChatJson.token(it) } }
                 ?.take(MAX_SUPPORTS)?.toSet().orEmpty(),
+            mediaTypes = mediaTypes(o.obj("mediaTypes")),
         )
     }
+
+    /** `mediaTypes: { image: ["image/jpeg", …], file: null }` — kinds with a list or null (any type); else none. */
+    private fun mediaTypes(o: JsonObject?): Map<String, List<String>?>? {
+        if (o == null) return null
+        val out = LinkedHashMap<String, List<String>?>()
+        for ((k, v) in o.entrySet()) {
+            if (k !in MEDIA_KINDS) continue
+            out[k] = when {
+                v == null || v.isJsonNull -> null
+                v.isJsonArray -> v.asJsonArray.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString?.lowercase()?.takeIf { MIME_RE.matches(it) } }.take(MAX_TYPES)
+                else -> continue
+            }
+        }
+        return out
+    }
+
+    private val MEDIA_KINDS = setOf(TAKES_IMAGE, TAKES_VIDEO, TAKES_VOICE, TAKES_FILE)
 
     fun write(b: ChatConvBridge): JsonObject = JsonObject().apply {
         addProperty("network", b.network)
@@ -132,6 +203,9 @@ object ChatBridgeChat {
         addProperty("state", b.state)
         addProperty("closed", b.closed)
         add("supports", JsonArray().apply { b.supports.forEach { add(it) } })
+        b.mediaTypes?.let { mt ->
+            add("mediaTypes", JsonObject().apply { mt.forEach { (k, v) -> if (v == null) add(k, JsonNull.INSTANCE) else add(k, JsonArray().apply { v.forEach { add(it) } }) } })
+        }
     }
 
     /** `bridge` of a message; null outside a bridged chat. */
@@ -147,7 +221,24 @@ object ChatBridgeChat {
             state = o.str("state")?.takeIf { it in MESSAGE_STATES },
             reason = o.str("reason")?.takeIf { REASON_RE.matches(it) },
             // a kind this app does not know yet still says that something arrived
-            placeholder = ph?.let { ChatBridgePlaceholder(it.str("kind")?.takeIf { k -> k in PLACEHOLDERS } ?: PH_UNSUPPORTED, ChatJson.line(it.str("name"), 200)) },
+            placeholder = ph?.let { placeholder(it) },
+            senderAvatarMediaId = if (contactId != null) sender.str("avatarMediaId")?.let { ChatJson.mediaId(it) } else null,
+        )
+    }
+
+    private fun placeholder(o: JsonObject): ChatBridgePlaceholder {
+        val state = o.str("state")?.takeIf { it == PH_LOADING || it == PH_FAILED }
+        val geo = o.obj("geo")
+        val lat = geo?.get("lat")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble?.takeIf { it.isFinite() && it in -90.0..90.0 }
+        val lon = geo?.get("lon")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble?.takeIf { it.isFinite() && it in -180.0..180.0 }
+        return ChatBridgePlaceholder(
+            kind = o.str("kind")?.takeIf { k -> k in PLACEHOLDERS } ?: PH_UNSUPPORTED,
+            name = ChatJson.line(o.str("name"), 200),
+            state = state,
+            // an unknown reason still says that it did not come
+            reason = if (state == PH_FAILED) o.str("reason")?.takeIf { it in PH_REASONS } ?: PH_REASON_UNAVAILABLE else null,
+            lat = if (lat != null && lon != null) lat else null,
+            lon = if (lat != null && lon != null) lon else null,
         )
     }
 
@@ -156,6 +247,7 @@ object ChatBridgeChat {
             JsonObject().apply {
                 addProperty("contactId", id)
                 if (b.senderName == null) add("name", JsonNull.INSTANCE) else addProperty("name", b.senderName)
+                b.senderAvatarMediaId?.let { addProperty("avatarMediaId", it) }
             }
         } ?: JsonNull.INSTANCE)
         addProperty("remote", b.remote)
@@ -165,11 +257,47 @@ object ChatBridgeChat {
             JsonObject().apply {
                 addProperty("kind", p.kind)
                 if (p.name == null) add("name", JsonNull.INSTANCE) else addProperty("name", p.name)
+                if (p.state == null) add("state", JsonNull.INSTANCE) else addProperty("state", p.state)
+                if (p.reason == null) add("reason", JsonNull.INSTANCE) else addProperty("reason", p.reason)
+                if (p.lat != null && p.lon != null) add("geo", JsonObject().apply { addProperty("lat", p.lat); addProperty("lon", p.lon) })
             }
         } ?: JsonNull.INSTANCE)
     }
 
     // ─── what the screens show ──────────────────────────────────────
+
+    // ─── files (Messenger 1.15) ────────────────────────────────────
+
+    /** The chat takes [what] (`image`, `video`, `voice`, `file`) — `bridge.supports`; a chat inside GateControl all. */
+    fun takes(c: ChatConversation?, what: String): Boolean = c?.bridge?.let { what in it.supports } ?: true
+
+    /** The paper clip: in a bridged chat only with files (pictures, videos or files), and then only for those. */
+    fun attach(c: ChatConversation?): Boolean = c?.bridge == null || takes(c, TAKES_FILE) || takes(c, TAKES_IMAGE) || takes(c, TAKES_VIDEO)
+
+    /** The kind towards the service of a file: a picture, a voice message, a video (a file of type video/…), a file. */
+    fun outKind(kind: String, mime: String?): String = when {
+        kind == ChatMessage.KIND_IMAGE -> TAKES_IMAGE
+        kind == ChatMessage.KIND_VOICE -> TAKES_VOICE
+        mime.orEmpty().lowercase().startsWith("video/") -> TAKES_VIDEO
+        else -> TAKES_FILE
+    }
+
+    /**
+     * May a file of [kind] and [mime] go into [c]? Inside GateControl always; over a bridge only a kind it takes, in a
+     * type of `mediaTypes` (none named, or null for the kind: any). A video the service does not take is refused here
+     * — the server would answer `409 bridge_media_type`.
+     */
+    fun mediaOk(c: ChatConversation?, kind: String, mime: String?): Boolean {
+        val b = c?.bridge ?: return true
+        val k = outKind(kind, mime)
+        // a video goes as a file: a service that takes files but names no video takes it as a file
+        if (k !in b.supports && !(k == TAKES_VIDEO && TAKES_FILE in b.supports && b.mediaTypes?.containsKey(TAKES_VIDEO) != true)) return false
+        val list = b.mediaTypes?.get(k) ?: return true
+        return mime.orEmpty().substringBefore(';').trim().lowercase() in list
+    }
+
+    /** The microphone: in a bridged chat only with `voice` and when the recording's type ([mime]) is one it takes. */
+    fun voice(c: ChatConversation?, mime: String): Boolean = c?.bridge == null || mediaOk(c, ChatMessage.KIND_VOICE, mime)
 
     /** The person has a chat over a bridge: the server says so, or the list holds one. */
     fun any(features: ChatFeatures?, conversations: List<ChatConversation>): Boolean =
@@ -216,8 +344,11 @@ object ChatBridgeChat {
         return c.can.send && !(m.mine && m.bridge?.notOut == true)
     }
 
-    /** An own text can be changed over there: not what was written in the service's own app, not a placeholder. */
-    fun editable(m: ChatMessage): Boolean = m.bridge?.let { !it.remote && it.placeholder == null && !it.notOut } ?: true
+    /**
+     * An own text can be changed over there: not what was written in the service's own app, not a placeholder, not
+     * the caption of a file (Messenger 1.15: `bridge_text_only`).
+     */
+    fun editable(m: ChatMessage): Boolean = m.bridge?.let { !it.remote && it.placeholder == null && !it.notOut && m.kind == ChatMessage.KIND_TEXT } ?: true
 
     /** The word of a failed message's reason that has a sentence ([REASON_ERROR] for everything else). */
     fun reason(reason: String?): String = reason?.takeIf { it in REASONS } ?: REASON_ERROR

@@ -46,7 +46,7 @@
     <string name="chat_bridged_reason_chat_closed">Du bist in diesem Chat nicht mehr dabei.</string>
     <string name="chat_bridged_info_note">Dieser Chat läuft über %1$s. Die Ende-zu-Ende-Verschlüsselung des Dienstes endet an der Brücke neben deinem GateControl-Server; dort gespeichert sind die Nachrichten verschlüsselt, und niemand außer dir sieht diesen Chat in GateControl.</string>
     <string name="chat_bridged_info_not">Was hier nicht geht: Bilder, Dateien und Sprachnachrichten (folgen), Anrufe, Status, selbstlöschende Nachrichten und GateControl-Extras wie Abstimmungen, Termine, Haus-Aktionen und Karten.</string>
-    <string name="chat_bridged_err_text_only">In einem Chat über einen verknüpften Dienst geht im Moment nur Text.</string>
+    <string name="chat_bridged_err_text_only">Das geht in einem Chat über einen anderen Messenger nicht – GateControl-Extras wie Abstimmungen, Termine oder Karten gibt es dort nicht, Bilder, Dateien und Sprachnachrichten nur mit einem GateControl-Server, der sie überträgt.</string>
     <string name="chat_bridged_err_unlinked">Dein Konto bei dem Dienst ist nicht mehr verknüpft. Verknüpfe es neu, dann geht Senden wieder.</string>
     <string name="chat_bridged_err_unreachable">Die Brücke ist gerade nicht erreichbar. Sende die Nachricht noch einmal, sobald sie wieder läuft.</string>
     <string name="chat_bridged_err_off">Die Brücken sind auf diesem Server ausgeschaltet.</string>

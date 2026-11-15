@@ -116,8 +116,9 @@ class ChatListViewModel @Inject constructor(
     ) { b, (latest, inboxUnread), (profile, sync), (typing, contactTyping, nowMs), share ->
         val myId = profile?.user?.userId
         val listed = b.convs.sortedByDescending { it.activityAt }
-        // Messenger 1.14: a chat over a bridge takes text only — what is shared from another app (files) cannot go there.
-        val all = if (share != null) listed.filter { it.bridge == null } else listed
+        // Messenger 1.14: a chat over a bridge took text only — what is shared from another app (files) could not go there;
+        // 1.15: it can where the service takes files (`bridge.supports`).
+        val all = if (share != null) listed.filter { com.gatecontrol.android.chat.ChatBridgeChat.attach(it) } else listed
         val networks = com.gatecontrol.android.chat.ChatBridgeChat.networks(all)
         // a filter whose service has no chat any more is none
         val netNow = b.e.net?.takeIf { n -> networks.isNotEmpty() && (n == com.gatecontrol.android.chat.ChatBridgeChat.NET_GC || networks.any { it.first == n }) }

@@ -28,6 +28,9 @@ class ChatBridgesRepository @Inject constructor(private val api: ChatApi) {
 
     suspend fun unlink(network: String, loginId: String): ChatResult<Unit> = api.bridgeUnlink(network, loginId)
 
+    /** Messenger 1.15: is [e164] at the service? (Each call is a question to the service — only on "Prüfen".) */
+    suspend fun resolve(network: String, e164: String): ChatResult<ChatNumberLookup> = api.bridgeResolve(network, e164)
+
     /** Drop a login in progress (the page was left, another way was chosen); nobody waits for the answer. */
     fun cancel(network: String, processId: String) {
         scope.launch { api.bridgeLoginCancel(network, processId) }

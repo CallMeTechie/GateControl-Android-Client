@@ -345,6 +345,12 @@ class ConversationViewModel @Inject constructor(
             sendFiles(uris, caption)
             return
         }
+        // Messenger 1.15: a chat over a bridge takes pictures only where the service does (they go as WebP, which
+        // WhatsApp takes); refused here instead of by the server's `409 bridge_media_type`
+        if (!bridgeTakes(ChatMessage.KIND_IMAGE, com.gatecontrol.android.chat.PREPARED_IMAGE_MIME)) {
+            notices.trySend(ConversationNotice.Error(com.gatecontrol.android.chat.ChatBridgeChat.MEDIA_TYPE))
+            return
+        }
         val limits = uiState.value.profile?.limits?.let { l -> side?.let { l.copy(imageMaxSide = it) } ?: l }
         val reply = replyTo.value?.id
         replyTo.value = null
@@ -377,6 +383,11 @@ class ConversationViewModel @Inject constructor(
             return
         }
         val limits = uiState.value.profile?.limits
+        if (!bridgeTakes(ChatMessage.KIND_IMAGE, com.gatecontrol.android.chat.PREPARED_IMAGE_MIME)) {
+            file.delete()
+            notices.trySend(ConversationNotice.Error(com.gatecontrol.android.chat.ChatBridgeChat.MEDIA_TYPE))
+            return
+        }
         val reply = replyTo.value?.id
         replyTo.value = null
         viewModelScope.launch {
@@ -423,6 +434,12 @@ class ConversationViewModel @Inject constructor(
                 val clientId = repository.newClientId()
                 media.prepareFile(uri, clientId, limits?.maxBytes, limits?.types.orEmpty())
                     .onSuccess { f ->
+                        // Messenger 1.15, a chat over a bridge: only a type the service takes (e.g. a video only as MP4)
+                        if (!bridgeTakes(ChatMessage.KIND_FILE, f.mime)) {
+                            media.dropOutboxFiles(f.file.path, f.thumb?.path)
+                            notices.trySend(ConversationNotice.Error(com.gatecontrol.android.chat.ChatBridgeChat.MEDIA_TYPE))
+                            return@onSuccess
+                        }
                         val file = media.withPreview(
                             f, clientId,
                             thumbs = ChatPreview.wantsThumb(f.mime, features),
@@ -472,10 +489,19 @@ class ConversationViewModel @Inject constructor(
         val take = recorder.finish() ?: return
         val clientId = voiceClientId ?: return
         voiceClientId = null
+        if (!bridgeTakes(ChatMessage.KIND_VOICE, take.mime)) {
+            take.file.delete()
+            notices.trySend(ConversationNotice.Error(com.gatecontrol.android.chat.ChatBridgeChat.MEDIA_TYPE))
+            return
+        }
         val reply = replyTo.value?.id
         replyTo.value = null
         viewModelScope.launch { repository.sendVoice(cid, take.file, take.mime, take.durationMs, take.waveform, reply, clientId) }
     }
+
+    /** A file of [kind] and [mime] may go into this chat (a chat over a bridge: what the service takes, Messenger 1.15). */
+    private fun bridgeTakes(kind: String, mime: String?): Boolean =
+        com.gatecontrol.android.chat.ChatBridgeChat.mediaOk(uiState.value.conversation, kind, mime)
 
     fun cancelRecording() {
         recorder.cancel()

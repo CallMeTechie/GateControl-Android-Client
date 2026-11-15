@@ -32,7 +32,7 @@ sealed interface ChatResult<out T> {
      * The server answered with an error: [code] from `{ok:false, code}` or `http_<status>`; [reason] says more
      * where the messenger sends one (a bridge's refusal, Messenger 1.12).
      */
-    data class Failed(val code: String, val http: Int, val reason: String? = null) : ChatResult<Nothing>
+    data class Failed(val code: String, val http: Int, val reason: String? = null, val retryAfterS: Int? = null) : ChatResult<Nothing>
 
     /** No answer (network, VPN, timeout). */
     data object Offline : ChatResult<Nothing>
@@ -97,7 +97,7 @@ class ChatApi @Inject constructor(
             if (response.isSuccessful) {
                 val body = response.body() ?: JsonObject()
                 if (body.has("ok") && body.get("ok").let { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean && !it.asBoolean }) {
-                    return ChatResult.Failed(ChatJson.errorCode(body) ?: "failed", response.code(), ChatJson.errorReason(body))
+                    return ChatResult.Failed(ChatJson.errorCode(body) ?: "failed", response.code(), ChatJson.errorReason(body), ChatJson.errorRetryAfter(body))
                 }
                 parse(body)?.let { ChatResult.Ok(it) } ?: ChatResult.Failed(CODE_INVALID, response.code())
             } else {
@@ -106,7 +106,7 @@ class ChatApi @Inject constructor(
                         ?.let { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }
                 }.getOrNull()
                 Timber.d("Chats: HTTP %d", response.code())
-                ChatResult.Failed(ChatJson.errorCode(err) ?: "http_${response.code()}", response.code(), ChatJson.errorReason(err))
+                ChatResult.Failed(ChatJson.errorCode(err) ?: "http_${response.code()}", response.code(), ChatJson.errorReason(err), ChatJson.errorRetryAfter(err))
             }
         } catch (e: CancellationException) {
             throw e
@@ -270,6 +270,21 @@ class ChatApi @Inject constructor(
 
     /** `GET bridges` → the services and the viewer's own links. */
     suspend fun bridges(): ChatResult<ChatBridgesInfo> = get("bridges", parse = ChatBridgesJson::info)
+
+    /**
+     * `POST bridges/:network/resolve { number }` (Messenger 1.15) — is this number at the service, under which name?
+     * The number is in the body only; [call] logs nothing of it.
+     */
+    suspend fun bridgeResolve(network: String, e164: String): ChatResult<ChatNumberLookup> {
+        val path = ChatNewChat.path(network, "resolve") ?: return noPath()
+        return post(path, JsonObject().apply { addProperty("number", e164) }, ChatNewChat::lookup)
+    }
+
+    /** `POST bridges/:network/chats { number }` (Messenger 1.15) — the direct chat with this number, made or found. */
+    suspend fun bridgeNewChat(network: String, e164: String): ChatResult<ChatNumberChat> {
+        val path = ChatNewChat.path(network, "chats") ?: return noPath()
+        return post(path, JsonObject().apply { addProperty("number", e164) }, ChatNewChat::chat)
+    }
 
     /** `POST bridges/:network/consent` — the notes before the first link were read. */
     suspend fun bridgeConsent(network: String): ChatResult<Unit> {
