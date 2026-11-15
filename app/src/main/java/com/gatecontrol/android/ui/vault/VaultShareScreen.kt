@@ -73,7 +73,7 @@ fun vaultRoleLabel(role: String): String = stringResource(
 fun VaultPersonDot(name: String) {
     val (bg, fg) = vaultTone(name)
     Box(Modifier.size(40.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-        Text(name.trim().firstOrNull()?.uppercase() ?: "?", color = fg, fontWeight = FontWeight.Bold)
+        Text(com.gatecontrol.android.profile.InitialLetters.initial(name), color = fg, fontWeight = FontWeight.Bold)
     }
 }
 

@@ -189,10 +189,11 @@ object MailPlanLogic {
 
     /** Two letters for an avatar: of a name's first two words, else of the address. */
     fun initials(name: String): String {
-        val words = name.trim().substringBefore('@').split(Regex("[\\s._-]+")).filter { it.isNotEmpty() && it[0].isLetterOrDigit() }
+        // whole characters, letters and digits only (never half an emoji)
+        val words = name.trim().substringBefore('@').split(Regex("[\\s._-]+")).map { com.gatecontrol.android.profile.InitialLetters.of(it) }.filter { it.isNotEmpty() }
         return when {
-            words.size >= 2 -> "${words[0][0]}${words[1][0]}".uppercase()
-            words.size == 1 -> words[0].take(2).uppercase()
+            words.size >= 2 -> (words[0][0] + words[1][0]).uppercase()
+            words.size == 1 -> words[0].take(2).joinToString("").uppercase()
             else -> "?"
         }
     }

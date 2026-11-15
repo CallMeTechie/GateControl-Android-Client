@@ -359,11 +359,12 @@ object MailLogic {
 
     /** Two letters for the round avatar: first letters of the first two words, else of the address. */
     fun initials(name: String?, email: String): String {
-        val words = name?.trim()?.split(Regex("\\s+"))?.filter { w -> w.firstOrNull()?.isLetterOrDigit() == true }.orEmpty()
+        // whole characters, letters and digits only (never half an emoji)
+        val words = name?.trim()?.split(Regex("\\s+"))?.map { com.gatecontrol.android.profile.InitialLetters.first(it) }?.filter { it.isNotEmpty() }.orEmpty()
         val letters = when {
-            words.size >= 2 -> "${words[0].first()}${words[1].first()}"
-            words.size == 1 -> words[0].take(1)
-            else -> email.trim().take(1)
+            words.size >= 2 -> words[0] + words[1]
+            words.size == 1 -> words[0]
+            else -> com.gatecontrol.android.profile.InitialLetters.first(email.trim())
         }
         return letters.uppercase().ifEmpty { "?" }
     }

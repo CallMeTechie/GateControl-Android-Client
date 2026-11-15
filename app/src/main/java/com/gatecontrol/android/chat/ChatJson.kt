@@ -141,7 +141,8 @@ object ChatJson {
             userId = id,
             name = name,
             avatarUrl = avatarPath(o.str("avatarUrl")),
-            initials = line(o.str("initials"), 3),
+            // whole characters, letters and digits only (never half an emoji)
+            initials = com.gatecontrol.android.profile.AvatarInitials.clean(line(o.str("initials"), 40)),
             colorHex = o.str("colorHex")?.takeIf { COLOR_RE.matches(it) },
             gone = o.flag("gone") == true,
             role = o.str("role")?.takeIf { it == ChatPerson.ROLE_ADMIN || it == ChatPerson.ROLE_MEMBER },

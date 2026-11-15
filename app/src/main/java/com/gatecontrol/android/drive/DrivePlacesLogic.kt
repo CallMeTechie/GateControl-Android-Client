@@ -168,10 +168,10 @@ object DrivePlacesLogic {
         return g.named.take(max) to g.unnamed.firstOrNull()
     }
 
-    /** One or two initials of a name ("Oma Gerda" → "OG"). */
+    /** One or two initials of a name ("Oma Gerda" → "OG"): letters and digits only, whole characters ("Oma 💕" → "O"). */
     fun initials(name: String?): String {
         val words = name.orEmpty().trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-        return words.take(2).joinToString("") { it.substring(0, it.offsetByCodePoints(0, 1)).uppercase() }.ifEmpty { "?" }
+        return words.take(2).joinToString("") { com.gatecontrol.android.profile.InitialLetters.first(it).uppercase() }.ifEmpty { "?" }
     }
 
     // ─── search ─────────────────────────────────────────────────────

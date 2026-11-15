@@ -232,7 +232,7 @@ private fun AppRow(app: AppInfo, selected: Boolean, hint: String?, onToggle: () 
             )
         } else {
             GcIconSquare(size = 40.dp) {
-                Text(app.label.take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = extra.muted)
+                Text(com.gatecontrol.android.profile.InitialLetters.initial(app.label), style = MaterialTheme.typography.titleMedium, color = extra.muted)
             }
         }
         Column(Modifier.weight(1f)) {

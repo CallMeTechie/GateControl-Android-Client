@@ -157,7 +157,7 @@ fun SplitTunnelScreen(
                                     )
                                 } else {
                                     GcIconSquare(size = 40.dp) {
-                                        Text(appLabel.take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = extra.muted)
+                                        Text(com.gatecontrol.android.profile.InitialLetters.initial(appLabel), style = MaterialTheme.typography.titleMedium, color = extra.muted)
                                     }
                                 }
                             },
