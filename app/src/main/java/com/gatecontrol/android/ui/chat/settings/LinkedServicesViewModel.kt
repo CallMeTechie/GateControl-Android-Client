@@ -71,6 +71,8 @@ data class LinkedUiState(
     val view: LinkedView = LinkedView.Overview,
     /** The service being unlinked. */
     val unlinking: String? = null,
+    /** Messenger 1.17: the choice of older messages is being saved. */
+    val historySaving: Boolean = false,
 )
 
 /** A short message of the page after something happened. */
@@ -78,6 +80,8 @@ sealed interface LinkedNotice {
     data class Linked(val network: String) : LinkedNotice
     data class Unlinked(val network: String) : LinkedNotice
     data class Failed(val error: ChatBridgeError) : LinkedNotice
+    /** Messenger 1.17: the choice of older messages was saved. */
+    data object HistorySaved : LinkedNotice
 }
 
 /**
@@ -287,6 +291,31 @@ class LinkedServicesViewModel @Inject constructor(
             }
             state.update { it.copy(unlinking = null) }
             load()
+        }
+    }
+
+    /**
+     * Messenger 1.17 „Älteren Verlauf laden“: what comes over at the next link (`0`, `30`, `-1`). Fewer days drop at
+     * once what still waits and is no longer wanted (the server does that). Switched off meanwhile: the page loads anew.
+     */
+    fun setHistory(days: Int) {
+        val h = state.value.info?.history ?: return
+        if (!h.available || days == h.days || days !in h.options || state.value.historySaving) return
+        state.update { it.copy(historySaving = true) }
+        viewModelScope.launch {
+            val r = bridges.setHistory(days)
+            when (r) {
+                is ChatResult.Ok -> {
+                    state.update { s -> s.copy(historySaving = false, info = s.info?.copy(history = r.value)) }
+                    notices.send(LinkedNotice.HistorySaved)
+                }
+                else -> {
+                    state.update { it.copy(historySaving = false) }
+                    val e = ChatBridges.error(r)
+                    notices.send(LinkedNotice.Failed(e))
+                    if (e == ChatBridgeError.OFF || e == ChatBridgeError.INVALID) load()
+                }
+            }
         }
     }
 

@@ -37,6 +37,8 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.chat.ChatBridgeError
+import com.gatecontrol.android.chat.ChatBridgeHistory
+import com.gatecontrol.android.chat.ChatBridgePhone
 import com.gatecontrol.android.chat.ChatBridgeLogin
 import com.gatecontrol.android.chat.ChatBridgeNetwork
 import com.gatecontrol.android.chat.ChatBridges
@@ -377,5 +379,99 @@ class ChatLinkedServicesUiTest {
         assertEquals("02.11.2026", linkedDate("2026-11-02T08:00:00.000Z", java.util.Locale.GERMANY, java.time.ZoneId.of("Europe/Berlin")))
         assertEquals("", linkedDate(null, java.util.Locale.GERMANY))
         assertEquals("", linkedDate("nonsense", java.util.Locale.GERMANY))
+    }
+
+    // ─── Messenger 1.17: older messages, the phone, a version WhatsApp turns away ──
+
+    private fun stage5(
+        history: ChatBridgeHistory? = ChatBridgeHistory(available = true, days = 30, pending = 0),
+        phone: ChatBridgePhone? = null,
+        clientOutdated: Boolean = false,
+        login: ChatBridgeLogin? = login(ChatBridges.LOGIN_CONNECTED),
+    ) = LinkedUiState(
+        loading = false,
+        info = ChatBridgesInfo(
+            available = true,
+            networks = listOf(ChatBridgeNetwork(wa, ChatBridges.NET_RUNNING, consent = true, clientOutdated = clientOutdated, phone = phone, logins = listOfNotNull(login))),
+            history = history,
+        ),
+    )
+
+    @Test
+    fun `older history - the row under the services, the choice, what comes tonight`() {
+        val picked = mutableListOf<Int>()
+        both("30-verlauf-30-tage", stage5(ChatBridgeHistory(available = true, days = 30, pending = 412)), LinkedActions(setHistory = { picked += it })) {
+            rule.onNodeWithText("Älteren Verlauf laden").assertIsDisplayed()
+            rule.onNodeWithText("Nur beim Verknüpfen · Letzte 30 Tage · 412 kommen heute Nacht").assertIsDisplayed()
+            rule.onNodeWithText("Letzte 30 Tage").assertIsDisplayed()
+            text("älteren Verlauf (oben gewählt) übernimmt GateControl nachts").performScrollTo().assertIsDisplayed()
+            assertEquals("the line about later chats is gone", 0, rule.onAllNodesWithText("folgen in einer späteren Version", substring = true).fetchSemanticsNodes().size)
+            // the row sits above where the bridges run
+            val hist = rule.onNodeWithTag("linked-history").fetchSemanticsNode().boundsInRoot.top
+            val runs = rule.onNodeWithText("Läuft auf").fetchSemanticsNode().boundsInRoot.top
+            assertTrue(hist < runs)
+        }
+        // the choice: Aus, Letzte 30 Tage, Alles
+        page(stage5(ChatBridgeHistory(available = true, days = 30)), actions = LinkedActions(setHistory = { picked += it }))
+        rule.onNodeWithTag("linked-history").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Aus").assertIsDisplayed()
+        rule.onNodeWithText("Alles").assertIsDisplayed()
+        assertEquals(2, rule.onAllNodesWithText("Letzte 30 Tage").fetchSemanticsNodes().size)
+        rule.onNodeWithText("Alles").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf(-1), picked)
+        both("31-verlauf-alles", stage5(ChatBridgeHistory(available = true, days = -1))) {
+            rule.onNodeWithText("Nur beim Verknüpfen · Alles").assertIsDisplayed()
+        }
+        both("32-verlauf-aus", stage5(ChatBridgeHistory(available = true, days = 0))) {
+            rule.onNodeWithText("Nur beim Verknüpfen · Aus").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `older history - switched off on the server, a server without, while saving`() {
+        var picked = 0
+        both("33-verlauf-abgeschaltet", stage5(ChatBridgeHistory(available = false, days = 30)), LinkedActions(setHistory = { picked++ })) {
+            rule.onNodeWithText("Auf diesem Server abgeschaltet").assertIsDisplayed()
+            assertEquals(0, rule.onAllNodesWithText("Letzte 30 Tage", substring = true).fetchSemanticsNodes().size)
+            rule.onNodeWithTag("linked-history").performClick()
+        }
+        assertEquals(0, picked)
+        both("34-ohne-verlauf", stage5(history = null)) {
+            assertEquals(0, rule.onAllNodesWithText("Älteren Verlauf laden").fetchSemanticsNodes().size)
+        }
+        page(stage5().copy(historySaving = true), actions = LinkedActions(setHistory = { picked++ }))
+        rule.onNodeWithTag("linked-history").performClick()
+        rule.waitForIdle()
+        assertEquals(0, rule.onAllNodesWithText("Aus").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun `the phone was not seen - the warning under the service, the link still works`() {
+        both("35-handy-13-tage", stage5(phone = ChatBridgePhone(true, 13, 1))) {
+            rule.onNodeWithText("Handy seit 13 Tagen nicht gesehen. Öffne WhatsApp auf deinem Handy – nach etwa 14 Tagen ohne Handy trennt WhatsApp die Verknüpfung.").assertIsDisplayed()
+            rule.onNodeWithText("Verknüpft").assertIsDisplayed()
+            // under the row of the service
+            val row = rule.onNodeWithTag("linked-row-whatsapp").fetchSemanticsNode().boundsInRoot.bottom
+            val warn = rule.onNodeWithTag("linked-phone-whatsapp").fetchSemanticsNode().boundsInRoot.top
+            assertTrue(warn >= row)
+        }
+        both("36-handy-jederzeit", stage5(phone = ChatBridgePhone(true, 15, 0))) {
+            rule.onNodeWithText("Handy seit 15 Tagen nicht gesehen. Öffne WhatsApp auf deinem Handy – WhatsApp kann die Verknüpfung jederzeit trennen.").assertIsDisplayed()
+        }
+        both("37-handy-abgemeldet", stage5(phone = ChatBridgePhone(true, 15, 0), login = login(ChatBridges.LOGIN_LOGGED_OUT))) {
+            assertEquals(0, rule.onAllNodesWithText("Handy seit", substring = true).fetchSemanticsNodes().size)
+        }
+    }
+
+    @Test
+    fun `WhatsApp turns the bridge's version away - shown like an outdated bridge`() {
+        both("38-client-veraltet", stage5(clientOutdated = true)) {
+            text("Die Brücke für WhatsApp ist älter als vorgesehen").assertIsDisplayed()
+            assertEquals(2, rule.onAllNodesWithText("Veraltet").fetchSemanticsNodes().size)
+            rule.onNodeWithText("Server · Brücke veraltet").performScrollTo().assertIsDisplayed()
+            text("Das Aktualisieren macht dein Administrator").performScrollTo().assertIsDisplayed()
+        }
     }
 }

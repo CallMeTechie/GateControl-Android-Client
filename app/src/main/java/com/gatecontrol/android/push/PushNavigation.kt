@@ -40,6 +40,12 @@ sealed interface PushNavTarget {
     ) : PushNavTarget
 
     /**
+     * Messenger 1.17: the chat settings' page „Verknüpfte Dienste“ (the phone warning of a linked service). Without
+     * the tab "Chats" (plugin gone meanwhile) the message [messageId] opens.
+     */
+    data class ChatLinked(val messageId: Long? = null) : PushNavTarget
+
+    /**
      * Shared from another app ("Teilen → An Chat senden"): pick a chat for
      * [ChatShareHandover]'s content — or straight into [conversationId]
      * (a sharing shortcut of that chat).

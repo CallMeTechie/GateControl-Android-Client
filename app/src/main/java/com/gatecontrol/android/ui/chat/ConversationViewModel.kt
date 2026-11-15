@@ -88,6 +88,8 @@ sealed interface ConversationNotice {
     data object Left : ConversationNotice
     /** Messenger 1.14: a message of a bridged chat failed again ([reason] of the bridge). */
     data class NotSent(val reason: String?) : ConversationNotice
+    /** Messenger 1.17: "Laden" of a file of the older history was refused ([code]; `invalid`: nothing to fetch any more). */
+    data class FetchFailed(val code: String?) : ConversationNotice
     /** Messenger 1.4: a short confirmation (string resource). */
     data class Done(val res: Int, val arg: String? = null) : ConversationNotice
     /** A live arrival was sent: start sharing the position. */
@@ -582,6 +584,25 @@ class ConversationViewModel @Inject constructor(
     }
 
     private val resending = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+
+    /**
+     * Messenger 1.17: "Laden" of a file of the older history (placeholder `on_request`) — asked for once; the line then
+     * says "wird geladen …" and the file follows like any other over the bridge. [done] when the answer is there.
+     */
+    fun fetchOld(m: ChatMessage, done: () -> Unit = {}) {
+        if (m.bridge?.placeholder?.onRequest != true || !fetching.add(m.id)) return done()
+        viewModelScope.launch {
+            try {
+                val r = repository.fetchBridged(m)
+                if (r !is ChatResult.Ok) notices.trySend(ConversationNotice.FetchFailed(codeOf(r)))
+            } finally {
+                fetching.remove(m.id)
+                done()
+            }
+        }
+    }
+
+    private val fetching = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
 
     /** The "Chat über …" note of [network] was read ([seen] false: "Mehr" shows it again). */
     fun setBridgeSeen(network: String, seen: Boolean) = bridgeHints.setSeen(network, seen)

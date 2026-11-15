@@ -26,6 +26,9 @@ class ChatBridgesRepository @Inject constructor(private val api: ChatApi) {
     suspend fun step(network: String, processId: String, stepId: String, input: Map<String, String>? = null): ChatResult<ChatBridgeLoginState> =
         api.bridgeLoginStep(network, processId, stepId, input)
 
+    /** Messenger 1.17: what of the older messages comes over at the next link ([ChatBridgeHistory.days]). */
+    suspend fun setHistory(days: Int): ChatResult<ChatBridgeHistory> = api.bridgeHistory(days)
+
     suspend fun unlink(network: String, loginId: String): ChatResult<Unit> = api.bridgeUnlink(network, loginId)
 
     /** Messenger 1.15: is [e164] at the service? (Each call is a question to the service — only on "Prüfen".) */

@@ -586,10 +586,29 @@ class ChatRepository @Inject constructor(
                 coalesce("conv:$conv", 300L) { refreshConversation(conv) }
                 // Released by its plugin (managedBy null): the list shows it as a normal group.
                 if (event.released) coalesce("list") { syncConversations() }
+                // Messenger 1.17: older messages of a bridged chat were filed (no push, already read) — the open chat
+                // loads them where it stands, any other drops its cache and loads anew when it opens.
+                if (event.history) coalesce("history:$conv", 600L) { historyArrived(conv) }
             }
             is ChatEvent.ConversationRemove -> scope.launch { drop(listOf(conv)) }
             is ChatEvent.StatusChanged -> _statusEvents.tryEmit(event)
             is ChatEvent.AccountChanged -> _accountEvents.tryEmit(event)
+        }
+    }
+
+    /**
+     * Messenger 1.17 `conversation.update { reason: "history" }`: older messages came into [conv]. They stand at their
+     * own place by `id`; `changedSince=` finds them by their `updatedAt` (the time they were filed). Open: the changes
+     * and the newer messages, the cache stays (the list stays where it is) and older pages are asked for again. Not
+     * open: the cache is dropped.
+     */
+    internal suspend fun historyArrived(conv: Long) {
+        if (conv == _active.value) {
+            fetchChanged(conv)
+            fetchNewer(conv)
+            dao.putKv(KvEntity(KV_OLDER + conv, "1"))
+        } else {
+            clearMessages(conv)
         }
     }
 
@@ -946,6 +965,20 @@ class ChatRepository @Inject constructor(
     suspend fun resend(message: ChatMessage): ChatResult<ChatMessage> {
         val r = api.resend(message.id)
         if (r is ChatResult.Ok) storeSent(r.value)
+        return r
+    }
+
+    /**
+     * Messenger 1.17: a file of the older history of a bridged chat, asked for now ("Laden"). The answer is the message
+     * with its placeholder `loading`; the file follows with `message.update`. `400 invalid`: nothing to fetch (any
+     * more) — the message is asked for again, so it shows what it is now.
+     */
+    suspend fun fetchBridged(message: ChatMessage): ChatResult<ChatMessage> {
+        val r = api.fetchBridged(message.id)
+        when {
+            r is ChatResult.Ok -> storeMessages(listOf(r.value))
+            r is ChatResult.Failed && r.http == 400 -> coalesce("changed:${message.conversationId}") { fetchChanged(message.conversationId) }
+        }
         return r
     }
 

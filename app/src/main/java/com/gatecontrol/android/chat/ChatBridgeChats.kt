@@ -49,7 +49,8 @@ data class ChatConvBridge(
 /**
  * A file or kind of message that has not crossed ([kind] of [ChatBridgeChat.PLACEHOLDERS], the file's [name]).
  * Messenger 1.15: [state] `loading` (the server fetches it), `failed` with [reason] (why it will not come), null
- * (nothing to fetch — a location with [lat]/[lon], an older server).
+ * (nothing to fetch — a location with [lat]/[lon], an older server); 1.17: `on_request` (a file of the older history,
+ * fetched when the person asks for it).
  */
 data class ChatBridgePlaceholder(
     val kind: String,
@@ -61,6 +62,9 @@ data class ChatBridgePlaceholder(
 ) {
     val loading: Boolean get() = state == ChatBridgeChat.PH_LOADING
     val failed: Boolean get() = state == ChatBridgeChat.PH_FAILED
+
+    /** Messenger 1.17: a file of the older history, fetched on "Laden" ([ChatBridgeChat.PH_ON_REQUEST]). */
+    val onRequest: Boolean get() = state == ChatBridgeChat.PH_ON_REQUEST
 
     /** A location with its place (shown on the existing map view). */
     val geo: Boolean get() = lat != null && lon != null
@@ -101,6 +105,12 @@ object ChatBridgeChat {
     /** Messenger 1.15 `features.bridge_new_chat`: a new chat by phone number (`POST bridges/:network/resolve | chats`). */
     const val FEATURE_NEW_CHAT = "bridge_new_chat"
 
+    /**
+     * Messenger 1.17 `features.bridge_history`: older messages over a bridge — the choice in „Verknüpfte Dienste“
+     * (`bridges.history`), files of the history on request (placeholder `on_request`), the phone warning.
+     */
+    const val FEATURE_HISTORY = "bridge_history"
+
     /** The mark of a client that knows bridged chats (`?bridged=1`). */
     const val QUERY = "bridged"
 
@@ -128,6 +138,9 @@ object ChatBridgeChat {
     // placeholder.state (Messenger 1.15)
     const val PH_LOADING = "loading"
     const val PH_FAILED = "failed"
+
+    /** Messenger 1.17: a file of the older history — fetched only when the person asks for it ("Laden"). */
+    const val PH_ON_REQUEST = "on_request"
 
     /** Why a file did not come (`placeholder.reason`); another word reads like [PH_REASON_UNAVAILABLE]. */
     const val PH_REASON_INFECTED = "infected"
@@ -227,7 +240,7 @@ object ChatBridgeChat {
     }
 
     private fun placeholder(o: JsonObject): ChatBridgePlaceholder {
-        val state = o.str("state")?.takeIf { it == PH_LOADING || it == PH_FAILED }
+        val state = o.str("state")?.takeIf { it == PH_LOADING || it == PH_FAILED || it == PH_ON_REQUEST }
         val geo = o.obj("geo")
         val lat = geo?.get("lat")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble?.takeIf { it.isFinite() && it in -90.0..90.0 }
         val lon = geo?.get("lon")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble?.takeIf { it.isFinite() && it in -180.0..180.0 }

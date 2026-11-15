@@ -3,6 +3,7 @@ package com.gatecontrol.android.ui.chat.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.chat.ChatBridgeError
+import com.gatecontrol.android.chat.ChatBridgeHistory
 import com.gatecontrol.android.chat.ChatBridgeLogin
 import com.gatecontrol.android.chat.ChatBridgeLoginState
 import com.gatecontrol.android.chat.ChatBridgeNetwork
@@ -352,5 +353,59 @@ class LinkedServicesViewModelTest {
         advanceUntilIdle()
         verify(exactly = 1) { repository.cancel(wa, "late") }
         assertEquals(LinkedView.Overview, vm.uiState.value.view)
+    }
+
+    // ─── Messenger 1.17: older messages ─────────────────────────────
+
+    private fun withHistory(h: ChatBridgeHistory?) = info(true, true, ChatBridgeLogin("wa1", "", ChatBridges.LOGIN_CONNECTED, null)).copy(history = h)
+
+    @Test
+    fun `the choice of older messages - saved once, the answer shown, a refusal says why`() = scope.runTest {
+        val h = ChatBridgeHistory(available = true, days = 30, pending = 40)
+        coEvery { repository.load() } returns ChatResult.Ok(withHistory(h))
+        val saved = CompletableDeferred<ChatResult<ChatBridgeHistory>>()
+        coEvery { repository.setHistory(-1) } coAnswers { saved.await() }
+        val vm = vm()
+        advanceUntilIdle()
+
+        vm.setHistory(30)
+        vm.setHistory(5)
+        advanceUntilIdle()
+        coVerify(exactly = 0) { repository.setHistory(any()) }
+
+        vm.setHistory(-1)
+        assertTrue(vm.uiState.value.historySaving)
+        vm.setHistory(0)
+        advanceUntilIdle()
+        saved.complete(ChatResult.Ok(h.copy(days = -1, pending = 0)))
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.setHistory(-1) }
+        coVerify(exactly = 0) { repository.setHistory(0) }
+        assertFalse(vm.uiState.value.historySaving)
+        assertEquals(-1, vm.uiState.value.info!!.history!!.days)
+        assertEquals(LinkedNotice.HistorySaved, vm.notice.first())
+
+        // switched off on the server meanwhile: said, and the page loads anew
+        coEvery { repository.setHistory(0) } returns ChatResult.Failed("feature_off", 403)
+        coEvery { repository.load() } returns ChatResult.Ok(withHistory(h.copy(available = false)))
+        vm.setHistory(0)
+        advanceUntilIdle()
+        assertEquals(LinkedNotice.Failed(ChatBridgeError.OFF), vm.notice.first())
+        assertFalse(vm.uiState.value.info!!.history!!.available)
+        assertFalse(vm.uiState.value.historySaving)
+    }
+
+    @Test
+    fun `no choice where the server has none or the administrator switched it off`() = scope.runTest {
+        coEvery { repository.load() } returns ChatResult.Ok(withHistory(null))
+        val vm = vm()
+        advanceUntilIdle()
+        vm.setHistory(0)
+        coEvery { repository.load() } returns ChatResult.Ok(withHistory(ChatBridgeHistory(available = false, days = 30)))
+        val off = vm()
+        advanceUntilIdle()
+        off.setHistory(0)
+        advanceUntilIdle()
+        coVerify(exactly = 0) { repository.setHistory(any()) }
     }
 }
