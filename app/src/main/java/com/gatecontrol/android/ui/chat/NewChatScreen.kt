@@ -22,6 +22,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,14 +33,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.chat.ChatBookContact
+import com.gatecontrol.android.chat.ChatBookPhone
+import com.gatecontrol.android.chat.ChatGcContact
+import com.gatecontrol.android.chat.ChatNewChatContacts
+import com.gatecontrol.android.chat.ChatNewContacts
+import com.gatecontrol.android.chat.ChatNumberHit
+import com.gatecontrol.android.chat.ChatNumberStarted
+import com.gatecontrol.android.chat.ChatWaContact
 import com.gatecontrol.android.chat.ChatPerson
 import com.gatecontrol.android.chat.ChatRepository
 import com.gatecontrol.android.chat.ChatResult
@@ -48,11 +59,14 @@ import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -66,6 +80,8 @@ data class NewChatUiState(
      * the server's order).
      */
     val numberNetworks: List<String> = emptyList(),
+    /** Messenger 1.18 (`features.bridge_contacts`): the three sections; null: the page of 1.16.0. */
+    val contacts: ContactsUi? = null,
 )
 
 /** "Neuer Chat" / "Neue Gruppe": the people (`GET people`), direct chats and groups. */
@@ -81,9 +97,19 @@ class NewChatViewModel @Inject constructor(
     /** The conversation to open (direct chat found or created, group created). */
     val open = opened.receiveAsFlow()
 
+    private val numberPageCh = Channel<String>(Channel.BUFFERED)
+    /** Messenger 1.18: the page "Nummer eingeben" of this service (a number handed over in [ChatNumberHandoff]). */
+    val numberPage = numberPageCh.receiveAsFlow()
+
+    /** The clock (tests set their own). */
+    internal var now: () -> Long = System::currentTimeMillis
+
+    /** Messenger 1.18 `bridge_contacts`: "Neuer Chat" shows the three sections (not "Neue Gruppe"). */
+    val withContacts = ChatNewContacts.enabled(repository.profile.value?.features)
+
     init {
         load()
-        loadNumberNetworks()
+        if (!withContacts) loadNumberNetworks()
     }
 
     /** "WhatsApp-Chat mit Nummer": only when the server can (`bridge_new_chat`) and the person linked the service. */
@@ -101,7 +127,7 @@ class NewChatViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
             when (val r = repository.people()) {
-                is ChatResult.Ok -> _state.value = NewChatUiState(people = r.value, loading = false)
+                is ChatResult.Ok -> _state.update { it.copy(people = r.value, loading = false, error = null) }
                 is ChatResult.Failed -> _state.value = _state.value.copy(loading = false, error = r.code)
                 else -> _state.value = _state.value.copy(loading = false, error = "offline")
             }
@@ -109,6 +135,174 @@ class NewChatViewModel @Inject constructor(
     }
 
     fun openDirect(peerId: Long) = act { repository.openDirect(peerId) }
+
+    // ─── Messenger 1.18: "Neuer Chat" with contacts ─────────────────
+
+    private var seq = 0
+    private var searchJob: Job? = null
+
+    /** The three sections (only with `bridge_contacts`, not for "Neue Gruppe"): asked once, then on every search. */
+    fun contacts() {
+        if (!withContacts || _state.value.contacts != null) return
+        _state.update { it.copy(contacts = ContactsUi()) }
+        fetch()
+    }
+
+    /** The search: the list anew after [ChatNewContacts.DEBOUNCE_MS] (older answers are dropped). */
+    fun setQuery(raw: String) {
+        val c = _state.value.contacts ?: return
+        val q = raw.take(ChatNewContacts.QUERY_MAX)
+        if (q == c.query) return
+        val changed = ChatNewContacts.query(q) != ChatNewContacts.query(c.query)
+        _state.update { s -> s.copy(contacts = s.contacts?.copy(query = q, pick = if (changed) null else s.contacts.pick, rows = if (changed) emptyMap() else s.contacts.rows)) }
+        if (!changed) return
+        searchJob?.cancel()
+        val my = ++seq
+        searchJob = viewModelScope.launch {
+            delay(ChatNewContacts.DEBOUNCE_MS)
+            fetch(my)
+        }
+    }
+
+    /** "Erneut versuchen", a reference that ran out, a signed-out service: the list anew, now. */
+    fun reload() {
+        searchJob?.cancel()
+        _state.update { s -> s.copy(contacts = s.contacts?.copy(rows = emptyMap(), pick = null)) }
+        fetch()
+    }
+
+    private fun fetch(my: Int = ++seq) {
+        val c = _state.value.contacts ?: return
+        viewModelScope.launch {
+            _state.update { s -> s.copy(contacts = s.contacts?.copy(loading = true)) }
+            val r = repository.newChatContacts(c.network, ChatNewContacts.query(_state.value.contacts?.query.orEmpty()))
+            if (my != seq) return@launch
+            _state.update { s ->
+                val cur = s.contacts ?: return@update s
+                s.copy(
+                    contacts = when (r) {
+                        is ChatResult.Ok -> cur.copy(data = r.value, loading = false, error = null)
+                        is ChatResult.Failed -> cur.copy(loading = false, error = r.code)
+                        else -> cur.copy(loading = false, error = "offline")
+                    },
+                )
+            }
+        }
+    }
+
+    fun showAll(whatsapp: Boolean) = _state.update { s ->
+        s.copy(contacts = s.contacts?.let { if (whatsapp) it.copy(moreWa = true) else it.copy(moreBook = true) })
+    }
+
+    /** A row with a chat there is ("Chat öffnen"): fetched, then opened — nothing goes to the service. */
+    fun openExisting(conversationId: Long) {
+        if (_state.value.busy) return
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            repository.refreshConversation(conversationId)
+            _state.update { it.copy(busy = false) }
+            opened.trySend(conversationId)
+        }
+    }
+
+    fun tapAccount(c: ChatGcContact) {
+        val id = c.conversationId
+        if (id != null) openExisting(id) else openDirect(c.person.userId)
+    }
+
+    /** A WhatsApp contact: the chat at once (`{ ref }`) — nothing checked, nothing counted. */
+    fun tapContact(c: ChatWaContact) {
+        c.conversationId?.let { openExisting(it); return }
+        val cs = _state.value.contacts ?: return
+        if (_state.value.busy || cs.data?.whatsapp?.ok != true) return
+        _state.update { s -> s.copy(busy = true, contacts = s.contacts?.copy(startingRef = c.ref, error = null)) }
+        viewModelScope.launch {
+            val r = repository.openContactChat(cs.network, c.ref)
+            _state.update { s -> s.copy(busy = false, contacts = s.contacts?.copy(startingRef = null)) }
+            when {
+                r is ChatResult.Ok -> {
+                    if (r.value.created) ChatNumberStarted.putContact(r.value.conversation.id, c.name)
+                    opened.trySend(r.value.conversation.id)
+                }
+                ChatNewContacts.refusal(r) == ChatNewContacts.Refusal.RELOAD -> reload()
+                else -> _state.update { s -> s.copy(contacts = s.contacts?.copy(error = code(r))) }
+            }
+        }
+    }
+
+    /** A contact of the address book: the chat there is, the choice of several numbers, or the one number checked. */
+    fun tapBook(c: ChatBookContact) {
+        c.conversationId?.let { openExisting(it); return }
+        val cs = _state.value.contacts ?: return
+        if (_state.value.busy || cs.data?.whatsapp?.ok != true) return
+        val one = ChatNewContacts.single(c)
+        if (one == null) {
+            _state.update { s -> s.copy(contacts = s.contacts?.copy(pick = if (cs.pick == c.contactId) null else c.contactId, rows = cs.rows - c.contactId)) }
+            return
+        }
+        tapNumber(c, one)
+    }
+
+    /** One number of the address book: asked at the service now (counted in the brake), then the chat opens. */
+    fun tapNumber(c: ChatBookContact, p: ChatBookPhone) {
+        val cs = _state.value.contacts ?: return
+        if (_state.value.busy || cs.data?.whatsapp?.ok != true) return
+        _state.update { s -> s.copy(busy = true, contacts = s.contacts?.copy(pick = null, rows = cs.rows + (c.contactId to BookRow.Checking(p.key)))) }
+        viewModelScope.launch {
+            val r = repository.openBookChat(cs.network, c.contactId, p.key)
+            if (r is ChatResult.Ok) {
+                _state.update { s -> s.copy(busy = false, contacts = s.contacts?.copy(rows = s.contacts.rows - c.contactId)) }
+                if (r.value.created) ChatNumberStarted.putBook(r.value.conversation.id, c.name, p.number)
+                opened.trySend(r.value.conversation.id)
+                return@launch
+            }
+            val row: BookRow? = when (ChatNewContacts.refusal(r)) {
+                ChatNewContacts.Refusal.NOT_ON -> BookRow.NotOn(p.key)
+                ChatNewContacts.Refusal.RATE_LIMITED -> BookRow.RateLimited(
+                    p.key,
+                    now() + ((r as? ChatResult.Failed)?.retryAfterS?.takeIf { it > 0 } ?: 3600) * 1000L,
+                    _state.value.contacts?.data?.perHour ?: DEFAULT_PER_HOUR,
+                )
+                ChatNewContacts.Refusal.UNREACHABLE -> BookRow.Unreachable(p.key)
+                ChatNewContacts.Refusal.RELOAD -> null
+                ChatNewContacts.Refusal.MAIL_MISSING -> BookRow.Failed(p.key, "mail_missing")
+                ChatNewContacts.Refusal.OFFLINE -> BookRow.Failed(p.key, "offline")
+                ChatNewContacts.Refusal.FAILED -> BookRow.Failed(p.key, code(r))
+            }
+            _state.update { s ->
+                val cur = s.contacts ?: return@update s.copy(busy = false)
+                s.copy(busy = false, contacts = if (row == null) cur.copy(rows = cur.rows - c.contactId) else cur.copy(rows = cur.rows + (c.contactId to row), data = if (row is BookRow.NotOn) cur.data?.let { notOn(it, c.contactId, p.key) } else cur.data))
+            }
+            if (row == null) reload()
+        }
+    }
+
+    /** "+49 … bei WhatsApp prüfen": the chat there is, else the page "Nummer eingeben" with it, checked at once. */
+    fun tapNumberHit(n: ChatNumberHit) {
+        n.conversationId?.let { openExisting(it); return }
+        val net = _state.value.contacts?.network ?: return
+        ChatNumberHandoff.put(net, n.e164)
+        numberPageCh.trySend(net)
+    }
+
+    /** "Nicht dabei? Nummer eingeben". */
+    fun enterNumber() {
+        val net = _state.value.contacts?.network ?: return
+        numberPageCh.trySend(net)
+    }
+
+    private fun notOn(d: ChatNewChatContacts, contactId: Long, key: String): ChatNewChatContacts {
+        val book = d.addressBook ?: return d
+        return d.copy(addressBook = book.copy(items = book.items.map { x ->
+            if (x.contactId != contactId) x else x.copy(phones = x.phones.map { if (it.key == key) it.copy(notOnNetwork = true) else it })
+        }))
+    }
+
+    private fun code(r: ChatResult<*>): String = when (r) {
+        is ChatResult.Failed -> r.code
+        ChatResult.Offline -> "offline"
+        else -> "failed"
+    }
 
     private var pendingIds: List<Long> = emptyList()
     private val skippedCh = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.BUFFERED)
@@ -136,6 +330,11 @@ class NewChatViewModel @Inject constructor(
             _state.value = _state.value.copy(busy = false)
         }
     }
+
+    private companion object {
+        /** The brake's default (Messenger 1.16 `newChatPerHour`) when the list did not name it. */
+        const val DEFAULT_PER_HOUR = 10
+    }
 }
 
 /**
@@ -149,8 +348,10 @@ fun NewChatScreen(
     onBack: () -> Unit,
     onNewGroup: () -> Unit,
     onOpened: (Long) -> Unit,
-    /** Messenger 1.15/1.16: "WhatsApp-Chat mit Nummer" of a linked service. */
+    /** Messenger 1.15/1.16: "WhatsApp-Chat mit Nummer" of a linked service; 1.18: "Nummer eingeben". */
     onNewNumber: (String) -> Unit = {},
+    /** Messenger 1.18: "Neu verknüpfen" of a signed-out service ("Verknüpfte Dienste"). */
+    onOpenLinked: () -> Unit = {},
     viewModel: NewChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -159,6 +360,12 @@ fun NewChatScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
     var picked by rememberSaveable { mutableStateOf(listOf<Long>()) }
+    // Messenger 1.18: GateControl, WhatsApp and the address book under one search (the search lives in the view model)
+    val withContacts = !group && viewModel.withContacts
+    if (withContacts) {
+        LaunchedEffect(Unit) { viewModel.contacts() }
+        LaunchedEffect(Unit) { viewModel.numberPage.collect { onNewNumber(it) } }
+    }
 
     LaunchedEffect(Unit) { viewModel.open.collect { onOpened(it) } }
     val ctxSkipped = androidx.compose.ui.platform.LocalContext.current
@@ -181,33 +388,57 @@ fun NewChatScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
-        GcTextField(
-            value = query,
-            onValueChange = { query = it.take(60) },
-            label = stringResource(R.string.chat_people_search),
-            placeholder = stringResource(R.string.chat_people_search_hint),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
-        state.error?.let {
-            Text(ChatText.actionError(ctx, it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+        val contacts = state.contacts
+        if (withContacts) {
+            GcTextField(
+                value = contacts?.query.orEmpty(),
+                onValueChange = viewModel::setQuery,
+                label = stringResource(R.string.chat_people_search),
+                placeholder = stringResource(R.string.chat_ncc_search),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("ncc-search"),
+            )
+        } else {
+            GcTextField(
+                value = query,
+                onValueChange = { query = it.take(60) },
+                label = stringResource(R.string.chat_people_search),
+                placeholder = stringResource(R.string.chat_people_search_hint),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
+        (state.error ?: contacts?.error)?.let {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(ChatText.actionError(ctx, it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (contacts?.error != null && state.error == null) {
+                    TextButton(onClick = viewModel::reload) { Text(stringResource(R.string.chat_ncc_retry), fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+        if (withContacts && contacts != null) {
+            val netName = stringResource(com.gatecontrol.android.ui.chat.settings.networkName(contacts.network))
+            val accounts = accountsOf(contacts, state.people)
+            val actions = ContactsActions(
+                onAccount = viewModel::tapAccount,
+                onContact = viewModel::tapContact,
+                onBook = viewModel::tapBook,
+                onNumber = viewModel::tapNumber,
+                onNumberHit = viewModel::tapNumberHit,
+                onShowAll = viewModel::showAll,
+                onReload = viewModel::reload,
+                onRelink = onOpenLinked,
+                onEnterNumber = viewModel::enterNumber,
+            )
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
+                // "Neue Gruppe" stays on top — and goes while searching
+                if (!contacts.searching) item(key = "group") { NewGroupRow(onNewGroup) }
+                contactSections(contacts, accounts, netName, actions)
+            }
+            ContactsFoot(contacts, accounts, netName, viewModel::enterNumber)
+            return@Column
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (!group) {
-                item(key = "group") {
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(role = Role.Button, onClick = onNewGroup).padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Box(Modifier.size(44.dp).clip(CircleShape).background(extra.accentBg), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.GroupAdd, contentDescription = null, tint = extra.accentText)
-                        }
-                        Column {
-                            Text(stringResource(R.string.chat_new_group), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                            Text(stringResource(R.string.chat_new_group_desc), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-                        }
-                    }
-                }
+                item(key = "group") { NewGroupRow(onNewGroup) }
                 // Messenger 1.15/1.16: a chat by phone number over a linked service, right under "Neue Gruppe"
                 items(state.numberNetworks, key = { "num-$it" }) { net ->
                     val name = stringResource(com.gatecontrol.android.ui.chat.settings.networkName(net))
@@ -271,6 +502,25 @@ fun NewChatScreen(
                 loading = state.busy,
                 modifier = Modifier.padding(16.dp),
             )
+        }
+    }
+}
+
+/** "Neue Gruppe" at the top of "Neuer Chat". */
+@Composable
+private fun NewGroupRow(onNewGroup: () -> Unit) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(role = Role.Button, onClick = onNewGroup).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(44.dp).clip(CircleShape).background(extra.accentBg), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.GroupAdd, contentDescription = null, tint = extra.accentText)
+        }
+        Column {
+            Text(stringResource(R.string.chat_new_group), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.chat_new_group_desc), style = MaterialTheme.typography.bodySmall, color = extra.muted)
         }
     }
 }

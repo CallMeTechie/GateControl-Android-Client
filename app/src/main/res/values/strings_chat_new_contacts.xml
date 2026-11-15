@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Neuer Chat" with contacts (Messenger 1.18, draft "Neuer Chat mit Kontakten"; texts of the plugin, ncc.*). -->
+<resources>
+    <string name="chat_ncc_search">Search name or number</string>
+    <string name="chat_ncc_sec_gc">GateControl · %1$d</string>
+    <string name="chat_ncc_sec_wa_n">%1$s · %2$d</string>
+    <string name="chat_ncc_sec_book">From your address book</string>
+    <string name="chat_ncc_sec_book_n">From your address book · %1$d</string>
+    <string name="chat_ncc_open">Open chat</string>
+    <string name="chat_ncc_wa_contact">%1$s contact</string>
+    <string name="chat_ncc_also_book">also in your address book</string>
+    <string name="chat_ncc_all_wa">All %1$d %2$s contacts</string>
+    <string name="chat_ncc_all_book">All %1$d with a phone number</string>
+    <string name="chat_ncc_numbers">%1$d numbers</string>
+    <string name="chat_ncc_one_number">%1$s · %2$s</string>
+    <string name="chat_ncc_which">Which number?</string>
+    <string name="chat_ncc_kind_mobile">Mobile</string>
+    <string name="chat_ncc_kind_work">Work</string>
+    <string name="chat_ncc_kind_home">Home</string>
+    <string name="chat_ncc_kind_other">Other</string>
+    <string name="chat_ncc_landline">Landline</string>
+    <string name="chat_ncc_checking">Checking with %1$s …</string>
+    <string name="chat_ncc_not_on">not on %1$s</string>
+    <string name="chat_ncc_none_text">There is no %2$s at %1$s. If %3$s has another number, enter it below.</string>
+    <string name="chat_ncc_from">from %1$s</string>
+    <plurals name="chat_ncc_rate_text">
+        <item quantity="one">You checked %1$d number in the last hour. %2$s contacts and existing chats still work.</item>
+        <item quantity="other">You checked %1$d numbers in the last hour. %2$s contacts and existing chats still work.</item>
+    </plurals>
+    <string name="chat_ncc_unreach">Bridge not reachable. Try again in a moment.</string>
+    <string name="chat_ncc_mail_missing">The address book is not available right now.</string>
+    <string name="chat_ncc_wa_down_title">%1$s contacts not available right now</string>
+    <string name="chat_ncc_wa_down_text">The bridge does not answer. GateControl accounts still work.</string>
+    <string name="chat_ncc_wa_out_title">%1$s is signed out</string>
+    <string name="chat_ncc_wa_out_text">Link again to see your %1$s contacts here.</string>
+    <string name="chat_ncc_retry">Try again</string>
+    <string name="chat_ncc_relink">Link again</string>
+    <string name="chat_ncc_book_off_down">Tapping works again as soon as %1$s is reachable.</string>
+    <string name="chat_ncc_book_off_out">Tapping works again as soon as %1$s is linked again.</string>
+    <string name="chat_ncc_check_number">Check %1$s on %2$s</string>
+    <string name="chat_ncc_empty_title">Nobody found for “%1$s”</string>
+    <string name="chat_ncc_empty_text">Searched in GateControl, your %1$s contacts and your address book.</string>
+    <string name="chat_ncc_empty_text_gc">Searched in the accounts on your server.</string>
+    <string name="chat_ncc_not_here">Not listed?</string>
+    <string name="chat_ncc_enter_number">Enter a number</string>
+    <string name="chat_ncc_privacy">Your %1$s contacts stay on your server. A number from your address book only goes to %1$s when you tap the contact.</string>
+    <string name="chat_ncc_first_line_contact">New chat over %1$s with %2$s. The messages arrive in the usual %1$s app.</string>
+    <string name="chat_ncc_first_line_book">New chat over %1$s with %2$s (%3$s, from your address book). The messages arrive in the usual %1$s app.</string>
+</resources>

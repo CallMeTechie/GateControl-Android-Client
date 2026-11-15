@@ -9,8 +9,6 @@
     <string name="chat_newnum_hint">With or without a leading 0, spaces do not matter. Other countries: choose the code or paste the number with +.</string>
     <string name="chat_newnum_as">Checked as %1$s</string>
     <string name="chat_newnum_country">Country code %1$s</string>
-    <string name="chat_newnum_contacts">Pick from contacts</string>
-    <string name="chat_newnum_contacts_none">This contact has no phone number.</string>
     <string name="chat_newnum_invalid_short">This is not a complete number – some digits are missing.</string>
     <string name="chat_newnum_invalid_short_de">This is not a complete number – a German mobile number needs more digits.</string>
     <string name="chat_newnum_invalid_long">These are too many digits for a phone number.</string>

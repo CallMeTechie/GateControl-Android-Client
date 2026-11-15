@@ -1025,6 +1025,23 @@ class ChatRepository @Inject constructor(
         return r
     }
 
+    /** Messenger 1.18: "Neuer Chat" with contacts (`GET contacts/new-chat`); [q] the search ("" for all). */
+    suspend fun newChatContacts(network: String, q: String): ChatResult<ChatNewChatContacts> = api.newChatContacts(network, q)
+
+    /** Messenger 1.18: the chat with a WhatsApp contact ([ref] of the list), made or found — stored like [openNumberChat]. */
+    suspend fun openContactChat(network: String, ref: String): ChatResult<ChatNumberChat> {
+        val r = api.bridgeContactChat(network, ref)
+        if (r is ChatResult.Ok) storeConversation(r.value.conversation)
+        return r
+    }
+
+    /** Messenger 1.18: the chat with a number of the address book ([phoneKey] of the contact), made or found. */
+    suspend fun openBookChat(network: String, contactId: Long, phoneKey: String): ChatResult<ChatNumberChat> {
+        val r = api.bridgeBookChat(network, contactId, phoneKey)
+        if (r is ChatResult.Ok) storeConversation(r.value.conversation)
+        return r
+    }
+
     suspend fun openDirect(peerId: Long): ChatResult<ChatConversation> {
         val r = api.createDirect(peerId)
         if (r is ChatResult.Ok) storeConversation(r.value)

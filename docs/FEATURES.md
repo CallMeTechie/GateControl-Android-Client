@@ -862,8 +862,7 @@ gesperrt; dann sagt die Seite warum), nicht für ein Kind, dessen Eltern
 „Neue Chats per Nummer“ ausgeschaltet haben.
 
 - **Eigene Seite** wie „WhatsApp verknüpfen“: Ländervorwahl (+49
-  voreingestellt, Auswahl weiterer Länder), Nummernfeld, „Aus Kontakten
-  wählen“. Die führende 0 wird umgerechnet, Leerzeichen und Striche sind
+  voreingestellt, Auswahl weiterer Länder), Nummernfeld. Die führende 0 wird umgerechnet, Leerzeichen und Striche sind
   egal, `+`/`00` bringen ihre eigene Vorwahl mit; unter dem Feld steht
   „Wird geprüft als +49 151 23456789“. Was offensichtlich keine Nummer ist,
   sagt das Feld sofort, ohne etwas zu senden.
@@ -877,9 +876,9 @@ gesperrt; dann sagt die Seite warum), nicht für ein Kind, dessen Eltern
 - **„Chat starten“** (`POST bridges/:network/chats`) öffnet den Chat sofort
   – mit der Leiste bzw. beim ersten Mal der Erklärkarte „Chat über
   WhatsApp“.
-- **Kontaktauswahl** nur über die Auswahl des Systems: ein Kontakt wird
-  angetippt, eine Nummer kommt zurück. Die App hat keine Berechtigung
-  „Kontakte lesen“ und lädt kein Adressbuch hoch.
+- **Keine Kontaktauswahl des Systems** (seit Messenger 1.18 entfernt):
+  Kontakte kommen nur aus GateControl (siehe unten). Die App hat keine
+  Berechtigung „Kontakte lesen“ und liest nichts vom Gerät.
 - **Schutz:** Die Nummer steht nur im Arbeitsspeicher, solange die Seite
   offen ist – nicht im gespeicherten Zustand, in keiner Einstellung, keinem
   Protokoll, nicht in `toString()`. Ein Satz auf der Seite sagt, dass sie
@@ -920,6 +919,45 @@ verknüpftem Dienst), gilt:
   macht dein Administrator“ wie bisher.
 - **Ältere Server** ändern nichts; `bridge_history` steht in der Liste der
   bekannten Wörter (kein Update-Hinweis).
+
+### Messenger 1.18 – „Neuer Chat“ mit Kontakten
+
+Mit Messenger 1.18 und einem GateControl-Server, der Kontakte über die
+Brücke kennt (`features.bridge_contacts`, nur für Personen mit verknüpftem
+Dienst), zeigt „Neuer Chat“ ein Suchfeld „Name oder Nummer suchen“ und
+darunter drei Abschnitte (`GET contacts/new-chat`), leere fallen weg:
+
+- **GateControl** – die Konten auf dem Server wie bisher (sofort aus
+  `GET people`, bis die Liste da ist).
+- **WhatsApp · 86** – die WhatsApp-Kontakte der Brücke, nach Name, **ohne
+  Nummer**; „auch in deinem Adressbuch“ bzw. „WhatsApp-Kontakt“, Profilbild,
+  sobald GateControl es hat, sonst Initialen mit „WA“. Antippen öffnet den
+  Chat sofort (`POST bridges/whatsapp/chats { ref }`), nichts wird geprüft
+  oder gezählt; eine abgelaufene Kennung (`409 contact_expired`) lädt die
+  Liste neu. Ist WhatsApp nicht erreichbar oder abgemeldet, steht dort eine
+  Karte mit „Erneut versuchen“ bzw. „Neu verknüpfen“.
+- **Aus deinem Adressbuch** (Mail-Plugin) – Kontakte mit Telefonnummer, die
+  Nummern so, wie Mail sie liefert. Antippen fragt WhatsApp nach genau
+  dieser einen Nummer (`{ contactId, phoneKind }`, zählt in der Bremse) und
+  öffnet dann den Chat. Mehrere Nummern: „Welche Nummer?“ (Mobil,
+  Geschäftlich, Privat, Weitere; Festnetz und „nicht bei WhatsApp“ grau,
+  wählbar). In der Zeile: „Prüft bei WhatsApp …“, „nicht bei WhatsApp“ mit
+  Hinweis, „ab HH:MM“ bei zu vielen Prüfungen, „Brücke nicht erreichbar“.
+  Ist WhatsApp weg, sind die Zeilen grau und nicht antippbar.
+
+Gibt es schon einen Chat, steht „Chat öffnen“ in der Zeile. Lange
+Abschnitte zeigen drei Zeilen und „Alle … anzeigen“; die Suche lädt nach
+einer kurzen Pause neu (ältere Antworten werden verworfen). Sieht die Suche
+wie eine Nummer aus, kommt „+49 … bei WhatsApp prüfen“ – das öffnet die
+Seite „Nummer eingeben“ mit dieser Nummer und prüft sofort (die Nummer geht
+nur über den Arbeitsspeicher dorthin). Kein Treffer: „Niemand mit „…“
+gefunden“ mit „Nummer eingeben“. Unten der Satz zum Datenschutz und „Nicht
+dabei? Nummer eingeben“ (die Seite von 1.16); die Zeile „WhatsApp-Chat mit
+Nummer“ entfällt. Ein neuer Chat beginnt mit „Neuer Chat über WhatsApp mit
+…“ (beim Adressbuch mit Nummer, nur im Arbeitsspeicher). „Neue Gruppe“
+bleibt oben und verschwindet beim Suchen. Ohne `bridge_contacts` bleibt
+alles wie bei Messenger 1.16; die Kontaktauswahl des Systems gibt es in
+beiden Fällen nicht mehr.
 
 ---
 

@@ -66,7 +66,7 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | Datentyp | Pflicht/optional | Wofür |
 |---|---|---|
 | **Persönliche Daten → Name** | optional | Familie: Namen in Notfallkontakten und frei eingetragene Fahrer („Oma“); Chats: Gruppennamen. Konto- und Anzeigenamen legt der Server-Betreiber an. |
-| **Persönliche Daten → Telefonnummer** | optional | Familie: Notfallnummern auf der Notfall-Karte; Chats › Verknüpfte Dienste: die eigene WhatsApp-Nummer beim Verknüpfen per Code (geht an den eigenen Server, dessen Brücke gibt sie an WhatsApp weiter; in der App nicht gespeichert); „WhatsApp-Chat mit Nummer“ (Messenger 1.15): die Nummer eines Gegenübers, getippt oder über die Kontaktauswahl des Systems gewählt, erst auf „Prüfen“ an den eigenen Server und von dessen Brücke an WhatsApp; in der App nicht gespeichert, auf dem Server erst mit „Chat starten“ |
+| **Persönliche Daten → Telefonnummer** | optional | Familie: Notfallnummern auf der Notfall-Karte; Chats › Verknüpfte Dienste: die eigene WhatsApp-Nummer beim Verknüpfen per Code (geht an den eigenen Server, dessen Brücke gibt sie an WhatsApp weiter; in der App nicht gespeichert); „WhatsApp-Chat mit Nummer“ (Messenger 1.15): die Nummer eines Gegenübers, getippt oder in der Suche von „Neuer Chat“ eingegeben, erst auf „Prüfen“ an den eigenen Server und von dessen Brücke an WhatsApp; in der App nicht gespeichert, auf dem Server erst mit „Chat starten“ |
 | **Finanzinformationen → Kaufverlauf** | optional | Familie: Ausgaben im Haushaltsbuch (reine Buchhaltung, keine Zahlungen) |
 | **Finanzinformationen → Sonstige Finanzinformationen** | optional | Familie: Taschengeld (Guthaben, Buchungen, Regeln) |
 | **Standort → Ungefährer Standort** | optional | Familie: Anwesenheit „zuhause/unterwegs“ (Heimnetz-Erkennung, kein GPS) und „angekommen/verlassen“ bei Orten für Regeln (ohne Position). Notizen & Aufgaben (Plugin ab 1.5.0): eine auf dem Gerät auf etwa einen Kilometer gerundete Position an den eigenen Server – für die Ortssuche („Welcher Baumarkt?“) und für die Orte in der Nähe; nur bei eingeschalteter Ortssuche, sonst verlässt keine Position das Gerät. Der genaue Standort bleibt dabei auf dem Gerät (Geofencing, Entfernungen) |
@@ -82,7 +82,7 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | **App-Aktivitäten → In-App-Suchverlauf** | optional | Chats: Suche im Chat läuft auf dem Server |
 | **App-Aktivitäten → Sonstige von Nutzern erstellte Inhalte** | optional | Familie: Einkaufslisten, Aufgaben, Termine, Fahrten, Pinnwand, Wunschlisten, Essensplan |
 | **Geräte- oder andere IDs** | Pflicht | Gerätename/Modell im Status an den eigenen Server |
-| E-Mail, Adresse, sonstige persönliche Daten, Kontakte, Kalender, SMS/E-Mails, Web-Verlauf, Musik, Fitness, Seitenaufrufe, installierte Apps | nein (Kontakte: keine Berechtigung `READ_CONTACTS`, kein Adressbuch; die eine über die Systemauswahl gewählte Nummer steht oben unter „Telefonnummer“) |
+| E-Mail, Adresse, sonstige persönliche Daten, Kontakte, Kalender, SMS/E-Mails, Web-Verlauf, Musik, Fitness, Seitenaufrufe, installierte Apps | nein (Kontakte: keine Berechtigung `READ_CONTACTS`, keine Kontaktauswahl, nichts vom Gerät; „Neuer Chat“ zeigt Kontakte vom eigenen Server – WhatsApp-Kontakte der Brücke, Adressbuch des Mail-Plugins –, die nur angezeigt und nicht gespeichert werden) |
 
 ### Berechtigungen und Erklärungen
 

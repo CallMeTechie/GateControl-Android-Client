@@ -34,19 +34,31 @@ data class ChatNumberLookup(val found: Boolean, val name: String?, val existingC
 
 /**
  * The first line of a chat just started by number (Messenger 1.16 `nc.first_line`, as the portal): "Neuer Chat über
- * WhatsApp mit +49 …". It names the number, so it lives in this process's memory only — never stored — and shows
- * while the new chat has no message yet.
+ * WhatsApp mit +49 …" — since 1.18 also with a WhatsApp contact (`nc.first_line_contact`, no number) or a number of the
+ * address book (`nc.first_line_book`). It may name the number, so it lives in this process's memory only — never
+ * stored — and shows while the new chat has no message yet.
  */
 object ChatNumberStarted {
-    class Line(val display: String, val name: String?) {
-        override fun toString(): String = "Line"
+    enum class Kind { NUMBER, CONTACT, BOOK }
+
+    class Line(val display: String?, val name: String?, val kind: Kind = Kind.NUMBER) {
+        override fun toString(): String = "Line($kind)"
     }
 
     private val lines = java.util.concurrent.ConcurrentHashMap<Long, Line>()
 
-    fun put(conversationId: Long, display: String, name: String?) {
+    /** Started by a typed number ([display] as checked, [name] at the service). */
+    fun put(conversationId: Long, display: String, name: String?) = put(conversationId, Line(display, name))
+
+    /** Started with a WhatsApp contact of the list (Messenger 1.18): its name, no number. */
+    fun putContact(conversationId: Long, name: String) = put(conversationId, Line(null, name, Kind.CONTACT))
+
+    /** Started with a number of the address book (Messenger 1.18): the contact's name, the number as listed. */
+    fun putBook(conversationId: Long, name: String, number: String) = put(conversationId, Line(number, name, Kind.BOOK))
+
+    private fun put(conversationId: Long, line: Line) {
         if (lines.size > 20) lines.clear()
-        lines[conversationId] = Line(display, name)
+        lines[conversationId] = line
     }
 
     fun get(conversationId: Long): Line? = lines[conversationId]

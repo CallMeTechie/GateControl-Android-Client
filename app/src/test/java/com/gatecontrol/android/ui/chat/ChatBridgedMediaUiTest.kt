@@ -345,7 +345,7 @@ class ChatBridgedMediaUiTest {
     private fun page(name: String, ui: NumberChatUi, check: () -> Unit = {}) {
         for (dark in listOf(false, true)) {
             draw(dark) {
-                NewNumberChatContent(ui = ui, name = "WhatsApp", onBack = {}, onInput = {}, onCountry = {}, onContacts = {}, onCheck = {}, onStart = {}, onOther = {}, onOpenLinked = {})
+                NewNumberChatContent(ui = ui, name = "WhatsApp", onBack = {}, onInput = {}, onCountry = {}, onCheck = {}, onStart = {}, onOther = {}, onOpenLinked = {})
             }
             rule.waitUntil(3_000) { count("WhatsApp-Chat mit Nummer") > 0 }
             shot(name, dark)
@@ -362,7 +362,8 @@ class ChatBridgedMediaUiTest {
         page("30-nummer-leer", ui(input = "")) {
             rule.onNodeWithText("Telefonnummer").assertIsDisplayed()
             rule.onNodeWithText("Mit oder ohne 0 am Anfang, Leerzeichen sind egal. Andere Länder: Vorwahl wählen oder Nummer mit + einfügen.").assertIsDisplayed()
-            rule.onNodeWithContentDescription("Aus Kontakten wählen").assertIsDisplayed()
+            // Messenger 1.18: the system's contact picker is gone (contacts come from GateControl only)
+            assertEquals(0, rule.onAllNodesWithContentDescription("Aus Kontakten wählen").fetchSemanticsNodes().size)
             rule.onNodeWithText("+49").assertIsDisplayed()
             rule.onNodeWithTag("newnum-primary").assertIsNotEnabled()
             rule.onNodeWithText("Zum Prüfen geht die Nummer über deine Brücke an WhatsApp. GateControl schreibt sie nicht ins Protokoll; gespeichert wird sie nur, wenn du den Chat startest.").assertIsDisplayed()

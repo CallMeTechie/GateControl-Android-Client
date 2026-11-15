@@ -9,8 +9,6 @@
     <string name="chat_newnum_hint">Mit oder ohne 0 am Anfang, Leerzeichen sind egal. Andere Länder: Vorwahl wählen oder Nummer mit + einfügen.</string>
     <string name="chat_newnum_as">Wird geprüft als %1$s</string>
     <string name="chat_newnum_country">Ländervorwahl %1$s</string>
-    <string name="chat_newnum_contacts">Aus Kontakten wählen</string>
-    <string name="chat_newnum_contacts_none">Dieser Kontakt hat keine Telefonnummer.</string>
     <string name="chat_newnum_invalid_short">Das ist keine vollständige Nummer – es fehlen noch Ziffern.</string>
     <string name="chat_newnum_invalid_short_de">Das ist keine vollständige Nummer – für ein deutsches Handy fehlen noch Ziffern.</string>
     <string name="chat_newnum_invalid_long">Das sind zu viele Ziffern für eine Telefonnummer.</string>
