@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chats v2, Teil B (Messenger 1.21): Personen zusammenführen. -->
+<resources>
+    <string name="chat_pp_card_sub">Zu einem Chat zusammenführen?</string>
+    <string name="chat_pp_card_open">Ansehen</string>
+    <string name="chat_pp_merge_title">Zu einer Person zusammenführen?</string>
+    <string name="chat_pp_merge_text">Beide Chats erscheinen dann als ein Chat mit gemeinsamem Verlauf. Das siehst nur du.</string>
+    <string name="chat_pp_way_chat">%s-Chat</string>
+    <string name="chat_pp_name">Name in deiner Liste</string>
+    <string name="chat_pp_merge">Zusammenführen</string>
+    <string name="chat_pp_later">Nicht jetzt</string>
+    <string name="chat_pp_never">Nicht mehr vorschlagen</string>
+    <string name="chat_pp_merged">Zu einer Person zusammengeführt.</string>
+    <string name="chat_pp_src">Quelle</string>
+    <string name="chat_pp_src_all">Alle</string>
+    <string name="chat_pp_placeholder">Nachricht über %s</string>
+    <string name="chat_pp_hint">Geht über %1$s. Die Verschlüsselung von %1$s endet an der Brücke neben deinem Server.</string>
+    <string name="chat_pp_via">über %s</string>
+    <string name="chat_pp_only_you">Nur für dich zusammengeführt – %s sieht davon nichts.</string>
+    <string name="chat_pp_ways_title">Wege von %s</string>
+    <string name="chat_pp_way_account">Konto %s</string>
+    <string name="chat_pp_way_as">als „%s“</string>
+    <string name="chat_pp_split">Trennen</string>
+    <string name="chat_pp_split_q">Den %s-Chat wieder getrennt zeigen? Es geht keine Nachricht verloren.</string>
+    <string name="chat_pp_split_note">Trennen zeigt einen Weg wieder als eigenen Chat. Es geht keine Nachricht verloren.</string>
+    <string name="chat_pp_split_done">Wieder getrennt. Es ging keine Nachricht verloren.</string>
+    <string name="chat_pp_add">Mit Person zusammenführen …</string>
+    <string name="chat_pp_pick_title">Mit Person zusammenführen</string>
+    <string name="chat_pp_pick_accounts">GateControl-Konten</string>
+    <string name="chat_pp_pick_chats">Andere Chats</string>
+    <string name="chat_pp_pick_hint">Wähle ein GateControl-Konto oder einen anderen Chat mit derselben Person. Zusammengeführt wird nur, was du wählst – nie nach Namen geraten.</string>
+    <string name="chat_pp_pick_none">Kein passender Chat.</string>
+    <string name="chat_pp_pick_search">Suchen</string>
+    <string name="chat_pp_rec_title">Dürfen andere auf diesem Server dich an deinem WhatsApp erkennen?</string>
+    <string name="chat_pp_rec_text">Hat jemand auf diesem Server dich bei WhatsApp als Kontakt, schlägt GateControl ihr oder ihm vor, euren WhatsApp-Chat mit deinem Konto zusammenzuführen. Deine Nummer sieht dabei niemand.</string>
+    <string name="chat_pp_rec_note">Du kannst das jederzeit in „Mein Profil“ unter „Erkennung“ ändern.</string>
+    <string name="chat_pp_rec_no">Nein</string>
+    <string name="chat_pp_rec_yes">Ja, erkennen lassen</string>
+    <string name="chat_pp_rec_on">Andere auf diesem Server können dich jetzt an deinem WhatsApp erkennen.</string>
+    <string name="chat_pp_rec_off">Niemand erkennt dich an deinem WhatsApp.</string>
+    <string name="chat_pp_cannot_merge">Diese Chats lassen sich nicht zusammenführen: nur Chats mit einer Person, nie Gruppen oder Kanäle, und höchstens ein GateControl-Konto.</string>
+</resources>

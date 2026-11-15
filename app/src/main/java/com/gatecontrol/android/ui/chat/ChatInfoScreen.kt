@@ -128,7 +128,77 @@ class ChatInfoViewModel @Inject constructor(
 
     fun archive(archived: Boolean) {
         val cid = id.value ?: return
-        viewModelScope.launch { extras.archive(cid, archived).let { if (it !is ChatResult.Ok) errors.trySend(codeOf(it)) } }
+        // Messenger 1.21: a person — every way
+        val p = person()
+        viewModelScope.launch { (if (p != null) repository.archivePerson(p.id, archived) else extras.archive(cid, archived)).let { if (it !is ChatResult.Ok) errors.trySend(codeOf(it)) } }
+    }
+
+    // ─── Messenger 1.21: persons ───
+
+    /** The person this chat is (its entry). */
+    private fun person(): com.gatecontrol.android.chat.ChatMergedPerson? = conversation.value?.let { c -> c.person?.takeIf { it.conversationId == c.id } }
+
+    private val peopleCh = Channel<Int>(Channel.BUFFERED)
+    /** A short confirmation of persons (a string resource): merged, separated. */
+    val peopleDone = peopleCh.receiveAsFlow()
+    private val _candidates = MutableStateFlow<com.gatecontrol.android.chat.ChatPersonCandidates?>(null)
+    val candidates: StateFlow<com.gatecontrol.android.chat.ChatPersonCandidates?> = _candidates
+    private val _merging = MutableStateFlow(false)
+    val merging: StateFlow<Boolean> = _merging
+
+    /** „Mit Person zusammenführen …“: who this chat (or person) can be merged with. */
+    fun loadCandidates() {
+        val c = conversation.value ?: return
+        _candidates.value = null
+        viewModelScope.launch {
+            when (val r = repository.personCandidates(person()?.conversationId ?: c.id)) {
+                is ChatResult.Ok -> _candidates.value = r.value
+                else -> {
+                    _candidates.value = com.gatecontrol.android.chat.ChatPersonCandidates(emptyList(), emptyList())
+                    errors.trySend(codeOf(r))
+                }
+            }
+        }
+    }
+
+    /** One person of this chat and the picked account or chat, named after [name]; then the person shows here. */
+    fun merge(userId: Long?, chatId: Long?, name: String?) {
+        val c = conversation.value ?: return
+        if (_merging.value) return
+        _merging.value = true
+        viewModelScope.launch {
+            try {
+                when (val r = repository.mergePerson(com.gatecontrol.android.chat.ChatPeople.manualIds(c, chatId), userId, name)) {
+                    is ChatResult.Ok -> {
+                        if (r.value.id != id.value) id.value = r.value.id
+                        peopleCh.trySend(R.string.chat_pp_merged)
+                    }
+                    else -> errors.trySend(codeOf(r))
+                }
+            } finally {
+                _merging.value = false
+            }
+        }
+    }
+
+    /** „Trennen“ of way [conversationId]: its own chat again, nothing is lost. */
+    fun split(conversationId: Long) {
+        val p = person() ?: return
+        viewModelScope.launch {
+            when (val r = repository.splitWay(p.id, conversationId)) {
+                is ChatResult.Ok -> peopleCh.trySend(R.string.chat_pp_split_done)
+                else -> errors.trySend(codeOf(r))
+            }
+        }
+    }
+
+    /** „Name in deiner Liste“: `account` or a way's conversation id. */
+    fun setPersonName(value: String) {
+        val p = person() ?: return
+        viewModelScope.launch {
+            val r = repository.patchPerson(p.id, com.gatecontrol.android.chat.ChatPeople.mergeBody(emptyList(), null, value).apply { remove("conversationIds") })
+            if (r !is ChatResult.Ok) errors.trySend(codeOf(r))
+        }
     }
 
     fun block(p: ChatPerson, block: Boolean) {
@@ -174,10 +244,21 @@ class ChatInfoViewModel @Inject constructor(
     val left = leftCh.receiveAsFlow()
 
     fun bind(conversationId: Long) {
-        if (id.value == conversationId) return
+        if (bound == conversationId) return
+        bound = conversationId
         id.value = conversationId
-        viewModelScope.launch { repository.refreshConversation(conversationId) }
+        viewModelScope.launch {
+            repository.refreshConversation(conversationId)
+            // Messenger 1.21: a way of a person — the person's info
+            if (!com.gatecontrol.android.chat.ChatPeople.on(repository.profile.value?.features)) return@launch
+            repository.personLeadOf(conversationId)?.takeIf { it != conversationId }?.let { lead ->
+                id.value = lead
+                repository.refreshConversation(lead)
+            }
+        }
     }
+
+    private var bound: Long? = null
 
     fun loadPeople() {
         viewModelScope.launch { (repository.people() as? ChatResult.Ok)?.let { _people.value = it.value } }
@@ -185,6 +266,15 @@ class ChatInfoViewModel @Inject constructor(
 
     private fun patch(body: JsonObject) {
         val cid = id.value ?: return
+        // Messenger 1.21: mute and notifications of a person hold for every way (`PATCH persons/:id`)
+        val p = person()
+        if (p != null && body.keySet().all { it == "notify" || it == "mutedUntil" }) {
+            viewModelScope.launch {
+                val r = repository.patchPerson(p.id, body)
+                if (r !is ChatResult.Ok) errors.trySend(codeOf(r))
+            }
+            return
+        }
         viewModelScope.launch {
             when (val r = repository.patch(cid, body)) {
                 is ChatResult.Ok -> {
@@ -330,6 +420,14 @@ fun ChatInfoScreen(
     var pictureMenu by remember { mutableStateOf(false) }
     val avatarSource by viewModel.avatarSource.collectAsStateWithLifecycle()
     val avatarSaving by viewModel.avatarSaving.collectAsStateWithLifecycle()
+    // Messenger 1.21: persons — „Trennen“, the name, „Mit Person zusammenführen …“
+    var splitFor by remember { mutableStateOf<com.gatecontrol.android.chat.ChatPersonWay?>(null) }
+    var naming by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
+    var picked by remember { mutableStateOf<PersonPick?>(null) }
+    val candidates by viewModel.candidates.collectAsStateWithLifecycle()
+    val merging by viewModel.merging.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.peopleDone.collect { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show() } }
 
     val removed by viewModel.removed.collectAsStateWithLifecycle()
     LaunchedEffect(removed) {
@@ -410,6 +508,8 @@ fun ChatInfoScreen(
                             Icon(Icons.Outlined.PhotoCamera, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
                         }
                     }
+                } else if (conv.person?.conversationId == conv.id) {
+                    PersonAvatar(conv, 88.dp)
                 } else {
                     ConversationAvatar(conv, 88.dp)
                 }
@@ -424,6 +524,11 @@ fun ChatInfoScreen(
                     else if (conv.managedBy != null) add(resources.getString(R.string.chat_managed_short))
                 }.joinToString(" · ")
                 Text(sub, style = MaterialTheme.typography.bodyMedium, color = extra.muted, textAlign = TextAlign.Center)
+                // Messenger 1.21: merged in the viewer's own view only
+                conv.person?.takeIf { it.conversationId == conv.id }?.let { p ->
+                    PersonWayLogos(p, 16.dp)
+                    Text(stringResource(R.string.chat_pp_only_you, ChatText.title(ctx, conv)), style = MaterialTheme.typography.bodySmall, color = extra.muted, textAlign = TextAlign.Center)
+                }
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp)) }
 
@@ -511,6 +616,18 @@ fun ChatInfoScreen(
                     }
                 }
                 if (conv.peer.blocked) Text(stringResource(R.string.chat_blocked_hint, ChatText.name(ctx, conv.peer)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+            }
+
+            // Messenger 1.21: „Wege von …“ of a person, „Mit Person zusammenführen …“ of every chat with one person
+            val peopleOn = com.gatecontrol.android.chat.ChatPeople.on(profile?.features)
+            conv.person?.takeIf { it.conversationId == conv.id && peopleOn }?.let { p ->
+                PersonWaysSection(p, ChatText.title(ctx, conv), onSplit = { splitFor = it }, onName = { naming = true })
+            }
+            if (com.gatecontrol.android.chat.ChatPeople.canMerge(conv, peopleOn)) {
+                PersonAddRow {
+                    viewModel.loadCandidates()
+                    picking = true
+                }
             }
 
             // Messenger 1.4: archive, export, block.
@@ -693,6 +810,63 @@ fun ChatInfoScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { pictureMenu = false }) { Text(stringResource(R.string.chat_cancel)) } },
+        )
+    }
+
+    val pconv = c
+    splitFor?.let { w ->
+        ConfirmDialog(
+            title = stringResource(R.string.chat_pp_split),
+            text = stringResource(R.string.chat_pp_split_q, w.label),
+            confirm = stringResource(R.string.chat_pp_split),
+            onConfirm = {
+                splitFor = null
+                viewModel.split(w.conversationId)
+            },
+            onDismiss = { splitFor = null },
+        )
+    }
+    val namingPerson = pconv?.person?.takeIf { it.conversationId == pconv.id }
+    if (naming && namingPerson != null) {
+        val options = com.gatecontrol.android.chat.ChatPeople.nameOptions(namingPerson)
+        ChoiceDialog(
+            title = stringResource(R.string.chat_pp_name),
+            options = options.map { it.label },
+            selected = options.indexOfFirst { it.value == com.gatecontrol.android.chat.ChatPeople.currentName(namingPerson) },
+            onPick = { i ->
+                naming = false
+                options.getOrNull(i)?.let { viewModel.setPersonName(it.value) }
+            },
+            onDismiss = { naming = false },
+        )
+    }
+    if (picking) {
+        PersonPickSheet(
+            candidates = candidates,
+            onPick = { pick ->
+                picking = false
+                picked = pick
+            },
+            onDismiss = { picking = false },
+        )
+    }
+    picked?.let { pick ->
+        val base = pconv ?: return@let
+        val account = (pick as? PersonPick.Account)?.a
+        val chat = (pick as? PersonPick.Chat)?.c
+        val options = remember(pick, base) { com.gatecontrol.android.chat.ChatPeople.manualNames(base, account?.name, chat?.conversationId, chat?.title) }
+        // the account's name picked first, else the name the chat has now
+        val initial = base.person?.takeIf { it.conversationId == base.id }?.let { com.gatecontrol.android.chat.ChatPeople.currentName(it) }
+            ?.takeIf { account == null } ?: options.firstOrNull()?.value
+        PersonConfirmDialog(
+            options = options,
+            initial = initial,
+            busy = merging,
+            onMerge = { name ->
+                picked = null
+                viewModel.merge(account?.userId, chat?.conversationId, name)
+            },
+            onDismiss = { picked = null },
         )
     }
 

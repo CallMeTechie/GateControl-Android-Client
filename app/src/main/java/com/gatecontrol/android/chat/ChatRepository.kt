@@ -156,6 +156,7 @@ class ChatRepository @Inject constructor(
             setupRepository.revision.drop(1).collect {
                 runCatching { ensureOwner() }
                 api.channels = false
+                api.people = false
                 _profile.value = null
                 lastListSyncMs = 0L
                 lastProfileMs = 0L
@@ -172,6 +173,7 @@ class ChatRepository @Inject constructor(
                 dao.kv(KV_PROFILE)?.let { raw -> parseObj(raw)?.let { ChatJson.profile(it) } }?.let {
                     if (_profile.value == null) {
                         api.channels = ChatChannels.on(it.features)
+                        api.people = ChatPeople.on(it.features)
                         _profile.value = it
                     }
                 }
@@ -224,9 +226,16 @@ class ChatRepository @Inject constructor(
     val channelsOn: StateFlow<Boolean> = _profile.map { ChatChannels.on(it?.features) }
         .stateIn(scope, SharingStarted.Eagerly, false)
 
-    /** The chats of the list: without the channels once they have a page of their own. */
-    val conversations: Flow<List<ChatConversation>> = combine(allConversations, channelsOn) { list, on ->
-        if (on) list.filter { ChatChannels.inList(it, true) } else list
+    /**
+     * Messenger 1.21 (`features.chat_people`): persons — the app sends `?people=1`, the list holds one entry per person
+     * and the other ways leave it (they stay in the cache with their messages). Without the word: as before.
+     */
+    val peopleOn: StateFlow<Boolean> = _profile.map { ChatPeople.on(it?.features) }
+        .stateIn(scope, SharingStarted.Eagerly, false)
+
+    /** The chats of the list: without the channels once they have a page of their own, without the folded ways of persons. */
+    val conversations: Flow<List<ChatConversation>> = combine(allConversations, channelsOn, peopleOn) { list, on, people ->
+        ChatPeople.inList(if (on) list.filter { ChatChannels.inList(it, true) } else list, people)
     }
 
     /** Messenger 1.20: the cached channels (the page „Kanäle“); none without `bridge_channels`. */
@@ -312,10 +321,14 @@ class ChatRepository @Inject constructor(
         if (r is ChatResult.Ok) {
             lastProfileMs = clock()
             val wasOn = api.channels
+            val peopleWas = api.people
             api.channels = ChatChannels.on(r.value.features)
+            api.people = ChatPeople.on(r.value.features)
             _profile.value = r.value
             // channels got a page of their own: they leave the list (the next full list no longer names them)
             if (api.channels && !wasOn) coalesce("channels", 500L) { syncChannels(full = true) }
+            // Messenger 1.21: persons came (or went) — the list is one entry per person now (or each way again)
+            if (api.people != peopleWas) coalesce("list-full", 500L) { syncConversations(full = true) }
             runCatching {
                 ensureOwner()
                 dao.putKv(KvEntity(KV_PROFILE, ChatSerializer.profile(r.value).toString()))
@@ -337,11 +350,12 @@ class ChatRepository @Inject constructor(
                 val list = r.value
                 if (since == null) {
                     // A full list: what is missing is gone for the caller — the channels are not in it (Messenger 1.20).
-                    val keep = list.conversations.map { it.id }.toSet()
+                    // Messenger 1.21: the ways of persons are not in it either (`folded`) — they keep their messages
+                    val keep = list.conversations.map { it.id }.toSet() + list.folded + list.conversations.flatMap { it.person?.wayIds.orEmpty() }
                     val gone = dao.conversations().filter { it.id !in keep && !(api.channels && isChannel(it.json)) }.map { it.id }
                     drop(gone)
                 }
-                storeConversations(list.conversations)
+                storeConversations(list.conversations, Store.Entry)
                 drop(list.removed)
                 list.serverTime?.let { dao.putKv(KvEntity(KV_LIST_SINCE, it)) }
                 // Messenger 1.20: the channels' numbers moved (a post, read elsewhere) — their page catches up
@@ -380,7 +394,7 @@ class ChatRepository @Inject constructor(
                     val keep = list.channels.map { it.id }.toSet()
                     drop(cachedChannels().map { it.id }.filter { it !in keep })
                 }
-                storeConversations(list.channels)
+                storeConversations(list.channels, Store.Entry)
                 drop(list.removed)
                 list.serverTime?.let { dao.putKv(KvEntity(KV_CHANNELS_SINCE, it)) }
                 ChatSync.Synced
@@ -391,10 +405,24 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    /**
+     * How a conversation that arrives is stored (Messenger 1.21, persons): [Entry] — a list entry as the server built it
+     * (`GET conversations`, `persons/…`); [Fresh] — `GET conversations/:id`, whose `person` says whether it is a way of a
+     * person now; [Plain] — the view an action answers with (no `person`).
+     */
+    internal enum class Store { Entry, Fresh, Plain }
+
     /** Stored in the server's shape (ChatSerializer), parsed again on every read. */
-    private suspend fun storeConversations(list: List<ChatConversation>) {
+    private suspend fun storeConversations(list: List<ChatConversation>, mode: Store = Store.Plain) {
         if (list.isEmpty()) return
-        dao.upsertConversations(list.map { ConversationEntity(it.id, ChatSerializer.conversation(it).toString(), it.activityAt) })
+        val items = if (mode == Store.Entry) list else list.map { c ->
+            val old = dao.conversation(c.id)?.let { parseObj(it.json) }?.let { ChatJson.conversation(it) }
+            val kept = ChatPeopleStore.keep(c, old, fresh = mode == Store.Fresh)
+            // the lead's own view came: the person's face follows from the server
+            if (kept.person != null && kept.person.conversationId == c.id && mode == Store.Fresh) coalesce("person:${kept.person.id}", 300L) { refreshPerson(kept.person.id) }
+            kept
+        }
+        dao.upsertConversations(items.map { ConversationEntity(it.id, ChatSerializer.conversation(it).toString(), it.activityAt) })
         // Joined again (or added back): no longer gone.
         if (_dropped.value.isNotEmpty()) _dropped.update { d -> d - list.map { it.id }.toSet() }
     }
@@ -416,7 +444,7 @@ class ChatRepository @Inject constructor(
     suspend fun refreshConversation(id: Long): ChatResult<ChatConversation> {
         val r = api.conversation(id)
         when {
-            r is ChatResult.Ok -> storeConversation(r.value)
+            r is ChatResult.Ok -> storeConversations(listOf(r.value), Store.Fresh)
             r is ChatResult.Failed && r.http == 404 -> drop(listOf(id))
         }
         return r
@@ -635,6 +663,8 @@ class ChatRepository @Inject constructor(
                         val o = parseObj(e.json) ?: return@launch
                         val patched = ChatJsonPatch.readEvent(o, event)
                         if (patched != o) dao.upsertConversations(listOf(e.copy(json = patched.toString())))
+                        // Messenger 1.21: a way of a person — the entry counts all ways (the list knows them)
+                        if (event.self && ChatJson.conversation(o)?.person != null) coalesce("list") { syncConversations() }
                     }
                 }
                 if (!event.self && event.upTo == null) {
@@ -653,6 +683,8 @@ class ChatRepository @Inject constructor(
                 }
             }
             is ChatEvent.ConversationUpdate -> {
+                // Messenger 1.21: merged, renamed, separated — the list anew (without `since`)
+                if (ChatPeople.REASON_PERSON in event.reasons) coalesce("list-full", 300L) { syncConversations(full = true) }
                 coalesce("conv:$conv", 300L) { refreshConversation(conv) }
                 // Released by its plugin (managedBy null): the list shows it as a normal group.
                 if (event.released) coalesce("list") { syncConversations() }
@@ -693,7 +725,7 @@ class ChatRepository @Inject constructor(
         coalesce("list") { syncConversations() }
     }
 
-    private suspend fun hasCache(conv: Long): Boolean = conv == _active.value || dao.maxMessageId(conv) != null
+    private suspend fun hasCache(conv: Long): Boolean = conv == _active.value || conv in _activeWays.value || dao.maxMessageId(conv) != null
 
     /** Runs [block] once after [delayMs], however often it is asked for meanwhile. */
     private fun coalesce(key: String, delayMs: Long = COALESCE_MS, block: suspend () -> Unit) {
@@ -733,18 +765,35 @@ class ChatRepository @Inject constructor(
      * The conversation [id] is open and visible (null: none): `active`
      * every 20 s, so the server sends no push for it; `active:false` on leaving.
      */
-    fun setActive(id: Long?) {
+    fun setActive(id: Long?) = activate(id, emptyList())
+
+    /**
+     * Messenger 1.21: the chat of a person is open — `active` for each of its [ways] (else a push comes though the chat
+     * is open), their notifications go.
+     */
+    fun setActivePerson(id: Long, ways: List<Long>) = activate(id, ways.filter { it != id })
+
+    private val _activeWays = MutableStateFlow<Set<Long>>(emptySet())
+    /** Messenger 1.21: the other ways of the person open right now (no notification for them either). */
+    val activeWays: StateFlow<Set<Long>> = _activeWays.asStateFlow()
+
+    private fun activate(id: Long?, ways: List<Long>) {
         val before = _active.value
-        if (before == id) return
+        val beforeWays = _activeWays.value
+        if (before == id && beforeWays == ways.toSet()) return
         _active.value = id
+        _activeWays.value = ways.toSet()
         activeJob?.cancel()
-        if (before != null) scope.launch { api.active(before, active = false) }
+        if (before != null && before != id) scope.launch { api.active(before, active = false) }
+        (beforeWays - ways.toSet()).forEach { w -> scope.launch { api.active(w, active = false) } }
         if (id == null) return
         notifier.get().conversationRead(id)
+        ways.forEach { notifier.get().conversationRead(it) }
         activeJob = scope.launch {
             var ticks = 0
             while (isActive) {
                 api.active(id)
+                ways.forEach { api.active(it) }
                 delay(ACTIVE_EVERY_MS)
                 ticks++
                 // Without live events: edits, reactions and receipts once a minute.
@@ -755,10 +804,13 @@ class ChatRepository @Inject constructor(
             }
         }
         // Without live events: new messages every few seconds while the chat is open.
-        scope.launch {
+        if (before != id) scope.launch {
             while (_active.value == id) {
                 delay(POLL_MS)
-                if (_active.value == id && !live) fetchNewer(id)
+                if (_active.value == id && !live) {
+                    fetchNewer(id)
+                    _activeWays.value.forEach { fetchNewer(it) }
+                }
             }
         }
     }
@@ -989,6 +1041,11 @@ class ChatRepository @Inject constructor(
                 parseObj(ce.json)?.let { o ->
                     val patched = ChatJsonPatch.read(ChatJsonPatch.lastMessage(o, ChatSerializer.message(msg)), 0, msg.id)
                     dao.upsertConversations(listOf(ce.copy(json = patched.toString(), activityAt = msg.createdAt)))
+                    // Messenger 1.21: a way of a person — its entry and the way of the next answer follow
+                    ChatJson.conversation(o)?.person?.let { p ->
+                        personSent(p.id)
+                        if (p.conversationId != e.conversationId) coalesce("list") { syncConversations() }
+                    }
                 }
             }
             return r
@@ -1196,6 +1253,157 @@ class ChatRepository @Inject constructor(
         if (r is ChatResult.Ok) _profile.update { it?.copy(prefs = r.value) }
         return r
     }
+
+    // ─── Messenger 1.21: persons ────────────────────────────────────
+
+    /** The messages of a person's ways together (the screen mixes them by time). */
+    fun personMessages(ways: List<Long>): Flow<List<ChatMessage>> =
+        dao.observeMessagesIn(ways).map { list -> list.mapNotNull { e -> parseObj(e.json)?.let { ChatJson.message(it) } } }
+
+    fun personOutbox(ways: List<Long>): Flow<List<ChatPending>> =
+        dao.observeOutboxIn(ways).map { list -> list.map { ChatPending.of(it) } }
+
+    /** The cached views of a person's ways (the bubbles, ticks and composer of each way). */
+    fun wayConversations(ways: List<Long>): Flow<Map<Long, ChatConversation>> =
+        allConversations.map { list -> list.filter { it.id in ways }.associateBy { it.id } }
+
+    /** The ways with older messages on the server than the cache holds. */
+    suspend fun olderWays(ways: List<Long>): Set<Long> = ways.filter { hasOlder(it) }.toSet()
+
+    /**
+     * Where [id] is a way of a person with another lead, that lead (push, shortcut, an older link): the person opens
+     * instead. Null: [id] is shown as it is.
+     */
+    suspend fun personLeadOf(id: Long): Long? {
+        if (!api.people) return null
+        val all = dao.conversations().mapNotNull { e -> parseObj(e.json)?.let { ChatJson.conversation(it) } }
+        all.firstOrNull { it.id == id }?.person?.let { p -> if (p.conversationId != id) return p.conversationId }
+        return all.firstOrNull { ChatPeople.isEntry(it) && it.id != id && id in it.person!!.wayIds }?.id
+    }
+
+    /**
+     * The chat of a person opened: each way catches up like a chat of its own (`after=`, `changedSince=`), the views
+     * of the folded ways (bubbles, ticks) and the person itself (the way of an answer) fresh.
+     */
+    suspend fun openPerson(entry: ChatConversation) {
+        val p = entry.person ?: return
+        ensureOwner()
+        for (w in p.wayIds) {
+            if (w != entry.id) refreshConversation(w)
+            openConversation(w)
+        }
+        refreshPerson(p.id)
+    }
+
+    /** `GET persons/:id` → the entry stored; gone (404): the list anew. */
+    suspend fun refreshPerson(personId: Long): ChatResult<ChatConversation> {
+        val r = api.person(personId)
+        when {
+            r is ChatResult.Ok -> storeConversations(listOf(r.value), Store.Entry)
+            r is ChatResult.Failed && r.http == 404 -> coalesce("list-full", 300L) { syncConversations(full = true) }
+        }
+        return r
+    }
+
+    /** After a message to a way of a person: the list and the way of the next answer follow. */
+    fun personSent(personId: Long) {
+        coalesce("person:$personId", 800L) { refreshPerson(personId) }
+    }
+
+    /** Everything of the person up to [upTo] (the newest message shown) is read — on every way. */
+    suspend fun markPersonRead(entry: ChatConversation, upTo: Long) {
+        val p = entry.person ?: return
+        if (entry.unread == 0 && p.ways.all { it.unread == 0 }) return
+        dao.conversation(entry.id)?.let { e -> parseObj(e.json)?.let { dao.upsertConversations(listOf(e.copy(json = ChatJsonPatch.read(it, 0, null).toString()))) } }
+        val r = api.personRead(p.id, upTo)
+        if (r !is ChatResult.Ok) return
+        for ((cid, lastRead, unread) in r.value.ways) {
+            if (cid == entry.id) continue
+            val e = dao.conversation(cid) ?: continue
+            parseObj(e.json)?.let { dao.upsertConversations(listOf(e.copy(json = ChatJsonPatch.read(it, unread, lastRead).toString()))) }
+        }
+        val lead = r.value.ways.firstOrNull { it.first == entry.id }
+        dao.conversation(entry.id)?.let { e ->
+            parseObj(e.json)?.let { o ->
+                val c = ChatJson.conversation(o)
+                // the person's ways each with their unread (the entry counts them together)
+                val ways = c?.person?.let { pp -> pp.copy(ways = pp.ways.map { w -> r.value.ways.firstOrNull { it.first == w.conversationId }?.let { x -> w.copy(unread = x.third) } ?: w }) }
+                val patched = ChatJsonPatch.read(o, r.value.unread, lead?.second)
+                if (ways != null) patched.add("person", ChatPeople.write(ways))
+                dao.upsertConversations(listOf(e.copy(json = patched.toString())))
+            }
+        }
+        p.wayIds.forEach { notifier.get().conversationRead(it) }
+    }
+
+    /** The search over all ways of a person. */
+    suspend fun searchPerson(personId: Long, q: String): ChatResult<ChatSearchResult> = api.personSearch(personId, q)
+
+    @Volatile private var lastSuggestMs = 0L
+    private val _suggestions = MutableStateFlow<List<ChatPersonSuggestion>>(emptyList())
+
+    /** Messenger 1.21: the suggestions „… ist vielleicht …“ (the card above the list shows the first). */
+    val suggestions: StateFlow<List<ChatPersonSuggestion>> = _suggestions.asStateFlow()
+
+    /** `GET persons/suggestions` when „Chats“ opens, then at most every 15 minutes ([force]: now). */
+    suspend fun loadSuggestions(force: Boolean = false) {
+        if (!api.people) {
+            _suggestions.value = emptyList()
+            return
+        }
+        val now = clock()
+        if (!force && lastSuggestMs > 0 && now - lastSuggestMs < ChatPeople.SUGGEST_EVERY_MS) return
+        lastSuggestMs = now
+        (api.personSuggestions() as? ChatResult.Ok)?.let { _suggestions.value = it.value }
+    }
+
+    /** „Nicht jetzt“ (7 days) or „Nicht mehr vorschlagen“: the card goes. */
+    suspend fun answerSuggestion(s: ChatPersonSuggestion, action: String): ChatResult<Unit> {
+        val r = api.answerSuggestion(s.id, action)
+        if (r is ChatResult.Ok) _suggestions.update { l -> l.filter { it.id != s.id } }
+        return r
+    }
+
+    /**
+     * `POST persons`: [conversationIds] (and the account [userId]) one person, named after [name] (`account` or a
+     * conversation's id) → the entry, stored; the list follows without `since` (the ways leave it).
+     */
+    suspend fun mergePerson(conversationIds: List<Long>, userId: Long?, name: String?): ChatResult<ChatConversation> {
+        val r = api.merge(conversationIds, userId, name)
+        if (r is ChatResult.Ok) {
+            storeConversations(listOf(r.value), Store.Entry)
+            _suggestions.update { l -> l.filter { it.conversationId !in conversationIds && (userId == null || it.userId != userId) } }
+            coalesce("list-full", 300L) { syncConversations(full = true) }
+        }
+        return r
+    }
+
+    /** „Trennen“: [conversationId] its own chat again — nothing is lost; the entries stored, the list anew. */
+    suspend fun splitWay(personId: Long, conversationId: Long): ChatResult<ChatPersonSplit> {
+        val r = api.splitWay(personId, conversationId)
+        if (r is ChatResult.Ok) {
+            storeConversations(r.value.conversations, Store.Entry)
+            coalesce("list-full", 300L) { syncConversations(full = true) }
+        }
+        return r
+    }
+
+    /** `PATCH persons/:id` (the name in the list) → the entry. */
+    suspend fun patchPerson(personId: Long, body: JsonObject): ChatResult<ChatConversation> {
+        val r = api.patchPerson(personId, body)
+        if (r is ChatResult.Ok) storeConversations(listOf(r.value), Store.Entry)
+        return r
+    }
+
+    /** `POST persons/:id/archive`: every way archived (or back). */
+    suspend fun archivePerson(personId: Long, archived: Boolean): ChatResult<ChatConversation> {
+        val r = api.archivePerson(personId, archived)
+        if (r is ChatResult.Ok) storeConversations(listOf(r.value), Store.Entry)
+        return r
+    }
+
+    /** `GET persons/candidates`: who [conversationId] can be merged with. */
+    suspend fun personCandidates(conversationId: Long): ChatResult<ChatPersonCandidates> = api.personCandidates(conversationId)
 
     companion object {
         const val SOURCE_NOTIFICATION = "notification"

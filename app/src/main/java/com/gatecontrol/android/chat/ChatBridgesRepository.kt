@@ -29,6 +29,9 @@ class ChatBridgesRepository @Inject constructor(private val api: ChatApi) {
     /** Messenger 1.17: what of the older messages comes over at the next link ([ChatBridgeHistory.days]). */
     suspend fun setHistory(days: Int): ChatResult<ChatBridgeHistory> = api.bridgeHistory(days)
 
+    /** Messenger 1.21: „Dürfen andere auf diesem Server dich an deinem WhatsApp erkennen?“ — the answer. */
+    suspend fun setRecognition(allowed: Boolean): ChatResult<ChatRecognition> = api.putRecognition(allowed)
+
     suspend fun unlink(network: String, loginId: String): ChatResult<Unit> = api.bridgeUnlink(network, loginId)
 
     /** Messenger 1.15: is [e164] at the service? (Each call is a question to the service — only on "Prüfen".) */

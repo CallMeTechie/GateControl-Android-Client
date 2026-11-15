@@ -124,6 +124,9 @@ fun MessageBubble(
     player: VoicePlayer.State,
     actions: BubbleActions,
     highlighted: Boolean = false,
+    /** Messenger 1.21, the chat of a person: the way of the message — its logo beside the time (read „über [wayLabel]“). */
+    way: String? = null,
+    wayLabel: String? = null,
 ) {
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
@@ -292,6 +295,8 @@ fun MessageBubble(
                     pending = false,
                     color = colors.meta,
                     modifier = Modifier.align(Alignment.End).padding(end = if (visual) 6.dp else 0.dp),
+                    way = way,
+                    wayLabel = wayLabel?.let { stringResource(R.string.chat_pp_via, it) },
                 )
             }
         }
@@ -520,8 +525,9 @@ private fun SystemLine(text: String, notice: Boolean, via: String?, label: Strin
 }
 
 @Composable
-private fun MetaLine(time: String, edited: Boolean, disappearing: Boolean, status: String?, pending: Boolean, color: Color, modifier: Modifier = Modifier) {
+private fun MetaLine(time: String, edited: Boolean, disappearing: Boolean, status: String?, pending: Boolean, color: Color, modifier: Modifier = Modifier, way: String? = null, wayLabel: String? = null) {
     Row(modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (way != null) ChatNetLogo(way, 12.dp, label = wayLabel)
         if (disappearing) Text("⏱", fontSize = 10.sp, color = color)
         if (edited) Text(stringResource(R.string.chat_edited), style = MaterialTheme.typography.labelSmall, color = color)
         Text(time, style = MaterialTheme.typography.labelSmall, color = color)

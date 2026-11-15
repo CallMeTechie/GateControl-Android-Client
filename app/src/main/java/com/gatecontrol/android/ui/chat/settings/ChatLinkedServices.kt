@@ -127,6 +127,7 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
                 is LinkedNotice.Unlinked -> res.getString(R.string.chat_linked_unlinked, res.getString(networkName(n.network)))
                 is LinkedNotice.Failed -> res.getString(errorText(n.error))
                 LinkedNotice.HistorySaved -> res.getString(R.string.chat_linked_hist_saved)
+                is LinkedNotice.Recognition -> res.getString(if (n.allowed) R.string.chat_pp_rec_on else R.string.chat_pp_rec_off)
             }
             Toast.makeText(ctx, text, Toast.LENGTH_LONG).show()
         }
@@ -154,6 +155,15 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
         chats = chats,
         media = media,
     )
+
+    // Messenger 1.21: the recognition question after linking WhatsApp
+    if (ui.askRecognition) {
+        com.gatecontrol.android.ui.chat.RecognitionDialog(
+            busy = ui.recognitionSaving,
+            onAnswer = { viewModel.answerRecognition(it) },
+            onDismiss = { viewModel.answerRecognition(null) },
+        )
+    }
 
     asking?.let { net ->
         val name = stringResource(networkName(net))

@@ -73,6 +73,12 @@ data class LinkedUiState(
     val unlinking: String? = null,
     /** Messenger 1.17: the choice of older messages is being saved. */
     val historySaving: Boolean = false,
+    /**
+     * Messenger 1.21: right after WhatsApp was linked — „Dürfen andere auf diesem Server dich an deinem WhatsApp
+     * erkennen?“ (once, while `recognition.available && !asked`).
+     */
+    val askRecognition: Boolean = false,
+    val recognitionSaving: Boolean = false,
 )
 
 /** A short message of the page after something happened. */
@@ -82,6 +88,8 @@ sealed interface LinkedNotice {
     data class Failed(val error: ChatBridgeError) : LinkedNotice
     /** Messenger 1.17: the choice of older messages was saved. */
     data object HistorySaved : LinkedNotice
+    /** Messenger 1.21: the answer to the recognition question was saved ([allowed]). */
+    data class Recognition(val allowed: Boolean) : LinkedNotice
 }
 
 /**
@@ -231,7 +239,10 @@ class LinkedServicesViewModel @Inject constructor(
                                 process = null
                                 notices.send(LinkedNotice.Linked(networkId))
                                 state.update { it.copy(view = LinkedView.Overview) }
-                                return load()
+                                load()
+                                // Messenger 1.21: asked once right after the link
+                                if (state.value.info?.recognition?.let { it.ask && it.network == networkId } == true) state.update { it.copy(askRecognition = true) }
+                                return
                             }
                             is ChatBridgeStep.Phone -> return phase(networkId, flow, LinkPhase.Phone(step.id, step.fieldId))
                             // WhatsApp renews the QR code a few times: each one is a new step
@@ -320,6 +331,28 @@ class LinkedServicesViewModel @Inject constructor(
     }
 
     /** The way back inside the page; false on the overview (the page itself is left). */
+    /** The answer to „Dürfen andere … erkennen?“ ([allowed]); null: closed without an answer (asked again next time). */
+    fun answerRecognition(allowed: Boolean?) {
+        if (allowed == null) {
+            state.update { it.copy(askRecognition = false) }
+            return
+        }
+        if (state.value.recognitionSaving) return
+        state.update { it.copy(recognitionSaving = true) }
+        viewModelScope.launch {
+            when (val r = bridges.setRecognition(allowed)) {
+                is ChatResult.Ok -> {
+                    state.update { s -> s.copy(askRecognition = false, recognitionSaving = false, info = s.info?.copy(recognition = r.value)) }
+                    notices.send(LinkedNotice.Recognition(r.value.allowed))
+                }
+                else -> {
+                    state.update { it.copy(askRecognition = false, recognitionSaving = false) }
+                    notices.send(LinkedNotice.Failed(ChatBridges.error(r)))
+                }
+            }
+        }
+    }
+
     fun back(): Boolean {
         if (state.value.view == LinkedView.Overview) return false
         val wasLink = state.value.view is LinkedView.Link

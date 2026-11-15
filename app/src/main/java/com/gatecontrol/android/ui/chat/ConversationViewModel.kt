@@ -41,7 +41,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -75,8 +77,28 @@ data class ConversationUiState(
     val contactTyping: List<String?>? = null,
     /** The services whose "Chat über …" note was read on this device (then only the thin strip shows). */
     val bridgeSeen: Set<String> = emptySet(),
+    /** Messenger 1.21: the chat of a person — the cached views of its ways (bubbles, ticks, composer of each way). */
+    val ways: Map<Long, ChatConversation> = emptyMap(),
+    /** Messenger 1.21: the source chip picked (`gatecontrol`, `whatsapp`; null: „Alle“). */
+    val source: String? = null,
 ) {
     val myId: Long? get() = profile?.user?.userId
+
+    /** Messenger 1.21: the person this chat is (its entry), else null. */
+    val person: com.gatecontrol.android.chat.ChatMergedPerson? get() = conversation?.person?.takeIf { it.conversationId == conversation.id }
+
+    /** The conversation of [m]'s way (a person's chat), else this chat. */
+    fun conversationOf(m: ChatMessage): ChatConversation? = if (person != null) ways[m.conversationId] ?: conversation else conversation
+
+    /**
+     * The conversation the composer writes to: in a person's chat the way of the answer (the server's `person.reply`, an
+     * answer to a message its way) as far as its view is cached, else this chat.
+     */
+    val composer: ChatConversation?
+        get() {
+            val p = person ?: return conversation
+            return ways[com.gatecontrol.android.chat.ChatPeople.sendTo(p, replyTo)] ?: conversation
+        }
 }
 
 /** One-shot notices of the conversation screen. */
@@ -145,12 +167,39 @@ class ConversationViewModel @Inject constructor(
     val player = VoicePlayer()
 
     private val conversation = id.filterNotNull().flatMapLatest { repository.conversation(it) }
-    private val messages = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.messages(it) }
-    private val outbox = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.outbox(it) }
-    private val gaps = id.flatMapLatest { if (it == null) flowOf(emptyList()) else repository.gaps(it) }
+    private val conversationNow = conversation.stateInNull()
+
+    /** Messenger 1.21: the ways of the person this chat is (null: a chat of its own). */
+    private val wayIds: Flow<List<Long>?> = conversationNow
+        .map { c -> c?.person?.takeIf { it.conversationId == c.id }?.wayIds?.sorted() }
+        .distinctUntilChanged()
+    private val older = MutableStateFlow<Set<Long>>(emptySet())
+    private val source = MutableStateFlow<String?>(null)
+
+    /** Where this chat is a way of a person with another lead: that lead (the screen shows the person instead). */
+    private val _redirect = MutableStateFlow<Long?>(null)
+    val redirect: StateFlow<Long?> = _redirect
+
+    private val messages = combine(id, wayIds) { i, w -> i to w }.distinctUntilChanged().flatMapLatest { (i, w) ->
+        when {
+            i == null -> flowOf(emptyList())
+            w != null -> repository.personMessages(w)
+            else -> repository.messages(i)
+        }
+    }
+    private val outbox = combine(id, wayIds) { i, w -> i to w }.distinctUntilChanged().flatMapLatest { (i, w) ->
+        when {
+            i == null -> flowOf(emptyList())
+            w != null -> repository.personOutbox(w)
+            else -> repository.outbox(i)
+        }
+    }
+    private val ways = wayIds.flatMapLatest { w -> if (w == null) flowOf(emptyMap()) else repository.wayConversations(w) }
+    private val gaps = combine(id, wayIds) { i, w -> i to w }.distinctUntilChanged().flatMapLatest { (i, w) -> if (i == null || w != null) flowOf(emptyList()) else repository.gaps(i) }
     private val fillingGap = MutableStateFlow<ChatGap?>(null)
 
     private data class Ui(val replyTo: ChatMessage?, val editing: ChatMessage?, val shared: SharePayload?, val busy: Boolean, val bridgeSeen: Set<String>)
+    private data class People(val ways: Map<Long, ChatConversation>, val older: Set<Long>, val source: String?)
     private data class Live(val profile: ChatProfile?, val typing: Map<Long, Map<Long, Long>>, val contactTyping: Map<Long, com.gatecontrol.android.chat.ChatContactTyping>, val nowMs: Long)
     private data class Paging(val hasOlder: Boolean, val loadingOlder: Boolean, val loaded: Boolean)
 
@@ -159,20 +208,26 @@ class ConversationViewModel @Inject constructor(
     private val searchState = combine(search, searching) { r, s -> r to s }
 
     val uiState: StateFlow<ConversationUiState> = combine(
-        combine(id, conversation.stateInNull(), messages, outbox, gaps) { i, c, m, o, g -> Quad(i, c, m, o, g) },
+        combine(id, conversationNow, messages, outbox, gaps) { i, c, m, o, g -> Quad(i, c, m, o, g) },
         combine(repository.profile, repository.typing, repository.contactTyping, now) { p, t, ct, n -> Live(p, t, ct, n) },
         ui,
-        paging,
+        combine(paging, combine(ways, older, source) { w, o, s -> People(w, o, s) }) { pg, pp -> pg to pp },
         combine(searchState, repository.dropped) { s, d -> s to d },
-    ) { (cid, c, msgs, pend, gapList), (profile, typing, contactTyping, nowMs), u, pg, (search, dropped) ->
+    ) { (cid, c, msgs, pend, gapList), (profile, typing, contactTyping, nowMs), u, (pg, people), (search, dropped) ->
         val (results, isSearching) = search
+        // Messenger 1.21: the chat of a person — the ways mixed by time, the source chip, each way's ticks and typing
+        val person = c?.person?.takeIf { it.conversationId == c.id }
+        val only = person?.let { com.gatecontrol.android.chat.ChatPeople.waysOf(it, people.source) }
+        val shown = if (person != null) com.gatecontrol.android.chat.ChatPeople.timeline(msgs, people.older, only) else msgs
+        val waiting = if (only != null) pend.filter { it.conversationId in only } else pend
+        val typingIds = person?.wayIds ?: listOfNotNull(cid)
         ConversationUiState(
             conversationId = cid,
             conversation = c,
-            items = ChatTimeline.build(msgs, pend, c, gaps = gapList),
+            items = ChatTimeline.build(shown, waiting, c, gaps = gapList, byTime = person != null, ways = people.ways),
             profile = profile,
-            typing = if (cid == null) emptyList() else ChatTimeline.typingNow(typing, cid, profile?.user?.userId, nowMs),
-            hasOlder = pg.hasOlder,
+            typing = typingIds.flatMap { ChatTimeline.typingNow(typing, it, profile?.user?.userId, nowMs) }.distinct(),
+            hasOlder = if (person != null) (if (only != null) people.older.intersect(only) else people.older).isNotEmpty() else pg.hasOlder,
             loadingOlder = pg.loadingOlder,
             replyTo = u.replyTo,
             editing = u.editing,
@@ -182,8 +237,10 @@ class ConversationViewModel @Inject constructor(
             searching = isSearching,
             loaded = pg.loaded || msgs.isNotEmpty(),
             gone = cid != null && cid in dropped,
-            contactTyping = cid?.let { ChatTimeline.contactsTypingNow(contactTyping, it, nowMs) },
+            contactTyping = typingIds.firstNotNullOfOrNull { ChatTimeline.contactsTypingNow(contactTyping, it, nowMs) },
             bridgeSeen = u.bridgeSeen,
+            ways = people.ways,
+            source = people.source,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationUiState())
 
@@ -204,6 +261,27 @@ class ConversationViewModel @Inject constructor(
                 now.value = System.currentTimeMillis()
             }
         }
+        // Messenger 1.21: this chat is a person (now): each way catches up, which of them have older messages
+        viewModelScope.launch {
+            wayIds.collect { w ->
+                if (w == null) {
+                    older.value = emptySet()
+                    return@collect
+                }
+                older.value = repository.olderWays(w)
+                conversationNow.value?.let { repository.openPerson(it) }
+                older.value = repository.olderWays(w)
+                loaded.value = true
+                if (visible) setVisible(true)
+            }
+        }
+    }
+
+    @Volatile private var visible = false
+
+    /** Messenger 1.21: a source chip — only the messages of one kind of way (null: „Alle“). */
+    fun setSource(way: String?) {
+        source.value = way
     }
 
     /** Shows conversation [conversationId] (idempotent); [share] takes what was shared from another app. */
@@ -219,6 +297,15 @@ class ConversationViewModel @Inject constructor(
             hasOlder.value = repository.hasOlder(conversationId)
             if (repository.cachedConversation(conversationId) == null) repository.refreshConversation(conversationId)
             if (repository.profile.value == null) repository.refreshProfile()
+            // Messenger 1.21: a way of a person (a push, a shortcut) — the person opens
+            if (com.gatecontrol.android.chat.ChatPeople.on(repository.profile.value?.features)) {
+                repository.personLeadOf(conversationId)?.takeIf { it != conversationId }?.let {
+                    _redirect.value = it
+                    return@launch
+                }
+            }
+            // a person's chat catches up per way ([wayIds])
+            if (repository.cachedConversation(conversationId)?.person?.conversationId == conversationId) return@launch
             repository.openConversation(conversationId)
             hasOlder.value = repository.hasOlder(conversationId)
             loaded.value = true
@@ -227,14 +314,25 @@ class ConversationViewModel @Inject constructor(
 
     /** Visible on screen (resumed): `active` pings, no notifications for it. */
     fun setVisible(visible: Boolean) {
+        this.visible = visible
         val cid = id.value ?: return
+        if (_redirect.value != null) return
+        val p = uiState.value.person ?: conversationNow.value?.person?.takeIf { it.conversationId == cid }
         if (visible) {
             repository.opened(cid)
-            repository.setActive(cid)
-            viewModelScope.launch { repository.markRead(cid) }
+            if (p != null) repository.setActivePerson(cid, p.wayIds) else repository.setActive(cid)
+            viewModelScope.launch { if (p != null) markPersonRead() else repository.markRead(cid) }
         } else if (repository.activeConversation.value == cid) {
             repository.setActive(null)
         }
+    }
+
+    /** Messenger 1.21: everything up to the newest message shown is read — on every way (only in „Alle“). */
+    private suspend fun markPersonRead() {
+        val c = conversationNow.value ?: return
+        if (source.value != null) return
+        val newest = uiState.value.items.lastOrNull { it is TimelineItem.Message }?.let { (it as TimelineItem.Message).message.id } ?: return
+        repository.markPersonRead(c, newest)
     }
 
     /** The newest message is on screen: read. */
@@ -242,17 +340,31 @@ class ConversationViewModel @Inject constructor(
         val cid = id.value ?: return
         if (repository.activeConversation.value != cid) return
         val c = uiState.value.conversation ?: return
-        if (c.unread > 0) viewModelScope.launch { repository.markRead(cid) }
+        if (c.unread > 0) viewModelScope.launch { if (uiState.value.person != null) markPersonRead() else repository.markRead(cid) }
     }
 
     fun loadOlder() {
         val cid = id.value ?: return
-        if (loadingOlder.value || !hasOlder.value) return
+        if (loadingOlder.value || !uiState.value.hasOlder) return
+        val st = uiState.value
+        val p = st.person
         loadingOlder.value = true
         viewModelScope.launch {
-            when (val r = repository.loadOlder(cid)) {
-                is ChatResult.Ok -> hasOlder.value = r.value
-                else -> Unit
+            if (p != null) {
+                // Messenger 1.21: the way whose oldest cached message is the newest loads its older page
+                val only = com.gatecontrol.android.chat.ChatPeople.waysOf(p, st.source)
+                val cand = if (only != null) older.value.intersect(only) else older.value
+                val msgs = st.items.mapNotNull { (it as? TimelineItem.Message)?.message }
+                val way = com.gatecontrol.android.chat.ChatPeople.nextOlder(msgs, cand)
+                if (way != null) {
+                    val r = repository.loadOlder(way)
+                    if (r is ChatResult.Ok && !r.value) older.value = older.value - way
+                }
+            } else {
+                when (val r = repository.loadOlder(cid)) {
+                    is ChatResult.Ok -> hasOlder.value = r.value
+                    else -> Unit
+                }
             }
             loadingOlder.value = false
         }
@@ -282,13 +394,28 @@ class ConversationViewModel @Inject constructor(
      */
     suspend fun jumpTo(messageId: Long): ChatResult<ChatJump> {
         val cid = id.value ?: return ChatResult.NotConfigured
+        // Messenger 1.21: the mixed history has no holes — a message further back loads by scrolling up
+        if (uiState.value.person != null) {
+            val shown = uiState.value.items.any { it is TimelineItem.Message && it.message.id == messageId }
+            return ChatResult.Ok(if (shown) ChatJump.Found else ChatJump.Unsupported)
+        }
         val r = repository.jumpTo(cid, messageId)
         if (r is ChatResult.Ok) hasOlder.value = repository.hasOlder(cid)
         return r
     }
 
+    /**
+     * The conversation a message goes to: this chat — or, in a person's chat (Messenger 1.21), the way the server names
+     * for the answer (`person.reply`), an answer to a message back over that message's way.
+     */
+    private fun target(reply: ChatMessage? = replyTo.value): Long? {
+        val cid = id.value ?: return null
+        val p = uiState.value.person ?: return cid
+        return com.gatecontrol.android.chat.ChatPeople.sendTo(p, reply)
+    }
+
     fun onTyping(text: String) {
-        val cid = id.value ?: return
+        val cid = target() ?: return
         if (text.isBlank()) repository.typingStop(cid) else repository.typingPing(cid)
     }
 
@@ -324,9 +451,10 @@ class ConversationViewModel @Inject constructor(
             return true
         }
         if (text.isBlank()) return false
+        val to = target() ?: cid
         val reply = replyTo.value?.id
         replyTo.value = null
-        viewModelScope.launch { repository.sendText(cid, text, reply) }
+        viewModelScope.launch { repository.sendText(to, text, reply) }
         return true
     }
 
@@ -342,7 +470,7 @@ class ConversationViewModel @Inject constructor(
     }
 
     private fun sendPictures(uris: List<Uri>, caption: String?) {
-        val cid = id.value ?: return
+        val cid = target() ?: return
         // Messenger 1.4 settings: "Original" sends pictures unchanged as files.
         val side = com.gatecontrol.android.chat.ChatQuality.maxSide(device.config.value.sendQuality, uiState.value.profile?.limits?.imageMaxSide ?: 2048)
         if (side == null && uiState.value.profile?.features?.files != false) {
@@ -381,7 +509,7 @@ class ConversationViewModel @Inject constructor(
 
     /** A photo taken with the camera app ([path] in `cache/camera`): scaled and sent like a picked one. */
     fun sendCameraPhoto(path: String, caption: String?) {
-        val cid = id.value ?: return
+        val cid = target() ?: return
         val file = media.cameraFile(path) ?: run {
             notices.trySend(ConversationNotice.PrepareFailed(PrepareError.Unreadable))
             return
@@ -426,7 +554,7 @@ class ConversationViewModel @Inject constructor(
      * take them (`file_thumbs`, `video_meta`; older ones get the file alone).
      */
     fun sendFiles(uris: List<Uri>, caption: String? = null) {
-        val cid = id.value ?: return
+        val cid = target() ?: return
         val profile = uiState.value.profile
         val limits = profile?.limits
         val features = profile?.features
@@ -489,7 +617,7 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun finishRecording() {
-        val cid = id.value ?: return
+        val cid = target() ?: return
         val take = recorder.finish() ?: return
         val clientId = voiceClientId ?: return
         voiceClientId = null
@@ -505,7 +633,7 @@ class ConversationViewModel @Inject constructor(
 
     /** A file of [kind] and [mime] may go into this chat (a chat over a bridge: what the service takes, Messenger 1.15). */
     private fun bridgeTakes(kind: String, mime: String?): Boolean =
-        com.gatecontrol.android.chat.ChatBridgeChat.mediaOk(uiState.value.conversation, kind, mime)
+        com.gatecontrol.android.chat.ChatBridgeChat.mediaOk(uiState.value.composer, kind, mime)
 
     fun cancelRecording() {
         recorder.cancel()
@@ -529,7 +657,7 @@ class ConversationViewModel @Inject constructor(
 
     /** One-off position as a message (after the permission was granted). */
     fun sendLocation() {
-        val cid = id.value ?: return
+        val cid = target() ?: return
         val reply = replyTo.value?.id
         viewModelScope.launch {
             busy.value = true
@@ -660,8 +788,10 @@ class ConversationViewModel @Inject constructor(
             return
         }
         searching.value = true
+        val p = uiState.value.person
         viewModelScope.launch {
-            when (val r = repository.search(cid, query)) {
+            // Messenger 1.21: a person's chat searches all its ways
+            when (val r = if (p != null) repository.searchPerson(p.id, query) else repository.search(cid, query)) {
                 is ChatResult.Ok -> search.value = r.value.results
                 else -> {
                     search.value = emptyList()

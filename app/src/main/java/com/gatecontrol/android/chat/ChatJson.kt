@@ -107,6 +107,8 @@ object ChatJson {
 
     fun time(value: String?): String? = value?.trim()?.takeIf { TIME_RE.matches(it) }
 
+    private val WAY_RE = Regex("^[a-z][a-z0-9_-]{0,31}$")
+
     fun mediaId(value: String?): String? = value?.takeIf { MEDIA_ID_RE.matches(it) }
 
     fun avatarPath(value: String?): String? = value?.trim()?.takeIf { AVATAR_PATH_RE.matches(it) && !it.contains("..") }
@@ -285,6 +287,7 @@ object ChatJson {
             listPinned = o.flag("listPinned") == true,
             notice = notice(o.obj("notice")),
             bridge = ChatBridgeChat.conversation(o.obj("bridge")),
+            person = ChatPeople.person(o.obj("person")),
         )
     }
 
@@ -311,6 +314,7 @@ object ChatJson {
             removed = o.ids("removed"),
             serverTime = time(o.str("serverTime")),
             channels = ChatChannels.summary(o.obj("channels")),
+            folded = o.ids("folded"),
         )
     }
 
@@ -360,6 +364,7 @@ object ChatJson {
             bridge = ChatBridgeChat.message(o.obj("bridge")),
             marks = if (deleted) null else ChatFormat.marks(o.arr("marks")),
             preview = if (deleted || kind != ChatMessage.KIND_TEXT) null else ChatChannels.preview(o.obj("preview")),
+            way = o.str("way")?.takeIf { WAY_RE.matches(it) },
         )
     }
 

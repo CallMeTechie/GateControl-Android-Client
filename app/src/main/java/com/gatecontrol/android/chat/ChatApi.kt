@@ -86,8 +86,18 @@ class ChatApi @Inject constructor(
      */
     @Volatile var channels: Boolean = false
 
-    /** `?bridged=1`, and `&channels=1` while [channels]. */
-    private fun marks(): Map<String, String> = if (channels) BRIDGED + (ChatBridgeChat.QUERY_CHANNELS to "1") else BRIDGED
+    /**
+     * Messenger 1.21 (`features.chat_people`): the app knows persons — `?people=1` with every call. Set by
+     * [ChatRepository] from the person's profile; off: the ways of a person are chats of their own as before.
+     */
+    @Volatile var people: Boolean = false
+
+    /** `?bridged=1`, `&channels=1` while [channels], `&people=1` while [people]. */
+    private fun marks(): Map<String, String> {
+        var m = if (channels) BRIDGED + (ChatBridgeChat.QUERY_CHANNELS to "1") else BRIDGED
+        if (people) m = m + (ChatPeople.QUERY to "1")
+        return m
+    }
 
     private suspend fun lang(): String? =
         runCatching { settingsRepository.getLocale().first() }.getOrNull()?.takeIf { it == "de" || it == "en" }
@@ -281,6 +291,50 @@ class ChatApi @Inject constructor(
         }
         return get("conversations/$conversationId/media", q, ChatJson::mediaPage)
     }
+
+    // ─── Messenger 1.21: persons (`?people=1`) ──────────────────────
+
+    /** `GET persons/:id` → the list entry with `person`. */
+    suspend fun person(personId: Long): ChatResult<ChatConversation> = get("persons/$personId", parse = ChatPeople::entryOf)
+
+    /** `POST persons/:id/read { upTo }` → every way read up to the time of [upTo]. */
+    suspend fun personRead(personId: Long, upTo: Long?): ChatResult<ChatPersonRead> =
+        post("persons/$personId/read", JsonObject().apply { upTo?.let { addProperty("upTo", it) } }, ChatPeople::read)
+
+    /** `GET persons/:id/search?q=&way=` → the hits of all ways (newest first). */
+    suspend fun personSearch(personId: Long, q: String, way: String? = null): ChatResult<ChatSearchResult> =
+        get("persons/$personId/search", buildMap { put("q", q.take(100)); way?.let { put("way", it) } }, ChatJson::search)
+
+    /** `PATCH persons/:id { name | notify | mutedUntil }` → the entry. */
+    suspend fun patchPerson(personId: Long, body: JsonObject): ChatResult<ChatConversation> = patch("persons/$personId", body, ChatPeople::entryOf)
+
+    /** `POST persons/:id/archive { archived }` → the entry. */
+    suspend fun archivePerson(personId: Long, archived: Boolean): ChatResult<ChatConversation> =
+        post("persons/$personId/archive", JsonObject().apply { addProperty("archived", archived) }, ChatPeople::entryOf)
+
+    /** `POST persons { conversationIds, userId?, name? }` → the entry of the person (merged). */
+    suspend fun merge(conversationIds: List<Long>, userId: Long?, name: String?): ChatResult<ChatConversation> =
+        post("persons", ChatPeople.mergeBody(conversationIds, userId, name), ChatPeople::entryOf)
+
+    /** `DELETE persons/:id/ways/:conversationId` → the person (null: dissolved) and the entries to store. */
+    suspend fun splitWay(personId: Long, conversationId: Long): ChatResult<ChatPersonSplit> = del("persons/$personId/ways/$conversationId", ChatPeople::split)
+
+    /** `GET persons/suggestions` → strong ones first. */
+    suspend fun personSuggestions(): ChatResult<List<ChatPersonSuggestion>> = get("persons/suggestions", parse = ChatPeople::suggestions)
+
+    /** `POST persons/suggestions/:id { action: later | never }`. */
+    suspend fun answerSuggestion(id: String, action: String): ChatResult<Unit> {
+        if (!Regex("^[1-9][0-9]{0,14}-[1-9][0-9]{0,14}$").matches(id) || (action != ChatPeople.ACTION_LATER && action != ChatPeople.ACTION_NEVER)) return noPath()
+        return post("persons/suggestions/$id", JsonObject().apply { addProperty("action", action) }, unit)
+    }
+
+    /** `GET persons/candidates?conversationId=` → accounts (when none yet) and other chats with one person. */
+    suspend fun personCandidates(conversationId: Long): ChatResult<ChatPersonCandidates> =
+        get("persons/candidates", mapOf("conversationId" to conversationId.toString()), ChatPeople::candidates)
+
+    /** `PUT bridges/recognition { allowed }` → the consent as it stands now. */
+    suspend fun putRecognition(allowed: Boolean): ChatResult<ChatRecognition> =
+        put("bridges/recognition", JsonObject().apply { addProperty("allowed", allowed) }) { o -> ChatPeople.recognition(o.get("recognition")?.takeIf { it.isJsonObject }?.asJsonObject) }
 
     // ─── Messenger 1.12/1.13: „Verknüpfte Dienste“ (bridges) ───────
     // The viewer's own account only. A number or a pairing code is never logged here: [call] logs the HTTP status

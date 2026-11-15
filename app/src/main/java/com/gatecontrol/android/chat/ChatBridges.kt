@@ -235,6 +235,8 @@ data class ChatBridgesInfo(
     val networks: List<ChatBridgeNetwork> = emptyList(),
     /** Messenger 1.17: older messages at a link; null: a server without (the row is left out). */
     val history: ChatBridgeHistory? = null,
+    /** Messenger 1.21: may others recognise the person by the own WhatsApp? null: not offered (nothing is asked). */
+    val recognition: ChatRecognition? = null,
 )
 
 /** The modules of a QR code without a quiet zone: [rows] of `0`/`1`, [size] long and wide. */
@@ -274,7 +276,7 @@ object ChatBridgesJson {
         val o = body?.obj("bridges") ?: return null
         if (o.flag("available") != true) return ChatBridgesInfo(available = false)
         val nets = o.arr("networks")?.mapNotNull { e -> network(e.takeIf { it.isJsonObject }?.asJsonObject) }.orEmpty()
-        return ChatBridgesInfo(available = true, onServer = (o.str("location") ?: "server") == "server", networks = nets.take(MAX_NETWORKS), history = history(o.obj("history")))
+        return ChatBridgesInfo(available = true, onServer = (o.str("location") ?: "server") == "server", networks = nets.take(MAX_NETWORKS), history = history(o.obj("history")), recognition = ChatPeople.recognition(o.obj("recognition")))
     }
 
     /** `{ history }`, the answer of `PUT bridges/history`. */
