@@ -166,7 +166,7 @@ private fun ServiceRow(
             Box {
                 GcIconSquare {
                     Text(
-                        service.name.trim().take(1).uppercase(),
+                        com.gatecontrol.android.profile.InitialLetters.initial(service.name),
                         style = MaterialTheme.typography.headlineSmall.copy(fontSize = MaterialTheme.typography.titleLarge.fontSize),
                         color = extra.accentText,
                     )

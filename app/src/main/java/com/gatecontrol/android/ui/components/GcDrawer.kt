@@ -66,7 +66,7 @@ fun GcDrawerHead(title: String, name: String?, subtitle: String?, extra: (@Compo
         if (n != null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(x.accentBg), contentAlignment = Alignment.Center) {
-                    Text(n.trim().take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = x.accentText, fontWeight = FontWeight.Bold)
+                    Text(com.gatecontrol.android.profile.InitialLetters.initial(n), style = MaterialTheme.typography.titleMedium, color = x.accentText, fontWeight = FontWeight.Bold)
                 }
                 Column {
                     Text(n, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

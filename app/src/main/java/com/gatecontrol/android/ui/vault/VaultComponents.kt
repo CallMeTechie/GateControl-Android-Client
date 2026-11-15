@@ -116,7 +116,7 @@ fun VaultLetter(title: String, modifier: Modifier = Modifier, size: Dp = 40.dp) 
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = title.trim().firstOrNull()?.uppercase() ?: "•",
+            text = com.gatecontrol.android.profile.InitialLetters.initial(title, "•"),
             color = fg,
             fontWeight = FontWeight.Bold,
             fontSize = if (size > 48.dp) 22.sp else 16.sp,

@@ -309,7 +309,8 @@ class ChatShortcuts @Inject constructor(
             textSize = ADAPTIVE_PX * 0.26f
         }
         val y = ADAPTIVE_PX / 2f - (paint.descent() + paint.ascent()) / 2f
-        canvas.drawText(initials.take(2).ifBlank { "?" }, ADAPTIVE_PX / 2f, y, paint)
+        // two whole characters (never half an emoji)
+        canvas.drawText(com.gatecontrol.android.profile.InitialLetters.of(initials).take(2).joinToString("").ifBlank { "?" }, ADAPTIVE_PX / 2f, y, paint)
         return out
     }
 

@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -117,13 +120,19 @@ fun GcAvatar(
                 inner.background(fill ?: extra.accentBg),
                 contentAlignment = Alignment.Center,
             ) {
-                val textSize = (size.value * if (initials.length > 2) 0.28f else 0.36f)
-                Text(
-                    initials,
-                    color = if (fill != null) initialsColor ?: Color.White else extra.accentText,
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = textSize.sp),
-                    maxLines = 1,
-                )
+                val ink = if (fill != null) initialsColor ?: Color.White else extra.accentText
+                if (initials.isBlank() || initials == "?") {
+                    // no letter in the name (nothing, only emoji): the person symbol instead of a question mark
+                    Icon(Icons.Outlined.Person, contentDescription = null, tint = ink, modifier = Modifier.size(size * 0.5f))
+                } else {
+                    val textSize = (size.value * if (initials.codePointCount(0, initials.length) > 2) 0.28f else 0.36f)
+                    Text(
+                        initials,
+                        color = ink,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = textSize.sp),
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

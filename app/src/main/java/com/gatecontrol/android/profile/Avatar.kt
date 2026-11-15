@@ -1,6 +1,7 @@
 package com.gatecontrol.android.profile
 
 import com.gatecontrol.android.familie.presence.PresenceState
+import java.text.Normalizer
 
 /** A favourite colour: palette key (stored on the server) and `#RRGGBB`. */
 data class PaletteColor(val key: String, val hex: String)
@@ -73,29 +74,84 @@ sealed interface AvatarRing {
     }
 }
 
+/**
+ * The letters initials are made of (second real test over WhatsApp: a chat „Schatzimausi 💕“ showed „S“ and a
+ * replacement mark — `take(1)` of „💕“ is half of its surrogate pair). Whole characters only — a code point with its
+ * combining marks, after NFC — and only letters and digits: an emoji, a symbol or punctuation is never an initial.
+ */
+object InitialLetters {
+    /** The letters and digits of [word], each one whole character, in order ("💕Mama" → M, a, m, a). */
+    fun of(word: String): List<String> {
+        val s = Normalizer.normalize(word, Normalizer.Form.NFC)
+        val out = ArrayList<String>()
+        var i = 0
+        while (i < s.length) {
+            val cp = s.codePointAt(i)
+            var end = i + Character.charCount(cp)
+            if (Character.isLetterOrDigit(cp)) {
+                while (end < s.length && isMark(s.codePointAt(end))) end += Character.charCount(s.codePointAt(end))
+                out += s.substring(i, end)
+            }
+            i = end
+        }
+        return out
+    }
+
+    /** The first letter or digit of [word], "" when it has none. */
+    fun first(word: String): String = of(word).firstOrNull().orEmpty()
+
+    /** One initial of [text] (its first letter or digit, upper case), [fallback] when it has none. */
+    fun initial(text: String?, fallback: String = "?"): String = first(text.orEmpty()).uppercase().ifEmpty { fallback }
+
+    // a combining mark belongs to its letter ("A\u0308" → „Ä“); variation selectors and enclosing marks (keycaps) do not
+    private fun isMark(cp: Int): Boolean {
+        if (cp in 0xFE00..0xFE0F) return false
+        val t = Character.getType(cp)
+        return t == Character.NON_SPACING_MARK.toInt() || t == Character.COMBINING_SPACING_MARK.toInt()
+    }
+}
+
 /** Initials as GateControl and the Familie plugin make them. */
 object AvatarInitials {
     private val SPLIT = Regex("[\\s._-]+")
 
-    /** Two words → their first letters, one word → its first two letters, nothing → "?". */
+    private val WORDS = Regex("\\s+")
+
+    /**
+     * Two words → their first letters, one word → its first two letters, no letter at all (nothing, only emoji) → "?"
+     * ([InitialLetters]: whole characters, letters and digits only — „Schatzimausi 💕“ → „S“).
+     */
     fun of(name: String?): String {
         val words = name.orEmpty().trim().split(SPLIT).filter { it.isNotEmpty() }
-        if (words.isEmpty()) return "?"
         val chars = if (words.size > 1) {
-            listOf(firstChar(words[0]), firstChar(words[1]))
+            listOf(InitialLetters.first(words[0]), InitialLetters.first(words[1]))
         } else {
-            val w = words[0]
-            val first = firstChar(w)
-            listOf(first, firstChar(w.substring(first.length)))
+            InitialLetters.of(words.firstOrNull().orEmpty()).take(2)
         }
         return chars.joinToString("").uppercase().ifEmpty { "?" }
     }
 
-    /** Initials from the server when usable (1–3 characters), else made from [name]. */
-    fun pick(server: String?, name: String?): String {
-        val s = server?.trim()?.filter { !it.isISOControl() }.orEmpty()
-        return if (s.isNotEmpty() && s.codePointCount(0, s.length) <= 3) s else of(name)
+    /**
+     * Initials of a chat's name (the Messenger's rule, as its portal and the Windows client make them): the first letters
+     * of the first and the last word („van der Berg“ → „VB“), one word → its first two letters, no letter → "?".
+     */
+    fun ofChat(name: String?): String {
+        val words = name.orEmpty().trim().split(WORDS).filter { it.isNotEmpty() }
+        val chars = if (words.size > 1) {
+            listOf(InitialLetters.first(words.first()), InitialLetters.first(words.last()))
+        } else {
+            InitialLetters.of(words.firstOrNull().orEmpty()).take(2)
+        }
+        return chars.joinToString("").uppercase().ifEmpty { "?" }
     }
 
-    private fun firstChar(s: String): String = if (s.isEmpty()) "" else s.substring(0, s.offsetByCodePoints(0, 1))
+    /** Initials a server sent, letters and digits only and at most 3 of them (whole characters); null when none is left. */
+    fun clean(server: String?): String? =
+        server?.let { InitialLetters.of(it).take(3).joinToString("") }?.takeIf { it.isNotEmpty() }
+
+    /** Initials from the server when usable (1–3 letters or digits), else made from [name]. */
+    fun pick(server: String?, name: String?): String {
+        val letters = InitialLetters.of(server.orEmpty())
+        return if (letters.isNotEmpty() && letters.size <= 3) letters.joinToString("") else of(name)
+    }
 }

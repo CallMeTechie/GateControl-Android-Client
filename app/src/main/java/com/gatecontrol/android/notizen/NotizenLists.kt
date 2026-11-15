@@ -147,7 +147,7 @@ object NotizenLists {
     }
 
     /** The initials of a name for its little round picture: „Anna Weber“ → „A“. */
-    fun initial(name: String?): String = name?.trim()?.firstOrNull()?.uppercase() ?: "?"
+    fun initial(name: String?): String = com.gatecontrol.android.profile.InitialLetters.initial(name)
 
     // ── notebooks ───────────────────────────────────────────
 

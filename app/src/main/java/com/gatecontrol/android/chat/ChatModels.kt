@@ -36,15 +36,12 @@ data class ChatPerson(
         const val ROLE_ADMIN = "admin"
         const val ROLE_MEMBER = "member"
 
-        /** Up to two initials of [name] (the server's when it sent some). */
-        fun initialsOf(name: String?): String {
-            val parts = name.orEmpty().trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-            return when {
-                parts.isEmpty() -> "?"
-                parts.size == 1 -> parts[0].take(2).uppercase()
-                else -> (parts[0].take(1) + parts[1].take(1)).uppercase()
-            }
-        }
+        /**
+         * Up to two initials of [name] (the server's when it sent some): whole characters, letters and digits only —
+         * „Schatzimausi 💕“ → „S“ (it was „S“ and half of the heart's surrogate pair), only emoji → "?"
+         * ([com.gatecontrol.android.profile.AvatarInitials.ofChat]).
+         */
+        fun initialsOf(name: String?): String = com.gatecontrol.android.profile.AvatarInitials.ofChat(name)
     }
 }
 
