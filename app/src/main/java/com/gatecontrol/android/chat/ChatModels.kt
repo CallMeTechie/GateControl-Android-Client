@@ -63,6 +63,13 @@ data class ChatCan(
     val setDisappearing: Boolean,
     /** Messenger 1.4: may pin messages. */
     val pin: Boolean = true,
+    /**
+     * Messenger 1.20: why [send] is false — `channel` or `admins_only` ([ChatBridgeChat.READ_ONLY_CHANNEL],
+     * [ChatBridgeChat.READ_ONLY_ADMINS]); null for any other reason.
+     */
+    val sendReason: String? = null,
+    /** Messenger 1.20: the reactions of the message menu (a server without the word: as before). */
+    val react: Boolean = true,
 )
 
 data class ChatReceipt(val userId: Long, val lastReadId: Long?, val lastDeliveredId: Long?)
@@ -241,6 +248,10 @@ data class ChatMessage(
     val replyStory: ChatReplyStory? = null,
     /** Messenger 1.14: set in a chat over a bridge (the contact who wrote it, what became of an own message). */
     val bridge: ChatMessageBridge? = null,
+    /** Messenger 1.20: the format of [text] (bold, italic, …, links), UTF-16 offsets; null: plain text. */
+    val marks: List<ChatMark>? = null,
+    /** Messenger 1.20: a link's preview on top of the bubble. */
+    val preview: ChatLinkPreview? = null,
 ) {
     val isSystem: Boolean get() = kind == KIND_SYSTEM
 
@@ -309,6 +320,8 @@ data class ChatConversationList(
     val conversations: List<ChatConversation>,
     val removed: List<Long>,
     val serverTime: String?,
+    /** Messenger 1.20 (`?channels=1`): the channels kept out of the list — how many have a post, the new posts. */
+    val channels: ChatChannelSummary? = null,
 )
 
 data class ChatPrefs(val readReceipts: Boolean = true, val typing: Boolean = true, val preview: Boolean = true)

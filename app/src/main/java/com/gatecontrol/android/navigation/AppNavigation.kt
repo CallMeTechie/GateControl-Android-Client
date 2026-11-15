@@ -388,6 +388,7 @@ fun AppNavigation(
         val openInbox: () -> Unit = { navController.navigate(Screen.Inbox.create()) { launchSingleTop = true } }
         val newChat: () -> Unit = { navController.navigate(Screen.ChatNew.create()) { launchSingleTop = true } }
         val chatSettings: () -> Unit = { navController.navigate(Screen.ChatSettings.create()) { launchSingleTop = true } }
+        val chatSettingsPage: (String) -> Unit = { p -> navController.navigate(Screen.ChatSettings.create(p)) { launchSingleTop = true } }
         val openStory: (Long) -> Unit = { u -> navController.navigate(Screen.ChatStoryView.create(u)) { launchSingleTop = true } }
         val storyComposer: () -> Unit = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } }
         ChatSecureGate {
@@ -401,6 +402,7 @@ fun AppNavigation(
                     onOpenInfo = { id -> navController.navigate(Screen.ChatInfo.create(id)) { launchSingleTop = true } },
                     onOpenImage = { media -> navController.navigate(Screen.ChatImage.create(media)) },
                     onOpenSettings = chatSettings,
+                    onOpenSettingsPage = chatSettingsPage,
                     onOpenStory = openStory,
                     onOpenStoryComposer = storyComposer,
                     onOpenLinked = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.LINKED)) { launchSingleTop = true } },
@@ -418,6 +420,8 @@ fun AppNavigation(
                         onOpenSettings = chatSettings,
                         onOpenStory = openStory,
                         onOpenStoryComposer = storyComposer,
+                        onOpenChannels = { navController.navigate(Screen.ChatChannels.route) { launchSingleTop = true } },
+                        onOpenSettingsPage = chatSettingsPage,
                     )
                 }
             }
@@ -869,6 +873,15 @@ fun AppNavigation(
                         },
                     )
                 }
+            }
+
+            composable(route = Screen.ChatChannels.route) {
+                ChatSecureGate { GcContentWidth {
+                    com.gatecontrol.android.ui.chat.ChatChannelsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpen = { id -> navController.navigate(Screen.ChatConversation.create(id)) { launchSingleTop = true } },
+                    )
+                } }
             }
 
             composable(

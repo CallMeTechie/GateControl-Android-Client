@@ -145,12 +145,14 @@ fun MessageBubble(
     // the virus scan blocked the file (Messenger 1.11): a mark instead of the picture, player or file
     val blocked = !m.deleted && !m.undecryptable && m.media?.blocked == true && m.kind in MEDIA_KINDS
     val visual = !m.deleted && !m.undecryptable && !blocked && (m.kind == ChatMessage.KIND_IMAGE || m.isVideo)
+    // Messenger 1.20: a channel's post — the channel writes it, no sender's picture or name
+    val group = conversation?.isGroup == true && conversation.bridge?.channel != true && m.bridge?.channel != true
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start,
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
-            if (conversation?.isGroup == true && !m.mine) {
+            if (group && !m.mine) {
                 if (showSender) {
                     val sender = conversation.members.firstOrNull { it.userId == m.senderId }
                     // a contact of a bridged chat: the contact's picture (Messenger 1.15, once fetched), else the initials
@@ -185,14 +187,16 @@ fun MessageBubble(
                     )
                     .padding(if (visual) 4.dp else 10.dp),
             ) {
-                if (showSender && conversation?.isGroup == true && !m.mine) {
+                if (showSender && group && !m.mine) {
                     Text(
-                        ChatText.senderOf(ctx, conversation, m, myId),
+                        ChatText.senderOf(ctx, conversation!!, m, myId),
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
                         color = extra.accentText,
                         modifier = Modifier.padding(start = if (visual) 6.dp else 0.dp, bottom = 2.dp),
                     )
                 }
+                // Messenger 1.20: a link's preview on top of the bubble
+                m.preview?.takeIf { !m.deleted }?.let { LinkPreviewCard(it) }
                 m.replyTo?.let { r ->
                     Quote(r.senderId, if (r.deleted || r.missing) null else r.text, r.kind, r.deleted || r.missing, conversation, myId, name = ChatText.quotedOf(ctx, conversation, r, myId)) { actions.onQuote(r.id) }
                 }
@@ -251,8 +255,9 @@ fun MessageBubble(
                 val caption = m.text?.takeIf { !m.deleted && it.isNotBlank() && !m.isUnknownKind && m.kind !in RICH_KINDS }
                 if (caption != null) {
                     val scale = LocalChatLook.current.fontScale
+                    // Messenger 1.20: the format of a bridged message, and addresses as links in every chat
                     Text(
-                        caption,
+                        chatRichText(caption, m.marks),
                         style = MaterialTheme.typography.bodyLarge.let { if (scale == 1f) it else it.copy(fontSize = it.fontSize * scale, lineHeight = it.lineHeight * scale) },
                         color = colors.fg,
                         modifier = Modifier.padding(
@@ -291,7 +296,14 @@ fun MessageBubble(
             }
         }
         // a bridged chat: a reaction goes to the other messenger first — not while nothing crosses
-        if (m.reactions.isNotEmpty()) Reactions(m.reactions, myId, m.mine) { e -> if (conversation == null || com.gatecontrol.android.chat.ChatBridgeChat.actsOut(conversation, m)) actions.onReact(m, e) }
+        if (m.reactions.isNotEmpty()) Reactions(m.reactions, myId, indent = !m.mine && conversation?.bridge?.channel != true) { e -> if (conversation == null || com.gatecontrol.android.chat.ChatBridgeChat.reacts(conversation, m)) actions.onReact(m, e) }
+        // Messenger 1.20: in a channel only the own reaction crosses — WhatsApp shows the others in its own app
+        if (com.gatecontrol.android.chat.ChatBridgeChat.ownReactionNote(conversation, m, myId)) {
+            Row(Modifier.padding(start = if (m.mine) 0.dp else 4.dp, top = 4.dp, end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Outlined.Info, contentDescription = null, tint = extra.muted, modifier = Modifier.padding(top = 2.dp).size(14.dp))
+                Text(stringResource(R.string.chat_ch_own_reaction), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+            }
+        }
     }
 }
 
@@ -367,6 +379,26 @@ private fun BridgePlaceholderLine(
                 if (asking) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = tint)
             }
         }
+        // Messenger 1.19: a file that failed and may come when asked for again
+        if (ph.retryable) {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(role = Role.Button, enabled = !asking) { asking = true; onFetch { asking = false } }
+                    .heightIn(min = 32.dp)
+                    .padding(top = 6.dp, bottom = 4.dp)
+                    .testTag("ph-retry"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    stringResource(R.string.chat_bridged_ph_retry),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline),
+                    color = if (asking) tint else MaterialTheme.colorScheme.primary,
+                )
+                if (asking) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = tint)
+            }
+        }
         if (ph.geo) {
             Text(
                 stringResource(R.string.chat_bridged_ph_map),
@@ -431,7 +463,7 @@ fun PendingBubble(
             }
             p.text?.takeIf { it.isNotBlank() }?.let {
                 Text(
-                    it,
+                    chatRichText(it, null),
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.fg,
                     modifier = Modifier.padding(top = if (p.kind == ChatMessage.KIND_TEXT) 0.dp else 6.dp, start = if (p.kind == ChatMessage.KIND_IMAGE || p.isVideo) 6.dp else 0.dp),
@@ -740,10 +772,10 @@ private fun LocationContent(label: String?, lat: Double, lon: Double) {
 }
 
 @Composable
-private fun Reactions(reactions: List<ChatReaction>, myId: Long?, mine: Boolean, onToggle: (String) -> Unit) {
+private fun Reactions(reactions: List<ChatReaction>, myId: Long?, indent: Boolean, onToggle: (String) -> Unit) {
     val extra = GateControlTheme.extraColors
     Row(
-        Modifier.padding(start = if (mine) 0.dp else 34.dp, top = 2.dp),
+        Modifier.padding(start = if (indent) 34.dp else 0.dp, top = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         reactions.take(6).forEach { r ->

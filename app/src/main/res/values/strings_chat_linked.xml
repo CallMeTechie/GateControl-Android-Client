@@ -76,7 +76,6 @@
     <string name="chat_linked_new_code">Get a new code</string>
     <string name="chat_linked_new_qr">Show a new QR code</string>
     <string name="chat_linked_net_whatsapp">WhatsApp</string>
-    <string name="chat_linked_mark_whatsapp">WA</string>
     <string name="chat_linked_err_off">The bridges are switched off on this server.</string>
     <string name="chat_linked_err_unreachable">The bridge does not answer right now.</string>
     <string name="chat_linked_err_unsupported">GateControl cannot show this sign-in step. Please choose the other way (code or QR code).</string>

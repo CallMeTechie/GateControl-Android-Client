@@ -453,14 +453,8 @@ private fun Caption(text: String, icon: ImageVector? = null, mark: String? = nul
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = extra.faint, modifier = Modifier.size(14.dp))
-        if (mark != null) {
-            Text(
-                ChatBridgeChat.mark(ChatConvBridge(mark, text, ChatBridgeChat.OK)),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 3.dp),
-            )
-        }
+        // Messenger 1.20: the service's logo, no longer its letters
+        if (mark != null) ChatNetLogo(mark, 16.dp)
         Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, color = extra.faint, modifier = Modifier.weight(1f, fill = false))
         if (spinner) Spinner(14.dp)
     }

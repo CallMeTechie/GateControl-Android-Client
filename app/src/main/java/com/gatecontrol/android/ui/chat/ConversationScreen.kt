@@ -275,6 +275,7 @@ fun ConversationScreen(
                 is ConversationNotice.NotSent -> resources.getString(R.string.chat_bridged_failed) + " " + ChatText.bridgeReason(context, n.reason)
                 is ConversationNotice.FetchFailed ->
                     if (n.code == "invalid") resources.getString(R.string.chat_bridged_fetch_invalid) else ChatText.actionError(context, n.code)
+                is ConversationNotice.ReactionsOff -> resources.getString(R.string.chat_ch_reactions_off, n.label)
                 is ConversationNotice.Done -> if (n.arg != null) resources.getString(n.res, n.arg) else resources.getString(n.res)
                 is ConversationNotice.ArrivalStarted -> {
                     // The position goes out from a foreground service while the arrival is live.
@@ -525,7 +526,8 @@ fun ConversationScreen(
                         )
                         val typing = ChatText.typing(context, c, state.typing, myId, state.contactTyping)
                         // Messenger 1.14: a chat over a bridge says so under its name ("über WhatsApp").
-                        val sub = typing ?: c?.bridge?.let { stringResource(R.string.chat_bridged_via, it.label) } ?: c?.takeIf { it.isGroup }?.let { conv ->
+                        // Messenger 1.20: a channel says „Kanal · WhatsApp“
+                        val sub = typing ?: c?.bridge?.let { stringResource(if (it.channel) R.string.chat_ch_sub else R.string.chat_bridged_via, it.label) } ?: c?.takeIf { it.isGroup }?.let { conv ->
                             conv.members.filter { it.userId != myId }.joinToString(", ") { ChatText.name(context, it) } +
                                 ", " + resources.getString(R.string.chat_you_lower)
                         } ?: c?.takeIf { !it.isGroup }?.let { ChatText.presence(context, it.peer) }
@@ -540,7 +542,15 @@ fun ConversationScreen(
                         }
                     }
                 }
-                if (state.profile?.features?.search != false) {
+                // Messenger 1.20: the bell of a channel — its posts as a push or not (struck through: none)
+                val channelPush = c?.takeIf { com.gatecontrol.android.chat.ChatBridgeChat.isChannel(it) }?.let { it.me.notify != "none" && !it.muted }
+                if (channelPush != null) {
+                    GcIconButton(
+                        if (channelPush) GcIcons.Bell else GcIcons.BellOff,
+                        stringResource(if (channelPush) R.string.chat_ch_bell_off else R.string.chat_ch_bell_on),
+                        onClick = { viewModel.setChannelPush(!channelPush) },
+                    )
+                } else if (state.profile?.features?.search != false) {
                     GcIconButton(GcIcons.Search, stringResource(R.string.chat_search_in_chat), onClick = { searchOpen = true })
                 }
                 GcIconButton(Icons.Outlined.Info, stringResource(R.string.chat_info), onClick = onOpenInfo)
@@ -563,6 +573,9 @@ fun ConversationScreen(
                 seen = b.network in state.bridgeSeen,
                 onSeen = { viewModel.setBridgeSeen(b.network, it) },
                 onOpenLinked = onOpenLinked,
+                // Messenger 1.20: a channel — only read, its push off until the bell
+                channelPush = if (b.channel) c.me.notify != "none" && !c.muted else null,
+                onChannelPush = { viewModel.setChannelPush(true) },
             )
         }
 
@@ -679,7 +692,13 @@ fun ConversationScreen(
                     } else if (rows.isEmpty()) {
                         item(key = "empty") {
                             Text(
-                                stringResource(if (state.loaded) R.string.chat_no_messages_yet else R.string.chat_loading),
+                                stringResource(
+                                    when {
+                                        !state.loaded -> R.string.chat_loading
+                                        com.gatecontrol.android.chat.ChatBridgeChat.isChannel(c) -> R.string.chat_ch_empty_posts
+                                        else -> R.string.chat_no_messages_yet
+                                    },
+                                ),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = extra.muted,
                                 modifier = Modifier.fillMaxWidth().padding(32.dp),
@@ -702,7 +721,11 @@ fun ConversationScreen(
         }
 
         // ─── composer ───
-        if (c != null && (c.readonly || !c.can.send)) {
+        val readOnly = com.gatecontrol.android.chat.ChatBridgeChat.readOnly(c)
+        if (readOnly != null) {
+            // Messenger 1.20: a channel (only the channel writes) or a group where only the admins write
+            ReadOnlyBar(readOnly)
+        } else if (c != null && (c.readonly || !c.can.send)) {
             Text(
                 when {
                     // Messenger 1.14: the bar above says why; here only that the history stays
@@ -1056,7 +1079,8 @@ fun ConversationScreen(
                 actionsFor = null
                 viewModel.toCalendar(m, d)
             },
-            reactions = state.profile?.features?.reactions != false && !m.deleted && out,
+            // Messenger 1.20: in a channel or a group where only the admins write, reacting stays (`can.react`)
+            reactions = state.profile?.features?.reactions != false && !m.deleted && (c == null || com.gatecontrol.android.chat.ChatBridgeChat.reacts(c, m)),
             myReaction = m.reactions.firstOrNull { r -> myId != null && myId in r.userIds }?.emoji,
             canEdit = viewModel.canEdit(m) && out,
             // a bridged chat: for everyone only while the deletion can cross — or the message never went out
@@ -1610,7 +1634,15 @@ private val DRIVE_KINDS = setOf("image", "voice", "file")
  * where the chat runs — "Mehr" shows the note again.
  */
 @Composable
-internal fun BridgeBar(bridge: com.gatecontrol.android.chat.ChatConvBridge, seen: Boolean, onSeen: (Boolean) -> Unit, onOpenLinked: (() -> Unit)?) {
+internal fun BridgeBar(
+    bridge: com.gatecontrol.android.chat.ChatConvBridge,
+    seen: Boolean,
+    onSeen: (Boolean) -> Unit,
+    onOpenLinked: (() -> Unit)?,
+    /** Messenger 1.20: a channel — whether its posts come as a push (null: no channel). */
+    channelPush: Boolean? = null,
+    onChannelPush: () -> Unit = {},
+) {
     val extra = GateControlTheme.extraColors
     val name = bridge.label
     val bar = com.gatecontrol.android.chat.ChatBridgeChat.bar(bridge)
@@ -1618,7 +1650,8 @@ internal fun BridgeBar(bridge: com.gatecontrol.android.chat.ChatConvBridge, seen
         val warn = bar == com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unreachable || bar == com.gatecontrol.android.chat.ChatBridgeChat.Bar.LoggedOut
         val text = when (bar) {
             com.gatecontrol.android.chat.ChatBridgeChat.Bar.Closed -> stringResource(R.string.chat_bridged_closed, name)
-            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unreachable -> stringResource(R.string.chat_bridged_state_unreachable, name)
+            com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unreachable ->
+                stringResource(if (channelPush != null) R.string.chat_ch_unreachable else R.string.chat_bridged_state_unreachable, name)
             com.gatecontrol.android.chat.ChatBridgeChat.Bar.LoggedOut -> stringResource(R.string.chat_bridged_state_logged_out, name)
             com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unlinked -> stringResource(R.string.chat_bridged_state_unlinked, name)
             com.gatecontrol.android.chat.ChatBridgeChat.Bar.Locked -> stringResource(R.string.chat_linked_sub_locked)
@@ -1645,7 +1678,9 @@ internal fun BridgeBar(bridge: com.gatecontrol.android.chat.ChatConvBridge, seen
             if (link != null && onOpenLinked != null) TextButton(onClick = onOpenLinked) { Text(stringResource(link)) }
         }
     }
-    if (!seen) {
+    if (channelPush != null) {
+        ChannelHint(name, channelPush, onChannelPush)
+    } else if (!seen) {
         Column(
             Modifier.fillMaxWidth().background(extra.panel2).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),

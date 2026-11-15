@@ -959,6 +959,45 @@ bleibt oben und verschwindet beim Suchen. Ohne `bridge_contacts` bleibt
 alles wie bei Messenger 1.16; die Kontaktauswahl des Systems gibt es in
 beiden Fällen nicht mehr.
 
+### Messenger 1.20 – Chats v2, Teil A: Kanäle, Format, Seitenmenü
+
+- **Seitenmenü:** Links neben „Chats“ öffnet ☰ ein Seitenmenü wie bei Drive
+  und Notizen: oben die eigene Person mit Status, dann „Ansichten“ (Alle
+  Chats · Kanäle mit „{n} neu“ · Archiv · Status), „Meine Listen“ mit „+“
+  und „Verknüpfte Dienste“ (Logo, Name, Zustand, „Dienst verknüpfen“). In der
+  Fußleiste Blockiert · Speicher · Geräte · Hilfe und das Zahnrad der
+  Chat-Einstellungen – es steht nicht mehr im Kopf.
+- **Kanäle** (`features.bridge_channels`, GateControl mit `gc.bridges` 7): Die
+  App schickt `?channels=1`; WhatsApp-Kanäle stehen nicht mehr in der
+  Chatliste, nicht in „Ungelesen“ und nicht im Zähler am Tab. Rechts neben der
+  Suche erscheint ein kleines TV-Symbol, sobald ein Kanal einen Beitrag hat,
+  mit grauem Punkt bei neuen Beiträgen. Die Seite „Kanäle“ (`GET channels`)
+  zeigt die Kanäle wie stumme Chats (graue Zahl, durchgestrichene Glocke),
+  mit Suche, Gedrückt-halten-Menü (Stumm an/aus, Als gelesen markieren,
+  Archivieren) und dem Hinweis, dass Benachrichtigungen für Kanäle aus sind.
+  Die Suche der Chatliste findet Kanäle mit dem Etikett „Kanal“.
+- **Kanalansicht:** nur lesen – statt des Eingabefelds „Nur lesen. In Kanälen
+  schreibt nur der Kanal.“, oben der Hinweis „Ein Kanal von WhatsApp …“ mit
+  „Einschalten“, im Kopf „Kanal · WhatsApp“ und die Glocke (Push je Kanal,
+  `notify: all | none`). Beiträge ohne Absendernamen; eine eigene Reaktion mit
+  dem Hinweis, dass WhatsApp Reaktionen anderer nur in der eigenen App zeigt.
+  Hat WhatsApp eine Reaktion abgelehnt, verschwindet die Reaktionsleiste.
+- **Gruppen „Nur Admins“:** statt des Eingabefelds „Nur Admins schreiben in
+  dieser Gruppe.“; Reagieren bleibt. `409 bridge_read_only` wird nie
+  wiederholt.
+- **Format und Links in allen Chats:** fett, kursiv, durchgestrichen, Code und
+  Links aus `marks` (nie HTML); http(s)- und `www.`-Adressen werden in jedem
+  Chat klickbar und öffnen im Browser. Link-Vorschau oben in der Blase (Bild,
+  Titel, Beschreibung, Seite; „Bild wird geladen …“).
+- **Erneut versuchen:** Eine Brücken-Datei, die nicht ankam und bei der der
+  Server `retry` meldet, hat den Knopf „Erneut versuchen“.
+- **Logos:** Statt „WA“ steht überall das Logo des Messengers (Avatar-Ecke,
+  Filter, Kanäle, Verknüpfte Dienste, Neuer Chat); ein unbekannter Dienst
+  bekommt eine graue Sprechblase.
+
+Ohne `bridge_channels` bleiben Kanäle wie bisher Chats in der Liste (nur
+lesen); Format, Links, Leisten, Reaktionen, Retry und Logos gelten trotzdem.
+
 ---
 
 ## Vault (Plugin `gatecontrol-vault` 1.0)

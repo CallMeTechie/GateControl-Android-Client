@@ -414,7 +414,8 @@ fun ChatInfoScreen(
                     ConversationAvatar(conv, 88.dp)
                 }
                 Text(ChatText.title(ctx, conv), style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold), color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
-                val sub = buildList {
+                // Messenger 1.20: a channel — „Kanal über WhatsApp · nur lesen“
+                val sub = if (conv.bridge?.channel == true) resources.getString(R.string.chat_ch_info, conv.bridge.label) else buildList {
                     add(resources.getString(if (conv.isGroup) R.string.chat_kind_group else R.string.chat_kind_direct))
                     // Messenger 1.14: a chat over a bridge has one member (the caller) — it names the service instead
                     if (conv.bridge != null) add(resources.getString(R.string.chat_bridged_via, conv.bridge.label))

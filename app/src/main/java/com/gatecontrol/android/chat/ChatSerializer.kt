@@ -116,6 +116,8 @@ object ChatSerializer {
         m.card?.let { add("card", ChatJson14.writeCard(it)) }
         m.replyStory?.let { add("replyStory", ChatJson14.writeReplyStory(it)) }
         m.bridge?.let { add("bridge", ChatBridgeChat.write(it)) }
+        m.marks?.let { add("marks", ChatFormat.write(it)) }
+        m.preview?.let { add("preview", ChatChannels.write(it)) }
     }
 
     fun conversation(c: ChatConversation): JsonObject = JsonObject().apply {
@@ -161,6 +163,8 @@ object ChatSerializer {
             addProperty("leave", c.can.leave)
             addProperty("setDisappearing", c.can.setDisappearing)
             addProperty("pin", c.can.pin)
+            c.can.sendReason?.let { addProperty("sendReason", it) }
+            addProperty("react", c.can.react)
         })
         if (c.archived) addProperty("archived", true)
         if (c.pinned.isNotEmpty()) add("pinned", ids(c.pinned))

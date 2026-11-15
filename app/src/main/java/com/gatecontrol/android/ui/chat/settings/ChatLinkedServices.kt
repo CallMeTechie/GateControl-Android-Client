@@ -170,7 +170,6 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
 // Today WhatsApp is the only service ([ChatBridges.NETWORKS]); a further one gets its name and mark here.
 internal fun networkName(@Suppress("UNUSED_PARAMETER") id: String): Int = R.string.chat_linked_net_whatsapp
 
-private fun networkMark(@Suppress("UNUSED_PARAMETER") id: String): Int = R.string.chat_linked_mark_whatsapp
 
 internal fun errorText(e: ChatBridgeError): Int = when (e) {
     ChatBridgeError.OFFLINE -> R.string.chat_err_offline
@@ -358,9 +357,8 @@ private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActio
         description = sub,
         modifier = Modifier.testTag("linked-row-${n.id}"),
         leading = {
-            GcIconSquare(size = 40.dp, background = extra.accentBg) {
-                Text(stringResource(networkMark(n.id)), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold), color = extra.accentText)
-            }
+            // Messenger 1.20: the service's logo, no longer its letters
+            com.gatecontrol.android.ui.chat.ChatNetLogo(n.id, 40.dp)
         },
         trailing = {
             when (row) {

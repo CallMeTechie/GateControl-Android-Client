@@ -44,6 +44,12 @@ data class ChatConvBridge(
      * takes any type. Null: the server names none (then only what [supports] says, without a check of the type).
      */
     val mediaTypes: Map<String, List<String>?>? = null,
+    /** Messenger 1.20: a channel of the service (`kind: "group"`, one member) — only read, its own page „Kanäle“. */
+    val channel: Boolean = false,
+    /** Messenger 1.20: the person may not write here (a channel, or a group where only the admins write). */
+    val readOnly: Boolean = false,
+    /** Messenger 1.20, channels only: `own` — the own reaction; `off` — the bridge refused one, reacting is off. */
+    val reactions: String? = null,
 )
 
 /**
@@ -59,6 +65,8 @@ data class ChatBridgePlaceholder(
     val reason: String? = null,
     val lat: Double? = null,
     val lon: Double? = null,
+    /** Messenger 1.19: a failed file that may come when asked for again („Erneut versuchen“). */
+    val retry: Boolean = false,
 ) {
     val loading: Boolean get() = state == ChatBridgeChat.PH_LOADING
     val failed: Boolean get() = state == ChatBridgeChat.PH_FAILED
@@ -68,6 +76,9 @@ data class ChatBridgePlaceholder(
 
     /** A location with its place (shown on the existing map view). */
     val geo: Boolean get() = lat != null && lon != null
+
+    /** Messenger 1.19: „Erneut versuchen“ — failed, and the server says asking again may help. */
+    val retryable: Boolean get() = failed && retry
 }
 
 /**
@@ -84,6 +95,8 @@ data class ChatMessageBridge(
     val placeholder: ChatBridgePlaceholder? = null,
     /** Messenger 1.15: the contact's picture (`sender.avatarMediaId`), once the server fetched it. */
     val senderAvatarMediaId: String? = null,
+    /** Messenger 1.20: a post of a channel — the channel writes it, no sender's name. */
+    val channel: Boolean = false,
 ) {
     /** A contact wrote it (not the person, not the bridge itself). */
     val fromContact: Boolean get() = contactId != null
@@ -116,6 +129,25 @@ object ChatBridgeChat {
      * address book of Mail (`GET contacts/new-chat`, `POST bridges/:network/chats { ref | contactId }`).
      */
     const val FEATURE_CONTACTS = "bridge_contacts"
+
+    /**
+     * Messenger 1.20 `features.bridge_channels`: channels have a page of their own („Kanäle“, `GET channels`) and stay
+     * out of the chat list — the app sends `?channels=1` with every call.
+     */
+    const val FEATURE_CHANNELS = "bridge_channels"
+
+    /** The mark of a client that keeps channels apart (`?channels=1`, Messenger 1.20). */
+    const val QUERY_CHANNELS = "channels"
+
+    /** Messenger 1.20 `409 bridge_read_only` (`reason`: [READ_ONLY_CHANNEL], [READ_ONLY_ADMINS], [READ_ONLY_REACTIONS]). */
+    const val READ_ONLY = "bridge_read_only"
+    const val READ_ONLY_CHANNEL = "channel"
+    const val READ_ONLY_ADMINS = "admins_only"
+    const val READ_ONLY_REACTIONS = "reactions_off"
+
+    /** `bridge.reactions` of a channel. */
+    const val REACTIONS_OWN = "own"
+    const val REACTIONS_OFF = "off"
 
     /** The mark of a client that knows bridged chats (`?bridged=1`). */
     const val QUERY = "bridged"
@@ -170,7 +202,7 @@ object ChatBridgeChat {
     )
 
     /** The server's refusals around a bridge: never retried by themselves — there is no queue on the other side. */
-    val REFUSALS: Set<String> = setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked", MEDIA_TYPE)
+    val REFUSALS: Set<String> = setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked", MEDIA_TYPE, READ_ONLY)
 
     /** Messenger 1.15 `409 bridge_media_type` (`reason`: image | voice | video): the service does not take this format. */
     const val MEDIA_TYPE = "bridge_media_type"
@@ -196,6 +228,9 @@ object ChatBridgeChat {
             supports = o.arr("supports")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString?.let { ChatJson.token(it) } }
                 ?.take(MAX_SUPPORTS)?.toSet().orEmpty(),
             mediaTypes = mediaTypes(o.obj("mediaTypes")),
+            channel = o.flag("channel") == true,
+            readOnly = o.flag("readOnly") == true || o.flag("channel") == true,
+            reactions = o.str("reactions")?.takeIf { it == REACTIONS_OWN || it == REACTIONS_OFF },
         )
     }
 
@@ -225,6 +260,9 @@ object ChatBridgeChat {
         b.mediaTypes?.let { mt ->
             add("mediaTypes", JsonObject().apply { mt.forEach { (k, v) -> if (v == null) add(k, JsonNull.INSTANCE) else add(k, JsonArray().apply { v.forEach { add(it) } }) } })
         }
+        if (b.channel) addProperty("channel", true)
+        if (b.readOnly) addProperty("readOnly", true)
+        b.reactions?.let { addProperty("reactions", it) }
     }
 
     /** `bridge` of a message; null outside a bridged chat. */
@@ -242,6 +280,7 @@ object ChatBridgeChat {
             // a kind this app does not know yet still says that something arrived
             placeholder = ph?.let { placeholder(it) },
             senderAvatarMediaId = if (contactId != null) sender.str("avatarMediaId")?.let { ChatJson.mediaId(it) } else null,
+            channel = o.flag("channel") == true,
         )
     }
 
@@ -258,6 +297,7 @@ object ChatBridgeChat {
             reason = if (state == PH_FAILED) o.str("reason")?.takeIf { it in PH_REASONS } ?: PH_REASON_UNAVAILABLE else null,
             lat = if (lat != null && lon != null) lat else null,
             lon = if (lat != null && lon != null) lon else null,
+            retry = state == PH_FAILED && o.flag("retry") == true,
         )
     }
 
@@ -279,8 +319,10 @@ object ChatBridgeChat {
                 if (p.state == null) add("state", JsonNull.INSTANCE) else addProperty("state", p.state)
                 if (p.reason == null) add("reason", JsonNull.INSTANCE) else addProperty("reason", p.reason)
                 if (p.lat != null && p.lon != null) add("geo", JsonObject().apply { addProperty("lat", p.lat); addProperty("lon", p.lon) })
+                if (p.retry) addProperty("retry", true)
             }
         } ?: JsonNull.INSTANCE)
+        if (b.channel) addProperty("channel", true)
     }
 
     // ─── what the screens show ──────────────────────────────────────
@@ -335,8 +377,20 @@ object ChatBridgeChat {
         else -> c.bridge?.network == net
     }
 
-    /** The mark at a profile picture: "WA" for WhatsApp, else the first two letters of the service's name. */
-    fun mark(b: ChatConvBridge): String = if (b.network == ChatBridges.WHATSAPP) "WA" else b.label.take(2).uppercase()
+    /**
+     * The logo at a picture, in a row or a chip (Messenger 1.20, instead of the letters „WA“): WhatsApp's glyph, the
+     * GateControl shield, a speech bubble for a service this app does not know.
+     */
+    enum class Logo { WhatsApp, GateControl, Other }
+
+    fun logo(network: String?): Logo = when (network) {
+        ChatBridges.WHATSAPP -> Logo.WhatsApp
+        NET_GC, GATECONTROL -> Logo.GateControl
+        else -> Logo.Other
+    }
+
+    /** `bridge.network` of GateControl itself (a chat inside GateControl where a service is named). */
+    const val GATECONTROL = "gatecontrol"
 
     /**
      * What the bar above the input says about the link: [closed] before everything else, then the state — null while
@@ -362,6 +416,42 @@ object ChatBridgeChat {
         if (c.bridge == null) return true
         return c.can.send && !(m.mine && m.bridge?.notOut == true)
     }
+
+    /**
+     * Messenger 1.20: why the person cannot write here — a channel or a group where only the admins write
+     * (`can.sendReason`); null when sending works or fails for another reason (the bars of [bar] say why).
+     */
+    enum class ReadOnly { Channel, AdminsOnly }
+
+    fun readOnly(c: ChatConversation?): ReadOnly? {
+        if (c == null || c.can.send) return null
+        return when (c.can.sendReason) {
+            READ_ONLY_CHANNEL -> ReadOnly.Channel
+            READ_ONLY_ADMINS -> ReadOnly.AdminsOnly
+            else -> if (c.bridge?.channel == true) ReadOnly.Channel else null
+        }
+    }
+
+    /** A channel of a service (Messenger 1.20). */
+    fun isChannel(c: ChatConversation?): Boolean = c?.bridge?.channel == true
+
+    /**
+     * Whether [m] of [c] can get a reaction: as [actsOut] — and in a channel or a group where only the admins write
+     * (Messenger 1.20) while `can.react` says so, though nothing can be written there.
+     */
+    fun reacts(c: ChatConversation, m: ChatMessage): Boolean {
+        if (c.bridge == null) return true
+        if (!c.can.react) return false
+        if (m.mine && m.bridge?.notOut == true) return false
+        return c.can.send || readOnly(c) != null
+    }
+
+    /**
+     * The note under a channel's post with the own reaction (Messenger 1.20): WhatsApp shows the reactions of others
+     * only in its own app.
+     */
+    fun ownReactionNote(c: ChatConversation?, m: ChatMessage, myId: Long?): Boolean =
+        isChannel(c) && myId != null && m.reactions.any { myId in it.userIds }
 
     /**
      * An own text can be changed over there: not what was written in the service's own app, not a placeholder, not

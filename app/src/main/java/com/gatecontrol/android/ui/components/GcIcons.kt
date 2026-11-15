@@ -242,5 +242,20 @@ object GcIcons {
     /** Upload into Drive (the cloud with an arrow up). */
     val CloudUp = icon("CloudUp", 2f, "M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z", "M12 15V10M9.5 12.5 12 10l2.5 2.5")
 
+    /** Chats › channels (a small television, Chats v2). */
+    val Tv = icon("Tv", 2f, rect(3f, 7f, 18f, 13f, 2f), "m8 3 4 4 4-4")
+    /** A speech bubble (Chats › „Alle Chats“). */
+    val MessageSquare = icon("MessageSquare", 2f, "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z")
+    /** A list of points (Chats › „Meine Listen“). */
+    val ListBullets = icon("ListBullets", 2f, "M9 6h11M9 12h11M9 18h11", "M4.5 6h.01M4.5 12h.01M4.5 18h.01")
+    /** Blocked (a circle struck through). */
+    val Ban = icon("Ban", 2f, circle(12f, 12f, 9f), "m5.6 5.6 12.8 12.8")
+    /** Storage (a stack of discs). */
+    val Database = icon("Database", 2f, "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z", "M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6", "M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3")
+    /** Help (a question mark in a circle). */
+    val HelpCircle = icon("HelpCircle", 2f, circle(12f, 12f, 9f), "M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3", "M12 17h.01")
+    /** A status (a ring around a dot). */
+    val StatusRing = icon("StatusRing", 2f, circle(12f, 12f, 9f), circle(12f, 12f, 3f))
+
     fun fromPath(name: String, path: String): ImageVector = icon(name, 2f, path)
 }

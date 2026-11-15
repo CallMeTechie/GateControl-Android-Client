@@ -377,6 +377,8 @@ sealed class Screen(val route: String) {
         const val ARG_SHARE = "share"
         fun create(id: Long, share: Boolean = false): String = "chats/c/$id" + if (share) "?share=true" else ""
     }
+    /** Messenger 1.20: the page „Kanäle“ (the channels kept out of the list). */
+    data object ChatChannels : Screen("chats/channels")
     /** "Neuer Chat" (`group` = "Neue Gruppe"). */
     data object ChatNew : Screen("chats/new?group={group}") {
         const val ARG_GROUP = "group"
