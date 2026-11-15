@@ -303,6 +303,38 @@ interface ApiClient {
     @PUT("api/v1/client/me/color")
     suspend fun putMyColor(@Body body: RequestBody): Response<JsonObject>
 
+    // ─── The profile's fields (server 1.280+: `profile` in getMyProfile's answer) ──
+    // Each change answers with the whole `profile`. Bodies are prepared JSON (null must reach the server).
+
+    @PATCH("api/v1/client/me/profile")
+    suspend fun patchMyProfile(@Body body: RequestBody): Response<JsonObject>
+
+    @POST("api/v1/client/me/profile/phones")
+    suspend fun addMyPhone(@Body body: RequestBody): Response<JsonObject>
+
+    @PATCH("api/v1/client/me/profile/phones/{id}")
+    suspend fun patchMyPhone(@Path("id") id: Long, @Body body: RequestBody): Response<JsonObject>
+
+    @HTTP(method = "DELETE", path = "api/v1/client/me/profile/phones/{id}")
+    suspend fun deleteMyPhone(@Path("id") id: Long): Response<JsonObject>
+
+    @POST("api/v1/client/me/profile/emails")
+    suspend fun addMyEmail(@Body body: RequestBody): Response<JsonObject>
+
+    @POST("api/v1/client/me/profile/emails/{id}/confirm")
+    suspend fun confirmMyEmail(@Path("id") id: Long, @Body body: RequestBody): Response<JsonObject>
+
+    @POST("api/v1/client/me/profile/emails/{id}/resend")
+    suspend fun resendMyEmail(@Path("id") id: Long): Response<JsonObject>
+
+    @HTTP(method = "DELETE", path = "api/v1/client/me/profile/emails/{id}")
+    suspend fun deleteMyEmail(@Path("id") id: Long): Response<JsonObject>
+
+    /** „Meine Daten“ as a JSON file (`Content-Disposition: attachment; filename=…`). */
+    @Streaming
+    @GET("api/v1/client/me/profile/export")
+    suspend fun exportMyProfile(): Response<ResponseBody>
+
     /**
      * Fetches an avatar image (`/avatars/<id>.<ext>`, a capability URL that
      * needs no login). [url] is absolute, built by the app from the server

@@ -218,7 +218,7 @@ fun MailHomeScreen(
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
             // the screen already sits below the status bar: no second inset at the top of the menu
-            GcDrawerSheet(MaterialTheme.colorScheme.surface) {
+            GcDrawerSheet(MaterialTheme.colorScheme.surface, onClose = { scope.launch { drawer.close() } }) {
                 val close: () -> Unit = { scope.launch { drawer.close() } }
                 MailDrawer(
                     me = me,
@@ -924,6 +924,8 @@ private fun MailDrawer(
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 12.dp).semantics { heading() },
         )
+        // the own profile (as the head of the other menus): only with the app's own profile, a button to „Profil“
+        com.gatecontrol.android.ui.components.GcDrawerPerson(null, null, Modifier.padding(start = 12.dp, end = 4.dp, bottom = 12.dp))
         val inboxRow: @Composable () -> Unit = { DrawerItem(MailIcons.Inbox, stringResource(R.string.mail_inboxes), me?.unreadAll ?: 0, on = false, onClick = onMail) }
         val label: @Composable (String) -> Unit = { DrawerLabel(it) }
         LazyColumn(Modifier.weight(1f)) {

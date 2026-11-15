@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.117.0] - 2026-11-15
+
+### Features
+- Chats v2 Teil A – Kanäle, Seitenmenü, Format und Links, Reaktionen, Retry, Logos (Messenger 1.20) (#237)
+
+---
+
 ## [1.116.1] - 2026-11-15
 
 ### Fixes

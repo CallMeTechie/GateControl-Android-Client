@@ -37,6 +37,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +81,7 @@ import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTone
+import com.gatecontrol.android.ui.components.SecureScreenEffect
 import com.gatecontrol.android.ui.components.avatarColor
 import com.gatecontrol.android.ui.familie.FamilieConfirmDialog
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -103,6 +107,7 @@ fun ProfileScreen(
     onOpenRules: (() -> Unit)? = null,
     viewModel: ProfileViewModel = hiltViewModel(),
     presenceViewModel: ProfilePresenceViewModel = hiltViewModel(),
+    fieldsViewModel: ProfileFieldsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
@@ -121,6 +126,12 @@ fun ProfileScreen(
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> viewModel.onPicked(uri) }
+    val details by fieldsViewModel.details.collectAsStateWithLifecycle()
+    // the profile's fields (server 1.280+): only while the server sends them, else the page as before
+    val fields = details.takeIf { state.support == ProfileSupport.SUPPORTED && state.profile != null }
+    // phone numbers on the page: no screenshot, no recording, no picture in the recent apps (as the vaults)
+    SecureScreenEffect(active = fields?.phones?.isNotEmpty() == true)
+    ProfileFieldsOverlays(fieldsViewModel, fields)
 
     val profile = state.profile
     val w = wizard
@@ -213,6 +224,9 @@ fun ProfileScreen(
                     if (profile.name.isNotBlank()) {
                         Text(profile.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
                     }
+                    fields?.about?.let { about ->
+                        Text(about, style = MaterialTheme.typography.bodyMedium, color = extra.muted, textAlign = TextAlign.Center)
+                    }
                     Text(
                         stringResource(R.string.profile_avatar_tap_hint),
                         style = MaterialTheme.typography.bodySmall,
@@ -222,10 +236,29 @@ fun ProfileScreen(
                 }
             }
         }
+        if (fields != null) {
+            val fieldsSaving by fieldsViewModel.saving.collectAsStateWithLifecycle()
+            ProfileFieldGroups(
+                fields,
+                ProfileFieldActions(
+                    edit = fieldsViewModel::open,
+                    addPhone = fieldsViewModel::addPhone,
+                    editPhone = fieldsViewModel::editPhone,
+                    email = { fieldsViewModel.openEmail(it.id) },
+                    recognition = { wa, phone -> fieldsViewModel.setRecognition(wa, phone) },
+                ),
+                saving = fieldsSaving,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
         ProfilePresenceSection(presenceViewModel, Modifier.padding(horizontal = 16.dp))
         if (onOpenRules != null) {
             val presenceShown by presenceViewModel.visible.collectAsStateWithLifecycle()
             ProfileRulesRow(onOpen = onOpenRules, showLabel = !presenceShown, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        if (fields != null) {
+            val exporting by fieldsViewModel.exporting.collectAsStateWithLifecycle()
+            ProfileDataGroup(exporting, fieldsViewModel::startExport, Modifier.padding(horizontal = 16.dp))
         }
         if (profile != null && state.support == ProfileSupport.SUPPORTED) {
             Text(
@@ -530,4 +563,63 @@ fun ProfileRowAvatar(ui: MyAvatarUi) {
         ring = ui.ring,
         size = 44.dp,
     )
+}
+
+/**
+ * The dialogs and the sheet of the profile's fields, the question after the first number, the save dialog of „Meine
+ * Daten“ and the short results as a toast.
+ */
+@Composable
+private fun ProfileFieldsOverlays(vm: ProfileFieldsViewModel, d: com.gatecontrol.android.profile.ProfileDetails?) {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val saving by vm.saving.collectAsStateWithLifecycle()
+    val editor by vm.editor.collectAsStateWithLifecycle()
+    val phone by vm.phone.collectAsStateWithLifecycle()
+    val refusal by vm.refusal.collectAsStateWithLifecycle()
+    val consent by vm.consent.collectAsStateWithLifecycle()
+    val emailOpen by vm.emailOpen.collectAsStateWithLifecycle()
+    val emailCode by vm.emailCode.collectAsStateWithLifecycle()
+    val export by vm.export.collectAsStateWithLifecycle()
+
+    LaunchedEffect(vm) {
+        vm.messages.collect { res -> android.widget.Toast.makeText(context, resources.getString(res), android.widget.Toast.LENGTH_SHORT).show() }
+    }
+    val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val file = vm.export.value
+        if (uri == null || file == null) {
+            vm.exportDone(null)
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(file.bytes) } != null }.getOrDefault(false)
+            }
+            vm.exportDone(ok)
+        }
+    }
+    LaunchedEffect(export) { export?.let { saver.launch(it.name) } }
+
+    if (d == null) return
+    editor?.let { ProfileEditorDialog(it, d, saving, refusal, vm) }
+    phone?.let { draft ->
+        PhoneSheet(draft, d, saving, refusal, vm::updateDraft, vm::savePhone, vm::removePhone, vm::closePhone)
+    }
+    if (consent) ProfileConsentDialog(vm::answerConsent)
+    val emailId = emailCode ?: emailOpen
+    d.emails.firstOrNull { it.id == emailId }?.let { e ->
+        ProfileEmailDialog(
+            email = e,
+            d = d,
+            saving = saving,
+            refusal = refusal,
+            asking = emailCode == e.id,
+            onCode = vm::confirmEmail,
+            onAsk = { vm.askCode(e.id) },
+            onResend = { vm.resendEmail(e.id) },
+            onRemove = { vm.removeEmail(e.id) },
+            onDismiss = vm::closeEmail,
+        )
+    }
 }
