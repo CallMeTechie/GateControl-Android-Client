@@ -350,7 +350,7 @@ class ChatBridgedUiTest {
             // text only: no attachments, no voice message, the service in the placeholder
             rule.onNodeWithText("Nachricht über WhatsApp").assertIsDisplayed()
             assertEquals(0, rule.onAllNodesWithContentDescription("Anhängen").fetchSemanticsNodes().size)
-            assertEquals(0, rule.onAllNodesWithContentDescription("Halten zum Aufnehmen").fetchSemanticsNodes().size)
+            assertEquals(0, rule.onAllNodesWithContentDescription("Für eine Sprachnachricht gedrückt halten").fetchSemanticsNodes().size)
         }
         assertEquals(2, resent)
         coVerify(exactly = 2) { repository.resend(match { it.id == 96L }) }

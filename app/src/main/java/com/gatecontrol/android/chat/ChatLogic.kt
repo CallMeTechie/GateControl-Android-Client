@@ -211,6 +211,9 @@ object ChatOutboxLogic {
     const val MAX_ATTEMPTS = 12
     private const val BASE_DELAY_MS = 5_000L
     private const val MAX_DELAY_MS = 15 * 60_000L
+    private const val SCAN_PENDING = "scan_pending"
+    /** How long a file whose scan still runs waits before it is sent again. */
+    const val SCAN_WAIT_MS = 4_000L
 
     fun backoffMs(attempts: Int): Long {
         val shift = (attempts - 1).coerceIn(0, 10)
@@ -226,6 +229,11 @@ object ChatOutboxLogic {
             // A bridged chat (Messenger 1.14): the bridge is away, signed out, locked or takes text only. There is no
             // queue over there, so nothing is sent again by itself — the person sees why and decides.
             result.code in ChatBridgeChat.REFUSALS -> OutboxStep.GiveUp(result.code)
+            // Messenger 1.15, a file into a bridged chat: `423 scan_pending` — the virus scan of the upload is not done yet.
+            // Sent again in a few seconds under the same clientId (no new upload), like the server asks.
+            result.code == SCAN_PENDING && result.http == 423 ->
+                if (attempts >= MAX_ATTEMPTS) OutboxStep.GiveUp(result.code)
+                else OutboxStep.Retry(nowMs + ((result.retryAfterS ?: 0) * 1000L).coerceIn(SCAN_WAIT_MS, MAX_DELAY_MS))
             result.code == "media_invalid" && hadUpload && attempts < 3 -> OutboxStep.Reupload
             result.http == 429 || result.http == 408 || result.http >= 500 || result.http == 0 && result.code != ChatApi.CODE_INVALID ->
                 if (attempts >= MAX_ATTEMPTS) OutboxStep.GiveUp(result.code) else OutboxStep.Retry(nowMs + backoffMs(attempts))

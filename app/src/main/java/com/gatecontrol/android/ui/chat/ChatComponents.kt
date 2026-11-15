@@ -107,7 +107,8 @@ fun ChatPersonAvatar(person: ChatPerson?, size: Dp, modifier: Modifier = Modifie
 
 /**
  * Avatar of a conversation: the other person, or the group's picture / a group symbol. A chat over a bridge
- * (Messenger 1.14) carries the service's mark at the lower right ("WA"); contacts have no picture yet.
+ * (Messenger 1.14) carries the service's mark at the lower right ("WA"); since 1.15 with the picture of the contact or
+ * the group (`avatarMediaId`), else initials or the group symbol.
  */
 @Composable
 fun ConversationAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modifier) {
@@ -115,8 +116,9 @@ fun ConversationAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modif
     if (bridge != null) {
         val via = stringResource(R.string.chat_bridged_via, bridge.label)
         Box(modifier.size(size).semantics { contentDescription = via }) {
+            // Messenger 1.15: the picture of the contact / the group once the server fetched it
             if (c.isGroup) PlainAvatar(c, size)
-            else GcAvatar(url = null, initials = ChatPerson.initialsOf(c.title), colorHex = null, ring = AvatarRing.None, size = size)
+            else ContactAvatar(c.avatarMediaId, c.title, size)
             BridgeMark(bridge, size, Modifier.align(Alignment.BottomEnd))
         }
         return
@@ -126,7 +128,7 @@ fun ConversationAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modif
 
 /** The service's mark of a bridged chat: two letters on the accent colour, ringed in the page's colour. */
 @Composable
-private fun BridgeMark(bridge: com.gatecontrol.android.chat.ChatConvBridge, avatar: Dp, modifier: Modifier = Modifier) {
+internal fun BridgeMark(bridge: com.gatecontrol.android.chat.ChatConvBridge, avatar: Dp, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val h = (avatar * 0.4f).coerceIn(14.dp, 22.dp)
     Box(

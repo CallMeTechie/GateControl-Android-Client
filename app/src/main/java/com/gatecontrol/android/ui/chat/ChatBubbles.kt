@@ -43,6 +43,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -143,9 +145,9 @@ fun MessageBubble(
             if (conversation?.isGroup == true && !m.mine) {
                 if (showSender) {
                     val sender = conversation.members.firstOrNull { it.userId == m.senderId }
-                    // a contact of a bridged chat: initials of the name (no pictures of contacts yet)
+                    // a contact of a bridged chat: the contact's picture (Messenger 1.15, once fetched), else the initials
                     if (sender == null && m.bridge?.fromContact == true) {
-                        GcAvatar(url = null, initials = ChatPerson.initialsOf(m.bridge.senderName), colorHex = null, ring = AvatarRing.None, size = 28.dp)
+                        ContactAvatar(m.bridge.senderAvatarMediaId, m.bridge.senderName, 28.dp)
                     } else {
                         ChatPersonAvatar(sender, 28.dp)
                     }
@@ -186,20 +188,11 @@ fun MessageBubble(
                 m.replyTo?.let { r ->
                     Quote(r.senderId, if (r.deleted || r.missing) null else r.text, r.kind, r.deleted || r.missing, conversation, myId, name = ChatText.quotedOf(ctx, conversation, r, myId)) { actions.onQuote(r.id) }
                 }
-                // Messenger 1.14: a file or kind of message that does not cross the bridge yet — a line says it arrived.
+                // Messenger 1.14: a file or kind of message that has not crossed the bridge — a line says it arrived;
+                // 1.15: "wird geladen …" while the server fetches it, why it will not come, a location to the map.
                 m.bridge?.placeholder?.takeIf { !m.deleted }?.let { ph ->
-                    Row(Modifier.padding(bottom = if (m.text.isNullOrBlank()) 0.dp else 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(
-                            if (ph.kind == "image") Icons.Outlined.Image else Icons.Outlined.Info,
-                            contentDescription = null,
-                            tint = colors.meta,
-                            modifier = Modifier.padding(top = 2.dp).size(16.dp),
-                        )
-                        Text(
-                            ChatText.placeholder(ctx, ph, bridge?.label ?: stringResource(R.string.chat_linked_title)),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-                            color = colors.meta,
-                        )
+                    BridgePlaceholderLine(ph, bridge?.label ?: stringResource(R.string.chat_linked_title), colors.meta, hasText = !m.text.isNullOrBlank()) {
+                        actions.onOpenLocation(m.copy(location = com.gatecontrol.android.chat.ChatLocation(ph.lat ?: 0.0, ph.lon ?: 0.0, m.text?.takeIf { it.isNotBlank() })))
                     }
                 }
                 m.replyStory?.let { r -> if (!m.deleted) ReplyStoryQuote(r, conversation, myId) }
@@ -288,6 +281,78 @@ fun MessageBubble(
         }
         // a bridged chat: a reaction goes to the other messenger first — not while nothing crosses
         if (m.reactions.isNotEmpty()) Reactions(m.reactions, myId, m.mine) { e -> if (conversation == null || com.gatecontrol.android.chat.ChatBridgeChat.actsOut(conversation, m)) actions.onReact(m, e) }
+    }
+}
+
+/**
+ * The line of a file that has not crossed a bridge: kind and name, then "wird geladen …" (pulsing), why it did not
+ * come or "folgt"; a location with its place offers the map ([onMap]).
+ */
+@Composable
+private fun BridgePlaceholderLine(
+    ph: com.gatecontrol.android.chat.ChatBridgePlaceholder,
+    network: String,
+    tint: Color,
+    hasText: Boolean,
+    onMap: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val infected = ph.failed && ph.reason == com.gatecontrol.android.chat.ChatBridgeChat.PH_REASON_INFECTED
+    val alpha = if (ph.loading) {
+        val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "ph")
+        pulse.animateFloat(
+            initialValue = 1f,
+            targetValue = 0.45f,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                androidx.compose.animation.core.tween(900),
+                androidx.compose.animation.core.RepeatMode.Reverse,
+            ),
+            label = "ph-alpha",
+        ).value
+    } else {
+        1f
+    }
+    Column(Modifier.padding(bottom = if (hasText) 4.dp else 0.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.graphicsLayer { this.alpha = alpha }) {
+            Icon(
+                when {
+                    infected -> GcIcons.Alert
+                    ph.kind == com.gatecontrol.android.chat.ChatBridgeChat.PH_LOCATION -> Icons.Outlined.Place
+                    ph.kind == "image" || ph.kind == "sticker" -> Icons.Outlined.Image
+                    ph.kind == "video" -> Icons.Outlined.Videocam
+                    ph.kind == com.gatecontrol.android.chat.ChatBridgeChat.PH_UNSUPPORTED -> Icons.Outlined.Info
+                    else -> Icons.AutoMirrored.Filled.InsertDriveFile
+                },
+                contentDescription = null,
+                tint = if (infected) MaterialTheme.colorScheme.error else tint,
+                modifier = Modifier.padding(top = 2.dp).size(16.dp),
+            )
+            Text(
+                ChatText.placeholder(ctx, ph, network),
+                style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                color = tint,
+            )
+        }
+        if (ph.geo) {
+            Text(
+                stringResource(R.string.chat_bridged_ph_map),
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button, onClick = onMap).heightIn(min = 32.dp).padding(top = 6.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+/** A contact of a bridged chat: their picture ([mediaId], Messenger 1.15), else the initials of [name]. */
+@Composable
+internal fun ContactAvatar(mediaId: String?, name: String?, size: Dp) {
+    val px = with(LocalDensity.current) { size.roundToPx() }
+    val bmp = rememberChatBitmap(mediaId, px)
+    if (bmp != null) {
+        Image(bmp, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size).clip(CircleShape))
+    } else {
+        GcAvatar(url = null, initials = ChatPerson.initialsOf(name), colorHex = null, ring = AvatarRing.None, size = size)
     }
 }
 

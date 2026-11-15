@@ -66,12 +66,12 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | Datentyp | Pflicht/optional | Wofür |
 |---|---|---|
 | **Persönliche Daten → Name** | optional | Familie: Namen in Notfallkontakten und frei eingetragene Fahrer („Oma“); Chats: Gruppennamen. Konto- und Anzeigenamen legt der Server-Betreiber an. |
-| **Persönliche Daten → Telefonnummer** | optional | Familie: Notfallnummern auf der Notfall-Karte; Chats › Verknüpfte Dienste: die eigene WhatsApp-Nummer beim Verknüpfen per Code (geht an den eigenen Server, dessen Brücke gibt sie an WhatsApp weiter; in der App nicht gespeichert) |
+| **Persönliche Daten → Telefonnummer** | optional | Familie: Notfallnummern auf der Notfall-Karte; Chats › Verknüpfte Dienste: die eigene WhatsApp-Nummer beim Verknüpfen per Code (geht an den eigenen Server, dessen Brücke gibt sie an WhatsApp weiter; in der App nicht gespeichert); „WhatsApp-Chat mit Nummer“ (Messenger 1.15): die Nummer eines Gegenübers, getippt oder über die Kontaktauswahl des Systems gewählt, erst auf „Prüfen“ an den eigenen Server und von dessen Brücke an WhatsApp; in der App nicht gespeichert, auf dem Server erst mit „Chat starten“ |
 | **Finanzinformationen → Kaufverlauf** | optional | Familie: Ausgaben im Haushaltsbuch (reine Buchhaltung, keine Zahlungen) |
 | **Finanzinformationen → Sonstige Finanzinformationen** | optional | Familie: Taschengeld (Guthaben, Buchungen, Regeln) |
 | **Standort → Ungefährer Standort** | optional | Familie: Anwesenheit „zuhause/unterwegs“ (Heimnetz-Erkennung, kein GPS) und „angekommen/verlassen“ bei Orten für Regeln (ohne Position). Notizen & Aufgaben (Plugin ab 1.5.0): eine auf dem Gerät auf etwa einen Kilometer gerundete Position an den eigenen Server – für die Ortssuche („Welcher Baumarkt?“) und für die Orte in der Nähe; nur bei eingeschalteter Ortssuche, sonst verlässt keine Position das Gerät. Der genaue Standort bleibt dabei auf dem Gerät (Geofencing, Entfernungen) |
 | **Standort → Genauer Standort** | optional | Standortfreigabe auf Tipp (ab 1.26), Standort-Nachricht im Chat (einmalig), Familie: Kind orten auf Anfrage der Eltern, SOS, Drive: Aufnahmeort gesicherter Fotos (EXIF, „Aufnahmeort mitsichern“, an den eigenen Server). Für die WLAN-Namen wird der Standort nur auf dem Gerät genutzt. |
-| **Nachrichten → Sonstige In-App-Nachrichten** | optional | Chats (ab 1.42): Texte, Antworten, Reaktionen. Chats über einen verknüpften Dienst (Messenger 1.14, WhatsApp): gehen an den eigenen Server; dessen Brücke gibt sie an den Dienst und damit an die Kontakte dort weiter – die App selbst spricht nur mit dem eigenen Server |
+| **Nachrichten → Sonstige In-App-Nachrichten** | optional | Chats (ab 1.42): Texte, Antworten, Reaktionen. Chats über einen verknüpften Dienst (Messenger 1.14, WhatsApp): gehen an den eigenen Server; dessen Brücke gibt sie an den Dienst und damit an die Kontakte dort weiter – die App selbst spricht nur mit dem eigenen Server. Ab Messenger 1.15 ebenso Bilder, Videos, Sprachnachrichten und Dateien in solchen Chats (fallen unter die Zeilen Fotos/Videos/Audio/Dateien unten) |
 | **Fotos und Videos → Fotos** | optional | Chat-Bilder, eigenes Profilbild (ab 1.33), Drive: Foto-Sicherung (nur eingeschaltet, in den eigenen Drive des Servers); Drive „Personen erkennen“ (nur eingeschaltet): auf dem Gerät berechnete Gesichtsmerkmale (Zahlen, keine Bilder) an den eigenen Server |
 | **Fotos und Videos → Videos** | optional | Chats: Videos, die als Datei gesendet oder aus anderen Apps geteilt werden; Drive: Foto-Sicherung mit „Auch Videos“ (beim Einschalten wählbar: „Alle Videos“ oder „Nur neue“; mit der Länge des Videos an den eigenen Server) |
 | **Audiodateien → Sprach- oder Tonaufnahmen** | optional | Chats: Sprachnachrichten (Mikrofon nur, solange die Taste gehalten wird) |
@@ -82,7 +82,7 @@ Für **jeden** erhobenen Datentyp gilt: nur erhoben, **nicht geteilt** (geht nur
 | **App-Aktivitäten → In-App-Suchverlauf** | optional | Chats: Suche im Chat läuft auf dem Server |
 | **App-Aktivitäten → Sonstige von Nutzern erstellte Inhalte** | optional | Familie: Einkaufslisten, Aufgaben, Termine, Fahrten, Pinnwand, Wunschlisten, Essensplan |
 | **Geräte- oder andere IDs** | Pflicht | Gerätename/Modell im Status an den eigenen Server |
-| E-Mail, Adresse, sonstige persönliche Daten, Kontakte, Kalender, SMS/E-Mails, Web-Verlauf, Musik, Fitness, Seitenaufrufe, installierte Apps | nein |
+| E-Mail, Adresse, sonstige persönliche Daten, Kontakte, Kalender, SMS/E-Mails, Web-Verlauf, Musik, Fitness, Seitenaufrufe, installierte Apps | nein (Kontakte: keine Berechtigung `READ_CONTACTS`, kein Adressbuch; die eine über die Systemauswahl gewählte Nummer steht oben unter „Telefonnummer“) |
 
 ### Berechtigungen und Erklärungen
 

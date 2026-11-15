@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A new chat by number over a bridge (Messenger 1.15/1.16, draft "Neuer WhatsApp-Chat per Nummer"). -->
+<resources>
+    <string name="chat_newnum_row">%1$s chat by number</string>
+    <string name="chat_newnum_row_desc">Enter a number and check it</string>
+    <string name="chat_newnum_title">%1$s chat by number</string>
+    <string name="chat_newnum_label">Phone number</string>
+    <string name="chat_newnum_placeholder">151 23456789</string>
+    <string name="chat_newnum_hint">With or without a leading 0, spaces do not matter. Other countries: choose the code or paste the number with +.</string>
+    <string name="chat_newnum_as">Checked as %1$s</string>
+    <string name="chat_newnum_country">Country code %1$s</string>
+    <string name="chat_newnum_contacts">Pick from contacts</string>
+    <string name="chat_newnum_contacts_none">This contact has no phone number.</string>
+    <string name="chat_newnum_invalid_short">This is not a complete number – some digits are missing.</string>
+    <string name="chat_newnum_invalid_short_de">This is not a complete number – a German mobile number needs more digits.</string>
+    <string name="chat_newnum_invalid_long">These are too many digits for a phone number.</string>
+    <string name="chat_newnum_invalid_chars">This is no phone number. Digits, spaces, dashes and a leading + are allowed.</string>
+    <string name="chat_newnum_invalid_server">Please enter the number with + and the country code, for example +49 151 23456789.</string>
+    <string name="chat_newnum_check">Check</string>
+    <string name="chat_newnum_checking_btn">Checking …</string>
+    <string name="chat_newnum_start">Start chat</string>
+    <string name="chat_newnum_open">Open chat</string>
+    <string name="chat_newnum_other">Another number</string>
+    <string name="chat_newnum_retry">Try again</string>
+    <string name="chat_newnum_relink">Link again</string>
+    <string name="chat_newnum_link">Link</string>
+    <string name="chat_newnum_close">Close</string>
+    <string name="chat_newnum_checking_title">Asking %1$s …</string>
+    <string name="chat_newnum_checking_text">Usually takes a second or two.</string>
+    <string name="chat_newnum_has">Has %1$s</string>
+    <string name="chat_newnum_exists">You already have a chat</string>
+    <string name="chat_newnum_none_title">No %1$s under this number</string>
+    <string name="chat_newnum_none_text">%1$s is not registered at %2$s. Check the digits or ask for the number that is used with %2$s.</string>
+    <string name="chat_newnum_rate_title">Too many checks</string>
+    <plurals name="chat_newnum_rate_text">
+        <item quantity="one">You checked %1$d number in the last hour. So that %2$s does not block your account, the next check works from %3$s.</item>
+        <item quantity="other">You checked %1$d numbers in the last hour. So that %2$s does not block your account, the next check works from %3$s.</item>
+    </plurals>
+    <string name="chat_newnum_rate_text_plain">You just checked a lot of numbers. So that %1$s does not block your account, the next check works from %2$s.</string>
+    <string name="chat_newnum_rate_text_later">You just checked a lot of numbers. So that %1$s does not block your account, the next check works a little later.</string>
+    <string name="chat_newnum_unreach_title">Bridge not reachable</string>
+    <string name="chat_newnum_unreach_text">The %1$s service next to your server does not answer right now. What you entered stays.</string>
+    <string name="chat_newnum_offline_title">No connection</string>
+    <string name="chat_newnum_offline_text">Your GateControl server cannot be reached right now. What you entered stays.</string>
+    <string name="chat_newnum_failed_title">That did not work</string>
+    <string name="chat_newnum_failed_text">The server did not take the request. Try again in a moment.</string>
+    <string name="chat_newnum_loggedout_title">%1$s is signed out</string>
+    <string name="chat_newnum_loggedout_text">%1$s ended the link, for example because the device was removed on the phone under “Linked devices”. Link again, then you can start chats again.</string>
+    <string name="chat_newnum_unlinked_title">%1$s is not linked</string>
+    <string name="chat_newnum_unlinked_text">Link your account under “Linked services”, then you can start chats by number.</string>
+    <string name="chat_newnum_locked_title">Locked by your parents</string>
+    <string name="chat_newnum_locked_text">%1$s is locked for your account right now. New chats work again once your parents allow it.</string>
+    <string name="chat_newnum_off_title">New chats do not work right now</string>
+    <string name="chat_newnum_off_text">The bridge to %1$s is switched off on this server.</string>
+    <string name="chat_newnum_privacy">To check it, the number goes to %1$s through your bridge. GateControl does not write it to the log; it is only kept when you start the chat.</string>
+    <string name="chat_newnum_first_line">New chat over %1$s with %2$s. %3$s sees your messages in the usual %1$s app.</string>
+</resources>

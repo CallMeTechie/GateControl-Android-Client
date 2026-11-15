@@ -656,7 +656,20 @@ fun ConversationScreen(
                             }
                         }
                     }
-                    if (rows.isEmpty()) {
+                    // Messenger 1.16: a chat just started by number says with whom (the number in memory only)
+                    val started = c?.bridge?.let { com.gatecontrol.android.chat.ChatNumberStarted.get(c.id) }
+                    if (rows.isEmpty() && started != null && c?.bridge != null) {
+                        item(key = "started") {
+                            Text(
+                                stringResource(R.string.chat_newnum_first_line, c.bridge.label, started.display, started.name ?: c.title.orEmpty()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = extra.muted,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 24.dp)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).background(extra.panel2).padding(12.dp),
+                            )
+                        }
+                    } else if (rows.isEmpty()) {
                         item(key = "empty") {
                             Text(
                                 stringResource(if (state.loaded) R.string.chat_no_messages_yet else R.string.chat_loading),
@@ -696,8 +709,8 @@ fun ConversationScreen(
         } else {
             state.shared?.let { sh ->
                 SharedBar(
-                    // a chat over a bridge takes text only (Messenger 1.14): shared files are not offered
-                    count = if (c?.bridge != null) 0 else sh.files.size,
+                    // a chat over a bridge took text only (Messenger 1.14); 1.15: files where the service takes them
+                    count = if (c?.bridge != null && !com.gatecontrol.android.chat.ChatBridgeChat.attach(c)) 0 else sh.files.size,
                     onSend = viewModel::sendShared,
                     onDrop = viewModel::dropShared,
                 )
@@ -730,9 +743,10 @@ fun ConversationScreen(
                 editing = state.editing != null,
                 busy = state.busy,
                 enterSends = deviceConfig.enterSends,
-                voice = state.profile?.features?.voice != false && c?.bridge == null,
-                // Messenger 1.14: a chat over a bridge takes text only — no attachments, no voice message
-                attach = c?.bridge == null,
+                // Messenger 1.14: a chat over a bridge took text only; 1.15 (`bridge.supports`, `mediaTypes`): the paper clip
+                // with files only, the microphone when the service takes the recording's type (AAC in MP4)
+                voice = state.profile?.features?.voice != false && com.gatecontrol.android.chat.ChatBridgeChat.voice(c, com.gatecontrol.android.chat.VoiceRecorder.MIME),
+                attach = com.gatecontrol.android.chat.ChatBridgeChat.attach(c),
                 hint = c?.bridge?.let { stringResource(R.string.chat_bridged_placeholder, it.label) },
                 recorder = viewModel.recorder,
                 onSend = { if (viewModel.send(draft)) draft = "" },
@@ -756,20 +770,24 @@ fun ConversationScreen(
         val features = state.profile?.features
         val members = c?.members.orEmpty()
         val others = members.filter { it.userId != myId && !it.gone }
-        val actionsOn = features?.actions == true
+        // Messenger 1.15, a chat over a bridge: files only — no location, no GateControl extras
+        val own = c?.bridge == null
+        val takes = { what: String -> com.gatecontrol.android.chat.ChatBridgeChat.takes(c, what) }
+        val actionsOn = own && features?.actions == true
         LaunchedEffect(Unit) { homeViewModel.prepare() }
         AttachSheet14(
             options = AttachOptions(
-                camera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) },
-                files = features?.files != false,
-                location = features?.location != false,
-                polls = features?.polls == true,
-                events = features?.events == true,
-                arrival = features?.arrival == true,
+                gallery = own || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_IMAGE) || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_VIDEO),
+                camera = (own || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_IMAGE)) && remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) },
+                files = features?.files != false && (own || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE)),
+                location = own && features?.location != false,
+                polls = own && features?.polls == true,
+                events = own && features?.events == true,
+                arrival = own && features?.arrival == true,
                 actions = actionsOn,
                 maxBytes = state.profile?.limits?.maxBytes,
-                task = familieOffer.tasks,
-                shopping = familieOffer.shopping,
+                task = own && familieOffer.tasks,
+                shopping = own && familieOffer.shopping,
                 actionsHint = if (actionsOn && others.isEmpty()) stringResource(R.string.chat_attach_hint_others) else null,
                 quickShare = homeActions?.let { com.gatecontrol.android.chat.ChatRichLogic.visibleActions(it, deviceConfig.hiddenActions) }.orEmpty().take(8),
             ),
@@ -1629,7 +1647,7 @@ internal fun BridgeBar(bridge: com.gatecontrol.android.chat.ChatConvBridge, seen
             Text(stringResource(R.string.chat_bridged_first_lead), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
             listOf(
                 stringResource(R.string.chat_bridged_first_1, name),
-                stringResource(R.string.chat_bridged_first_2),
+                stringResource(if (com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE in bridge.supports) R.string.chat_bridged_first_2_media else R.string.chat_bridged_first_2),
                 stringResource(R.string.chat_bridged_first_3, name),
             ).forEach { line ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

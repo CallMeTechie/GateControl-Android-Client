@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files and profile pictures over a bridge (Messenger 1.15.0). The texts are the messenger plugin's own
+     (server/texts.json, bc.ph_*, bc.first_2_media, bc.info_not_media, error.bridge_media_type). -->
+<resources>
+    <string name="chat_bridged_ph_loading">%1$s – loading …</string>
+    <string name="chat_bridged_ph_failed_too_large">%1$s – too large for GateControl; see it in %2$s</string>
+    <string name="chat_bridged_ph_failed_type">%1$s – GateControl does not take this kind of file; see it in %2$s</string>
+    <string name="chat_bridged_ph_failed_infected">%1$s – blocked – malware found</string>
+    <string name="chat_bridged_ph_failed_quota">%1$s – no room left for files; see it in %2$s</string>
+    <string name="chat_bridged_ph_failed_gone">%1$s – gone; see it in %2$s</string>
+    <string name="chat_bridged_ph_failed_unavailable">%1$s – did not arrive; see it in %2$s</string>
+    <string name="chat_bridged_ph_map">Show on the map</string>
+    <string name="chat_bridged_first_2_media">Text works with replies, reactions, editing and deleting, and so do pictures, videos, voice messages and files – checked for malware like your own.</string>
+    <string name="chat_bridged_info_not_media">What does not work here: calls, status, disappearing messages and GateControl extras such as polls, events, home actions, cards and sending a location.</string>
+    <string name="chat_bridged_err_media_type">The other messenger does not take this kind of file. Pictures as JPEG, PNG or WebP, videos as MP4, voice messages as OGG, M4A, AAC or MP3.</string>
+    <string name="chat_linked_foot_chats_media">Chats with the service’s contacts appear in your chat list as soon as a new message arrives there – older history is not loaded. Texts, pictures, videos, voice messages and files go both ways.</string>
+</resources>

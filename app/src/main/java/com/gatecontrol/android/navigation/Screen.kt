@@ -382,6 +382,11 @@ sealed class Screen(val route: String) {
         const val ARG_GROUP = "group"
         fun create(group: Boolean = false): String = if (group) "chats/new?group=true" else "chats/new"
     }
+    /** Messenger 1.15/1.16: a new chat by phone number over a linked service (`network`, e.g. whatsapp). */
+    data object ChatNewNumber : Screen("chats/new-number/{network}") {
+        const val ARG_NETWORK = "network"
+        fun create(network: String): String = "chats/new-number/$network"
+    }
     /** Chat / group info. */
     data object ChatInfo : Screen("chats/info/{id}") {
         const val ARG_ID = "id"

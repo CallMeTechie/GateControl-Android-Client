@@ -355,12 +355,12 @@ class ChatBridgeChatsTest {
 
     @Test
     fun `a refusal of the bridge is never sent again by itself`() {
-        for ((code, http) in listOf("bridge_unreachable" to 503, "bridge_failed" to 502, "bridge_unlinked" to 409, "bridge_off" to 409, "bridge_locked" to 403, "bridge_text_only" to 409)) {
+        for ((code, http) in listOf("bridge_unreachable" to 503, "bridge_failed" to 502, "bridge_unlinked" to 409, "bridge_off" to 409, "bridge_locked" to 403, "bridge_text_only" to 409, "bridge_media_type" to 409)) {
             assertEquals(OutboxStep.GiveUp(code), ChatOutboxLogic.step(ChatResult.Failed(code, http, "not_running"), 1, hadUpload = false, nowMs = 0), code)
         }
         // any other 503 of the server is still tried again
         assertInstanceOf(OutboxStep.Retry::class.java, ChatOutboxLogic.step(ChatResult.Failed("http_503", 503), 1, hadUpload = false, nowMs = 0))
-        assertEquals(ChatBridgeChat.REFUSALS, setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked"))
+        assertEquals(ChatBridgeChat.REFUSALS, setOf("bridge_text_only", "bridge_unlinked", "bridge_off", "bridge_unreachable", "bridge_failed", "bridge_locked", "bridge_media_type"))
     }
 
     // ─── the API: the mark on every call ────────────────────────────

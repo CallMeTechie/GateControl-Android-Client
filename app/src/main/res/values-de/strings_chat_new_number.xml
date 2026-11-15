@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Neuer Chat per Nummer über eine Brücke (Messenger 1.15/1.16, Entwurf „Neuer WhatsApp-Chat per Nummer“). -->
+<resources>
+    <string name="chat_newnum_row">%1$s-Chat mit Nummer</string>
+    <string name="chat_newnum_row_desc">Nummer eingeben und prüfen</string>
+    <string name="chat_newnum_title">%1$s-Chat mit Nummer</string>
+    <string name="chat_newnum_label">Telefonnummer</string>
+    <string name="chat_newnum_placeholder">151 23456789</string>
+    <string name="chat_newnum_hint">Mit oder ohne 0 am Anfang, Leerzeichen sind egal. Andere Länder: Vorwahl wählen oder Nummer mit + einfügen.</string>
+    <string name="chat_newnum_as">Wird geprüft als %1$s</string>
+    <string name="chat_newnum_country">Ländervorwahl %1$s</string>
+    <string name="chat_newnum_contacts">Aus Kontakten wählen</string>
+    <string name="chat_newnum_contacts_none">Dieser Kontakt hat keine Telefonnummer.</string>
+    <string name="chat_newnum_invalid_short">Das ist keine vollständige Nummer – es fehlen noch Ziffern.</string>
+    <string name="chat_newnum_invalid_short_de">Das ist keine vollständige Nummer – für ein deutsches Handy fehlen noch Ziffern.</string>
+    <string name="chat_newnum_invalid_long">Das sind zu viele Ziffern für eine Telefonnummer.</string>
+    <string name="chat_newnum_invalid_chars">Das ist keine Telefonnummer. Erlaubt sind Ziffern, Leerzeichen, Bindestriche und am Anfang ein +.</string>
+    <string name="chat_newnum_invalid_server">Bitte die Nummer mit + und Ländervorwahl eingeben, zum Beispiel +49 151 23456789.</string>
+    <string name="chat_newnum_check">Prüfen</string>
+    <string name="chat_newnum_checking_btn">Wird geprüft …</string>
+    <string name="chat_newnum_start">Chat starten</string>
+    <string name="chat_newnum_open">Chat öffnen</string>
+    <string name="chat_newnum_other">Andere Nummer</string>
+    <string name="chat_newnum_retry">Erneut versuchen</string>
+    <string name="chat_newnum_relink">Neu verknüpfen</string>
+    <string name="chat_newnum_link">Verknüpfen</string>
+    <string name="chat_newnum_close">Schließen</string>
+    <string name="chat_newnum_checking_title">%1$s wird gefragt …</string>
+    <string name="chat_newnum_checking_text">Dauert meist nur ein, zwei Sekunden.</string>
+    <string name="chat_newnum_has">Hat %1$s</string>
+    <string name="chat_newnum_exists">Ihr habt schon einen Chat</string>
+    <string name="chat_newnum_none_title">Kein %1$s unter dieser Nummer</string>
+    <string name="chat_newnum_none_text">%1$s ist bei %2$s nicht registriert. Prüf die Ziffern oder frag nach der Nummer, die bei %2$s hinterlegt ist.</string>
+    <string name="chat_newnum_rate_title">Zu viele Prüfungen</string>
+    <plurals name="chat_newnum_rate_text">
+        <item quantity="one">Du hast in der letzten Stunde %1$d Nummer geprüft. Damit %2$s dein Konto nicht sperrt, geht die nächste Prüfung ab %3$s.</item>
+        <item quantity="other">Du hast in der letzten Stunde %1$d Nummern geprüft. Damit %2$s dein Konto nicht sperrt, geht die nächste Prüfung ab %3$s.</item>
+    </plurals>
+    <string name="chat_newnum_rate_text_plain">Du hast gerade viele Nummern geprüft. Damit %1$s dein Konto nicht sperrt, geht die nächste Prüfung ab %2$s.</string>
+    <string name="chat_newnum_rate_text_later">Du hast gerade viele Nummern geprüft. Damit %1$s dein Konto nicht sperrt, geht die nächste Prüfung erst etwas später.</string>
+    <string name="chat_newnum_unreach_title">Brücke nicht erreichbar</string>
+    <string name="chat_newnum_unreach_text">Der %1$s-Dienst neben deinem Server antwortet gerade nicht. Deine Eingabe bleibt stehen.</string>
+    <string name="chat_newnum_offline_title">Keine Verbindung</string>
+    <string name="chat_newnum_offline_text">Dein GateControl-Server ist gerade nicht erreichbar. Deine Eingabe bleibt stehen.</string>
+    <string name="chat_newnum_failed_title">Das hat nicht geklappt</string>
+    <string name="chat_newnum_failed_text">Der Server hat die Anfrage nicht angenommen. Versuch es gleich noch einmal.</string>
+    <string name="chat_newnum_loggedout_title">%1$s ist abgemeldet</string>
+    <string name="chat_newnum_loggedout_text">%1$s hat die Verknüpfung beendet, zum Beispiel weil das Gerät am Handy unter „Verknüpfte Geräte“ entfernt wurde. Verknüpfe neu, dann kannst du wieder Chats starten.</string>
+    <string name="chat_newnum_unlinked_title">%1$s ist nicht verknüpft</string>
+    <string name="chat_newnum_unlinked_text">Verknüpfe dein Konto unter „Verknüpfte Dienste“, dann kannst du Chats per Nummer starten.</string>
+    <string name="chat_newnum_locked_title">Von deinen Eltern gesperrt</string>
+    <string name="chat_newnum_locked_text">%1$s ist für dein Konto gerade gesperrt. Neue Chats gehen erst wieder, wenn deine Eltern es freigeben.</string>
+    <string name="chat_newnum_off_title">Neue Chats gehen gerade nicht</string>
+    <string name="chat_newnum_off_text">Die Brücke zu %1$s ist auf diesem Server ausgeschaltet.</string>
+    <string name="chat_newnum_privacy">Zum Prüfen geht die Nummer über deine Brücke an %1$s. GateControl schreibt sie nicht ins Protokoll; gespeichert wird sie nur, wenn du den Chat startest.</string>
+    <string name="chat_newnum_first_line">Neuer Chat über %1$s mit %2$s. %3$s sieht deine Nachrichten in der gewohnten %1$s-App.</string>
+</resources>
