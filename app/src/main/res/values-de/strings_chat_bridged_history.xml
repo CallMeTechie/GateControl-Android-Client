@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Älterer Verlauf über eine Brücke, Handy-Hinweis (Messenger 1.17.0). Die Texte sind die des Messenger-Plugins
+     (server/texts.json, br.hist_*, br.phone_offline*, br.foot_preview_hist, bc.ph_on_request, bc.ph_fetch, common.saved). -->
+<resources>
+    <string name="chat_linked_hist_title">Älteren Verlauf laden</string>
+    <string name="chat_linked_hist_off">Aus</string>
+    <string name="chat_linked_hist_all">Alles</string>
+    <plurals name="chat_linked_hist_days">
+        <item quantity="one">Letzter %1$d Tag</item>
+        <item quantity="other">Letzte %1$d Tage</item>
+    </plurals>
+    <string name="chat_linked_hist_sub">Nur beim Verknüpfen · %1$s</string>
+    <string name="chat_linked_hist_admin_off">Auf diesem Server abgeschaltet</string>
+    <plurals name="chat_linked_hist_pending">
+        <item quantity="one">%1$d kommt heute Nacht</item>
+        <item quantity="other">%1$d kommen heute Nacht</item>
+    </plurals>
+    <string name="chat_linked_hist_saved">Gespeichert</string>
+    <string name="chat_linked_foot_preview_hist">Chats mit Kontakten des Dienstes erscheinen in deiner Chatliste, sobald dort eine neue Nachricht eintrifft; älteren Verlauf (oben gewählt) übernimmt GateControl nachts. Texte, Antworten, Reaktionen, Bilder, Videos, Sprachnachrichten und Dateien gehen in beide Richtungen.</string>
+    <plurals name="chat_linked_phone_offline">
+        <item quantity="one">Handy seit %1$d Tag nicht gesehen. Öffne %2$s auf deinem Handy – nach etwa 14 Tagen ohne Handy trennt %2$s die Verknüpfung.</item>
+        <item quantity="other">Handy seit %1$d Tagen nicht gesehen. Öffne %2$s auf deinem Handy – nach etwa 14 Tagen ohne Handy trennt %2$s die Verknüpfung.</item>
+    </plurals>
+    <plurals name="chat_linked_phone_offline_now">
+        <item quantity="one">Handy seit %1$d Tag nicht gesehen. Öffne %2$s auf deinem Handy – %2$s kann die Verknüpfung jederzeit trennen.</item>
+        <item quantity="other">Handy seit %1$d Tagen nicht gesehen. Öffne %2$s auf deinem Handy – %2$s kann die Verknüpfung jederzeit trennen.</item>
+    </plurals>
+    <string name="chat_linked_err_invalid">Ungültige Eingabe.</string>
+    <string name="chat_bridged_ph_on_request">%1$s – älterer Verlauf</string>
+    <string name="chat_bridged_ph_fetch">Laden</string>
+    <string name="chat_bridged_fetch_invalid">Diese Datei lässt sich nicht mehr laden.</string>
+</resources>

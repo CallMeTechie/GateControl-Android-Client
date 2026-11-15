@@ -105,6 +105,22 @@ object ChatBridges {
         return n.state == NET_RUNNING && (l.state == LOGIN_LOGGED_OUT || l.state == LOGIN_ERROR || l.state == LOGIN_UNKNOWN)
     }
 
+    /**
+     * Messenger 1.17 „Brücke veraltet“: the bridge runs an older program than GateControl expects ([ChatBridgeNetwork.outdated])
+     * or WhatsApp turns its version away ([ChatBridgeNetwork.clientOutdated]) — both shown the same way.
+     */
+    fun stale(n: ChatBridgeNetwork): Boolean = n.outdated || n.clientOutdated
+
+    /**
+     * Messenger 1.17: the warning under the row of a service — the phone was not seen for [ChatBridgePhone.days] days.
+     * Only while there is a link that was not signed out (the link still works: the login stays `connected`).
+     */
+    fun phoneWarning(n: ChatBridgeNetwork): ChatBridgePhone? {
+        val p = n.phone?.takeIf { it.offline && it.days != null } ?: return null
+        val l = mainLogin(n) ?: return null
+        return p.takeIf { l.state != LOGIN_LOGGED_OUT }
+    }
+
     /** Why a call failed, as the page words it. */
     fun error(r: ChatResult<*>): ChatBridgeError = when (r) {
         is ChatResult.Ok -> ChatBridgeError.GENERIC
@@ -119,6 +135,9 @@ object ChatBridges {
             "consent_required" -> ChatBridgeError.CONSENT
             "rate_limited", "http_429" -> ChatBridgeError.RATE_LIMITED
             "forbidden" -> ChatBridgeError.FORBIDDEN
+            // Messenger 1.17 `PUT bridges/history`: switched off meanwhile / a choice the server does not take
+            "feature_off" -> ChatBridgeError.OFF
+            "invalid" -> ChatBridgeError.INVALID
             else -> ChatBridgeError.GENERIC
         }
     }
@@ -144,7 +163,7 @@ val ChatFeatures.linkedServices: Boolean get() = ChatBridges.FEATURE in tokens
 
 enum class ChatBridgeRow { STARTING, UNREACHABLE, LINKED, LOGGED_OUT, ERROR, LOCKED, NONE }
 
-enum class ChatBridgeError { OFFLINE, OFF, UNREACHABLE, UNSUPPORTED, FAILED, EXPIRED, LOCKED, CONSENT, RATE_LIMITED, FORBIDDEN, GENERIC }
+enum class ChatBridgeError { OFFLINE, OFF, UNREACHABLE, UNSUPPORTED, FAILED, EXPIRED, LOCKED, CONSENT, RATE_LIMITED, FORBIDDEN, INVALID, GENERIC }
 
 /** An account linked at a service; [name] is the person's own account there (WhatsApp: their number). */
 class ChatBridgeLogin(val id: String, val name: String, val state: String, val since: String?) {
@@ -171,7 +190,42 @@ data class ChatBridgeNetwork(
     val logins: List<ChatBridgeLogin> = emptyList(),
     /** Messenger 1.16: whether a new chat by number works for the person ([ChatNewChat]); null: the server says nothing. */
     val newChat: ChatBridgeNewChat? = null,
+    /** Messenger 1.17: WhatsApp turns the bridge's version away (a GateControl update helps) — shown like [outdated]. */
+    val clientOutdated: Boolean = false,
+    /** Messenger 1.17: the bridge's warning that the phone was not seen; null: the server says nothing. */
+    val phone: ChatBridgePhone? = null,
 )
+
+/**
+ * Messenger 1.17 `networks[].phone`: the phone with the service's app was not seen for [days] days (at least 12, the
+ * bridge warns from then on); WhatsApp ends the link after about 14 — [leftDays] until then (0: at any time now).
+ */
+data class ChatBridgePhone(val offline: Boolean, val days: Int?, val leftDays: Int?)
+
+/**
+ * Messenger 1.17 `bridges.history`: what of the older messages comes over at a (new) link — [days] `0` nothing,
+ * `30` the last 30 days, `-1` everything WhatsApp hands over. [available] false: the administrator switched it off.
+ * [pending]: so many older messages wait for the night.
+ */
+data class ChatBridgeHistory(
+    val available: Boolean,
+    val days: Int,
+    val default: Int = ChatBridgeHistory.DAYS_30,
+    val options: List<Int> = OPTIONS,
+    val pending: Int = 0,
+) {
+    companion object {
+        const val OFF = 0
+        const val DAYS_30 = 30
+        const val ALL = -1
+        val OPTIONS: List<Int> = listOf(OFF, DAYS_30, ALL)
+
+        /** A choice `PUT bridges/history` takes: off, everything, or a number of days. */
+        fun valid(days: Int): Boolean = days == OFF || days == ALL || days in 1..MAX_DAYS
+
+        const val MAX_DAYS = 3650
+    }
+}
 
 data class ChatBridgesInfo(
     /** False: the bridges are off or not offered (no networks then). */
@@ -179,6 +233,8 @@ data class ChatBridgesInfo(
     /** Where the bridges run: on the server, or on a gateway. */
     val onServer: Boolean = true,
     val networks: List<ChatBridgeNetwork> = emptyList(),
+    /** Messenger 1.17: older messages at a link; null: a server without (the row is left out). */
+    val history: ChatBridgeHistory? = null,
 )
 
 /** The modules of a QR code without a quiet zone: [rows] of `0`/`1`, [size] long and wide. */
@@ -218,7 +274,32 @@ object ChatBridgesJson {
         val o = body?.obj("bridges") ?: return null
         if (o.flag("available") != true) return ChatBridgesInfo(available = false)
         val nets = o.arr("networks")?.mapNotNull { e -> network(e.takeIf { it.isJsonObject }?.asJsonObject) }.orEmpty()
-        return ChatBridgesInfo(available = true, onServer = (o.str("location") ?: "server") == "server", networks = nets.take(MAX_NETWORKS))
+        return ChatBridgesInfo(available = true, onServer = (o.str("location") ?: "server") == "server", networks = nets.take(MAX_NETWORKS), history = history(o.obj("history")))
+    }
+
+    /** `{ history }`, the answer of `PUT bridges/history`. */
+    fun historyOf(o: JsonObject?): ChatBridgeHistory? = history(o?.obj("history"))
+
+    /** `history: { available, days, default, options, pending }` (Messenger 1.17); null when it is missing or not understood. */
+    fun history(o: JsonObject?): ChatBridgeHistory? {
+        if (o == null) return null
+        val available = o.flag("available") == true
+        val default = o.int("default")?.takeIf { ChatBridgeHistory.valid(it) } ?: ChatBridgeHistory.DAYS_30
+        val options = o.arr("options")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt?.takeIf { ChatBridgeHistory.valid(it) } }
+            ?.distinct()?.take(MAX_OPTIONS)?.takeIf { it.isNotEmpty() } ?: ChatBridgeHistory.OPTIONS
+        val days = o.int("days")?.takeIf { ChatBridgeHistory.valid(it) } ?: default
+        return ChatBridgeHistory(available, days, default, options, pending = o.int("pending")?.coerceAtLeast(0) ?: 0)
+    }
+
+    /** `phone: { offline, days, leftDays }` (Messenger 1.17). */
+    private fun phone(o: JsonObject?): ChatBridgePhone? {
+        if (o == null) return null
+        val offline = o.flag("offline") == true
+        return ChatBridgePhone(
+            offline = offline,
+            days = if (offline) o.int("days")?.takeIf { it in 0..MAX_PHONE_DAYS } else null,
+            leftDays = if (offline) o.int("leftDays")?.takeIf { it in 0..MAX_PHONE_DAYS } else null,
+        )
     }
 
     private fun network(o: JsonObject?): ChatBridgeNetwork? {
@@ -236,6 +317,8 @@ object ChatBridgesJson {
             wantVersion = o.str("wantVersion")?.take(40),
             logins = o.arr("logins")?.mapNotNull { e -> login(e.takeIf { it.isJsonObject }?.asJsonObject) }.orEmpty().take(MAX_LOGINS),
             newChat = ChatNewChat.newChat(o.obj("newChat")),
+            clientOutdated = o.flag("clientOutdated") == true,
+            phone = phone(o.obj("phone")),
         )
     }
 
@@ -294,4 +377,6 @@ object ChatBridgesJson {
 
     private const val MAX_NETWORKS = 8
     private const val MAX_LOGINS = 8
+    private const val MAX_OPTIONS = 8
+    private const val MAX_PHONE_DAYS = 10_000
 }

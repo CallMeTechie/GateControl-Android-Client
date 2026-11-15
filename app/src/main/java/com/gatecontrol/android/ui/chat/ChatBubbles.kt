@@ -36,10 +36,15 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +55,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontStyle
@@ -100,6 +106,8 @@ class BubbleActions(
     val onQuote: (Long) -> Unit,
     /** Messenger 1.14: "Erneut senden" of an own message the bridge did not take. */
     val onResend: (ChatMessage) -> Unit = {},
+    /** Messenger 1.17: "Laden" of a file of the older history; the second argument is called once the answer is there. */
+    val onFetch: (ChatMessage, () -> Unit) -> Unit = { _, done -> done() },
     /** Messenger 1.4 cards: polls, events, arrival, actions, plugin cards. */
     val rich: RichActions = RichActions(),
 )
@@ -191,7 +199,10 @@ fun MessageBubble(
                 // Messenger 1.14: a file or kind of message that has not crossed the bridge — a line says it arrived;
                 // 1.15: "wird geladen …" while the server fetches it, why it will not come, a location to the map.
                 m.bridge?.placeholder?.takeIf { !m.deleted }?.let { ph ->
-                    BridgePlaceholderLine(ph, bridge?.label ?: stringResource(R.string.chat_linked_title), colors.meta, hasText = !m.text.isNullOrBlank()) {
+                    BridgePlaceholderLine(
+                        ph, bridge?.label ?: stringResource(R.string.chat_linked_title), colors.meta, hasText = !m.text.isNullOrBlank(),
+                        onFetch = { done -> actions.onFetch(m, done) },
+                    ) {
                         actions.onOpenLocation(m.copy(location = com.gatecontrol.android.chat.ChatLocation(ph.lat ?: 0.0, ph.lon ?: 0.0, m.text?.takeIf { it.isNotBlank() })))
                     }
                 }
@@ -286,7 +297,8 @@ fun MessageBubble(
 
 /**
  * The line of a file that has not crossed a bridge: kind and name, then "wird geladen …" (pulsing), why it did not
- * come or "folgt"; a location with its place offers the map ([onMap]).
+ * come or "folgt"; a location with its place offers the map ([onMap]); a file of the older history (Messenger 1.17)
+ * "Laden" ([onFetch], once until the answer is there).
  */
 @Composable
 private fun BridgePlaceholderLine(
@@ -294,9 +306,12 @@ private fun BridgePlaceholderLine(
     network: String,
     tint: Color,
     hasText: Boolean,
+    onFetch: (done: () -> Unit) -> Unit = { it() },
     onMap: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    // asked for: no second tap until the server answered (then the line says "wird geladen …", or the button returns)
+    var asking by remember(ph.state) { mutableStateOf(false) }
     val infected = ph.failed && ph.reason == com.gatecontrol.android.chat.ChatBridgeChat.PH_REASON_INFECTED
     val alpha = if (ph.loading) {
         val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "ph")
@@ -332,6 +347,25 @@ private fun BridgePlaceholderLine(
                 style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                 color = tint,
             )
+        }
+        if (ph.onRequest) {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(role = Role.Button, enabled = !asking) { asking = true; onFetch { asking = false } }
+                    .heightIn(min = 32.dp)
+                    .padding(top = 6.dp, bottom = 4.dp)
+                    .testTag("ph-fetch"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    stringResource(R.string.chat_bridged_ph_fetch),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline),
+                    color = if (asking) tint else MaterialTheme.colorScheme.primary,
+                )
+                if (asking) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = tint)
+            }
         }
         if (ph.geo) {
             Text(

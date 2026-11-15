@@ -1455,6 +1455,15 @@ private fun openPushTarget(
                 }
             }
         }
+        // Messenger 1.17: the phone warning — the tab, then „Verknüpfte Dienste“ (Back leads to the chats)
+        is PushNavTarget.ChatLinked -> when {
+            chats -> {
+                navigateToTab(Screen.Chats.create())
+                navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.LINKED)) { launchSingleTop = true }
+            }
+            target.messageId != null -> navController.navigate(Screen.NotificationDetail.create(target.messageId))
+            else -> navigateToTab(Screen.Vpn.route)
+        }
         is PushNavTarget.ChatShare -> when {
             !chats -> ChatShareHandover.clear()
             target.conversationId == null || layout.twoPane -> openTab(Screen.Chats.create(conv = target.conversationId, share = true))

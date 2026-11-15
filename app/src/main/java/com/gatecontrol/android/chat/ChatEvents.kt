@@ -69,6 +69,12 @@ sealed interface ChatEvent {
     data class ConversationUpdate(override val conversationId: Long, val reasons: Set<String>) : ChatEvent {
         /** No longer managed by a plugin (1.1.0): a normal group now, its info editable again. */
         val released: Boolean get() = REASON_RELEASED in reasons
+
+        /**
+         * Messenger 1.17: older messages came into the chat over a bridge (at night, without push and without
+         * `message.new`, already read) — its messages are loaded again.
+         */
+        val history: Boolean get() = REASON_HISTORY in reasons
     }
 
     data class ConversationRemove(override val conversationId: Long) : ChatEvent
@@ -92,6 +98,7 @@ sealed interface ChatEvent {
     companion object {
         const val REASON_DELETED = "deleted"
         const val REASON_RELEASED = "released"
+        const val REASON_HISTORY = "history"
     }
 }
 

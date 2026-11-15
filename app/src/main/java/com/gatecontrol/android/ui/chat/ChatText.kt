@@ -69,6 +69,8 @@ object ChatText {
         if (p.geo) return what
         return when {
             p.loading -> ctx.getString(R.string.chat_bridged_ph_loading, what)
+            // Messenger 1.17: a file of the older history — "Laden" fetches it
+            p.onRequest -> ctx.getString(R.string.chat_bridged_ph_on_request, what)
             p.failed -> ctx.getString(
                 when (p.reason) {
                     "too_large" -> R.string.chat_bridged_ph_failed_too_large

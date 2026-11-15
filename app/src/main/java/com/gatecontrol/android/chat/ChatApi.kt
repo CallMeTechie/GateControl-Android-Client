@@ -228,6 +228,12 @@ class ChatApi @Inject constructor(
      */
     suspend fun resend(messageId: Long): ChatResult<ChatMessage> = post("messages/$messageId/resend", parse = ChatJson::messageOf)
 
+    /**
+     * `POST messages/:id/fetch` (Messenger 1.17): a file of the older history of a bridged chat, fetched now because the
+     * person asks for it → the message, its placeholder then `loading` (the file follows with `message.update`).
+     */
+    suspend fun fetchBridged(messageId: Long): ChatResult<ChatMessage> = post("messages/$messageId/fetch", parse = ChatJson::messageOf)
+
     suspend fun edit(messageId: Long, text: String): ChatResult<ChatMessage> =
         patch("messages/$messageId", JsonObject().apply { addProperty("text", text) }, ChatJson::messageOf)
 
@@ -270,6 +276,15 @@ class ChatApi @Inject constructor(
 
     /** `GET bridges` → the services and the viewer's own links. */
     suspend fun bridges(): ChatResult<ChatBridgesInfo> = get("bridges", parse = ChatBridgesJson::info)
+
+    /**
+     * `PUT bridges/history { days }` (Messenger 1.17): what of the older messages comes over at the next link — `0`,
+     * `30` or `-1` (everything) → the choice as it stands now.
+     */
+    suspend fun bridgeHistory(days: Int): ChatResult<ChatBridgeHistory> {
+        if (!ChatBridgeHistory.valid(days)) return noPath()
+        return put("bridges/history", JsonObject().apply { addProperty("days", days) }) { o -> ChatBridgesJson.historyOf(o) }
+    }
 
     /**
      * `POST bridges/:network/resolve { number }` (Messenger 1.15) — is this number at the service, under which name?

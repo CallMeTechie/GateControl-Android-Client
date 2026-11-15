@@ -343,7 +343,9 @@ class PushNotifier @Inject constructor(
         // … and „Datei öffnen“ of the reminder of a deadline in Drive the file's page in the app (1.7.0)
         val notizenList = com.gatecontrol.android.notizen.NotizenPush.listButton(com.gatecontrol.android.notizen.NotizenPush.listDestination(message), action?.id)
             ?: com.gatecontrol.android.notizen.NotizenPush.fileButton(com.gatecontrol.android.notizen.NotizenPush.fileDestination(message), action?.id)
-        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest, notizenDest, notizenList).setData(uri(message, slot))
+        // Messenger 1.17: the phone warning of a linked service opens „Verknüpfte Dienste“
+        val chatDest = com.gatecontrol.android.chat.ChatBridgePush.destination(message)
+        val intent = PushOpenActivity.intent(context, message.id, action, familieDest, doorDest, vaultDest, driveDest, mailDest, notizenDest, notizenList, chatDest).setData(uri(message, slot))
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Older history over a bridge, the phone warning (Messenger 1.17.0). The texts are the messenger plugin's
+     (server/texts.json, br.hist_*, br.phone_offline*, br.foot_preview_hist, bc.ph_on_request, bc.ph_fetch, common.saved). -->
+<resources>
+    <string name="chat_linked_hist_title">Load older history</string>
+    <string name="chat_linked_hist_off">Off</string>
+    <string name="chat_linked_hist_all">Everything</string>
+    <plurals name="chat_linked_hist_days">
+        <item quantity="one">Last %1$d day</item>
+        <item quantity="other">Last %1$d days</item>
+    </plurals>
+    <string name="chat_linked_hist_sub">Only when linking · %1$s</string>
+    <string name="chat_linked_hist_admin_off">Switched off on this server</string>
+    <plurals name="chat_linked_hist_pending">
+        <item quantity="one">%1$d arrives tonight</item>
+        <item quantity="other">%1$d arrive tonight</item>
+    </plurals>
+    <string name="chat_linked_hist_saved">Saved</string>
+    <string name="chat_linked_foot_preview_hist">Chats with contacts of the service appear in your chat list as soon as a new message arrives there; GateControl takes older history (chosen above) over at night. Texts, replies, reactions, pictures, videos, voice messages and files go both ways.</string>
+    <plurals name="chat_linked_phone_offline">
+        <item quantity="one">Phone not seen for %1$d day. Open %2$s on your phone – after about 14 days without the phone %2$s ends the link.</item>
+        <item quantity="other">Phone not seen for %1$d days. Open %2$s on your phone – after about 14 days without the phone %2$s ends the link.</item>
+    </plurals>
+    <plurals name="chat_linked_phone_offline_now">
+        <item quantity="one">Phone not seen for %1$d day. Open %2$s on your phone – %2$s may end the link at any time.</item>
+        <item quantity="other">Phone not seen for %1$d days. Open %2$s on your phone – %2$s may end the link at any time.</item>
+    </plurals>
+    <string name="chat_linked_err_invalid">Invalid input.</string>
+    <string name="chat_bridged_ph_on_request">%1$s – older history</string>
+    <string name="chat_bridged_ph_fetch">Load</string>
+    <string name="chat_bridged_fetch_invalid">This file can no longer be loaded.</string>
+</resources>

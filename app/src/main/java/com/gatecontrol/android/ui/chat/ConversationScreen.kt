@@ -273,6 +273,8 @@ fun ConversationScreen(
                 ConversationNotice.RecordingFailed -> resources.getString(R.string.chat_rec_failed)
                 ConversationNotice.Left -> resources.getString(R.string.chat_left)
                 is ConversationNotice.NotSent -> resources.getString(R.string.chat_bridged_failed) + " " + ChatText.bridgeReason(context, n.reason)
+                is ConversationNotice.FetchFailed ->
+                    if (n.code == "invalid") resources.getString(R.string.chat_bridged_fetch_invalid) else ChatText.actionError(context, n.code)
                 is ConversationNotice.Done -> if (n.arg != null) resources.getString(n.res, n.arg) else resources.getString(n.res)
                 is ConversationNotice.ArrivalStarted -> {
                     // The position goes out from a foreground service while the arrival is live.
@@ -427,6 +429,7 @@ fun ConversationScreen(
             onReact = viewModel::react,
             onQuote = jumpTo,
             onResend = viewModel::resend,
+            onFetch = viewModel::fetchOld,
             rich = RichActions(
                 onVote = { m, ids -> viewModel.vote(m, ids) },
                 onAddOption = { addOptionFor = it },

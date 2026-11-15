@@ -885,6 +885,42 @@ gesperrt; dann sagt die Seite warum), nicht für ein Kind, dessen Eltern
   Protokoll, nicht in `toString()`. Ein Satz auf der Seite sagt, dass sie
   zum Prüfen über die Brücke an WhatsApp geht.
 
+### Messenger 1.17 – älterer Verlauf, Handy-Hinweis, „Brücke veraltet“
+
+Mit Messenger 1.17 und einem GateControl-Server, der älteren Verlauf über
+die Brücke kann (`features.bridge_history`, nur für Personen mit
+verknüpftem Dienst), gilt:
+
+- **„Verknüpfte Dienste“ › „Älteren Verlauf laden“** (`bridges.history`):
+  eine Zeile unter den Diensten, über „Läuft auf“ – „Nur beim Verknüpfen ·
+  Letzte 30 Tage“ (dazu „· N kommen heute Nacht“, solange etwas wartet).
+  Antippen öffnet die Wahl Aus / Letzte 30 Tage / Alles (`PUT
+  bridges/history`). Die Wahl wirkt beim (nächsten) Verknüpfen; weniger
+  Tage verwerfen sofort, was noch wartet. Hat der Administrator es
+  abgeschaltet, sagt die Zeile „Auf diesem Server abgeschaltet“, ohne Wahl;
+  ein Server ohne Verlauf zeigt die Zeile nicht. Der Satz unten nennt dann
+  den nächtlichen Verlauf.
+- **Verlauf im Chat:** ältere Nachrichten kommen nachts in kleinen Portionen,
+  ohne Mitteilung und als gelesen. Je Portion lädt die App den Chat neu
+  (`conversation.update` mit `reason: history`): der offene Chat bleibt, wo
+  er steht, sonst wird der Zwischenspeicher verworfen. Die Nachrichten
+  stehen an ihrer eigenen Zeit vor den neueren.
+- **Dateien aus dem Verlauf nur auf Abruf:** „Bild · IMG-2041.jpg – älterer
+  Verlauf“ mit „Laden“ (`POST messages/:id/fetch`). Danach „wird geladen …“
+  wie jede Datei über die Brücke; hat WhatsApp sie nicht mehr, „nicht mehr
+  da; in WhatsApp ansehen“. Ein zweites Tippen fragt nicht doppelt; was
+  nichts mehr zu holen hat, sagt „Diese Datei lässt sich nicht mehr laden.“
+- **Handy-Hinweis:** war das Handy mit WhatsApp 12 Tage und länger nicht
+  online, steht unter der Zeile des Dienstes „Handy seit N Tagen nicht
+  gesehen …“ (die Verknüpfung arbeitet noch). Dazu kommt einmal eine
+  Mitteilung im Thema „Verknüpfte Dienste“ (eigener Kanal und Schalter wie
+  jedes Plugin-Thema); Antippen öffnet „Verknüpfte Dienste“.
+- **„Brücke veraltet“** auch, wenn WhatsApp die Version der Brücke ablehnt
+  (`clientOutdated`) – Hinweis, Pille „Veraltet“ und „Das Aktualisieren
+  macht dein Administrator“ wie bisher.
+- **Ältere Server** ändern nichts; `bridge_history` steht in der Liste der
+  bekannten Wörter (kein Update-Hinweis).
+
 ---
 
 ## Vault (Plugin `gatecontrol-vault` 1.0)

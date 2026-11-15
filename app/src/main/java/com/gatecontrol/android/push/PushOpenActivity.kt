@@ -152,6 +152,7 @@ class PushOpenActivity : ComponentActivity() {
         val driveDest = intent.getStringExtra(EXTRA_DRIVE_DEST)
         val mailDest = intent.getStringExtra(EXTRA_MAIL_DEST)
         val notizenDest = intent.getStringExtra(EXTRA_NOTIZEN_DEST)
+        val chatDest = intent.getStringExtra(EXTRA_CHAT_DEST)
         val navTarget = when {
             actionType == PushActionType.OPEN_APP_ROUTE -> PushNavTarget.forRoute(target, id, doorDest)
             familieDest != null && actionType == null -> PushNavTarget.Familie(familieDest, id)
@@ -160,6 +161,7 @@ class PushOpenActivity : ComponentActivity() {
             driveDest != null && actionType == null -> PushNavTarget.Drive(driveDest, id)
             mailDest != null && actionType == null -> PushNavTarget.Mail(mailDest, id)
             notizenDest != null && actionType == null -> PushNavTarget.Notizen(notizenDest, id)
+            chatDest == com.gatecontrol.android.chat.ChatBridgePush.DEEP_LINK && actionType == null -> PushNavTarget.ChatLinked(id)
             else -> PushNavTarget.Detail(id)
         }
         PushNavigation.request(navTarget)
@@ -185,6 +187,7 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_CHAT = "com.gatecontrol.android.push.extra.CHAT"
         private const val EXTRA_CHAT_MESSAGE = "com.gatecontrol.android.push.extra.CHAT_MESSAGE"
         private const val EXTRA_CHAT_OPEN = "com.gatecontrol.android.push.extra.CHAT_OPEN"
+        private const val EXTRA_CHAT_DEST = "com.gatecontrol.android.push.extra.CHAT_DEST"
 
         /** Opens the chats, in [conversationId] when given (a chat notification). */
         fun chatIntent(context: Context, conversationId: Long?, messageId: Long? = null, open: String? = null): Intent =
@@ -236,9 +239,11 @@ class PushOpenActivity : ComponentActivity() {
             mailDest: String? = null,
             notizenDest: String? = null,
             notizenList: String? = null,
+            chatDest: String? = null,
         ): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_ID, id)
+                .apply { if (chatDest != null) putExtra(EXTRA_CHAT_DEST, chatDest) }
                 .apply { if (notizenList != null) putExtra(EXTRA_NOTIZEN_LIST, notizenList) }
                 .apply { if (notizenDest != null) putExtra(EXTRA_NOTIZEN_DEST, notizenDest) }
                 .apply { if (driveDest != null) putExtra(EXTRA_DRIVE_DEST, driveDest) }

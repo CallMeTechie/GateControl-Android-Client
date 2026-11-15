@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -57,12 +58,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.chat.ChatBridgeError
+import com.gatecontrol.android.chat.ChatBridgeHistory
 import com.gatecontrol.android.chat.ChatBridgeNetwork
 import com.gatecontrol.android.chat.ChatBridgeRow
 import com.gatecontrol.android.chat.ChatBridges
 import com.gatecontrol.android.chat.ChatBridgesInfo
 import com.gatecontrol.android.chat.ChatQrMatrix
 import com.gatecontrol.android.ui.chat.ConfirmDialog
+import com.gatecontrol.android.ui.chat.OptionDialog
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChip
@@ -97,6 +100,8 @@ class LinkedActions(
     val submitPhone: (String) -> Unit = {},
     val retry: () -> Unit = {},
     val copyCode: (String) -> Unit = {},
+    /** Messenger 1.17: the choice of older messages (`0`, `30`, `-1`). */
+    val setHistory: (Int) -> Unit = {},
 )
 
 /**
@@ -121,6 +126,7 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
                 is LinkedNotice.Linked -> res.getString(R.string.chat_linked_linked, res.getString(networkName(n.network)))
                 is LinkedNotice.Unlinked -> res.getString(R.string.chat_linked_unlinked, res.getString(networkName(n.network)))
                 is LinkedNotice.Failed -> res.getString(errorText(n.error))
+                LinkedNotice.HistorySaved -> res.getString(R.string.chat_linked_hist_saved)
             }
             Toast.makeText(ctx, text, Toast.LENGTH_LONG).show()
         }
@@ -138,6 +144,7 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
             selectFlow = viewModel::selectFlow,
             submitPhone = viewModel::submitPhone,
             retry = viewModel::retry,
+            setHistory = viewModel::setHistory,
             copyCode = { code ->
                 // marked sensitive (no preview on Android 13+) and cleared again after a minute
                 VaultClipboard.copy(ctx, code, secret = true, seconds = 60)
@@ -176,6 +183,7 @@ internal fun errorText(e: ChatBridgeError): Int = when (e) {
     ChatBridgeError.CONSENT -> R.string.chat_linked_err_consent
     ChatBridgeError.RATE_LIMITED -> R.string.chat_err_rate_limited
     ChatBridgeError.FORBIDDEN -> R.string.chat_linked_err_forbidden
+    ChatBridgeError.INVALID -> R.string.chat_linked_err_invalid
     ChatBridgeError.GENERIC -> R.string.chat_err_generic
 }
 
@@ -200,7 +208,7 @@ fun LinkedServicesContent(ui: LinkedUiState, actions: LinkedActions, chats: Bool
                 GcOutlineButton(text = stringResource(R.string.chat_retry), onClick = actions.refresh, icon = GcIcons.Refresh)
             }
             !info.available || info.networks.isEmpty() -> Muted(stringResource(R.string.chat_linked_none_offered))
-            else -> Overview(info, ui.unlinking, actions, chats, media)
+            else -> Overview(info, ui.unlinking, actions, chats, media, historySaving = ui.historySaving)
         }
     }
 }
@@ -236,8 +244,9 @@ private fun Note(text: String, tone: GcTone = GcTone.Info, lock: Boolean = false
 // ─── overview ───────────────────────────────────────────────────────
 
 @Composable
-private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedActions, chats: Boolean, media: Boolean = false) {
-    val outdated = info.networks.filter { it.outdated }
+private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedActions, chats: Boolean, media: Boolean = false, historySaving: Boolean = false) {
+    // Messenger 1.17: also when WhatsApp turns the bridge's version away (`clientOutdated`)
+    val outdated = info.networks.filter(ChatBridges::stale)
     Muted(stringResource(R.string.chat_linked_lead))
     outdated.firstOrNull()?.let { Note(stringResource(R.string.chat_linked_outdated_banner, stringResource(networkName(it.id))), GcTone.Warn) }
     GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
@@ -247,6 +256,11 @@ private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedA
         }
     }
     GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        // Messenger 1.17: under the services, above where they run — only on a server that has older history
+        info.history?.let { h ->
+            HistoryRow(h, historySaving, actions)
+            GcRowDivider()
+        }
         GcListRow(
             title = stringResource(R.string.chat_linked_runs_on),
             description = stringResource(if (info.onServer) R.string.chat_linked_runs_on_server else R.string.chat_linked_runs_on_gateway) + " · " +
@@ -259,8 +273,63 @@ private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedA
     }
     if (outdated.isNotEmpty()) Small(stringResource(R.string.chat_linked_outdated_hint))
     Small(stringResource(R.string.chat_linked_foot_unlink))
-    // Messenger 1.15 (`bridge_media`): files cross too
-    Note(stringResource(if (chats && media) R.string.chat_linked_foot_chats_media else if (chats) R.string.chat_linked_foot_chats else R.string.chat_linked_foot_preview), lock = true)
+    // Messenger 1.15 (`bridge_media`): files cross too; 1.17 (`history`): older history at night
+    Note(
+        stringResource(
+            when {
+                info.history != null -> R.string.chat_linked_foot_preview_hist
+                chats && media -> R.string.chat_linked_foot_chats_media
+                chats -> R.string.chat_linked_foot_chats
+                else -> R.string.chat_linked_foot_preview
+            },
+        ),
+        lock = true,
+    )
+}
+
+/** The words of a choice of older messages: „Aus“, „Letzte 30 Tage“, „Alles“. */
+@Composable
+internal fun historyLabel(days: Int): String = when {
+    days == ChatBridgeHistory.OFF -> stringResource(R.string.chat_linked_hist_off)
+    days < 0 -> stringResource(R.string.chat_linked_hist_all)
+    else -> pluralStringResource(R.plurals.chat_linked_hist_days, days, days)
+}
+
+/**
+ * Messenger 1.17 „Älteren Verlauf laden · Nur beim Verknüpfen · Letzte 30 Tage“: the choice on the right opens the
+ * options; switched off by the administrator the row only says so.
+ */
+@Composable
+private fun HistoryRow(h: ChatBridgeHistory, saving: Boolean, actions: LinkedActions) {
+    var choosing by remember { mutableStateOf(false) }
+    val choice = historyLabel(h.days)
+    val sub = if (!h.available) {
+        stringResource(R.string.chat_linked_hist_admin_off)
+    } else {
+        stringResource(R.string.chat_linked_hist_sub, choice) +
+            (if (h.pending > 0) " · " + pluralStringResource(R.plurals.chat_linked_hist_pending, h.pending, h.pending) else "")
+    }
+    GcListRow(
+        title = stringResource(R.string.chat_linked_hist_title),
+        description = sub,
+        modifier = Modifier.testTag("linked-history"),
+        onClick = if (h.available && !saving) ({ choosing = true }) else null,
+        trailing = if (!h.available) null else ({
+            if (saving) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = GateControlTheme.extraColors.accentText)
+            } else {
+                Text(choice, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = GateControlTheme.extraColors.accentText)
+            }
+        }),
+    )
+    if (choosing) {
+        OptionDialog(
+            stringResource(R.string.chat_linked_hist_title),
+            h.options.map { it to historyLabel(it) },
+            h.days,
+            { d -> choosing = false; actions.setHistory(d) },
+        ) { choosing = false }
+    }
 }
 
 @Composable
@@ -298,7 +367,7 @@ private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActio
                 ChatBridgeRow.STARTING -> GcChip(stringResource(R.string.chat_linked_pill_starting), tone = GcTone.Warn, small = true)
                 ChatBridgeRow.UNREACHABLE -> GcChip(stringResource(R.string.chat_linked_pill_unreachable), tone = GcTone.Warn, small = true)
                 ChatBridgeRow.LINKED ->
-                    if (n.outdated) GcChip(stringResource(R.string.chat_linked_pill_outdated), tone = GcTone.Warn, small = true)
+                    if (ChatBridges.stale(n)) GcChip(stringResource(R.string.chat_linked_pill_outdated), tone = GcTone.Warn, small = true)
                     else GcChip(stringResource(R.string.chat_linked_pill_linked), tone = GcTone.Ok, small = true)
                 ChatBridgeRow.LOGGED_OUT -> GcChip(stringResource(R.string.chat_linked_pill_logged_out), tone = GcTone.Error, small = true)
                 ChatBridgeRow.ERROR -> GcChip(stringResource(R.string.chat_linked_pill_error), tone = GcTone.Error, small = true)
@@ -313,6 +382,19 @@ private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActio
         ChatBridgeRow.LINKED, ChatBridgeRow.ERROR ->
             GcOutlineButton(text = stringResource(R.string.chat_linked_unlink), onClick = { actions.unlink(n.id) }, modifier = pad, loading = busy)
         else -> Unit
+    }
+    // Messenger 1.17: the phone was not seen for 12 days and more — WhatsApp ends the link after about 14
+    ChatBridges.phoneWarning(n)?.let { p ->
+        val days = p.days ?: 0
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp).testTag("linked-phone-${n.id}")) {
+            Note(
+                pluralStringResource(
+                    if ((p.leftDays ?: 0) > 0) R.plurals.chat_linked_phone_offline else R.plurals.chat_linked_phone_offline_now,
+                    days, days, name,
+                ),
+                GcTone.Warn,
+            )
+        }
     }
     // signed out or failed: a new code is enough (the notes were confirmed before)
     if (ChatBridges.relinkOffered(n)) {
