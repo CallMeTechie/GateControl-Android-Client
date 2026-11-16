@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.124.0] - 2026-11-16
+
+### Features
+- Signal-Brücke (Brücken Stufe 7a) – Logo, Verknüpfen über Portal/Windows, Erkennung je Dienst (#244)
+
+---
+
 ## [1.123.0] - 2026-11-16
 
 ### Features
