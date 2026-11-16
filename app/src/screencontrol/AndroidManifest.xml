@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fernzugriff, stage 6: „GateControl-Fernsteuerung“ — the accessibility service with which a helper operates this
+     phone during a screen sharing the person allowed with „Ansehen und steuern“. ONLY the GitHub build
+     (gc.distribution=github) merges this file, the service's code (src/screencontrol/java) and its configuration
+     (src/screencontrol/res); the Google Play build never has any of it (decision 4: Play only shows the screen, see
+     docs/GOOGLE_PLAY.md). BIND_ACCESSIBILITY_SERVICE: only Android itself may bind it; exported because Android binds
+     it from outside, the permission keeps everybody else out. No isAccessibilityTool (it is no aid for disabilities). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <service
+            android:name="com.gatecontrol.android.remote.control.GcScreenControlService"
+            android:label="@string/screen_control_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/gc_screen_control" />
+        </service>
+    </application>
+</manifest>

@@ -65,4 +65,19 @@ class RemoteJsonTest {
         assertNull(RemoteJson.signal(null))
         assertEquals("plugin:gatecontrol-remote:remote_signal", RemoteJson.SIGNAL_TOPIC)
     }
+
+    @Test
+    fun `stage 6 — a request for control only where this build can control, the granted mode of the answer`() {
+        val asked = com.google.gson.JsonParser.parseString(
+            """{"requestId":"rq_abcdefgh12","from":{"name":"Tom"},"mode":"control","kind":"screen","expiresAt":"2026-11-16T10:00:00Z"}""",
+        ).asJsonObject
+        assertEquals(ScreenControl.supported, RemoteJson.request(asked)!!.control)
+        val view = com.google.gson.JsonParser.parseString(
+            """{"requestId":"rq_abcdefgh12","from":{"name":"Tom"},"mode":"view","kind":"screen","expiresAt":"2026-11-16T10:00:00Z"}""",
+        ).asJsonObject
+        assertEquals(false, RemoteJson.request(view)!!.control)
+        val granted = com.google.gson.JsonParser.parseString("""{"request":{"state":"allowed","mode":"control"}}""").asJsonObject
+        assertEquals(ScreenControl.supported, RemoteJson.grantedControl(granted))
+        assertEquals(false, RemoteJson.grantedControl(com.google.gson.JsonParser.parseString("""{"request":{"mode":"view"}}""").asJsonObject))
+    }
 }

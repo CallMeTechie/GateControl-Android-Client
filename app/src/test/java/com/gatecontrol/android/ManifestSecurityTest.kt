@@ -142,6 +142,55 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `screen control only in the GitHub build, bindable by Android only, no accessibility tool`() {
+        // decision 4: the Play build only shows the screen — nothing of the accessibility service in the main manifest,
+        // the main sources or the main resources
+        assertTrue(components("service").none { it.androidAttr("permission") == "android.permission.BIND_ACCESSIBILITY_SERVICE" })
+        assertTrue(components("service").none { it.androidAttr("name").endsWith("GcScreenControlService") })
+        val mainSrc = moduleFile("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        assertTrue(mainSrc.none { it.readText().contains(": AccessibilityService()") }, "no AccessibilityService in main")
+        assertTrue(mainSrc.none { it.readText().contains("import android.accessibilityservice.") }, "no accessibility API in main")
+        assertFalse(moduleFile("src/main/res/xml").listFiles().orEmpty().any { it.readText().contains("<accessibility-service") })
+
+        val own = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(moduleFile("src/screencontrol/AndroidManifest.xml")).documentElement
+        assertEquals(0, own.getElementsByTagName("uses-permission").length, "no permission of its own")
+        val services = own.getElementsByTagName("service")
+        assertEquals(1, services.length)
+        val service = services.item(0) as Element
+        assertEquals("com.gatecontrol.android.remote.control.GcScreenControlService", service.androidAttr("name"))
+        assertEquals("android.permission.BIND_ACCESSIBILITY_SERVICE", service.androidAttr("permission"))
+        assertEquals("true", service.androidAttr("exported"), "Android binds it from outside; the permission keeps others out")
+        val actions = service.getElementsByTagName("action")
+        assertEquals(1, actions.length)
+        assertEquals("android.accessibilityservice.AccessibilityService", (actions.item(0) as Element).androidAttr("name"))
+        val meta = service.getElementsByTagName("meta-data").item(0) as Element
+        assertEquals("@xml/gc_screen_control", meta.androidAttr("resource"))
+
+        // the configuration: gestures and the focused field only — never an accessibility tool, no key events
+        val cfg = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(moduleFile("src/screencontrol/res/xml/gc_screen_control.xml")).documentElement
+        assertEquals("accessibility-service", cfg.tagName)
+        assertEquals("true", cfg.androidAttr("canPerformGestures"))
+        assertEquals("", cfg.androidAttr("isAccessibilityTool"), "Play allows isAccessibilityTool only for aids for disabilities")
+        assertEquals("", cfg.androidAttr("canRequestFilterKeyEvents"))
+        assertFalse(cfg.androidAttr("accessibilityFlags").contains("flagRequestFilterKeyEvents"))
+        assertEquals("@string/screen_control_service_description", cfg.androidAttr("description"))
+        // the service class lives next to its manifest, never in main
+        assertTrue(moduleFile("src/screencontrol/java/com/gatecontrol/android/remote/control/GcScreenControlService.kt").exists())
+
+        // Gradle merges manifest, code and resources for the GitHub build only; BuildConfig follows the same rule
+        val gradle = moduleFile("build.gradle.kts").readText()
+        assertTrue(gradle.contains("val gcScreenControl = gcDistribution == \"github\"\n"))
+        assertTrue(gradle.contains("if (gcScreenControl) {"))
+        assertTrue(gradle.contains("variant.sources.manifests.addStaticManifestFile(\"src/screencontrol/AndroidManifest.xml\")"))
+        assertTrue(gradle.contains("variant.sources.kotlin?.addStaticSourceDirectory(\"src/screencontrol/java\")"))
+        assertTrue(gradle.contains("variant.sources.res?.addStaticSourceDirectory(\"src/screencontrol/res\")"))
+        assertTrue(gradle.contains("buildConfigField(\"boolean\", \"SCREEN_CONTROL\", (distribution == \"github\").toString())"))
+        assertFalse(gradle.contains("playScreenControl"), "no switch for Play (decision 4)")
+    }
+
+    @Test
     fun `the files of the phone are handed out per intent only, never the app's own`() {
         val provider = components("provider").firstOrNull { it.androidAttr("name").endsWith("DeviceFileProvider") }
         assertNotNull(provider, "DeviceFileProvider must be declared")

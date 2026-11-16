@@ -37,6 +37,9 @@ android {
         // always, the Play AAB only with -Pgc.playScreenShare=true (after Play's foreground service declaration).
         val screenShare = distribution == "github" || providers.gradleProperty("gc.playScreenShare").getOrElse("false") == "true"
         buildConfigField("boolean", "SCREEN_SHARE", screenShare.toString())
+        // Fernzugriff stage 6 „Android steuern“ (accessibility service, src/screencontrol): the GitHub build only —
+        // decision 4: the Play build only shows the screen, there is no switch for it.
+        buildConfigField("boolean", "SCREEN_CONTROL", (distribution == "github").toString())
 
         vectorDrawables {
             useSupportLibrary = true
@@ -397,11 +400,20 @@ val gcAllFiles = gcDistribution == "github" || providers.gradleProperty("gc.play
 // ScreenShareService) in the GitHub build; in the Play AAB only with -Pgc.playScreenShare=true — after Play accepted
 // the declaration of the foreground service of the type mediaProjection.
 val gcScreenShare = gcDistribution == "github" || providers.gradleProperty("gc.playScreenShare").getOrElse("false") == "true"
+// Fernzugriff stage 6 „Android steuern“: the accessibility service „GateControl-Fernsteuerung“ — its declaration, its code and
+// its configuration (src/screencontrol) only in the GitHub build. The Play AAB has none of it (decision 4: Play only shows the
+// screen); main code reaches the service only through remote/ScreenControl.kt, by the name of its class.
+val gcScreenControl = gcDistribution == "github"
 androidComponents {
     onVariants { variant ->
         if (gcDistribution == "github") variant.sources.manifests.addStaticManifestFile("src/github/AndroidManifest.xml")
         if (gcAllFiles) variant.sources.manifests.addStaticManifestFile("src/allfiles/AndroidManifest.xml")
         if (gcScreenShare) variant.sources.manifests.addStaticManifestFile("src/screenshare/AndroidManifest.xml")
+        if (gcScreenControl) {
+            variant.sources.manifests.addStaticManifestFile("src/screencontrol/AndroidManifest.xml")
+            variant.sources.kotlin?.addStaticSourceDirectory("src/screencontrol/java")
+            variant.sources.res?.addStaticSourceDirectory("src/screencontrol/res")
+        }
     }
 }
 

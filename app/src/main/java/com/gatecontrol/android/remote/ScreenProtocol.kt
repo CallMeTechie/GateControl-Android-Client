@@ -12,6 +12,10 @@ const val REMOTE_PLUGIN = "gatecontrol-remote"
  * The phone is the sender: `hello`, then `config` before the first frame and on every change, binary frames
  * `[1, flags (bit 0 key frame), 0, 0, timestamp µs uint64 BE] + one H.264 access unit (Annex B)`. The server
  * passes them on unchanged. Pure Kotlin — no Android, unit tested.
+ *
+ * Stage 6 (gc.remote version 5, contract „Fernzugriff Stufe 6“): `hello.control` says whether this phone can carry input
+ * out right now; the server answers with the mode in force (`ready.mode`, `{t:'mode'}`) and, only in control, passes the
+ * helper's `{t:'input'}` on ([ScreenInput]). The phone goes down to view with `{t:'mode', mode:'view', reason}` — for good.
  */
 object ScreenProtocol {
     const val PROTOCOL = "gc-screen.v1"
@@ -106,13 +110,15 @@ object ScreenProtocol {
         return w to h
     }
 
-    fun hello(width: Int, height: Int, fps: Int, appOnly: Boolean, appVersion: String): String = JsonObject().apply {
+    fun hello(width: Int, height: Int, fps: Int, appOnly: Boolean, appVersion: String, control: Boolean = false): String = JsonObject().apply {
         addProperty("t", "hello")
         addProperty("role", "sender")
         addProperty("width", width)
         addProperty("height", height)
         addProperty("fps", fps.coerceIn(1, MAX_FPS))
         addProperty("scope", if (appOnly) "app" else "display")
+        // stage 6: this phone can carry input out now (the person allowed control, the accessibility service is bound)
+        addProperty("control", control)
         add("app", JsonObject().apply {
             addProperty("platform", "android")
             addProperty("version", appVersion.take(40))
@@ -132,12 +138,31 @@ object ScreenProtocol {
         if (reason != null) addProperty("reason", reason)
     }.toString()
 
+    /** Down to view (stage 6) — for good; [reason]: sender | service_off | locked. */
+    fun viewOnly(reason: String): String = JsonObject().apply {
+        addProperty("t", "mode")
+        addProperty("mode", "view")
+        addProperty("reason", if (reason in setOf("sender", "service_off", "locked")) reason else "sender")
+    }.toString()
+
+    /** An input could not be carried out (stage 6) — the helper sees why; never what it was. */
+    fun inputFail(kind: String, reason: String): String = JsonObject().apply {
+        addProperty("t", "input_fail")
+        if (kind in setOf("tap", "long", "swipe", "scroll", "key", "text")) addProperty("k", kind)
+        addProperty("reason", if (reason in ScreenInput.FAIL_REASONS) reason else "blocked")
+    }.toString()
+
     const val PING = """{"t":"ping"}"""
     const val BYE = """{"t":"bye"}"""
 
     /** What the server says to the phone. */
     sealed interface Message {
-        data class Ready(val viewerName: String?, val maxBitrate: Int?) : Message
+        /** [control]: the mode in force is control (stage 6). */
+        data class Ready(val viewerName: String?, val maxBitrate: Int?, val control: Boolean = false) : Message
+        /** Stage 6: the mode in force changed — only ever down to view. */
+        data class Mode(val control: Boolean, val reason: String?) : Message
+        /** Stage 6: the helper's input (only in control). */
+        data class Input(val input: ControlInput) : Message
         data class Viewer(val joined: Boolean, val name: String?) : Message
         data object Keyframe : Message
         data class Rate(val bitrate: Int) : Message
@@ -153,7 +178,9 @@ object ScreenProtocol {
         fun int(k: String, src: JsonObject = o): Int? = src.get(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
         fun obj(k: String): JsonObject? = o.get(k)?.takeIf { it.isJsonObject }?.asJsonObject
         return when (str("t")) {
-            "ready" -> Message.Ready(obj("peer")?.let { str("name", it) }?.take(100), obj("limits")?.let { int("maxBitrate", it) })
+            "ready" -> Message.Ready(obj("peer")?.let { str("name", it) }?.take(100), obj("limits")?.let { int("maxBitrate", it) }, str("mode") == "control")
+            "mode" -> Message.Mode(str("mode") == "control", cleanCode(str("reason")))
+            "input" -> ScreenInput.parse(o)?.let { Message.Input(it) }
             "viewer" -> Message.Viewer(str("state") == "joined", str("name")?.take(100))
             "keyframe" -> Message.Keyframe
             "rate" -> int("bitrate")?.let { Message.Rate(it.coerceIn(MIN_BITRATE, MAX_BITRATE)) }

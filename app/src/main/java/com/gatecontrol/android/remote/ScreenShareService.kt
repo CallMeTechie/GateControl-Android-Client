@@ -1,6 +1,7 @@
 package com.gatecontrol.android.remote
 
 import android.app.Activity
+import android.app.KeyguardManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -47,6 +48,11 @@ import javax.inject.Inject
  * `gc-screen.v1` ([ScreenProtocol]); the ongoing notification shows who watches and has „Beenden“. Android's own
  * „Teilen beenden“ ends it as well. A lost connection is tried again with a fresh token for 30 s (the relay keeps
  * the session that long). Never logs a picture, a ref or a token.
+ *
+ * Stage 6 („Ansehen und steuern“): when the person granted control for this request and the accessibility service of the
+ * GitHub build is bound ([ScreenControl]), the hello says `control: true`; the helper's input is carried out only while
+ * the relay's mode in force is control. „Nur ansehen“ (bar, notification, the badge over every app) goes down to view at
+ * once and for good. No input on the lock screen; never logs an input, a text or a coordinate.
  */
 @AndroidEntryPoint
 class ScreenShareService : Service() {
@@ -71,7 +77,12 @@ class ScreenShareService : Service() {
     @Volatile private var viewerJoined = false
     private var viewerName = ""
     private var connectJob: Job? = null
+    private var controlJob: Job? = null
     private var lostSince = 0L
+    // stage 6: granted for this request (until the person takes it away), and in force right now (the relay said control)
+    @Volatile private var controlGranted = false
+    @Volatile private var controlActive = false
+    private val limiter = InputLimiter()
     private var screenReceiver: BroadcastReceiver? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -79,6 +90,10 @@ class ScreenShareService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             finish("sender", sendBye = true)
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_VIEW_ONLY) {
+            viewOnly("sender")
             return START_NOT_STICKY
         }
         if (pending != null) return START_NOT_STICKY
@@ -91,10 +106,11 @@ class ScreenShareService : Service() {
         }
         pending = p
         viewerName = p.viewerName
+        controlGranted = p.control && ScreenControl.supported
         running = true
         // the foreground service of the type mediaProjection must run before getMediaProjection
         try {
-            ServiceCompat.startForeground(this, ScreenShareNotifier.ID_LIVE, notifier.live(viewerName, false, stopIntent()), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            ServiceCompat.startForeground(this, ScreenShareNotifier.ID_LIVE, liveNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
         } catch (e: Exception) {
             Timber.w("Fernzugriff: foreground service refused (%s)", e.javaClass.simpleName)
             finish("failed", sendBye = false)
@@ -105,6 +121,7 @@ class ScreenShareService : Service() {
             return START_NOT_STICKY
         }
         watchScreen()
+        watchControl()
         connect()
         return START_NOT_STICKY
     }
@@ -113,6 +130,75 @@ class ScreenShareService : Service() {
         this, 2, Intent(this, ScreenShareService::class.java).setAction(ACTION_STOP),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+
+    private fun viewOnlyIntent(): PendingIntent = PendingIntent.getService(
+        this, 3, Intent(this, ScreenShareService::class.java).setAction(ACTION_VIEW_ONLY),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    private fun liveNotification() = notifier.live(viewerName, viewerJoined, stopIntent(), controlActive, if (controlActive) viewOnlyIntent() else null)
+
+    private fun refreshNotification() {
+        runCatching { getSystemService(android.app.NotificationManager::class.java).notify(ScreenShareNotifier.ID_LIVE, liveNotification()) }
+    }
+
+    // ─── Stage 6: control ───
+
+    /** The accessibility service went away (switched off in Android's settings): down to view at once. */
+    private fun watchControl() {
+        if (!controlGranted) return
+        controlJob = scope.launch {
+            ScreenControl.connected.collect { bound -> if (!bound) main.post { if (controlGranted) viewOnly("service_off") } }
+        }
+    }
+
+    /** The mode in force: control shows the red frame over every app (once the helper is there), view hides it. */
+    private fun setControl(active: Boolean) {
+        val now = active && controlGranted && ScreenControl.available && !finished
+        if (now == controlActive) { updateOverlay(); return }
+        controlActive = now
+        repository.controlChanged(now)
+        updateOverlay()
+        refreshNotification()
+    }
+
+    private fun updateOverlay() {
+        val ex = ScreenControl.executor() ?: return
+        if (controlActive && viewerJoined && !finished) ex.showOverlay(viewerName) { viewOnly("sender") } else ex.hideOverlay()
+    }
+
+    /** „Nur ansehen“ / „Steuern beenden“ (or the service went off): the helper can no longer operate the phone — for good. */
+    private fun viewOnly(reason: String) {
+        if (!controlGranted && !controlActive) return
+        controlGranted = false
+        setControl(false)
+        if (open) socket?.send(ScreenProtocol.viewOnly(reason))
+        Timber.d("Fernzugriff: control ended (%s)", ScreenProtocol.cleanCode(reason) ?: "sender")
+    }
+
+    /** One input of the helper (only in control, within the limits, never on the lock screen). Nothing of it is logged. */
+    private fun onInput(input: ControlInput) {
+        if (!controlActive || finished || !limiter.allow(input)) return
+        val ex = ScreenControl.executor()
+        if (ex == null) { viewOnly("service_off"); return }
+        if (getSystemService(KeyguardManager::class.java).isKeyguardLocked) { fail(input, "locked"); return }
+        when (input) {
+            is ControlInput.Key -> when (input.key) {
+                "back", "home", "recents" -> if (!ex.global(input.key)) fail(input, "blocked")
+                else -> ex.edit(input)?.let { fail(input, it) }
+            }
+            is ControlInput.Text -> ex.edit(input)?.let { fail(input, it) }
+            else -> {
+                val (w, h) = ex.displaySize()
+                val plan = ScreenInput.plan(input, w, h) ?: return fail(input, "blocked")
+                ex.gesture(plan) { ok -> if (!ok) fail(input, "blocked") }
+            }
+        }
+    }
+
+    private fun fail(input: ControlInput, reason: String) {
+        if (open) socket?.send(ScreenProtocol.inputFail(input.kind, reason))
+    }
 
     private fun size(): Pair<Int, Int> {
         val bounds = getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds
@@ -260,7 +346,7 @@ class ScreenShareService : Service() {
             lostSince = 0L
             needKey = true
             val enc = encoder ?: return
-            webSocket.send(ScreenProtocol.hello(enc.width, enc.height, ScreenProtocol.TARGET_FPS, false, BuildConfig.VERSION_NAME))
+            webSocket.send(ScreenProtocol.hello(enc.width, enc.height, ScreenProtocol.TARGET_FPS, false, BuildConfig.VERSION_NAME, controlGranted && ScreenControl.available))
             configText?.let { webSocket.send(it) }
             enc.requestKeyframe()
         }
@@ -276,7 +362,11 @@ class ScreenShareService : Service() {
                 is ScreenProtocol.Message.Rate -> encoder?.lowerBitrate(m.bitrate)
                 is ScreenProtocol.Message.End -> main.post { finish(m.reason, sendBye = false) }
                 is ScreenProtocol.Message.Error -> main.post { finish(m.code, sendBye = false) }
-                is ScreenProtocol.Message.Ready, ScreenProtocol.Message.Pong, null -> Unit
+                // stage 6: the relay's mode in force — control only after it said so, down to view for good
+                is ScreenProtocol.Message.Ready -> main.post { setControl(m.control) }
+                is ScreenProtocol.Message.Mode -> if (!m.control) main.post { controlGranted = false; setControl(false) }
+                is ScreenProtocol.Message.Input -> main.post { onInput(m.input) }
+                ScreenProtocol.Message.Pong, null -> Unit
             }
         }
 
@@ -299,10 +389,8 @@ class ScreenShareService : Service() {
         viewerJoined = joined
         name?.let { viewerName = it }
         if (joined) repository.viewerJoined(name) else repository.viewerLeft()
-        runCatching {
-            getSystemService(android.app.NotificationManager::class.java)
-                .notify(ScreenShareNotifier.ID_LIVE, notifier.live(viewerName, joined, stopIntent()))
-        }
+        updateOverlay()
+        refreshNotification()
     }
 
     /** End the sharing — whoever ended it — and clean up everything. [sendBye]: the phone ends it (the helper hears „sender“). */
@@ -311,6 +399,10 @@ class ScreenShareService : Service() {
         finished = true
         val p = pending
         connectJob?.cancel()
+        controlJob?.cancel()
+        controlGranted = false
+        controlActive = false
+        ScreenControl.executor()?.hideOverlay()
         val ws = socket
         socket = null
         if (ws != null) {
@@ -343,11 +435,14 @@ class ScreenShareService : Service() {
         val id = intent.getStringExtra(EXTRA_REQUEST) ?: return null
         val ref = intent.getStringExtra(EXTRA_REF) ?: return null
         val name = intent.getStringExtra(EXTRA_NAME) ?: ""
-        return ScreenPending(id, ScreenTicket(ref, intent.getLongExtra(EXTRA_EXPIRES, 0L)), name)
+        return ScreenPending(id, ScreenTicket(ref, intent.getLongExtra(EXTRA_EXPIRES, 0L)), name, intent.getBooleanExtra(EXTRA_CONTROL, false))
     }
 
     companion object {
         const val ACTION_STOP = "com.gatecontrol.android.remote.ACTION_SCREEN_STOP"
+        /** Stage 6: „Nur ansehen“ — the helper can no longer operate the phone, watching goes on. */
+        const val ACTION_VIEW_ONLY = "com.gatecontrol.android.remote.ACTION_SCREEN_VIEW_ONLY"
+        private const val EXTRA_CONTROL = "control"
         private const val EXTRA_REQUEST = "request"
         private const val EXTRA_REF = "ref"
         private const val EXTRA_EXPIRES = "expires"
@@ -369,6 +464,7 @@ class ScreenShareService : Service() {
                 .putExtra(EXTRA_REF, p.ticket.ref)
                 .putExtra(EXTRA_EXPIRES, p.ticket.expiresAt)
                 .putExtra(EXTRA_NAME, p.viewerName)
+                .putExtra(EXTRA_CONTROL, p.control)
                 .putExtra(EXTRA_RESULT, resultCode)
                 .putExtra(EXTRA_DATA, data)
             ContextCompat.startForegroundService(context, i)

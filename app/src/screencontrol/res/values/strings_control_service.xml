@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fernzugriff, stage 6 (GitHub build only): the accessibility service as Android's settings show it. -->
+<resources>
+    <string name="screen_control_service_label">GateControl remote control</string>
+    <string name="screen_control_service_summary">Lets a person you gave a code operate this phone during a session you approved.</string>
+    <string name="screen_control_service_description">To let someone you give a code to operate your phone, GateControl uses an accessibility service. It only taps and swipes during a session you approved. It does not read content and sends nothing outside a session. You can switch it off here at any time.</string>
+    <!-- the badge over every app while the phone is controlled; a tap takes control away -->
+    <string name="screen_control_overlay">%s is in control · Stop control</string>
+</resources>

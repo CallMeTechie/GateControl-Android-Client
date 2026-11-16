@@ -141,6 +141,8 @@ object GcIcons {
     /** Kept on this device (Drive's "Offline verfügbar": menu, file menu, badge, page): an arrow down into a tray. */
     val DownloadTray = icon("DownloadTray", 2f, "M12 3v11", "M7 9l5 5 5-5", "M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4")
     val Eye = icon("Eye", 2f, "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z", circle(12f, 12f, 3f))
+    /** Fernzugriff stage 6: somebody controls the phone. */
+    val Hand = icon("Hand", 2f, "M18 11V6a2 2 0 0 0-4 0v5", "M14 10V4a2 2 0 0 0-4 0v6", "M10 10.5V6a2 2 0 0 0-4 0v8a8 8 0 0 0 16 0v-2a2 2 0 0 0-4 0")
     /** Taschengeld (1.2). */
     val Wallet = icon("Wallet", 2f, "M3 7a2 2 0 0 1 2-2h13v4", "M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z", "M16 14h1")
     /** Wunschlisten (1.2). */

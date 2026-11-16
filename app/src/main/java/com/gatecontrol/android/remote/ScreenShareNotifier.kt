@@ -60,15 +60,21 @@ class ScreenShareNotifier @Inject constructor(@ApplicationContext private val co
         runCatching { nm.cancel(ID_REQUEST) }
     }
 
-    /** The ongoing notification of a running sharing: who watches (or who is awaited), „Beenden“. Not to be swiped away. */
-    fun live(viewerName: String, joined: Boolean, stop: PendingIntent): Notification {
+    /**
+     * The ongoing notification of a running sharing: who watches (or who is awaited), „Beenden“. Not to be swiped away.
+     * Stage 6: while [control] the text says „… steuert deinen Bildschirm“ and [viewOnly] adds „Nur ansehen“.
+     */
+    fun live(viewerName: String, joined: Boolean, stop: PendingIntent, control: Boolean = false, viewOnly: PendingIntent? = null): Notification {
         channels()
-        return NotificationCompat.Builder(context, CHANNEL_LIVE)
+        val b = NotificationCompat.Builder(context, CHANNEL_LIVE)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.screen_share_notif_title))
             .setContentText(
-                if (joined) context.getString(R.string.screen_share_live_bar, viewerName)
-                else context.getString(R.string.screen_share_waiting_viewer, viewerName),
+                when {
+                    !joined -> context.getString(R.string.screen_share_waiting_viewer, viewerName)
+                    control -> context.getString(R.string.screen_control_live_bar, viewerName)
+                    else -> context.getString(R.string.screen_share_live_bar, viewerName)
+                },
             )
             .setColor(LIVE_COLOR)
             .setColorized(true)
@@ -78,7 +84,8 @@ class ScreenShareNotifier @Inject constructor(@ApplicationContext private val co
             .setContentIntent(openCard())
             .addAction(0, context.getString(R.string.screen_share_stop), stop)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+        if (control && viewOnly != null) b.addAction(0, context.getString(R.string.screen_control_view_only), viewOnly)
+        return b.build()
     }
 
     companion object {

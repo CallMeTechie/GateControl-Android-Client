@@ -23,11 +23,17 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** A request allowed by the person, waiting for Android's question (MediaProjection) and the relay. */
-data class ScreenPending(val requestId: String, val ticket: ScreenTicket, val viewerName: String)
+/**
+ * A request allowed by the person, waiting for Android's question (MediaProjection) and the relay. [control]: the person
+ * chose „Ansehen und steuern“ and the plugin granted it (stage 6) — the relay still decides the mode in force.
+ */
+data class ScreenPending(val requestId: String, val ticket: ScreenTicket, val viewerName: String, val control: Boolean = false)
 
-/** The sharing runs ([viewerJoined]: the helper's page is open and gets the picture). */
-data class ScreenLive(val requestId: String, val viewerName: String, val since: Long, val viewerJoined: Boolean)
+/**
+ * The sharing runs ([viewerJoined]: the helper's page is open and gets the picture). [control]: the helper may operate
+ * the phone right now (stage 6: granted, the relay's mode in force, the accessibility service bound) — red bar „… steuert“.
+ */
+data class ScreenLive(val requestId: String, val viewerName: String, val since: Long, val viewerJoined: Boolean, val control: Boolean = false)
 
 /** The last sharing ended: who, how long — „Sitzung beendet. Neuer Code bereit.“ */
 data class ScreenEnded(val viewerName: String, val minutes: Int, val at: Long)
@@ -50,6 +56,10 @@ data class ScreenShareUi(
     val ended: ScreenEnded? = null,
     /** A short error code (no_share_right, screen_unavailable, offline, …), shown as a hint. */
     val error: String? = null,
+    /** Stage 6: this build can control at all (the GitHub APK; the Play build only shows the screen). */
+    val controlSupported: Boolean = false,
+    /** Stage 6: „GateControl-Fernsteuerung“ is switched on in Android's accessibility settings (and bound). */
+    val controlReady: Boolean = false,
 )
 
 /**
@@ -68,8 +78,19 @@ class ScreenShareRepository @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
 
-    private val _state = MutableStateFlow(ScreenShareUi(enabled = prefs.getBoolean(KEY_ON, false)))
+    private val _state = MutableStateFlow(ScreenShareUi(enabled = prefs.getBoolean(KEY_ON, false), controlSupported = ScreenControl.supported))
     val state: StateFlow<ScreenShareUi> = _state.asStateFlow()
+
+    init {
+        // stage 6: the accessibility service came or went (switched on/off in Android's settings)
+        if (ScreenControl.supported) scope.launch { ScreenControl.connected.collect { refreshControl() } }
+    }
+
+    /** Stage 6: is „GateControl-Fernsteuerung“ on? (The card asks again when it comes back from Android's settings.) */
+    fun refreshControl() {
+        val ready = ScreenControl.supported && ScreenControl.enabledInSettings(context) && ScreenControl.connected.value
+        _state.update { it.copy(controlReady = ready) }
+    }
 
     /**
      * The plugin is (no longer) listed for this app: the card comes or goes. Never in a Play build without the
@@ -220,17 +241,22 @@ class ScreenShareRepository @Inject constructor(
         refreshCode()
     }
 
-    /** The person's answer to the helper's question. Allowed → [ScreenPending]: the UI asks Android next. */
-    fun answer(allow: Boolean) {
+    /**
+     * The person's answer to the helper's question. Allowed → [ScreenPending]: the UI asks Android next. [control]: the
+     * person left „Nur ansehen lassen“ off for a request of „Ansehen und steuern“ (stage 6) — only then, only in a build
+     * that can control and only with the accessibility service on.
+     */
+    fun answer(allow: Boolean, control: Boolean = false) {
         val req = _state.value.request ?: return
         notifier.cancelRequest()
+        val wantsControl = allow && control && req.control && ScreenControl.available
         scope.launch {
             mutex.withLock {
                 _state.update { it.copy(request = null, busy = true) }
-                when (val r = api.decide(req.id, allow)) {
+                when (val r = api.decide(req.id, allow, wantsControl)) {
                     is RemoteResult.Ok -> {
                         val t = r.value.ticket
-                        if (allow && t != null) _state.update { it.copy(pending = ScreenPending(req.id, t, req.fromName), ended = null) }
+                        if (allow && t != null) _state.update { it.copy(pending = ScreenPending(req.id, t, req.fromName, wantsControl && r.value.control), ended = null) }
                         else fetchCodeLocked()
                     }
                     else -> {
@@ -257,7 +283,8 @@ class ScreenShareRepository @Inject constructor(
             }
             return
         }
-        _state.update { it.copy(pending = null, live = ScreenLive(p.requestId, p.viewerName, System.currentTimeMillis(), false)) }
+        // control is shown only once the relay says so (ScreenShareService → controlChanged)
+        _state.update { it.copy(pending = null, live = ScreenLive(p.requestId, p.viewerName, System.currentTimeMillis(), false, false)) }
         ScreenShareService.start(context, p, resultCode, data)
     }
 
@@ -265,6 +292,11 @@ class ScreenShareRepository @Inject constructor(
 
     fun viewerJoined(name: String?) {
         _state.update { s -> s.live?.let { s.copy(live = it.copy(viewerJoined = true, viewerName = name ?: it.viewerName)) } ?: s }
+    }
+
+    /** Stage 6: the helper may operate the phone now (true) — or no longer (false: view only, for good). */
+    fun controlChanged(active: Boolean) {
+        _state.update { s -> s.live?.let { s.copy(live = it.copy(control = active)) } ?: s }
     }
 
     fun viewerLeft() {
@@ -287,6 +319,14 @@ class ScreenShareRepository @Inject constructor(
     /** „Beenden“ in the card or the red bar. */
     fun stop() {
         stopService()
+    }
+
+    /** Stage 6: „Nur ansehen“ in the card or the red bar — the helper can no longer operate the phone, watching goes on. */
+    fun viewOnly() {
+        controlChanged(false)
+        if (!ScreenShareService.running) return
+        runCatching { context.startService(Intent(context, ScreenShareService::class.java).setAction(ScreenShareService.ACTION_VIEW_ONLY)) }
+            .onFailure { Timber.d("Fernzugriff: view only not delivered (%s)", it.javaClass.simpleName) }
     }
 
     private fun stopService() {
