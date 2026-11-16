@@ -450,4 +450,20 @@
     <string name="chat_status_view_mine">View my stories</string>
     <string name="chat_privacy_avatar_in_profile">%s · set in your profile</string>
     <string name="chat_privacy_avatar_profile_footer">“Profile picture” opens your profile. The setting applies everywhere in GateControl.</string>
+    <!-- Messenger 1.25: WhatsApp-Status in der Status-Reihe -->
+    <string name="chat_status_bridged_unknown">%1$s contact</string>
+    <string name="chat_status_bridged_via">via %1$s</string>
+    <string name="chat_status_bridged_ago">via %1$s · %2$s</string>
+    <string name="chat_status_bridged_unsupported">This status cannot be shown here. Open it in %1$s.</string>
+    <string name="chat_status_bridged_react">React with %1$s, goes as a message via %2$s</string>
+    <string name="chat_status_bridged_reply_hint">Reply via %1$s</string>
+    <string name="chat_status_bridged_reply_info">Goes as a message to your %1$s chat, a reaction too</string>
+    <string name="chat_status_bridged_no_chat">No %1$s chat with this person found. For now you can only reply in %1$s.</string>
+    <string name="chat_status_bridged_reacted">Reaction sent as a message</string>
+    <string name="chat_status_bridged_replied">Reply sent</string>
+    <string name="chat_privacy_section_status">Status</string>
+    <string name="chat_privacy_bridged_seen">Tell WhatsApp when I view a status</string>
+    <string name="chat_privacy_bridged_seen_desc">When on, the contact sees you under “Viewed by” in WhatsApp. When off, the status is only marked as seen here (grey ring).</string>
+    <string name="chat_privacy_bridged_seen_needs">Works only while “%1$s” is on.</string>
+    <string name="chat_notify_digest_desc_bridged">Collected once a day. GateControl people only, WhatsApp status updates cause no notification.</string>
 </resources>

@@ -71,7 +71,9 @@ import com.gatecontrol.android.chat.ChatStatusLogic
 import com.gatecontrol.android.chat.ChatStory
 import com.gatecontrol.android.chat.ChatStoryViewer
 import com.gatecontrol.android.chat.ChatTimeline
+import com.gatecontrol.android.ui.chat.ChatNetLogo
 import com.gatecontrol.android.ui.chat.ChatPersonAvatar
+import com.gatecontrol.android.ui.chat.ContactAvatar
 import com.gatecontrol.android.ui.chat.ChatText
 import com.gatecontrol.android.ui.chat.ConfirmDialog
 import com.gatecontrol.android.ui.chat.VideoContent
@@ -85,6 +87,10 @@ import kotlinx.coroutines.launch
 private const val STORY_MS = 6_000
 
 private val REACTIONS = listOf("👏", "😂", "💪", "❤️")
+
+/** Messenger 1.25: a contact's WhatsApp text status has no colour of its own (the bridge drops it) — the app's green. */
+private val BRIDGED_TEXT_LIGHT = Color(0xFF0B6E4A)
+private val BRIDGED_TEXT_DARK = Color(0xFF0D5C40)
 
 /** Pure: how a story's age and time left read ("vor 12 Min. · noch 23 Std."). */
 object ChatStoryTime {
@@ -100,6 +106,11 @@ object ChatStoryTime {
  * right, hold or the button to pause; reactions and an answer that lands
  * in the direct chat (`replyStory`); the own stories show who saw them.
  * [userId] 0 = the own stories.
+ *
+ * Messenger 1.25 (Entwurf „Status über WhatsApp“): a WhatsApp contact's status (`item.bridged`, [userId] below 0) shows
+ * „über WhatsApp · vor 2 Std.“ with the logo, no viewers; the same reactions and an answer „Antwort über WhatsApp“ go as
+ * a message into the WhatsApp chat with the contact — said under the field, because WhatsApp shows them there, not at
+ * the status.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,6 +167,8 @@ fun StoryViewerScreen(
     }
 
     val story = item?.stories?.getOrNull(storyIdx)
+    val bridged = item?.bridged
+    val darkTheme = com.gatecontrol.android.ui.theme.GateControlTheme.extraColors.isDark
     // Seen once shown; the progress runs unless paused or typing.
     LaunchedEffect(item?.user?.userId, story?.id) {
         progress.snapTo(0f)
@@ -189,7 +202,13 @@ fun StoryViewerScreen(
         // ─── content ───
         Box(
             Modifier.fillMaxSize().padding(top = 72.dp, bottom = 132.dp).clip(RoundedCornerShape(20.dp))
-                .background(if (story == null || story.kind == ChatStory.KIND_TEXT) storyColor(story?.bg) else Color(0xFF0B0F14))
+                .background(
+                    when {
+                        bridged != null && (story == null || story.kind == ChatStory.KIND_TEXT || story.kind == ChatStory.KIND_UNSUPPORTED) -> if (darkTheme) BRIDGED_TEXT_DARK else BRIDGED_TEXT_LIGHT
+                        story == null || story.kind == ChatStory.KIND_TEXT -> storyColor(story?.bg)
+                        else -> Color(0xFF0B0F14)
+                    },
+                )
                 .pointerInput(item.user.userId, story?.id) {
                     detectTapGestures(
                         onPress = {
@@ -207,6 +226,12 @@ fun StoryViewerScreen(
                     StatusText.line(ctx, item.status).orEmpty(),
                     color = Color.White,
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                    modifier = Modifier.padding(28.dp),
+                )
+                story.kind == ChatStory.KIND_UNSUPPORTED -> Text(
+                    stringResource(R.string.chat_status_bridged_unsupported, com.gatecontrol.android.chat.ChatPeople.labelOf(bridged?.network ?: "")),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium.copy(textAlign = TextAlign.Center),
                     modifier = Modifier.padding(28.dp),
                 )
                 story.kind == ChatStory.KIND_TEXT -> Text(
@@ -236,7 +261,7 @@ fun StoryViewerScreen(
                     }
                 }
             }
-            if (story != null && story.kind != ChatStory.KIND_TEXT && !story.text.isNullOrBlank()) {
+            if (story != null && story.kind != ChatStory.KIND_TEXT && story.kind != ChatStory.KIND_UNSUPPORTED && !story.text.isNullOrBlank()) {
                 Text(
                     story.text,
                     color = Color.White,
@@ -274,9 +299,16 @@ fun StoryViewerScreen(
             }
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GcIconButton(GcIcons.Back, stringResource(R.string.chat_back), onClick = onClose, tint = Color.White, size = 40.dp)
-                ChatPersonAvatar(if (own) ui.profile?.user else item.user, 36.dp)
+                if (bridged != null) ContactAvatar(bridged.avatarMediaId, item.user.name, 36.dp)
+                else ChatPersonAvatar(if (own) ui.profile?.user else item.user, 36.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(if (own) stringResource(R.string.chat_status_mine) else ChatText.name(ctx, item.user), color = Color.White, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold))
+                    val net = bridged?.let { com.gatecontrol.android.chat.ChatPeople.labelOf(it.network) }
+                    val title = when {
+                        own -> stringResource(R.string.chat_status_mine)
+                        net != null -> item.user.name ?: stringResource(R.string.chat_status_bridged_unknown, net)
+                        else -> ChatText.name(ctx, item.user)
+                    }
+                    Text(title, color = Color.White, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold))
                     val now = System.currentTimeMillis()
                     val ago = ChatStoryTime.minutesAgo(story?.createdAt, now)
                     val left = ChatStoryTime.minutesLeft(story?.expiresAt, now)
@@ -286,8 +318,16 @@ fun StoryViewerScreen(
                             ago < 60 -> stringResource(R.string.chat_story_min_ago, ago.toInt())
                             else -> stringResource(R.string.chat_story_h_ago, (ago / 60).toInt())
                         }
-                        val leftText = left?.let { if (it >= 60) stringResource(R.string.chat_story_h_left, (it / 60).toInt()) else stringResource(R.string.chat_story_min_left, it.toInt()) }
-                        Text(if (leftText != null) stringResource(R.string.chat_story_ago, agoText, leftText) else agoText, color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
+                        if (net != null) {
+                            // „über WhatsApp · vor 2 Std.“ with the logo (Entwurf, state 2)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                ChatNetLogo(bridged.network, 15.dp)
+                                Text(stringResource(R.string.chat_status_bridged_ago, net, agoText), color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
+                            }
+                        } else {
+                            val leftText = left?.let { if (it >= 60) stringResource(R.string.chat_story_h_left, (it / 60).toInt()) else stringResource(R.string.chat_story_min_left, it.toInt()) }
+                            Text(if (leftText != null) stringResource(R.string.chat_story_ago, agoText, leftText) else agoText, color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
                 GcIconButton(
@@ -314,6 +354,17 @@ fun StoryViewerScreen(
                     Icon(Icons.Outlined.Visibility, contentDescription = null, tint = Color.White)
                     Text(stringResource(R.string.chat_story_viewers, viewers?.size ?: story?.viewerCount ?: 0), color = Color.White, style = MaterialTheme.typography.labelLarge)
                 }
+            } else if (story != null && bridged != null) {
+                BridgedFooter(
+                    network = bridged.network,
+                    canReply = bridged.canReply,
+                    reply = reply,
+                    onReply = { reply = it.take(1000) },
+                    busy = ui.busy,
+                    onTyping = { typing = it },
+                    onReact = { e -> viewModel.reactBridged(story, e) },
+                    onSend = { viewModel.replyBridged(story, reply.trim()) { reply = "" } },
+                )
             } else if (story != null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     REACTIONS.forEach { e ->
@@ -381,5 +432,77 @@ fun StoryViewerScreen(
             confirmDelete = false
             viewModel.deleteStory(story) { if (item.stories.size <= 1) onClose() }
         }) { confirmDelete = false }
+    }
+}
+
+/**
+ * Messenger 1.25: the footer under a WhatsApp contact's status — the same reactions as under a story here, the field
+ * „Antwort über WhatsApp“ and, under it, with the logo, where both go (a message in the WhatsApp chat: the bridge cannot
+ * react to a status). Without a way to the contact only that line says so.
+ */
+@Composable
+private fun BridgedFooter(
+    network: String,
+    canReply: Boolean,
+    reply: String,
+    onReply: (String) -> Unit,
+    busy: Boolean,
+    onTyping: (Boolean) -> Unit,
+    onReact: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    val net = com.gatecontrol.android.chat.ChatPeople.labelOf(network)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (canReply) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                REACTIONS.forEach { e ->
+                    val label = stringResource(R.string.chat_status_bridged_react, e, net)
+                    Box(
+                        Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)).clickable(role = Role.Button, onClickLabel = label) { onReact(e) }
+                            .semantics { contentDescription = label },
+                        contentAlignment = Alignment.Center,
+                    ) { Text(e, fontSize = 22.sp) }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 50.dp).clip(RoundedCornerShape(25.dp)).background(Color.White.copy(alpha = 0.12f)).padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val hint = stringResource(R.string.chat_status_bridged_reply_hint, net)
+                BasicTextField(
+                    value = reply,
+                    onValueChange = onReply,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
+                    cursorBrush = SolidColor(Color.White),
+                    modifier = Modifier.weight(1f).semantics { contentDescription = hint }.onFocusChanged { onTyping(it.isFocused) },
+                    decorationBox = { inner ->
+                        Box {
+                            if (reply.isEmpty()) Text(hint, color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodyLarge)
+                            inner()
+                        }
+                    },
+                )
+                GcIconButton(
+                    Icons.AutoMirrored.Filled.Send,
+                    stringResource(R.string.chat_send),
+                    onClick = onSend,
+                    enabled = reply.isNotBlank() && !busy,
+                    tint = Color.White,
+                    size = 44.dp,
+                )
+            }
+        }
+        Row(
+            Modifier.align(Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ChatNetLogo(network, 14.dp)
+            Text(
+                stringResource(if (canReply) R.string.chat_status_bridged_reply_info else R.string.chat_status_bridged_no_chat, net),
+                color = Color.White.copy(alpha = 0.65f),
+                style = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center),
+            )
+        }
     }
 }

@@ -106,6 +106,8 @@ sealed interface ChatEvent {
 object ChatEvents {
 
     private val STATUS_TYPES = setOf("status.update", "story.new", "story.remove")
+    /** Messenger 1.25: a contact's WhatsApp status came, went or was watched — no account behind it. */
+    private const val BRIDGED_STORY = "story.bridged"
     private val ACCOUNT_TYPES = setOf("lists.update", "reminders.update")
     private val DELETE_REASONS = setOf("deleted", "hidden", "expired", "retention")
     private val REASON_RE = Regex("^[a-z_]{1,32}$")
@@ -118,6 +120,7 @@ object ChatEvents {
         val o = data?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         // Messenger 1.4: status and stories belong to a person, not to a conversation.
         if (type in ACCOUNT_TYPES) return ChatEvent.AccountChanged(type)
+        if (type == BRIDGED_STORY) return ChatEvent.StatusChanged(0L, ChatJson14.pathKey(ChatJson14.keyOf(o.get("storyId"))), type)
         if (type in STATUS_TYPES) {
             return ChatEvent.StatusChanged(o.id("userId") ?: return null, ChatJson14.pathKey(ChatJson14.keyOf(o.get("storyId"))), type)
         }

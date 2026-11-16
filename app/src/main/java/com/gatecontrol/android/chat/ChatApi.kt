@@ -494,6 +494,25 @@ class ChatApi @Inject constructor(
         return post("status/stories/$key/react", JsonObject().apply { addProperty("emoji", emoji) }, unit)
     }
 
+    /** Messenger 1.25: a contact's WhatsApp status watched (`POST status/bridged/:id/seen`; WhatsApp learns it only on the person's own switch). */
+    suspend fun bridgedStatusSeen(id: String): ChatResult<Unit> {
+        val key = ChatJson14.pathKey(id) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        return post("status/bridged/$key/seen", JsonObject(), unit)
+    }
+
+    /**
+     * Messenger 1.25: an answer ([text]) or a reaction ([emoji]) to a contact's WhatsApp status — a message into the
+     * direct chat with the contact (`POST status/bridged/:id/reply`).
+     */
+    suspend fun bridgedStatusReply(id: String, clientId: String, text: String?, emoji: String?): ChatResult<Unit> {
+        val key = ChatJson14.pathKey(id) ?: return ChatResult.Failed(CODE_INVALID, 0)
+        val body = JsonObject().apply {
+            addProperty("clientId", clientId)
+            if (emoji != null) addProperty("emoji", emoji) else addProperty("text", text.orEmpty())
+        }
+        return post("status/bridged/$key/reply", body, unit)
+    }
+
     // ─── Messenger 1.4: preferences and tools ───────────────────────
 
     /** `PUT prefs` with any keys (1.0's and 1.4's `privacy`, `notify`, `chats`) → the profile's prefs. */
