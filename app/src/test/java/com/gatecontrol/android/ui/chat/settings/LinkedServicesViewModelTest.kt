@@ -453,4 +453,63 @@ class LinkedServicesViewModelTest {
         coVerify { repository.start(ChatBridges.SIGNAL, ChatBridges.FLOW_QR) }
         verify(exactly = 0) { repository.endHandoff(any()) }
     }
+
+    // ─── Messenger 1.24: Telegram, by number, code and password ──────
+
+    private fun telegramInfo(linked: Boolean = false) = ChatBridgesInfo(
+        available = true,
+        networks = listOf(
+            ChatBridgeNetwork(
+                ChatBridges.TELEGRAM, ChatBridges.NET_RUNNING, true, null, consent = true,
+                logins = if (linked) listOf(ChatBridgeLogin("l1", "", ChatBridges.LOGIN_CONNECTED, null)) else emptyList(),
+                flows = listOf(ChatBridges.FLOW_QR, ChatBridges.FLOW_PHONE),
+            ),
+        ),
+    )
+
+    @Test
+    fun `Telegram - the number first, then the code (a wrong one asked again), then the password - nothing kept`() = scope.runTest {
+        val tg = ChatBridges.TELEGRAM
+        coEvery { repository.load() } returns ChatResult.Ok(telegramInfo())
+        coEvery { repository.start(tg, ChatBridges.FLOW_PHONE) } returns ok(ChatBridgeStep.Phone("pn", "fi.mau.telegram.login.phone_number"))
+        coEvery { repository.step(tg, "p1", "pn", any()) } returns ok(ChatBridgeStep.Secret("cd", "fi.mau.telegram.login.code", password = false))
+        coEvery { repository.step(tg, "p1", "cd", mapOf("fi.mau.telegram.login.code" to "11111")) } returns ok(ChatBridgeStep.Secret("cd.incorrect", "fi.mau.telegram.login.code", password = false, retry = true))
+        coEvery { repository.step(tg, "p1", "cd.incorrect", any()) } returns ok(ChatBridgeStep.Secret("pw", "fi.mau.telegram.login.password", password = true))
+        coEvery { repository.step(tg, "p1", "pw", any()) } returns ok(ChatBridgeStep.Complete)
+        val m = vm()
+        advanceUntilIdle()
+        m.begin(tg)
+        advanceUntilIdle()
+        assertEquals(ChatBridges.FLOW_PHONE, m.link().flow, "Android: the number first")
+        m.submitPhone("+49 151 00000000")
+        advanceUntilIdle()
+        assertEquals(LinkPhase.Secret("cd", "fi.mau.telegram.login.code", password = false), m.link().phase)
+        m.submitSecret("111 11")
+        advanceUntilIdle()
+        assertTrue((m.link().phase as LinkPhase.Secret).retry, "a wrong code: asked again")
+        m.submitSecret("47000")
+        advanceUntilIdle()
+        assertTrue((m.link().phase as LinkPhase.Secret).password)
+        coEvery { repository.load() } returns ChatResult.Ok(telegramInfo(linked = true))
+        m.submitSecret("Wanderweg-Eifel-7")
+        advanceUntilIdle()
+        coVerify { repository.step(tg, "p1", "pw", mapOf("fi.mau.telegram.login.password" to "Wanderweg-Eifel-7")) }
+        assertEquals(LinkedView.Overview, m.uiState.value.view)
+        assertFalse(m.uiState.value.toString().contains("Wanderweg"), "the password is in no state")
+    }
+
+    @Test
+    fun `Telegram - the QR code goes to a second screen`() = scope.runTest {
+        val tg = ChatBridges.TELEGRAM
+        coEvery { repository.load() } returns ChatResult.Ok(telegramInfo())
+        coEvery { repository.start(tg, ChatBridges.FLOW_PHONE) } returns ok(ChatBridgeStep.Phone("pn", "fi.mau.telegram.login.phone_number"))
+        val m = vm()
+        advanceUntilIdle()
+        m.begin(tg)
+        advanceUntilIdle()
+        m.selectFlow(ChatBridges.FLOW_QR)
+        advanceUntilIdle()
+        assertEquals(LinkedView.SecondScreen(tg), m.uiState.value.view)
+        coVerify(exactly = 0) { repository.start(tg, ChatBridges.FLOW_QR) }
+    }
 }

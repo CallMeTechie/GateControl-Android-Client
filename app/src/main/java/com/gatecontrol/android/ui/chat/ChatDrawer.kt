@@ -165,6 +165,8 @@ private fun ServiceRow(n: ChatBridgeNetwork, onClick: () -> Unit) {
         ChatBridgeRow.ERROR -> R.string.chat_dr_state_error to MaterialTheme.colorScheme.error
         ChatBridgeRow.LOCKED -> R.string.chat_dr_state_locked to x.muted
         ChatBridgeRow.NONE -> R.string.chat_dr_state_none to x.muted
+        // Messenger 1.24: Telegram not set up by an administrator
+        ChatBridgeRow.NOT_SET_UP -> R.string.chat_dr_state_noapp to x.muted
     }
     Row(
         Modifier

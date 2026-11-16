@@ -91,7 +91,7 @@ class ChatBridgesTest {
                  "logins":[{"id":"4915120000000","name":"+49 1512 0000000","state":"connected","since":"2026-11-02T08:00:00.000Z"},
                            {"id":"bad id","name":"x","state":"connected"},
                            {"id":"old","name":"","state":"something_new","since":"nonsense"}]},
-                {"id":"telegram","state":"running","allowed":true,"logins":[]}]}}""",
+                {"id":"icq","state":"running","allowed":true,"logins":[]}]}}""",
             ),
         )!!
         assertTrue(info.available)
@@ -212,7 +212,7 @@ class ChatBridgesTest {
     fun `steps this app cannot show - the other way has to do`() {
         fun step(s: String) = ChatBridgesJson.loginState(json("""{"login":{"processId":"p","step":$s}}"""))!!.step
         assertEquals(ChatBridgeStep.Unsupported, step("""{"id":"x","type":"cookies"}"""))
-        assertEquals(ChatBridgeStep.Unsupported, step("""{"id":"x","type":"user_input","fields":[{"id":"password","type":"password"}]}"""), "not a number: no field for it here")
+        assertEquals(ChatBridgeStep.Unsupported, step("""{"id":"x","type":"user_input","fields":[{"id":"mail","type":"email"}]}"""), "no number, code or password: no field for it here")
         assertEquals(ChatBridgeStep.Unsupported, step("""{"id":"x","type":"display_and_wait","display":{"type":"emoji","data":"🙂"}}"""))
         assertEquals(ChatBridgeStep.Unsupported, step("""{"id":"x","type":"display_and_wait","display":{"type":"code","data":""}}"""))
         assertEquals(ChatBridgeStep.Unsupported, step("""{"id":"x","type":"display_and_wait","display":{"type":"qr","data":""}}"""))
@@ -280,7 +280,7 @@ class ChatBridgesTest {
         assertNull(ChatBridges.path("whatsapp", "login", "a/b"), "no path of its own")
         assertNull(ChatBridges.path("whatsapp", "login", "../me"))
         assertNull(ChatBridges.path("whatsapp", "logins", ""))
-        assertNull(ChatBridges.path("telegram", "login"), "a service this app does not know")
+        assertNull(ChatBridges.path("icq", "login"), "a service this app does not know")
         // Messenger 1.23
         assertEquals("bridges/signal/handoff", ChatBridges.path("signal", "handoff"))
     }
@@ -422,5 +422,39 @@ class ChatBridgesTest {
             assertFalse(text.contains("rememberSaveable") || text.contains("SavedStateHandle"), "$path keeps nothing in the saved state")
             assertFalse(text.contains("SharedPreferences") || text.contains("DataStore"), "$path stores nothing")
         }
+    }
+
+    @Test
+    fun `Messenger 1 24 - Telegram by number, code and password, not set up says so, a bot and a large group`() {
+        val info = ChatBridgesJson.info(
+            json(
+                """{"ok":true,"bridges":{"available":true,"location":"server","networks":[
+                {"id":"telegram","state":"stopped","allowed":true,"logins":[],"flows":["qr","phone"],"needs":"app",
+                 "history":{"maxDays":null,"phoneConfirms":false}}]}}""",
+            ),
+        )!!
+        val tg = info.networks.single()
+        assertEquals(ChatBridges.TELEGRAM, tg.id)
+        assertEquals(ChatBridges.NEEDS_APP, tg.needs)
+        assertEquals(ChatBridgeRow.NOT_SET_UP, ChatBridges.row(tg))
+        assertEquals(ChatBridges.FLOW_PHONE, ChatBridges.firstFlow(tg), "on a phone the number comes first")
+        assertFalse(ChatBridges.qrOnly(tg))
+        assertTrue(ChatBridges.qrOnSecondScreen(ChatBridges.TELEGRAM))
+        val code = ChatBridgesJson.loginState(
+            json("""{"login":{"processId":"p1","step":{"id":"fi.mau.telegram.login.code","type":"user_input","fields":[{"id":"fi.mau.telegram.login.code","type":"2fa_code"}]}}}"""),
+        )!!.step as ChatBridgeStep.Secret
+        assertFalse(code.password)
+        assertFalse(code.retry)
+        val pw = ChatBridgesJson.loginState(
+            json("""{"login":{"processId":"p1","step":{"id":"fi.mau.telegram.login.password.incorrect","type":"user_input","retry":true,"fields":[{"id":"fi.mau.telegram.login.password","type":"password"}]}}}"""),
+        )!!.step as ChatBridgeStep.Secret
+        assertTrue(pw.password)
+        assertTrue(pw.retry)
+        assertEquals("fi.mau.telegram.login.password", pw.fieldId)
+        val bot = ChatBridgeChat.conversation(json("""{"network":"telegram","label":"Telegram","state":"ok","bot":true}"""))!!
+        assertTrue(bot.bot)
+        val group = ChatBridgeChat.conversation(json("""{"network":"telegram","label":"Telegram","state":"ok","members":340}"""))!!
+        assertEquals(340, group.members)
+        assertNull(ChatBridgeChat.conversation(json("""{"network":"telegram","label":"Telegram","state":"ok","members":-3}"""))!!.members)
     }
 }

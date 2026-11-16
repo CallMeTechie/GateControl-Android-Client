@@ -53,6 +53,13 @@ sealed interface LinkPhase {
     /** The number is asked for. The number itself never enters this state: the field keeps it until it is sent. */
     data class Phone(val stepId: String, val fieldId: String, val sending: Boolean = false, val error: PhoneError? = null) : LinkPhase
 
+    /**
+     * Messenger 1.24 (Telegram): the code the service sent into its app, or ([password]) the password of the two-step
+     * verification; [retry]: the one before was wrong. The value itself never enters this state: the field keeps it
+     * until it is sent, then it is gone.
+     */
+    data class Secret(val stepId: String, val fieldId: String, val password: Boolean, val retry: Boolean = false, val sending: Boolean = false) : LinkPhase
+
     /** The pairing code, waiting for the phone. */
     class Code(val code: String) : LinkPhase {
         override fun toString(): String = "Code"
@@ -246,7 +253,31 @@ class LinkedServicesViewModel @Inject constructor(
     /** Another way was chosen (code or QR code). */
     fun selectFlow(flow: String) {
         val v = state.value.view as? LinkedView.Link ?: return
-        if (v.flow != flow && (flow == ChatBridges.FLOW_PHONE || flow == ChatBridges.FLOW_QR)) link(v.network, flow)
+        if (v.flow == flow || (flow != ChatBridges.FLOW_PHONE && flow != ChatBridges.FLOW_QR)) return
+        // Messenger 1.24: Telegram's QR code needs a second screen — the same way as Signal's
+        if (flow == ChatBridges.FLOW_QR && ChatBridges.qrOnSecondScreen(v.network)) {
+            stop(tell = true)
+            state.update { it.copy(view = LinkedView.SecondScreen(v.network)) }
+            return
+        }
+        link(v.network, flow)
+    }
+
+    /**
+     * Messenger 1.24: the code or the password of a Telegram login ([value] as typed), sent once and never kept. A wrong
+     * one comes back as the same step with retry.
+     */
+    fun submitSecret(value: String) {
+        val v = state.value.view as? LinkedView.Link ?: return
+        val p = v.phase as? LinkPhase.Secret ?: return
+        val pid = process?.second ?: return
+        if (p.sending) return
+        val clean = if (p.password) value else value.filter { !it.isWhitespace() }
+        if (clean.isEmpty() || clean.length > SECRET_MAX) return
+        state.update { it.copy(view = v.copy(phase = p.copy(sending = true))) }
+        run = viewModelScope.launch {
+            follow(v.network, v.flow, bridges.step(v.network, pid, p.stepId, mapOf(p.fieldId to clean)))
+        }
     }
 
     /** "Neuen Code anfordern" / "Neuen QR-Code anzeigen". */
@@ -321,6 +352,8 @@ class LinkedServicesViewModel @Inject constructor(
                         when (val step = s.step) {
                             ChatBridgeStep.Complete -> return linked(networkId)
                             is ChatBridgeStep.Phone -> return phase(networkId, flow, LinkPhase.Phone(step.id, step.fieldId))
+                            // Messenger 1.24 (Telegram): the code, the password
+                            is ChatBridgeStep.Secret -> return phase(networkId, flow, LinkPhase.Secret(step.id, step.fieldId, step.password, step.retry))
                             // WhatsApp renews the QR code a few times: each one is a new step
                             is ChatBridgeStep.Code -> { phase(networkId, flow, LinkPhase.Code(step.code)); waitingOn = step.id }
                             is ChatBridgeStep.Qr -> { phase(networkId, flow, LinkPhase.Qr(step.matrix)); waitingOn = step.id }
@@ -469,5 +502,8 @@ class LinkedServicesViewModel @Inject constructor(
         /** Messenger 1.23: while the step shows on a second screen — how often and how long the page looks for the link. */
         const val HANDOFF_POLL_MS = 5_000L
         const val HANDOFF_WAIT_MS = 10 * 60_000L
+
+        /** Messenger 1.24: the longest code or password sent (the server takes up to 500 characters). */
+        const val SECRET_MAX = 256
     }
 }

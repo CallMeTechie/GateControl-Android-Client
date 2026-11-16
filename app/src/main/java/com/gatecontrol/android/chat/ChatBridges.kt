@@ -31,8 +31,14 @@ object ChatBridges {
     /** Messenger 1.23 (Brücken Stufe 7a): Signal — a linked device, by QR code only. */
     const val SIGNAL = "signal"
 
+    /** Messenger 1.24 (Brücken Stufe 7b): Telegram — by number, code and password, or by QR code. */
+    const val TELEGRAM = "telegram"
+
     /** The services this app has a page for (others the server may name later are left out). */
-    val NETWORKS: Set<String> = setOf(WHATSAPP, SIGNAL)
+    val NETWORKS: Set<String> = setOf(WHATSAPP, SIGNAL, TELEGRAM)
+
+    /** Messenger 1.24 `networks[].needs`: the administrator has not set the service up yet (Telegram's application id). */
+    const val NEEDS_APP = "app"
 
     /** Messenger 1.23 „am PC fortsetzen“: where the step goes (`POST bridges/:network/handoff { target }`). */
     const val HANDOFF_PORTAL = "portal"
@@ -58,6 +64,9 @@ object ChatBridges {
 
     const val LOCK_CHILD = "child"
     const val FIELD_PHONE = "phone_number"
+    /** Messenger 1.24 (Telegram): the code the service sent into its app, the password of the two-step verification. */
+    const val FIELD_CODE = "2fa_code"
+    const val FIELD_PASSWORD = "password"
 
     /** The ids of a login process, a step, a field and a login (the server's own pattern). */
     val ID_RE = Regex("^[A-Za-z0-9._:=+-]{1,128}$")
@@ -86,6 +95,9 @@ object ChatBridges {
      */
     fun qrOnly(n: ChatBridgeNetwork): Boolean = FLOW_PHONE !in n.flows && FLOW_QR in n.flows
 
+    /** Messenger 1.24: a service whose QR code this phone cannot scan itself — it goes to a second screen (Telegram). */
+    fun qrOnSecondScreen(network: String): Boolean = network == TELEGRAM || network == SIGNAL
+
     /** The first way in a network offers: the code for this phone where there is one. */
     fun firstFlow(n: ChatBridgeNetwork): String = if (FLOW_PHONE in n.flows || n.flows.isEmpty()) FLOW_PHONE else FLOW_QR
 
@@ -106,6 +118,8 @@ object ChatBridges {
     fun row(n: ChatBridgeNetwork): ChatBridgeRow {
         val l = mainLogin(n)
         return when {
+            // Messenger 1.24: not set up by an administrator (Telegram) — nothing to link yet
+            n.needs == NEEDS_APP -> ChatBridgeRow.NOT_SET_UP
             n.state == NET_STARTING -> ChatBridgeRow.STARTING
             n.state == NET_UNREACHABLE || n.state == NET_FAILED -> ChatBridgeRow.UNREACHABLE
             l != null && (l.state == LOGIN_CONNECTED || l.state == LOGIN_CONNECTING) -> ChatBridgeRow.LINKED
@@ -178,7 +192,7 @@ object ChatBridges {
 
 val ChatFeatures.linkedServices: Boolean get() = ChatBridges.FEATURE in tokens
 
-enum class ChatBridgeRow { STARTING, UNREACHABLE, LINKED, LOGGED_OUT, ERROR, LOCKED, NONE }
+enum class ChatBridgeRow { NOT_SET_UP, STARTING, UNREACHABLE, LINKED, LOGGED_OUT, ERROR, LOCKED, NONE }
 
 enum class ChatBridgeError { OFFLINE, OFF, UNREACHABLE, UNSUPPORTED, FAILED, EXPIRED, LOCKED, CONSENT, RATE_LIMITED, FORBIDDEN, INVALID, GENERIC }
 
@@ -219,6 +233,8 @@ data class ChatBridgeNetwork(
     val phoneConfirms: Boolean = false,
     /** Messenger 1.23: the consent „Erkennen“ of this service; null: not offered. */
     val recognition: ChatRecognition? = null,
+    /** Messenger 1.24: what the service still waits for ([ChatBridges.NEEDS_APP]: not set up); null: nothing. */
+    val needs: String? = null,
 )
 
 /** Messenger 1.23: an open „am PC fortsetzen“ of the person (`GET bridges → handoff`, `POST …/handoff`). */
@@ -288,6 +304,12 @@ sealed interface ChatBridgeStep {
     class Code(val id: String, val code: String) : ChatBridgeStep {
         override fun toString(): String = "Code"
     }
+
+    /**
+     * Messenger 1.24 (Telegram): the code the service sent into its app ([password] false) or the password of the
+     * two-step verification ([password] true); [retry]: the one before was wrong. The value itself never enters a state.
+     */
+    data class Secret(val id: String, val fieldId: String, val password: Boolean, val retry: Boolean = false) : ChatBridgeStep
 
     /** A QR code to scan with the service's app (from a second screen). */
     class Qr(val id: String, val matrix: ChatQrMatrix) : ChatBridgeStep {
@@ -372,6 +394,7 @@ object ChatBridgesJson {
             historyMaxDays = o.obj("history")?.int("maxDays")?.takeIf { it in 1..ChatBridgeHistory.MAX_DAYS },
             phoneConfirms = o.obj("history")?.flag("phoneConfirms") == true,
             recognition = o.obj("recognition")?.let { r -> ChatPeople.recognition(r)?.copy(network = id) },
+            needs = o.str("needs")?.takeIf { it == ChatBridges.NEEDS_APP || it == "script" || it == "compose" },
         )
     }
 
@@ -401,11 +424,19 @@ object ChatBridgesJson {
         val id = s.str("id")?.takeIf { ChatBridges.ID_RE.matches(it) } ?: return ChatBridgeStep.Unsupported
         return when (type) {
             "user_input" -> {
-                // the first field, as the portal does; a field that is no number (a password, a passkey) cannot be shown
+                // the first field, as the portal does; a number, a code, a password (Messenger 1.24) — anything else cannot be shown
                 val f = s.arr("fields")?.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject
                 val fieldId = if (f == null) ChatBridges.FIELD_PHONE else f.str("id")?.takeIf { ChatBridges.ID_RE.matches(it) }
                 val fieldType = f?.str("type") ?: ChatBridges.FIELD_PHONE
-                if (fieldId == null || fieldType != ChatBridges.FIELD_PHONE) ChatBridgeStep.Unsupported else ChatBridgeStep.Phone(id, fieldId)
+                val retry = s.flag("retry") == true
+                when {
+                    fieldId == null -> ChatBridgeStep.Unsupported
+                    fieldType == ChatBridges.FIELD_PHONE -> ChatBridgeStep.Phone(id, fieldId)
+                    // Messenger 1.24 (Telegram): the code, the password
+                    fieldType == ChatBridges.FIELD_CODE -> ChatBridgeStep.Secret(id, fieldId, password = false, retry = retry)
+                    fieldType == ChatBridges.FIELD_PASSWORD -> ChatBridgeStep.Secret(id, fieldId, password = true, retry = retry)
+                    else -> ChatBridgeStep.Unsupported
+                }
             }
             "display_and_wait" -> {
                 val d = s.obj("display")

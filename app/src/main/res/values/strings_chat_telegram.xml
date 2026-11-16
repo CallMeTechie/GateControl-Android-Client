@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Messenger 1.24 (Brücken Stufe 7b): Telegram — by number, code and password or by QR code on a second screen, its chats,
+     its consent „Erkennen“. The texts follow the approved draft and the messenger plugin (server/texts.json). -->
+<resources>
+    <string name="chat_linked_net_telegram">Telegram</string>
+    <string name="chat_linked_note_telegram_unofficial">Unofficial: GateControl signs in to Telegram as a device of its own, “GateControl”. Telegram rarely blocks accounts that do this.</string>
+    <string name="chat_linked_note_telegram_e2e">Readable on your server: secret chats stay on your phone and do not arrive.</string>
+    <string name="chat_linked_row_noapp">%1$s not set up yet</string>
+    <string name="chat_linked_sub_noapp">An admin has to register GateControl with Telegram once.</string>
+    <string name="chat_linked_tg_ways">How do you want to sign in?</string>
+    <string name="chat_linked_tg_way_phone">With phone number</string>
+    <string name="chat_linked_tg_way_phone_sub">The code arrives in your Telegram app</string>
+    <string name="chat_linked_tg_way_qr">With QR code</string>
+    <string name="chat_linked_tg_way_qr_sub">Needs a second screen</string>
+    <string name="chat_linked_tg_phone_lead">Your Telegram number with the country code.</string>
+    <string name="chat_linked_tg_phone_label">Phone number</string>
+    <string name="chat_linked_tg_phone_hint">GateControl does not store it. It only goes to Telegram.</string>
+    <string name="chat_linked_tg_code_lead">Telegram sent the code to your Telegram app, not by SMS.</string>
+    <string name="chat_linked_tg_code_warn">Only enter the code here, because you started the link yourself just now. Anyone who asks you for it wants your account.</string>
+    <string name="chat_linked_tg_code_wrong">The code is not right.</string>
+    <string name="chat_linked_tg_next">Continue</string>
+    <string name="chat_linked_tg_other_number">Another number</string>
+    <string name="chat_linked_tg_pw_lead">You have two-step verification on.</string>
+    <string name="chat_linked_tg_pw_label">Telegram password</string>
+    <string name="chat_linked_tg_pw_hint">The password goes to Telegram once. GateControl does not store it or write it to any log. Forgotten it? Only the Telegram app can reset it.</string>
+    <string name="chat_linked_tg_pw_wrong">The password is not right. Forgotten it? Only the Telegram app can reset it.</string>
+    <string name="chat_linked_tg_sign_in">Sign in</string>
+    <string name="chat_linked_qr_step1_telegram">Open Telegram on your phone</string>
+    <string name="chat_linked_qr_step2_telegram">Settings → Devices</string>
+    <string name="chat_linked_qr_step3_telegram">Link Desktop Device, scan the code</string>
+    <string name="chat_linked_qr_renews_telegram">It runs out after a short time and renews itself.</string>
+    <string name="chat_linked_second_text_telegram">Your phone cannot scan its own screen. Open the same step on a computer and scan it there with Telegram on this phone.</string>
+    <string name="chat_linked_second_here_telegram">Another phone with Telegram? Show the code here</string>
+    <string name="chat_linked_second_sent_windows_telegram">The step is open in the Windows client. Scan the code there with Telegram on this phone.</string>
+    <string name="chat_linked_linked_telegram">Telegram is linked. Your 15 most recently active chats appear shortly, channels on the channels page.</string>
+    <string name="chat_linked_sub_logged_out_telegram">Telegram ended the link – for example because the session was ended in Telegram under “Devices”.</string>
+    <string name="chat_pp_rec_title_telegram">May others on this server recognise you by your Telegram?</string>
+    <string name="chat_pp_rec_text_telegram">Then GateControl suggests merging your Telegram chat with your account. Your number and your user name stay hidden.</string>
+    <string name="chat_pp_rec_on_telegram">Others on this server can now recognise you by your Telegram.</string>
+    <string name="chat_pp_rec_off_telegram">Nobody recognises you by your Telegram.</string>
+    <string name="chat_bot_tag">Bot</string>
+    <string name="chat_dr_state_noapp">not set up yet</string>
+    <string name="profile_state_telegram">Confirmed via your Telegram</string>
+    <string name="profile_rec_telegram">By my linked Telegram</string>
+    <plurals name="chat_members_n">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+</resources>

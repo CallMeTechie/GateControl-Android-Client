@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.gatecontrol.android.ui.components.GcFilterChip
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -79,6 +82,9 @@ data class ChatChannelsUiState(
     val syncing: Boolean = false,
     val showArchived: Boolean = false,
     val any: Boolean = false,
+    /** Messenger 1.24: the services of the channels (id → label) — chips once there are two; [net] the one chosen. */
+    val services: List<Pair<String, String>> = emptyList(),
+    val net: String? = null,
 )
 
 /**
@@ -94,10 +100,15 @@ class ChatChannelsViewModel @Inject constructor(
     private val loaded = MutableStateFlow(false)
     private val syncing = MutableStateFlow(false)
     private val showArchived = MutableStateFlow(false)
+    private val net = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<ChatChannelsUiState> = combine(repository.channels, query, loaded, syncing, showArchived) { list, q, l, s, a ->
+    val uiState: StateFlow<ChatChannelsUiState> = combine(repository.channels, query, loaded, syncing, combine(showArchived, net) { a, n -> a to n }) { list, q, l, s, an ->
+        val (a, n0) = an
         val searching = q.isNotBlank()
-        val rows = ChatChannels.rows(list, q)
+        val services = ChatChannels.services(list)
+        // a filter of a service whose channels are gone is dropped
+        val n = n0?.takeIf { id -> services.size > 1 && services.any { it.first == id } }
+        val rows = ChatChannels.rows(ChatChannels.of(list, n), q)
         ChatChannelsUiState(
             rows = if (searching) rows else rows.filter { !it.archived },
             archived = if (searching) emptyList() else rows.filter { it.archived },
@@ -107,6 +118,8 @@ class ChatChannelsViewModel @Inject constructor(
             syncing = s,
             showArchived = a,
             any = list.isNotEmpty(),
+            services = services,
+            net = n,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatChannelsUiState())
 
@@ -128,6 +141,11 @@ class ChatChannelsViewModel @Inject constructor(
 
     fun setQuery(q: String) {
         query.value = q.take(80)
+    }
+
+    /** Messenger 1.24: the chip of a service (tapped again, or null: all). */
+    fun setNet(id: String?) {
+        net.value = if (id == null || net.value == id) null else id
     }
 
     fun toggleArchived() {
@@ -198,6 +216,16 @@ fun ChatChannelsScreen(
                 label = stringResource(R.string.chat_ch_search),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
+        }
+        // Messenger 1.24: one chip per service once channels of two services are there (Alle · WhatsApp · Telegram)
+        if (state.services.size > 1) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp).testTag("channel-chips"),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                GcFilterChip(stringResource(R.string.chat_filter_all), state.net == null, { viewModel.setNet(null) })
+                state.services.forEach { (id, label) -> GcFilterChip(label, state.net == id, { viewModel.setNet(id) }, leading = { ChatNetLogo(id, 16.dp) }) }
+            }
         }
         PullToRefreshBox(isRefreshing = state.syncing && state.loaded, onRefresh = viewModel::refresh, modifier = Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize().testTag("channel-list"), contentPadding = PaddingValues(bottom = 32.dp)) {

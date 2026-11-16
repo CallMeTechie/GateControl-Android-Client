@@ -50,6 +50,10 @@ data class ChatConvBridge(
     val readOnly: Boolean = false,
     /** Messenger 1.20, channels only: `own` — the own reaction; `off` — the bridge refused one, reacting is off. */
     val reactions: String? = null,
+    /** Messenger 1.24 (Telegram): a direct chat with a bot — „Bot“ behind the name. */
+    val bot: Boolean = false,
+    /** Messenger 1.24: the member count of a group as the service reports it; null: not known. */
+    val members: Int? = null,
 )
 
 /**
@@ -233,6 +237,8 @@ object ChatBridgeChat {
             channel = o.flag("channel") == true,
             readOnly = o.flag("readOnly") == true || o.flag("channel") == true,
             reactions = o.str("reactions")?.takeIf { it == REACTIONS_OWN || it == REACTIONS_OFF },
+            bot = o.flag("bot") == true,
+            members = o.get("members")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble?.takeIf { it >= 1 && it <= 10_000_000 && it == Math.floor(it) }?.toInt(),
         )
     }
 
@@ -265,6 +271,8 @@ object ChatBridgeChat {
         if (b.channel) addProperty("channel", true)
         if (b.readOnly) addProperty("readOnly", true)
         b.reactions?.let { addProperty("reactions", it) }
+        if (b.bot) addProperty("bot", true)
+        b.members?.let { addProperty("members", it) }
     }
 
     /** `bridge` of a message; null outside a bridged chat. */
@@ -383,12 +391,14 @@ object ChatBridgeChat {
      * The logo at a picture, in a row or a chip (Messenger 1.20, instead of the letters „WA“): WhatsApp's glyph, the
      * GateControl shield, a speech bubble for a service this app does not know.
      */
-    enum class Logo { WhatsApp, Signal, GateControl, Other }
+    enum class Logo { WhatsApp, Signal, Telegram, GateControl, Other }
 
     fun logo(network: String?): Logo = when (network) {
         ChatBridges.WHATSAPP -> Logo.WhatsApp
         // Messenger 1.23
         ChatBridges.SIGNAL -> Logo.Signal
+        // Messenger 1.24
+        ChatBridges.TELEGRAM -> Logo.Telegram
         NET_GC, GATECONTROL -> Logo.GateControl
         else -> Logo.Other
     }

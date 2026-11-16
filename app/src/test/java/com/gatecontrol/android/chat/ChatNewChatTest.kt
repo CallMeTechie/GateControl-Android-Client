@@ -138,6 +138,6 @@ class ChatNewChatTest {
     fun `the paths`() {
         assertEquals("bridges/whatsapp/resolve", ChatNewChat.path("whatsapp", "resolve"))
         assertEquals("bridges/whatsapp/chats", ChatNewChat.path("whatsapp", "chats"))
-        assertNull(ChatNewChat.path("telegram", "chats"))
+        assertNull(ChatNewChat.path("icq", "chats"))
     }
 }
