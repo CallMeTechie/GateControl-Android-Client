@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.126.0] - 2026-11-16
+
+### Features
+- WhatsApp-Status in der Status-Reihe (Messenger 1.25) (#246)
+
+---
+
 ## [1.125.0] - 2026-11-16
 
 ### Features
