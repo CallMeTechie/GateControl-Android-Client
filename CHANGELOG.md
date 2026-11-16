@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.122.0] - 2026-11-16
+
+### Features
+- SSH-Terminal mit tmux in der App (Stufe 3) (#242)
+
+---
+
 ## [1.121.0] - 2026-11-16
 
 ### Features
