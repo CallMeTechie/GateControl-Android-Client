@@ -74,10 +74,12 @@ fun rememberChatMediaStore(): ChatMediaStore? {
 fun rememberChatBitmap(mediaId: String?, sizePx: Int): ImageBitmap? {
     if (mediaId == null) return null
     val store = rememberChatMediaStore() ?: return null
-    val bitmap by produceState(store.peekBitmap(mediaId, sizePx)?.asImageBitmap(), mediaId, sizePx) {
-        if (value == null) value = store.bitmap(mediaId, sizePx)?.asImageBitmap()
-    }
-    return bitmap
+    // a new mediaId starts afresh (the status viewer: one picture per status, not the first one for all)
+    return com.gatecontrol.android.ui.components.rememberLoaded(
+        mediaId, sizePx,
+        peek = { store.peekBitmap(mediaId, sizePx)?.asImageBitmap() },
+        load = { store.bitmap(mediaId, sizePx)?.asImageBitmap() },
+    )
 }
 
 /** A picture still in the outbox (local copy). */

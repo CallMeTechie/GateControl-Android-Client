@@ -14,8 +14,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,10 +60,8 @@ fun rememberAvatarBitmap(url: String?, sizePx: Int): ImageBitmap? {
     val loader = remember(context) {
         runCatching { EntryPointAccessors.fromApplication(context, AvatarLoaderEntryPoint::class.java).avatarLoader() }.getOrNull()
     } ?: return null
-    val bitmap by produceState(loader.peek(url, sizePx)?.asImageBitmap(), url, sizePx) {
-        if (value == null) value = loader.load(url, sizePx)?.asImageBitmap()
-    }
-    return bitmap
+    // a new url starts afresh (the status viewer moves from one person to the next)
+    return rememberLoaded(url, sizePx, peek = { loader.peek(url, sizePx)?.asImageBitmap() }, load = { loader.load(url, sizePx)?.asImageBitmap() })
 }
 
 /**
