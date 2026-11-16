@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Messenger 1.23 (Brücken Stufe 7a): Signal — linked by QR code on a second screen, its chats, its consent „Erkennen“.
+     The texts follow the approved draft and the messenger plugin (server/texts.json). -->
+<resources>
+    <string name="chat_linked_net_signal">Signal</string>
+    <string name="chat_linked_note_signal_unofficial">Unofficial: GateControl becomes a linked device of your Signal, like Signal Desktop.</string>
+    <string name="chat_linked_note_signal_phone">Your phone stays the main device: Signal has to stay installed on it.</string>
+    <string name="chat_linked_note_signal_e2e">Readable on your server: from the server on, the messages are in GateControl.</string>
+    <string name="chat_linked_note_signal_safety">Safety numbers: can only be checked in the Signal app.</string>
+    <string name="chat_linked_second_title">A second screen shows the code</string>
+    <string name="chat_linked_second_text">Your phone cannot scan its own screen. Open the same step on a computer and scan it there with Signal on this phone.</string>
+    <string name="chat_linked_second_portal">Continue in the portal</string>
+    <string name="chat_linked_second_windows">Continue in the Windows client</string>
+    <string name="chat_linked_second_note">Both open exactly this step, signed in as you. The code appears there.</string>
+    <string name="chat_linked_second_here">Another phone with Signal? Show the code here</string>
+    <string name="chat_linked_second_sent_windows">The step is open in the Windows client. Scan the code there with Signal on this phone.</string>
+    <string name="chat_linked_second_sent_portal">Open the portal on a computer – the step appears there: %1$s</string>
+    <string name="chat_linked_second_copy">Copy address</string>
+    <string name="chat_linked_second_share">Share</string>
+    <string name="chat_linked_waiting_phone">Waiting for your phone …</string>
+    <string name="chat_linked_qr_lead_signal">Scan with your phone:</string>
+    <string name="chat_linked_qr_step1_signal">Open Signal on your phone</string>
+    <string name="chat_linked_qr_step2_signal">Settings → Linked devices</string>
+    <string name="chat_linked_qr_step3_signal">Link new device, then scan this code</string>
+    <string name="chat_linked_qr_renews">It renews itself.</string>
+    <string name="chat_linked_phone_history">Signal now asks on your phone whether to transfer your history. GateControl takes at most %1$d days of it.</string>
+    <string name="chat_linked_hist_once">Signal: only when linking, at most %1$d days. Changing it later brings nothing from Signal.</string>
+    <string name="chat_linked_hist_line">History: %1$d days</string>
+    <string name="chat_linked_hist_line_pending">History: %1$d days, loaded at night</string>
+    <string name="chat_linked_sub_logged_out_signal">Signal ended the link – for example because the device was removed in Signal under “Linked devices”.</string>
+    <string name="chat_linked_ok">OK</string>
+    <string name="chat_pp_rec_title_signal">May others on this server recognise you by your Signal?</string>
+    <string name="chat_pp_rec_text_signal">If someone here has you on Signal, GateControl suggests merging your Signal chat with your account. Nobody sees your number.</string>
+    <string name="chat_pp_rec_on_signal">Others on this server can now recognise you by your Signal.</string>
+    <string name="chat_pp_rec_off_signal">Nobody recognises you by your Signal.</string>
+    <string name="chat_signal_safety">Check safety numbers in the Signal app. The bridge accepts new keys on its own.</string>
+    <string name="chat_view_once">View once. Open it in %1$s.</string>
+    <string name="profile_state_signal">Confirmed via your Signal</string>
+    <string name="profile_rec_signal">By my linked Signal</string>
+    <string name="profile_rec_signal_sub">Others here may recognise you by it</string>
+    <string name="chat_disappearing_line">Messages disappear after %1$s. Only %2$s can change it.</string>
+    <plurals name="chat_minutes_timer">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="chat_seconds_timer">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
+</resources>

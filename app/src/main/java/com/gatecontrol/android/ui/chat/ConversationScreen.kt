@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.chat
 
+import androidx.compose.ui.platform.testTag
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -608,6 +609,7 @@ fun ConversationScreen(
                 // Messenger 1.20: a channel — only read, its push off until the bell
                 channelPush = if (b.channel) c.me.notify != "none" && !c.muted else null,
                 onChannelPush = { viewModel.setChannelPush(true) },
+                disappearingS = c.disappearingS,
             )
         }
 
@@ -1667,6 +1669,20 @@ internal fun openLocation(context: Context, lat: Double, lon: Double, label: Str
 /** Message kinds whose file can go into Drive (Messenger 1.10 `to-drive`). */
 private val DRIVE_KINDS = setOf("image", "voice", "file")
 
+/** Messenger 1.23: one thin line of a bridged chat (an icon and a text). */
+@Composable
+private fun BridgeLine(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        modifier.fillMaxWidth().background(extra.panel2).padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = extra.muted, modifier = Modifier.size(16.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.weight(1f))
+    }
+}
+
 /**
  * Messenger 1.14, a chat over a bridge: why it cannot send right now (the account signed out, the bridge away, …),
  * the note at the first visit of a service's chat ("Chat über WhatsApp") and afterwards the thin strip that says
@@ -1681,9 +1697,19 @@ internal fun BridgeBar(
     /** Messenger 1.20: a channel — whether its posts come as a push (null: no channel). */
     channelPush: Boolean? = null,
     onChannelPush: () -> Unit = {},
+    /** Messenger 1.23: the chat's timer at the other messenger (Signal) — shown, changed only there. */
+    disappearingS: Int = 0,
 ) {
     val extra = GateControlTheme.extraColors
     val name = bridge.label
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Messenger 1.23: Signal takes a contact's new safety number by itself — said once per Signal chat, at the top
+    if (bridge.network == com.gatecontrol.android.chat.ChatBridges.SIGNAL && channelPush == null) {
+        BridgeLine(Icons.Outlined.Lock, stringResource(R.string.chat_signal_safety), Modifier.testTag("chat-signal-safety"))
+    }
+    if (disappearingS > 0 && channelPush == null) {
+        BridgeLine(Icons.Outlined.Info, stringResource(R.string.chat_disappearing_line, ChatText.disappearing(ctx, disappearingS), name), Modifier.testTag("chat-bridge-timer"))
+    }
     val bar = com.gatecontrol.android.chat.ChatBridgeChat.bar(bridge)
     if (bar != null) {
         val warn = bar == com.gatecontrol.android.chat.ChatBridgeChat.Bar.Unreachable || bar == com.gatecontrol.android.chat.ChatBridgeChat.Bar.LoggedOut

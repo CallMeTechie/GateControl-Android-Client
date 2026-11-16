@@ -246,6 +246,7 @@ fun ProfileScreen(
                     editPhone = fieldsViewModel::editPhone,
                     email = { fieldsViewModel.openEmail(it.id) },
                     recognition = { wa, phone -> fieldsViewModel.setRecognition(wa, phone) },
+                    recognitionSignal = { on -> fieldsViewModel.setRecognition(bySignal = on) },
                     avatarVisibility = fieldsViewModel::openAvatarVisibility,
                 ),
                 saving = fieldsSaving,

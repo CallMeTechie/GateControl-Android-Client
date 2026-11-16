@@ -365,7 +365,7 @@ object ChatPeople {
     fun labelOf(way: String): String = when (way) {
         WAY_GC -> "GateControl"
         ChatBridges.WHATSAPP -> "WhatsApp"
-        "signal" -> "Signal"
+        ChatBridges.SIGNAL -> "Signal"
         "telegram" -> "Telegram"
         else -> way
     }

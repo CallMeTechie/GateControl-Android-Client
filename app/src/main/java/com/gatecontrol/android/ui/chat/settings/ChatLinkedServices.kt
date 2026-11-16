@@ -102,6 +102,15 @@ class LinkedActions(
     val copyCode: (String) -> Unit = {},
     /** Messenger 1.17: the choice of older messages (`0`, `30`, `-1`). */
     val setHistory: (Int) -> Unit = {},
+    /** Messenger 1.23: the step of a QR-only service on a second screen (`portal`, `windows`). */
+    val handoff: (String) -> Unit = {},
+    /** Messenger 1.23: „Anderes Handy mit Signal? Code hier zeigen“. */
+    val showCodeHere: () -> Unit = {},
+    /** Messenger 1.23: the note about the phone's history question was read. */
+    val dismissPhoneHistory: () -> Unit = {},
+    /** Messenger 1.23: the portal's address to copy or share (`portalPath` of the handoff). */
+    val sharePortal: (String) -> Unit = {},
+    val copyPortal: (String) -> Unit = {},
 )
 
 /**
@@ -127,7 +136,9 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
                 is LinkedNotice.Unlinked -> res.getString(R.string.chat_linked_unlinked, res.getString(networkName(n.network)))
                 is LinkedNotice.Failed -> res.getString(errorText(n.error))
                 LinkedNotice.HistorySaved -> res.getString(R.string.chat_linked_hist_saved)
-                is LinkedNotice.Recognition -> res.getString(if (n.allowed) R.string.chat_pp_rec_on else R.string.chat_pp_rec_off)
+                is LinkedNotice.Recognition ->
+                    if (ui.recognitionNetwork == ChatBridges.SIGNAL) res.getString(if (n.allowed) R.string.chat_pp_rec_on_signal else R.string.chat_pp_rec_off_signal)
+                    else res.getString(if (n.allowed) R.string.chat_pp_rec_on else R.string.chat_pp_rec_off)
             }
             Toast.makeText(ctx, text, Toast.LENGTH_LONG).show()
         }
@@ -146,6 +157,17 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
             submitPhone = viewModel::submitPhone,
             retry = viewModel::retry,
             setHistory = viewModel::setHistory,
+            handoff = viewModel::handoff,
+            showCodeHere = viewModel::showCodeHere,
+            dismissPhoneHistory = viewModel::dismissPhoneHistory,
+            sharePortal = { url ->
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, url)
+                runCatching { ctx.startActivity(android.content.Intent.createChooser(send, null)) }
+            },
+            copyPortal = { url ->
+                VaultClipboard.copy(ctx, url, secret = false, seconds = 0)
+                Toast.makeText(ctx, R.string.chat_linked_second_copy, Toast.LENGTH_SHORT).show()
+            },
             copyCode = { code ->
                 // marked sensitive (no preview on Android 13+) and cleared again after a minute
                 VaultClipboard.copy(ctx, code, secret = true, seconds = 60)
@@ -160,6 +182,7 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
     if (ui.askRecognition) {
         com.gatecontrol.android.ui.chat.RecognitionDialog(
             busy = ui.recognitionSaving,
+            network = ui.recognitionNetwork,
             onAnswer = { viewModel.answerRecognition(it) },
             onDismiss = { viewModel.answerRecognition(null) },
         )
@@ -177,8 +200,8 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
     }
 }
 
-// Today WhatsApp is the only service ([ChatBridges.NETWORKS]); a further one gets its name and mark here.
-internal fun networkName(@Suppress("UNUSED_PARAMETER") id: String): Int = R.string.chat_linked_net_whatsapp
+// The services of [ChatBridges.NETWORKS] (Messenger 1.23: Signal); a further one gets its name and mark here.
+internal fun networkName(id: String): Int = if (id == ChatBridges.SIGNAL) R.string.chat_linked_net_signal else R.string.chat_linked_net_whatsapp
 
 
 internal fun errorText(e: ChatBridgeError): Int = when (e) {
@@ -209,7 +232,8 @@ fun LinkedServicesContent(ui: LinkedUiState, actions: LinkedActions, chats: Bool
     val info = ui.info
     when (val view = ui.view) {
         is LinkedView.Notes -> NotesView(view, actions)
-        is LinkedView.Link -> LinkView(view, actions)
+        is LinkedView.Link -> LinkView(view, actions, info?.networks?.firstOrNull { it.id == view.network }?.flows ?: listOf(ChatBridges.FLOW_PHONE, ChatBridges.FLOW_QR))
+        is LinkedView.SecondScreen -> SecondScreenView(view, actions)
         LinkedView.Overview -> when {
             info == null && ui.loading -> Muted(stringResource(R.string.chat_linked_loading))
             info == null -> {
@@ -217,7 +241,19 @@ fun LinkedServicesContent(ui: LinkedUiState, actions: LinkedActions, chats: Bool
                 GcOutlineButton(text = stringResource(R.string.chat_retry), onClick = actions.refresh, icon = GcIcons.Refresh)
             }
             !info.available || info.networks.isEmpty() -> Muted(stringResource(R.string.chat_linked_none_offered))
-            else -> Overview(info, ui.unlinking, actions, chats, media, historySaving = ui.historySaving)
+            else -> {
+                // Messenger 1.23: right after a Signal link — the phone asks about the history now
+                ui.phoneHistory?.let { net ->
+                    val days = info.networks.firstOrNull { it.id == net }?.historyMaxDays ?: ChatBridgeHistory.DAYS_30
+                    Box(Modifier.testTag("linked-phone-history")) {
+                        GcBanner(tone = GcTone.Info, icon = GcIcons.Alert) {
+                            Text(stringResource(R.string.chat_linked_phone_history, days), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                        }
+                    }
+                    GcOutlineButton(text = stringResource(R.string.chat_linked_ok), onClick = actions.dismissPhoneHistory)
+                }
+                Overview(info, ui.unlinking, actions, chats, media, historySaving = ui.historySaving)
+            }
         }
     }
 }
@@ -261,13 +297,17 @@ private fun Overview(info: ChatBridgesInfo, unlinking: String?, actions: LinkedA
     GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         info.networks.forEachIndexed { i, n ->
             if (i > 0) GcRowDivider()
-            NetworkRow(n, busy = unlinking == n.id, actions = actions)
+            NetworkRow(n, busy = unlinking == n.id, actions = actions, history = info.history)
         }
     }
     GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         // Messenger 1.17: under the services, above where they run — only on a server that has older history
         info.history?.let { h ->
             HistoryRow(h, historySaving, actions)
+            // Messenger 1.23: a service that brings its history only at the link (Signal)
+            info.networks.firstOrNull { it.phoneConfirms }?.takeIf { h.available }?.let { n ->
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) { Small(stringResource(R.string.chat_linked_hist_once, n.historyMaxDays ?: ChatBridgeHistory.DAYS_30)) }
+            }
             GcRowDivider()
         }
         GcListRow(
@@ -342,7 +382,7 @@ private fun HistoryRow(h: ChatBridgeHistory, saving: Boolean, actions: LinkedAct
 }
 
 @Composable
-private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActions) {
+private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActions, history: ChatBridgeHistory? = null) {
     val extra = GateControlTheme.extraColors
     val locale = LocalConfiguration.current.locales[0] ?: Locale.ROOT
     val name = stringResource(networkName(n.id))
@@ -354,10 +394,14 @@ private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActio
         ChatBridgeRow.UNREACHABLE -> stringResource(R.string.chat_linked_sub_unreachable)
         ChatBridgeRow.LINKED ->
             (if (since.isNotEmpty()) stringResource(R.string.chat_linked_sub_linked_since, since) else stringResource(R.string.chat_linked_sub_linked)) +
-                (login?.name?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+                (login?.name?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") +
+                // Messenger 1.23: what of the history of a link-only service (Signal) is still on its way
+                (n.historyMaxDays?.takeIf { n.phoneConfirms && history?.available == true && history.days != ChatBridgeHistory.OFF }?.let { d ->
+                    " · " + stringResource(if ((history?.pending ?: 0) > 0) R.string.chat_linked_hist_line_pending else R.string.chat_linked_hist_line, d)
+                } ?: "")
         ChatBridgeRow.LOGGED_OUT ->
             (if (since.isNotEmpty()) stringResource(R.string.chat_linked_sub_logged_out_at, since) else stringResource(R.string.chat_linked_sub_logged_out)) +
-                " " + stringResource(R.string.chat_linked_sub_logged_out_whatsapp)
+                " " + stringResource(if (n.id == ChatBridges.SIGNAL) R.string.chat_linked_sub_logged_out_signal else R.string.chat_linked_sub_logged_out_whatsapp)
         ChatBridgeRow.ERROR -> stringResource(R.string.chat_linked_sub_error)
         ChatBridgeRow.LOCKED -> stringResource(R.string.chat_linked_sub_locked)
         ChatBridgeRow.NONE -> stringResource(R.string.chat_linked_sub_none)
@@ -431,6 +475,13 @@ private val NOTES = mapOf(
         R.string.chat_linked_note_whatsapp_phone,
         R.string.chat_linked_note_whatsapp_e2e,
     ),
+    // Messenger 1.23
+    ChatBridges.SIGNAL to listOf(
+        R.string.chat_linked_note_signal_unofficial,
+        R.string.chat_linked_note_signal_phone,
+        R.string.chat_linked_note_signal_e2e,
+        R.string.chat_linked_note_signal_safety,
+    ),
 )
 
 @Composable
@@ -469,13 +520,16 @@ private fun NotesView(view: LinkedView.Notes, actions: LinkedActions) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LinkView(view: LinkedView.Link, actions: LinkedActions) {
+private fun LinkView(view: LinkedView.Link, actions: LinkedActions, flows: List<String> = listOf(ChatBridges.FLOW_PHONE, ChatBridges.FLOW_QR)) {
     val name = stringResource(networkName(view.network))
+    val signal = view.network == ChatBridges.SIGNAL
     Heading(stringResource(R.string.chat_linked_link_title, name))
-    // side by side where they fit, else one under the other (the labels are long)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        GcFilterChip(stringResource(R.string.chat_linked_flow_phone), selected = view.flow == ChatBridges.FLOW_PHONE, onClick = { actions.selectFlow(ChatBridges.FLOW_PHONE) })
-        GcFilterChip(stringResource(R.string.chat_linked_flow_qr), selected = view.flow == ChatBridges.FLOW_QR, onClick = { actions.selectFlow(ChatBridges.FLOW_QR) })
+    // side by side where they fit, else one under the other (the labels are long); Messenger 1.23: one way in, no choice
+    if (flows.size > 1) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            GcFilterChip(stringResource(R.string.chat_linked_flow_phone), selected = view.flow == ChatBridges.FLOW_PHONE, onClick = { actions.selectFlow(ChatBridges.FLOW_PHONE) })
+            GcFilterChip(stringResource(R.string.chat_linked_flow_qr), selected = view.flow == ChatBridges.FLOW_QR, onClick = { actions.selectFlow(ChatBridges.FLOW_QR) })
+        }
     }
     when (val p = view.phase) {
         LinkPhase.Starting -> Waiting(stringResource(R.string.chat_linked_loading))
@@ -488,7 +542,14 @@ private fun LinkView(view: LinkedView.Link, actions: LinkedActions) {
             Small(stringResource(R.string.chat_linked_code_note))
             Waiting(stringResource(R.string.chat_linked_waiting))
         }
-        is LinkPhase.Qr -> {
+        is LinkPhase.Qr -> if (signal) {
+            // Messenger 1.23: Signal on another phone; the code renews itself every 45 s
+            Muted(stringResource(R.string.chat_linked_qr_lead_signal))
+            QrBox(p.matrix)
+            Steps(listOf(R.string.chat_linked_qr_step1_signal, R.string.chat_linked_qr_step2_signal, R.string.chat_linked_qr_step3_signal))
+            Small(stringResource(R.string.chat_linked_qr_renews))
+            Waiting(stringResource(R.string.chat_linked_waiting))
+        } else {
             Muted(stringResource(R.string.chat_linked_qr_lead_whatsapp))
             QrBox(p.matrix)
             Steps(listOf(R.string.chat_linked_qr_step1_whatsapp, R.string.chat_linked_qr_step2_whatsapp))
@@ -501,6 +562,59 @@ private fun LinkView(view: LinkedView.Link, actions: LinkedActions) {
                 text = stringResource(if (view.flow == ChatBridges.FLOW_PHONE) R.string.chat_linked_new_code else R.string.chat_linked_new_qr),
                 onClick = actions.retry,
             )
+        }
+    }
+}
+
+/**
+ * Messenger 1.23 „Den Code zeigt ein zweiter Bildschirm“ (Signal): the phone cannot scan its own screen — the step goes
+ * to the portal or the Windows client, signed in as the person; this page waits for the link. A second phone with
+ * Signal can show the code here after all.
+ */
+@Composable
+private fun SecondScreenView(view: LinkedView.SecondScreen, actions: LinkedActions) {
+    val name = stringResource(networkName(view.network))
+    Heading(stringResource(R.string.chat_linked_link_title, name))
+    GcCard(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("linked-second-screen")) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            GcIconSquare { androidx.compose.material3.Icon(GcIcons.Monitor, contentDescription = null, tint = GateControlTheme.extraColors.accentText) }
+            Text(stringResource(R.string.chat_linked_second_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+        }
+        Text(stringResource(R.string.chat_linked_second_text), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted)
+        GcPrimaryButton(
+            text = stringResource(R.string.chat_linked_second_portal),
+            onClick = { actions.handoff(ChatBridges.HANDOFF_PORTAL) },
+            loading = view.saving && view.target == null,
+            enabled = !view.saving,
+            modifier = Modifier.testTag("linked-handoff-portal"),
+        )
+        GcSecondaryButton(
+            text = stringResource(R.string.chat_linked_second_windows),
+            onClick = { actions.handoff(ChatBridges.HANDOFF_WINDOWS) },
+            enabled = !view.saving,
+            modifier = Modifier.testTag("linked-handoff-windows"),
+        )
+        Text(stringResource(R.string.chat_linked_second_note), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
+    }
+    when (view.target) {
+        ChatBridges.HANDOFF_WINDOWS -> {
+            Note(stringResource(R.string.chat_linked_second_sent_windows))
+            Waiting(stringResource(R.string.chat_linked_waiting_phone))
+        }
+        ChatBridges.HANDOFF_PORTAL -> {
+            val address = view.portalPath ?: "/portal"
+            Note(stringResource(R.string.chat_linked_second_sent_portal, address))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GcOutlineButton(text = stringResource(R.string.chat_linked_second_copy), onClick = { actions.copyPortal(address) })
+                GcOutlineButton(text = stringResource(R.string.chat_linked_second_share), onClick = { actions.sharePortal(address) })
+            }
+            Waiting(stringResource(R.string.chat_linked_waiting_phone))
+        }
+        else -> Unit
+    }
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        androidx.compose.material3.TextButton(onClick = actions.showCodeHere, modifier = Modifier.testTag("linked-code-here")) {
+            Text(stringResource(R.string.chat_linked_second_here), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.accentText)
         }
     }
 }

@@ -405,16 +405,18 @@ fun PersonAddRow(onClick: () -> Unit) {
     )
 }
 
-/** After linking WhatsApp: „Dürfen andere auf diesem Server dich an deinem WhatsApp erkennen?“ — Nein · Ja, erkennen lassen. */
+/** After linking WhatsApp (1.23: or Signal): „Dürfen andere auf diesem Server dich an deinem WhatsApp erkennen?“ — Nein · Ja, erkennen lassen. */
 @Composable
-fun RecognitionDialog(busy: Boolean, onAnswer: (Boolean) -> Unit, onDismiss: () -> Unit) {
+fun RecognitionDialog(busy: Boolean, onAnswer: (Boolean) -> Unit, onDismiss: () -> Unit, network: String = com.gatecontrol.android.chat.ChatBridges.WHATSAPP) {
     val extra = GateControlTheme.extraColors
+    // Messenger 1.23: the question per service (Signal has its own)
+    val signal = network == com.gatecontrol.android.chat.ChatBridges.SIGNAL
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.chat_pp_rec_title)) },
+        title = { Text(stringResource(if (signal) R.string.chat_pp_rec_title_signal else R.string.chat_pp_rec_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(R.string.chat_pp_rec_text), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(if (signal) R.string.chat_pp_rec_text_signal else R.string.chat_pp_rec_text), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.chat_pp_rec_note), style = MaterialTheme.typography.bodySmall, color = extra.muted)
             }
         },

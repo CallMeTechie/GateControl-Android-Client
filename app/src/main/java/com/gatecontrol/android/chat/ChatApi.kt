@@ -333,8 +333,28 @@ class ChatApi @Inject constructor(
         get("persons/candidates", mapOf("conversationId" to conversationId.toString()), ChatPeople::candidates)
 
     /** `PUT bridges/recognition { allowed }` → the consent as it stands now. */
-    suspend fun putRecognition(allowed: Boolean): ChatResult<ChatRecognition> =
-        put("bridges/recognition", JsonObject().apply { addProperty("allowed", allowed) }) { o -> ChatPeople.recognition(o.get("recognition")?.takeIf { it.isJsonObject }?.asJsonObject) }
+    suspend fun putRecognition(allowed: Boolean, network: String = ChatBridges.WHATSAPP): ChatResult<ChatRecognition> {
+        if (network !in ChatBridges.NETWORKS) return noPath()
+        // Messenger 1.23: one consent per service; WhatsApp's without the field (an older Messenger takes only that)
+        val body = JsonObject().apply { addProperty("allowed", allowed); if (network != ChatBridges.WHATSAPP) addProperty("network", network) }
+        return put("bridges/recognition", body) { o ->
+            if (network == ChatBridges.WHATSAPP) ChatPeople.recognition(o.get("recognition")?.takeIf { it.isJsonObject }?.asJsonObject)
+            else ChatPeople.recognition(o.get("recognitions")?.takeIf { it.isJsonObject }?.asJsonObject?.get(network)?.takeIf { it.isJsonObject }?.asJsonObject)?.copy(network = network)
+        }
+    }
+
+    /** Messenger 1.23 `POST bridges/:network/handoff { target }` — the linking step on a second screen (portal, Windows). */
+    suspend fun bridgeHandoff(network: String, target: String): ChatResult<ChatBridgeHandoff> {
+        val path = ChatBridges.path(network, "handoff") ?: return noPath()
+        if (target !in ChatBridges.HANDOFF_TARGETS) return noPath()
+        return post(path, JsonObject().apply { addProperty("target", target) }) { o -> ChatBridgesJson.handoff(o.get("handoff")?.takeIf { it.isJsonObject }?.asJsonObject) }
+    }
+
+    /** Messenger 1.23 `DELETE bridges/:network/handoff`. */
+    suspend fun bridgeHandoffEnd(network: String): ChatResult<Unit> {
+        val path = ChatBridges.path(network, "handoff") ?: return noPath()
+        return del(path, unit)
+    }
 
     // ─── Messenger 1.12/1.13: „Verknüpfte Dienste“ (bridges) ───────
     // The viewer's own account only. A number or a pairing code is never logged here: [call] logs the HTTP status

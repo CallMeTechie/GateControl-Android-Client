@@ -91,7 +91,7 @@ class ChatBridgesTest {
                  "logins":[{"id":"4915120000000","name":"+49 1512 0000000","state":"connected","since":"2026-11-02T08:00:00.000Z"},
                            {"id":"bad id","name":"x","state":"connected"},
                            {"id":"old","name":"","state":"something_new","since":"nonsense"}]},
-                {"id":"signal","state":"running","allowed":true,"logins":[]}]}}""",
+                {"id":"telegram","state":"running","allowed":true,"logins":[]}]}}""",
             ),
         )!!
         assertTrue(info.available)
@@ -280,7 +280,40 @@ class ChatBridgesTest {
         assertNull(ChatBridges.path("whatsapp", "login", "a/b"), "no path of its own")
         assertNull(ChatBridges.path("whatsapp", "login", "../me"))
         assertNull(ChatBridges.path("whatsapp", "logins", ""))
-        assertNull(ChatBridges.path("signal", "login"), "a service this app does not know")
+        assertNull(ChatBridges.path("telegram", "login"), "a service this app does not know")
+        // Messenger 1.23
+        assertEquals("bridges/signal/handoff", ChatBridges.path("signal", "handoff"))
+    }
+
+    @Test
+    fun `Messenger 1 23 - Signal links by QR code only, brings 30 days once, has its own consent and a handoff`() {
+        val info = ChatBridgesJson.info(
+            json(
+                """{"ok":true,"bridges":{"available":true,"location":"server",
+                "handoff":{"network":"signal","target":"windows","expiresAt":"2026-11-16T10:12:00.000Z"},
+                "networks":[
+                {"id":"whatsapp","state":"running","allowed":true,"logins":[],"flows":["phone","qr"],"history":{"maxDays":null,"phoneConfirms":false}},
+                {"id":"signal","state":"running","allowed":true,"consent":null,"logins":[],"flows":["qr"],
+                 "history":{"maxDays":30,"phoneConfirms":true},"recognition":{"available":true,"asked":false,"allowed":false}}]}}""",
+            ),
+        )!!
+        assertEquals(listOf("whatsapp", "signal"), info.networks.map { it.id })
+        val sg = info.networks[1]
+        assertEquals(listOf(ChatBridges.FLOW_QR), sg.flows)
+        assertTrue(ChatBridges.qrOnly(sg))
+        assertFalse(ChatBridges.qrOnly(info.networks[0]))
+        assertEquals(ChatBridges.FLOW_PHONE, ChatBridges.firstFlow(info.networks[0]))
+        assertEquals(30, sg.historyMaxDays)
+        assertTrue(sg.phoneConfirms)
+        assertEquals("signal", info.recognitionOf("signal")!!.network)
+        assertTrue(info.recognitionOf("signal")!!.ask)
+        assertNull(info.recognitionOf("whatsapp"), "an older server: WhatsApp's consent only at the top")
+        assertEquals(ChatBridges.HANDOFF_WINDOWS, info.handoff!!.target)
+        assertEquals("signal", info.handoff!!.network)
+        // an older server names no flows: both ways
+        val old = ChatBridgesJson.info(json("""{"bridges":{"available":true,"networks":[{"id":"whatsapp","state":"running","logins":[]}]}}"""))!!
+        assertEquals(listOf(ChatBridges.FLOW_PHONE, ChatBridges.FLOW_QR), old.networks[0].flows)
+        assertNull(ChatBridgesJson.handoff(json("""{"network":"signal","target":"fax"}""")))
     }
 
     // ─── the calls ──────────────────────────────────────────────────

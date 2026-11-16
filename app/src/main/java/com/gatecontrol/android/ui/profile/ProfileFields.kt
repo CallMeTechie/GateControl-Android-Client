@@ -81,6 +81,8 @@ class ProfileFieldActions(
     val editPhone: (Long) -> Unit,
     val email: (PEmail) -> Unit,
     val recognition: (byWhatsapp: Boolean?, byPhone: Boolean?) -> Unit,
+    /** Bridges 7a: „An meinem verknüpften Signal“. */
+    val recognitionSignal: (Boolean) -> Unit = {},
     /** „Wer sieht dein Bild?“ — the sheet with the four levels. */
     val avatarVisibility: () -> Unit = {},
 )
@@ -144,6 +146,7 @@ internal fun avatarVisLabel(level: String, short: Boolean = false): String = str
 private fun stateLabel(state: String): String = stringResource(
     when (state) {
         PPhone.STATE_WHATSAPP -> R.string.profile_state_whatsapp
+        PPhone.STATE_SIGNAL -> R.string.profile_state_signal
         PPhone.STATE_ADMIN -> R.string.profile_state_admin
         PPhone.STATE_DIRECTORY -> R.string.profile_state_directory
         else -> R.string.profile_state_unconfirmed
@@ -335,6 +338,18 @@ fun ProfileFieldGroups(d: ProfileDetails, a: ProfileFieldActions, saving: Boolea
                     icon = GcIcons.Scan,
                     enabled = !saving,
                 )
+                // Bridges 7a: one line per further linked service (while it is linked or the consent is on)
+                if (d.recognition.signalLinked || d.recognition.bySignal) {
+                    GcRowDivider()
+                    GcSwitchRow(
+                        label = stringResource(R.string.profile_rec_signal),
+                        description = stringResource(R.string.profile_rec_signal_sub),
+                        checked = d.recognition.bySignal,
+                        onCheckedChange = { a.recognitionSignal(it) },
+                        icon = GcIcons.Scan,
+                        enabled = !saving,
+                    )
+                }
                 if (d.features.phones) {
                     GcRowDivider()
                     val n = d.recognition.phonesForRecognition

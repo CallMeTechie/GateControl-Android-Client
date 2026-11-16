@@ -41,16 +41,26 @@ object ChatNetGlyphs {
         "M9.2 7.6c.2-.4.4-.4.7-.4h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .6l-.5.7c-.1.2-.2.3 0 .6.6 1 1.4 1.8 2.5 2.4.3.1.4.1.6-.1l.7-.8c.2-.2.4-.2.6-.1l1.8.9c.2.1.4.2.4.4.1.3 0 1-.3 1.4-.4.5-1.3 1-2 1-1 .1-2.3-.4-4-1.6-1.5-1.2-2.5-2.6-2.9-3.6-.4-1-.2-2 .5-2.8z",
     )
     val GateControl: ImageVector = glyph("GateControl", "M12 2.5l7.5 2.8v5.9c0 4.8-3.2 8.6-7.5 10.3-4.3-1.7-7.5-5.5-7.5-10.3V5.3z")
+
+    /** Messenger 1.23: Signal — a speech bubble in a dashed ring (the portal's `NET_GLYPH.signal`). */
+    val Signal: ImageVector = ImageVector.Builder(name = "Signal", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+        .addPath(pathData = addPathNodes("M12 5.6a6.4 6.4 0 0 0-5.5 9.7l-.8 3 3.1-.7A6.4 6.4 0 1 0 12 5.6z"), fill = SolidColor(Color.Black), pathFillType = PathFillType.EvenOdd)
+        .addPath(pathData = addPathNodes("M21.60 12.00A9.6 9.6 0 0 1 21.02 15.28M20.31 16.80A9.6 9.6 0 0 1 18.17 19.35M16.80 20.31A9.6 9.6 0 0 1 13.67 21.45M12.00 21.60A9.6 9.6 0 0 1 8.72 21.02M7.20 20.31A9.6 9.6 0 0 1 4.65 18.17M3.69 16.80A9.6 9.6 0 0 1 2.55 13.67M2.40 12.00A9.6 9.6 0 0 1 2.98 8.72M3.69 7.20A9.6 9.6 0 0 1 5.83 4.65M7.20 3.69A9.6 9.6 0 0 1 10.33 2.55M12.00 2.40A9.6 9.6 0 0 1 15.28 2.98M16.80 3.69A9.6 9.6 0 0 1 19.35 5.83M20.31 7.20A9.6 9.6 0 0 1 21.45 10.33"), fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 1.6f)
+        .build()
     val Other: ImageVector = glyph("OtherMessenger", "M4 5h16v11H9l-5 4z")
 
     fun of(logo: ChatBridgeChat.Logo): ImageVector = when (logo) {
         ChatBridgeChat.Logo.WhatsApp -> WhatsApp
+        ChatBridgeChat.Logo.Signal -> Signal
         ChatBridgeChat.Logo.GateControl -> GateControl
         ChatBridgeChat.Logo.Other -> Other
     }
 
     /** WhatsApp's green of the mark (the portal's `#1F8F5A`). */
     val WHATSAPP_GREEN = Color(0xFF1F8F5A)
+
+    /** Signal's blue of the mark (the portal's `#3A76F0`). */
+    val SIGNAL_BLUE = Color(0xFF3A76F0)
 }
 
 /**
@@ -63,6 +73,7 @@ fun ChatNetLogo(network: String?, size: Dp, modifier: Modifier = Modifier, label
     val extra = GateControlTheme.extraColors
     val (bg, fg) = when (logo) {
         ChatBridgeChat.Logo.WhatsApp -> ChatNetGlyphs.WHATSAPP_GREEN to Color.White
+        ChatBridgeChat.Logo.Signal -> ChatNetGlyphs.SIGNAL_BLUE to Color.White
         ChatBridgeChat.Logo.GateControl -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
         ChatBridgeChat.Logo.Other -> extra.panel2 to extra.muted
     }
