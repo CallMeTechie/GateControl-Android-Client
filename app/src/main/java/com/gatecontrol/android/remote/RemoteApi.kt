@@ -78,15 +78,21 @@ class RemoteApi @Inject constructor(
         addProperty("platform", "android")
         addProperty("name", name.take(100))
         addProperty("appVersion", appVersion.take(40))
-        add("screen", JsonObject().apply {
-            addProperty("view", true)
-            addProperty("control", false)
-        })
+        add("screen", screenCaps())
     }), RemoteJson::host)
+
+    /** What this app can do with its screen: always show it; control only in the GitHub build (stage 6, decision 4). */
+    private fun screenCaps(): JsonObject = JsonObject().apply {
+        addProperty("view", true)
+        addProperty("control", ScreenControl.supported)
+    }
 
     /** The heartbeat: still here, and the questions a lost signal did not bring. */
     suspend fun heartbeat(): RemoteResult<ScreenState> =
-        call(post("host/state", JsonObject().apply { addProperty("online", true) }), RemoteJson::state)
+        call(post("host/state", JsonObject().apply {
+            addProperty("online", true)
+            add("screen", screenCaps())
+        }), RemoteJson::state)
 
     suspend fun setShareMode(open: Boolean): RemoteResult<String> = call({
         pluginPut(REMOTE_PLUGIN, "host/share", JsonObject().apply { addProperty("shareMode", if (open) "open" else "code") })
@@ -97,14 +103,17 @@ class RemoteApi @Inject constructor(
 
     suspend fun newCode(): RemoteResult<ScreenCode> = call(post("host/code"), RemoteJson::code)
 
-    /** The person's answer; allowed → the sending side of GateControl's relay ticket ([ScreenDecision.ticket], null when denied). */
-    suspend fun decide(requestId: String, allow: Boolean): RemoteResult<ScreenDecision> {
+    /**
+     * The person's answer; allowed → the sending side of GateControl's relay ticket ([ScreenDecision.ticket], null when
+     * denied). [control]: the person chose „Ansehen und steuern“ for this request (never in a build that cannot control).
+     */
+    suspend fun decide(requestId: String, allow: Boolean, control: Boolean = false): RemoteResult<ScreenDecision> {
         if (!REQUEST_ID.matches(requestId)) return RemoteResult.Failed(CODE_INVALID, 0)
         return call(post("host/requests/$requestId", JsonObject().apply {
             addProperty("decision", if (allow) "allow" else "deny")
-            addProperty("mode", "view")
+            addProperty("mode", if (allow && control && ScreenControl.supported) "control" else "view")
         })) { body ->
-            if (!allow) ScreenDecision(null) else RemoteJson.ticket(body)?.let { ScreenDecision(it) }
+            if (!allow) ScreenDecision(null) else RemoteJson.ticket(body)?.let { ScreenDecision(it, control && RemoteJson.grantedControl(body)) }
         }
     }
 

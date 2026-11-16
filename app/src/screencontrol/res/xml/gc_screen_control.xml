@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- „GateControl-Fernsteuerung“ (Fernzugriff, stage 6, GitHub build only): gestures and the global actions Back / Home /
+     Overview, text into the focused input field. It listens to no event (nothing is read or sent outside a session the
+     person allowed); canRetrieveWindowContent only to find the focused input field for text. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="100"
+    android:description="@string/screen_control_service_description"
+    android:summary="@string/screen_control_service_summary" />

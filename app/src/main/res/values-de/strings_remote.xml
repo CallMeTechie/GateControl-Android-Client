@@ -38,4 +38,28 @@
     <string name="screen_share_err_plugin">Das Plugin „Fernzugriff“ fehlt oder hat keine Lizenz.</string>
     <string name="screen_share_err_expired">Die Anfrage ist abgelaufen.</string>
     <string name="screen_share_err_failed">Die Freigabe ist fehlgeschlagen.</string>
+    <!-- Stufe 6: Steuern (nur die App von GitHub; die App aus Google Play zeigt den Bildschirm nur) -->
+    <string name="screen_control_ask_title">%s möchte deinen Bildschirm sehen und steuern</string>
+    <string name="screen_control_ask_sub">Ansehen und steuern · noch %d s</string>
+    <string name="screen_control_view_only_choice">Nur ansehen lassen</string>
+    <string name="screen_control_view_only_choice_sub">%s kann dann nichts antippen.</string>
+    <string name="screen_control_ask_off">Steuerung ist noch aus. %s kann nur zusehen – richte die Steuerung in der Karte ein, wenn du das möchtest.</string>
+    <string name="screen_control_ask_play">Diese App-Version kann nur zeigen, nicht steuern. %s kann zusehen.</string>
+    <string name="screen_control_live_bar">%s steuert deinen Bildschirm</string>
+    <string name="screen_control_live_since">Ansehen und steuern · seit %s</string>
+    <string name="screen_control_view_only">Nur ansehen</string>
+    <string name="screen_control_view_only_desc">Steuern beenden – %s sieht weiter zu.</string>
+    <string name="screen_control_off_title">Steuerung ist noch aus</string>
+    <string name="screen_control_off_desc">Wer hilft, könnte nur zusehen. Zum Steuern braucht GateControl einen Bedienungshilfe-Dienst.</string>
+    <string name="screen_control_on_title">Steuerung ist eingerichtet</string>
+    <string name="screen_control_on_desc">Bei jeder Anfrage entscheidest du, ob die Person nur zusehen oder auch steuern darf.</string>
+    <string name="screen_control_setup">Steuerung einrichten</string>
+    <string name="screen_control_settings">Bedienungshilfen</string>
+    <string name="screen_control_a11y_title">Steuerung erlauben</string>
+    <string name="screen_control_a11y_disclosure">Damit eine Person, der du einen Code gibst, dein Handy bedienen kann, nutzt GateControl einen Bedienungshilfe-Dienst. Er tippt und wischt nur während einer Sitzung, die du bestätigt hast. Er liest keine Inhalte und sendet nichts außerhalb einer Sitzung.</string>
+    <string name="screen_control_a11y_off_anytime">Jederzeit abschaltbar in den Einstellungen von Android › Bedienungshilfen.</string>
+    <string name="screen_control_a11y_restricted">App von GitHub? Erst in der App-Info „Eingeschränkte Einstellungen zulassen“ (Menü oben rechts), dann in den Bedienungshilfen „GateControl-Fernsteuerung“ einschalten.</string>
+    <string name="screen_control_a11y_go">Zu den Bedienungshilfen</string>
+    <string name="screen_control_a11y_app_info">App-Info öffnen</string>
+    <string name="screen_control_a11y_later">Nur ansehen lassen</string>
 </resources>

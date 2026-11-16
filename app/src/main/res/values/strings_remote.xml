@@ -38,4 +38,28 @@
     <string name="screen_share_err_plugin">The “Remote access” plugin is missing or has no licence.</string>
     <string name="screen_share_err_expired">The request has run out.</string>
     <string name="screen_share_err_failed">Sharing failed.</string>
+    <!-- Stage 6: control (only the app from GitHub; the app from Google Play only shows the screen) -->
+    <string name="screen_control_ask_title">%s wants to see and control your screen</string>
+    <string name="screen_control_ask_sub">View and control · %d s left</string>
+    <string name="screen_control_view_only_choice">View only</string>
+    <string name="screen_control_view_only_choice_sub">%s cannot tap anything then.</string>
+    <string name="screen_control_ask_off">Control is still off. %s can only watch – set up control in the card if you want to.</string>
+    <string name="screen_control_ask_play">This version of the app can only show, not be controlled. %s can watch.</string>
+    <string name="screen_control_live_bar">%s is controlling your screen</string>
+    <string name="screen_control_live_since">View and control · since %s</string>
+    <string name="screen_control_view_only">View only</string>
+    <string name="screen_control_view_only_desc">Stop control – %s keeps watching.</string>
+    <string name="screen_control_off_title">Control is still off</string>
+    <string name="screen_control_off_desc">A helper could only watch. To control, GateControl needs an accessibility service.</string>
+    <string name="screen_control_on_title">Control is set up</string>
+    <string name="screen_control_on_desc">With every request you decide whether the person may only watch or also control.</string>
+    <string name="screen_control_setup">Set up control</string>
+    <string name="screen_control_settings">Accessibility</string>
+    <string name="screen_control_a11y_title">Allow control</string>
+    <string name="screen_control_a11y_disclosure">To let someone you give a code to operate your phone, GateControl uses an accessibility service. It only taps and swipes during a session you approved. It does not read content and sends nothing outside a session.</string>
+    <string name="screen_control_a11y_off_anytime">Can be switched off at any time in Android\'s settings › Accessibility.</string>
+    <string name="screen_control_a11y_restricted">App from GitHub? First choose “Allow restricted settings” in the app info (menu at the top right), then switch on “GateControl remote control” in Accessibility.</string>
+    <string name="screen_control_a11y_go">Go to Accessibility</string>
+    <string name="screen_control_a11y_app_info">Open app info</string>
+    <string name="screen_control_a11y_later">View only</string>
 </resources>

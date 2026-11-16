@@ -32,9 +32,11 @@ class ScreenShareViewModel @Inject constructor(
     fun setOpen(open: Boolean) = repository.setOpen(open)
     fun refreshCode() = repository.refreshCode()
     suspend fun heartbeat() = repository.heartbeat()
-    fun answer(allow: Boolean) = repository.answer(allow)
+    fun answer(allow: Boolean, control: Boolean = false) = repository.answer(allow, control)
     fun requestExpired(id: String) = repository.requestExpired(id)
     fun consent(resultCode: Int, data: Intent?) = repository.consent(resultCode, data)
     fun stop() = repository.stop()
+    fun viewOnly() = repository.viewOnly()
+    fun refreshControl() = repository.refreshControl()
     fun clearEnded() = repository.clearEnded()
 }

@@ -11,8 +11,11 @@ data class ScreenHost(val deviceId: Long, val shareMode: String, val allowOpen: 
 /** A code to show: `482-917-305` and when it runs out (epoch ms). */
 data class ScreenCode(val code: String, val expiresAt: Long)
 
-/** A helper's question (signal `remote.request` or `pending` of `host/state`). */
-data class ScreenRequest(val id: String, val fromName: String, val avatarUrl: String?, val expiresAt: Long)
+/**
+ * A helper's question (signal `remote.request` or `pending` of `host/state`). [control]: asked for „Ansehen und steuern“
+ * (stage 6; only ever true in a build that can control — the person still chooses).
+ */
+data class ScreenRequest(val id: String, val fromName: String, val avatarUrl: String?, val expiresAt: Long, val control: Boolean = false)
 
 /** `host/state` → the share mode and the questions still open. */
 data class ScreenState(val shareMode: String, val allowOpen: Boolean, val pending: List<ScreenRequest>)
@@ -20,8 +23,8 @@ data class ScreenState(val shareMode: String, val allowOpen: Boolean, val pendin
 /** The sending side of an allowed request (`screen` of `POST host/requests/<id>`). */
 data class ScreenTicket(val ref: String, val expiresAt: Long)
 
-/** The answer to a request: the sending side when allowed, null when denied. */
-data class ScreenDecision(val ticket: ScreenTicket?)
+/** The answer to a request: the sending side when allowed, null when denied; [control]: the plugin granted control (stage 6). */
+data class ScreenDecision(val ticket: ScreenTicket?, val control: Boolean = false)
 
 /** A token of GateControl for the relay (`POST /api/v1/client/remote/screen-token`). */
 data class ScreenToken(val token: String, val wsPath: String)
@@ -76,7 +79,8 @@ object RemoteJson {
         val name = clean(from?.str("name")) ?: return null
         val avatar = from?.str("avatarUrl")?.takeIf { it.startsWith("/") && !it.startsWith("//") && it.length <= 300 }
         val exp = time(o.str("expiresAt")) ?: return null
-        return ScreenRequest(id, name, avatar, exp)
+        // stage 6: control only where this build can carry it out (the Play build only shows the screen)
+        return ScreenRequest(id, name, avatar, exp, control = o.str("mode") == "control" && ScreenControl.supported)
     }
 
     fun state(body: JsonObject): ScreenState? {
@@ -95,6 +99,9 @@ object RemoteJson {
     }
 
     fun requestState(body: JsonObject): String? = body.obj("request")?.str("state")
+
+    /** Stage 6: the plugin granted control for this request (its answer names the mode). */
+    fun grantedControl(body: JsonObject): Boolean = body.obj("request")?.str("mode") == "control" && ScreenControl.supported
 
     fun token(body: JsonObject): ScreenToken? {
         if (body.bool("ok") == false) return null

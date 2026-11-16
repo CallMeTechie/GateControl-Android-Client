@@ -443,6 +443,30 @@ fehlen dort Berechtigung, Dienst und Karte (`BuildConfig.SCREEN_SHARE`).
 - **Danach:** „Sitzung beendet. Neuer Code bereit.“ mit Name und Dauer. Keine Bildinhalte, Codes, Refs oder Tokens
   im Log. FLAG_SECURE-Fenster (Tresor, Banking) bleiben beim Helfer schwarz.
 
+### Steuern (Fernzugriff Stufe 6, Plugin 1.4, GateControl mit `gc.remote` 5) – nur die GitHub-APK
+
+Entscheidung 4: Die Google-Play-Version zeigt den Bildschirm **nur**; Steuern gibt es ausschließlich in der APK von
+GitHub. Der Bedienungshilfe-Dienst „GateControl-Fernsteuerung“ (`GcScreenControlService`) steht samt Code
+(`app/src/screencontrol/java`), Konfiguration (`res/xml/gc_screen_control.xml`) und Manifest nur in `app/src/screencontrol`
+und wird von Gradle nur bei `gc.distribution=github` eingebunden (`BuildConfig.SCREEN_CONTROL`); der Play-Build hat weder
+Dienst noch Konfiguration noch Klasse, meldet `screen.control: false` und blendet alles zum Steuern aus.
+
+- **Einrichten:** Karte „Steuerung ist noch aus“ → „Steuerung einrichten“ → Hinweis „Steuerung erlauben“ (was der Dienst
+  tut und nicht tut, jederzeit abschaltbar, bei einer APK ab Android 13 erst „Eingeschränkte Einstellungen zulassen“,
+  Knopf „App-Info öffnen“) → „Zu den Bedienungshilfen“. Kein `isAccessibilityTool`.
+- **Anfrage:** „… möchte deinen Bildschirm sehen und steuern“ mit der Wahl **„Nur ansehen lassen“** („… kann dann
+  nichts antippen“). Steuern nur ohne Haken, nur bei laufendem Dienst (sonst Hinweis, es bleibt beim Ansehen) –
+  `host/requests/<id> { decision: 'allow', mode: 'control' }`. Das Relais bestimmt den wirksamen Modus (`hello.control`).
+- **Während gesteuert wird:** rote Leiste „… steuert deinen Bildschirm“ mit **„Nur ansehen“** und „Beenden“, Karte
+  „Ansehen und steuern · seit …“ mit „Nur ansehen“, Mitteilung mit „Beenden“ und „Nur ansehen“, dazu über allen Apps
+  ein roter Rahmen und die Plakette „… steuert · Steuern beenden“ (Overlay des Dienstes). Herabstufen ist endgültig für
+  die Sitzung (`{t:'mode', mode:'view'}`); geht der Dienst aus, ebenso (`service_off`).
+- **Eingaben** (`{t:'input'}`, Koordinaten 0…1): Tippen, lange drücken, Wischen/Ziehen entlang eines Pfads, Scrollen
+  (`dispatchGesture`), Zurück/Start/Übersicht (globale Aktionen), Text an der Schreibmarke des fokussierten Felds
+  (`ACTION_SET_TEXT`), Enter (`ACTION_IME_ENTER`), Rücktaste. Passwortfelder → `input_fail secure`, kein Feld →
+  `no_field`, gesperrtes Gerät → `locked`. Eigene Grenze 30/s, Text 5/s und 4000 Zeichen je 10 s. Keine Eingaben,
+  Texte oder Koordinaten im Log.
+
 ## Tür & Kamera (1.34, Plugin `gatecontrol-door`, GateControl 1.169+)
 
 Wenn der Server das Plugin „Tür & Kamera“ anbietet und der Person ein Recht

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fernzugriff, Stufe 6 (nur GitHub-Build): der Bedienungshilfe-Dienst, wie ihn die Einstellungen von Android zeigen. -->
+<resources>
+    <string name="screen_control_service_label">GateControl-Fernsteuerung</string>
+    <string name="screen_control_service_summary">Lässt eine Person, der du einen Code gibst, dein Handy in einer bestätigten Sitzung bedienen.</string>
+    <string name="screen_control_service_description">Damit eine Person, der du einen Code gibst, dein Handy bedienen kann, nutzt GateControl einen Bedienungshilfe-Dienst. Er tippt und wischt nur während einer Sitzung, die du bestätigt hast. Er liest keine Inhalte und sendet nichts außerhalb einer Sitzung. Du kannst ihn hier jederzeit ausschalten.</string>
+    <!-- die Plakette über allen Apps, solange das Handy gesteuert wird; Tippen nimmt die Steuerung weg -->
+    <string name="screen_control_overlay">%s steuert · Steuern beenden</string>
+</resources>
