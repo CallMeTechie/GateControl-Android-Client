@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.121.0] - 2026-11-16
+
+### Features
+- Android steuern – Bedienungshilfe-Dienst nur in der GitHub-APK (Stufe 6) (#241)
+
+---
+
 ## [1.120.0] - 2026-11-16
 
 ### Features
