@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.119.0] - 2026-11-16
+
+### Features
+- Chats v2 Teil B – Personen zusammenführen (Messenger 1.21) (#239)
+
+---
+
 ## [1.118.0] - 2026-11-15
 
 ### Features
