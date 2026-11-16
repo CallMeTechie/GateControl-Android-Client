@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fernzugriff, stage 5: "Bildschirm freigeben" (the phone shares its screen with a helper, view only).
+     Merged into the GitHub build always, into the Google Play build only with -Pgc.playScreenShare=true
+     (repo variable PLAY_SCREEN_SHARE, once Play accepted the declaration of the foreground service of the
+     type mediaProjection, see docs/GOOGLE_PLAY.md). Without it the card is hidden (BuildConfig.SCREEN_SHARE). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <application>
+        <!-- The running screen sharing (MediaProjection, H.264 to GateControl's relay). NOT exported: only the app
+             starts it, after the person's answer and Android's own question. -->
+        <service
+            android:name="com.gatecontrol.android.remote.ScreenShareService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
+    </application>
+</manifest>

@@ -71,9 +71,12 @@ class ScreenShareRepository @Inject constructor(
     private val _state = MutableStateFlow(ScreenShareUi(enabled = prefs.getBoolean(KEY_ON, false)))
     val state: StateFlow<ScreenShareUi> = _state.asStateFlow()
 
-    /** The plugin is (no longer) listed for this app: the card comes or goes. */
+    /**
+     * The plugin is (no longer) listed for this app: the card comes or goes. Never in a Play build without the
+     * foreground service (BuildConfig.SCREEN_SHARE false until Play accepted its declaration).
+     */
     fun setAvailable(available: Boolean) {
-        _state.update { it.copy(available = available) }
+        _state.update { it.copy(available = available && BuildConfig.SCREEN_SHARE) }
     }
 
     private fun failed(r: RemoteResult<*>): String = when (r) {

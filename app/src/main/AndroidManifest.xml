@@ -13,8 +13,6 @@
          notification, started by the person (share sheet, "Speichern") or
          by a GateDrop push. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- Fernzugriff: "Bildschirm freigeben" (ScreenShareService, only after the person allowed it and Android asked) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Drive photo backup: the camera's photos and videos as originals
          (with their location data), Android 14 partial access included. -->
@@ -307,13 +305,8 @@
 
         <!-- Notification center (mode "always"): holds the push connection
              to the user's own server. Started only by the app itself. -->
-        <!-- Fernzugriff, stage 5: the running screen sharing (MediaProjection, H.264 to GateControl's relay). NOT
-             exported: only the app starts it, after the person's answer and Android's own question. -->
-        <service
-            android:name=".remote.ScreenShareService"
-            android:foregroundServiceType="mediaProjection"
-            android:exported="false" />
-
+        <!-- Fernzugriff, stage 5: ScreenShareService and FOREGROUND_SERVICE_MEDIA_PROJECTION are in
+             src/screenshare/AndroidManifest.xml (GitHub always, Play only with -Pgc.playScreenShare=true). -->
         <service
             android:name=".push.PushService"
             android:foregroundServiceType="specialUse"

@@ -421,7 +421,10 @@ RDP-Zugangsdaten werden **niemals im Klartext** übertragen oder gespeichert:
 ## Bildschirm freigeben (Plugin `gatecontrol-remote` 1.3, GateControl mit `gc.remote` 4)
 
 Fernzugriff Stufe 5, zunächst **nur ansehen** (Steuerung kommt mit Stufe 6). Oben im Segment Netzwerk › Remote steht
-die Karte **„Bildschirm freigeben“**, sobald der Server das Plugin „Fernzugriff“ für diese Person listet.
+die Karte **„Bildschirm freigeben“**, sobald der Server das Plugin „Fernzugriff“ für diese Person listet. Die
+GitHub-APK hat sie immer; die Google-Play-Version erst mit `-Pgc.playScreenShare=true` (Repo-Variable
+`PLAY_SCREEN_SHARE`, nach der Erklärung des Vordergrunddienstes *mediaProjection*, siehe GOOGLE_PLAY.md) – bis dahin
+fehlen dort Berechtigung, Dienst und Karte (`BuildConfig.SCREEN_SHARE`).
 
 - **Schalter an:** `host/register { platform: 'android' }` beim Plugin, danach ein neunstelliger Code (`482 917 305`)
   mit Balken bis zum Ablauf (10 min, einmal); abgelaufen oder verbraucht → sofort ein neuer. „Ohne Code für

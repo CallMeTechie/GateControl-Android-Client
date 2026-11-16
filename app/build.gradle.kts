@@ -33,6 +33,10 @@ android {
         // GitHub build always, the Play AAB only with -Pgc.playAllFiles=true (after Play's permissions declaration).
         val allFiles = distribution == "github" || providers.gradleProperty("gc.playAllFiles").getOrElse("false") == "true"
         buildConfigField("boolean", "ALL_FILES_ACCESS", allFiles.toString())
+        // Fernzugriff „Bildschirm freigeben“ (mediaProjection foreground service, src/screenshare): the GitHub build
+        // always, the Play AAB only with -Pgc.playScreenShare=true (after Play's foreground service declaration).
+        val screenShare = distribution == "github" || providers.gradleProperty("gc.playScreenShare").getOrElse("false") == "true"
+        buildConfigField("boolean", "SCREEN_SHARE", screenShare.toString())
 
         vectorDrawables {
             useSupportLibrary = true
@@ -389,10 +393,15 @@ val gcDistribution = providers.gradleProperty("gc.distribution").getOrElse("gith
 // Drive › "Auf dem Gerät": "Zugriff auf alle Dateien" (src/allfiles/AndroidManifest.xml) in the GitHub build; in the Play
 // AAB only with -Pgc.playAllFiles=true — Play refuses an upload with MANAGE_EXTERNAL_STORAGE until its declaration is in.
 val gcAllFiles = gcDistribution == "github" || providers.gradleProperty("gc.playAllFiles").getOrElse("false") == "true"
+// Fernzugriff „Bildschirm freigeben“ (src/screenshare/AndroidManifest.xml: FOREGROUND_SERVICE_MEDIA_PROJECTION and
+// ScreenShareService) in the GitHub build; in the Play AAB only with -Pgc.playScreenShare=true — after Play accepted
+// the declaration of the foreground service of the type mediaProjection.
+val gcScreenShare = gcDistribution == "github" || providers.gradleProperty("gc.playScreenShare").getOrElse("false") == "true"
 androidComponents {
     onVariants { variant ->
         if (gcDistribution == "github") variant.sources.manifests.addStaticManifestFile("src/github/AndroidManifest.xml")
         if (gcAllFiles) variant.sources.manifests.addStaticManifestFile("src/allfiles/AndroidManifest.xml")
+        if (gcScreenShare) variant.sources.manifests.addStaticManifestFile("src/screenshare/AndroidManifest.xml")
     }
 }
 
