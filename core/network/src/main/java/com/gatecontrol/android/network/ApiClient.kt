@@ -129,6 +129,14 @@ interface ApiClient {
     @GET("api/v1/client/plugins")
     suspend fun getClientPlugins(@Query("lang") lang: String? = null): Response<ClientPluginsResponse>
 
+    /**
+     * Fernzugriff, stage 5 (core with gc.remote version 4): a single-use token (60 s) for one side of a screen
+     * ticket — the phone's sending side (`senderRef` from the plugin) or a viewer. `{ ok, token, wsPath, ttl, role }`;
+     * 404 unknown/expired/another device, 429 limit, 503 plugin not running.
+     */
+    @POST("api/v1/client/remote/screen-token")
+    suspend fun remoteScreenToken(@Body body: JsonObject): Response<JsonObject>
+
     // ─── Plugin APIs for the apps (`/api/v1/client/plugins/{id}/api/…`) ──
     // Forwarded to the plugin's own request handler with the token owner as
     // user. Raw JSON both ways: the app feature (e.g. Familie) parses it.

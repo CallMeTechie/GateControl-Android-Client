@@ -418,6 +418,28 @@ RDP-Zugangsdaten werden **niemals im Klartext** übertragen oder gespeichert:
 
 ---
 
+## Bildschirm freigeben (Plugin `gatecontrol-remote` 1.3, GateControl mit `gc.remote` 4)
+
+Fernzugriff Stufe 5, zunächst **nur ansehen** (Steuerung kommt mit Stufe 6). Oben im Segment Netzwerk › Remote steht
+die Karte **„Bildschirm freigeben“**, sobald der Server das Plugin „Fernzugriff“ für diese Person listet.
+
+- **Schalter an:** `host/register { platform: 'android' }` beim Plugin, danach ein neunstelliger Code (`482 917 305`)
+  mit Balken bis zum Ablauf (10 min, einmal); abgelaufen oder verbraucht → sofort ein neuer. „Ohne Code für
+  Berechtigte“ (`PUT host/share`) spart nur den Code – die Frage in der App und die Abfrage von Android bleiben immer.
+- **Anfrage:** stilles Signal `remote.request` (Topic `remote_signal`, über den Push-Strom) oder `pending` des
+  Herzschlags (`host/state`, jede Minute bei offener Karte, sonst alle 15 min über WorkManager). Dialog „… möchte
+  deinen Bildschirm sehen“ mit Restzeit (30 s), „Ablehnen“ / „Erlauben“; im Hintergrund eine Benachrichtigung, die
+  die Karte öffnet (geantwortet wird nur dort).
+- **Start:** nach „Erlauben“ die Abfrage von Android (`MediaProjectionManager.createScreenCaptureIntent()`), dann der
+  Vordergrunddienst `ScreenShareService` vom Typ `mediaProjection`: MediaCodec H.264 (Baseline, 1280 px lange Kante,
+  15 fps, 1,5 Mbit/s, SPS/PPS vor jedem Schlüsselbild) → WebSocket `gc-screen.v1` zum Relais des Kerns (Token nur im
+  `Sec-WebSocket-Protocol`). Abgelehnt → `host/screen/<id>/end consent_denied`, neuer Code.
+- **Während der Freigabe:** rote Leiste und rot umrandete Karte („… sieht deinen Bildschirm“, „Sitzung beenden“) und
+  eine dauerhafte Benachrichtigung mit „Beenden“; Androids eigenes „Teilen beenden“ beendet ebenso. Bildschirm aus →
+  `{t:'state', paused:true}`. Netzwechsel: neues Token und neu verbinden (30 s).
+- **Danach:** „Sitzung beendet. Neuer Code bereit.“ mit Name und Dauer. Keine Bildinhalte, Codes, Refs oder Tokens
+  im Log. FLAG_SECURE-Fenster (Tresor, Banking) bleiben beim Helfer schwarz.
+
 ## Tür & Kamera (1.34, Plugin `gatecontrol-door`, GateControl 1.169+)
 
 Wenn der Server das Plugin „Tür & Kamera“ anbietet und der Person ein Recht

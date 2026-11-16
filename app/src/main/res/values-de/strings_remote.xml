@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fernzugriff, Stufe 5: „Bildschirm freigeben“ — das Handy teilt seinen Bildschirm mit einer helfenden Person (nur ansehen). -->
+<resources>
+    <string name="screen_share_title">Bildschirm freigeben</string>
+    <string name="screen_share_sub">Für Hilfe von einer Person aus GateControl</string>
+    <string name="screen_share_your_code">Dein Code</string>
+    <plurals name="screen_share_code_hint">
+        <item quantity="one">Nenne diesen Code der Person, die dir helfen soll. Er gilt noch %d Minute und nur einmal.</item>
+        <item quantity="other">Nenne diesen Code der Person, die dir helfen soll. Er gilt noch %d Minuten und nur einmal.</item>
+    </plurals>
+    <string name="screen_share_open_title">Ohne Code für Berechtigte</string>
+    <string name="screen_share_open_desc">Personen, für die du das Handy freigegeben hast, verbinden sich direkt. Du und Android werdet trotzdem jedes Mal gefragt.</string>
+    <string name="screen_share_open_locked">Ein Administrator hat das für dein Handy gesperrt.</string>
+    <string name="screen_share_ask_title">%s möchte deinen Bildschirm sehen</string>
+    <string name="screen_share_ask_sub">Nur ansehen · noch %d s</string>
+    <string name="screen_share_ask_android">Nach „Erlauben“ fragt Android noch einmal. Banking-Apps und Passwortfelder bleiben schwarz.</string>
+    <string name="screen_share_allow">Erlauben</string>
+    <string name="screen_share_deny">Ablehnen</string>
+    <string name="screen_share_starting">Die Freigabe startet …</string>
+    <string name="screen_share_live_bar">%s sieht deinen Bildschirm</string>
+    <string name="screen_share_waiting_viewer">Warte auf %s …</string>
+    <string name="screen_share_live_since">Nur ansehen · seit %s</string>
+    <string name="screen_share_relay_hint">Das Bild läuft über deinen GateControl-Server. Es wird nicht aufgezeichnet.</string>
+    <string name="screen_share_stop">Beenden</string>
+    <string name="screen_share_stop_session">Sitzung beenden</string>
+    <string name="screen_share_after">Sitzung beendet. Neuer Code bereit.</string>
+    <plurals name="screen_share_after_detail">
+        <item quantity="one">%1$s war %2$d Minute verbunden.</item>
+        <item quantity="other">%1$s war %2$d Minuten verbunden.</item>
+    </plurals>
+    <string name="screen_share_notif_title">GateControl · Bildschirm wird geteilt</string>
+    <string name="screen_share_request_tap">Tippe, um zu antworten.</string>
+    <string name="screen_share_channel_request">Anfragen zur Bildschirmfreigabe</string>
+    <string name="screen_share_channel_live">Bildschirmfreigabe</string>
+    <string name="screen_share_err_no_right">Du darfst keine eigenen Geräte freigeben. Frag einen Administrator.</string>
+    <string name="screen_share_err_unavailable">Dein GateControl-Server kann noch keine Bildschirme freigeben.</string>
+    <string name="screen_share_err_offline">Keine Verbindung zum Server.</string>
+    <string name="screen_share_err_plugin">Das Plugin „Fernzugriff“ fehlt oder hat keine Lizenz.</string>
+    <string name="screen_share_err_expired">Die Anfrage ist abgelaufen.</string>
+    <string name="screen_share_err_failed">Die Freigabe ist fehlgeschlagen.</string>
+</resources>

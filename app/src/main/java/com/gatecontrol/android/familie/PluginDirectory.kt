@@ -85,6 +85,11 @@ data class PluginAvailability(
      * „Aufgaben“ and the share target „Als Notiz oder Aufgabe“ (docs/FEATURES.md).
      */
     val notizen: Boolean = false,
+    /**
+     * „Fernzugriff“ (gatecontrol-remote) is listed for this user: the Remote segment shows the card „Bildschirm
+     * freigeben“ (the phone shares its screen with a helper, stage 5).
+     */
+    val remote: Boolean = false,
 ) {
     companion object {
         val NONE = PluginAvailability()
@@ -107,6 +112,7 @@ data class PluginAvailability(
                 mail = plugins.any { it.id == com.gatecontrol.android.mail.MAIL_PLUGIN && it.tab != null },
                 print = plugins.any { it.id == com.gatecontrol.android.print.PRINT_PLUGIN },
                 notizen = plugins.any { it.id == com.gatecontrol.android.notizen.NOTIZEN_PLUGIN },
+                remote = plugins.any { it.id == com.gatecontrol.android.remote.REMOTE_PLUGIN },
             )
         }
 

@@ -79,6 +79,16 @@ class PushOpenActivity : ComponentActivity() {
             finish()
             return
         }
+        // Fernzugriff: a helper asks to see the screen — the card „Bildschirm freigeben“ with the question.
+        if (intent.getBooleanExtra(EXTRA_REMOTE, false)) {
+            PushNavigation.request(PushNavTarget.Remote)
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+            return
+        }
         // The bell on the home-screen widget: straight to "Mitteilungen".
         if (intent.getBooleanExtra(EXTRA_INBOX, false)) {
             PushNavigation.request(PushNavTarget.Inbox)
@@ -178,6 +188,7 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_ACTION_TYPE = "com.gatecontrol.android.push.extra.ACTION_TYPE"
         private const val EXTRA_TARGET = "com.gatecontrol.android.push.extra.TARGET"
         private const val EXTRA_INBOX = "com.gatecontrol.android.push.extra.INBOX"
+        private const val EXTRA_REMOTE = "com.gatecontrol.android.push.extra.REMOTE"
         private const val EXTRA_FAMILIE_DEST = "com.gatecontrol.android.push.extra.FAMILIE_DEST"
         private const val EXTRA_VAULT_DEST = "com.gatecontrol.android.push.extra.VAULT_DEST"
         private const val EXTRA_DRIVE_DEST = "com.gatecontrol.android.push.extra.DRIVE_DEST"
@@ -221,6 +232,12 @@ class PushOpenActivity : ComponentActivity() {
         fun inboxIntent(context: Context): Intent =
             Intent(context, PushOpenActivity::class.java)
                 .putExtra(EXTRA_INBOX, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+
+        /** Fernzugriff: the card „Bildschirm freigeben“ (a helper's question waits there). */
+        fun remoteIntent(context: Context): Intent =
+            Intent(context, PushOpenActivity::class.java)
+                .putExtra(EXTRA_REMOTE, true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
         private const val LINK_TIMEOUT_MS = 8_000L
 

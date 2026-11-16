@@ -35,12 +35,13 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.remote.ScreenShareSection
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
- * "Remote" segment of the Netzwerk tab (until 1.35 an own tab): search,
- * status filter and the RDP hosts; a tap opens the connect sheet. The
- * Netzwerk tab carries the title.
+ * "Remote" segment of the Netzwerk tab (until 1.35 an own tab): „Bildschirm
+ * freigeben“ of the plugin „Fernzugriff“ on top, search, status filter and the
+ * RDP hosts; a tap opens the connect sheet. The Netzwerk tab carries the title.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +67,9 @@ fun RdpContent(modifier: Modifier = Modifier, viewModel: RdpViewModel = hiltView
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
+                // Fernzugriff, stage 5: „Bildschirm freigeben“ (only with the plugin „Fernzugriff“)
+                ScreenShareSection()
+
                 if (routes.isNotEmpty()) {
                     Text(
                         stringResource(R.string.rdp_summary, routes.size, routes.count { it.status?.online == true }),
