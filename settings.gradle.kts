@@ -24,3 +24,6 @@ include(":core:network")
 include(":core:notify")
 include(":core:tunnel")
 include(":core:rdp")
+// SSH terminal of „Fernzugriff“: Termux terminal-emulator + terminal-view (Apache-2.0), fixed release sources
+include(":termux-terminal")
+project(":termux-terminal").projectDir = file("third_party/termux-terminal")

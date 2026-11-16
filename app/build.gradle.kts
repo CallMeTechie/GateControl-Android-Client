@@ -141,6 +141,7 @@ dependencies {
     implementation(project(":core:notify"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:rdp"))
+    implementation(project(":termux-terminal"))
 
     // FreeRDP embedded client AAR (runtime packaging)
     // See core/rdp/build.gradle.kts for the rationale behind splitting
@@ -266,6 +267,8 @@ dependencies {
     testImplementation(libs.compose.ui.test.junit4)
     testRuntimeOnly(libs.junit.vintage.engine)
     testImplementation(libs.okhttp)
+    // SSH terminal: the WebSocket gc-term.v1 against a test server (TermSessionsTest)
+    testImplementation(libs.mockwebserver)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

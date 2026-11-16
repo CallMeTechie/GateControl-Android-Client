@@ -135,6 +135,8 @@ class ApiClientProvider @Inject constructor(
             "Cookie",
             "Set-Cookie",
             "X-Machine-Fingerprint",
+            // the single-use tokens of the relays and the SSH terminal (`gc-term.v1, token.<token>`)
+            "Sec-WebSocket-Protocol",
             // the device's LAN addresses for the home cache's site check
             HomeCache.HEADER_LOCAL,
         )

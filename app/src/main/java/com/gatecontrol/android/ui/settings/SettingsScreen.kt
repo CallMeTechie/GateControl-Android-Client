@@ -271,6 +271,9 @@ fun SettingsScreen(
             )
         }
 
+        // --- SSH-Terminal (Fernzugriff, stage 3) ------------------------------
+        com.gatecontrol.android.ui.terminal.TerminalSettingsGroup(group = { title, content -> SettingsGroup(title, content) })
+
         // --- Benachrichtigungen (notification center) ------------------------
         SettingsGroup(stringResource(R.string.push_title_settings)) {
             GcListRow(

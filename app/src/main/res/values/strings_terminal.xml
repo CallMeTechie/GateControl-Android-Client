@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SSH terminal of the plugin „Fernzugriff“ (stage 3): list, sheet, terminal, dialogs, settings. -->
+<resources>
+    <!-- list -->
+    <string name="term_badge_ssh">SSH</string>
+    <string name="term_badge_tmux">tmux</string>
+    <string name="term_badge_browser">Browser only</string>
+    <string name="term_badge_locked">Locked</string>
+    <string name="term_browser_hint">Older SSH target via Guacamole. No terminal in the app.</string>
+    <string name="term_browser_open">Browser</string>
+    <string name="term_no_right">You have no right for SSH connections. Ask your administrator.</string>
+    <string name="term_card_desc">%1$s, SSH, %2$s</string>
+    <string name="term_session_running">Session running</string>
+    <!-- sheet -->
+    <string name="term_sheet_sub">SSH · %1$s</string>
+    <string name="term_sheet_loading">Loading tmux sessions …</string>
+    <string name="term_sheet_list">tmux sessions on the device</string>
+    <string name="term_first_title">First connection</string>
+    <string name="term_first_text">The host key will be checked in a moment. After that the device\'s tmux sessions appear here.</string>
+    <string name="term_no_tmux_title">tmux is missing on the device</string>
+    <string name="term_no_tmux_text">The session ends when the connection drops. Install: sudo apt install tmux</string>
+    <string name="term_resume">Resume: %1$s</string>
+    <string name="term_windows">%1$d windows</string>
+    <string name="term_window_one">1 window</string>
+    <string name="term_active_ago">last active %1$s</string>
+    <string name="term_attached">attached</string>
+    <string name="term_attached_hint">open on another device right now</string>
+    <string name="term_new">New session</string>
+    <string name="term_new_hint">Letters, digits, - and _</string>
+    <string name="term_new_invalid">Letters, digits, - and _ only, up to 32, not starting with - or _</string>
+    <string name="term_default">Default session</string>
+    <string name="term_default_hint">%1$s, as set in the plugin</string>
+    <string name="term_plain">Shell without tmux</string>
+    <string name="term_plain_hint">If the connection drops, everything running in it ends</string>
+    <string name="term_hidden">%1$d more session(s) have a name the app cannot attach. They are not offered.</string>
+    <string name="term_record">Record this session</string>
+    <string name="term_record_hint">Only the display, no keystrokes. Admins see it under Remote access › Sessions.</string>
+    <string name="term_btn_resume">Resume</string>
+    <string name="term_btn_connect">Connect</string>
+    <string name="term_btn_anyway">Connect anyway</string>
+    <!-- recording dialog -->
+    <string name="term_rec_title">This session will be recorded</string>
+    <string name="term_rec_always">Recording is required for this device. What the terminal shows is stored, no keystrokes. The admin decides who can access the recordings.</string>
+    <string name="term_rec_optional">You switched recording on. What the terminal shows is stored, no keystrokes. The admin decides who can access the recordings.</string>
+    <string name="term_rec_ok">Understood, connect</string>
+    <!-- host key -->
+    <string name="term_hk_title">Check the host key</string>
+    <string name="term_hk_text">First connection to %1$s. Compare the fingerprint with the device. If it matches, GateControl remembers the key for all people and apps.</string>
+    <string name="term_hk_cmd_copy">Copy command</string>
+    <string name="term_hk_left">%1$d s left</string>
+    <string name="term_hk_trust">Trust and connect</string>
+    <string name="term_hk_mismatch_title">The host key has changed</string>
+    <string name="term_hk_mismatch_text">The device reports a different key than the first time. This can be an attack. An administrator must reset the key in the plugin (Remote access › Devices › %1$s). Until then no app connects to this device.</string>
+    <string name="term_back_to_list">Back to the list</string>
+    <!-- terminal -->
+    <string name="term_status_connecting">Connecting …</string>
+    <string name="term_status_reconnecting">Reconnecting …</string>
+    <string name="term_status_offline">No connection</string>
+    <string name="term_status_ended">Ended</string>
+    <string name="term_status_recording">Recording</string>
+    <string name="term_status_view">View only</string>
+    <string name="term_connecting_to">Connecting to %1$s …</string>
+    <string name="term_recording_dot">This session is being recorded</string>
+    <string name="term_lost_title">Connection interrupted</string>
+    <string name="term_lost_text">Next attempt in %1$d s (%2$d of 5).</string>
+    <string name="term_tmux_keeps">The tmux session „%1$s“ keeps running on the device.</string>
+    <string name="term_try_now">Try now</string>
+    <string name="term_offline_title">No connection to %1$s</string>
+    <string name="term_offline_text">Five attempts without success.</string>
+    <string name="term_offline_tmux">Your tmux session „%1$s“ keeps running, you can resume it later.</string>
+    <string name="term_exit_title">Session ended</string>
+    <string name="term_exit_tmux">The tmux session was ended on the device (exit). Reconnect starts a new one.</string>
+    <string name="term_exit_shell">The shell was ended on the device (exit).</string>
+    <string name="term_exit_admin">An administrator ended the session.</string>
+    <string name="term_exit_lost">The connection between GateControl and the device was lost.</string>
+    <string name="term_reconnect">Reconnect</string>
+    <string name="term_close">Close</string>
+    <string name="term_disconnect">Disconnect</string>
+    <string name="term_disconnect_title">Disconnect?</string>
+    <string name="term_disconnect_tmux">The tmux session „%1$s“ keeps running on %2$s, with everything running in it. You can resume it later, also from the PC.</string>
+    <string name="term_disconnect_shell">The shell ends, and everything running in it.</string>
+    <string name="term_tmux_missing_hint">tmux is missing on the device: the session ends when the connection drops.</string>
+    <string name="term_menu">Menu</string>
+    <string name="term_menu_paste">Paste</string>
+    <string name="term_menu_copy_all">Copy all</string>
+    <string name="term_menu_font">Font size %1$d</string>
+    <string name="term_menu_keys">Extra keys</string>
+    <string name="term_copied">Copied</string>
+    <string name="term_font_toast">Font %1$d · %2$d × %3$d</string>
+    <string name="term_paste_title">Paste %1$d lines?</string>
+    <string name="term_paste_text">Each line runs like a command of its own. Check the content of the clipboard first.</string>
+    <string name="term_paste_ok">Paste</string>
+    <string name="term_paste_never">Don\'t ask again</string>
+    <string name="term_one_at_a_time">One terminal at a time: the session on %1$s was disconnected (its tmux keeps running).</string>
+    <!-- errors -->
+    <string name="term_err_mismatch">The host key has changed. An administrator must reset it in the plugin.</string>
+    <string name="term_err_rejected">Host key not confirmed.</string>
+    <string name="term_err_unpinned">Someone with the control right has to confirm the host key first.</string>
+    <string name="term_err_auth">Sign-in to the device failed. An administrator must check the credentials in the plugin.</string>
+    <string name="term_err_recording">Recording is not possible right now, so the session does not start.</string>
+    <string name="term_err_plugin">Remote access is not available on the server right now.</string>
+    <string name="term_err_shell">The device refused the shell.</string>
+    <string name="term_err_unreachable">Device not reachable.</string>
+    <string name="term_err_limit">Too many open sessions. Close another one and try again.</string>
+    <string name="term_err_expired">The approval has expired. Please connect again.</string>
+    <string name="term_err_no_right">You have no right for SSH connections. Ask your administrator.</string>
+    <string name="term_err_maintenance">The device is in a maintenance window.</string>
+    <string name="term_err_other">The connection could not be established (%1$s).</string>
+    <string name="term_err_offline">The server cannot be reached.</string>
+    <!-- settings -->
+    <string name="term_settings_group">SSH terminal</string>
+    <string name="term_settings_secure">Block screenshots in the terminal</string>
+    <string name="term_settings_secure_desc">No screenshots and no preview in the app overview while a terminal is open.</string>
+    <string name="term_settings_paste">Ask before pasting several lines</string>
+    <string name="term_key_ctrl">Ctrl</string>
+    <string name="term_key_pgup">PgUp</string>
+    <string name="term_key_pgdn">PgDn</string>
+    <string name="term_font_smaller">Smaller font</string>
+    <string name="term_font_bigger">Bigger font</string>
+</resources>
