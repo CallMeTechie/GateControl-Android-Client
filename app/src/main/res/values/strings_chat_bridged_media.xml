@@ -3,7 +3,7 @@
      (server/texts.json, bc.ph_*, bc.first_2_media, bc.info_not_media, error.bridge_media_type). -->
 <resources>
     <string name="chat_bridged_ph_loading">%1$s – loading …</string>
-    <string name="chat_bridged_ph_failed_too_large">%1$s – too large for GateControl; see it in %2$s</string>
+    <string name="chat_bridged_ph_failed_too_large">%1$s – too large, open it in %2$s</string>
     <string name="chat_bridged_ph_failed_type">%1$s – GateControl does not take this kind of file; see it in %2$s</string>
     <string name="chat_bridged_ph_failed_infected">%1$s – blocked – malware found</string>
     <string name="chat_bridged_ph_failed_quota">%1$s – no room left for files; see it in %2$s</string>

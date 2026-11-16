@@ -47,11 +47,17 @@ object ChatNetGlyphs {
         .addPath(pathData = addPathNodes("M12 5.6a6.4 6.4 0 0 0-5.5 9.7l-.8 3 3.1-.7A6.4 6.4 0 1 0 12 5.6z"), fill = SolidColor(Color.Black), pathFillType = PathFillType.EvenOdd)
         .addPath(pathData = addPathNodes("M21.60 12.00A9.6 9.6 0 0 1 21.02 15.28M20.31 16.80A9.6 9.6 0 0 1 18.17 19.35M16.80 20.31A9.6 9.6 0 0 1 13.67 21.45M12.00 21.60A9.6 9.6 0 0 1 8.72 21.02M7.20 20.31A9.6 9.6 0 0 1 4.65 18.17M3.69 16.80A9.6 9.6 0 0 1 2.55 13.67M2.40 12.00A9.6 9.6 0 0 1 2.98 8.72M3.69 7.20A9.6 9.6 0 0 1 5.83 4.65M7.20 3.69A9.6 9.6 0 0 1 10.33 2.55M12.00 2.40A9.6 9.6 0 0 1 15.28 2.98M16.80 3.69A9.6 9.6 0 0 1 19.35 5.83M20.31 7.20A9.6 9.6 0 0 1 21.45 10.33"), fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 1.6f)
         .build()
+    /** Messenger 1.24: Telegram — a paper plane (the portal's `NET_GLYPH.telegram`). */
+    val Telegram: ImageVector = glyph(
+        "Telegram",
+        "M3.4 11.3l15.9-6.2c.8-.3 1.4.2 1.2 1.3l-2.7 12.7c-.2.9-.7 1.1-1.5.7l-4.1-3-2 1.9c-.2.2-.4.4-.8.4l.3-4.2 7.7-7c.3-.3-.1-.4-.5-.2l-9.5 6-4.1-1.3c-.9-.3-.9-.9.2-1.3z",
+    )
     val Other: ImageVector = glyph("OtherMessenger", "M4 5h16v11H9l-5 4z")
 
     fun of(logo: ChatBridgeChat.Logo): ImageVector = when (logo) {
         ChatBridgeChat.Logo.WhatsApp -> WhatsApp
         ChatBridgeChat.Logo.Signal -> Signal
+        ChatBridgeChat.Logo.Telegram -> Telegram
         ChatBridgeChat.Logo.GateControl -> GateControl
         ChatBridgeChat.Logo.Other -> Other
     }
@@ -61,6 +67,9 @@ object ChatNetGlyphs {
 
     /** Signal's blue of the mark (the portal's `#3A76F0`). */
     val SIGNAL_BLUE = Color(0xFF3A76F0)
+
+    /** Telegram's blue of the mark (the portal's `#27A7E7`). */
+    val TELEGRAM_BLUE = Color(0xFF27A7E7)
 }
 
 /**
@@ -74,6 +83,7 @@ fun ChatNetLogo(network: String?, size: Dp, modifier: Modifier = Modifier, label
     val (bg, fg) = when (logo) {
         ChatBridgeChat.Logo.WhatsApp -> ChatNetGlyphs.WHATSAPP_GREEN to Color.White
         ChatBridgeChat.Logo.Signal -> ChatNetGlyphs.SIGNAL_BLUE to Color.White
+        ChatBridgeChat.Logo.Telegram -> ChatNetGlyphs.TELEGRAM_BLUE to Color.White
         ChatBridgeChat.Logo.GateControl -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
         ChatBridgeChat.Logo.Other -> extra.panel2 to extra.muted
     }

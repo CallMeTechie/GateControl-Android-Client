@@ -95,6 +95,8 @@ class PPhone(
         const val STATE_WHATSAPP = "whatsapp"
         /** Messenger bridges 7a: confirmed by the person's own linked Signal. */
         const val STATE_SIGNAL = "signal"
+        /** Messenger bridges 7b: confirmed by the person's own linked Telegram. */
+        const val STATE_TELEGRAM = "telegram"
         const val STATE_ADMIN = "admin"
         const val STATE_DIRECTORY = "directory"
         const val STATE_UNCONFIRMED = "unconfirmed"
@@ -111,6 +113,9 @@ data class PRecognition(
     /** Bridges 7a: „An meinem verknüpften Signal“ (`recognition.networks.signal`). */
     val bySignal: Boolean = false,
     val signalLinked: Boolean = false,
+    /** Bridges 7b: „An meinem verknüpften Telegram“ (`recognition.networks.telegram`). */
+    val byTelegram: Boolean = false,
+    val telegramLinked: Boolean = false,
 )
 
 /** Fields from the directory (AD, Entra): shown, not changed. */
@@ -131,7 +136,7 @@ object ProfileDetailsJson {
     val KINDS = listOf("mobile", "work", "home", "other")
     private val FIELD_LEVELS = setOf("self", "family", "all")
     private val PHONE_LEVELS = setOf("none", "family", "all")
-    private val PHONE_STATES = setOf(PPhone.STATE_WHATSAPP, PPhone.STATE_SIGNAL, PPhone.STATE_ADMIN, PPhone.STATE_DIRECTORY, PPhone.STATE_UNCONFIRMED)
+    private val PHONE_STATES = setOf(PPhone.STATE_WHATSAPP, PPhone.STATE_SIGNAL, PPhone.STATE_TELEGRAM, PPhone.STATE_ADMIN, PPhone.STATE_DIRECTORY, PPhone.STATE_UNCONFIRMED)
     private val E164_RE = Regex("^\\+[1-9][0-9]{6,14}$")
     private val TZ_RE = Regex("^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$")
     private val LANG_RE = Regex("^[a-z]{2,3}(-[A-Za-z]{2,4})?$")
@@ -201,6 +206,8 @@ object ProfileDetailsJson {
                     phonesForRecognition = r.num("phonesForRecognition")?.toInt()?.coerceIn(0, 100) ?: 0,
                     bySignal = r.obj("networks")?.obj("signal")?.bool("allowed") ?: r.bool("bySignal"),
                     signalLinked = r.obj("networks")?.obj("signal")?.bool("linked") ?: false,
+                    byTelegram = r.obj("networks")?.obj("telegram")?.bool("allowed") ?: r.bool("byTelegram"),
+                    telegramLinked = r.obj("networks")?.obj("telegram")?.bool("linked") ?: false,
                 )
             },
             locked = p.obj("locked").let { l -> PLocked(l?.bool("displayName") ?: false, l?.bool("email") ?: false, clean(l?.str("directory"), 100)) },
@@ -293,11 +300,12 @@ object ProfileDetailsJson {
         useForRecognition?.let { addProperty("useForRecognition", it) }
     }
 
-    fun recognitionBody(byWhatsapp: Boolean? = null, byPhone: Boolean? = null, bySignal: Boolean? = null): JsonObject = JsonObject().apply {
+    fun recognitionBody(byWhatsapp: Boolean? = null, byPhone: Boolean? = null, bySignal: Boolean? = null, byTelegram: Boolean? = null): JsonObject = JsonObject().apply {
         add("recognition", JsonObject().apply {
             byWhatsapp?.let { addProperty("byWhatsapp", it) }
             byPhone?.let { addProperty("byPhone", it) }
             bySignal?.let { addProperty("bySignal", it) }
+            byTelegram?.let { addProperty("byTelegram", it) }
         })
     }
 

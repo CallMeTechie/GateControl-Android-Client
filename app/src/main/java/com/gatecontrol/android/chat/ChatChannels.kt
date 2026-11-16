@@ -87,6 +87,14 @@ object ChatChannels {
     /** The services of the channels (their names), for the page's subtitle: „WhatsApp“. */
     fun networks(channels: List<ChatConversation>): List<String> = channels.mapNotNull { it.bridge?.label }.distinct()
 
+    /** Messenger 1.24: the services of the channels, id → label (the filter chips „Alle · WhatsApp · Telegram“). */
+    fun services(channels: List<ChatConversation>): List<Pair<String, String>> =
+        channels.mapNotNull { c -> c.bridge?.let { it.network to it.label } }.distinctBy { it.first }
+
+    /** Messenger 1.24: only the channels of [network] (null: all). */
+    fun of(channels: List<ChatConversation>, network: String?): List<ChatConversation> =
+        if (network == null) channels else channels.filter { it.bridge?.network == network }
+
     /** The TV symbol in the head of „Chats“: only once a channel has a post. */
     fun showTv(s: ChatChannelSummary?): Boolean = (s?.count ?: 0) > 0
 

@@ -410,13 +410,18 @@ fun PersonAddRow(onClick: () -> Unit) {
 fun RecognitionDialog(busy: Boolean, onAnswer: (Boolean) -> Unit, onDismiss: () -> Unit, network: String = com.gatecontrol.android.chat.ChatBridges.WHATSAPP) {
     val extra = GateControlTheme.extraColors
     // Messenger 1.23: the question per service (Signal has its own)
-    val signal = network == com.gatecontrol.android.chat.ChatBridges.SIGNAL
+    // Messenger 1.24: Telegram has its own too
+    val (titleRes, textRes) = when (network) {
+        com.gatecontrol.android.chat.ChatBridges.SIGNAL -> R.string.chat_pp_rec_title_signal to R.string.chat_pp_rec_text_signal
+        com.gatecontrol.android.chat.ChatBridges.TELEGRAM -> R.string.chat_pp_rec_title_telegram to R.string.chat_pp_rec_text_telegram
+        else -> R.string.chat_pp_rec_title to R.string.chat_pp_rec_text
+    }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (signal) R.string.chat_pp_rec_title_signal else R.string.chat_pp_rec_title)) },
+        title = { Text(stringResource(titleRes)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(if (signal) R.string.chat_pp_rec_text_signal else R.string.chat_pp_rec_text), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(textRes), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.chat_pp_rec_note), style = MaterialTheme.typography.bodySmall, color = extra.muted)
             }
         },

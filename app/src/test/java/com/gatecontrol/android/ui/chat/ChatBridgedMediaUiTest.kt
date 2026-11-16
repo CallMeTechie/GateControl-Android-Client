@@ -253,7 +253,7 @@ class ChatBridgedMediaUiTest {
             rule.waitUntil(5_000) { count("Brandenburger Tor") > 0 }
             shot("10-chat-dateien", dark)
             rule.onNodeWithText("Bild · grill-2025.jpg – wird geladen …").assertIsDisplayed()
-            rule.onNodeWithText("Video · urlaub.mp4 – zu groß für GateControl; in WhatsApp ansehen").assertIsDisplayed()
+            rule.onNodeWithText("Video · urlaub.mp4 – zu groß, öffne es in WhatsApp").assertIsDisplayed()
             rule.onNodeWithText("Datei · rechnung.exe – gesperrt – Schadsoftware gefunden").assertIsDisplayed()
             rule.onNodeWithText("Standort").assertIsDisplayed()
             rule.onNodeWithText("Auf der Karte ansehen").assertIsDisplayed()

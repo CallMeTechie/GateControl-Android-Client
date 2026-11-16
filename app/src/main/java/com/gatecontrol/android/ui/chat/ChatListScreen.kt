@@ -53,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -592,6 +593,11 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
                     Spacer(Modifier.width(6.dp))
                     GcChip(stringResource(R.string.chat_notice_tag), tone = GcTone.Neutral, small = true)
                 }
+                if (c.bridge?.bot == true) {
+                    // Messenger 1.24: a chat with a Telegram bot
+                    Spacer(Modifier.width(6.dp))
+                    GcChip(stringResource(R.string.chat_bot_tag), tone = GcTone.Neutral, small = true)
+                }
                 if (c.bridge?.channel == true) {
                     // Messenger 1.20: a channel among the search's hits
                     Spacer(Modifier.width(6.dp))
@@ -625,8 +631,10 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
                         c.isGroup -> ChatText.senderOf(ctx, c, last, myId) + ": "
                         else -> ""
                     }
+                    // Messenger 1.24: a large group of another messenger says its size first („340 Mitglieder · …“)
+                    val members = c.bridge?.members?.takeIf { it >= LARGE_GROUP }?.let { n -> pluralStringResource(R.plurals.chat_members_n, n, n) + " · " }.orEmpty()
                     Text(
-                        last?.let { prefix + ChatText.content(ctx, it, c, myId) } ?: stringResource(R.string.chat_no_messages),
+                        members + (last?.let { prefix + ChatText.content(ctx, it, c, myId) } ?: stringResource(R.string.chat_no_messages)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = extra.muted,
                         maxLines = 1,
@@ -639,6 +647,9 @@ private fun ConversationRow(c: ChatConversation, typingText: String?, myId: Long
         }
     }
 }
+
+/** Messenger 1.24: a group of this many members and more says its size in the list (and starts muted). */
+private const val LARGE_GROUP = 200
 
 /** Ticks of the list preview. */
 internal object ChatTimelineStatus {

@@ -22,10 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,9 +47,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.password
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -98,6 +102,8 @@ class LinkedActions(
     val confirmNotes: () -> Unit = {},
     val selectFlow: (String) -> Unit = {},
     val submitPhone: (String) -> Unit = {},
+    /** Messenger 1.24 (Telegram): the code or the password, sent once. */
+    val submitSecret: (String) -> Unit = {},
     val retry: () -> Unit = {},
     val copyCode: (String) -> Unit = {},
     /** Messenger 1.17: the choice of older messages (`0`, `30`, `-1`). */
@@ -132,12 +138,14 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
     LaunchedEffect(viewModel) {
         viewModel.notice.collect { n ->
             val text = when (n) {
-                is LinkedNotice.Linked -> res.getString(R.string.chat_linked_linked, res.getString(networkName(n.network)))
+                // Messenger 1.24: Telegram says what comes now
+                is LinkedNotice.Linked -> if (n.network == ChatBridges.TELEGRAM) res.getString(R.string.chat_linked_linked_telegram) else res.getString(R.string.chat_linked_linked, res.getString(networkName(n.network)))
                 is LinkedNotice.Unlinked -> res.getString(R.string.chat_linked_unlinked, res.getString(networkName(n.network)))
                 is LinkedNotice.Failed -> res.getString(errorText(n.error))
                 LinkedNotice.HistorySaved -> res.getString(R.string.chat_linked_hist_saved)
                 is LinkedNotice.Recognition ->
                     if (ui.recognitionNetwork == ChatBridges.SIGNAL) res.getString(if (n.allowed) R.string.chat_pp_rec_on_signal else R.string.chat_pp_rec_off_signal)
+                    else if (ui.recognitionNetwork == ChatBridges.TELEGRAM) res.getString(if (n.allowed) R.string.chat_pp_rec_on_telegram else R.string.chat_pp_rec_off_telegram)
                     else res.getString(if (n.allowed) R.string.chat_pp_rec_on else R.string.chat_pp_rec_off)
             }
             Toast.makeText(ctx, text, Toast.LENGTH_LONG).show()
@@ -155,6 +163,7 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
             confirmNotes = viewModel::confirmNotes,
             selectFlow = viewModel::selectFlow,
             submitPhone = viewModel::submitPhone,
+            submitSecret = viewModel::submitSecret,
             retry = viewModel::retry,
             setHistory = viewModel::setHistory,
             handoff = viewModel::handoff,
@@ -200,8 +209,12 @@ fun ChatLinkedServicesPage(viewModel: LinkedServicesViewModel, chats: Boolean = 
     }
 }
 
-// The services of [ChatBridges.NETWORKS] (Messenger 1.23: Signal); a further one gets its name and mark here.
-internal fun networkName(id: String): Int = if (id == ChatBridges.SIGNAL) R.string.chat_linked_net_signal else R.string.chat_linked_net_whatsapp
+// The services of [ChatBridges.NETWORKS] (Messenger 1.23: Signal, 1.24: Telegram); a further one gets its name and mark here.
+internal fun networkName(id: String): Int = when (id) {
+    ChatBridges.SIGNAL -> R.string.chat_linked_net_signal
+    ChatBridges.TELEGRAM -> R.string.chat_linked_net_telegram
+    else -> R.string.chat_linked_net_whatsapp
+}
 
 
 internal fun errorText(e: ChatBridgeError): Int = when (e) {
@@ -390,6 +403,8 @@ private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActio
     val since = linkedDate(login?.since, locale)
     val row = ChatBridges.row(n)
     val sub = when (row) {
+        // Messenger 1.24: Telegram is not set up on this server yet
+        ChatBridgeRow.NOT_SET_UP -> stringResource(R.string.chat_linked_sub_noapp)
         ChatBridgeRow.STARTING -> stringResource(R.string.chat_linked_sub_starting)
         ChatBridgeRow.UNREACHABLE -> stringResource(R.string.chat_linked_sub_unreachable)
         ChatBridgeRow.LINKED ->
@@ -401,13 +416,19 @@ private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActio
                 } ?: "")
         ChatBridgeRow.LOGGED_OUT ->
             (if (since.isNotEmpty()) stringResource(R.string.chat_linked_sub_logged_out_at, since) else stringResource(R.string.chat_linked_sub_logged_out)) +
-                " " + stringResource(if (n.id == ChatBridges.SIGNAL) R.string.chat_linked_sub_logged_out_signal else R.string.chat_linked_sub_logged_out_whatsapp)
+                " " + stringResource(
+                    when (n.id) {
+                        ChatBridges.SIGNAL -> R.string.chat_linked_sub_logged_out_signal
+                        ChatBridges.TELEGRAM -> R.string.chat_linked_sub_logged_out_telegram
+                        else -> R.string.chat_linked_sub_logged_out_whatsapp
+                    },
+                )
         ChatBridgeRow.ERROR -> stringResource(R.string.chat_linked_sub_error)
         ChatBridgeRow.LOCKED -> stringResource(R.string.chat_linked_sub_locked)
         ChatBridgeRow.NONE -> stringResource(R.string.chat_linked_sub_none)
     }
     GcListRow(
-        title = name,
+        title = if (row == ChatBridgeRow.NOT_SET_UP) stringResource(R.string.chat_linked_row_noapp, name) else name,
         description = sub,
         modifier = Modifier.testTag("linked-row-${n.id}"),
         leading = {
@@ -416,6 +437,7 @@ private fun NetworkRow(n: ChatBridgeNetwork, busy: Boolean, actions: LinkedActio
         },
         trailing = {
             when (row) {
+                ChatBridgeRow.NOT_SET_UP -> Unit
                 ChatBridgeRow.STARTING -> GcChip(stringResource(R.string.chat_linked_pill_starting), tone = GcTone.Warn, small = true)
                 ChatBridgeRow.UNREACHABLE -> GcChip(stringResource(R.string.chat_linked_pill_unreachable), tone = GcTone.Warn, small = true)
                 ChatBridgeRow.LINKED ->
@@ -482,6 +504,11 @@ private val NOTES = mapOf(
         R.string.chat_linked_note_signal_e2e,
         R.string.chat_linked_note_signal_safety,
     ),
+    // Messenger 1.24
+    ChatBridges.TELEGRAM to listOf(
+        R.string.chat_linked_note_telegram_unofficial,
+        R.string.chat_linked_note_telegram_e2e,
+    ),
 )
 
 @Composable
@@ -523,9 +550,13 @@ private fun NotesView(view: LinkedView.Notes, actions: LinkedActions) {
 private fun LinkView(view: LinkedView.Link, actions: LinkedActions, flows: List<String> = listOf(ChatBridges.FLOW_PHONE, ChatBridges.FLOW_QR)) {
     val name = stringResource(networkName(view.network))
     val signal = view.network == ChatBridges.SIGNAL
+    val telegram = view.network == ChatBridges.TELEGRAM
     Heading(stringResource(R.string.chat_linked_link_title, name))
     // side by side where they fit, else one under the other (the labels are long); Messenger 1.23: one way in, no choice
-    if (flows.size > 1) {
+    if (telegram && flows.size > 1) {
+        // Messenger 1.24: „Wie möchtest du dich anmelden?“ — the number first on a phone, the QR code needs a second screen
+        TelegramWays(view.flow, actions)
+    } else if (flows.size > 1) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GcFilterChip(stringResource(R.string.chat_linked_flow_phone), selected = view.flow == ChatBridges.FLOW_PHONE, onClick = { actions.selectFlow(ChatBridges.FLOW_PHONE) })
             GcFilterChip(stringResource(R.string.chat_linked_flow_qr), selected = view.flow == ChatBridges.FLOW_QR, onClick = { actions.selectFlow(ChatBridges.FLOW_QR) })
@@ -533,7 +564,8 @@ private fun LinkView(view: LinkedView.Link, actions: LinkedActions, flows: List<
     }
     when (val p = view.phase) {
         LinkPhase.Starting -> Waiting(stringResource(R.string.chat_linked_loading))
-        is LinkPhase.Phone -> PhoneStep(name, p, actions)
+        is LinkPhase.Phone -> PhoneStep(name, p, actions, telegram)
+        is LinkPhase.Secret -> SecretStep(p, actions)
         is LinkPhase.Code -> {
             Muted(stringResource(R.string.chat_linked_code_lead, name))
             CodeBox(p.code)
@@ -542,7 +574,13 @@ private fun LinkView(view: LinkedView.Link, actions: LinkedActions, flows: List<
             Small(stringResource(R.string.chat_linked_code_note))
             Waiting(stringResource(R.string.chat_linked_waiting))
         }
-        is LinkPhase.Qr -> if (signal) {
+        is LinkPhase.Qr -> if (telegram) {
+            // Messenger 1.24: Telegram on another phone; the code runs out after a short time and renews itself
+            QrBox(p.matrix)
+            Steps(listOf(R.string.chat_linked_qr_step1_telegram, R.string.chat_linked_qr_step2_telegram, R.string.chat_linked_qr_step3_telegram))
+            Small(stringResource(R.string.chat_linked_qr_renews_telegram))
+            Waiting(stringResource(R.string.chat_linked_waiting))
+        } else if (signal) {
             // Messenger 1.23: Signal on another phone; the code renews itself every 45 s
             Muted(stringResource(R.string.chat_linked_qr_lead_signal))
             QrBox(p.matrix)
@@ -580,7 +618,7 @@ private fun SecondScreenView(view: LinkedView.SecondScreen, actions: LinkedActio
             GcIconSquare { androidx.compose.material3.Icon(GcIcons.Monitor, contentDescription = null, tint = GateControlTheme.extraColors.accentText) }
             Text(stringResource(R.string.chat_linked_second_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
         }
-        Text(stringResource(R.string.chat_linked_second_text), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted)
+        Text(stringResource(if (view.network == ChatBridges.TELEGRAM) R.string.chat_linked_second_text_telegram else R.string.chat_linked_second_text), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted)
         GcPrimaryButton(
             text = stringResource(R.string.chat_linked_second_portal),
             onClick = { actions.handoff(ChatBridges.HANDOFF_PORTAL) },
@@ -598,7 +636,7 @@ private fun SecondScreenView(view: LinkedView.SecondScreen, actions: LinkedActio
     }
     when (view.target) {
         ChatBridges.HANDOFF_WINDOWS -> {
-            Note(stringResource(R.string.chat_linked_second_sent_windows))
+            Note(stringResource(if (view.network == ChatBridges.TELEGRAM) R.string.chat_linked_second_sent_windows_telegram else R.string.chat_linked_second_sent_windows))
             Waiting(stringResource(R.string.chat_linked_waiting_phone))
         }
         ChatBridges.HANDOFF_PORTAL -> {
@@ -614,21 +652,23 @@ private fun SecondScreenView(view: LinkedView.SecondScreen, actions: LinkedActio
     }
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         androidx.compose.material3.TextButton(onClick = actions.showCodeHere, modifier = Modifier.testTag("linked-code-here")) {
-            Text(stringResource(R.string.chat_linked_second_here), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.accentText)
+            Text(stringResource(if (view.network == ChatBridges.TELEGRAM) R.string.chat_linked_second_here_telegram else R.string.chat_linked_second_here), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.accentText)
         }
     }
 }
 
 @Composable
-private fun PhoneStep(name: String, p: LinkPhase.Phone, actions: LinkedActions) {
+private fun PhoneStep(name: String, p: LinkPhase.Phone, actions: LinkedActions, telegram: Boolean = false) {
     // in memory while the field shows — not in the saved state, not in the view model
     var number by remember(p.stepId) { mutableStateOf("") }
+    // Messenger 1.24: Telegram's own words
+    if (telegram) Muted(stringResource(R.string.chat_linked_tg_phone_lead))
     GcTextField(
         value = number,
         onValueChange = { v -> number = v.take(32) },
-        label = stringResource(R.string.chat_linked_phone_label, name),
+        label = if (telegram) stringResource(R.string.chat_linked_tg_phone_label) else stringResource(R.string.chat_linked_phone_label, name),
         placeholder = stringResource(R.string.chat_linked_phone_placeholder),
-        hint = stringResource(R.string.chat_linked_phone_hint),
+        hint = stringResource(if (telegram) R.string.chat_linked_tg_phone_hint else R.string.chat_linked_phone_hint),
         error = when (p.error) {
             PhoneError.INVALID -> stringResource(R.string.chat_linked_phone_invalid)
             PhoneError.REFUSED -> stringResource(R.string.chat_linked_phone_refused)
@@ -640,6 +680,75 @@ private fun PhoneStep(name: String, p: LinkPhase.Phone, actions: LinkedActions) 
         modifier = Modifier.testTag("linked-phone"),
     )
     GcPrimaryButton(text = stringResource(R.string.chat_linked_get_code), onClick = { actions.submitPhone(number) }, loading = p.sending)
+}
+
+/** Messenger 1.24: Telegram's two ways — by number (on this phone) or by QR code (a second screen). */
+@Composable
+private fun TelegramWays(flow: String, actions: LinkedActions) {
+    Muted(stringResource(R.string.chat_linked_tg_ways))
+    GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        GcListRow(
+            title = stringResource(R.string.chat_linked_tg_way_phone),
+            description = stringResource(R.string.chat_linked_tg_way_phone_sub),
+            modifier = Modifier.testTag("linked-way-phone").selectable(selected = flow == ChatBridges.FLOW_PHONE, role = Role.RadioButton, onClick = { actions.selectFlow(ChatBridges.FLOW_PHONE) }),
+            trailing = { RadioButton(selected = flow == ChatBridges.FLOW_PHONE, onClick = null) },
+        )
+        GcRowDivider()
+        GcListRow(
+            title = stringResource(R.string.chat_linked_tg_way_qr),
+            description = stringResource(R.string.chat_linked_tg_way_qr_sub),
+            modifier = Modifier.testTag("linked-way-qr").selectable(selected = flow == ChatBridges.FLOW_QR, role = Role.RadioButton, onClick = { actions.selectFlow(ChatBridges.FLOW_QR) }),
+            trailing = { RadioButton(selected = flow == ChatBridges.FLOW_QR, onClick = null) },
+        )
+    }
+}
+
+/**
+ * Messenger 1.24 (Telegram): the code from the Telegram app, or the password of the two-step verification. The value
+ * lives only in this field while it shows — not in the saved state, not in the view model — and goes once; the field is
+ * emptied as soon as it is sent. The password field keeps nothing for autofill.
+ */
+@Composable
+private fun SecretStep(p: LinkPhase.Secret, actions: LinkedActions) {
+    var value by remember(p.stepId, p.retry) { mutableStateOf("") }
+    val send = {
+        val v = value
+        value = ""
+        actions.submitSecret(v)
+    }
+    if (p.password) {
+        Muted(stringResource(R.string.chat_linked_tg_pw_lead))
+        GcTextField(
+            value = value,
+            onValueChange = { v -> value = v.take(LinkedServicesViewModel.SECRET_MAX) },
+            label = stringResource(R.string.chat_linked_tg_pw_label),
+            hint = stringResource(R.string.chat_linked_tg_pw_hint),
+            error = if (p.retry) stringResource(R.string.chat_linked_tg_pw_wrong) else null,
+            enabled = !p.sending,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
+            keyboardActions = KeyboardActions(onDone = { send() }),
+            modifier = Modifier.testTag("linked-password").semantics { password() },
+        )
+        GcPrimaryButton(text = stringResource(R.string.chat_linked_tg_sign_in), onClick = send, loading = p.sending, enabled = value.isNotEmpty())
+    } else {
+        Muted(stringResource(R.string.chat_linked_tg_code_lead))
+        GcTextField(
+            value = value,
+            onValueChange = { v -> value = v.filter { it.isDigit() }.take(12) },
+            label = stringResource(R.string.chat_linked_code_label),
+            hint = stringResource(R.string.chat_linked_tg_code_warn),
+            error = if (p.retry) stringResource(R.string.chat_linked_tg_code_wrong) else null,
+            enabled = !p.sending,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done, autoCorrectEnabled = false),
+            keyboardActions = KeyboardActions(onDone = { send() }),
+            modifier = Modifier.testTag("linked-tg-code"),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GcPrimaryButton(text = stringResource(R.string.chat_linked_tg_next), onClick = send, loading = p.sending, enabled = value.isNotEmpty())
+            GcOutlineButton(text = stringResource(R.string.chat_linked_tg_other_number), onClick = actions.retry, enabled = !p.sending)
+        }
+    }
 }
 
 /** The pairing code, large and selectable; TalkBack reads it as one label. */

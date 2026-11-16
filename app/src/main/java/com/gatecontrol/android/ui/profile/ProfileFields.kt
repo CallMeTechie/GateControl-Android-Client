@@ -83,6 +83,8 @@ class ProfileFieldActions(
     val recognition: (byWhatsapp: Boolean?, byPhone: Boolean?) -> Unit,
     /** Bridges 7a: „An meinem verknüpften Signal“. */
     val recognitionSignal: (Boolean) -> Unit = {},
+    /** Bridges 7b: „An meinem verknüpften Telegram“. */
+    val recognitionTelegram: (Boolean) -> Unit = {},
     /** „Wer sieht dein Bild?“ — the sheet with the four levels. */
     val avatarVisibility: () -> Unit = {},
 )
@@ -147,6 +149,7 @@ private fun stateLabel(state: String): String = stringResource(
     when (state) {
         PPhone.STATE_WHATSAPP -> R.string.profile_state_whatsapp
         PPhone.STATE_SIGNAL -> R.string.profile_state_signal
+        PPhone.STATE_TELEGRAM -> R.string.profile_state_telegram
         PPhone.STATE_ADMIN -> R.string.profile_state_admin
         PPhone.STATE_DIRECTORY -> R.string.profile_state_directory
         else -> R.string.profile_state_unconfirmed
@@ -346,6 +349,18 @@ fun ProfileFieldGroups(d: ProfileDetails, a: ProfileFieldActions, saving: Boolea
                         description = stringResource(R.string.profile_rec_signal_sub),
                         checked = d.recognition.bySignal,
                         onCheckedChange = { a.recognitionSignal(it) },
+                        icon = GcIcons.Scan,
+                        enabled = !saving,
+                    )
+                }
+                // Bridges 7b: Telegram likewise
+                if (d.recognition.telegramLinked || d.recognition.byTelegram) {
+                    GcRowDivider()
+                    GcSwitchRow(
+                        label = stringResource(R.string.profile_rec_telegram),
+                        description = stringResource(R.string.profile_rec_signal_sub),
+                        checked = d.recognition.byTelegram,
+                        onCheckedChange = { a.recognitionTelegram(it) },
                         icon = GcIcons.Scan,
                         enabled = !saving,
                     )

@@ -221,6 +221,8 @@ object ChatNewChat {
             ChatBridgeRow.LOGGED_OUT, ChatBridgeRow.ERROR -> Blocked.LOGGED_OUT
             ChatBridgeRow.UNREACHABLE, ChatBridgeRow.STARTING -> Blocked.UNREACHABLE
             ChatBridgeRow.LOCKED -> Blocked.LOCKED
+            // Messenger 1.24: Telegram not set up by an administrator
+            ChatBridgeRow.NOT_SET_UP -> Blocked.OFF
             ChatBridgeRow.NONE -> Blocked.UNLINKED
             ChatBridgeRow.LINKED -> if (!n.allowed) Blocked.LOCKED else null
         }

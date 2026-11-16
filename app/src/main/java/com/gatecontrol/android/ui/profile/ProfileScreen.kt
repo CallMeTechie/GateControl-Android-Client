@@ -247,6 +247,7 @@ fun ProfileScreen(
                     email = { fieldsViewModel.openEmail(it.id) },
                     recognition = { wa, phone -> fieldsViewModel.setRecognition(wa, phone) },
                     recognitionSignal = { on -> fieldsViewModel.setRecognition(bySignal = on) },
+                    recognitionTelegram = { on -> fieldsViewModel.setRecognition(byTelegram = on) },
                     avatarVisibility = fieldsViewModel::openAvatarVisibility,
                 ),
                 saving = fieldsSaving,
