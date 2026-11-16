@@ -294,6 +294,15 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- SSH terminal of „Fernzugriff“ (stage 3): may rotate; the session lives in TermSessions -->
+        <activity
+            android:name=".terminal.TerminalActivity"
+            android:exported="false"
+            android:theme="@style/Theme.GateControl"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".service.RdpSessionService"
             android:foregroundServiceType="specialUse"

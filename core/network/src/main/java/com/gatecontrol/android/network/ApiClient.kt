@@ -137,6 +137,14 @@ interface ApiClient {
     @POST("api/v1/client/remote/screen-token")
     suspend fun remoteScreenToken(@Body body: JsonObject): Response<JsonObject>
 
+    /**
+     * Fernzugriff, stage 3 (core with gc.remote version 3): a single-use token (60 s) for a ticket of the SSH terminal
+     * (`ref` from the plugin's `devices/<id>/connect` with `via: 'app'`), bound to this app token on first use.
+     * `{ ok, token, wsPath, ttl }`; 404 unknown/expired/another device, 409, 429 limit, 503 plugin not running.
+     */
+    @POST("api/v1/client/remote/term-token")
+    suspend fun remoteTermToken(@Body body: JsonObject): Response<JsonObject>
+
     // ─── Plugin APIs for the apps (`/api/v1/client/plugins/{id}/api/…`) ──
     // Forwarded to the plugin's own request handler with the token owner as
     // user. Raw JSON both ways: the app feature (e.g. Familie) parses it.
