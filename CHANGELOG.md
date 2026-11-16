@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.123.0] - 2026-11-16
+
+### Features
+- „Wer sieht dein Bild?“ im Profil, Messenger-Privatsphäre verweist aufs Profil (Stufe 7c) (#243)
+
+---
+
 ## [1.122.0] - 2026-11-16
 
 ### Features
