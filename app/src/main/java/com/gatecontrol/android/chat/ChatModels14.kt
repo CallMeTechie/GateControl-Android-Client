@@ -144,6 +144,8 @@ data class ChatPrivacy(
     val placeInStatus: String = AUDIENCE_FAMILY,
     val groupAdd: String = AUDIENCE_ALL,
     val defaultDisappearingS: Int = 0,
+    /** Messenger 1.22: the level of „Wer sieht dein Bild?“ in the profile (all | contacts | family | self), else null. */
+    val avatarProfile: String? = null,
 ) {
     companion object {
         const val AUDIENCE_ALL = "all"

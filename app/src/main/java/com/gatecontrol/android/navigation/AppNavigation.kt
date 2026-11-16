@@ -950,6 +950,7 @@ fun AppNavigation(
                         onOpenStatus = { statusSheet = true },
                         onOpenQuietHours = { openSettingsPane(SettingsPane.Notifications) },
                         onOpenRoutes = { navController.navigate(Screen.NotifyRoutes.route) { launchSingleTop = true } },
+                        onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
                     )
                 } }
                 if (statusSheet) {

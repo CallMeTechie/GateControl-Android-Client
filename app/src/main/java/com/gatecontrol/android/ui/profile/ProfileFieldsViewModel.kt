@@ -93,6 +93,10 @@ class ProfileFieldsViewModel @Inject constructor(
     private val _exporting = MutableStateFlow(false)
     val exporting: StateFlow<Boolean> = _exporting.asStateFlow()
 
+    private val _avatarSheet = MutableStateFlow(false)
+    /** The sheet „Wer sieht dein Bild?“ is open. */
+    val avatarSheet: StateFlow<Boolean> = _avatarSheet.asStateFlow()
+
     private val _messages = MutableSharedFlow<Int>(extraBufferCapacity = 4)
     val messages: SharedFlow<Int> = _messages.asSharedFlow()
 
@@ -154,6 +158,30 @@ class ProfileFieldsViewModel @Inject constructor(
     }
 
     private fun save(body: JsonObject) = run(close = true) { repository.updateFields(body) }
+
+    // ─── „Wer sieht dein Bild?“ ────────────────────────────────────
+
+    fun openAvatarVisibility() {
+        _refusal.value = null
+        _avatarSheet.value = true
+    }
+
+    fun closeAvatarVisibility() {
+        _avatarSheet.value = false
+        _refusal.value = null
+    }
+
+    /**
+     * Saves the level at once and closes the sheet. A narrower level gives the picture a new address on the server, so
+     * the whole profile (picture included) is read again.
+     */
+    fun saveAvatarVisibility(level: String) {
+        if (level !in ProfileDetails.AVATAR_LEVELS) return
+        run(close = false, onDone = {
+            _avatarSheet.value = false
+            viewModelScope.launch { repository.refresh() }
+        }) { repository.updateFields(avatarVisibilityBody(level)) }
+    }
 
     /** Runs a change; Done closes the dialog ([close]), a refusal stays in it. */
     private fun run(close: Boolean, onDone: (ProfileEdit.Done) -> Unit = {}, call: suspend () -> ProfileEdit) {
@@ -314,6 +342,10 @@ class ProfileFieldsViewModel @Inject constructor(
     }
 
     companion object {
+        /** `{ visibility: { avatar } }` of `PATCH …/me/profile`. */
+        fun avatarVisibilityBody(level: String): JsonObject =
+            JsonObject().apply { add("visibility", JsonObject().apply { addProperty("avatar", level) }) }
+
         private val EMAIL_RE = Regex("^[^\\s@]{1,64}@[^\\s@]{1,253}\\.[^\\s@]{2,63}$")
         private val CODE_RE = Regex("^[0-9]{6}$")
 

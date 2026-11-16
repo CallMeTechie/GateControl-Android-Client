@@ -259,6 +259,8 @@ object ChatJson14 {
 
     // ─── preferences ────────────────────────────────────────────────
 
+    private val AVATAR_PROFILE_LEVELS = setOf("all", "contacts", "family", "self")
+
     private fun audience(value: String?, default: String) = value?.takeIf { it in ChatPrivacy.AUDIENCES } ?: default
 
     fun prefs14(o: JsonObject?): ChatPrefs14 {
@@ -275,6 +277,7 @@ object ChatJson14 {
                 placeInStatus = audience(p.str("placeInStatus"), d.placeInStatus),
                 groupAdd = audience(p.str("groupAdd"), d.groupAdd),
                 defaultDisappearingS = p.int("defaultDisappearingS")?.takeIf { it >= 0 } ?: d.defaultDisappearingS,
+                avatarProfile = p.str("avatarProfile")?.takeIf { it in AVATAR_PROFILE_LEVELS },
             ),
             notify = if (n == null) dn else ChatNotifyPrefs(
                 groupsMentionsOnly = n.flag("groupsMentionsOnly") ?: dn.groupsMentionsOnly,

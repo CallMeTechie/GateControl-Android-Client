@@ -191,7 +191,10 @@ object ChatSerializer {
             addProperty("typing", p.prefs.typing)
             addProperty("preview", p.prefs.preview)
             ChatJson14.writePrefs14(this, p.prefs14)
+            // the cached copy keeps the level of the profile (Messenger 1.22; never sent with PUT prefs)
+            p.prefs14.privacy.avatarProfile?.let { getAsJsonObject("privacy").addProperty("avatarProfile", it) }
         })
+        if (p.avatarInProfile) addProperty("avatarInProfile", true)
         p.status?.let { add("status", ChatJson14.writeStatus(it)) }
         add("integrations", JsonObject().apply {
             add("familie", JsonObject().apply {
