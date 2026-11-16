@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.120.0] - 2026-11-16
+
+### Features
+- Bildschirm freigeben – Handy-Bildschirm für Helfer ansehen (Stufe 5) (#240)
+
+---
+
 ## [1.119.0] - 2026-11-16
 
 ### Features
