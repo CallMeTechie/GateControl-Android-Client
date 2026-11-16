@@ -207,6 +207,7 @@ object ChatJson {
             familie = ChatJson14.familie(o.obj("integrations")),
             drive = o.obj("integrations")?.flag("drive") == true,
             home = ChatHomeJson.home(o),
+            avatarInProfile = o.flag("avatarInProfile") == true,
         )
     }
 

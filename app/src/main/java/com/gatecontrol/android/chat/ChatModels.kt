@@ -401,6 +401,11 @@ data class ChatProfile(
     val drive: Boolean = false,
     /** Messenger C4: limits and defaults of door requests and shared devices, the doorbell. */
     val home: ChatHomeInfo = ChatHomeInfo(),
+    /**
+     * Messenger 1.22 (`avatarInProfile`): „Wer sieht dein Bild?“ lives in the user profile of GateControl — the privacy
+     * row „Profilbild“ opens the profile; [ChatPrivacy.avatarProfile] is its level.
+     */
+    val avatarInProfile: Boolean = false,
 )
 
 /** `GET conversations/:id/search`. */

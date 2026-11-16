@@ -1091,6 +1091,20 @@ lesen); Format, Links, Leisten, Reaktionen, Retry und Logos gelten trotzdem.
 
 Ohne `chat_people` stehen die Wege wie bisher als getrennte Chats in der Liste.
 
+### Wer sieht dein Bild? (Stufe 7c, Server mit `options.avatarVisibility`, Messenger 1.22)
+
+- **Profil:** In der Gruppe „Über dich“ steht oben „Wer sieht dein Bild?“ mit
+  der Stufe (Alle · Kontakte · Familie · Nur ich). Tippen öffnet ein Blatt mit
+  den vier Stufen; die Wahl gilt sofort und in ganz GateControl. „Kontakte“ =
+  Familie und alle mit einem gemeinsamen Chat oder einer Gruppe; „Nur ich“ =
+  andere sehen die Initialen. Fußtext: das Bild geht nie an WhatsApp, Signal
+  oder Telegram. Wird die Stufe enger, bekommt das Bild eine neue Adresse –
+  das Profil wird danach neu geladen.
+- **Chat-Einstellungen → Datenschutz:** Mit `avatarInProfile` zeigt
+  „Profilbild“ „<Stufe> · im Profil festgelegt“ und öffnet das Profil; die
+  App schickt `privacy.avatar` dann nicht mehr mit `PUT prefs`.
+- Ältere Server: keine Zeile im Profil, „Profilbild“ wie bisher im Messenger.
+
 ---
 
 ## Vault (Plugin `gatecontrol-vault` 1.0)

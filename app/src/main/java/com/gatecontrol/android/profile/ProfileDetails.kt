@@ -34,6 +34,11 @@ data class ProfileDetails(
     val features: PFeatures,
     val limits: PLimits,
     val kinds: List<String>,
+    /**
+     * „Wer sieht dein Bild?“ (`visibility.avatar`, for all of GateControl): `all` | `contacts` | `family` | `self`; null
+     * on a server that does not offer it (no `options.avatarVisibility`) — then the row is not shown.
+     */
+    val avatarVisibility: String? = null,
 ) {
     fun visibilityOf(field: String): String = visibility[field] ?: ProfileDetailsJson.DEFAULT_VISIBILITY[field] ?: VIS_SELF
 
@@ -51,6 +56,10 @@ data class ProfileDetails(
         const val VIS_SELF = "self"
         const val VIS_FAMILY = "family"
         const val VIS_ALL = "all"
+        const val VIS_CONTACTS = "contacts"
+
+        /** The levels of „Wer sieht dein Bild?“, widest first. */
+        val AVATAR_LEVELS = listOf(VIS_ALL, VIS_CONTACTS, VIS_FAMILY, VIS_SELF)
     }
 }
 
@@ -193,6 +202,10 @@ object ProfileDetailsJson {
             limits = limits,
             kinds = p.obj("options")?.arr("kinds")?.mapNotNull { e: JsonElement -> e.takeIf { it.isJsonPrimitive }?.asString }
                 ?.filter { it in KINDS }?.distinct()?.ifEmpty { null } ?: KINDS,
+            // „Wer sieht dein Bild?“: only on a server that offers the levels
+            avatarVisibility = p.obj("options")?.arr("avatarVisibility")?.takeIf { it.size() > 0 }?.let {
+                vis?.str("avatar")?.takeIf { v -> v in ProfileDetails.AVATAR_LEVELS } ?: ProfileDetails.VIS_ALL
+            },
         )
     }
 
