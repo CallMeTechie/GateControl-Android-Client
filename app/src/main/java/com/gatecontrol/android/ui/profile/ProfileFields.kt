@@ -83,6 +83,8 @@ class ProfileFieldActions(
     val recognition: (byWhatsapp: Boolean?, byPhone: Boolean?) -> Unit,
     /** Bridges 7a: „An meinem verknüpften Signal“. */
     val recognitionSignal: (Boolean) -> Unit = {},
+    /** „Wer sieht dein Bild?“ — the sheet with the four levels. */
+    val avatarVisibility: () -> Unit = {},
 )
 
 // ─── pure texts (unit-tested) ────────────────────────────────────
@@ -126,6 +128,17 @@ internal fun visLabel(level: String, short: Boolean = true): String = stringReso
         ProfileDetails.VIS_SELF -> R.string.profile_vis_self
         ProfileDetails.VIS_FAMILY -> R.string.profile_vis_family
         else -> if (short) R.string.profile_vis_all_short else R.string.profile_vis_all
+    },
+)
+
+/** A level of „Wer sieht dein Bild?“: Alle (short) / Alle auf diesem Server, Kontakte, Familie, Nur ich. */
+@Composable
+internal fun avatarVisLabel(level: String, short: Boolean = false): String = stringResource(
+    when (level) {
+        ProfileDetails.VIS_CONTACTS -> R.string.profile_avatar_vis_contacts
+        ProfileDetails.VIS_FAMILY -> R.string.profile_avatar_vis_family
+        ProfileDetails.VIS_SELF -> R.string.profile_avatar_vis_self
+        else -> if (short) R.string.profile_avatar_vis_all_short else R.string.profile_avatar_vis_all
     },
 )
 
@@ -243,6 +256,11 @@ fun ProfileFieldGroups(d: ProfileDetails, a: ProfileFieldActions, saving: Boolea
     val locale = appLocale()
     Column(modifier.testTag("profile-fields"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Group(stringResource(R.string.profile_group_about)) {
+            // „Wer sieht dein Bild?“ (server with visibility.avatar): for all of GateControl
+            d.avatarVisibility?.let { level ->
+                FieldRow(GcIcons.Eye, stringResource(R.string.profile_avatar_vis_title), avatarVisLabel(level, short = true), a.avatarVisibility)
+                GcRowDivider()
+            }
             FieldRow(GcIcons.User, stringResource(R.string.profile_field_display_name), d.displayName, { a.edit(ProfileEditor.DISPLAY_NAME) }, locked = d.locked.displayName) {
                 VisChip(ProfileDetails.VIS_ALL)
             }
@@ -516,6 +534,55 @@ private fun VisibilityOption(label: String, description: String?, selected: Bool
             Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             description?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted) }
         }
+    }
+}
+
+// ─── „Wer sieht dein Bild?“ ──────────────────────────────────────
+
+/** The sheet of „Wer sieht dein Bild?“: four levels, a choice saves at once; the bridges never get the picture. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AvatarVisibilitySheet(current: String, saving: Boolean, refusal: ProfileEdit.Refused?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        AvatarVisibilitySheetContent(current, saving, refusal, onPick)
+    }
+}
+
+@Composable
+fun AvatarVisibilitySheetContent(current: String, saving: Boolean, refusal: ProfileEdit.Refused?, onPick: (String) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 16.dp)
+            .testTag("avatar-visibility-sheet"),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(stringResource(R.string.profile_avatar_vis_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        Column(Modifier.selectableGroup()) {
+            ProfileDetails.AVATAR_LEVELS.forEach { level ->
+                VisibilityOption(
+                    label = avatarVisLabel(level),
+                    description = when (level) {
+                        ProfileDetails.VIS_CONTACTS -> stringResource(R.string.profile_avatar_vis_contacts_desc)
+                        ProfileDetails.VIS_SELF -> stringResource(R.string.profile_avatar_vis_self_desc)
+                        else -> null
+                    },
+                    selected = current == level,
+                    enabled = !saving,
+                ) { if (level != current) onPick(level) }
+            }
+        }
+        refusal?.let { r ->
+            Text(r.message ?: stringResource(ProfileFieldsViewModel.messageOf(r.code)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        Text(stringResource(R.string.profile_avatar_vis_bridges), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
     }
 }
 

@@ -448,4 +448,6 @@
     <string name="chat_status_my_stories_open">View</string>
     <string name="chat_status_add_story">Add status</string>
     <string name="chat_status_view_mine">View my stories</string>
+    <string name="chat_privacy_avatar_in_profile">%s · set in your profile</string>
+    <string name="chat_privacy_avatar_profile_footer">“Profile picture” opens your profile. The setting applies everywhere in GateControl.</string>
 </resources>

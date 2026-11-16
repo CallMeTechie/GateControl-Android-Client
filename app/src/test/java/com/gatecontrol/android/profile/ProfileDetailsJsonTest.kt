@@ -143,4 +143,20 @@ class ProfileDetailsJsonTest {
         // never a path or another type
         assertEquals("gatecontrol-meine-daten-2026-11-15.json", ProfileDetailsJson.exportName("""attachment; filename="../../x.sh"""", today))
     }
+
+    @Test
+    fun `who sees the picture - only on a server that offers the levels`() {
+        assertNull(ProfileDetailsJson.parse(json(sample))!!.avatarVisibility, "an older server: no row")
+        val withLevels = sample.replace("\"phoneStates\"", "\"avatarVisibility\": [\"all\",\"contacts\",\"family\",\"self\"], \"phoneStates\"")
+        assertEquals("all", ProfileDetailsJson.parse(json(withLevels))!!.avatarVisibility, "not chosen yet: all")
+        val contacts = withLevels.replace("\"timezone\": \"self\" }", "\"timezone\": \"self\", \"avatar\": \"contacts\" }")
+        assertEquals("contacts", ProfileDetailsJson.parse(json(contacts))!!.avatarVisibility)
+        val odd = withLevels.replace("\"timezone\": \"self\" }", "\"timezone\": \"self\", \"avatar\": \"nobody\" }")
+        assertEquals("all", ProfileDetailsJson.parse(json(odd))!!.avatarVisibility, "an unknown level: all")
+        assertEquals(listOf("all", "contacts", "family", "self"), ProfileDetails.AVATAR_LEVELS)
+        assertEquals(
+            json("""{"visibility":{"avatar":"family"}}"""),
+            com.gatecontrol.android.ui.profile.ProfileFieldsViewModel.avatarVisibilityBody("family"),
+        )
+    }
 }

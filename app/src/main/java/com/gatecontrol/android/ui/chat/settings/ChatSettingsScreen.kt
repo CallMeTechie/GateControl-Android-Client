@@ -150,6 +150,8 @@ fun ChatSettingsScreen(
     onOpenQuietHours: () -> Unit,
     /** "Wo Mitteilungen erscheinen" (core 1.191+; hidden on older servers). */
     onOpenRoutes: (() -> Unit)? = null,
+    /** The own profile (Messenger 1.22: „Profilbild“ of the privacy page is set there). */
+    onOpenProfile: (() -> Unit)? = null,
     viewModel: ChatSettingsViewModel = hiltViewModel(),
 ) {
     val ctx = LocalContext.current
@@ -197,7 +199,7 @@ fun ChatSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (page) {
-                ChatSettingsPage.PRIVACY -> PrivacyPage(viewModel, onOpenPage)
+                ChatSettingsPage.PRIVACY -> PrivacyPage(viewModel, onOpenPage, onOpenProfile)
                 ChatSettingsPage.BLOCKS -> BlocksPage(viewModel)
                 ChatSettingsPage.CHATS -> ChatsPage(viewModel)
                 ChatSettingsPage.LOOK -> LookPage(viewModel)
@@ -332,7 +334,7 @@ private fun MainPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit, on
 // ─── privacy ────────────────────────────────────────────────────────
 
 @Composable
-private fun PrivacyPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit) {
+private fun PrivacyPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit, onOpenProfile: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val profile by vm.profile.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
@@ -344,15 +346,28 @@ private fun PrivacyPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit)
     val auth = rememberGcDeviceAuth()
     val lockTitle = stringResource(R.string.chat_lock_title)
     val lockSubtitle = stringResource(R.string.chat_lock_subtitle)
+    val avatarInProfile = profile?.avatarInProfile == true && onOpenProfile != null
     if (f?.privacy2 == true) {
         Section(stringResource(R.string.chat_privacy_who)) {
             ValueRow(stringResource(R.string.chat_privacy_last_seen), audienceLabel(p.lastSeen), stringResource(R.string.chat_privacy_last_seen_desc)) { dialog = "lastSeen" }
-            ValueRow(stringResource(R.string.chat_privacy_avatar), audienceLabel(p.avatar)) { dialog = "avatar" }
+            if (avatarInProfile) {
+                // Messenger 1.22: „Wer sieht dein Bild?“ is set in the profile and counts in all of GateControl
+                val level = com.gatecontrol.android.ui.profile.avatarVisLabel(p.avatarProfile ?: ChatPrivacy.AUDIENCE_ALL, short = true)
+                GcListRow(
+                    title = stringResource(R.string.chat_privacy_avatar),
+                    description = stringResource(R.string.chat_privacy_avatar_in_profile, level),
+                    onClick = onOpenProfile,
+                    trailing = { GcChevron() },
+                )
+            } else {
+                ValueRow(stringResource(R.string.chat_privacy_avatar), audienceLabel(p.avatar)) { dialog = "avatar" }
+            }
             if (f.status) {
                 ValueRow(stringResource(R.string.chat_privacy_status), statusVisLabel(p.statusDefault), stringResource(R.string.chat_privacy_status_desc)) { dialog = "statusDefault" }
                 ValueRow(stringResource(R.string.chat_privacy_place), audienceLabel(p.placeInStatus), stringResource(R.string.chat_privacy_place_desc)) { dialog = "place" }
             }
         }
+        if (avatarInProfile) Footer(stringResource(R.string.chat_privacy_avatar_profile_footer))
     }
     Section(if (f?.privacy2 == true) null else stringResource(R.string.chat_privacy_who)) {
         GcSwitchRow(stringResource(R.string.chat_prefs_receipts), stringResource(R.string.chat_privacy_receipts_desc), prefs?.readReceipts != false, { vm.setPrefs(readReceipts = it) })

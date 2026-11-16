@@ -247,6 +247,7 @@ fun ProfileScreen(
                     email = { fieldsViewModel.openEmail(it.id) },
                     recognition = { wa, phone -> fieldsViewModel.setRecognition(wa, phone) },
                     recognitionSignal = { on -> fieldsViewModel.setRecognition(bySignal = on) },
+                    avatarVisibility = fieldsViewModel::openAvatarVisibility,
                 ),
                 saving = fieldsSaving,
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -608,6 +609,10 @@ private fun ProfileFieldsOverlays(vm: ProfileFieldsViewModel, d: com.gatecontrol
         PhoneSheet(draft, d, saving, refusal, vm::updateDraft, vm::savePhone, vm::removePhone, vm::closePhone)
     }
     if (consent) ProfileConsentDialog(vm::answerConsent)
+    val avatarSheet by vm.avatarSheet.collectAsStateWithLifecycle()
+    d.avatarVisibility?.takeIf { avatarSheet }?.let { level ->
+        AvatarVisibilitySheet(level, saving, refusal, vm::saveAvatarVisibility, vm::closeAvatarVisibility)
+    }
     val emailId = emailCode ?: emailOpen
     d.emails.firstOrNull { it.id == emailId }?.let { e ->
         ProfileEmailDialog(

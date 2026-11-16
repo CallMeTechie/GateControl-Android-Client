@@ -229,6 +229,8 @@ class ChatExtrasRepository @Inject constructor(
     /** `PUT prefs` with the 1.4 keys (and the 1.0 ones unchanged). */
     suspend fun putPrefs(prefs14: ChatPrefs14): ChatResult<Unit> {
         val body = ChatJson14.writePrefs14(JsonObject(), prefs14)
+        // Messenger 1.22: „Wer sieht dein Bild?“ lives in the profile — never send the (perhaps stale) mirror back
+        if (repository.profile.value?.avatarInProfile == true) body.getAsJsonObject("privacy")?.remove("avatar")
         val r = api.putPrefsBody(body)
         if (r is ChatResult.Ok) repository.updatePrefs(r.value.first, r.value.second)
         return if (r is ChatResult.Ok) ChatResult.Ok(Unit) else r.asFailure()

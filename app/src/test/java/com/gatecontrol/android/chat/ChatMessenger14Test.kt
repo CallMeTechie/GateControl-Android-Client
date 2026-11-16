@@ -361,6 +361,23 @@ class ChatMessenger14Test {
         assertEquals(ChatPrefs14(), ChatJson14.prefs14(json("""{"readReceipts":true}""")), "older servers: defaults")
     }
 
+    @Test
+    fun `Messenger 1_22 - the picture's level comes from the profile`() {
+        val profile = ChatJson.profile(
+            json(
+                """{"user":{"id":7,"name":"Marc"},"avatarInProfile":true,"prefs":{"readReceipts":true,"typing":true,"preview":true,
+                   "privacy":{"lastSeen":"all","avatar":"family","avatarProfile":"contacts"}}}""",
+            ),
+        )!!
+        assertTrue(profile.avatarInProfile)
+        assertEquals("contacts", profile.prefs14.privacy.avatarProfile)
+        assertEquals(ChatPrivacy.AUDIENCE_FAMILY, profile.prefs14.privacy.avatar, "the mirror for older apps")
+        assertEquals(profile, ChatJson.profile(ChatSerializer.profile(profile)), "the cached profile keeps both")
+        val older = ChatJson.profile(json("""{"user":{"id":7,"name":"Marc"},"prefs":{"privacy":{"avatar":"nobody","avatarProfile":"bogus"}}}"""))!!
+        assertFalse(older.avatarInProfile)
+        assertNull(older.prefs14.privacy.avatarProfile)
+    }
+
     // ─── tools ──────────────────────────────────────────────────────
 
     @Test

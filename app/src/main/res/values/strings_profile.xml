@@ -96,4 +96,14 @@
         <item quantity="one">%d number for recognition</item>
         <item quantity="other">%d numbers for recognition</item>
     </plurals>
+    <!-- „Wer sieht dein Bild?“ (visibility.avatar, for all of GateControl) -->
+    <string name="profile_avatar_vis_title">Who can see your picture?</string>
+    <string name="profile_avatar_vis_all">Everyone on this server</string>
+    <string name="profile_avatar_vis_all_short">Everyone</string>
+    <string name="profile_avatar_vis_contacts">Contacts</string>
+    <string name="profile_avatar_vis_family">Family</string>
+    <string name="profile_avatar_vis_self">Only me</string>
+    <string name="profile_avatar_vis_contacts_desc">Family and everyone you share a chat or group with</string>
+    <string name="profile_avatar_vis_self_desc">Others see your initials</string>
+    <string name="profile_avatar_vis_bridges">Your picture is never sent to WhatsApp, Signal or Telegram. There, the picture from each app applies.</string>
 </resources>
