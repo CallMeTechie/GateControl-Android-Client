@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.126.1] - 2026-11-16
+
+### Fixes
+- Status-Viewer zeigt je Status sein eigenes Bild (#247)
+
+---
+
 ## [1.126.0] - 2026-11-16
 
 ### Features
