@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.125.0] - 2026-11-16
+
+### Features
+- Telegram-Brücke (Brücken Stufe 7b) – Nummer, Code, Passwort, Kanal-Filter, Bot (#245)
+
+---
+
 ## [1.124.0] - 2026-11-16
 
 ### Features
