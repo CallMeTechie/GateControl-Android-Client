@@ -43,6 +43,8 @@ object ChatFeatureHint {
         ChatBridgeChat.FEATURE_CONTACTS,
         // 1.20.0: Kanäle auf eigener Seite (`GET channels`, `?channels=1`), Seitenmenü und TV-Symbol
         ChatBridgeChat.FEATURE_CHANNELS,
+        // 1.25.0: WhatsApp-Status in der Status-Reihe (`bridged`, Schalter „WhatsApp mitteilen …“)
+        ChatBridgeChat.FEATURE_STATUS,
         // 1.21.0: Personen zusammenführen (`?people=1`, `person`, `persons/…`, Vorschläge, Trennen)
         ChatPeople.FEATURE,
     ) + ChatFeatures14.ALL

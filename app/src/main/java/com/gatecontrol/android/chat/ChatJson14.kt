@@ -31,6 +31,8 @@ object ChatJson14 {
     /** Ids that go into a URL path. */
     private val PATH_KEY_RE = Regex("^[A-Za-z0-9_-]{1,64}$")
     private val DIGITS_RE = Regex("^[0-9]{1,15}$")
+    /** Messenger 1.25: the network of a bridged status (`whatsapp`, …). */
+    private val NETWORK_RE = Regex("^[a-z][a-z0-9_]{1,31}$")
     private const val MAX_ITEMS = 200
     private const val ICON_MAX = 4000
 
@@ -125,10 +127,11 @@ object ChatJson14 {
 
     private val STORY_KINDS = setOf(ChatStory.KIND_TEXT, ChatStory.KIND_IMAGE, ChatStory.KIND_VIDEO)
 
-    fun story(o: JsonObject?): ChatStory? {
+    /** [bridged]: a status of a contact over a bridge (Messenger 1.25), which may also be `unsupported`. */
+    fun story(o: JsonObject?, bridged: Boolean = false): ChatStory? {
         if (o == null) return null
         val id = pathKey(o.key("id")) ?: return null
-        val kind = o.str("kind")?.takeIf { it in STORY_KINDS } ?: return null
+        val kind = o.str("kind")?.takeIf { it in STORY_KINDS || (bridged && it == ChatStory.KIND_UNSUPPORTED) } ?: return null
         val viewers = o.prim("viewers")?.takeIf { it.isNumber }?.let { o.int("viewers") } ?: o.int("viewerCount")
         return ChatStory(
             id = id,
@@ -218,11 +221,39 @@ object ChatJson14 {
         )
     }
 
-    /** `GET status/feed` → `{ items, me }`; unseen first, then the newest story. */
+    /**
+     * Messenger 1.25: an entry of `bridged` — a contact's status updates over a bridge, as a feed item whose [ChatPerson]
+     * stands for the contact (id below 0, [ChatBridgedStatus.personId]).
+     */
+    private fun bridgedItem(o: JsonObject?): ChatFeedItem? {
+        if (o == null) return null
+        val network = o.str("network")?.takeIf { it.matches(NETWORK_RE) } ?: return null
+        val c = o.obj("contact") ?: return null
+        val contactId = c.long("id")?.takeIf { it > 0 } ?: return null
+        val stories = o.arr("stories")?.mapNotNull { story(it.objOrNull(), bridged = true) }?.distinctBy { it.id }?.take(50).orEmpty()
+        if (stories.isEmpty()) return null
+        val name = c.str("name")?.takeIf { it.isNotBlank() }?.take(120)
+        return ChatFeedItem(
+            user = ChatPerson(ChatBridgedStatus.personId(contactId), name, null, ChatPerson.initialsOf(name), null),
+            status = null,
+            stories = stories.sortedBy { it.createdAt.orEmpty() },
+            unseen = o.flag("unseen") ?: stories.any { !it.seen },
+            bridged = ChatBridgedStatus(
+                network = network,
+                contactId = contactId,
+                chatId = o.long("chatId")?.takeIf { it > 0 },
+                canReply = o.flag("canReply") ?: (o.long("chatId") != null),
+                avatarMediaId = ChatJson.mediaId(c.str("avatarMediaId")),
+            ),
+        )
+    }
+
+    /** `GET status/feed` → `{ items, me, bridged? }`; both kinds mixed — unseen first, then the newest story. */
     fun feed(o: JsonObject): ChatStatusFeed? {
         val arr = o.arr("items") ?: return null
         val items = arr.mapNotNull { feedItem(it.objOrNull()) }.distinctBy { it.user.userId }.take(MAX_ITEMS)
-        return ChatStatusFeed(ChatStatusLogic.order(items), feedItem(o.obj("me"), allowNoUser = true))
+        val bridged = o.arr("bridged")?.mapNotNull { bridgedItem(it.objOrNull()) }?.distinctBy { it.key }?.take(MAX_ITEMS).orEmpty()
+        return ChatStatusFeed(ChatStatusLogic.order(items + bridged), feedItem(o.obj("me"), allowNoUser = true))
     }
 
     fun viewers(o: JsonObject): List<ChatStoryViewer>? {
@@ -278,6 +309,7 @@ object ChatJson14 {
                 groupAdd = audience(p.str("groupAdd"), d.groupAdd),
                 defaultDisappearingS = p.int("defaultDisappearingS")?.takeIf { it >= 0 } ?: d.defaultDisappearingS,
                 avatarProfile = p.str("avatarProfile")?.takeIf { it in AVATAR_PROFILE_LEVELS },
+                bridgedStatusSeen = p.flag("bridgedStatusSeen"),
             ),
             notify = if (n == null) dn else ChatNotifyPrefs(
                 groupsMentionsOnly = n.flag("groupsMentionsOnly") ?: dn.groupsMentionsOnly,
@@ -296,6 +328,8 @@ object ChatJson14 {
         addProperty("placeInStatus", p.placeInStatus)
         addProperty("groupAdd", p.groupAdd)
         addProperty("defaultDisappearingS", p.defaultDisappearingS)
+        // Messenger 1.25: only to a server that named the key (an older one refuses an unknown key)
+        p.bridgedStatusSeen?.let { addProperty("bridgedStatusSeen", it) }
     }
 
     fun writeNotify(n: ChatNotifyPrefs): JsonObject = JsonObject().apply {
@@ -951,6 +985,10 @@ object ChatStatusLogic {
         val until = ChatTimeline.epochMs(status.until) ?: return true
         return until > nowMs
     }
+
+    /** [feed] with story [storyId] marked seen whoever it belongs to. */
+    fun markSeenAnywhere(feed: ChatStatusFeed, storyId: String): ChatStatusFeed =
+        feed.items.firstOrNull { item -> item.stories.any { it.id == storyId } }?.let { markSeen(feed, it.user.userId, storyId) } ?: feed
 
     /** [feed] with story [storyId] of [userId] marked seen (and `unseen` recomputed). */
     fun markSeen(feed: ChatStatusFeed, userId: Long, storyId: String): ChatStatusFeed {

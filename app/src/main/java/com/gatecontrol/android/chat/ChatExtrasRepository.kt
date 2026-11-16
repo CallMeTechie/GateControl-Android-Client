@@ -205,11 +205,18 @@ class ChatExtrasRepository @Inject constructor(
         return r
     }
 
-    /** Seen: marked here at once, told to the server once. */
+    /** Seen: marked here at once, told to the server once (Messenger 1.25: a contact's WhatsApp status by its own route). */
     fun markSeen(userId: Long, story: ChatStory) {
         if (story.seen) return
         _feed.update { f -> f?.let { ChatStatusLogic.markSeen(it, userId, story.id) } }
-        scope.launch { api.storySeen(story.id) }
+        scope.launch { if (ChatBridgedStatus.isBridgedId(userId)) api.bridgedStatusSeen(story.id) else api.storySeen(story.id) }
+    }
+
+    /** Messenger 1.25: an answer or a reaction to a contact's WhatsApp status — a message into the WhatsApp chat. */
+    suspend fun replyToBridged(story: ChatStory, text: String?, emoji: String?): ChatResult<Unit> {
+        val r = api.bridgedStatusReply(story.id, repository.newClientId(), text?.trim()?.takeIf { it.isNotEmpty() }, emoji)
+        if (r is ChatResult.Ok) _feed.update { f -> f?.let { ChatStatusLogic.markSeenAnywhere(it, story.id) } }
+        return r
     }
 
     suspend fun viewers(storyId: String): ChatResult<List<ChatStoryViewer>> = api.storyViewers(storyId)

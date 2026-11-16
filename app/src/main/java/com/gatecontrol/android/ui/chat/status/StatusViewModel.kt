@@ -166,6 +166,14 @@ class StatusViewModel @Inject constructor(
     fun reply(owner: ChatPerson, story: ChatStory, text: String, onDone: () -> Unit) =
         run(com.gatecontrol.android.R.string.chat_story_reply_sent, onDone) { extras.replyToStory(owner, story, text) }
 
+    /** Messenger 1.25: a reaction to a contact's WhatsApp status — sent as a message („❤️ auf deinen Status“). */
+    fun reactBridged(story: ChatStory, emoji: String) =
+        run(com.gatecontrol.android.R.string.chat_status_bridged_reacted) { extras.replyToBridged(story, null, emoji) }
+
+    /** Messenger 1.25: an answer to a contact's WhatsApp status — a message into the WhatsApp chat with the contact. */
+    fun replyBridged(story: ChatStory, text: String, onDone: () -> Unit) =
+        run(com.gatecontrol.android.R.string.chat_status_bridged_replied, onDone) { extras.replyToBridged(story, text, null) }
+
     suspend fun viewers(story: ChatStory): List<ChatStoryViewer>? = (extras.viewers(story.id) as? ChatResult.Ok)?.value
 
     /** The default audience of a new status / story (privacy `statusDefault`). */

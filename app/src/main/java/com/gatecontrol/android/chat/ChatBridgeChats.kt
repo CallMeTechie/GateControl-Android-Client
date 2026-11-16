@@ -136,6 +136,12 @@ object ChatBridgeChat {
      */
     const val FEATURE_CHANNELS = "bridge_channels"
 
+    /**
+     * Messenger 1.25 `features.bridge_status`: the contacts' WhatsApp status updates in the status row (`GET status/feed`
+     * → `bridged`, `POST status/bridged/:id/seen | reply`) and the switch `privacy.bridgedStatusSeen`.
+     */
+    const val FEATURE_STATUS = "bridge_status"
+
     /** The mark of a client that keeps channels apart (`?channels=1`, Messenger 1.20). */
     const val QUERY_CHANNELS = "channels"
 

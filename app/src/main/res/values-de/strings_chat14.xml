@@ -450,4 +450,20 @@
     <string name="chat_status_view_mine">Meine Storys ansehen</string>
     <string name="chat_privacy_avatar_in_profile">%s · im Profil festgelegt</string>
     <string name="chat_privacy_avatar_profile_footer">„Profilbild“ öffnet die Profilseite. Der Wert gilt in ganz GateControl.</string>
+    <!-- Messenger 1.25: WhatsApp-Status in der Status-Reihe -->
+    <string name="chat_status_bridged_unknown">%1$s-Kontakt</string>
+    <string name="chat_status_bridged_via">über %1$s</string>
+    <string name="chat_status_bridged_ago">über %1$s · %2$s</string>
+    <string name="chat_status_bridged_unsupported">Dieser Status lässt sich hier nicht zeigen. Öffne ihn in %1$s.</string>
+    <string name="chat_status_bridged_react">Mit %1$s reagieren, geht als Nachricht über %2$s</string>
+    <string name="chat_status_bridged_reply_hint">Antwort über %1$s</string>
+    <string name="chat_status_bridged_reply_info">Geht als Nachricht in euren %1$s-Chat, auch eine Reaktion</string>
+    <string name="chat_status_bridged_no_chat">Kein %1$s-Chat mit dieser Person gefunden. Antworten geht gerade nur in %1$s.</string>
+    <string name="chat_status_bridged_reacted">Reaktion als Nachricht gesendet</string>
+    <string name="chat_status_bridged_replied">Antwort gesendet</string>
+    <string name="chat_privacy_section_status">Status</string>
+    <string name="chat_privacy_bridged_seen">WhatsApp mitteilen, wenn ich einen Status ansehe</string>
+    <string name="chat_privacy_bridged_seen_desc">Wenn an, erscheinst du beim Kontakt in WhatsApp unter „Gesehen von“. Wenn aus, wird der Status nur hier als gesehen markiert (grauer Ring).</string>
+    <string name="chat_privacy_bridged_seen_needs">Funktioniert nur, wenn „%1$s“ eingeschaltet ist.</string>
+    <string name="chat_notify_digest_desc_bridged">Einmal am Tag gesammelt. Nur GateControl-Personen, WhatsApp-Status lösen keine Mitteilung aus.</string>
 </resources>

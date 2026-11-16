@@ -36,6 +36,9 @@ val ChatFeatures.privacy2: Boolean get() = ChatFeatures14.PRIVACY2 in tokens
 val ChatFeatures.storyDuration: Boolean get() = ChatFeatures14.STORY_DURATION in tokens
 val ChatFeatures.notices: Boolean get() = ChatFeatures14.NOTICES in tokens
 
+/** Messenger 1.25: the contacts' WhatsApp status updates in the status row. */
+val ChatFeatures.bridgeStatus: Boolean get() = ChatBridgeChat.FEATURE_STATUS in tokens
+
 // ─── status and stories ─────────────────────────────────────────────
 
 /** A person's status line (`PUT status`). */
@@ -98,6 +101,8 @@ data class ChatStory(
         const val KIND_TEXT = "text"
         const val KIND_IMAGE = "image"
         const val KIND_VIDEO = "video"
+        /** Messenger 1.25: a contact's status over a bridge this app cannot show (music, a poll …) — „in WhatsApp öffnen“. */
+        const val KIND_UNSUPPORTED = "unsupported"
         const val FONT_SANS = "sans"
         const val FONT_SERIF = "serif"
         const val FONT_MONO = "mono"
@@ -118,7 +123,37 @@ data class ChatFeedItem(
     val status: ChatStatus?,
     val stories: List<ChatStory>,
     val unseen: Boolean,
-)
+    /** Messenger 1.25: a contact's status updates over a bridge (WhatsApp) — [user] then stands for the contact. */
+    val bridged: ChatBridgedStatus? = null,
+) {
+    /** The entry's own key in the strip (`wa:<contactId>` for a WhatsApp contact, else the account's id). */
+    val key: String get() = bridged?.let { "${ChatBridgedStatus.KEY_PREFIX[it.network] ?: it.network}:${it.contactId}" } ?: user.userId.toString()
+}
+
+/**
+ * Messenger 1.25 (`features.bridge_status`, `GET status/feed` → `bridged`): where a contact's status updates come from.
+ * No viewers, no reactions on the status itself (the bridge cannot) — an answer or a reaction goes as a message into
+ * the direct chat [chatId] with the contact.
+ */
+data class ChatBridgedStatus(
+    val network: String,
+    /** The contact (`bridge_contacts`), as in a bridged chat's `contactId`. */
+    val contactId: Long,
+    /** The direct chat with the contact, when known. */
+    val chatId: Long?,
+    /** An answer can go out (a direct chat is known or can be opened). */
+    val canReply: Boolean,
+    val avatarMediaId: String?,
+) {
+    companion object {
+        val KEY_PREFIX = mapOf("whatsapp" to "wa", "signal" to "sg", "telegram" to "tg")
+
+        /** The stand-in id of a contact in the strip and the viewer's route: below 0, never an account's. */
+        fun personId(contactId: Long): Long = -contactId
+
+        fun isBridgedId(userId: Long): Boolean = userId < 0
+    }
+}
 
 /** `GET status/feed`: others (unseen first) and the caller. */
 data class ChatStatusFeed(val items: List<ChatFeedItem>, val me: ChatFeedItem?)
@@ -146,6 +181,11 @@ data class ChatPrivacy(
     val defaultDisappearingS: Int = 0,
     /** Messenger 1.22: the level of „Wer sieht dein Bild?“ in the profile (all | contacts | family | self), else null. */
     val avatarProfile: String? = null,
+    /**
+     * Messenger 1.25: tell WhatsApp when the person views a contact's status (only with read receipts on) — null when
+     * the server does not know the key (it is then never sent).
+     */
+    val bridgedStatusSeen: Boolean? = null,
 ) {
     companion object {
         const val AUDIENCE_ALL = "all"

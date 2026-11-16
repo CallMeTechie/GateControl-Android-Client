@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -41,7 +42,10 @@ import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.chat.ChatFeedItem
 import com.gatecontrol.android.chat.ChatPerson
+import com.gatecontrol.android.chat.ChatPeople
+import com.gatecontrol.android.ui.chat.ChatNetCorner
 import com.gatecontrol.android.ui.chat.ChatPersonAvatar
+import com.gatecontrol.android.ui.chat.ContactAvatar
 import com.gatecontrol.android.ui.chat.ChatText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
@@ -52,9 +56,12 @@ enum class StoryRing { Unseen, Seen, Own, OwnActive, None }
 val STORY_GLOW = listOf(Color(0xFF2DD4BF), Color(0xFF4ADE80), Color(0xFF22D3EE), Color(0xFF2DD4BF))
 private val GLOW = STORY_GLOW
 
-/** An avatar with its story ring (status strip, Start tab). */
+/**
+ * An avatar with its story ring (status strip, Start tab). Messenger 1.25: [mediaId] — the picture of a bridged contact
+ * (fetched like a bridged chat's), [network] — its service's logo at the lower right of the ring.
+ */
 @Composable
-fun StoryAvatar(person: ChatPerson?, ring: StoryRing, size: Dp, modifier: Modifier = Modifier) {
+fun StoryAvatar(person: ChatPerson?, ring: StoryRing, size: Dp, modifier: Modifier = Modifier, mediaId: String? = null, network: String? = null) {
     val extra = GateControlTheme.extraColors
     val bg = MaterialTheme.colorScheme.background
     Box(
@@ -76,7 +83,9 @@ fun StoryAvatar(person: ChatPerson?, ring: StoryRing, size: Dp, modifier: Modifi
         },
         contentAlignment = Alignment.Center,
     ) {
-        ChatPersonAvatar(person, size - 12.dp)
+        if (network != null) ContactAvatar(mediaId, person?.name, size - 12.dp) else ChatPersonAvatar(person, size - 12.dp)
+        // the logo sits on the ring, ringed in the page's colour (as at a bridged chat's picture)
+        if (network != null) ChatNetCorner(network, size - 12.dp, Modifier.align(Alignment.BottomEnd).offset(x = 1.dp, y = 1.dp))
     }
 }
 
@@ -128,20 +137,23 @@ fun StatusStrip(
                 }
             }
         }
-        items(items, key = { it.user.userId }) { item ->
+        // Messenger 1.25: the WhatsApp contacts mixed in (the feed's order: unseen first, then the newest), keyed `wa:<id>`
+        items(items, key = { it.key }) { item ->
             val ring = when {
                 item.stories.isEmpty() -> StoryRing.None
                 item.unseen -> StoryRing.Unseen
                 else -> StoryRing.Seen
             }
-            val name = ChatText.name(ctx, item.user)
+            val b = item.bridged
+            val name = if (b != null) item.user.name ?: stringResource(R.string.chat_status_bridged_unknown, ChatPeople.labelOf(b.network)) else ChatText.name(ctx, item.user)
+            val via = if (b != null) " · " + stringResource(R.string.chat_status_bridged_via, ChatPeople.labelOf(b.network)) else ""
             StripEntry(
                 name,
                 muted = !item.unseen,
-                description = name + " · " + stringResource(if (item.unseen) R.string.chat_status_new else R.string.chat_status_seen),
+                description = name + via + " · " + stringResource(if (item.unseen) R.string.chat_status_new else R.string.chat_status_seen),
                 onClick = { onOpen(item) },
             ) {
-                StoryAvatar(item.user, ring, 62.dp)
+                StoryAvatar(item.user, ring, 62.dp, mediaId = b?.avatarMediaId, network = b?.network)
             }
         }
     }

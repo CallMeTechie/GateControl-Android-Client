@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
@@ -92,6 +93,7 @@ import com.gatecontrol.android.chat.ChatQuality
 import com.gatecontrol.android.chat.ChatStatus
 import com.gatecontrol.android.chat.ChatSystemBubbles
 import com.gatecontrol.android.chat.actions
+import com.gatecontrol.android.chat.bridgeStatus
 import com.gatecontrol.android.chat.events
 import com.gatecontrol.android.chat.linkedServices
 import com.gatecontrol.android.chat.msgTools
@@ -105,6 +107,7 @@ import com.gatecontrol.android.ui.chat.ConfirmDialog
 import com.gatecontrol.android.ui.chat.rememberLocalBitmap
 import com.gatecontrol.android.ui.chat.reminderLabel
 import com.gatecontrol.android.ui.chat.status.StatusText
+import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcListRow
@@ -112,6 +115,7 @@ import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSwitchRow
+import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.components.rememberGcDeviceAuth
 import com.gatecontrol.android.ui.components.DeviceAuthResult
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -372,6 +376,21 @@ private fun PrivacyPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit,
     Section(if (f?.privacy2 == true) null else stringResource(R.string.chat_privacy_who)) {
         GcSwitchRow(stringResource(R.string.chat_prefs_receipts), stringResource(R.string.chat_privacy_receipts_desc), prefs?.readReceipts != false, { vm.setPrefs(readReceipts = it) })
         GcSwitchRow(stringResource(R.string.chat_prefs_typing), stringResource(R.string.chat_prefs_typing_desc), prefs?.typing != false, { vm.setPrefs(typing = it) })
+    }
+    // Messenger 1.25 (Entwurf „Status über WhatsApp“, state 4): tell WhatsApp when the person views a contact's status —
+    // off by default, only with read receipts on (said in the band under it)
+    if (f?.bridgeStatus == true && p.bridgedStatusSeen != null) {
+        Section(stringResource(R.string.chat_privacy_section_status)) {
+            GcSwitchRow(
+                stringResource(R.string.chat_privacy_bridged_seen),
+                stringResource(R.string.chat_privacy_bridged_seen_desc),
+                p.bridgedStatusSeen == true,
+                { on -> vm.setPrefs14 { it.copy(privacy = it.privacy.copy(bridgedStatusSeen = on)) } },
+            )
+        }
+        GcBanner(tone = GcTone.Info, icon = Icons.Outlined.Info) {
+            Text(stringResource(R.string.chat_privacy_bridged_seen_needs, stringResource(R.string.chat_prefs_receipts)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+        }
     }
     if (f?.privacy2 == true || f?.msgTools == true) {
         Section(stringResource(R.string.chat_privacy_messages)) {
@@ -645,7 +664,8 @@ private fun NotifyPage(vm: ChatSettingsViewModel, onOpenQuietHours: () -> Unit) 
         }
     }
     Section(stringResource(R.string.chat_notify_more)) {
-        if (f?.status == true) GcSwitchRow(stringResource(R.string.chat_notify_digest), stringResource(R.string.chat_notify_digest_desc), n.statusDigest, { on -> vm.setPrefs14 { it.copy(notify = it.notify.copy(statusDigest = on)) } })
+        // Messenger 1.25: WhatsApp status updates never cause a notification — said here when the person has them
+        if (f?.status == true) GcSwitchRow(stringResource(R.string.chat_notify_digest), stringResource(if (f.bridgeStatus) R.string.chat_notify_digest_desc_bridged else R.string.chat_notify_digest_desc), n.statusDigest, { on -> vm.setPrefs14 { it.copy(notify = it.notify.copy(statusDigest = on)) } })
         if (f?.events == true) ValueRow(stringResource(R.string.chat_notify_event), reminderLabel(n.eventReminderMin), stringResource(R.string.chat_notify_event_desc)) { reminderDialog = true }
         GcListRow(title = stringResource(R.string.chat_notify_quiet), description = stringResource(R.string.chat_notify_quiet_desc), onClick = onOpenQuietHours, trailing = { GcChevron() })
         val systemBubbles = remember { ChatSystemBubbles.allowed(ctx) }
