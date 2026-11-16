@@ -1,0 +1,11 @@
+<!--
+  Copyright (C) Termux contributors (termux/termux-app, terminal-view).
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+  Source: termux-app v0.118.3 (5b657c6adf4304e5198951ce815fe0205dcac29c), terminal-view/src/main/res/values/strings.xml.
+  Unchanged by GateControl except for this header.
+-->
+<resources>
+  <string name="paste_text">Paste</string>
+  <string name="copy_text">Copy</string>
+  <string name="text_selection_more">More…</string>
+</resources>

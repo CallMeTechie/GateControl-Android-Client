@@ -3,6 +3,12 @@ package com.gatecontrol.android.remote
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.terminal.SshDevices
+import com.gatecontrol.android.terminal.TermJson
+import com.gatecontrol.android.terminal.TermTicket
+import com.gatecontrol.android.terminal.TermToken
+import com.gatecontrol.android.terminal.TmuxChoice
+import com.gatecontrol.android.terminal.TmuxList
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
@@ -127,6 +133,27 @@ class RemoteApi @Inject constructor(
     /** A single-use token (60 s) of GateControl for the sending side of [ticket]. */
     suspend fun token(ticket: ScreenTicket): RemoteResult<ScreenToken> =
         call({ remoteScreenToken(JsonObject().apply { addProperty("ref", ticket.ref) }) }, RemoteJson::token)
+
+    // ─── Stage 3: the native SSH terminal (app contract „Fernzugriff Stufe 3 – Apps“) ───
+
+    /** The devices of this person; the SSH devices among them ([com.gatecontrol.android.terminal.SshDevices]). */
+    suspend fun sshDevices(): RemoteResult<SshDevices> = call({ pluginGet(REMOTE_PLUGIN, "devices") }, TermJson::devices)
+
+    /** The tmux sessions of an SSH device in the terminal (only names the core can attach are offered). */
+    suspend fun tmuxSessions(deviceId: Long): RemoteResult<TmuxList> {
+        if (deviceId <= 0) return RemoteResult.Failed(CODE_INVALID, 0)
+        return call({ pluginGet(REMOTE_PLUGIN, "devices/$deviceId/tmux") }, TermJson::tmux)
+    }
+
+    /** A ticket of the terminal for this app (`via: 'app'`); `record` follows the device's policy for this person. */
+    suspend fun termTicket(deviceId: Long, tmux: TmuxChoice?, recordingPolicy: String, record: Boolean): RemoteResult<TermTicket> {
+        if (deviceId <= 0) return RemoteResult.Failed(CODE_INVALID, 0)
+        return call(post("devices/$deviceId/connect", TermJson.connectBody(tmux, recordingPolicy, record))) { TermJson.ticket(it) }
+    }
+
+    /** A single-use token (60 s) of GateControl for [ref] — one for every (re)connection. */
+    suspend fun termToken(ref: String): RemoteResult<TermToken> =
+        call({ remoteTermToken(JsonObject().apply { addProperty("ref", ref) }) }, TermJson::token)
 
     /** The server's base address and an OkHttp client with its DNS and headers (for the WebSocket of the relay). */
     fun relayClient(): Pair<String, OkHttpClient>? {

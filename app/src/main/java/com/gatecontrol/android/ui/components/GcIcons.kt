@@ -73,6 +73,8 @@ object GcIcons {
     val Clock = icon("Clock", 2f, circle(12f, 12f, 10f), "M12 6v6l4 2")
     val Close = icon("Close", 2f, "M18 6 6 18M6 6l12 12")
     val Monitor = icon("Monitor", 2f, rect(2f, 3f, 20f, 14f, 2f), "M8 21h8M12 17v4")
+    /** SSH devices of „Fernzugriff“: a terminal window with a prompt. */
+    val Terminal = icon("Terminal", 2f, rect(2f, 4f, 20f, 16f, 2f), "m6 9 3 3-3 3M12 15h5")
     val Search = icon("Search", 2f, circle(11f, 11f, 7f), "m21 21-4.3-4.3")
     val ChevronRight = icon("ChevronRight", 2f, "m9 18 6-6-6-6")
     val Zap = icon("Zap", 2f, "M13 2 3 14h9l-1 8 10-12h-9l1-8z")

@@ -1,0 +1,8 @@
+Termux terminal-emulator and terminal-view
+Copyright (C) Termux contributors, https://github.com/termux/termux-app
+Derived from Terminal Emulator for Android (https://github.com/jackpal/Android-Terminal-Emulator)
+Licensed under the Apache License, Version 2.0 (LICENSE.txt next to this file).
+
+GateControl ships the sources of the release v0.118.3 (5b657c6adf4304e5198951ce815fe0205dcac29c)
+of these two libraries only. Changed: com/termux/terminal/TerminalSession.java (the terminal of a
+remote shell instead of a local process); not included: JNI.java and the native part.

@@ -204,6 +204,10 @@ class RdpViewModel @Inject constructor(
         }
     }
 
+    /** The portal's tab „Fernzugriff“ (an SSH device that still runs on Guacamole opens there). */
+    fun portalUrl(): String? = setupRepository.getServerUrl().trimEnd('/').takeIf { it.startsWith("https://") || it.startsWith("http://") }
+        ?.let { "$it/portal#plg-${com.gatecontrol.android.remote.REMOTE_PLUGIN}" }
+
     fun dismissSheet() {
         _selectedRoute.value = null
         _connectState.value = ConnectState.Idle

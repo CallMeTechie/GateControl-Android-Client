@@ -12,6 +12,15 @@ This product includes software developed at:
   Licensed under the Mozilla Public License, v. 2.0
   (see freerdp/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/domain/*.java)
 
+  Termux terminal-emulator and terminal-view (third_party/termux-terminal/)
+  Copyright (C) Termux contributors, https://github.com/termux/termux-app
+  derived from Terminal Emulator for Android (jackpal/Android-Terminal-Emulator)
+  Licensed under the Apache License, Version 2.0 (licence text in third_party/termux-terminal/src/main/assets/termux-terminal/,
+  shipped in the app under assets/termux-terminal/)
+  Sources of the release v0.118.3 (5b657c6adf4304e5198951ce815fe0205dcac29c); only these two libraries,
+  nothing of the Termux app (GPLv3). Changed by GateControl: TerminalSession.java (a remote shell instead of
+  a local process, no JNI); the native part (JNI.java, termux.c) is not included.
+
   YuNet face detection model (face_detection_yunet_2023mar.onnx, OpenCV Zoo)
   Copyright (c) 2020 Shiqi Yu
   Licensed under the MIT License

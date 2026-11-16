@@ -27,15 +27,21 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
+import com.gatecontrol.android.terminal.SshDevicesViewModel
+import com.gatecontrol.android.terminal.TerminalActivity
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
+import com.gatecontrol.android.ui.drive.openInBrowser
 import com.gatecontrol.android.ui.remote.ScreenShareSection
+import com.gatecontrol.android.ui.terminal.SshConnectSheet
+import com.gatecontrol.android.ui.terminal.SshDeviceCard
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
@@ -45,7 +51,11 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RdpContent(modifier: Modifier = Modifier, viewModel: RdpViewModel = hiltViewModel()) {
+fun RdpContent(
+    modifier: Modifier = Modifier,
+    viewModel: RdpViewModel = hiltViewModel(),
+    sshViewModel: SshDevicesViewModel = hiltViewModel(),
+) {
     val routes by viewModel.routes.collectAsState()
     val filteredRoutes by viewModel.filteredRoutes.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -56,9 +66,31 @@ fun RdpContent(modifier: Modifier = Modifier, viewModel: RdpViewModel = hiltView
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val extra = GateControlTheme.extraColors
+    // Fernzugriff, stage 3: the SSH devices of the plugin in the same list (native terminal)
+    val sshDevices by sshViewModel.devices.collectAsState()
+    val sshRight by sshViewModel.sshRight.collectAsState()
+    val sshLocked by sshViewModel.locked.collectAsState()
+    val sshSheet by sshViewModel.sheet.collectAsState()
+    val sshRunning by sshViewModel.running.collectAsState()
+    val context = LocalContext.current
+    val query = searchQuery.trim().lowercase()
+    val filteredSsh = sshDevices.filter { d ->
+        (query.isEmpty() || d.name.lowercase().contains(query) || d.tags.any { it.lowercase().contains(query) }) &&
+            when (statusFilter) {
+                StatusFilter.ALL -> true
+                StatusFilter.ONLINE -> d.online
+                StatusFilter.OFFLINE -> !d.online
+            }
+    }
+    val total = routes.size + sshDevices.size
+    val online = routes.count { it.status?.online == true } + sshDevices.count { it.online }
 
     LaunchedEffect(Unit) {
         viewModel.loadRoutes()
+        sshViewModel.load()
+    }
+    LaunchedEffect(Unit) {
+        sshViewModel.openTerminal.collect { TerminalActivity.open(context) }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -70,9 +102,9 @@ fun RdpContent(modifier: Modifier = Modifier, viewModel: RdpViewModel = hiltView
                 // Fernzugriff, stage 5: „Bildschirm freigeben“ (only with the plugin „Fernzugriff“)
                 ScreenShareSection()
 
-                if (routes.isNotEmpty()) {
+                if (total > 0) {
                     Text(
-                        stringResource(R.string.rdp_summary, routes.size, routes.count { it.status?.online == true }),
+                        stringResource(R.string.rdp_summary, total, online),
                         style = MaterialTheme.typography.bodyMedium,
                         color = extra.muted,
                     )
@@ -119,22 +151,22 @@ fun RdpContent(modifier: Modifier = Modifier, viewModel: RdpViewModel = hiltView
             }
 
             // --- Route list, error, or empty state ---
-            if (isLoading && filteredRoutes.isEmpty()) {
+            if (isLoading && filteredRoutes.isEmpty() && filteredSsh.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
-            } else if (error != null && filteredRoutes.isEmpty()) {
+            } else if (error != null && filteredRoutes.isEmpty() && sshDevices.isEmpty()) {
                 ErrorState(
                     errorType = error!!,
                     onRetry = { viewModel.loadRoutes() },
                     modifier = Modifier.fillMaxSize(),
                 )
-            } else if (filteredRoutes.isEmpty()) {
+            } else if (filteredRoutes.isEmpty() && filteredSsh.isEmpty()) {
                 EmptyState(
-                    filtered = routes.isNotEmpty(),
+                    filtered = total > 0,
                     onReset = {
                         viewModel.setSearchQuery("")
                         viewModel.setStatusFilter(StatusFilter.ALL)
@@ -157,8 +189,27 @@ fun RdpContent(modifier: Modifier = Modifier, viewModel: RdpViewModel = hiltView
                             onClick = { viewModel.selectRoute(route) },
                         )
                     }
+                    items(filteredSsh, key = { "ssh-${it.id}" }) { device ->
+                        val active = sshRunning?.deviceId == device.id
+                        SshDeviceCard(
+                            device = device,
+                            locked = device.id in sshLocked,
+                            sshRight = sshRight,
+                            isSessionActive = active,
+                            onClick = { if (active) TerminalActivity.open(context) else sshViewModel.select(device) },
+                            onBrowser = { viewModel.portalUrl()?.let { openInBrowser(context, it) } },
+                        )
+                    }
                 }
             }
+        }
+
+        sshSheet?.let { sheet ->
+            SshConnectSheet(
+                sheet = sheet,
+                onConnect = { choice, record -> sshViewModel.connect(choice, record) },
+                onDismiss = { sshViewModel.dismiss() },
+            )
         }
 
         // --- Bottom sheet ---
