@@ -30,12 +30,23 @@ class ChatBridgesRepository @Inject constructor(private val api: ChatApi) {
     suspend fun setHistory(days: Int): ChatResult<ChatBridgeHistory> = api.bridgeHistory(days)
 
     /** Messenger 1.21: „Dürfen andere auf diesem Server dich an deinem WhatsApp erkennen?“ — the answer. */
-    suspend fun setRecognition(allowed: Boolean): ChatResult<ChatRecognition> = api.putRecognition(allowed)
+    suspend fun setRecognition(allowed: Boolean, network: String = ChatBridges.WHATSAPP): ChatResult<ChatRecognition> = api.putRecognition(allowed, network)
+
+    /** Messenger 1.23: the step of a QR-only service (Signal) on a second screen ([ChatBridges.HANDOFF_PORTAL] / [ChatBridges.HANDOFF_WINDOWS]). */
+    suspend fun handoff(network: String, target: String): ChatResult<ChatBridgeHandoff> = api.bridgeHandoff(network, target)
+
+    /** Messenger 1.23: the second screen is not needed any more. */
+    suspend fun handoffEnd(network: String): ChatResult<Unit> = api.bridgeHandoffEnd(network)
 
     suspend fun unlink(network: String, loginId: String): ChatResult<Unit> = api.bridgeUnlink(network, loginId)
 
     /** Messenger 1.15: is [e164] at the service? (Each call is a question to the service — only on "Prüfen".) */
     suspend fun resolve(network: String, e164: String): ChatResult<ChatNumberLookup> = api.bridgeResolve(network, e164)
+
+    /** Messenger 1.23: the second screen is not needed any more; nobody waits for the answer. */
+    fun endHandoff(network: String) {
+        scope.launch { api.bridgeHandoffEnd(network) }
+    }
 
     /** Drop a login in progress (the page was left, another way was chosen); nobody waits for the answer. */
     fun cancel(network: String, processId: String) {

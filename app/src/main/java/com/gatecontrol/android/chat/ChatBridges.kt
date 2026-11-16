@@ -28,8 +28,16 @@ object ChatBridges {
 
     const val WHATSAPP = "whatsapp"
 
+    /** Messenger 1.23 (Brücken Stufe 7a): Signal — a linked device, by QR code only. */
+    const val SIGNAL = "signal"
+
     /** The services this app has a page for (others the server may name later are left out). */
-    val NETWORKS: Set<String> = setOf(WHATSAPP)
+    val NETWORKS: Set<String> = setOf(WHATSAPP, SIGNAL)
+
+    /** Messenger 1.23 „am PC fortsetzen“: where the step goes (`POST bridges/:network/handoff { target }`). */
+    const val HANDOFF_PORTAL = "portal"
+    const val HANDOFF_WINDOWS = "windows"
+    val HANDOFF_TARGETS = setOf(HANDOFF_PORTAL, HANDOFF_WINDOWS)
 
     const val FLOW_PHONE = "phone"
     const val FLOW_QR = "qr"
@@ -70,7 +78,16 @@ object ChatBridges {
         return out.toString()
     }
 
-    private val WORDS = setOf("consent", "login", "logins", "resolve", "chats")
+    private val WORDS = setOf("consent", "login", "logins", "resolve", "chats", "handoff")
+
+    /**
+     * Messenger 1.23: the network links by QR code only (Signal) — the phone cannot scan its own screen, so the page
+     * offers the second screen first ([LinkedView.SecondScreen]). An older server names no flows: both ways.
+     */
+    fun qrOnly(n: ChatBridgeNetwork): Boolean = FLOW_PHONE !in n.flows && FLOW_QR in n.flows
+
+    /** The first way in a network offers: the code for this phone where there is one. */
+    fun firstFlow(n: ChatBridgeNetwork): String = if (FLOW_PHONE in n.flows || n.flows.isEmpty()) FLOW_PHONE else FLOW_QR
 
     /**
      * A phone number as the bridge takes it: spaces, brackets, dots, slashes and dashes removed, `00` as `+`;
@@ -194,7 +211,18 @@ data class ChatBridgeNetwork(
     val clientOutdated: Boolean = false,
     /** Messenger 1.17: the bridge's warning that the phone was not seen; null: the server says nothing. */
     val phone: ChatBridgePhone? = null,
+    /** Messenger 1.23: the ways in ([ChatBridges.FLOW_PHONE], [ChatBridges.FLOW_QR]); Signal: the QR code only. */
+    val flows: List<String> = listOf(ChatBridges.FLOW_PHONE, ChatBridges.FLOW_QR),
+    /** Messenger 1.23: at most so many days of history come from this service (Signal: 30); null: as chosen. */
+    val historyMaxDays: Int? = null,
+    /** Messenger 1.23: the phone asks at the link whether it hands over the history (Signal) — later nothing comes. */
+    val phoneConfirms: Boolean = false,
+    /** Messenger 1.23: the consent „Erkennen“ of this service; null: not offered. */
+    val recognition: ChatRecognition? = null,
 )
+
+/** Messenger 1.23: an open „am PC fortsetzen“ of the person (`GET bridges → handoff`, `POST …/handoff`). */
+data class ChatBridgeHandoff(val network: String, val target: String, val expiresAt: String?, val portalPath: String? = null)
 
 /**
  * Messenger 1.17 `networks[].phone`: the phone with the service's app was not seen for [days] days (at least 12, the
@@ -237,7 +265,13 @@ data class ChatBridgesInfo(
     val history: ChatBridgeHistory? = null,
     /** Messenger 1.21: may others recognise the person by the own WhatsApp? null: not offered (nothing is asked). */
     val recognition: ChatRecognition? = null,
-)
+    /** Messenger 1.23: an open „am PC fortsetzen“; null: none. */
+    val handoff: ChatBridgeHandoff? = null,
+) {
+    /** Messenger 1.23: the consent „Erkennen“ of [network] — its own, else (WhatsApp, an older server) the one above. */
+    fun recognitionOf(network: String): ChatRecognition? =
+        networks.firstOrNull { it.id == network }?.recognition ?: recognition?.takeIf { it.network == network }
+}
 
 /** The modules of a QR code without a quiet zone: [rows] of `0`/`1`, [size] long and wide. */
 class ChatQrMatrix(val size: Int, val rows: List<String>) {
@@ -276,7 +310,19 @@ object ChatBridgesJson {
         val o = body?.obj("bridges") ?: return null
         if (o.flag("available") != true) return ChatBridgesInfo(available = false)
         val nets = o.arr("networks")?.mapNotNull { e -> network(e.takeIf { it.isJsonObject }?.asJsonObject) }.orEmpty()
-        return ChatBridgesInfo(available = true, onServer = (o.str("location") ?: "server") == "server", networks = nets.take(MAX_NETWORKS), history = history(o.obj("history")), recognition = ChatPeople.recognition(o.obj("recognition")))
+        return ChatBridgesInfo(
+            available = true, onServer = (o.str("location") ?: "server") == "server", networks = nets.take(MAX_NETWORKS), history = history(o.obj("history")),
+            recognition = ChatPeople.recognition(o.obj("recognition")), handoff = handoff(o.obj("handoff")),
+        )
+    }
+
+    /** `handoff: { network, target, expiresAt, portalPath? }` (Messenger 1.23); null when it is missing or not understood. */
+    fun handoff(o: JsonObject?): ChatBridgeHandoff? {
+        if (o == null) return null
+        val network = o.str("network")?.takeIf { it in ChatBridges.NETWORKS } ?: return null
+        val target = o.str("target")?.takeIf { it in ChatBridges.HANDOFF_TARGETS } ?: return null
+        val path = o.str("portalPath")?.takeIf { it.startsWith("/") && it.length <= 200 && !it.contains("//") }
+        return ChatBridgeHandoff(network, target, ChatJson.time(o.str("expiresAt")), path)
     }
 
     /** `{ history }`, the answer of `PUT bridges/history`. */
@@ -321,6 +367,11 @@ object ChatBridgesJson {
             newChat = ChatNewChat.newChat(o.obj("newChat")),
             clientOutdated = o.flag("clientOutdated") == true,
             phone = phone(o.obj("phone")),
+            flows = o.arr("flows")?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it == ChatBridges.FLOW_PHONE || it == ChatBridges.FLOW_QR } }
+                ?.distinct()?.takeIf { it.isNotEmpty() } ?: listOf(ChatBridges.FLOW_PHONE, ChatBridges.FLOW_QR),
+            historyMaxDays = o.obj("history")?.int("maxDays")?.takeIf { it in 1..ChatBridgeHistory.MAX_DAYS },
+            phoneConfirms = o.obj("history")?.flag("phoneConfirms") == true,
+            recognition = o.obj("recognition")?.let { r -> ChatPeople.recognition(r)?.copy(network = id) },
         )
     }
 

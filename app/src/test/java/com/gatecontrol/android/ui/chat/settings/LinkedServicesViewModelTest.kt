@@ -408,4 +408,49 @@ class LinkedServicesViewModelTest {
         advanceUntilIdle()
         coVerify(exactly = 0) { repository.setHistory(any()) }
     }
+
+    // ─── Messenger 1.23: Signal, by QR code on a second screen ──────
+
+    private fun signalInfo(linked: Boolean) = ChatBridgesInfo(
+        available = true,
+        networks = listOf(
+            ChatBridgeNetwork(
+                ChatBridges.SIGNAL, ChatBridges.NET_RUNNING, true, null, consent = true,
+                logins = if (linked) listOf(ChatBridgeLogin("l1", "", ChatBridges.LOGIN_CONNECTED, null)) else emptyList(),
+                flows = listOf(ChatBridges.FLOW_QR), historyMaxDays = 30, phoneConfirms = true,
+            ),
+        ),
+    )
+
+    @Test
+    fun `Signal - the second screen first, the step goes to Windows, the page waits for the link`() = scope.runTest {
+        coEvery { repository.load() } returns ChatResult.Ok(signalInfo(linked = false))
+        coEvery { repository.handoff(any(), any()) } returns ChatResult.Ok(com.gatecontrol.android.chat.ChatBridgeHandoff(ChatBridges.SIGNAL, ChatBridges.HANDOFF_WINDOWS, null))
+        val m = vm()
+        advanceUntilIdle()
+        m.begin(ChatBridges.SIGNAL)
+        assertEquals(LinkedView.SecondScreen(ChatBridges.SIGNAL), m.uiState.value.view, "no QR code on the phone itself")
+        coVerify(exactly = 0) { repository.start(any(), any()) }
+        coEvery { repository.load() } returns ChatResult.Ok(signalInfo(linked = true))
+        m.handoff(ChatBridges.HANDOFF_WINDOWS)
+        advanceUntilIdle()
+        coVerify { repository.handoff(ChatBridges.SIGNAL, ChatBridges.HANDOFF_WINDOWS) }
+        assertEquals(LinkedView.Overview, m.uiState.value.view)
+        assertEquals(ChatBridges.SIGNAL, m.uiState.value.phoneHistory, "the phone asks about the history now")
+        m.dismissPhoneHistory()
+        assertNull(m.uiState.value.phoneHistory)
+    }
+
+    @Test
+    fun `Signal - another phone with Signal shows the code here after all`() = scope.runTest {
+        coEvery { repository.load() } returns ChatResult.Ok(signalInfo(linked = false))
+        coEvery { repository.start(any(), any()) } returns waiting
+        val m = vm()
+        advanceUntilIdle()
+        m.begin(ChatBridges.SIGNAL)
+        m.showCodeHere()
+        advanceUntilIdle()
+        coVerify { repository.start(ChatBridges.SIGNAL, ChatBridges.FLOW_QR) }
+        verify(exactly = 0) { repository.endHandoff(any()) }
+    }
 }

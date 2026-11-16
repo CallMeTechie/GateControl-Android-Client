@@ -38,6 +38,12 @@ sealed interface LinkedView {
 
     /** The link itself: [flow] is the way (a code for this phone, a QR code for a second screen). */
     data class Link(val network: String, val flow: String, val phase: LinkPhase) : LinkedView
+
+    /**
+     * Messenger 1.23: a service that links by QR code only (Signal) — „Den Code zeigt ein zweiter Bildschirm“: the step
+     * goes to the portal or the Windows client ([target] once sent, [saving] while it is), the page waits for the link.
+     */
+    data class SecondScreen(val network: String, val target: String? = null, val saving: Boolean = false, val portalPath: String? = null) : LinkedView
 }
 
 sealed interface LinkPhase {
@@ -79,6 +85,13 @@ data class LinkedUiState(
      */
     val askRecognition: Boolean = false,
     val recognitionSaving: Boolean = false,
+    /** Messenger 1.23: the service the question is about (WhatsApp, Signal). */
+    val recognitionNetwork: String = ChatBridges.WHATSAPP,
+    /**
+     * Messenger 1.23: right after a link of a service whose phone asks about the history (Signal) — „Signal fragt
+     * jetzt auf deinem Handy, ob es den Verlauf überträgt.“ until the person closes it.
+     */
+    val phoneHistory: String? = null,
 )
 
 /** A short message of the page after something happened. */
@@ -137,7 +150,78 @@ class LinkedServicesViewModel @Inject constructor(
     fun begin(networkId: String) {
         val n = network(networkId) ?: return
         if (!n.allowed) return
-        if (n.consent) link(networkId, ChatBridges.FLOW_PHONE) else state.update { it.copy(view = LinkedView.Notes(networkId)) }
+        if (n.consent) start(n) else state.update { it.copy(view = LinkedView.Notes(networkId)) }
+    }
+
+    /** After the notes: the code for this phone, or (Messenger 1.23, a service with the QR code only) the second screen. */
+    private fun start(n: ChatBridgeNetwork) {
+        if (ChatBridges.qrOnly(n)) {
+            stop(tell = true)
+            state.update { it.copy(view = LinkedView.SecondScreen(n.id)) }
+        } else {
+            link(n.id, ChatBridges.firstFlow(n))
+        }
+    }
+
+    /**
+     * Messenger 1.23 „Im Portal fortsetzen“ / „Im Windows-Client fortsetzen“: the step opens there, signed in as the
+     * person; this page waits until the service is linked (asks `GET bridges` every few seconds, at most 10 minutes).
+     */
+    fun handoff(target: String) {
+        val v = state.value.view as? LinkedView.SecondScreen ?: return
+        if (v.saving || target !in ChatBridges.HANDOFF_TARGETS) return
+        state.update { it.copy(view = v.copy(saving = true)) }
+        run?.cancel()
+        run = viewModelScope.launch {
+            when (val r = bridges.handoff(v.network, target)) {
+                is ChatResult.Ok -> {
+                    state.update { s -> if ((s.view as? LinkedView.SecondScreen)?.network == v.network) s.copy(view = v.copy(target = target, saving = false, portalPath = r.value.portalPath)) else s }
+                    waitForLink(v.network)
+                }
+                else -> {
+                    state.update { s -> if (s.view is LinkedView.SecondScreen) s.copy(view = v.copy(saving = false)) else s }
+                    refused(ChatBridges.error(r))
+                }
+            }
+        }
+    }
+
+    /** Messenger 1.23 „Anderes Handy mit Signal? Code hier zeigen“: the QR code on this phone after all. */
+    fun showCodeHere() {
+        val v = state.value.view as? LinkedView.SecondScreen ?: return
+        if (v.target != null) bridges.endHandoff(v.network)
+        link(v.network, ChatBridges.FLOW_QR)
+    }
+
+    private suspend fun waitForLink(networkId: String) {
+        val until = System.currentTimeMillis() + HANDOFF_WAIT_MS
+        while (System.currentTimeMillis() < until) {
+            delay(HANDOFF_POLL_MS)
+            val r = bridges.load() as? ChatResult.Ok ?: continue
+            state.update { it.copy(info = r.value) }
+            val n = r.value.networks.firstOrNull { it.id == networkId } ?: continue
+            if (n.logins.any { it.state == ChatBridges.LOGIN_CONNECTED }) {
+                linked(networkId)
+                return
+            }
+        }
+    }
+
+    /** A service was linked: the overview, then what is still to say (the phone's history question, „Erkennen“). */
+    private suspend fun linked(networkId: String) {
+        process = null
+        notices.send(LinkedNotice.Linked(networkId))
+        state.update { it.copy(view = LinkedView.Overview) }
+        load()
+        val info = state.value.info
+        if (info?.networks?.firstOrNull { it.id == networkId }?.phoneConfirms == true) state.update { it.copy(phoneHistory = networkId) }
+        // Messenger 1.21: asked once right after the link (1.23: per service)
+        if (info?.recognitionOf(networkId)?.ask == true) state.update { it.copy(askRecognition = true, recognitionNetwork = networkId) }
+    }
+
+    /** Messenger 1.23: the note about the phone's history question was read. */
+    fun dismissPhoneHistory() {
+        state.update { it.copy(phoneHistory = null) }
     }
 
     /** The tick under the notes was set and "Weiter" tapped. */
@@ -149,7 +233,7 @@ class LinkedServicesViewModel @Inject constructor(
             when (val r = bridges.consent(v.network)) {
                 is ChatResult.Ok -> {
                     state.update { s -> s.copy(info = s.info?.let { i -> i.copy(networks = i.networks.map { n -> if (n.id == v.network) n.copy(consent = true) else n }) }) }
-                    if (state.value.view is LinkedView.Notes) link(v.network, ChatBridges.FLOW_PHONE)
+                    if (state.value.view is LinkedView.Notes) network(v.network)?.let { start(it) }
                 }
                 else -> {
                     state.update { if (it.view is LinkedView.Notes) it.copy(view = v.copy(saving = false)) else it }
@@ -235,15 +319,7 @@ class LinkedServicesViewModel @Inject constructor(
                         delay(POLL_MS)
                     } else {
                         when (val step = s.step) {
-                            ChatBridgeStep.Complete -> {
-                                process = null
-                                notices.send(LinkedNotice.Linked(networkId))
-                                state.update { it.copy(view = LinkedView.Overview) }
-                                load()
-                                // Messenger 1.21: asked once right after the link
-                                if (state.value.info?.recognition?.let { it.ask && it.network == networkId } == true) state.update { it.copy(askRecognition = true) }
-                                return
-                            }
+                            ChatBridgeStep.Complete -> return linked(networkId)
                             is ChatBridgeStep.Phone -> return phase(networkId, flow, LinkPhase.Phone(step.id, step.fieldId))
                             // WhatsApp renews the QR code a few times: each one is a new step
                             is ChatBridgeStep.Code -> { phase(networkId, flow, LinkPhase.Code(step.code)); waitingOn = step.id }
@@ -340,9 +416,16 @@ class LinkedServicesViewModel @Inject constructor(
         if (state.value.recognitionSaving) return
         state.update { it.copy(recognitionSaving = true) }
         viewModelScope.launch {
-            when (val r = bridges.setRecognition(allowed)) {
+            val net = state.value.recognitionNetwork
+            when (val r = bridges.setRecognition(allowed, net)) {
                 is ChatResult.Ok -> {
-                    state.update { s -> s.copy(askRecognition = false, recognitionSaving = false, info = s.info?.copy(recognition = r.value)) }
+                    state.update { s ->
+                        val info = s.info?.let { i ->
+                            if (net == ChatBridges.WHATSAPP) i.copy(recognition = r.value)
+                            else i.copy(networks = i.networks.map { n -> if (n.id == net) n.copy(recognition = r.value) else n })
+                        }
+                        s.copy(askRecognition = false, recognitionSaving = false, info = info)
+                    }
                     notices.send(LinkedNotice.Recognition(r.value.allowed))
                 }
                 else -> {
@@ -355,7 +438,8 @@ class LinkedServicesViewModel @Inject constructor(
 
     fun back(): Boolean {
         if (state.value.view == LinkedView.Overview) return false
-        val wasLink = state.value.view is LinkedView.Link
+        val wasLink = state.value.view is LinkedView.Link || state.value.view is LinkedView.SecondScreen
+        (state.value.view as? LinkedView.SecondScreen)?.takeIf { it.target != null }?.let { bridges.endHandoff(it.network) }
         stop(tell = true)
         state.update { it.copy(view = LinkedView.Overview) }
         if (wasLink) refresh()
@@ -381,5 +465,9 @@ class LinkedServicesViewModel @Inject constructor(
 
         /** So many calls in a row may stay without an answer while a code shows. */
         const val MAX_MISSES = 3
+
+        /** Messenger 1.23: while the step shows on a second screen — how often and how long the page looks for the link. */
+        const val HANDOFF_POLL_MS = 5_000L
+        const val HANDOFF_WAIT_MS = 10 * 60_000L
     }
 }

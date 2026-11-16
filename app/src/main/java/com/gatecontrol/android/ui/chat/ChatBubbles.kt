@@ -353,6 +353,7 @@ private fun BridgePlaceholderLine(
                     ph.kind == "image" || ph.kind == "sticker" -> Icons.Outlined.Image
                     ph.kind == "video" -> Icons.Outlined.Videocam
                     ph.kind == com.gatecontrol.android.chat.ChatBridgeChat.PH_UNSUPPORTED -> Icons.Outlined.Info
+                    ph.kind == com.gatecontrol.android.chat.ChatBridgeChat.PH_VIEW_ONCE -> GcIcons.Eye
                     else -> Icons.AutoMirrored.Filled.InsertDriveFile
                 },
                 contentDescription = null,

@@ -170,8 +170,10 @@ object ChatBridgeChat {
     private val MESSAGE_STATES = setOf(STATE_PENDING, STATE_SENT, STATE_DELIVERED, STATE_READ, STATE_FAILED)
 
     const val PH_UNSUPPORTED = "unsupported"
+    /** Messenger 1.23: a view-once picture of Signal — never shown here, „Einmal-Ansicht. Öffne sie in Signal.“ */
+    const val PH_VIEW_ONCE = "view_once"
     const val PH_LOCATION = "location"
-    val PLACEHOLDERS: Set<String> = setOf("image", "video", "audio", "voice", "file", "sticker", PH_LOCATION, PH_UNSUPPORTED)
+    val PLACEHOLDERS: Set<String> = setOf("image", "video", "audio", "voice", "file", "sticker", PH_LOCATION, PH_UNSUPPORTED, PH_VIEW_ONCE)
 
     // placeholder.state (Messenger 1.15)
     const val PH_LOADING = "loading"
@@ -381,10 +383,12 @@ object ChatBridgeChat {
      * The logo at a picture, in a row or a chip (Messenger 1.20, instead of the letters „WA“): WhatsApp's glyph, the
      * GateControl shield, a speech bubble for a service this app does not know.
      */
-    enum class Logo { WhatsApp, GateControl, Other }
+    enum class Logo { WhatsApp, Signal, GateControl, Other }
 
     fun logo(network: String?): Logo = when (network) {
         ChatBridges.WHATSAPP -> Logo.WhatsApp
+        // Messenger 1.23
+        ChatBridges.SIGNAL -> Logo.Signal
         NET_GC, GATECONTROL -> Logo.GateControl
         else -> Logo.Other
     }

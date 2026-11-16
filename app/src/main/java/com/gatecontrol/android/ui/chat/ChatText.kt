@@ -63,6 +63,8 @@ object ChatText {
 
     /** "Bild · grill.jpg – folgt; in WhatsApp ansehen": a file or kind of message that does not cross the bridge yet. */
     fun placeholder(ctx: Context, p: com.gatecontrol.android.chat.ChatBridgePlaceholder, network: String): String {
+        // Messenger 1.23: a view-once picture stays in the other messenger
+        if (p.kind == com.gatecontrol.android.chat.ChatBridgeChat.PH_VIEW_ONCE) return ctx.getString(R.string.chat_view_once, network)
         val kind = placeholderKind(ctx, p) ?: return ctx.getString(R.string.chat_bridged_ph_unsupported, network)
         val what = listOfNotNull(kind, p.name).joinToString(" · ")
         // Messenger 1.15: a location with its place needs no "folgt" — the map shows it
@@ -210,7 +212,10 @@ object ChatText {
         seconds <= 0 -> ctx.getString(R.string.chat_disappearing_off)
         seconds % 604_800 == 0 && seconds / 604_800 == 1 -> ctx.getString(R.string.chat_disappearing_week)
         seconds % 86_400 == 0 -> ctx.resources.getQuantityString(R.plurals.chat_days, seconds / 86_400, seconds / 86_400)
-        else -> ctx.resources.getQuantityString(R.plurals.chat_hours, (seconds / 3600).coerceAtLeast(1), (seconds / 3600).coerceAtLeast(1))
+        seconds % 3600 == 0 -> ctx.resources.getQuantityString(R.plurals.chat_hours, seconds / 3600, seconds / 3600)
+        // Messenger 1.23: a Signal chat's timer may be minutes or seconds
+        seconds % 60 == 0 -> ctx.resources.getQuantityString(R.plurals.chat_minutes_timer, seconds / 60, seconds / 60)
+        else -> ctx.resources.getQuantityString(R.plurals.chat_seconds_timer, seconds, seconds)
     }
 
     private fun locale(ctx: Context): Locale = ctx.resources.configuration.locales[0] ?: Locale.getDefault()

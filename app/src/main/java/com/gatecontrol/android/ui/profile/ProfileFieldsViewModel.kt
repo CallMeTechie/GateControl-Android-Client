@@ -179,8 +179,8 @@ class ProfileFieldsViewModel @Inject constructor(
 
     // ─── recognition ───────────────────────────────────────────────
 
-    fun setRecognition(byWhatsapp: Boolean? = null, byPhone: Boolean? = null) = run(close = false, onDone = {}) {
-        repository.updateFields(ProfileDetailsJson.recognitionBody(byWhatsapp, byPhone)).also { r ->
+    fun setRecognition(byWhatsapp: Boolean? = null, byPhone: Boolean? = null, bySignal: Boolean? = null) = run(close = false, onDone = {}) {
+        repository.updateFields(ProfileDetailsJson.recognitionBody(byWhatsapp, byPhone, bySignal)).also { r ->
             if (r is ProfileEdit.Refused) _messages.tryEmit(messageOf(r.code))
         }
     }

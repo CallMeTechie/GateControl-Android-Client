@@ -132,6 +132,7 @@ class ChatBridgeChatsTest {
         val wa = conv()
         val gc = conv().copy(id = 5, bridge = null)
         val other = conv().copy(id = 6, bridge = ChatConvBridge("signal", "Signal", ChatBridgeChat.OK))
+        val unknown = conv().copy(id = 7, bridge = ChatConvBridge("telegram", "Telegram", ChatBridgeChat.OK))
         assertEquals(emptyList<Pair<String, String>>(), ChatBridgeChat.networks(listOf(gc)), "no chat over a bridge: no filter")
         assertEquals(listOf("whatsapp" to "WhatsApp", "signal" to "Signal"), ChatBridgeChat.networks(listOf(wa, gc, other, wa.copy(id = 9))))
         assertEquals(listOf(wa, gc, other), listOf(wa, gc, other).filter { ChatBridgeChat.inNet(it, null) })
@@ -139,7 +140,9 @@ class ChatBridgeChatsTest {
         assertEquals(listOf(wa), listOf(wa, gc, other).filter { ChatBridgeChat.inNet(it, "whatsapp") })
         // Messenger 1.20: the logo of the service, no longer its letters; a service this app does not know: a speech bubble
         assertEquals(ChatBridgeChat.Logo.WhatsApp, ChatBridgeChat.logo(wa.bridge!!.network))
-        assertEquals(ChatBridgeChat.Logo.Other, ChatBridgeChat.logo(other.bridge!!.network))
+        // Messenger 1.23: Signal's own logo
+        assertEquals(ChatBridgeChat.Logo.Signal, ChatBridgeChat.logo(other.bridge!!.network))
+        assertEquals(ChatBridgeChat.Logo.Other, ChatBridgeChat.logo(unknown.bridge!!.network))
         assertEquals(ChatBridgeChat.Logo.GateControl, ChatBridgeChat.logo(ChatBridgeChat.NET_GC))
         // text only: nothing can be shared into such a chat from another app
         assertFalse(ChatShortcutLogic.shareable(wa))
