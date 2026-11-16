@@ -234,12 +234,15 @@ jobs:
           # Drive "Auf dem Gerät" (MANAGE_EXTERNAL_STORAGE) in the Play AAB only once the
           # repo variable PLAY_ALL_FILES is "true" (after Play's permissions declaration).
           PLAY_ALL_FILES: ${{ vars.PLAY_ALL_FILES == 'true' }}
+          # Fernzugriff "Bildschirm freigeben" (foreground service mediaProjection) in the Play AAB only once the
+          # repo variable PLAY_SCREEN_SHARE is "true" (after Play's foreground service declaration).
+          PLAY_SCREEN_SHARE: ${{ vars.PLAY_SCREEN_SHARE == 'true' }}
         run: |
           # GitHub APK (updates itself through the update check), then the
           # Google Play AAB without it (-Pgc.distribution=play, Play policy).
           ./gradlew assembleRelease
           cp app/build/outputs/mapping/release/mapping.txt "$RUNNER_TEMP/apk-mapping.txt"
-          ./gradlew bundleRelease -Pgc.distribution=play -Pgc.playAllFiles="$PLAY_ALL_FILES"
+          ./gradlew bundleRelease -Pgc.distribution=play -Pgc.playAllFiles="$PLAY_ALL_FILES" -Pgc.playScreenShare="$PLAY_SCREEN_SHARE"
 
       - name: Fetch the face model for the release
         if: steps.check_tag.outputs.exists == 'false'

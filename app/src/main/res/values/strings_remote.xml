@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fernzugriff, stage 5: "Share screen" — the phone shares its screen with a helper (view only). -->
+<resources>
+    <string name="screen_share_title">Share screen</string>
+    <string name="screen_share_sub">For help from a person in GateControl</string>
+    <string name="screen_share_your_code">Your code</string>
+    <plurals name="screen_share_code_hint">
+        <item quantity="one">Give this code to the person helping you. It is valid for %d more minute and only once.</item>
+        <item quantity="other">Give this code to the person helping you. It is valid for %d more minutes and only once.</item>
+    </plurals>
+    <string name="screen_share_open_title">No code for permitted people</string>
+    <string name="screen_share_open_desc">People you shared this phone with connect directly. You and Android are asked every time all the same.</string>
+    <string name="screen_share_open_locked">An administrator locked this for your phone.</string>
+    <string name="screen_share_ask_title">%s wants to see your screen</string>
+    <string name="screen_share_ask_sub">View only · %d s left</string>
+    <string name="screen_share_ask_android">After “Allow” Android asks once more. Banking apps and password fields stay black.</string>
+    <string name="screen_share_allow">Allow</string>
+    <string name="screen_share_deny">Decline</string>
+    <string name="screen_share_starting">Sharing is starting …</string>
+    <string name="screen_share_live_bar">%s is viewing your screen</string>
+    <string name="screen_share_waiting_viewer">Waiting for %s …</string>
+    <string name="screen_share_live_since">View only · since %s</string>
+    <string name="screen_share_relay_hint">The picture runs through your GateControl server. It is not recorded.</string>
+    <string name="screen_share_stop">Stop</string>
+    <string name="screen_share_stop_session">End session</string>
+    <string name="screen_share_after">Session ended. New code ready.</string>
+    <plurals name="screen_share_after_detail">
+        <item quantity="one">%1$s was connected for %2$d minute.</item>
+        <item quantity="other">%1$s was connected for %2$d minutes.</item>
+    </plurals>
+    <string name="screen_share_notif_title">GateControl · Screen is being shared</string>
+    <string name="screen_share_request_tap">Tap to answer.</string>
+    <string name="screen_share_channel_request">Screen sharing requests</string>
+    <string name="screen_share_channel_live">Screen sharing</string>
+    <string name="screen_share_err_no_right">You may not share your own devices. Ask an administrator.</string>
+    <string name="screen_share_err_unavailable">Your GateControl server cannot share screens yet.</string>
+    <string name="screen_share_err_offline">No connection to the server.</string>
+    <string name="screen_share_err_plugin">The “Remote access” plugin is missing or has no licence.</string>
+    <string name="screen_share_err_expired">The request has run out.</string>
+    <string name="screen_share_err_failed">Sharing failed.</string>
+</resources>

@@ -114,6 +114,34 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `screen sharing only in its own manifest, merged for GitHub or on request for Play`() {
+        // never in the main manifest: Play refuses an upload with a mediaProjection service until its declaration is in
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        assertFalse("android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" in permissions)
+        assertTrue(components("service").none { it.androidAttr("name").endsWith("ScreenShareService") })
+        val own = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(moduleFile("src/screenshare/AndroidManifest.xml")).documentElement
+        val perms = own.getElementsByTagName("uses-permission")
+        assertEquals(1, perms.length)
+        assertEquals("android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION", (perms.item(0) as Element).androidAttr("name"))
+        val services = own.getElementsByTagName("service")
+        assertEquals(1, services.length)
+        val service = services.item(0) as Element
+        assertEquals("com.gatecontrol.android.remote.ScreenShareService", service.androidAttr("name"))
+        assertEquals("mediaProjection", service.androidAttr("foregroundServiceType"))
+        assertEquals("false", service.androidAttr("exported"))
+        val gradle = moduleFile("build.gradle.kts").readText()
+        assertTrue(gradle.contains("val gcScreenShare = gcDistribution == \"github\" || providers.gradleProperty(\"gc.playScreenShare\").getOrElse(\"false\") == \"true\""))
+        assertTrue(gradle.contains("if (gcScreenShare) variant.sources.manifests.addStaticManifestFile(\"src/screenshare/AndroidManifest.xml\")"))
+        // the card follows the same switch
+        assertTrue(gradle.contains("buildConfigField(\"boolean\", \"SCREEN_SHARE\", screenShare.toString())"))
+        // the release workflow passes the repo variable PLAY_SCREEN_SHARE (default off)
+        val release = moduleFile("../.github/workflows/release.yml").readText()
+        assertTrue(release.contains("PLAY_SCREEN_SHARE: ${'$'}{{ vars.PLAY_SCREEN_SHARE == 'true' }}"))
+        assertTrue(release.contains("-Pgc.playScreenShare=\"${'$'}PLAY_SCREEN_SHARE\""))
+    }
+
+    @Test
     fun `the files of the phone are handed out per intent only, never the app's own`() {
         val provider = components("provider").firstOrNull { it.androidAttr("name").endsWith("DeviceFileProvider") }
         assertNotNull(provider, "DeviceFileProvider must be declared")

@@ -305,6 +305,8 @@
 
         <!-- Notification center (mode "always"): holds the push connection
              to the user's own server. Started only by the app itself. -->
+        <!-- Fernzugriff, stage 5: ScreenShareService and FOREGROUND_SERVICE_MEDIA_PROJECTION are in
+             src/screenshare/AndroidManifest.xml (GitHub always, Play only with -Pgc.playScreenShare=true). -->
         <service
             android:name=".push.PushService"
             android:foregroundServiceType="specialUse"
