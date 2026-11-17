@@ -513,12 +513,17 @@ class NotizenReminderSystemReceiver : BroadcastReceiver() {
 
     @Inject lateinit var center: NotizenReminderCenter
     @Inject lateinit var places: NotizenGeofences
+    @Inject lateinit var chatPlaces: com.gatecontrol.android.chat.ChatPlaceGeofences
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in ACTIONS) return
         val pending = goAsync()
         // Android dropped the geofences as well (boot, an update of the app): the kept places again
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) places.onSystemChange()
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            places.onSystemChange()
+            // Messenger 1.27: the Ortsnachrichten as well
+            chatPlaces.onSystemChange()
+        }
         scope.launch {
             try {
                 withTimeoutOrNull(TIMEOUT_MS) { center.onSystemChange() }

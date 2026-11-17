@@ -1091,6 +1091,43 @@ lesen); Format, Links, Leisten, Reaktionen, Retry und Logos gelten trotzdem.
 
 Ohne `chat_people` stehen die Wege wie bisher als getrennte Chats in der Liste.
 
+### Messenger 1.27 – Versandweg, volles Plus-Menü, Ortsnachrichten
+
+- **Nachrichten senden über** (Chat-Info einer Person, `features.placeMessages`):
+  Automatisch · gerade WhatsApp (Weg der letzten Nachricht), Immer GateControl,
+  Immer WhatsApp (nur die Wege, die die Person hat, mit Logo) – gespeichert am
+  Server (`replyPref`), gilt also auch im Portal und unter Windows. Antwortest
+  du auf eine Nachricht, geht die Antwort weiter über deren Weg. Der
+  Platzhalter folgt `person.reply`; kann der gewählte Weg gerade nicht senden
+  (`reply.fallback`), steht über dem Feld „WhatsApp nicht verbunden – die
+  Nachricht geht über GateControl.“
+- **Plus-Menü mit allem:** Es zeigt, was die Person über irgendeinen Weg
+  empfangen kann. Abstimmung, Ereignis, Live-Ankunft, Aufgabe, Einkaufsliste
+  und die Haus-Aktionen gehen an den GateControl-Weg und tragen, solange der
+  Text über eine Brücke geht, ein kleines GateControl-Logo (nur, wenn die
+  Person einen GateControl-Weg hat). Standort ohne Logo über den Textweg, wenn
+  dieser Standorte nimmt (`bridge.supports: location`, WhatsApp und Telegram);
+  sonst mit Logo über GateControl, ohne GateControl-Weg gar nicht. Galerie,
+  Kamera und Datei folgen dem Textweg. Ein eingehender Brücken-Standort ist
+  eine normale Standortkarte.
+- **Ortsnachrichten:** „Beim Ankommen senden“ im Plus-Menü (Empfänger schon
+  gesetzt) oder Einstellungen › Chats › Ortsnachrichten (Schalter,
+  Bearbeiten, Löschen, „+ Ortsnachricht“, Gerätehinweis, gelber Hinweis ohne
+  „Immer erlauben“). Formular: Beim Ankommen / Beim Verlassen, Familie-Ort oder
+  „Anderer Ort“ auf der Karte (Radius 100–2000 m, Vorgabe 150 m), Text,
+  Empfänger und Weg, Einmal / Jedes Mal, „Nur zu bestimmten Zeiten“, „Vor dem
+  Senden fragen“ (Vorgabe an). Das Handy überwacht den Ort selbst (eigener
+  Anteil von 10 der 100 Geofences, nach den Familie-Orten, vor den Orten der
+  Aufgaben); der Server erfährt nie die Position. Beim Auslösen prüft die App
+  das Zeitfenster (Ortszeit) und höchstens einmal pro Stunde, fragt „Jetzt
+  senden / Ändern / Nicht senden“ (verfällt nach 15 Minuten) oder sendet
+  sofort mit der Mitteilung „Gesendet … Zurücknehmen“ (löscht für alle). Ohne
+  Netz wartet die Nachricht höchstens 30 Minuten, danach steht „nicht
+  gesendet – kein Netz“ in der Übersicht. Die eigene Nachricht trägt die Zeile
+  „Ortsnachricht · Zuhause“; die anderen sehen nur den Text. Die Ortsnachrichten
+  hängen an diesem Handy (stabile Geräte-ID je Installation), „Auf dieses Handy
+  holen“ zieht sie nach einem Gerätewechsel um.
+
 ### Wer sieht dein Bild? (Stufe 7c, Server mit `options.avatarVisibility`, Messenger 1.22)
 
 - **Profil:** In der Gruppe „Über dich“ steht oben „Wer sieht dein Bild?“ mit

@@ -159,7 +159,7 @@ class NotizenGeofences @Inject constructor(
     suspend fun position(): Pair<Double, Double>? =
         (DeviceLocator.locate(context, LOCATE_MS, STALE_MS) as? LocateResult.Fix)?.location?.let { it.latitude to it.longitude }
 
-    private fun budget(): Int = GeofenceBudget.notizen(registrar.plannedCount())
+    private fun budget(): Int = GeofenceBudget.notizen(registrar.plannedCount(), registrar.placeMessagesPlanned())
 
     /** A position for the server: rounded here, and only while the place search is on; else the area asked last, or none. */
     private suspend fun nearFor(me: NMe, kept: NWatch): Pair<Double, Double>? {
@@ -244,7 +244,7 @@ class NotizenGeofences @Inject constructor(
      */
     private suspend fun makeRoom(family: Int) = registerLock.withLock {
         val registered = lock.withLock { cache.placeState() }.registered
-        val keep = GeofenceBudget.keep(registered, family)
+        val keep = GeofenceBudget.keep(registered, family, registrar.placeMessagesPlanned())
         if (keep.size == registered.size) return@withLock
         val drop = registered.drop(keep.size)
         if (registrar.playServicesAvailable()) await(LocationServices.getGeofencingClient(context).removeGeofences(drop.map { REQUEST_PREFIX + it }))

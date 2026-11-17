@@ -259,6 +259,8 @@ data class ChatMessage(
     val preview: ChatLinkPreview? = null,
     /** Messenger 1.21 (`?people=1`): the way of the message — `gatecontrol` or the bridge's network. */
     val way: String? = null,
+    /** Messenger 1.27: sent by an Ortsnachricht — the place and trigger, only in the sender's own view. */
+    val placeMessage: ChatPlaceMark? = null,
 ) {
     val isSystem: Boolean get() = kind == KIND_SYSTEM
 
@@ -347,6 +349,8 @@ data class ChatFeatures(
     val disappearing: Boolean = false,
     /** Further capabilities the server names (`video_meta`, `file_thumbs`, …). */
     val tokens: Set<String> = emptySet(),
+    /** Messenger 1.27 `placeMessages`: Ortsnachrichten, „Nachrichten senden über“ and the full plus menu. */
+    val placeMessages: Boolean = false,
 ) {
     /** File messages may carry `video { durationMs, width, height }` (Messenger 1.3.0). */
     val videoMeta: Boolean get() = VIDEO_META in tokens

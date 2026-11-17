@@ -203,6 +203,9 @@ object ChatBridgeChat {
     const val TAKES_VOICE = "voice"
     const val TAKES_FILE = "file"
 
+    /** Messenger 1.27 (`gc.bridges` 14): the service takes a location as a real location message (WhatsApp, Telegram). */
+    const val TAKES_LOCATION = "location"
+
     /** `system.event` of a note the bridge itself wrote into the chat. */
     const val EVENT_NOTICE = "bridge_notice"
 

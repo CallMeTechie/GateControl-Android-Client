@@ -108,7 +108,8 @@ object ChatEvents {
     private val STATUS_TYPES = setOf("status.update", "story.new", "story.remove")
     /** Messenger 1.25: a contact's WhatsApp status came, went or was watched — no account behind it. */
     private const val BRIDGED_STORY = "story.bridged"
-    private val ACCOUNT_TYPES = setOf("lists.update", "reminders.update")
+    // Messenger 1.27: an Ortsnachricht was created, changed, deleted or sent — the own devices load the list anew
+    private val ACCOUNT_TYPES = setOf("lists.update", "reminders.update", ChatPlaceMessages.EVENT)
     private val DELETE_REASONS = setOf("deleted", "hidden", "expired", "retention")
     private val REASON_RE = Regex("^[a-z_]{1,32}$")
     /** "schreibt …" never shows longer than this, whatever the server says. */

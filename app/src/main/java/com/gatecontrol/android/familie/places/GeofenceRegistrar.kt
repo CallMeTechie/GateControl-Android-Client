@@ -91,6 +91,25 @@ class GeofenceRegistrar @Inject constructor(
      */
     @Volatile var makeRoom: (suspend (family: Int) -> Unit)? = null
 
+    /** Messenger 1.27: the Ortsnachrichten make room as well (their share shrinks only with very many family places). */
+    private val roomMakers = java.util.concurrent.CopyOnWriteArrayList<suspend (family: Int) -> Unit>()
+
+    fun addRoomMaker(f: suspend (family: Int) -> Unit) {
+        roomMakers += f
+    }
+
+    @Volatile private var placeMessagesPlanned = 0
+
+    /** How many geofences the Ortsnachrichten take on this phone (Messenger 1.27) — the hub leaves them room. */
+    fun placeMessagesPlanned(): Int = placeMessagesPlanned
+
+    /** The Ortsnachrichten registered [n] geofences: whoever shares Android's 100 with them looks again. */
+    fun setPlaceMessagesPlanned(n: Int) {
+        if (n == placeMessagesPlanned) return
+        placeMessagesPlanned = n
+        _changes.tryEmit(Unit)
+    }
+
     /** How many of Android's 100 geofences the Familie plugin takes on this phone (reminders and rule places, as kept). */
     fun plannedCount(): Int = combinedIds(stored(), storedRules()).size
 
@@ -200,6 +219,7 @@ class GeofenceRegistrar @Inject constructor(
             return@withLock
         }
         runCatching { makeRoom?.invoke(geofences.size) }
+        roomMakers.forEach { f -> runCatching { f(geofences.size) } }
         val request = GeofencingRequest.Builder()
             // No trigger for being inside already: re-registering (boot, app start) must not remind or report again.
             .setInitialTrigger(0)

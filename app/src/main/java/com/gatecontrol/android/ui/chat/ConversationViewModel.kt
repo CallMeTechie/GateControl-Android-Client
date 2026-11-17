@@ -115,7 +115,7 @@ sealed interface ConversationNotice {
     /** Messenger 1.4: a short confirmation (string resource). */
     data class Done(val res: Int, val arg: String? = null) : ConversationNotice
     /** A live arrival was sent: start sharing the position. */
-    data class ArrivalStarted(val messageId: Long, val label: String) : ConversationNotice
+    data class ArrivalStarted(val messageId: Long, val label: String, val conversationId: Long? = null) : ConversationNotice
     /** Messenger 1.11: "In Drive speichern" refused, the virus scan holds the file back ([code] as `heldBack` reads it). */
     data class DriveHeldBack(val code: String, val finding: String?) : ConversationNotice
     /** Messenger 1.20: reacting in channels is off — the bridge ([label]) refused a reaction. */
@@ -656,8 +656,9 @@ class ConversationViewModel @Inject constructor(
     // ─── location ───────────────────────────────────────────────────
 
     /** One-off position as a message (after the permission was granted). */
-    fun sendLocation() {
-        val cid = target() ?: return
+    /** [to]: Messenger 1.27 — the GateControl way when the way of the text takes no location (null: the way of the text). */
+    fun sendLocation(to: Long? = null) {
+        val cid = to ?: target() ?: return
         val reply = replyTo.value?.id
         viewModelScope.launch {
             busy.value = true
@@ -832,13 +833,15 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    fun sendPoll(question: String, options: List<String>, multi: Boolean, anonymous: Boolean, allowAdd: Boolean, closesAtMs: Long?, onDone: () -> Unit) {
-        val cid = id.value ?: return
+    // Messenger 1.27: what only GateControl can goes to the person's GateControl way ([to]; null: this chat).
+
+    fun sendPoll(question: String, options: List<String>, multi: Boolean, anonymous: Boolean, allowAdd: Boolean, closesAtMs: Long?, to: Long? = null, onDone: () -> Unit) {
+        val cid = to ?: id.value ?: return
         richSend({ extras.sendPoll(cid, question, options, multi, anonymous, allowAdd, closesAtMs?.let { java.time.Instant.ofEpochMilli(it).toString() }) }) { onDone() }
     }
 
-    fun sendEvent(d: EventDraft, onDone: () -> Unit) {
-        val cid = id.value ?: return
+    fun sendEvent(d: EventDraft, to: Long? = null, onDone: () -> Unit) {
+        val cid = to ?: id.value ?: return
         val body = com.gatecontrol.android.chat.ChatJson14.eventSendBody(
             d.title, java.time.Instant.ofEpochMilli(d.startsAtMs).toString(), d.endsAtMs?.let { java.time.Instant.ofEpochMilli(it).toString() },
             d.allDay, d.place, d.description, d.checklist, d.rsvp, d.guests, d.reminderMin, d.familyCalendar, d.departureHint,
@@ -846,16 +849,16 @@ class ConversationViewModel @Inject constructor(
         richSend({ extras.sendEvent(cid, body) }) { onDone() }
     }
 
-    fun sendArrival(dest: com.gatecontrol.android.chat.ChatEventPlace, onArrive: com.gatecontrol.android.chat.ChatHomeAction?, onDone: () -> Unit) {
-        val cid = id.value ?: return
+    fun sendArrival(dest: com.gatecontrol.android.chat.ChatEventPlace, onArrive: com.gatecontrol.android.chat.ChatHomeAction?, to: Long? = null, onDone: () -> Unit) {
+        val cid = to ?: id.value ?: return
         richSend({ extras.sendArrival(cid, dest, onArrive?.id, onArrive?.plugin) }) { m ->
             onDone()
-            notices.trySend(ConversationNotice.ArrivalStarted(m.id, dest.label))
+            notices.trySend(ConversationNotice.ArrivalStarted(m.id, dest.label, cid))
         }
     }
 
-    fun sendAction(mode: String, action: com.gatecontrol.android.chat.ChatHomeAction, grantTo: Long?, untilMs: Long?, onDone: () -> Unit) {
-        val cid = id.value ?: return
+    fun sendAction(mode: String, action: com.gatecontrol.android.chat.ChatHomeAction, grantTo: Long?, untilMs: Long?, to: Long? = null, onDone: () -> Unit) {
+        val cid = to ?: id.value ?: return
         richSend({ extras.sendAction(cid, mode, action, grantTo, untilMs?.let { java.time.Instant.ofEpochMilli(it).toString() }) }) { onDone() }
     }
 

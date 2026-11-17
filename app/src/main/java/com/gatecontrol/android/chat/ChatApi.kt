@@ -603,6 +603,20 @@ class ChatApi @Inject constructor(
 
     suspend fun places(): ChatResult<List<ChatPlace>> = get("familie/places", parse = ChatJson14::places)
 
+    // ─── Messenger 1.27: Ortsnachrichten ────────────────────────────
+
+    suspend fun placeMessages(): ChatResult<ChatPmList> = get("place-messages", parse = ChatPlaceMessages::list)
+
+    suspend fun createPlaceMessage(body: JsonObject): ChatResult<ChatPlaceMessage> = post("place-messages", body, ChatPlaceMessages::one)
+
+    suspend fun updatePlaceMessage(id: Long, body: JsonObject): ChatResult<ChatPlaceMessage> = put("place-messages/$id", body, ChatPlaceMessages::one)
+
+    suspend fun deletePlaceMessage(id: Long): ChatResult<Unit> = del("place-messages/$id", unit)
+
+    /** `POST place-messages/:id/fire { at, deviceId }`: the message goes out (the same [at] again: `duplicate`, nothing twice). */
+    suspend fun firePlaceMessage(id: Long, at: String, deviceId: String): ChatResult<ChatPmFired> =
+        post("place-messages/$id/fire", ChatPlaceMessages.fireBody(at, deviceId), ChatPlaceMessages::fired)
+
     // ─── Messenger 1.4: polls, events, arrival, actions ─────────────
 
     /** Answers `{ message }` (the changed message) or just `{ ok }` (null: fetch the change). */

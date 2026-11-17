@@ -41,8 +41,11 @@ data class ChatPersonWay(
     val gatecontrol: Boolean get() = way == ChatPeople.WAY_GC
 }
 
-/** `person.reply`: the way an answer takes right now (the server chooses it). */
-data class ChatPersonReply(val way: String, val label: String, val conversationId: Long)
+/**
+ * `person.reply`: the way an answer takes right now (the server chooses it). Messenger 1.27: [fallback] — the chosen way
+ * (`replyPref`) cannot send just now, the answer goes over GateControl.
+ */
+data class ChatPersonReply(val way: String, val label: String, val conversationId: Long, val fallback: Boolean = false)
 
 /**
  * `person` of a list entry: [conversationId] the lead chat (the entry's id), [nameFrom] `account` ([nameFromAccount])
@@ -60,6 +63,8 @@ data class ChatMergedPerson(
     val ways: List<ChatPersonWay>,
     val reply: ChatPersonReply?,
     val createdAt: String? = null,
+    /** Messenger 1.27 „Nachrichten senden über“: `auto`, `gatecontrol` or a service (`whatsapp`). */
+    val replyPref: String = ChatPeople.REPLY_AUTO,
 ) {
     /** The conversations of all ways. */
     val wayIds: List<Long> get() = ways.map { it.conversationId }
@@ -131,6 +136,9 @@ object ChatPeople {
     const val WAY_GC = "gatecontrol"
     const val NAME_ACCOUNT = "account"
 
+    /** Messenger 1.27 `replyPref`: the server picks the way (that of the newest message of the person). */
+    const val REPLY_AUTO = "auto"
+
     /** `409 cannot_merge` (`reason`: group | channel | not_direct | two_accounts | one_way). */
     const val CANNOT_MERGE = "cannot_merge"
 
@@ -189,7 +197,7 @@ object ChatPeople {
         val reply = o.obj("reply")?.let { r ->
             val w = r.str("way")?.takeIf { WAY_RE.matches(it) } ?: return@let null
             val cid = r.id("conversationId") ?: return@let null
-            ChatPersonReply(w, ChatJson.line(r.str("label"), 40) ?: labelOf(w), cid)
+            ChatPersonReply(w, ChatJson.line(r.str("label"), 40) ?: labelOf(w), cid, fallback = r.flag("fallback") == true)
         }
         return ChatMergedPerson(
             id = id,
@@ -204,6 +212,7 @@ object ChatPeople {
             ways = ways.sortedBy { if (it.gatecontrol) 0 else 1 },
             reply = reply?.takeIf { r -> ways.any { it.conversationId == r.conversationId } },
             createdAt = ChatJson.time(o.str("createdAt")),
+            replyPref = o.str("replyPref")?.takeIf { WAY_RE.matches(it) && (it == REPLY_AUTO || ways.any { w -> w.way == it }) } ?: REPLY_AUTO,
         )
     }
 
@@ -245,9 +254,11 @@ object ChatPeople {
                 addProperty("way", r.way)
                 addProperty("label", r.label)
                 addProperty("conversationId", r.conversationId)
+                if (r.fallback) addProperty("fallback", true)
             }
         } ?: JsonNull.INSTANCE)
         p.createdAt?.let { addProperty("createdAt", it) }
+        addProperty("replyPref", p.replyPref)
     }
 
     /** `{ conversation, person }` of `GET persons/:id`, a merge, a change → the list entry. */
@@ -447,6 +458,30 @@ object ChatPeople {
 
     /** The way of the composer's placeholder („Nachricht über WhatsApp“): of [sendTo]. */
     fun replyWay(p: ChatMergedPerson, replyTo: ChatMessage?): ChatPersonWay? = p.way(sendTo(p, replyTo))
+
+    /**
+     * „Nachrichten senden über“ (Messenger 1.27): Automatisch, then „Immer GateControl“ and „Immer <Dienst>“ — only the
+     * kinds of ways the person has, GateControl first. A person with one way has nothing to choose.
+     */
+    fun replyChoices(p: ChatMergedPerson): List<String> {
+        val kinds = p.kinds.map { it.way }
+        return if (kinds.size < 2) emptyList() else listOf(REPLY_AUTO) + kinds
+    }
+
+    /** The body of `PUT persons/:id`: `{ replyPref }`. */
+    fun replyPrefBody(pref: String): JsonObject = JsonObject().apply { addProperty("replyPref", pref) }
+
+    /**
+     * The service whose way was chosen but cannot send just now (`reply.fallback`): „WhatsApp nicht verbunden“; null:
+     * the answer goes where it was meant to.
+     */
+    fun fallbackFrom(p: ChatMergedPerson?): String? {
+        val r = p?.reply?.takeIf { it.fallback } ?: return null
+        return p.replyPref.takeIf { it != REPLY_AUTO && it != r.way }?.let { labelOf(p, it) }
+    }
+
+    /** The way of GateControl of [p] (its conversation), null: the person has none. */
+    fun gcWay(p: ChatMergedPerson): Long? = p.ways.firstOrNull { it.gatecontrol }?.conversationId
 
     /** The ways of one kind (a source chip: `gatecontrol`, `whatsapp`); null: all. */
     fun waysOf(p: ChatMergedPerson, way: String?): Set<Long>? = way?.let { w -> p.ways.filter { it.way == w }.map { it.conversationId }.toSet() }

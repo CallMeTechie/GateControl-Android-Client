@@ -377,6 +377,90 @@ fun PersonWaysSection(
     Text(stringResource(R.string.chat_pp_split_note), style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
 }
 
+/**
+ * Messenger 1.27 „Nachrichten senden über“ in the info of a person (only the ways the person has): Automatisch · gerade
+ * <Weg>, Immer GateControl, Immer <Dienst> — `PUT persons/:id { replyPref }`. An answer to a message still goes over that
+ * message's way.
+ */
+@Composable
+fun PersonReplySection(p: ChatMergedPerson, title: String, busy: Boolean, onPick: (String) -> Unit) {
+    val extra = GateControlTheme.extraColors
+    val choices = ChatPeople.replyChoices(p)
+    if (choices.isEmpty()) return
+    val hasGc = p.ways.any { it.gatecontrol }
+    GcSectionLabel(stringResource(R.string.chat_pp_reply_title), Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+    Column(Modifier.selectableGroup().testTag("person-reply")) {
+        choices.forEach { c ->
+            val selected = p.replyPref == c
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 60.dp)
+                    .selectable(selected = selected, enabled = !busy, role = Role.RadioButton, onClick = { if (!selected) onPick(c) })
+                    .padding(horizontal = 16.dp, vertical = 6.dp).testTag("person-reply-$c"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (c == ChatPeople.REPLY_AUTO) {
+                    Box(Modifier.size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(extra.panel2), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Info, contentDescription = null, tint = extra.muted, modifier = Modifier.size(16.dp))
+                    }
+                } else {
+                    ChatNetLogo(c, 28.dp)
+                }
+                Column(Modifier.weight(1f)) {
+                    val label = ChatPeople.labelOf(p, c).orEmpty()
+                    Text(
+                        if (c == ChatPeople.REPLY_AUTO) stringResource(R.string.chat_pp_reply_auto) else stringResource(R.string.chat_pp_reply_always, label),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    when {
+                        c == ChatPeople.REPLY_AUTO -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val now = p.reply?.takeIf { p.replyPref == ChatPeople.REPLY_AUTO }
+                            Text(
+                                if (now != null) stringResource(R.string.chat_pp_reply_auto_now, title) else stringResource(R.string.chat_pp_reply_auto_desc, title),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = extra.muted,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (now != null) {
+                                ChatNetLogo(now.way, 14.dp)
+                                Text(now.label, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = extra.muted, maxLines = 1)
+                            }
+                        }
+                        c == ChatPeople.WAY_GC -> Text(stringResource(R.string.chat_pp_reply_gc_desc), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                        else -> Text(
+                            if (hasGc) stringResource(R.string.chat_pp_reply_net_desc, label) else stringResource(R.string.chat_pp_reply_net_only_desc, label),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = extra.muted,
+                        )
+                    }
+                }
+                RadioButton(selected = selected, onClick = null, enabled = !busy)
+            }
+        }
+    }
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Outlined.Info, contentDescription = null, tint = extra.muted, modifier = Modifier.padding(top = 2.dp).size(14.dp))
+        Text(stringResource(R.string.chat_pp_reply_note), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+    }
+}
+
+/** Messenger 1.27: the chosen way cannot send just now (`reply.fallback`) — „WhatsApp nicht verbunden – … über GateControl“. */
+@Composable
+fun PersonFallbackLine(network: String) {
+    val extra = GateControlTheme.extraColors
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).testTag("person-fallback"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(Icons.Outlined.Info, contentDescription = null, tint = extra.warn, modifier = Modifier.size(14.dp))
+        Text(stringResource(R.string.chat_pp_reply_fallback, network), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+    }
+}
+
 /** „Mit Person zusammenführen …“ in the chat info. */
 @Composable
 fun PersonAddRow(onClick: () -> Unit) {

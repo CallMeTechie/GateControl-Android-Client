@@ -36,6 +36,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.outlined.WhereToVote
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -289,6 +290,7 @@ fun MessageBubble(
                 }
                 MetaLine(
                     time = ChatText.clock(ctx, m.createdAt),
+                    place = m.placeMessage?.takeIf { m.mine && !m.deleted }?.name,
                     edited = m.editedAt != null && !m.deleted,
                     disappearing = m.expiresAt != null,
                     status = status,
@@ -526,8 +528,24 @@ private fun SystemLine(text: String, notice: Boolean, via: String?, label: Strin
 }
 
 @Composable
-private fun MetaLine(time: String, edited: Boolean, disappearing: Boolean, status: String?, pending: Boolean, color: Color, modifier: Modifier = Modifier, way: String? = null, wayLabel: String? = null) {
+private fun MetaLine(
+    time: String,
+    edited: Boolean,
+    disappearing: Boolean,
+    status: String?,
+    pending: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier,
+    way: String? = null,
+    wayLabel: String? = null,
+    /** Messenger 1.27: sent by an Ortsnachricht at this place („Ortsnachricht · Zuhause“, only the sender sees it). */
+    place: String? = null,
+) {
     Row(modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (place != null) {
+            Icon(Icons.Outlined.WhereToVote, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
+            Text(stringResource(R.string.chat_pm_line, place), style = MaterialTheme.typography.labelSmall, color = color, maxLines = 1)
+        }
         if (way != null) ChatNetLogo(way, 12.dp, label = wayLabel)
         if (disappearing) Text("⏱", fontSize = 10.sp, color = color)
         if (edited) Text(stringResource(R.string.chat_edited), style = MaterialTheme.typography.labelSmall, color = color)
