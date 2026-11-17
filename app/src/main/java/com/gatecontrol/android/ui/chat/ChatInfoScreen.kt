@@ -420,6 +420,8 @@ fun ChatInfoScreen(
     onBack: () -> Unit,
     onLeft: () -> Unit,
     onOpenMedia: () -> Unit,
+    /** Messenger 1.27: „Alle Ortsnachrichten“ (Chat-Einstellungen › Ortsnachrichten). */
+    onOpenPlaceMessages: () -> Unit = {},
     viewModel: ChatInfoViewModel = hiltViewModel(key = "chat-info-$conversationId"),
 ) {
     LaunchedEffect(conversationId) { viewModel.bind(conversationId) }
@@ -645,6 +647,10 @@ fun ChatInfoScreen(
                     val replyBusy by viewModel.replyBusy.collectAsStateWithLifecycle()
                     PersonReplySection(p, ChatText.title(ctx, conv), replyBusy) { viewModel.setReplyPref(it) }
                 }
+            }
+            // Messenger 1.27: the Ortsnachrichten of this chat (of its person: of all its ways); none: no section
+            if (com.gatecontrol.android.chat.ChatPlaceMessages.on(profile?.features)) {
+                ChatInfoPlaceMessagesSection(conv, onOpenAll = onOpenPlaceMessages)
             }
             conv.person?.takeIf { it.conversationId == conv.id && peopleOn }?.let { p ->
                 PersonWaysSection(p, ChatText.title(ctx, conv), onSplit = { splitFor = it }, onName = { naming = true })

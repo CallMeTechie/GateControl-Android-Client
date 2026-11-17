@@ -827,6 +827,7 @@ fun AppNavigation(
                         onOpenUpdates = openSettings,
                         onOpenProfile = { openSettingsPane(SettingsPane.Profile) },
                         onOpenLinked = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.LINKED)) { launchSingleTop = true } },
+                        onOpenPlaceMessages = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.PLACES)) { launchSingleTop = true } },
                     )
                 } }
             }
@@ -908,6 +909,7 @@ fun AppNavigation(
                         conversationId = id,
                         onBack = { navController.popBackStack() },
                         onOpenMedia = { navController.navigate(Screen.ChatMedia.create(id)) { launchSingleTop = true } },
+                        onOpenPlaceMessages = { navController.navigate(Screen.ChatSettings.create(ChatSettingsPage.PLACES)) { launchSingleTop = true } },
                         // Back to the list (the left group's chat is gone).
                         onLeft = {
                             if (!navController.popBackStack(Screen.Chats.route, inclusive = false)) navigateToTab(Screen.Chats.create())

@@ -179,8 +179,9 @@ class ChatPlaceMessagesViewModel @Inject constructor(
             try {
                 when (val r = block()) {
                     is ChatResult.Ok -> {
-                        onOk()
+                        // the notice first: [onOk] may close the form whose notices show it
                         done?.let { noticeCh.trySend(PlaceNotice.Done(it)) }
+                        onOk()
                     }
                     is ChatResult.Failed -> noticeCh.trySend(PlaceNotice.Failed(r.code, r.message))
                     else -> noticeCh.trySend(PlaceNotice.Failed("offline"))
@@ -191,8 +192,14 @@ class ChatPlaceMessagesViewModel @Inject constructor(
         }
     }
 
-    fun save(editingId: Long?, d: ChatPmDraft, onDone: () -> Unit) =
-        run({ if (editingId == null) repo.create(d) else repo.update(editingId, d) }, R.string.chat_pm_saved, onDone)
+    /** [quiet]: no toast „Ortsnachricht gespeichert.“ — the caller says it itself (the chat: with „Anzeigen“). */
+    fun save(editingId: Long?, d: ChatPmDraft, quiet: Boolean = false, onDone: () -> Unit) =
+        run({ if (editingId == null) repo.create(d) else repo.update(editingId, d) }, if (quiet) null else R.string.chat_pm_saved, onDone)
+
+    /** Only the list (the chat info's section). */
+    fun refresh() {
+        viewModelScope.launch { repo.refresh() }
+    }
 
     fun delete(id: Long, onDone: () -> Unit = {}) = run({ repo.delete(id) }, R.string.chat_pm_deleted, onDone)
 
@@ -451,7 +458,8 @@ internal fun placeTargetOk(c: ChatConversation): Boolean =
 /**
  * The form of an Ortsnachricht: Beim Ankommen / Beim Verlassen, the place (a Familie place or one on the map with its
  * radius), the text, to whom over which way, once or every time, the time window, „Vor dem Senden fragen“.
- * [fixed]: opened from a chat — the recipient is set.
+ * [fixed]: opened from a chat — the recipient is set. [onSaved]: after „Speichern“ the caller says so itself (the chat:
+ * a snackbar with „Anzeigen“), else the toast „Ortsnachricht gespeichert.“. One being changed has a bin at the top.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -461,6 +469,7 @@ fun PlaceMessageEditor(
     fixed: ChatConversation?,
     conversations: List<ChatConversation>,
     onDismiss: () -> Unit,
+    onSaved: (() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
     val extra = GateControlTheme.extraColors
@@ -483,6 +492,7 @@ fun PlaceMessageEditor(
     val showMap = mapMode || familie.isEmpty()
     val place = d.place?.let { if (showMap) it.copy(name = mapName.trim().take(ChatPlaceMessages.NAME_MAX), familieId = null) else it }
     val ready = place != null && place.name.isNotBlank() && d.text.isNotBlank() && d.conversationId != null && ChatPlaceMessages.windowOk(d.window)
+    val save = { vm.save(editing?.id, d.copy(place = place), quiet = onSaved != null) { onSaved?.invoke(); onDismiss() } }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         // a full-screen dialog draws edge to edge (decorFitsSystemWindows = false) and is outside the app's Scaffold:
         // keep the bar below the status bar, the form above the navigation bar and the keyboard
@@ -491,7 +501,17 @@ fun PlaceMessageEditor(
                 .statusBarsPadding().navigationBarsPadding().imePadding().testTag("place-message-editor"),
         ) {
             GcSubpageBar(title = stringResource(R.string.chat_pm_add), onBack = onDismiss, backDescription = stringResource(R.string.chat_pm_close)) {
-                TextButton(onClick = { vm.save(editing?.id, d.copy(place = place), onDismiss) }, enabled = ready && !busy) { Text(stringResource(R.string.chat_pm_save)) }
+                if (editing != null) {
+                    GcIconButton(
+                        Icons.Outlined.DeleteOutline,
+                        stringResource(R.string.chat_pm_delete),
+                        onClick = { confirmDelete = true },
+                        modifier = Modifier.testTag("place-message-editor-delete"),
+                        tint = MaterialTheme.colorScheme.error,
+                        enabled = !busy,
+                    )
+                }
+                TextButton(onClick = save, enabled = ready && !busy) { Text(stringResource(R.string.chat_pm_save)) }
             }
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -619,15 +639,10 @@ fun PlaceMessageEditor(
                 }
                 GcPrimaryButton(
                     text = stringResource(R.string.chat_pm_save),
-                    onClick = { vm.save(editing?.id, d.copy(place = place), onDismiss) },
+                    onClick = save,
                     enabled = ready && !busy,
                     loading = busy,
                 )
-                if (editing != null) {
-                    TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.chat_pm_delete), color = MaterialTheme.colorScheme.error)
-                    }
-                }
                 Spacer(Modifier.heightIn(min = 24.dp))
             }
         }
@@ -721,3 +736,111 @@ internal fun PlaceWayPicker(ways: List<ChatPersonWay>, selected: String, onPick:
         }
     }
 }
+
+// ─── the chat info ──────────────────────────────────────────────────
+
+/**
+ * Chat-Info › „Ortsnachrichten“: the Ortsnachrichten of [conv] ([ChatPlaceMessages.forChat]), tap to change, delete
+ * from the menu or with a swipe (both ask first), and „Alle Ortsnachrichten“. Nothing while the chat has none.
+ */
+@Composable
+fun ChatInfoPlaceMessagesSection(
+    conv: ChatConversation,
+    onOpenAll: () -> Unit,
+    vm: ChatPlaceMessagesViewModel = hiltViewModel(key = "place-messages-info-${conv.id}"),
+) {
+    val list by vm.list.collectAsStateWithLifecycle()
+    val conversations by vm.conversations.collectAsStateWithLifecycle()
+    var editing by remember { mutableStateOf<ChatPlaceMessage?>(null) }
+    LaunchedEffect(vm) { vm.refresh() }
+    PlaceNotices(vm)
+    ChatInfoPlaceMessages(
+        items = ChatPlaceMessages.forChat(list?.items.orEmpty(), conv),
+        onEdit = { editing = it },
+        onDelete = { vm.delete(it.id) },
+        onOpenAll = onOpenAll,
+    )
+    editing?.let { p ->
+        // the list may have changed meanwhile (deleted on another phone): the form closes
+        val now = list?.items?.firstOrNull { it.id == p.id }
+        if (now == null && list != null) {
+            editing = null
+        } else {
+            PlaceMessageEditor(vm = vm, editing = now ?: p, fixed = null, conversations = conversations, onDismiss = { editing = null })
+        }
+    }
+}
+
+/** The rows of [ChatInfoPlaceMessagesSection] (no view model: drawn as they are in the tests). */
+@Composable
+internal fun ChatInfoPlaceMessages(
+    items: List<ChatPlaceMessage>,
+    onEdit: (ChatPlaceMessage) -> Unit,
+    onDelete: (ChatPlaceMessage) -> Unit,
+    onOpenAll: () -> Unit,
+) {
+    if (items.isEmpty()) return
+    val extra = GateControlTheme.extraColors
+    var deleting by remember { mutableStateOf<ChatPlaceMessage?>(null) }
+    val deleteLabel = stringResource(R.string.chat_pm_delete)
+    val swipe = com.gatecontrol.android.ui.mail.SwipeSpec(SWIPE_DELETE, deleteLabel, Icons.Outlined.DeleteOutline, MaterialTheme.colorScheme.error)
+    Column(Modifier.fillMaxWidth().testTag("chat-info-place-messages")) {
+        GcSectionLabel(stringResource(R.string.chat_pm_title), Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
+        items.forEach { p ->
+            var menu by remember(p.id) { mutableStateOf(false) }
+            com.gatecontrol.android.ui.mail.SwipeRow(left = swipe, right = null, onSwipe = { deleting = p }, modifier = Modifier.testTag("chat-info-pm-${p.id}")) {
+                GcListRow(
+                    title = stringResource(
+                        R.string.chat_pm_head,
+                        stringResource(if (p.trigger == ChatPlaceMessages.EXIT) R.string.chat_pm_exit_short else R.string.chat_pm_enter_short),
+                        p.place.name,
+                    ),
+                    description = ChatPlaceMessages.preview(p.text),
+                    onClick = { onEdit(p) },
+                    titleColor = if (p.active) MaterialTheme.colorScheme.onSurface else extra.muted,
+                    leading = {
+                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(extra.accentBg), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.WhereToVote, contentDescription = null, tint = extra.accentText, modifier = Modifier.size(22.dp))
+                        }
+                    },
+                    trailing = {
+                        Box {
+                            GcIconButton(
+                                com.gatecontrol.android.ui.components.GcIcons.MoreVertical,
+                                stringResource(R.string.chat_pm_more),
+                                onClick = { menu = true },
+                                modifier = Modifier.testTag("chat-info-pm-menu-${p.id}"),
+                            )
+                            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.chat_edit)) },
+                                    onClick = { menu = false; onEdit(p) },
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(deleteLabel, color = MaterialTheme.colorScheme.error) },
+                                    onClick = { menu = false; deleting = p },
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+        }
+        GcListRow(
+            title = stringResource(R.string.chat_pm_all),
+            onClick = onOpenAll,
+            modifier = Modifier.testTag("chat-info-pm-all"),
+            trailing = { com.gatecontrol.android.ui.components.GcChevron() },
+        )
+    }
+    deleting?.let { p ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            text = { Text(stringResource(R.string.chat_pm_delete_q)) },
+            confirmButton = { TextButton(onClick = { deleting = null; onDelete(p) }) { Text(deleteLabel) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.chat_cancel)) } },
+        )
+    }
+}
+
+private const val SWIPE_DELETE = "delete"

@@ -122,6 +122,7 @@ fun ChatsTwoPane(
                         share = shareFor == id,
                         onOpenUpdates = onOpenUpdates,
                         onOpenLinked = onOpenLinked,
+                        onOpenPlaceMessages = { onOpenSettingsPage(com.gatecontrol.android.ui.chat.settings.ChatSettingsPage.PLACES) },
                     )
                 }
             }

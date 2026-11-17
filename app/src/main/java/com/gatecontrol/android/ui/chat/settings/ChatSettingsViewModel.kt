@@ -64,7 +64,11 @@ class ChatSettingsViewModel @Inject constructor(
     private val setupRepository: SetupRepository,
     private val doorApi: com.gatecontrol.android.door.DoorApi,
     private val plugins: com.gatecontrol.android.familie.PluginDirectory,
+    placeRepo: com.gatecontrol.android.chat.ChatPlaceMessagesRepository,
 ) : ViewModel() {
+    /** Messenger 1.27: the saved Ortsnachrichten (the count on the main page). */
+    val placeMessages = placeRepo.list
+
 
     val profile: StateFlow<ChatProfile?> = repository.profile
     val config: StateFlow<ChatDeviceConfig> = device.config

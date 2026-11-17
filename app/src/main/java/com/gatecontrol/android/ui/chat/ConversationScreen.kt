@@ -167,6 +167,8 @@ fun ConversationScreen(
     onOpenProfile: (() -> Unit)? = null,
     /** Messenger 1.14: "Verknüpfte Dienste" (a bridged chat whose account must be linked again); null: no button. */
     onOpenLinked: (() -> Unit)? = null,
+    /** Messenger 1.27: the list of the Ortsnachrichten („Anzeigen“ after saving one); null: the snackbar without it. */
+    onOpenPlaceMessages: (() -> Unit)? = null,
     viewModel: ConversationViewModel = hiltViewModel(key = "conversation-$conversationId"),
     homeViewModel: ChatHomeViewModel = hiltViewModel(key = "chat-home-$conversationId"),
 ) {
@@ -183,6 +185,7 @@ fun ConversationScreen(
             onOpenUpdates = onOpenUpdates,
             onOpenProfile = onOpenProfile,
             onOpenLinked = onOpenLinked,
+            onOpenPlaceMessages = onOpenPlaceMessages,
             viewModel = hiltViewModel(key = "conversation-$lead"),
             homeViewModel = hiltViewModel(key = "chat-home-$lead"),
         )
@@ -239,6 +242,8 @@ fun ConversationScreen(
     var locationTo by remember { mutableStateOf<Long?>(null) }
     /** Messenger 1.27: „Beim Ankommen senden“ — the form of an Ortsnachricht for this chat. */
     var placeMessageOpen by remember { mutableStateOf(false) }
+    /** „Ortsnachricht gespeichert“ with „Anzeigen“ (the list), above the composer. */
+    val placeSnack = remember { androidx.compose.material3.SnackbarHostState() }
     var arrivalPlacesHint by remember { mutableStateOf(false) }
 
     // Wide windows, the chats a page beside Start: the pager composes the open chat ahead of showing it.
@@ -766,6 +771,9 @@ fun ConversationScreen(
                         Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = stringResource(R.string.chat_to_newest))
                     }
                 }
+                androidx.compose.material3.SnackbarHost(placeSnack, Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    androidx.compose.material3.Snackbar(it)
+                }
             }
         }
         }
@@ -945,7 +953,25 @@ fun ConversationScreen(
     // Messenger 1.27: „Beim Ankommen senden“ — the form with this chat as the recipient
     if (placeMessageOpen && c != null) {
         val placeVm: ChatPlaceMessagesViewModel = hiltViewModel(key = "place-messages-$conversationId")
-        PlaceMessageEditor(vm = placeVm, editing = null, fixed = c, conversations = emptyList(), onDismiss = { placeMessageOpen = false })
+        PlaceMessageEditor(
+            vm = placeVm,
+            editing = null,
+            fixed = c,
+            conversations = emptyList(),
+            onDismiss = { placeMessageOpen = false },
+            onSaved = {
+                // saved: say so where the chat goes on, with the way to the list where it can be changed and deleted
+                scope.launch {
+                    val r = placeSnack.showSnackbar(
+                        resources.getString(R.string.chat_pm_saved),
+                        actionLabel = onOpenPlaceMessages?.let { resources.getString(R.string.chat_pm_show) },
+                        withDismissAction = true,
+                        duration = androidx.compose.material3.SnackbarDuration.Long,
+                    )
+                    if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) onOpenPlaceMessages?.invoke()
+                }
+            },
+        )
     }
     attachHint?.let { h ->
         androidx.compose.material3.AlertDialog(
