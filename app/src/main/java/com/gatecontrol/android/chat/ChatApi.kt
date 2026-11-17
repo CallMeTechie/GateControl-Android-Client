@@ -30,9 +30,10 @@ sealed interface ChatResult<out T> {
 
     /**
      * The server answered with an error: [code] from `{ok:false, code}` or `http_<status>`; [reason] says more
-     * where the messenger sends one (a bridge's refusal, Messenger 1.12).
+     * where the messenger sends one (a bridge's refusal, Messenger 1.12); [message] is the server's own sentence
+     * (`error`, else `message`, in the language asked for) — shown where the app has no text of its own for [code].
      */
-    data class Failed(val code: String, val http: Int, val reason: String? = null, val retryAfterS: Int? = null) : ChatResult<Nothing>
+    data class Failed(val code: String, val http: Int, val reason: String? = null, val retryAfterS: Int? = null, val message: String? = null) : ChatResult<Nothing>
 
     /** No answer (network, VPN, timeout). */
     data object Offline : ChatResult<Nothing>
@@ -116,7 +117,7 @@ class ChatApi @Inject constructor(
             if (response.isSuccessful) {
                 val body = response.body() ?: JsonObject()
                 if (body.has("ok") && body.get("ok").let { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean && !it.asBoolean }) {
-                    return ChatResult.Failed(ChatJson.errorCode(body) ?: "failed", response.code(), ChatJson.errorReason(body), ChatJson.errorRetryAfter(body))
+                    return ChatResult.Failed(ChatJson.errorCode(body) ?: "failed", response.code(), ChatJson.errorReason(body), ChatJson.errorRetryAfter(body), ChatJson.errorText(body))
                 }
                 parse(body)?.let { ChatResult.Ok(it) } ?: ChatResult.Failed(CODE_INVALID, response.code())
             } else {
@@ -125,7 +126,7 @@ class ChatApi @Inject constructor(
                         ?.let { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }
                 }.getOrNull()
                 Timber.d("Chats: HTTP %d", response.code())
-                ChatResult.Failed(ChatJson.errorCode(err) ?: "http_${response.code()}", response.code(), ChatJson.errorReason(err), ChatJson.errorRetryAfter(err))
+                ChatResult.Failed(ChatJson.errorCode(err) ?: "http_${response.code()}", response.code(), ChatJson.errorReason(err), ChatJson.errorRetryAfter(err), ChatJson.errorText(err))
             }
         } catch (e: CancellationException) {
             throw e

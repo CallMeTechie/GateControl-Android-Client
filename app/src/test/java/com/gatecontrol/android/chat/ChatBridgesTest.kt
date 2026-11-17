@@ -380,7 +380,7 @@ class ChatBridgesTest {
         coEvery { media.pluginPost(MESSENGER_PLUGIN, any(), any(), any()) } returns
             refusal(502, """{"ok":false,"code":"bridge_failed","error":"Die Brücke hat das abgelehnt.","reason":"fi_mau_whatsapp_login_timeout"}""")
         val r = api.bridgeLoginStep("whatsapp", "p", "code")
-        assertEquals(ChatResult.Failed("bridge_failed", 502, "fi_mau_whatsapp_login_timeout"), r)
+        assertEquals(ChatResult.Failed("bridge_failed", 502, "fi_mau_whatsapp_login_timeout", message = "Die Brücke hat das abgelehnt."), r)
         assertEquals(ChatBridgeError.EXPIRED, ChatBridges.error(r))
 
         coEvery { client.pluginPost(MESSENGER_PLUGIN, "bridges/whatsapp/login", any(), any()) } returns refusal(403, """{"ok":false,"code":"bridge_locked","error":"…"}""")

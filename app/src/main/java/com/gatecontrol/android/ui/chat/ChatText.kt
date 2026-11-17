@@ -299,7 +299,10 @@ object ChatText {
     )
 
     /** An action that failed (edit, delete, react, create, …). */
-    fun actionError(ctx: Context, code: String?): String = ctx.getString(
+    fun actionError(ctx: Context, code: String?): String = ctx.getString(actionErrorRes(code) ?: R.string.chat_err_generic)
+
+    /** The app's own text for [code], null: none (the generic „Das hat nicht geklappt.“). */
+    fun actionErrorRes(code: String?): Int? =
         when (code) {
             "offline" -> R.string.chat_err_offline
             // Drive's ransomware protection stopped this device ("In Drive speichern").
@@ -341,9 +344,8 @@ object ChatText {
             "bridge_text_only", "bridge_unlinked", "bridge_unreachable", "bridge_off", "bridge_locked", "bridge_failed", "bridge_media_type" -> bridgeError(code)
             // Messenger 1.20: a channel, or a group where only the admins write
             com.gatecontrol.android.chat.ChatBridgeChat.READ_ONLY -> R.string.chat_bridged_err_read_only
-            else -> R.string.chat_err_generic
-        },
-    )
+            else -> null
+        }
 
     /** The server's refusals around a bridge (Messenger 1.14). */
     private fun bridgeError(code: String?): Int = when (code) {

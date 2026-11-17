@@ -142,7 +142,7 @@ internal fun NTimePicker(initial: String?, onPick: (String?) -> Unit, onDismiss:
     AlertDialog(
         onDismissRequest = onDismiss,
         text = { TimePicker(state = state) },
-        confirmButton = { TextButton(onClick = { onPick("%02d:%02d".format(state.hour, state.minute)) }) { Text(stringResource(R.string.notizen_ok)) } },
+        confirmButton = { TextButton(onClick = { onPick(String.format(java.util.Locale.ROOT, "%02d:%02d", state.hour, state.minute)) }) { Text(stringResource(R.string.notizen_ok)) } },
         dismissButton = {
             Row {
                 TextButton(onClick = { onPick(null) }) { Text(stringResource(R.string.notizen_no_time)) }
