@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.128.0] - 2026-11-17
+
+### Features
+- Versandweg pro Person, volles Plus-Menü, Ortsnachrichten (Messenger 1.27) (#250)
+
+---
+
 ## [1.127.0] - 2026-11-17
 
 ### Features
