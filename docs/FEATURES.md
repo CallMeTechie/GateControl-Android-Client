@@ -1066,15 +1066,15 @@ lesen); Format, Links, Leisten, Reaktionen, Retry und Logos gelten trotzdem.
   Öffnen von „Chats“ und höchstens alle 15 Minuten geholt.
 - **Gemeinsamer Chat:** Verlauf beider Wege nach Zeit gemischt, neben der
   Uhrzeit das Logo des Weges („über WhatsApp“), Häkchen je Weg. Quellen-Chips
-  Alle · GateControl · WhatsApp. Im Kopf die Logos und „GateControl ·
-  WhatsApp“, die Suche läuft über alle Wege. Ältere Nachrichten lädt die App je
+  Alle · GateControl · WhatsApp. Im Kopf unter dem Namen nur die Logos
+  (vorgelesen „über GateControl“, „über WhatsApp“), die Suche läuft über alle Wege. Ältere Nachrichten lädt die App je
   Weg nach; der gemischte Verlauf zeigt nur, was lückenlos da ist.
 - **Senden ohne Wegwahl:** Die Antwort geht über den Weg, den der Server nennt
   (`person.reply`: Weg der letzten eingehenden Nachricht, sonst GateControl),
   eine Antwort auf eine Nachricht über deren Weg. Der Platzhalter sagt
-  „Nachricht über WhatsApp“ / „Nachricht über GateControl“; über WhatsApp steht
-  darüber „Geht über WhatsApp. Die Verschlüsselung von WhatsApp endet an der
-  Brücke neben deinem Server.“ Anhänge und Sprachnachricht richten sich nach
+  immer den Weg: „Nachricht über GateControl“ / „… über WhatsApp“ / „… über
+  Signal“ / „… über Telegram“ (auch im einzelnen Brücken-Chat), eine Leiste
+  darüber gibt es nicht. Anhänge und Sprachnachricht richten sich nach
   diesem Weg.
 - **Chat-Info:** „Nur für dich zusammengeführt – … sieht davon nichts.“,
   „Wege von …“ mit Logo, „Konto …“ / „als „…““ und **Trennen** (mit

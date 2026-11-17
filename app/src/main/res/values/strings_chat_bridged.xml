@@ -6,7 +6,6 @@
     <string name="chat_bridged_via">over %1$s</string>
     <string name="chat_bridged_only_gc">GateControl only</string>
     <string name="chat_bridged_unknown_contact">Unknown contact</string>
-    <string name="chat_bridged_placeholder">Message over %1$s</string>
     <string name="chat_bridged_strip">This chat runs over %1$s – not only over your server.</string>
     <string name="chat_bridged_more">More</string>
     <string name="chat_bridged_first_title">Chat over %1$s</string>

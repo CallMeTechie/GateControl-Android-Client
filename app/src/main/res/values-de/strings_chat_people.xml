@@ -14,7 +14,6 @@
     <string name="chat_pp_src">Quelle</string>
     <string name="chat_pp_src_all">Alle</string>
     <string name="chat_pp_placeholder">Nachricht über %s</string>
-    <string name="chat_pp_hint">Geht über %1$s. Die Verschlüsselung von %1$s endet an der Brücke neben deinem Server.</string>
     <string name="chat_pp_via">über %s</string>
     <string name="chat_pp_only_you">Nur für dich zusammengeführt – %s sieht davon nichts.</string>
     <string name="chat_pp_ways_title">Wege von %s</string>

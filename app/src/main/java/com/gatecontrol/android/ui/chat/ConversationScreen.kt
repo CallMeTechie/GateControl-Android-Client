@@ -548,13 +548,8 @@ fun ConversationScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         val typing = ChatText.typing(context, c, state.typing, myId, state.contactTyping)
-                        // Messenger 1.21: a person — the logos of its ways and „GateControl · WhatsApp“
-                        if (person != null && typing == null) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                PersonWayLogos(person, 14.dp)
-                                Text(personWaysLine(person), style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
+                        // Messenger 1.21: a person — the logos of its ways (each read „über …“), no line of their names
+                        if (person != null && typing == null) PersonWayLogos(person, 14.dp)
                         // Messenger 1.14: a chat over a bridge says so under its name ("über WhatsApp").
                         // Messenger 1.20: a channel says „Kanal · WhatsApp“
                         val sub = typing ?: c?.bridge?.let { stringResource(if (it.channel) R.string.chat_ch_sub else R.string.chat_bridged_via, it.label) } ?: c?.takeIf { it.isGroup }?.let { conv ->
@@ -801,8 +796,6 @@ fun ConversationScreen(
                     },
                 )
             }
-            // Messenger 1.21: the answer goes over a bridge — where its encryption ends
-            person?.let { com.gatecontrol.android.chat.ChatPeople.hint(it, state.replyTo) }?.let { PersonWayHint(it) }
             Composer(
                 draft = draft,
                 onDraft = {
@@ -816,9 +809,10 @@ fun ConversationScreen(
                 // with files only, the microphone when the service takes the recording's type (AAC in MP4)
                 voice = state.profile?.features?.voice != false && com.gatecontrol.android.chat.ChatBridgeChat.voice(cc, com.gatecontrol.android.chat.VoiceRecorder.MIME),
                 attach = com.gatecontrol.android.chat.ChatBridgeChat.attach(cc),
-                // Messenger 1.21: a person — the way of the answer („Nachricht über WhatsApp“, „Nachricht über GateControl“)
-                hint = person?.let { p -> com.gatecontrol.android.chat.ChatPeople.replyWay(p, state.replyTo)?.label?.let { stringResource(R.string.chat_pp_placeholder, it) } }
-                    ?: cc?.bridge?.let { stringResource(R.string.chat_bridged_placeholder, it.label) },
+                // Messenger 1.21: the placeholder always names the way („Nachricht über GateControl“, „… über WhatsApp“) —
+                // of a person's answer, of a chat over a bridge; a plain GateControl chat or a group: „Nachricht“
+                hint = com.gatecontrol.android.chat.ChatPeople.composerWay(person, state.replyTo, cc?.bridge?.label)
+                    ?.let { stringResource(R.string.chat_pp_placeholder, it) },
                 recorder = viewModel.recorder,
                 onSend = { if (viewModel.send(draft)) draft = "" },
                 onAttach = { showAttach = true },
