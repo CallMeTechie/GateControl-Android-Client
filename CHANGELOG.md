@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.129.1] - 2026-11-17
+
+### Fixes
+- Ortsnachricht – Fehlergrund im Toast, Versandweg als Icons, Kopfzeile unter der Statusleiste (#252)
+
+---
+
 ## [1.129.0] - 2026-11-17
 
 ### Features
