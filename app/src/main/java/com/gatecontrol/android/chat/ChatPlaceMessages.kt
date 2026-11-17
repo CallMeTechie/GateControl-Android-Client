@@ -117,7 +117,8 @@ object ChatPlaceMessages {
     private val REPEATS = setOf(ONCE, ALWAYS)
     private val WAY_RE = Regex("^[a-z][a-z0-9_-]{0,31}$")
     private val HHMM_RE = Regex("^([01][0-9]|2[0-3]):[0-5][0-9]$")
-    private val FAMILIE_ID_RE = Regex("^[A-Za-z0-9_-]{1,64}$")
+    /** Familie's place ids as `GET familie/places` gives them: `home`, `place:<id>` (a rule place), a number. */
+    private val FAMILIE_ID_RE = Regex("^[A-Za-z0-9_.:-]{1,64}$")
     private val DEVICE_RE = Regex("^[a-z0-9][a-z0-9_-]{0,63}$")
     private const val MAX_ITEMS = 100
 
@@ -250,7 +251,8 @@ object ChatPlaceMessages {
     fun body(d: ChatPmDraft, deviceId: String): JsonObject? {
         val place = d.place ?: return null
         val cid = d.conversationId ?: return null
-        val text = d.text.trim().takeIf { it.isNotEmpty() }?.take(TEXT_MAX) ?: return null
+        val text = clipText(d.text.trim()).trim().takeIf { it.isNotEmpty() } ?: return null
+        if (!windowOk(d.window)) return null
         return JsonObject().apply {
             addProperty("deviceId", deviceId)
             addProperty("trigger", d.trigger)
@@ -318,6 +320,20 @@ object ChatPlaceMessages {
     fun draftOf(p: ChatPlaceMessage): ChatPmDraft = ChatPmDraft(p.trigger, p.place, p.text, p.conversationId, p.way, p.repeat, p.window, p.ask, p.enabled)
 
     // ─── rules on the phone ─────────────────────────────────────────
+
+    /**
+     * At most [max] UTF-16 units, as the server counts (`text.length`, an emoji counts two): never cut between the two
+     * halves of an emoji.
+     */
+    fun clipText(s: String, max: Int = TEXT_MAX): String {
+        if (s.length <= max) return s
+        val end = if (max > 0 && Character.isHighSurrogate(s[max - 1])) max - 1 else max
+        return s.substring(0, end)
+    }
+
+    /** A window the server takes: days 1–7 (at least one), `HH:MM`, and from ≠ to (the same time is refused). */
+    fun windowOk(w: ChatPmWindow?): Boolean =
+        w == null || (w.days.isNotEmpty() && w.days.all { it in 1..7 } && HHMM_RE.matches(w.from) && HHMM_RE.matches(w.to) && w.from != w.to)
 
     fun clampRadius(m: Int?): Int = (m ?: RADIUS_DEFAULT_M).coerceIn(RADIUS_MIN_M, RADIUS_MAX_M)
 

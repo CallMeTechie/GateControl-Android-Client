@@ -84,6 +84,11 @@
     <string name="chat_pm_err_limit">Already %d active place messages. Switch one off to activate another.</string>
     <string name="chat_pm_err_readonly">You can\'t write in this chat.</string>
     <string name="chat_pm_err_way">This chat has no such way.</string>
+    <string name="chat_pm_err_invalid">The server did not accept the place message: %s</string>
+    <string name="chat_pm_err_not_found">This chat or place message no longer exists.</string>
+    <string name="chat_pm_err_other">That did not work: %s</string>
+    <string name="chat_pm_err_answer">Saved? The server\'s answer could not be read. Check the list.</string>
+    <string name="chat_pm_window_same">Start and end must not be the same time.</string>
     <string name="chat_pp_reply_title">Send messages via</string>
     <string name="chat_pp_reply_auto">Automatic</string>
     <string name="chat_pp_reply_auto_now">Way of the last message from %s · now</string>

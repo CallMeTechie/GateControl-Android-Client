@@ -84,6 +84,11 @@
     <string name="chat_pm_err_limit">Schon %d aktive Ortsnachrichten. Schalte eine aus, um eine weitere zu aktivieren.</string>
     <string name="chat_pm_err_readonly">In diesen Chat kannst du nicht schreiben.</string>
     <string name="chat_pm_err_way">Diesen Weg hat der Chat nicht.</string>
+    <string name="chat_pm_err_invalid">Der Server hat die Ortsnachricht nicht angenommen: %s</string>
+    <string name="chat_pm_err_not_found">Diesen Chat oder diese Ortsnachricht gibt es nicht mehr.</string>
+    <string name="chat_pm_err_other">Das hat nicht geklappt: %s</string>
+    <string name="chat_pm_err_answer">Gespeichert? Die Antwort des Servers war nicht lesbar. Sieh in der Liste nach.</string>
+    <string name="chat_pm_window_same">Beginn und Ende dürfen nicht dieselbe Uhrzeit sein.</string>
     <string name="chat_pp_reply_title">Nachrichten senden über</string>
     <string name="chat_pp_reply_auto">Automatisch</string>
     <string name="chat_pp_reply_auto_now">Weg der letzten Nachricht von %s · gerade</string>

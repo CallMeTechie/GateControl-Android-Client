@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,26 +20,38 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.WhereToVote
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,10 +61,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +83,7 @@ import com.gatecontrol.android.chat.ChatBridgeChat
 import com.gatecontrol.android.chat.ChatConversation
 import com.gatecontrol.android.chat.ChatExtrasRepository
 import com.gatecontrol.android.chat.ChatPeople
+import com.gatecontrol.android.chat.ChatPersonWay
 import com.gatecontrol.android.chat.ChatPlaceGeofences
 import com.gatecontrol.android.chat.ChatPlaceMessage
 import com.gatecontrol.android.chat.ChatPlaceMessages
@@ -112,7 +129,8 @@ import kotlin.math.roundToInt
 /** A one-shot notice of the Ortsnachrichten: a string resource (with a number) or an error code. */
 sealed interface PlaceNotice {
     data class Done(val res: Int) : PlaceNotice
-    data class Failed(val code: String?) : PlaceNotice
+    /** [message]: the server's own sentence (`error`), shown where the app has no text of its own for [code]. */
+    data class Failed(val code: String?, val message: String? = null) : PlaceNotice
 }
 
 @HiltViewModel
@@ -164,7 +182,7 @@ class ChatPlaceMessagesViewModel @Inject constructor(
                         onOk()
                         done?.let { noticeCh.trySend(PlaceNotice.Done(it)) }
                     }
-                    is ChatResult.Failed -> noticeCh.trySend(PlaceNotice.Failed(r.code))
+                    is ChatResult.Failed -> noticeCh.trySend(PlaceNotice.Failed(r.code, r.message))
                     else -> noticeCh.trySend(PlaceNotice.Failed("offline"))
                 }
             } finally {
@@ -212,6 +230,24 @@ private fun openAppSettings(ctx: Context) {
     }
 }
 
+/**
+ * Why saving (or switching) an Ortsnachricht failed — never only „Das hat nicht geklappt.“: the app's own text for
+ * the codes it knows, else the server's sentence ([message], in the app's language), else the code itself.
+ */
+internal fun placeErrorText(ctx: Context, code: String?, message: String?, activeMax: Int = 10): String {
+    val why = message ?: code ?: "?"
+    return when (code) {
+        "limit" -> ctx.getString(R.string.chat_pm_err_limit, activeMax)
+        "readonly" -> ctx.getString(R.string.chat_pm_err_readonly)
+        "bad_request" -> ctx.getString(R.string.chat_pm_err_way)
+        "invalid" -> ctx.getString(R.string.chat_pm_err_invalid, why)
+        "not_found" -> ctx.getString(R.string.chat_pm_err_not_found)
+        // the answer came (2xx) but was not an Ortsnachricht the app could read
+        com.gatecontrol.android.chat.ChatApi.CODE_INVALID -> ctx.getString(R.string.chat_pm_err_answer)
+        else -> ChatText.actionErrorRes(code)?.let { ctx.getString(it) } ?: ctx.getString(R.string.chat_pm_err_other, why)
+    }
+}
+
 @Composable
 private fun PlaceNotices(vm: ChatPlaceMessagesViewModel) {
     val ctx = LocalContext.current
@@ -221,12 +257,7 @@ private fun PlaceNotices(vm: ChatPlaceMessagesViewModel) {
         vm.notices.collect { n ->
             val text = when (n) {
                 is PlaceNotice.Done -> res.getString(n.res)
-                is PlaceNotice.Failed -> when (n.code) {
-                    "limit" -> res.getString(R.string.chat_pm_err_limit, limits?.activeMax ?: 10)
-                    "readonly" -> res.getString(R.string.chat_pm_err_readonly)
-                    "bad_request" -> res.getString(R.string.chat_pm_err_way)
-                    else -> ChatText.actionError(ctx, n.code)
-                }
+                is PlaceNotice.Failed -> placeErrorText(ctx, n.code, n.message, limits?.activeMax ?: 10)
             }
             Toast.makeText(ctx, text, Toast.LENGTH_LONG).show()
         }
@@ -451,9 +482,14 @@ fun PlaceMessageEditor(
     // without Familie places only the map
     val showMap = mapMode || familie.isEmpty()
     val place = d.place?.let { if (showMap) it.copy(name = mapName.trim().take(ChatPlaceMessages.NAME_MAX), familieId = null) else it }
-    val ready = place != null && place.name.isNotBlank() && d.text.isNotBlank() && d.conversationId != null
+    val ready = place != null && place.name.isNotBlank() && d.text.isNotBlank() && d.conversationId != null && ChatPlaceMessages.windowOk(d.window)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("place-message-editor")) {
+        // a full-screen dialog draws edge to edge (decorFitsSystemWindows = false) and is outside the app's Scaffold:
+        // keep the bar below the status bar, the form above the navigation bar and the keyboard
+        Column(
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding().navigationBarsPadding().imePadding().testTag("place-message-editor"),
+        ) {
             GcSubpageBar(title = stringResource(R.string.chat_pm_add), onBack = onDismiss, backDescription = stringResource(R.string.chat_pm_close)) {
                 TextButton(onClick = { vm.save(editing?.id, d.copy(place = place), onDismiss) }, enabled = ready && !busy) { Text(stringResource(R.string.chat_pm_save)) }
             }
@@ -506,7 +542,7 @@ fun PlaceMessageEditor(
 
                 GcTextField(
                     value = d.text,
-                    onValueChange = { d = d.copy(text = it.take(ChatPlaceMessages.TEXT_MAX)) },
+                    onValueChange = { d = d.copy(text = ChatPlaceMessages.clipText(it)) },
                     label = stringResource(R.string.chat_pm_text),
                     placeholder = stringResource(R.string.chat_pm_text_hint),
                     singleLine = false,
@@ -530,12 +566,12 @@ fun PlaceMessageEditor(
                     )
                     // the ways of a person: Automatisch · GateControl · WhatsApp
                     if (person != null && person.kinds.size > 1) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            GcFilterChip(stringResource(R.string.chat_pm_way_auto), d.way == ChatPeople.REPLY_AUTO, { d = d.copy(way = ChatPeople.REPLY_AUTO) })
-                            person.kinds.forEach { w ->
-                                GcFilterChip(w.label, d.way == w.way, { d = d.copy(way = w.way) }, leading = { ChatNetLogo(w.way, 16.dp) })
-                            }
-                        }
+                        PlaceWayPicker(
+                            ways = person.kinds,
+                            selected = d.way,
+                            onPick = { d = d.copy(way = it) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
                     }
                 }
 
@@ -564,6 +600,14 @@ fun PlaceMessageEditor(
                         Row(Modifier.padding(horizontal = 8.dp)) {
                             TextButton(onClick = { timeFor = true }) { Text(stringResource(R.string.chat_pm_window_from, w.from)) }
                             TextButton(onClick = { timeFor = false }) { Text(stringResource(R.string.chat_pm_window_to, w.to)) }
+                        }
+                        if (w.from == w.to) {
+                            Text(
+                                stringResource(R.string.chat_pm_window_same),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 16.dp).testTag("place-window-same"),
+                            )
                         }
                     }
                     GcSwitchRow(stringResource(R.string.chat_pm_ask_title), stringResource(R.string.chat_pm_ask_desc), d.ask, { on -> d = d.copy(ask = on) })
@@ -633,5 +677,47 @@ fun PlaceMessageEditor(
             confirmButton = { TextButton(onClick = { confirmDelete = false; vm.delete(editing.id, onDismiss) }) { Text(stringResource(R.string.chat_pm_delete)) } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.chat_cancel)) } },
         )
+    }
+}
+
+/**
+ * „An“ of a person with several ways: Automatisch · GateControl · WhatsApp … as icon buttons of the same width (no text,
+ * so nothing breaks in a narrow row): a wand for Automatisch, the shield of GateControl, the logo of each network. Each
+ * says its name to TalkBack and in a tooltip (long press); the chosen one is filled as the app's chips are.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PlaceWayPicker(ways: List<ChatPersonWay>, selected: String, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    val options = listOf(ChatPeople.REPLY_AUTO to stringResource(R.string.chat_pm_way_auto)) + ways.map { it.way to it.label }
+    Row(modifier.fillMaxWidth().selectableGroup().testTag("place-way"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { (way, label) ->
+            val on = way == selected
+            // the weight on a Box of its own: TooltipBox does not pass a RowScope weight on to its anchor
+            Box(Modifier.weight(1f)) {
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+                    tooltip = { PlainTooltip { Text(label) } },
+                    state = rememberTooltipState(),
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth().height(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) extra.accentBg else Color.Transparent)
+                            .border(1.dp, if (on) Color.Transparent else extra.border2, RoundedCornerShape(10.dp))
+                            .selectable(selected = on, role = Role.RadioButton, onClick = { onPick(way) })
+                            .semantics { contentDescription = label }
+                            .testTag("place-way-$way"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (way == ChatPeople.REPLY_AUTO) {
+                            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = if (on) extra.accentText else extra.muted, modifier = Modifier.size(22.dp))
+                        } else {
+                            ChatNetLogo(way, 24.dp)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

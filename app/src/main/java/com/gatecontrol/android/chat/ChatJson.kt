@@ -123,6 +123,9 @@ object ChatJson {
     fun errorCode(o: JsonObject?): String? =
         o?.str("code")?.takeIf { it.length <= 40 && it.all { c -> c.isLetterOrDigit() || c == '_' } }
 
+    /** The server's sentence of an error answer (`error`, else `message`): one line, at most 200 characters; else null. */
+    fun errorText(o: JsonObject?): String? = line(o?.str("error") ?: o?.str("message"), 200)
+
     /** `reason` of an error answer (a bridge's refusal, Messenger 1.12): a short lower-case word, else null. */
     fun errorReason(o: JsonObject?): String? = o?.str("reason")?.takeIf { REASON_RE.matches(it) }
 
