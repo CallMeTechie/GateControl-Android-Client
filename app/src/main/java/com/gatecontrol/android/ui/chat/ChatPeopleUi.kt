@@ -67,7 +67,7 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /*
  * Chats v2, Teil B (Messenger 1.21, `features.chat_people`): what the screens draw of a person — the logos of its ways
- * behind the name, the source chips, the line above the composer, the suggestion card, the dialog „Zu einer Person
+ * behind the name, the source chips, the suggestion card, the dialog „Zu einer Person
  * zusammenführen?“, the choice of „Mit Person zusammenführen …“, „Wege von …“ and the question after linking WhatsApp.
  * In the app's design; the logos are those of Teil A ([ChatNetLogo]).
  */
@@ -79,9 +79,6 @@ fun PersonWayLogos(p: ChatMergedPerson, size: Dp = 14.dp, modifier: Modifier = M
         p.kinds.forEach { w -> ChatNetLogo(w.way, size, label = stringResource(R.string.chat_pp_via, w.label)) }
     }
 }
-
-/** The names of the ways under the name in the head: „GateControl · WhatsApp“. */
-fun personWaysLine(p: ChatMergedPerson): String = p.kinds.joinToString(" · ") { it.label }
 
 /**
  * The picture of a person's entry: the picture of the way whose name holds (`avatarMediaId` of a bridged way, or the
@@ -116,20 +113,6 @@ fun PersonSourceChips(p: ChatMergedPerson, selected: String?, onPick: (String?) 
         p.kinds.forEach { w ->
             GcFilterChip(w.label, selected == w.way, { onPick(if (selected == w.way) null else w.way) }, leading = { ChatNetLogo(w.way, 16.dp) })
         }
-    }
-}
-
-/** The line above the composer when the answer goes over a bridge: where the encryption ends. */
-@Composable
-fun PersonWayHint(label: String) {
-    val extra = GateControlTheme.extraColors
-    Row(
-        Modifier.fillMaxWidth().background(extra.panel2).padding(horizontal = 14.dp, vertical = 6.dp).testTag("person-way-hint"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Outlined.Info, contentDescription = null, tint = extra.muted, modifier = Modifier.size(14.dp))
-        Text(stringResource(R.string.chat_pp_hint, label), style = MaterialTheme.typography.bodySmall, color = extra.muted)
     }
 }
 

@@ -14,7 +14,6 @@
     <string name="chat_pp_src">Source</string>
     <string name="chat_pp_src_all">All</string>
     <string name="chat_pp_placeholder">Message via %s</string>
-    <string name="chat_pp_hint">Sent via %1$s. %1$s\'s encryption ends at the bridge next to your server.</string>
     <string name="chat_pp_via">via %s</string>
     <string name="chat_pp_only_you">Merged for you only – %s sees nothing of it.</string>
     <string name="chat_pp_ways_title">Ways to reach %s</string>

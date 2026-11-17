@@ -313,21 +313,35 @@ class ChatPeopleTest {
     }
 
     @Test
-    fun `the way of an answer - the server's reply, an answer to a message its way, the hint only over a bridge`() {
+    fun `the way of an answer - the server's reply, an answer to a message its way, the placeholder always names it`() {
         val p = conv(entryJson()).person!!
         assertEquals(17L, ChatPeople.sendTo(p, null))
         assertEquals("WhatsApp", ChatPeople.replyWay(p, null)!!.label)
-        assertEquals("WhatsApp", ChatPeople.hint(p, null))
+        assertEquals("WhatsApp", ChatPeople.composerWay(p, null, null))
         val gcMsg = msg(401, 41, "2026-11-15T12:02:00.000Z")
         assertEquals(41L, ChatPeople.sendTo(p, gcMsg), "an answer to a GateControl message goes over GateControl")
-        assertNull(ChatPeople.hint(p, gcMsg))
+        assertEquals("GateControl", ChatPeople.composerWay(p, gcMsg, null), "over GateControl the placeholder names it too")
         val gcReply = p.copy(reply = ChatPersonReply("gatecontrol", "GateControl", 41))
         assertEquals(41L, ChatPeople.sendTo(gcReply, null))
-        assertNull(ChatPeople.hint(gcReply, null))
+        assertEquals("GateControl", ChatPeople.composerWay(gcReply, null, null))
         // a way that cannot send: the answer to its message goes the server's way
         val waDown = p.copy(ways = p.ways.map { if (it.conversationId == 17L) it.copy(can = ChatWayCan(send = false)) else it }, reply = ChatPersonReply("gatecontrol", "GateControl", 41))
         assertEquals(41L, ChatPeople.sendTo(waDown, msg(905, 17, "2026-11-15T14:12:00.000Z")))
         assertEquals(41L, ChatPeople.sendTo(p.copy(reply = null), null), "no reply named: the lead")
+    }
+
+    @Test
+    fun `the composer's placeholder - a person always a way, a bridged chat its service, a plain chat none`() {
+        val p = conv(entryJson()).person!!
+        // the answer's conversation not among the ways: person.reply's label, else the bridge, else GateControl
+        val lost = p.copy(reply = ChatPersonReply("signal", "Signal", 99))
+        assertEquals("Signal", ChatPeople.composerWay(lost, null, null))
+        val unnamed = p.copy(reply = null, conversationId = 99)
+        assertEquals("Telegram", ChatPeople.composerWay(unnamed, null, "Telegram"))
+        assertEquals("GateControl", ChatPeople.composerWay(unnamed, null, null))
+        // a single chat over a bridge: its service; a plain GateControl chat or a group: just „Nachricht“
+        assertEquals("WhatsApp", ChatPeople.composerWay(null, null, "WhatsApp"))
+        assertNull(ChatPeople.composerWay(null, null, null))
     }
 
     @Test

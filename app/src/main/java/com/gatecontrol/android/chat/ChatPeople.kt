@@ -451,8 +451,17 @@ object ChatPeople {
     /** The ways of one kind (a source chip: `gatecontrol`, `whatsapp`); null: all. */
     fun waysOf(p: ChatMergedPerson, way: String?): Set<Long>? = way?.let { w -> p.ways.filter { it.way == w }.map { it.conversationId }.toSet() }
 
-    /** The line above the composer: only when the answer goes over a bridge. */
-    fun hint(p: ChatMergedPerson, replyTo: ChatMessage?): String? = replyWay(p, replyTo)?.takeIf { !it.gatecontrol }?.label
+    /**
+     * The service the composer's placeholder names („Nachricht über GateControl“, „… über WhatsApp“): in a person's chat
+     * always the way of the answer ([sendTo]) — its way, else `person.reply`'s label, else [bridgeLabel] (the chat the
+     * composer writes to), else GateControl; a single chat over a bridge its service ([bridgeLabel]). Null: a plain
+     * GateControl chat or a group — just „Nachricht“.
+     */
+    fun composerWay(p: ChatMergedPerson?, replyTo: ChatMessage?, bridgeLabel: String?): String? {
+        if (p == null) return bridgeLabel
+        val to = sendTo(p, replyTo)
+        return p.way(to)?.label ?: p.reply?.takeIf { it.conversationId == to }?.label ?: bridgeLabel ?: labelOf(WAY_GC)
+    }
 
     /**
      * The messages of the ways' caches, mixed by time (`createdAt`, a tie by `id`): those older than the newest point

@@ -73,7 +73,7 @@ import java.io.File
 /**
  * Chats v2, Teil B (Messenger 1.21), drawn in German, light and dark, with the real screens: the list with a person
  * (the logos of its ways behind the name) and the suggestion card, the dialog „Zu einer Person zusammenführen?“, the
- * chat of a person (source chips, the way's logo at each message, „Nachricht über WhatsApp“ and the line above), the
+ * chat of a person (source chips, the way's logo at each message, „Nachricht über WhatsApp“, no line above), the
  * chat info („Wege von …“, „Trennen“, „Mit Person zusammenführen …“) and the question after linking WhatsApp.
  * With `BRIDGED_SHOTS=<dir>` the drawn pages are saved there (not part of CI).
  */
@@ -316,12 +316,12 @@ class ChatPeopleUiTest {
             chat(dark)
             rule.waitUntil(5_000) { count("Bis später, ich bring Brot mit") > 0 }
             shot("62-person-chat", dark)
-            rule.onNodeWithText("GateControl · WhatsApp").assertIsDisplayed()
+            assertEquals("the head: only the logos, no line of the ways' names", 0, count("GateControl · WhatsApp"))
             rule.onNodeWithText("Alle").assertIsDisplayed()
             rule.onNodeWithTag("person-sources").assertIsDisplayed()
             assertTrue("a logo at each message", described("über WhatsApp") >= 3 && described("über GateControl") >= 2)
             rule.onNodeWithText("Nachricht über WhatsApp").assertIsDisplayed()
-            rule.onNodeWithText("Geht über WhatsApp. Die Verschlüsselung von WhatsApp endet an der Brücke neben deinem Server.").assertIsDisplayed()
+            assertEquals("no line above the composer", 0, count("Die Verschlüsselung von WhatsApp endet"))
             // the source chip: only WhatsApp
             rule.onNodeWithText("WhatsApp").performClick()
             rule.waitUntil(5_000) { count("Ja, ab sieben") == 0 }
@@ -331,7 +331,7 @@ class ChatPeopleUiTest {
     }
 
     @Test
-    fun `the chat of a person - the answer over GateControl, no line above the composer`() {
+    fun `the chat of a person - the answer over GateControl, the placeholder names it`() {
         stubRepository()
         profile.value = profile("bridge_chats", "chat_people")
         conversations.value = listOf(jenny(reply = "gatecontrol"), wa)
