@@ -494,6 +494,17 @@ object ChatDeepLink {
     }
 }
 
+/** Messenger 1.27: a text for a chat's composer from outside (an Ortsnachricht's „Ändern“), taken once when the chat shows. */
+object ChatDraftHandoff {
+    private val drafts = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    fun put(conversationId: Long, text: String) {
+        drafts[conversationId] = text.take(ChatPlaceMessages.TEXT_MAX)
+    }
+
+    fun take(conversationId: Long): String? = drafts.remove(conversationId)
+}
+
 /** Bytes of the chats on this device ("Speicher und Daten"). */
 data class ChatStorageUsage(val photos: Long, val videos: Long, val voice: Long, val files: Long, val outbox: Long) {
     val total: Long get() = photos + videos + voice + files + outbox

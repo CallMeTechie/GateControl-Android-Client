@@ -368,6 +368,13 @@
             android:name=".notizen.NotizenPlaceReceiver"
             android:exported="false" />
 
+        <!-- Chats (Messenger 1.27): geofence transitions of Ortsnachrichten
+             (Play services, through the app's own PendingIntent) and the
+             buttons of their notifications. NOT exported. -->
+        <receiver
+            android:name=".chat.ChatPlaceReceiver"
+            android:exported="false" />
+
         <!-- Familie: opens a screen of the Familie tab from the app's own
              notifications. NOT exported. -->
         <activity

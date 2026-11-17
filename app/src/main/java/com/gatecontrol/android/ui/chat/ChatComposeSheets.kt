@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.WhereToVote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -71,6 +72,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -131,6 +134,14 @@ data class AttachOptions(
     val actionsHint: String? = null,
     /** "Schnell teilen": the devices of the home (doors lead to the door request). */
     val quickShare: List<ChatHomeAction> = emptyList(),
+    /** Messenger 1.27: GateControl's own kinds go over GateControl while the text goes over a bridge — the logo on them. */
+    val gcBadge: Boolean = false,
+    /** Messenger 1.27: the location goes over GateControl (the way of the text takes none) — the logo on it. */
+    val locationBadge: Boolean = false,
+    /** Messenger 1.27: „Beim Ankommen senden“. */
+    val placeMessage: Boolean = false,
+    /** The service the text goes over („WhatsApp“), for the note under the logos; null: GateControl. */
+    val viaLabel: String? = null,
 )
 
 /**
@@ -157,6 +168,8 @@ fun AttachSheet14(
     onQuickShare: (ChatHomeAction) -> Unit = {},
     /** A tile that needs something first was tapped: [hint] says what. */
     onHint: (hint: String) -> Unit = {},
+    /** Messenger 1.27: „Beim Ankommen senden“. */
+    onPlaceMessage: () -> Unit = {},
 ) {
     val extra = GateControlTheme.extraColors
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
@@ -164,12 +177,13 @@ fun AttachSheet14(
             FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 4, horizontalArrangement = Arrangement.SpaceEvenly) {
                 if (options.gallery) AttachTile14(Icons.Outlined.PhotoLibrary, stringResource(R.string.chat_attach_gallery), extra.blue, extra.blueBg, onGallery)
                 if (options.camera) AttachTile14(Icons.Outlined.PhotoCamera, stringResource(R.string.chat_attach_camera), extra.pro, extra.proBg, onCamera)
-                if (options.location) AttachTile14(Icons.Outlined.Place, stringResource(R.string.chat_attach_location), extra.accentText, extra.accentBg, onLocation)
+                if (options.location) AttachTile14(Icons.Outlined.Place, stringResource(R.string.chat_attach_location), extra.accentText, extra.accentBg, onLocation, badge = options.locationBadge)
                 if (options.files) AttachTile14(Icons.Outlined.AttachFile, stringResource(R.string.chat_attach_file), extra.warn, extra.warnBg, onFile)
-                if (options.polls) AttachTile14(Icons.Outlined.BarChart, stringResource(R.string.chat_attach_poll), extra.accentText, extra.accentBg, onPoll)
-                if (options.events) AttachTile14(Icons.Outlined.Event, stringResource(R.string.chat_attach_event), extra.blue, extra.blueBg, onEvent)
-                if (options.arrival) AttachTile14(Icons.Outlined.Navigation, stringResource(R.string.chat_attach_arrival), extra.warn, extra.warnBg, onArrival)
-                if (options.task) AttachTile14(Icons.Outlined.TaskAlt, stringResource(R.string.chat_attach_task), extra.pro, extra.proBg, onTask)
+                if (options.polls) AttachTile14(Icons.Outlined.BarChart, stringResource(R.string.chat_attach_poll), extra.accentText, extra.accentBg, onPoll, badge = options.gcBadge)
+                if (options.events) AttachTile14(Icons.Outlined.Event, stringResource(R.string.chat_attach_event), extra.blue, extra.blueBg, onEvent, badge = options.gcBadge)
+                if (options.arrival) AttachTile14(Icons.Outlined.Navigation, stringResource(R.string.chat_attach_arrival), extra.warn, extra.warnBg, onArrival, badge = options.gcBadge)
+                if (options.placeMessage) AttachTile14(Icons.Outlined.WhereToVote, stringResource(R.string.chat_pm_attach), extra.accentText, extra.accentBg, onPlaceMessage)
+                if (options.task) AttachTile14(Icons.Outlined.TaskAlt, stringResource(R.string.chat_attach_task), extra.pro, extra.proBg, onTask, badge = options.gcBadge)
             }
             if (options.actions || options.shopping) {
                 GcSectionLabel(stringResource(R.string.chat_attach_home), Modifier.padding(start = 12.dp, top = 8.dp))
@@ -177,11 +191,11 @@ fun AttachSheet14(
                 val home: (() -> Unit) -> () -> Unit = { action -> if (hint != null) ({ onHint(hint) }) else action }
                 FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 4, horizontalArrangement = Arrangement.SpaceEvenly) {
                     if (options.actions) {
-                        AttachTile14(Icons.Outlined.DoorFront, stringResource(R.string.chat_attach_action_request), extra.warn, extra.warnBg, home { onAction(ChatActionCard.MODE_REQUEST) }, muted = hint != null)
-                        AttachTile14(Icons.Outlined.Share, stringResource(R.string.chat_attach_action_grant), extra.accentText, extra.accentBg, home { onAction(ChatActionCard.MODE_GRANT) }, muted = hint != null)
-                        AttachTile14(Icons.Outlined.PlayCircleOutline, stringResource(R.string.chat_attach_action_run), extra.blue, extra.blueBg, home { onAction(ChatActionCard.MODE_RUN) }, muted = hint != null)
+                        AttachTile14(Icons.Outlined.DoorFront, stringResource(R.string.chat_attach_action_request), extra.warn, extra.warnBg, home { onAction(ChatActionCard.MODE_REQUEST) }, muted = hint != null, badge = options.gcBadge)
+                        AttachTile14(Icons.Outlined.Share, stringResource(R.string.chat_attach_action_grant), extra.accentText, extra.accentBg, home { onAction(ChatActionCard.MODE_GRANT) }, muted = hint != null, badge = options.gcBadge)
+                        AttachTile14(Icons.Outlined.PlayCircleOutline, stringResource(R.string.chat_attach_action_run), extra.blue, extra.blueBg, home { onAction(ChatActionCard.MODE_RUN) }, muted = hint != null, badge = options.gcBadge)
                     }
-                    if (options.shopping) AttachTile14(Icons.Outlined.ShoppingCart, stringResource(R.string.chat_attach_shopping), extra.warn, extra.warnBg, onShopping)
+                    if (options.shopping) AttachTile14(Icons.Outlined.ShoppingCart, stringResource(R.string.chat_attach_shopping), extra.warn, extra.warnBg, onShopping, badge = options.gcBadge)
                 }
                 if (options.actions && hint == null && options.quickShare.isNotEmpty()) {
                     GcSectionLabel(stringResource(R.string.chat_attach_quick_share), Modifier.padding(start = 12.dp, top = 8.dp))
@@ -190,6 +204,16 @@ fun AttachSheet14(
                     }
                 }
                 Text(hint ?: stringResource(R.string.chat_attach_home_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.padding(horizontal = 12.dp))
+            }
+            if ((options.gcBadge || options.locationBadge) && options.viaLabel != null) {
+                Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                    ChatNetLogo(com.gatecontrol.android.chat.ChatPeople.WAY_GC, 16.dp)
+                    Text(
+                        stringResource(if (options.location && !options.locationBadge) R.string.chat_attach_badge_note_loc else R.string.chat_attach_badge_note, options.viaLabel),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extra.muted,
+                    )
+                }
             }
             Text(
                 stringResource(R.string.chat_attach_hint, ChatText.bytes(options.maxBytes ?: (25L * 1024 * 1024))),
@@ -202,15 +226,21 @@ fun AttachSheet14(
 }
 
 @Composable
-private fun AttachTile14(icon: ImageVector, label: String, tint: Color, bg: Color, onClick: () -> Unit, muted: Boolean = false) {
+private fun AttachTile14(icon: ImageVector, label: String, tint: Color, bg: Color, onClick: () -> Unit, muted: Boolean = false, badge: Boolean = false) {
     val extra = GateControlTheme.extraColors
+    val via = if (badge) stringResource(R.string.chat_pp_via, com.gatecontrol.android.chat.ChatPeople.labelOf(com.gatecontrol.android.chat.ChatPeople.WAY_GC)) else null
     Column(
-        Modifier.width(84.dp).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 10.dp),
+        Modifier.width(84.dp).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 10.dp)
+            .then(if (via != null) Modifier.semantics(mergeDescendants = true) { contentDescription = "$label, $via" } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(if (muted) extra.panel2 else bg), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = if (muted) extra.faint else tint, modifier = Modifier.size(26.dp))
+        Box(Modifier.size(60.dp)) {
+            Box(Modifier.size(56.dp).align(Alignment.Center).clip(RoundedCornerShape(18.dp)).background(if (muted) extra.panel2 else bg), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = if (muted) extra.faint else tint, modifier = Modifier.size(26.dp))
+            }
+            // Messenger 1.27: goes over GateControl although the text goes over a bridge
+            if (badge) ChatNetCorner(com.gatecontrol.android.chat.ChatPeople.WAY_GC, 40.dp, Modifier.align(Alignment.TopEnd))
         }
         Text(label, style = MaterialTheme.typography.labelMedium, color = if (muted) extra.muted else MaterialTheme.colorScheme.onSurface, maxLines = 2)
     }

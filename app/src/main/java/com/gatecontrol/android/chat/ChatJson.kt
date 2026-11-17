@@ -232,6 +232,7 @@ object ChatJson {
             search = f.flag("search") ?: true,
             disappearing = f.flag("disappearing") ?: false,
             tokens = tokens,
+            placeMessages = f.flag("placeMessages") == true,
         )
     }
 
@@ -366,6 +367,7 @@ object ChatJson {
             marks = if (deleted) null else ChatFormat.marks(o.arr("marks")),
             preview = if (deleted || kind != ChatMessage.KIND_TEXT) null else ChatChannels.preview(o.obj("preview")),
             way = o.str("way")?.takeIf { WAY_RE.matches(it) },
+            placeMessage = if (deleted) null else ChatPlaceMessages.mark(o.obj("placeMessage")),
         )
     }
 

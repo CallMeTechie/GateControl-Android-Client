@@ -141,6 +141,13 @@ class GateControlApp : Application() {
             Timber.w(e, "Notizen: places not started")
         }
 
+        // Chats, Messenger 1.27: the Ortsnachrichten of this phone as geofences (nothing without `features.placeMessages`).
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.chat.ChatPlaceEntryPoint::class.java).placeGeofences().start()
+        } catch (e: Throwable) {
+            Timber.w(e, "Chats: Ortsnachrichten not started")
+        }
+
         // Google Play build: in-app update (network watch, install in the background).
         if (com.gatecontrol.android.update.PlayUpdater.enabled) {
             try {

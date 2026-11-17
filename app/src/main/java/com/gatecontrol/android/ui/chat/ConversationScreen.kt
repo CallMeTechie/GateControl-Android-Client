@@ -235,6 +235,10 @@ fun ConversationScreen(
     var taskSheet by remember { mutableStateOf(false) }
     var shoppingSheet by remember { mutableStateOf(false) }
     var attachHint by remember { mutableStateOf<String?>(null) }
+    /** Messenger 1.27: the location goes to the GateControl way (the way of the text takes none); null: the way of the text. */
+    var locationTo by remember { mutableStateOf<Long?>(null) }
+    /** Messenger 1.27: „Beim Ankommen senden“ — the form of an Ortsnachricht for this chat. */
+    var placeMessageOpen by remember { mutableStateOf(false) }
     var arrivalPlacesHint by remember { mutableStateOf(false) }
 
     // Wide windows, the chats a page beside Start: the pager composes the open chat ahead of showing it.
@@ -263,6 +267,10 @@ fun ConversationScreen(
         }
     }
 
+    // Messenger 1.27: „Ändern“ of an Ortsnachricht — its text goes into the composer.
+    LaunchedEffect(conversationId) {
+        com.gatecontrol.android.chat.ChatDraftHandoff.take(conversationId)?.let { if (draft.isBlank()) draft = it }
+    }
     // What was shared from another app: its text goes into the composer.
     LaunchedEffect(state.shared) {
         state.shared?.text?.let { if (draft.isBlank()) draft = it }
@@ -297,7 +305,7 @@ fun ConversationScreen(
                 is ConversationNotice.Done -> if (n.arg != null) resources.getString(n.res, n.arg) else resources.getString(n.res)
                 is ConversationNotice.ArrivalStarted -> {
                     // The position goes out from a foreground service while the arrival is live.
-                    if (DeviceLocator.hasPermission(context)) com.gatecontrol.android.chat.ChatArrivalService.start(context, conversationId, n.messageId, n.label)
+                    if (DeviceLocator.hasPermission(context)) com.gatecontrol.android.chat.ChatArrivalService.start(context, n.conversationId ?: conversationId, n.messageId, n.label)
                     null
                 }
             }
@@ -351,7 +359,7 @@ fun ConversationScreen(
         if (uris.isNotEmpty()) viewModel.sendFiles(uris.take(10))
     }
     val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-        if (granted.values.any { it }) viewModel.sendLocation()
+        if (granted.values.any { it }) viewModel.sendLocation(locationTo)
         else Toast.makeText(context, R.string.chat_loc_no_permission, Toast.LENGTH_LONG).show()
     }
     // Camera: the system camera app writes into a FileProvider file of the app's cache.
@@ -403,6 +411,16 @@ fun ConversationScreen(
     // Messenger 1.21: the chat of a person — the composer writes to the way of the answer
     val person = state.person
     val cc = state.composer
+    // Messenger 1.27: what the plus menu offers and where each entry goes (GateControl's own kinds to the GateControl way)
+    val hasCamera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) }
+    val attachPlan = remember(c, person, cc, state.profile?.features, hasCamera) {
+        if (com.gatecontrol.android.chat.ChatPlaceMessages.on(state.profile?.features)) {
+            com.gatecontrol.android.chat.ChatAttachLogic.plan(conversationId, person, cc, state.profile?.features, hasCamera)
+        } else {
+            com.gatecontrol.android.chat.ChatAttachLogic.legacy(conversationId, cc, state.profile?.features, hasCamera)
+        }
+    }
+    val gcTarget = attachPlan.gateControl?.conversationId ?: conversationId
     val currentRows by rememberUpdatedState(rows)
     val gapLoading by viewModel.gapLoading.collectAsStateWithLifecycle()
     // To a message (search result, quote): scrolled to when loaded, else loaded with its
@@ -796,6 +814,10 @@ fun ConversationScreen(
                     },
                 )
             }
+            // Messenger 1.27: „Immer WhatsApp“, but WhatsApp cannot send just now — the message goes over GateControl
+            if (state.replyTo == null && state.editing == null) {
+                com.gatecontrol.android.chat.ChatPeople.fallbackFrom(person)?.let { PersonFallbackLine(it) }
+            }
             Composer(
                 draft = draft,
                 onDraft = {
@@ -835,26 +857,30 @@ fun ConversationScreen(
         val features = state.profile?.features
         val members = c?.members.orEmpty()
         val others = members.filter { it.userId != myId && !it.gone }
-        // Messenger 1.15, a chat over a bridge: files only — no location, no GateControl extras (1.21: of the way of the answer)
-        val own = cc?.bridge == null
-        val takes = { what: String -> com.gatecontrol.android.chat.ChatBridgeChat.takes(cc, what) }
-        val actionsOn = own && features?.actions == true
+        val plan = attachPlan
+        val gcRoute = plan.gateControl
+        val actionsOn = gcRoute != null && features?.actions == true
         LaunchedEffect(Unit) { homeViewModel.prepare() }
         AttachSheet14(
             options = AttachOptions(
-                gallery = own || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_IMAGE) || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_VIDEO),
-                camera = (own || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_IMAGE)) && remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) },
-                files = features?.files != false && (own || takes(com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE)),
-                location = own && features?.location != false,
-                polls = own && features?.polls == true,
-                events = own && features?.events == true,
-                arrival = own && features?.arrival == true,
+                gallery = plan.gallery,
+                camera = plan.camera,
+                files = plan.files,
+                location = plan.location != null,
+                polls = gcRoute != null && features?.polls == true,
+                events = gcRoute != null && features?.events == true,
+                arrival = gcRoute != null && features?.arrival == true,
                 actions = actionsOn,
                 maxBytes = state.profile?.limits?.maxBytes,
-                task = own && familieOffer.tasks,
-                shopping = own && familieOffer.shopping,
+                task = gcRoute != null && familieOffer.tasks,
+                shopping = gcRoute != null && familieOffer.shopping,
                 actionsHint = if (actionsOn && others.isEmpty()) stringResource(R.string.chat_attach_hint_others) else null,
                 quickShare = homeActions?.let { com.gatecontrol.android.chat.ChatRichLogic.visibleActions(it, deviceConfig.hiddenActions) }.orEmpty().take(8),
+                // Messenger 1.27: what goes over GateControl while the text goes over a bridge carries GateControl's logo
+                gcBadge = gcRoute?.badge == true,
+                locationBadge = plan.location?.badge == true,
+                placeMessage = plan.placeMessage,
+                viaLabel = cc?.bridge?.label,
             ),
             onGallery = {
                 showAttach = false
@@ -873,7 +899,8 @@ fun ConversationScreen(
             },
             onLocation = {
                 showAttach = false
-                if (DeviceLocator.hasPermission(context)) viewModel.sendLocation()
+                locationTo = plan.location?.takeIf { it.badge }?.conversationId
+                if (DeviceLocator.hasPermission(context)) viewModel.sendLocation(locationTo)
                 else locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
             },
             onPoll = { showAttach = false; showPoll = true },
@@ -886,7 +913,7 @@ fun ConversationScreen(
                 showAttach = false
                 when (mode) {
                     com.gatecontrol.android.chat.ChatActionCard.MODE_REQUEST -> {
-                        homeViewModel.loadRequestable(conversationId)
+                        homeViewModel.loadRequestable(gcTarget)
                         requestSheet = null
                         requestOpen = true
                     }
@@ -902,7 +929,7 @@ fun ConversationScreen(
             onQuickShare = { a ->
                 showAttach = false
                 if (a.needsConfirm) {
-                    homeViewModel.loadRequestable(conversationId)
+                    homeViewModel.loadRequestable(gcTarget)
                     requestSheet = a
                     requestOpen = true
                 } else {
@@ -911,8 +938,14 @@ fun ConversationScreen(
                 }
             },
             onHint = { h -> attachHint = h },
+            onPlaceMessage = { showAttach = false; placeMessageOpen = true },
             onDismiss = { showAttach = false },
         )
+    }
+    // Messenger 1.27: „Beim Ankommen senden“ — the form with this chat as the recipient
+    if (placeMessageOpen && c != null) {
+        val placeVm: ChatPlaceMessagesViewModel = hiltViewModel(key = "place-messages-$conversationId")
+        PlaceMessageEditor(vm = placeVm, editing = null, fixed = c, conversations = emptyList(), onDismiss = { placeMessageOpen = false })
     }
     attachHint?.let { h ->
         androidx.compose.material3.AlertDialog(
@@ -956,8 +989,8 @@ fun ConversationScreen(
             canRequest = homeInfo.canRequest,
             initial = requestSheet,
             busy = homeBusy,
-            onApprovers = { c -> homeViewModel.loadRequestable(conversationId, c) },
-            onSend = { a, approvers, note -> homeViewModel.sendRequest(conversationId, a, approvers, note) { requestOpen = false } },
+            onApprovers = { c -> homeViewModel.loadRequestable(gcTarget, c) },
+            onSend = { a, approvers, note -> homeViewModel.sendRequest(gcTarget, a, approvers, note) { requestOpen = false } },
             onDismiss = { requestOpen = false },
         )
     }
@@ -969,10 +1002,10 @@ fun ConversationScreen(
             offAtEndDefault = homeInfo.offAtEndDefault,
             initial = shareSheet,
             busy = homeBusy,
-            onShare = { a, to, until, off -> homeViewModel.sendGrant(conversationId, a, to, until, off) { shareOpen = false } },
+            onShare = { a, to, until, off -> homeViewModel.sendGrant(gcTarget, a, to, until, off) { shareOpen = false } },
             onRequestInstead = { a ->
                 shareOpen = false
-                homeViewModel.loadRequestable(conversationId)
+                homeViewModel.loadRequestable(gcTarget)
                 requestSheet = a
                 requestOpen = true
             },
@@ -985,7 +1018,7 @@ fun ConversationScreen(
             others = homeOthers,
             me = c?.members?.firstOrNull { it.userId == myId },
             busy = homeBusy,
-            onSend = { title, assignee, due, repeat -> homeViewModel.sendTask(conversationId, title, assignee, due, repeat) { taskSheet = false } },
+            onSend = { title, assignee, due, repeat -> homeViewModel.sendTask(gcTarget, title, assignee, due, repeat) { taskSheet = false } },
             onDismiss = { taskSheet = false },
         )
     }
@@ -997,9 +1030,9 @@ fun ConversationScreen(
             others = homeOthers,
             direct = direct,
             busy = homeBusy,
-            onGoing = { l -> homeViewModel.shoppingGoing(conversationId, l) { shoppingSheet = false } },
+            onGoing = { l -> homeViewModel.shoppingGoing(gcTarget, l) { shoppingSheet = false } },
             onAsk = { l, uid ->
-                homeViewModel.shoppingAssign(conversationId, l, uid, if (direct) com.gatecontrol.android.ui.familie.ShoppingNotify.DIRECT else com.gatecontrol.android.ui.familie.ShoppingNotify.FAMILY) { shoppingSheet = false }
+                homeViewModel.shoppingAssign(gcTarget, l, uid, if (direct) com.gatecontrol.android.ui.familie.ShoppingNotify.DIRECT else com.gatecontrol.android.ui.familie.ShoppingNotify.FAMILY) { shoppingSheet = false }
             },
             onDismiss = { shoppingSheet = false },
         )
@@ -1009,7 +1042,7 @@ fun ConversationScreen(
     if (showPoll) {
         PollCreateDialog(
             busy = richBusy,
-            onSend = { q, opts, multi, anon, add, closes -> viewModel.sendPoll(q, opts, multi, anon, add, closes) { showPoll = false } },
+            onSend = { q, opts, multi, anon, add, closes -> viewModel.sendPoll(q, opts, multi, anon, add, closes, to = gcTarget) { showPoll = false } },
             onDismiss = { showPoll = false },
         )
     }
@@ -1019,7 +1052,7 @@ fun ConversationScreen(
             defaultReminderMin = state.profile?.prefs14?.notify?.eventReminderMin ?: 60,
             arrivalOn = state.profile?.features?.arrival == true,
             busy = richBusy,
-            onSend = { d -> viewModel.sendEvent(d) { showEvent = false } },
+            onSend = { d -> viewModel.sendEvent(d, to = gcTarget) { showEvent = false } },
             onDismiss = { showEvent = false },
         )
     }
@@ -1029,7 +1062,7 @@ fun ConversationScreen(
             actions = if (state.profile?.features?.actions == true) homeActions.orEmpty() else emptyList(),
             initial = arrivalDest,
             busy = richBusy,
-            onStart = { dest, onArrive -> viewModel.sendArrival(dest, onArrive) { arrivalSheet = false } },
+            onStart = { dest, onArrive -> viewModel.sendArrival(dest, onArrive, to = gcTarget) { arrivalSheet = false } },
             onDismiss = { arrivalSheet = false },
             placesShared = familieOffer.placesShared,
             onOpenProfile = onOpenProfile?.let { open -> { arrivalSheet = false; open() } },
@@ -1044,7 +1077,7 @@ fun ConversationScreen(
             actions = visible,
             members = c?.members.orEmpty().filter { it.userId != myId && !it.gone },
             busy = richBusy,
-            onPick = { a, to, until -> viewModel.sendAction(mode, a, to, until) { actionMode = null } },
+            onPick = { a, grantTo, until -> viewModel.sendAction(mode, a, grantTo, until, to = gcTarget) { actionMode = null } },
             onDismiss = { actionMode = null },
         )
     }

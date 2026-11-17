@@ -49,6 +49,11 @@ class PushOpenActivity : ComponentActivity() {
             // Messenger 1.4: the pushed message (poll, event, reminder, …) and what to open with it.
             val message = intent.getLongExtra(EXTRA_CHAT_MESSAGE, 0L).takeIf { it > 0 && conv != null }
             val open = intent.getStringExtra(EXTRA_CHAT_OPEN)?.takeIf { it in com.gatecontrol.android.chat.ChatNotifyLogic.OPEN_TARGETS }
+            // Messenger 1.27: „Ändern“ of an Ortsnachricht — its text into the composer, its question goes
+            if (conv != null) {
+                intent.getStringExtra(EXTRA_CHAT_DRAFT)?.let { com.gatecontrol.android.chat.ChatDraftHandoff.put(conv, it) }
+            }
+            intent.getIntExtra(EXTRA_CANCEL, 0).takeIf { it != 0 }?.let { n -> runCatching { androidx.core.app.NotificationManagerCompat.from(this).cancel(n) } }
             PushNavigation.request(PushNavTarget.Chat(conv, message, open))
             startActivity(
                 Intent(this, MainActivity::class.java)
@@ -199,6 +204,12 @@ class PushOpenActivity : ComponentActivity() {
         private const val EXTRA_CHAT_MESSAGE = "com.gatecontrol.android.push.extra.CHAT_MESSAGE"
         private const val EXTRA_CHAT_OPEN = "com.gatecontrol.android.push.extra.CHAT_OPEN"
         private const val EXTRA_CHAT_DEST = "com.gatecontrol.android.push.extra.CHAT_DEST"
+
+        /** Messenger 1.27: a text for the chat's composer („Ändern“ of an Ortsnachricht). */
+        const val EXTRA_CHAT_DRAFT = "com.gatecontrol.android.push.extra.CHAT_DRAFT"
+
+        /** The app's own notification to take away when this opens. */
+        const val EXTRA_CANCEL = "com.gatecontrol.android.push.extra.CANCEL"
 
         /** Opens the chats, in [conversationId] when given (a chat notification). */
         fun chatIntent(context: Context, conversationId: Long?, messageId: Long? = null, open: String? = null): Intent =

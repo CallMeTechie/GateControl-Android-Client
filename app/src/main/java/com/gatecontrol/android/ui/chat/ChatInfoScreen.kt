@@ -192,6 +192,25 @@ class ChatInfoViewModel @Inject constructor(
         }
     }
 
+    private val _replyBusy = MutableStateFlow(false)
+    /** Messenger 1.27: „Nachrichten senden über“ is being saved. */
+    val replyBusy: StateFlow<Boolean> = _replyBusy
+
+    /** Messenger 1.27 „Nachrichten senden über“: `auto`, `gatecontrol` or a service (`PUT persons/:id { replyPref }`). */
+    fun setReplyPref(pref: String) {
+        val p = person() ?: return
+        if (_replyBusy.value) return
+        _replyBusy.value = true
+        viewModelScope.launch {
+            try {
+                val r = repository.patchPerson(p.id, com.gatecontrol.android.chat.ChatPeople.replyPrefBody(pref))
+                if (r !is ChatResult.Ok) errors.trySend(codeOf(r))
+            } finally {
+                _replyBusy.value = false
+            }
+        }
+    }
+
     /** „Name in deiner Liste“: `account` or a way's conversation id. */
     fun setPersonName(value: String) {
         val p = person() ?: return
@@ -620,6 +639,13 @@ fun ChatInfoScreen(
 
             // Messenger 1.21: „Wege von …“ of a person, „Mit Person zusammenführen …“ of every chat with one person
             val peopleOn = com.gatecontrol.android.chat.ChatPeople.on(profile?.features)
+            // Messenger 1.27: „Nachrichten senden über“ (only the ways the person has)
+            if (com.gatecontrol.android.chat.ChatPlaceMessages.on(profile?.features)) {
+                conv.person?.takeIf { it.conversationId == conv.id && peopleOn }?.let { p ->
+                    val replyBusy by viewModel.replyBusy.collectAsStateWithLifecycle()
+                    PersonReplySection(p, ChatText.title(ctx, conv), replyBusy) { viewModel.setReplyPref(it) }
+                }
+            }
             conv.person?.takeIf { it.conversationId == conv.id && peopleOn }?.let { p ->
                 PersonWaysSection(p, ChatText.title(ctx, conv), onSplit = { splitFor = it }, onName = { naming = true })
             }

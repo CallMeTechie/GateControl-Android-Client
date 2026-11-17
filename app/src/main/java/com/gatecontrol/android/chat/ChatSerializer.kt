@@ -119,6 +119,7 @@ object ChatSerializer {
         m.marks?.let { add("marks", ChatFormat.write(it)) }
         m.preview?.let { add("preview", ChatChannels.write(it)) }
         m.way?.let { addProperty("way", it) }
+        m.placeMessage?.let { add("placeMessage", ChatPlaceMessages.writeMark(it)) }
     }
 
     fun conversation(c: ChatConversation): JsonObject = JsonObject().apply {
@@ -217,6 +218,7 @@ object ChatSerializer {
             addProperty("search", f.search)
             addProperty("disappearing", f.disappearing)
             f.tokens.forEach { addProperty(it, true) }
+            if (f.placeMessages) addProperty("placeMessages", true)
         })
         add("limits", JsonObject().apply {
             val l = p.limits
