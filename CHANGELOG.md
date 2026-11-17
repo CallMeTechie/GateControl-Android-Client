@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.129.2] - 2026-11-17
+
+### Fixes
+- „Aufräumen“ schlägt entschiedene Fotos nie wieder vor, Kopfzahl = Liste (#253)
+
+---
+
 ## [1.129.1] - 2026-11-17
 
 ### Fixes
