@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.129.3] - 2026-11-17
+
+### Fixes
+- gespeicherte Ortsnachrichten sichtbar und löschbar machen (#254)
+
+---
+
 ## [1.129.2] - 2026-11-17
 
 ### Fixes
