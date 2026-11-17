@@ -406,6 +406,29 @@ object ChatPlaceMessages {
             !tooSoon(listOfNotNull(ms(p.lastFiredAt), localFired[p.id]).maxOrNull(), nowMs)
     }
 
+    /**
+     * The Ortsnachrichten of the chat [c] (its section in the chat info). The server keeps a person's Ortsnachricht at
+     * the person's lead chat (`conversationId` of the person, whichever way it was saved from), so a chat of a person
+     * takes those of all its ways and those whose target is the person.
+     */
+    fun forChat(items: List<ChatPlaceMessage>, c: ChatConversation): List<ChatPlaceMessage> {
+        val person = c.person
+        val ids = buildSet {
+            add(c.id)
+            if (person != null) {
+                add(person.conversationId)
+                addAll(person.wayIds)
+            }
+        }
+        return items.filter { it.conversationId in ids || (person != null && it.target?.personId == person.id) }
+    }
+
+    /** The text of an Ortsnachricht in one short line: newlines as spaces, at most [max] characters with „…“. */
+    fun preview(text: String, max: Int = 60): String {
+        val one = text.replace(Regex("\\s+"), " ").trim()
+        return if (one.length <= max) one else clipText(one, max - 1).trimEnd() + "…"
+    }
+
     /** How many are active (for „Höchstens 10 aktive“). */
     fun activeCount(items: List<ChatPlaceMessage>): Int = items.count { it.active }
 

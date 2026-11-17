@@ -27,6 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.gatecontrol.android.chat.ChatApi
 import com.gatecontrol.android.chat.ChatPersonWay
+import com.gatecontrol.android.chat.ChatPlaceMessage
+import com.gatecontrol.android.chat.ChatPmPlace
+import com.gatecontrol.android.chat.ChatPmTarget
+import com.gatecontrol.android.chat.ChatPmWindow
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.test.swipeLeft
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -96,6 +102,63 @@ class ChatPlaceMessagesUiTest {
     @Test fun `ways as icons light`() = picker(dark = false)
 
     @Test fun `ways as icons dark`() = picker(dark = true)
+
+
+    // ─── the chat info's section „Ortsnachrichten“ ──────────────────
+
+    private val saved = ChatPlaceMessage(
+        id = 7, deviceId = "android-0011223344556677", trigger = "enter",
+        place = ChatPmPlace("place:3", "Arbeit", 51.2345, 7.1234, 150),
+        text = "Bin auf der Arbeit angekommen.\nBis heute Abend, dann koche ich etwas Schönes für uns beide.",
+        conversationId = 41, way = "whatsapp", repeat = "always",
+        window = ChatPmWindow(listOf(1, 2, 3, 4, 5), "07:00", "09:30"), ask = true, enabled = true,
+        lastFiredAt = null, doneAt = null, target = ChatPmTarget("Kim M.", null, null),
+    )
+
+    private fun section(dark: Boolean) {
+        var items by mutableStateOf(listOf(saved))
+        val edited = mutableListOf<Long>()
+        var all = 0
+        rule.setContent {
+            GateControlTheme(darkTheme = dark) {
+                Column(Modifier.background(MaterialTheme.colorScheme.background)) {
+                    ChatInfoPlaceMessages(items, onEdit = { edited += it.id }, onDelete = { p -> items = items - p }, onOpenAll = { all++ })
+                }
+            }
+        }
+        // the place, arriving or leaving, the text cut short in one line
+        rule.onNodeWithText("ORTSNACHRICHTEN").assertIsDisplayed()
+        rule.onNodeWithText("Ankommen · Arbeit").assertIsDisplayed()
+        val line = rule.onAllNodesWithText("Bin auf der Arbeit angekommen.", substring = true, useUnmergedTree = true).fetchSemanticsNodes().single()
+            .config[SemanticsProperties.Text].single().text
+        assertTrue(line, line.endsWith("…") && !line.contains("\n"))
+        // a tap changes it, „Alle Ortsnachrichten“ opens the list
+        rule.onNodeWithText("Ankommen · Arbeit").performClick()
+        assertEquals(listOf(7L), edited)
+        rule.onNodeWithText("Alle Ortsnachrichten").performClick()
+        assertEquals(1, all)
+        // the menu: „Bearbeiten“, „Löschen“ asks first
+        rule.onNodeWithContentDescription("Mehr zu dieser Ortsnachricht").performClick()
+        rule.onNodeWithText("Bearbeiten").performClick()
+        assertEquals(listOf(7L, 7L), edited)
+        rule.onNodeWithContentDescription("Mehr zu dieser Ortsnachricht").performClick()
+        rule.onNodeWithText("Löschen").performClick()
+        rule.onNodeWithText("Diese Ortsnachricht löschen?").assertIsDisplayed()
+        rule.onNodeWithText("Abbrechen").performClick()
+        assertEquals(1, items.size)
+        // a swipe to the left asks as well; confirmed, it goes — and with the last one the section
+        rule.onNodeWithTag("chat-info-pm-7").performTouchInput { swipeLeft() }
+        rule.waitForIdle()
+        rule.onNodeWithText("Diese Ortsnachricht löschen?").assertIsDisplayed()
+        rule.onAllNodesWithText("Löschen").fetchSemanticsNodes().size.let { assertTrue(it >= 1) }
+        rule.onNode(androidx.compose.ui.test.hasText("Löschen") and androidx.compose.ui.test.hasClickAction() and androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.isDialog())).performClick()
+        assertTrue(items.isEmpty())
+        rule.onNodeWithTag("chat-info-place-messages").assertDoesNotExist()
+    }
+
+    @Test fun `the chat info lists its Ortsnachrichten light`() = section(dark = false)
+
+    @Test fun `the chat info lists its Ortsnachrichten dark`() = section(dark = true)
 
     @Test
     fun `the toast names the reason`() {

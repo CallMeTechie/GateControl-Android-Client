@@ -138,7 +138,7 @@ object ChatSettingsPage {
     /** „Verknüpfte Dienste“ (Messenger 1.13.0): only with `features.linked_services`. */
     const val LINKED = "linked"
 
-    /** „Ortsnachrichten“ under Chats (Messenger 1.27): only with `features.placeMessages`. */
+    /** „Ortsnachrichten“ on the main page (Messenger 1.27): only with `features.placeMessages`. */
     const val PLACES = "places"
     val ALL = setOf(MAIN, PRIVACY, BLOCKS, CHATS, LOOK, NOTIFY, STORAGE, DEVICES, LISTS, HOME, HELP, LINKED, PLACES)
 }
@@ -214,7 +214,7 @@ fun ChatSettingsScreen(
             when (page) {
                 ChatSettingsPage.PRIVACY -> PrivacyPage(viewModel, onOpenPage, onOpenProfile)
                 ChatSettingsPage.BLOCKS -> BlocksPage(viewModel)
-                ChatSettingsPage.CHATS -> ChatsPage(viewModel, onOpenPage)
+                ChatSettingsPage.CHATS -> ChatsPage(viewModel)
                 ChatSettingsPage.LOOK -> LookPage(viewModel)
                 ChatSettingsPage.NOTIFY -> NotifyPage(viewModel, onOpenQuietHours)
                 ChatSettingsPage.STORAGE -> StoragePage(viewModel)
@@ -332,6 +332,20 @@ private fun MainPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit, on
                 Icons.Outlined.FilterList, extra.pro, extra.proBg, stringResource(R.string.chat_settings_lists),
                 if (lists.isEmpty()) stringResource(R.string.chat_settings_lists_desc) else stringResource(R.string.chat_settings_lists_desc_n, lists.joinToString(", ") { it.name }),
             ) { onOpenPage(ChatSettingsPage.LISTS) }
+        }
+        // Messenger 1.27: Ortsnachrichten (sent when this phone arrives at or leaves a place) — on the main page, so
+        // the saved ones are found; with how many there are
+        if (com.gatecontrol.android.chat.ChatPlaceMessages.on(f)) {
+            val places by vm.placeMessages.collectAsStateWithLifecycle()
+            val saved = places?.items.orEmpty()
+            NavRow(
+                Icons.Outlined.WhereToVote, extra.accentText, extra.accentBg, stringResource(R.string.chat_pm_title),
+                if (saved.isEmpty()) {
+                    stringResource(R.string.chat_pm_settings_desc)
+                } else {
+                    stringResource(R.string.chat_pm_settings_count, saved.size, com.gatecontrol.android.chat.ChatPlaceMessages.activeCount(saved))
+                },
+            ) { onOpenPage(ChatSettingsPage.PLACES) }
         }
         if (f?.actions == true) {
             NavRow(Icons.Outlined.Home, extra.warn, extra.warnBg, stringResource(R.string.chat_settings_home), stringResource(R.string.chat_settings_home_desc)) { onOpenPage(ChatSettingsPage.HOME) }
@@ -471,7 +485,7 @@ private fun BlocksPage(vm: ChatSettingsViewModel) {
 // ─── chats ──────────────────────────────────────────────────────────
 
 @Composable
-private fun ChatsPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit) {
+private fun ChatsPage(vm: ChatSettingsViewModel) {
     val ctx = LocalContext.current
     val profile by vm.profile.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
@@ -492,15 +506,6 @@ private fun ChatsPage(vm: ChatSettingsViewModel, onOpenPage: (String) -> Unit) {
                 onClick = { if (!busy) pickExport = true },
                 trailing = { if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else GcChevron() },
             )
-        }
-    }
-    // Messenger 1.27: Ortsnachrichten (sent when this phone arrives at or leaves a place)
-    if (com.gatecontrol.android.chat.ChatPlaceMessages.on(f)) {
-        val extra = GateControlTheme.extraColors
-        Section(null) {
-            NavRow(Icons.Outlined.WhereToVote, extra.accentText, extra.accentBg, stringResource(R.string.chat_pm_title), stringResource(R.string.chat_pm_settings_desc)) {
-                onOpenPage(ChatSettingsPage.PLACES)
-            }
         }
     }
     if (pickExport) {

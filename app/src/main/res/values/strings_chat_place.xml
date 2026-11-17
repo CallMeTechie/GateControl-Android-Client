@@ -101,4 +101,9 @@
     <string name="chat_pp_reply_fallback">%s not connected – the message goes via GateControl.</string>
     <string name="chat_attach_badge_note">With the badge: goes via GateControl, even while your text goes via %1$s. Without it: via %1$s.</string>
     <string name="chat_attach_badge_note_loc">With the badge: goes via GateControl, even while your text goes via %1$s. Without it, the location too: via %1$s.</string>
+    <!-- Wo die gespeicherten Ortsnachrichten zu finden sind -->
+    <string name="chat_pm_show">Show</string>
+    <string name="chat_pm_all">All place messages</string>
+    <string name="chat_pm_more">More for this place message</string>
+    <string name="chat_pm_settings_count">%1$d saved · %2$d active</string>
 </resources>

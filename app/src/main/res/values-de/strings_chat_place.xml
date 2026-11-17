@@ -101,4 +101,9 @@
     <string name="chat_pp_reply_fallback">%s nicht verbunden – die Nachricht geht über GateControl.</string>
     <string name="chat_attach_badge_note">Mit Schild: geht über GateControl, auch wenn dein Text gerade über %1$s geht. Ohne Schild: über %1$s.</string>
     <string name="chat_attach_badge_note_loc">Mit Schild: geht über GateControl, auch wenn dein Text gerade über %1$s geht. Ohne Schild, auch Standort: über %1$s.</string>
+    <!-- Wo die gespeicherten Ortsnachrichten zu finden sind -->
+    <string name="chat_pm_show">Anzeigen</string>
+    <string name="chat_pm_all">Alle Ortsnachrichten</string>
+    <string name="chat_pm_more">Mehr zu dieser Ortsnachricht</string>
+    <string name="chat_pm_settings_count">%1$d gespeichert · %2$d aktiv</string>
 </resources>
