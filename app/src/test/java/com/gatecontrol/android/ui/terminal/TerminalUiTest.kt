@@ -29,9 +29,11 @@ import com.gatecontrol.android.terminal.TermProtocol
 import com.gatecontrol.android.terminal.TermSettings
 import com.gatecontrol.android.terminal.TermUi
 import com.gatecontrol.android.terminal.TmuxChoice
+import com.gatecontrol.android.terminal.TmuxKill
 import com.gatecontrol.android.terminal.TmuxList
 import com.gatecontrol.android.terminal.TmuxSession
 import com.gatecontrol.android.terminal.TmuxState
+import com.gatecontrol.android.terminal.TmuxWindow
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -115,6 +117,89 @@ class TerminalUiTest {
         state = TmuxState.Locked
         rule.onNodeWithText("Host-Schlüssel hat sich geändert").assertIsDisplayed()
         rule.onNodeWithText("Zurück zur Liste").assertIsDisplayed()
+    }
+
+    private val killList = TmuxList(
+        listOf(
+            TmuxSession(
+                "gc-appserver", 3, 0, 2_000L, true, "$1",
+                listOf(TmuxWindow("@1", 0, "bash", false, "bash"), TmuxWindow("@2", 1, "logs", true, "journalctl"), TmuxWindow("@3", 2, "htop", false, "htop")),
+            ),
+            TmuxSession("backup", 1, 1, 1_500L, true, "$2", listOf(TmuxWindow("@4", 0, "rsync", true, "rsync"))),
+            TmuxSession("kims build", 2, 0, 1_000L, false, "$3", listOf(TmuxWindow("@5", 0, "make", true, "make"), TmuxWindow("@6", 1, "bash", false, "bash"))),
+        ),
+        "gc-appserver", "pinned", kill = true,
+    )
+
+    private fun killFlow(dark: Boolean) {
+        var killed: TmuxKill? = null
+        var opened: Triple<String, Int, Boolean>? = null
+        rule.setContent {
+            GateControlTheme(darkTheme = dark) {
+                Box(androidx.compose.ui.Modifier.background(MaterialTheme.colorScheme.surface)) {
+                    SshConnectContent(
+                        SshSheet(device.copy(recording = "off"), TmuxState.Loaded(killList)), { _, _ -> }, {},
+                        onOpenWindow = { s, w, r -> opened = Triple(s, w, r) },
+                        onKill = { killed = it },
+                    )
+                }
+            }
+        }
+        // a name the terminal cannot attach is listed to be ended, not counted as hidden
+        rule.onNodeWithText("kims build").assertIsDisplayed()
+        rule.onNodeWithText("Alle getrennten Sitzungen beenden (2)").assertIsDisplayed()
+
+        // open a session: its windows with index, name, command and „aktiv“
+        rule.onNodeWithTag("tmux_expand_gc-appserver").performClick()
+        rule.onNodeWithText("journalctl").assertIsDisplayed()
+        rule.onNodeWithTag("tmux_win_menu_gc-appserver_2").performClick()
+        rule.onNodeWithText("Fenster 2 öffnen").performClick()
+        assertEquals(Triple("gc-appserver", 2, false), opened)
+
+        // close a window: what runs in it, the other windows stay
+        rule.onNodeWithTag("tmux_win_menu_gc-appserver_2").performClick()
+        rule.onNodeWithTag("tmux_win_close_gc-appserver_2").performClick()
+        rule.onNodeWithText("Fenster „htop“ schließen?").assertIsDisplayed()
+        rule.onNodeWithText("Laufende Programme darin werden beendet (gerade: htop). Die anderen 2 Fenster der Sitzung bleiben.").assertIsDisplayed()
+        rule.onNodeWithTag("kill_ok").performClick()
+        assertEquals(TmuxKill.Window(killList.sessions[0], killList.sessions[0].windowList[2]), killed)
+
+        // the last window ends the session; someone attached: red, „Trotzdem beenden“
+        rule.onNodeWithTag("tmux_menu_backup").performClick()
+        rule.onNodeWithTag("tmux_kill_backup").performClick()
+        rule.onNodeWithText("Sitzung „backup“ beenden?").assertIsDisplayed()
+        rule.onNodeWithText("Gerade ist jemand verbunden").assertIsDisplayed()
+        rule.onNodeWithText("Diese Sitzung ist auf 1 Gerät offen. Dort endet das Terminal sofort.").assertIsDisplayed()
+        rule.onNodeWithText("Trotzdem beenden").performClick()
+        assertEquals(TmuxKill.Session(killList.sessions[1]), killed)
+
+        // all detached: the attached one stays, single ones can be deselected
+        rule.onNodeWithTag("tmux_kill_detached").performClick()
+        rule.onNodeWithText("2 getrennte Sitzungen beenden?").assertIsDisplayed()
+        rule.onNodeWithText("Laufende Programme darin werden beendet. „backup“ ist gerade verbunden und bleibt.").assertIsDisplayed()
+        rule.onNodeWithTag("kill_pick_gc-appserver").performClick()
+        rule.onNodeWithText("1 Sitzung beenden").performClick()
+        assertEquals(TmuxKill.Detached(listOf(killList.sessions[2])), killed)
+    }
+
+    @Test fun `end sessions and close windows light`() = killFlow(dark = false)
+    @Test fun `end sessions and close windows dark`() = killFlow(dark = true)
+
+    @Test
+    fun `the last window says the session ends, an older server shows no buttons`() {
+        var sheet by mutableStateOf(SshSheet(device, TmuxState.Loaded(killList)))
+        rule.setContent { GateControlTheme(darkTheme = false) { SshConnectContent(sheet, { _, _ -> }, {}) } }
+        rule.onNodeWithTag("tmux_expand_backup").performClick()
+        rule.onNodeWithTag("tmux_win_menu_backup_0").performClick()
+        rule.onNodeWithTag("tmux_win_close_backup_0").performClick()
+        rule.onNodeWithText("Das ist das letzte Fenster. Damit endet die ganze Sitzung.").assertIsDisplayed()
+        rule.onNodeWithText("Gerade ist jemand verbunden").assertIsDisplayed()
+        rule.onNodeWithTag("kill_cancel").performClick()
+
+        sheet = SshSheet(device, TmuxState.Loaded(list))
+        rule.onNodeWithTag("tmux_menu_tmux").assertDoesNotExist()
+        rule.onNodeWithTag("tmux_expand_tmux").assertDoesNotExist()
+        rule.onNodeWithTag("tmux_kill_detached").assertDoesNotExist()
     }
 
     private val noop = TerminalScreenActions(

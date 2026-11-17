@@ -83,6 +83,8 @@ class TermSessions @Inject constructor(private val api: RemoteApi) {
     private var lastPong = 0L
     /** Set once the session ended for good or the person left: no reconnect any more. */
     private var stopped = true
+    /** „Fenster öffnen“: the window to show once the tmux session is attached (only on the first `ready`). */
+    private var selectWindow: Int? = null
 
     /** The emulator of the running session; created on first use, bound to the view's client. */
     fun terminal(client: TerminalSessionClient): TerminalSession? {
@@ -98,13 +100,17 @@ class TermSessions @Inject constructor(private val api: RemoteApi) {
         if (viewClient === client) viewClient = null
     }
 
-    /** A new session with [t] — the one running before ends (its tmux keeps running on the device). */
-    fun start(t: TermTicket, deviceName: String) {
+    /**
+     * A new session with [t] — the one running before ends (its tmux keeps running on the device). [window]: the
+     * window of the attached tmux session to show first („Fenster öffnen“), null for the one tmux shows.
+     */
+    fun start(t: TermTicket, deviceName: String, window: Int? = null) {
         endSocket(sendBye = true)
         session?.finish()
         session = null
         ticket = t
         stopped = false
+        selectWindow = window?.takeIf { t.tmux != null }
         cols = 0
         rows = 0
         _ui.value = TermUi(t.deviceId, t.deviceName.ifBlank { deviceName }, t.tmux, TermPhase.Connecting())
@@ -281,6 +287,15 @@ class TermSessions @Inject constructor(private val api: RemoteApi) {
         }
     }
 
+    /** Once, after the first `ready` in tmux: switch to the window the person opened (a reconnect keeps tmux's own). */
+    private fun showWindow(ws: WebSocket, inTmux: Boolean) {
+        val index = selectWindow ?: return
+        selectWindow = null
+        if (!inTmux) return
+        val keys = TermProtocol.selectWindow(index) ?: return
+        ws.send(keys.toByteString())
+    }
+
     private inner class Listener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             main.post {
@@ -305,6 +320,7 @@ class TermSessions @Inject constructor(private val api: RemoteApi) {
                     is TermProtocol.Message.Ready -> {
                         attemptNow = 0
                         setPhase(TermPhase.Ready(m.tmuxSession ?: _ui.value?.tmux, m.tmuxAvailable == false, m.recording, m.view))
+                        showWindow(webSocket, m.tmuxAvailable != false && !m.view)
                     }
                     is TermProtocol.Message.Exit -> {
                         stopped = true

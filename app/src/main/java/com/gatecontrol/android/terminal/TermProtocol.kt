@@ -150,6 +150,25 @@ object TermProtocol {
     fun resumable(list: TmuxList): List<TmuxSession> =
         list.sessions.filter { it.attachable }.sortedByDescending { it.activity ?: Long.MIN_VALUE }
 
-    /** Sessions with a name the core cannot attach: not offered, only counted. */
-    fun hidden(list: TmuxList): Int = list.sessions.count { !it.attachable }
+    /** Sessions with a name the core cannot attach: not offered, only counted (with `kill` they are listed to end). */
+    fun hidden(list: TmuxList): Int = if (list.kill) 0 else list.sessions.count { !it.attachable }
+
+    /**
+     * „Fenster öffnen“: the keys that make tmux show window [index] once attached — tmux's prefix Ctrl-B, then the
+     * digit (0–9) or `'` with the index and Enter (tmux's own „select window by index“). Null for no valid index.
+     */
+    fun selectWindow(index: Int): ByteArray? = when (index) {
+        in 0..9 -> byteArrayOf(0x02, ('0' + index).code.toByte())
+        in 10..99_999 -> byteArrayOf(0x02, '\''.code.toByte()) + "$index\r".toByteArray(Charsets.US_ASCII)
+        else -> null
+    }
+
+    /** The commands of a session's windows for the questions (`bash, journalctl, htop`), at most [max]. */
+    fun commands(s: TmuxSession, max: Int = 4): String {
+        val all = s.windowList.mapNotNull { it.command ?: it.name.takeIf { n -> n.isNotEmpty() } }
+        return (all.take(max) + if (all.size > max) listOf("…") else emptyList()).joinToString(", ")
+    }
+
+    /** Closing [w] is closing the last window: the whole session ends (question T3 says so). */
+    fun lastWindow(s: TmuxSession): Boolean = s.windowList.size <= 1 && s.windows <= 1
 }

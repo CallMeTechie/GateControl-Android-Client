@@ -33,11 +33,21 @@ sealed interface TmuxState {
     data class Failed(val code: String) : TmuxState
 }
 
+/** What the person ends on the device (questions T2–T4 of the design, always asked first). */
+sealed interface TmuxKill {
+    data class Session(val session: TmuxSession) : TmuxKill
+    data class Window(val session: TmuxSession, val window: TmuxWindow) : TmuxKill
+    data class Detached(val sessions: List<TmuxSession>) : TmuxKill
+}
+
+/** [killing]: ending sessions/windows runs; [killError]: why it failed (shown above the list, the list stays). */
 data class SshSheet(
     val device: SshDevice,
     val tmux: TmuxState = TmuxState.Loading,
     val connecting: Boolean = false,
     val error: String? = null,
+    val killing: Boolean = false,
+    val killError: String? = null,
 )
 
 /**
@@ -111,16 +121,13 @@ class SshDevicesViewModel @Inject constructor(
         _sheet.value?.device?.let { if (it.tmux != null && it.id !in _locked.value) loadTmux(it) }
     }
 
-    private fun loadTmux(device: SshDevice) {
+    /** [quiet]: keep the list on screen while it loads again (after `tmux_gone`/`tmux_changed`: no spinner, no error). */
+    private fun loadTmux(device: SshDevice, quiet: Boolean = false) {
         tmuxJob?.cancel()
-        _sheet.value = _sheet.value?.copy(tmux = TmuxState.Loading)
+        if (!quiet) _sheet.value = _sheet.value?.copy(tmux = TmuxState.Loading)
         tmuxJob = viewModelScope.launch {
             val state = when (val r = api.tmuxSessions(device.id)) {
-                is RemoteResult.Ok -> when {
-                    r.value.tmux == null -> TmuxState.None
-                    r.value.hostKey == "unpinned" -> TmuxState.Unpinned
-                    else -> TmuxState.Loaded(r.value)
-                }
+                is RemoteResult.Ok -> stateOf(r.value)
                 is RemoteResult.Failed -> when (r.code) {
                     "tmux_unavailable" -> TmuxState.Missing
                     "host_key_mismatch" -> {
@@ -136,19 +143,64 @@ class SshDevicesViewModel @Inject constructor(
         }
     }
 
+    private fun stateOf(list: TmuxList): TmuxState = when {
+        list.tmux == null -> TmuxState.None
+        list.hostKey == "unpinned" -> TmuxState.Unpinned
+        else -> TmuxState.Loaded(list)
+    }
+
+    /**
+     * Ends a session, closes a window or ends the chosen detached sessions — after the person's answer to the
+     * question. The answer carries the new list; without one, or after `tmux_gone`/`tmux_changed` (gone or replaced
+     * meanwhile: nothing ended), the list loads again without an error. The server checks the right (`mayUse`).
+     */
+    fun kill(k: TmuxKill) {
+        val s = _sheet.value ?: return
+        if (s.killing || s.connecting || (s.tmux as? TmuxState.Loaded)?.list?.kill != true) return
+        val device = s.device
+        _sheet.value = s.copy(killing = true, killError = null)
+        tmuxJob?.cancel()
+        viewModelScope.launch {
+            val r = when (k) {
+                is TmuxKill.Session -> api.tmuxKill(device.id, k.session)
+                is TmuxKill.Window -> api.tmuxKill(device.id, k.session, k.window)
+                is TmuxKill.Detached -> api.tmuxKillDetached(device.id, k.sessions)
+            }
+            if (_sheet.value?.device?.id != device.id) return@launch
+            when (r) {
+                is RemoteResult.Ok -> {
+                    val list = r.value.list
+                    _sheet.value = _sheet.value?.copy(killing = false, tmux = list?.let { stateOf(it) } ?: _sheet.value!!.tmux)
+                    if (list == null) loadTmux(device, quiet = true)
+                }
+                is RemoteResult.Failed -> {
+                    val silent = r.code == "tmux_gone" || r.code == "tmux_changed"
+                    if (r.code == "host_key_mismatch") lock(device.id)
+                    _sheet.value = _sheet.value?.copy(
+                        killing = false,
+                        killError = if (silent) null else r.code,
+                        tmux = if (r.code == "host_key_mismatch") TmuxState.Locked else _sheet.value!!.tmux,
+                    )
+                    if (r.code != "host_key_mismatch") loadTmux(device, quiet = true)
+                }
+                RemoteResult.Offline -> _sheet.value = _sheet.value?.copy(killing = false, killError = "network")
+            }
+        }
+    }
+
     fun lock(deviceId: Long) {
         _locked.value = _locked.value + deviceId
     }
 
-    /** After the recording hint (when one is due): the ticket, then the terminal. */
-    fun connect(choice: TmuxChoice?, record: Boolean) {
+    /** After the recording hint (when one is due): the ticket, then the terminal; [window]: „Fenster öffnen“. */
+    fun connect(choice: TmuxChoice?, record: Boolean, window: Int? = null) {
         val s = _sheet.value ?: return
-        if (s.connecting || s.tmux == TmuxState.Locked) return
+        if (s.connecting || s.killing || s.tmux == TmuxState.Locked) return
         _sheet.value = s.copy(connecting = true, error = null)
         viewModelScope.launch {
             when (val r = api.termTicket(s.device.id, choice, s.device.recording, record)) {
                 is RemoteResult.Ok -> {
-                    sessions.start(r.value, s.device.name)
+                    sessions.start(r.value, s.device.name, window.takeIf { choice is TmuxChoice.Attach })
                     _sheet.value = null
                     _open.trySend(Unit)
                 }

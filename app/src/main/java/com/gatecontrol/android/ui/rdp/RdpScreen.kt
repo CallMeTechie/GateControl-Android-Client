@@ -35,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.R
 import com.gatecontrol.android.terminal.SshDevicesViewModel
 import com.gatecontrol.android.terminal.TerminalActivity
+import com.gatecontrol.android.terminal.TmuxChoice
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
@@ -209,6 +210,8 @@ fun RdpContent(
                 sheet = sheet,
                 onConnect = { choice, record -> sshViewModel.connect(choice, record) },
                 onDismiss = { sshViewModel.dismiss() },
+                onOpenWindow = { session, window, record -> sshViewModel.connect(TmuxChoice.Attach(session), record, window) },
+                onKill = { sshViewModel.kill(it) },
             )
         }
 
