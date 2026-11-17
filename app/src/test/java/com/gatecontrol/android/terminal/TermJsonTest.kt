@@ -65,6 +65,68 @@ class TermJsonTest {
     }
 
     @Test
+    fun `tmux list with windows and kill (plugin 1_8)`() {
+        val l = TermJson.tmux(json("""{"ok":true,"tmux":"gc-appserver","hostKey":"pinned","kill":true,"sessions":[
+            {"id":"$1","name":"gc-appserver","windows":3,"attached":0,"created":1763380000,"activity":1763384000,"attachable":true,"windowList":[
+              {"id":"@2","index":1,"name":"logs","active":true,"panes":1,"command":"journalctl"},
+              {"id":"@1","index":0,"name":"bash","active":false,"panes":1,"command":"bash"},
+              {"id":"bad","index":2,"name":"x","active":false},
+              {"id":"@9","index":-1,"name":"y"}
+            ]},
+            {"id":"$3","name":"kims build","windows":2,"attached":0,"created":"2026-11-15T10:00:00Z","attachable":false,"windowList":[]},
+            {"id":"$4; rm","name":"evil","windows":1,"attached":0,"attachable":true},
+            {"id":"$2","name":"backup","windows":1,"attached":1,"created":1763390000,"attachable":true}
+          ]}"""))!!
+        assertTrue(l.kill)
+        val a = l.sessions[0]
+        assertEquals("$1", a.id)
+        assertEquals(1_763_384_000_000L, a.activity)
+        // sorted by index; a window without a valid number or index is left out (it cannot be closed)
+        assertEquals(listOf(TmuxWindow("@1", 0, "bash", false, "bash"), TmuxWindow("@2", 1, "logs", true, "journalctl")), a.windowList)
+        assertEquals(3, a.windows)
+        // a name the terminal cannot attach is still listed to be ended, with its raw name and creation as given
+        val b = l.sessions[1]
+        assertFalse(b.attachable)
+        assertTrue(l.killable(b))
+        assertEquals("kims build", b.rawName)
+        assertEquals(0, TermProtocol.hidden(l))
+        // a session number that is not one: never ended
+        assertNull(l.sessions[2].id)
+        assertFalse(l.killable(l.sessions[2]))
+        // detached: not attached and with a number
+        assertEquals(listOf("gc-appserver", "kims build"), l.detached.map { it.name })
+
+        // the bodies send number, name and creation back exactly as listed
+        assertEquals("""{"session":{"id":"$1","name":"gc-appserver","created":1763380000}}""", TermJson.killBody(a).toString())
+        assertEquals(
+            """{"session":{"id":"$1","name":"gc-appserver","created":1763380000},"window":{"id":"@2","index":1}}""",
+            TermJson.killBody(a, a.windowList[1]).toString(),
+        )
+        assertEquals(
+            """{"sessions":[{"id":"$1","name":"gc-appserver","created":1763380000},{"id":"$3","name":"kims build","created":"2026-11-15T10:00:00Z"}]}""",
+            TermJson.killDetachedBody(l.detached).toString(),
+        )
+        assertEquals("""{"id":"$2","name":"backup","created":null}""", TermJson.killTarget(l.sessions[3].copy(created = null)).toString())
+    }
+
+    @Test
+    fun `an older plugin or server without kill shows no buttons`() {
+        // GateControl < version 9: kill false — ids and windows are ignored even when sent
+        val l = TermJson.tmux(json("""{"tmux":"tmux","hostKey":"pinned","kill":false,"sessions":[
+            {"id":"$1","name":"tmux","windows":2,"attached":0,"attachable":true,"windowList":[{"id":"@1","index":0,"name":"bash","active":true}]},
+            {"name":"a.b","windows":1,"attached":0,"attachable":false}
+          ]}"""))!!
+        assertFalse(l.kill)
+        assertNull(l.sessions[0].id)
+        assertTrue(l.sessions[0].windowList.isEmpty())
+        assertEquals(2, l.sessions[0].windows)
+        assertTrue(l.detached.isEmpty())
+        assertEquals(1, TermProtocol.hidden(l))
+        // plugin before 1.8: no field at all
+        assertFalse(TermJson.tmux(json("""{"tmux":"tmux","sessions":[]}"""))!!.kill)
+    }
+
+    @Test
     fun `ticket of engine term only`() {
         val t = TermJson.ticket(json("""{"session":{"ref":"$ref","expiresAt":"2026-11-16T10:02:00.000Z","engine":"term","recording":true,"tmux":{"attach":"build"},"device":{"id":2,"name":"pi-werkstatt"}}}"""))!!
         assertEquals(ref, t.ref)

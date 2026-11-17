@@ -19,6 +19,7 @@ object TermText {
         "not_found", "http_404" -> R.string.term_err_expired
         "no_right", "forbidden" -> R.string.term_err_no_right
         "maintenance" -> R.string.term_err_maintenance
+        "disabled" -> R.string.term_err_disabled
         "network" -> R.string.term_err_offline
         else -> R.string.term_err_other
     }

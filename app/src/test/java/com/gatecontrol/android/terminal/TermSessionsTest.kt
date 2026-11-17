@@ -188,4 +188,23 @@ class TermSessionsTest {
         waitFor("distrust") { received.contains("""{"t":"distrust"}""") || again.ui.value?.phase is TermPhase.Failed }
         assertEquals(TermPhase.Failed("host_key_rejected", TermProtocol.Verdict.FINAL), again.ui.value!!.phase)
     }
+
+    @Test
+    fun `open a window - after ready tmux shows it, a reconnect does not switch again`() {
+        val sessions = sessions()
+        sessions.start(TermTicket(ref, 0L, false, "tmux", 2, "pi"), "pi", window = 2)
+        sessions.terminal(client)!!.updateSize(80, 24, 10, 20)
+        waitFor("window") { received.contains("bin:\u00022") }
+
+        received.clear()
+        serverSocket.get()!!.close(1001, null)
+        waitFor("reconnecting") { sessions.ui.value?.phase is TermPhase.Reconnecting }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1100))
+        waitFor("ready again") { sessions.ui.value?.phase is TermPhase.Ready && received.any { it.contains("hello") } }
+        repeat(10) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(20)
+        }
+        assertTrue(received.none { it.startsWith("bin:") })
+    }
 }

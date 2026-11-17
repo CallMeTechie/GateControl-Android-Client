@@ -1,6 +1,9 @@
 package com.gatecontrol.android.terminal
 
+import com.google.gson.JsonArray
+import com.google.gson.JsonNull
 import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import java.time.Instant
 
 /**
@@ -26,11 +29,36 @@ data class SshDevice(
 /** The SSH devices and whether the person has the right `ssh` at all. */
 data class SshDevices(val devices: List<SshDevice>, val sshRight: Boolean)
 
-/** One tmux session on the device (`GET …/devices/<id>/tmux`). */
-data class TmuxSession(val name: String, val windows: Int, val attached: Int, val activity: Long?, val attachable: Boolean)
+/** One window of a tmux session (`?windows=1`, plugin 1.8): [command] is what runs in its active pane. */
+data class TmuxWindow(val id: String, val index: Int, val name: String, val active: Boolean, val command: String?)
 
-/** The tmux sessions; [hostKey] `pinned` | `unpinned` (no list before the first connection). */
-data class TmuxList(val sessions: List<TmuxSession>, val tmux: String?, val hostKey: String?)
+/**
+ * One tmux session on the device (`GET …/devices/<id>/tmux`). With `?windows=1` and `kill: true` (plugin 1.8) also
+ * [id] (`$n`), [windowList] and [rawName]/[created] exactly as listed — the server compares them before it ends one.
+ */
+data class TmuxSession(
+    val name: String,
+    val windows: Int,
+    val attached: Int,
+    val activity: Long?,
+    val attachable: Boolean,
+    val id: String? = null,
+    val windowList: List<TmuxWindow> = emptyList(),
+    val rawName: String = name,
+    val created: JsonPrimitive? = null,
+)
+
+/**
+ * The tmux sessions; [hostKey] `pinned` | `unpinned` (no list before the first connection). [kill]: the server can end
+ * sessions and close windows (plugin 1.8 with GateControl `gc.remote` version 9); false on older ones — no buttons.
+ */
+data class TmuxList(val sessions: List<TmuxSession>, val tmux: String?, val hostKey: String?, val kill: Boolean = false) {
+    /** Sessions this app can end: only with [kill] and a session number. */
+    fun killable(s: TmuxSession): Boolean = kill && s.id != null
+
+    /** The sessions nobody is attached to (for „Alle getrennten Sitzungen beenden“). */
+    val detached: List<TmuxSession> get() = sessions.filter { killable(it) && it.attached == 0 }
+}
 
 /** What to do with tmux: attach to a running session, create a named one, or the device's own (null). */
 sealed interface TmuxChoice {
@@ -63,6 +91,13 @@ object TermJson {
     private fun JsonObject.obj(k: String): JsonObject? = get(k)?.takeIf { it.isJsonObject }?.asJsonObject
 
     private fun time(v: String?): Long? = v?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+
+    /** A time as ISO text or as a number (seconds, or ms when that large) — tmux itself gives seconds. */
+    private fun JsonObject.stamp(k: String): Long? = num(k)?.toDouble()?.takeIf { it > 0 && it < 9.0e15 }
+        ?.let { if (it < 1.0e11) (it * 1000).toLong() else it.toLong() } ?: time(str(k))
+
+    private val SESSION_ID = Regex("^\\$\\d{1,6}$")
+    private val WINDOW_ID = Regex("^@\\d{1,6}$")
 
     /** One line of text without control characters. */
     fun clean(v: String?, max: Int = 100): String? =
@@ -97,20 +132,61 @@ object TermJson {
 
     fun tmux(body: JsonObject): TmuxList? {
         val arr = body.get("sessions")?.takeIf { it.isJsonArray }?.asJsonArray ?: return null
+        val kill = body.bool("kill") == true
         val sessions = arr.asSequence().mapNotNull { e ->
             val o = e.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
-            val name = clean(o.str("name"), 64) ?: return@mapNotNull null
+            val raw = o.str("name")?.takeIf { it.length <= 256 }
+            val name = clean(raw, 64) ?: return@mapNotNull null
+            val windowList = o.get("windowList")?.takeIf { it.isJsonArray }?.asJsonArray?.let { windows(it) }.orEmpty()
             TmuxSession(
                 name = name,
-                windows = o.num("windows")?.toInt()?.coerceIn(0, 9999) ?: 0,
+                windows = o.num("windows")?.toInt()?.coerceIn(0, 9999) ?: windowList.size,
                 attached = o.num("attached")?.toInt()?.coerceIn(0, 9999) ?: 0,
-                activity = time(o.str("activity")),
+                activity = o.stamp("activity"),
                 // only names the core can attach are ever offered (contract §2)
                 attachable = o.bool("attachable") == true && TMUX_NAME.matches(name),
+                id = if (kill) o.str("id")?.takeIf { SESSION_ID.matches(it) } else null,
+                windowList = if (kill) windowList else emptyList(),
+                rawName = raw ?: name,
+                created = o.get("created")?.takeIf { it.isJsonPrimitive && (it.asJsonPrimitive.isNumber || it.asJsonPrimitive.isString) }?.asJsonPrimitive,
             )
         }.take(200).toList()
         val hostKey = body.str("hostKey")?.takeIf { it == "pinned" || it == "unpinned" }
-        return TmuxList(sessions, body.str("tmux")?.takeIf { TMUX_NAME.matches(it) }, hostKey)
+        return TmuxList(sessions, body.str("tmux")?.takeIf { TMUX_NAME.matches(it) }, hostKey, kill)
+    }
+
+    /** The windows of a session, by index; a window without a valid number is left out (it cannot be closed). */
+    private fun windows(arr: JsonArray): List<TmuxWindow> = arr.asSequence().mapNotNull { e ->
+        val o = e.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+        val id = o.str("id")?.takeIf { WINDOW_ID.matches(it) } ?: return@mapNotNull null
+        val index = o.num("index")?.toDouble()?.takeIf { it >= 0 && it <= 99_999 && it == Math.floor(it) }?.toInt() ?: return@mapNotNull null
+        TmuxWindow(id, index, clean(o.str("name"), 64) ?: "", o.bool("active") == true, clean(o.str("command"), 64))
+    }.distinctBy { it.id }.take(500).sortedBy { it.index }.toList()
+
+    /** `session` of `POST …/tmux/kill` and of the list of `…/tmux/kill-detached`: number, name and creation as listed. */
+    fun killTarget(s: TmuxSession): JsonObject = JsonObject().apply {
+        addProperty("id", s.id)
+        addProperty("name", s.rawName)
+        add("created", s.created ?: JsonNull.INSTANCE)
+    }
+
+    /** The body of `POST devices/<id>/tmux/kill`: the session, and with [window] only that window. */
+    fun killBody(s: TmuxSession, window: TmuxWindow? = null): JsonObject = JsonObject().apply {
+        add("session", killTarget(s))
+        if (window != null) {
+            add(
+                "window",
+                JsonObject().apply {
+                    addProperty("id", window.id)
+                    addProperty("index", window.index)
+                },
+            )
+        }
+    }
+
+    /** The body of `POST devices/<id>/tmux/kill-detached` (1–50 sessions). */
+    fun killDetachedBody(sessions: List<TmuxSession>): JsonObject = JsonObject().apply {
+        add("sessions", JsonArray().apply { sessions.take(50).forEach { add(killTarget(it)) } })
     }
 
     /** `POST devices/<id>/connect` → the ticket of the native terminal; any other engine is not ours. */

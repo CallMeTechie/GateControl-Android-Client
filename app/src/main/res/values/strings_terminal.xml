@@ -117,4 +117,45 @@
     <string name="term_key_pgdn">PgDn</string>
     <string name="term_font_smaller">Smaller font</string>
     <string name="term_font_bigger">Bigger font</string>
+    <!-- tmux: end sessions and close windows (plugin 1.8) -->
+    <string name="term_not_resumable">not resumable (name)</string>
+    <string name="term_windows_show">Show windows</string>
+    <string name="term_windows_hide">Hide windows</string>
+    <string name="term_window_active">active</string>
+    <string name="term_window_open">Open window %1$d</string>
+    <string name="term_window_close">Close window</string>
+    <string name="term_kill_session">End session</string>
+    <string name="term_kill_anyway">End anyway</string>
+    <string name="term_kill_running">Ending …</string>
+    <string name="term_kill_detached_btn">End all detached sessions (%1$d)</string>
+    <string name="term_kill_session_title">End session „%1$s“?</string>
+    <string name="term_kill_session_text">Programs running in it will be ended. This cannot be undone.</string>
+    <string name="term_kill_session_text_short">Programs running in it will be ended.</string>
+    <string name="term_kill_attached_title">Someone is connected right now</string>
+    <plurals name="term_kill_attached_text">
+        <item quantity="one">This session is open on %d device. The terminal there ends at once.</item>
+        <item quantity="other">This session is open on %d devices. The terminal there ends at once.</item>
+    </plurals>
+    <string name="term_kill_window_title">Close window „%1$s“?</string>
+    <string name="term_kill_window_sub">Session %1$s · window %2$d</string>
+    <string name="term_kill_window_text_cmd">Programs running in it will be ended (now: %1$s).</string>
+    <plurals name="term_kill_window_others">
+        <item quantity="one">The other window of the session stays.</item>
+        <item quantity="other">The other %d windows of the session stay.</item>
+    </plurals>
+    <string name="term_kill_window_last_title">Last window</string>
+    <string name="term_kill_window_last">This is the last window. The whole session ends with it.</string>
+    <plurals name="term_kill_detached_title">
+        <item quantity="one">End %d detached session?</item>
+        <item quantity="other">End %d detached sessions?</item>
+    </plurals>
+    <plurals name="term_kill_detached_keep">
+        <item quantity="one">%2$s is connected right now and stays.</item>
+        <item quantity="other">%2$s are connected right now and stay.</item>
+    </plurals>
+    <plurals name="term_kill_detached_ok">
+        <item quantity="one">End %d session</item>
+        <item quantity="other">End %d sessions</item>
+    </plurals>
+    <string name="term_err_disabled">The device is switched off in the plugin.</string>
 </resources>

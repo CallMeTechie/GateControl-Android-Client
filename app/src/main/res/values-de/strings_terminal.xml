@@ -110,4 +110,45 @@
     <string name="term_key_pgdn">Bild ↓</string>
     <string name="term_font_smaller">Schrift kleiner</string>
     <string name="term_font_bigger">Schrift größer</string>
+    <!-- tmux: Sitzungen beenden und Fenster schließen (Plugin 1.8) -->
+    <string name="term_not_resumable">nicht fortsetzbar (Name)</string>
+    <string name="term_windows_show">Fenster anzeigen</string>
+    <string name="term_windows_hide">Fenster ausblenden</string>
+    <string name="term_window_active">aktiv</string>
+    <string name="term_window_open">Fenster %1$d öffnen</string>
+    <string name="term_window_close">Fenster schließen</string>
+    <string name="term_kill_session">Sitzung beenden</string>
+    <string name="term_kill_anyway">Trotzdem beenden</string>
+    <string name="term_kill_running">Wird beendet …</string>
+    <string name="term_kill_detached_btn">Alle getrennten Sitzungen beenden (%1$d)</string>
+    <string name="term_kill_session_title">Sitzung „%1$s“ beenden?</string>
+    <string name="term_kill_session_text">Laufende Programme darin werden beendet. Das lässt sich nicht rückgängig machen.</string>
+    <string name="term_kill_session_text_short">Laufende Programme darin werden beendet.</string>
+    <string name="term_kill_attached_title">Gerade ist jemand verbunden</string>
+    <plurals name="term_kill_attached_text">
+        <item quantity="one">Diese Sitzung ist auf %d Gerät offen. Dort endet das Terminal sofort.</item>
+        <item quantity="other">Diese Sitzung ist auf %d Geräten offen. Dort endet das Terminal sofort.</item>
+    </plurals>
+    <string name="term_kill_window_title">Fenster „%1$s“ schließen?</string>
+    <string name="term_kill_window_sub">Sitzung %1$s · Fenster %2$d</string>
+    <string name="term_kill_window_text_cmd">Laufende Programme darin werden beendet (gerade: %1$s).</string>
+    <plurals name="term_kill_window_others">
+        <item quantity="one">Das andere Fenster der Sitzung bleibt.</item>
+        <item quantity="other">Die anderen %d Fenster der Sitzung bleiben.</item>
+    </plurals>
+    <string name="term_kill_window_last_title">Letztes Fenster</string>
+    <string name="term_kill_window_last">Das ist das letzte Fenster. Damit endet die ganze Sitzung.</string>
+    <plurals name="term_kill_detached_title">
+        <item quantity="one">%d getrennte Sitzung beenden?</item>
+        <item quantity="other">%d getrennte Sitzungen beenden?</item>
+    </plurals>
+    <plurals name="term_kill_detached_keep">
+        <item quantity="one">%2$s ist gerade verbunden und bleibt.</item>
+        <item quantity="other">%2$s sind gerade verbunden und bleiben.</item>
+    </plurals>
+    <plurals name="term_kill_detached_ok">
+        <item quantity="one">%d Sitzung beenden</item>
+        <item quantity="other">%d Sitzungen beenden</item>
+    </plurals>
+    <string name="term_err_disabled">Das Gerät ist im Plugin ausgeschaltet.</string>
 </resources>

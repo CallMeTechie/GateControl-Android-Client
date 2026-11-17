@@ -9,6 +9,8 @@ import com.gatecontrol.android.terminal.TermTicket
 import com.gatecontrol.android.terminal.TermToken
 import com.gatecontrol.android.terminal.TmuxChoice
 import com.gatecontrol.android.terminal.TmuxList
+import com.gatecontrol.android.terminal.TmuxSession
+import com.gatecontrol.android.terminal.TmuxWindow
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
@@ -19,6 +21,9 @@ import timber.log.Timber
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** The answer of ending tmux sessions or windows: the new list of the device, when the server sent one. */
+data class TmuxKillAnswer(val list: TmuxList?)
 
 /** Outcome of a call of the screen sharing (plugin „Fernzugriff“ and the core's token). */
 sealed interface RemoteResult<out T> {
@@ -139,10 +144,29 @@ class RemoteApi @Inject constructor(
     /** The devices of this person; the SSH devices among them ([com.gatecontrol.android.terminal.SshDevices]). */
     suspend fun sshDevices(): RemoteResult<SshDevices> = call({ pluginGet(REMOTE_PLUGIN, "devices") }, TermJson::devices)
 
-    /** The tmux sessions of an SSH device in the terminal (only names the core can attach are offered). */
+    /**
+     * The tmux sessions of an SSH device in the terminal (only names the core can attach are offered), with their
+     * windows (`?windows=1`, plugin 1.8 — an older plugin ignores it and answers as before, without `kill`).
+     */
     suspend fun tmuxSessions(deviceId: Long): RemoteResult<TmuxList> {
         if (deviceId <= 0) return RemoteResult.Failed(CODE_INVALID, 0)
-        return call({ pluginGet(REMOTE_PLUGIN, "devices/$deviceId/tmux") }, TermJson::tmux)
+        return call({ pluginGet(REMOTE_PLUGIN, "devices/$deviceId/tmux", mapOf("windows" to "1")) }, TermJson::tmux)
+    }
+
+    /**
+     * Ends the tmux session [session] or, with [window], only that window (`POST devices/<id>/tmux/kill`). The answer
+     * carries the new list ([TmuxKillAnswer.list], null when it is missing: then the sheet loads it).
+     */
+    suspend fun tmuxKill(deviceId: Long, session: TmuxSession, window: TmuxWindow? = null): RemoteResult<TmuxKillAnswer> {
+        if (deviceId <= 0 || session.id == null) return RemoteResult.Failed(CODE_INVALID, 0)
+        return call(post("devices/$deviceId/tmux/kill", TermJson.killBody(session, window))) { TmuxKillAnswer(TermJson.tmux(it)) }
+    }
+
+    /** Ends the detached sessions [sessions] (1–50); the server skips any that is attached by now. */
+    suspend fun tmuxKillDetached(deviceId: Long, sessions: List<TmuxSession>): RemoteResult<TmuxKillAnswer> {
+        val list = sessions.filter { it.id != null }
+        if (deviceId <= 0 || list.isEmpty() || list.size > 50) return RemoteResult.Failed(CODE_INVALID, 0)
+        return call(post("devices/$deviceId/tmux/kill-detached", TermJson.killDetachedBody(list))) { TmuxKillAnswer(TermJson.tmux(it)) }
     }
 
     /** A ticket of the terminal for this app (`via: 'app'`); `record` follows the device's policy for this person. */

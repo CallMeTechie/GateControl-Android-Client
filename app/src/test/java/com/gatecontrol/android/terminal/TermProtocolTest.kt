@@ -97,4 +97,25 @@ class TermProtocolTest {
         assertEquals(14, TermKeys.functions.size)
         assertEquals(KeyEvent.KEYCODE_F12, TermKeys.functions[11].code)
     }
+
+    @Test
+    fun `open a window and the lines of the questions`() {
+        // tmux's prefix Ctrl-B, then the digit; from 10 on „select window by index“ with Enter
+        assertEquals(listOf<Byte>(2, '0'.code.toByte()), TermProtocol.selectWindow(0)!!.toList())
+        assertEquals(listOf<Byte>(2, '9'.code.toByte()), TermProtocol.selectWindow(9)!!.toList())
+        assertEquals("\u0002'12\r", String(TermProtocol.selectWindow(12)!!, Charsets.US_ASCII))
+        assertNull(TermProtocol.selectWindow(-1))
+
+        val windows = listOf(
+            TmuxWindow("@1", 0, "bash", false, "bash"),
+            TmuxWindow("@2", 1, "logs", true, "journalctl"),
+            TmuxWindow("@3", 2, "htop", false, null),
+            TmuxWindow("@4", 3, "x", false, "make"),
+            TmuxWindow("@5", 4, "y", false, "vim"),
+        )
+        val s = TmuxSession("gc-appserver", 5, 0, null, true, "$1", windows)
+        assertEquals("bash, journalctl, htop, make, …", TermProtocol.commands(s))
+        assertFalse(TermProtocol.lastWindow(s))
+        assertTrue(TermProtocol.lastWindow(s.copy(windows = 1, windowList = windows.take(1))))
+    }
 }
