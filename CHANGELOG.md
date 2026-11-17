@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.129.0] - 2026-11-17
+
+### Features
+- tmux-Sitzungen und Fenster im Verbinden-Blatt beenden (Fernzugriff 1.8) (#251)
+
+---
+
 ## [1.128.0] - 2026-11-17
 
 ### Features
