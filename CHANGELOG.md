@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.127.0] - 2026-11-17
+
+### Features
+- Personen-Chat ohne Hinweisleiste, Platzhalter nennt immer den Weg (#249)
+
+---
+
 ## [1.126.1] - 2026-11-16
 
 ### Fixes
