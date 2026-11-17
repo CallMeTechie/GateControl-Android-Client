@@ -2,6 +2,7 @@ package com.gatecontrol.android.drive.work
 
 import android.content.Context
 import androidx.core.content.edit
+import com.gatecontrol.android.drive.DNode
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -258,6 +259,49 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
         write(FILE_AI, DriveWorkFeatures.encode(list))
     }
 
+    // ─── what the person decided ────────────────────────────────────
+
+    private var decisions: List<WorkDecision>? = null
+
+    /**
+     * The decisions about photos in Drive ([DriveWorkDecisions]). Kept before this file existed (the app up to 1.129):
+     * read once from the examples the person gave, then kept here.
+     */
+    fun decisions(): List<WorkDecision> = synchronized(lock) {
+        decisions?.let { return@synchronized it }
+        val kept = DriveWorkDecisions.decode(read(FILE_DECIDED))
+        val list = kept ?: DriveWorkDecisions.fromExamples(examples()).also { write(FILE_DECIDED, DriveWorkDecisions.encode(it)) }
+        decisions = list
+        list
+    }
+
+    private fun setDecisions(f: (List<WorkDecision>) -> List<WorkDecision>) = synchronized(lock) {
+        val before = decisions()
+        val next = f(before)
+        if (next === before) return@synchronized
+        decisions = next
+        write(FILE_DECIDED, DriveWorkDecisions.encode(next))
+    }
+
+    /** [nodes] are work ([work]) or private: decided by the person, never suggested again. */
+    fun decide(nodes: List<DNode>, work: Boolean) =
+        setDecisions { DriveWorkDecisions.decide(it, nodes, work, System.currentTimeMillis()) }
+
+    /** The decisions of [ids] go (an assignment taken back). */
+    fun forgetDecisions(ids: Collection<Long>) = setDecisions { DriveWorkDecisions.forget(it, ids) }
+
+    /** Of [nodes], those nobody decided about (the decided ones' new keys kept: [DriveWorkDecisions.undecided]). */
+    fun undecided(nodes: List<DNode>): List<DNode> = synchronized(lock) {
+        var open = nodes
+        setDecisions { list -> DriveWorkDecisions.undecided(list, nodes).let { (o, next) -> open = o; next } }
+        open
+    }
+
+    /** The decisions kept by node id alone (read from the examples) got their other keys ([DriveWorkPhotos]). */
+    fun decisionsComplete(): Boolean = prefs.getBoolean(KEY_DECIDED_COMPLETE, false)
+
+    fun setDecisionsComplete() = prefs.edit { putBoolean(KEY_DECIDED_COMPLETE, true) }
+
     // the labels found per photo, so a photo is labeled once
     private val features = LinkedHashMap<String, Map<Int, Float>>(16, 0.75f, true)
     private var featuresRead = false
@@ -350,6 +394,7 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
         const val FILE_AI = "drive-work-ai.json"
         const val FILE_FEATURES = "drive-work-features.json"
         const val FILE_PLACES = "drive-work-places.json"
+        const val FILE_DECIDED = "drive-work-decided.json"
         const val KEY_SINCE = "since"
         const val KEY_OLD_PRIVATE = "old_private"
         const val KEY_STOCK_AT = "stock_at"
@@ -368,6 +413,7 @@ class DriveWorkStore @Inject constructor(@ApplicationContext private val context
         const val KEY_REMOVALS = "removals"
         const val KEY_SUGGESTED = "suggested"
         const val KEY_SUGGESTED_AT = "suggested_at"
+        const val KEY_DECIDED_COMPLETE = "decided_complete"
         const val MAX_FEATURES = 3000
         const val MAX_LOCAL_REVIEW = 5000
         const val MAX_REMOVALS = 2000

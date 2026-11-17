@@ -187,10 +187,11 @@ fun DriveCleanupScreen(onBack: () -> Unit, viewModel: DriveCleanupViewModel = hi
             }
             is DriveCleanupViewModel.State.Ready -> {
                 val list = s.list
-                val likely = list.count { it.preselected }
+                // the head counts what the list shows (not only the ticked ones from 70 %)
+                val shown = list.size
                 GcCard(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        if (list.isEmpty()) stringResource(R.string.drive_work_cleanup_empty) else pluralStringResource(R.plurals.drive_work_cleanup_head, likely, likely),
+                        if (list.isEmpty()) stringResource(R.string.drive_work_cleanup_empty) else pluralStringResource(R.plurals.drive_work_cleanup_head, shown, shown),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )

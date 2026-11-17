@@ -350,6 +350,8 @@ class DriveWorkPhotos @Inject constructor(
                     }
                 }
                 mark(list.filter { marksBefore[it.id] != null }.map { it.id }, false, null)
+                // the person's own choice ("Arbeit" / "Privat", "Aufräumen") is a decision; the phone's sorting is not
+                if (source == WorkExample.Source.ASSIGN || source == WorkExample.Source.CLEANUP) store.decide(list, work = dest == Dest.WORK)
                 if (source != null) learnLater(list, work = dest == Dest.WORK, source = source)
             }
             Target.REVIEW -> {
@@ -367,6 +369,7 @@ class DriveWorkPhotos @Inject constructor(
     suspend fun undo(u: Undo): String? = assignLock.withLock {
         undone.addAll(u.learned)
         store.forget(u.learned)
+        store.forgetDecisions(u.learned.mapNotNull { it.removePrefix("n:").toLongOrNull() })
         var error: String? = null
         for ((parent, ids) in u.back.groupBy({ it.second }, { it.first })) {
             val moved = moveAll(ids.map { id -> stub(id) }, parent)
@@ -426,6 +429,7 @@ class DriveWorkPhotos @Inject constructor(
      */
     fun learnMove(nodes: List<DNode>, intoWork: Boolean?) {
         if (intoWork == null || nodes.isEmpty() || !store.settings.value.active) return
+        store.decide(nodes, work = intoWork)
         learnLater(nodes, intoWork, WorkExample.Source.MOVE)
         if (nodes.any { it.review != null || it.id in store.localReview.value }) scope.launch { mark(nodes.map { it.id }, false, null) }
     }
@@ -665,9 +669,11 @@ class DriveWorkPhotos @Inject constructor(
         var before: String? = null
         while (photos.size < limit) {
             val page = api.photos(before = before, limit = 120, camera = cameraOnly, cls = if (classes) "private" else null).valueOrNull() ?: break
-            photos += page.items.filter { isImage(it) && !it.work && it.review == null && it.id !in store.localReview.value }
+            // never again what the person decided (also after a move, a rename or a new upload: [DriveWorkDecisions])
+            photos += store.undecided(page.items.filter { isImage(it) && !it.work && it.review == null && it.id !in store.localReview.value })
             before = page.next ?: break
         }
+        if (!store.decisionsComplete()) scope.launch { runCatching { completeDecisions() }.onFailure { if (it is CancellationException) throw it } }
         val list = photos.take(limit)
         val scored = ArrayList<Pair<DNode, Double>>()
         for ((i, n) in list.withIndex()) {
@@ -675,15 +681,49 @@ class DriveWorkPhotos @Inject constructor(
             featuresOf(n)?.let { scored += n to m.predict(it) }
         }
         onProgress(list.size, list.size)
-        return DriveWorkLogic.suggestions(scored).also { s -> store.setSuggested(s.count { it.preselected }) }
+        // the hint in the Photos tab counts what the page shows
+        return DriveWorkLogic.suggestions(scored).also { s -> store.setSuggested(s.size) }
     }
 
-    /** "N Fotos nach Arbeit verschieben": [chosen] are work, [left] stay private — the AI learns both. */
+    /**
+     * "N Fotos nach Arbeit verschieben" (also "Nichts verschieben"): [chosen] are work, [left] stay private — both
+     * decided (never suggested again, [DriveWorkStore.decide]), the AI learns both.
+     */
     suspend fun cleanup(chosen: List<DNode>, left: List<DNode>): Assigned {
+        store.decide(left, work = false)
         learnLater(left, work = false, source = WorkExample.Source.CLEANUP)
         val r = if (chosen.isEmpty()) Assigned(Target.WORK, 0, null) else assign(chosen, Target.WORK, WorkExample.Source.CLEANUP)
         if (r.error == null) store.setSuggested(0)
         return r
+    }
+
+    private val completeLock = Mutex()
+
+    /**
+     * Once: the decisions kept by node id alone (the app up to 1.129, [DriveWorkDecisions.fromExamples]) get the
+     * photo's content and size with time, so a later copy of it is known too. Done when every one was looked at (a
+     * photo gone counts as looked at); offline it tries again at the next look.
+     */
+    private suspend fun completeDecisions() {
+        if (!completeLock.tryLock()) return
+        try {
+            val ids = store.decisions().filter { d -> d.keys.all { it.startsWith("n:") } }
+                .flatMap { d -> d.keys.mapNotNull { it.substring(2).toLongOrNull() } }.distinct()
+            for (part in ids.chunked(COMPLETE_CHUNK)) {
+                val nodes = ArrayList<DNode>()
+                for (id in part) {
+                    when (val r = api.node(id)) {
+                        is DResult.Ok -> nodes += r.value
+                        is DResult.Failed -> if (r.http != 404 && r.http != 403) return
+                        else -> return
+                    }
+                }
+                store.undecided(nodes)
+            }
+            store.setDecisionsComplete()
+        } finally {
+            completeLock.unlock()
+        }
     }
 
     /** When "Aufräumen" last looked (ms). */
@@ -721,5 +761,7 @@ class DriveWorkPhotos @Inject constructor(
         const val STOCK_LOOK = 300
         const val STOCK_LABEL = 80
         const val STOCK_EVERY_MS = 6L * 60 * 60 * 1000
+        /** Decisions completed per write ([completeDecisions]). */
+        const val COMPLETE_CHUNK = 50
     }
 }
