@@ -118,6 +118,30 @@ fun PlaceChooser(
     }
 }
 
+/**
+ * Only the sheet „Alle Orte…“, for a form with a choice of its own (Notizen's dialog): [options] of the plugin, „Meine
+ * Orte“ merged with [withMine].
+ */
+@Composable
+fun PlacePickerSheet(
+    options: List<PlaceOption>,
+    selected: PlaceOption?,
+    onPick: (PlaceOption) -> Unit,
+    onDismiss: () -> Unit,
+    withMine: Boolean = true,
+    oneOff: Boolean = true,
+    vm: PlacePickerViewModel = hiltViewModel(),
+) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val canSave = withMine && state.support == PlacesSupport.SUPPORTED
+    val all = if (withMine) PlaceSources.merged(options, state.places) else options
+    PlacesNotices(vm.notices)
+    PlaceSheet(all, selected?.key, canSave, oneOff, vm, onPick = { o ->
+        vm.used(o)
+        onPick(o)
+    }, onDismiss = onDismiss)
+}
+
 /** The chips of the form: a place each (its symbol, blue for Familie) and „Alle Orte…“. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -413,17 +437,17 @@ private fun OptionRow(o: PlaceOption, selected: Boolean, here: Pair<Double, Doub
     Row(
         Modifier.fillMaxWidth().heightIn(min = 60.dp)
             .background(if (selected) extra.accentBg else Color.Transparent)
-            .clickable(enabled = o.hasPoint, role = Role.Button) { onPick(o) }
+            .clickable(enabled = o.pickable, role = Role.Button) { onPick(o) }
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag("place-option-${o.key}"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PlaceIconSquare(o.icon, familie = o.familie, missing = !o.hasPoint)
+        PlaceIconSquare(o.icon, familie = o.familie, missing = !o.pickable)
         Column(Modifier.weight(1f)) {
-            Text(o.name, style = MaterialTheme.typography.titleMedium, color = if (o.hasPoint) MaterialTheme.colorScheme.onSurface else extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(o.name, style = MaterialTheme.typography.titleMedium, color = if (o.pickable) MaterialTheme.colorScheme.onSurface else extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                listOfNotNull(source, o.radiusM?.let { stringResource(R.string.places_radius_short, it) }, stringResource(R.string.places_no_point).takeIf { !o.hasPoint }).joinToString(" · "),
+                listOfNotNull(o.address?.takeIf { o.remote } ?: source, o.radiusM?.let { stringResource(R.string.places_radius_short, it) }, stringResource(R.string.places_no_point).takeIf { !o.pickable }).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = extra.muted,
                 maxLines = 1,

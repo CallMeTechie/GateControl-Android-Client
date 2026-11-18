@@ -108,6 +108,15 @@ class RulePlaceWatcher @Inject constructor(
                     }
                 }
         }
+        // „Meine Orte“ changed (GateControl's control `places`): Familie moved the copies of reminders and linked rule
+        // places — the lists again, the geofences replaced
+        scope.launch {
+            com.gatecontrol.android.places.PlacesSignals.changes.collect { c ->
+                if (c.reconnect) return@collect
+                registrar.syncAsync()
+                if (store.places.value) runCatching { sync() }
+            }
+        }
     }
 
     /** "Orte für Regeln teilen" on / off (`PUT presence/consent { places }`); stored only when the server took it. */

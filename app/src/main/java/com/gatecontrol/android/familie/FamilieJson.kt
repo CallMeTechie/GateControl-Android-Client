@@ -565,6 +565,9 @@ object FamilieJson {
             targetName = o.str("targetName")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
             home = o.str("home")?.takeIf { it == "notizen" || it == "familie" },
             moved = o.bool("moved") == true,
+            ref = o.str("ref")?.takeIf { com.gatecontrol.android.places.MyPlaces.idOf(it) != null },
+            missing = o.bool("missing") == true,
+            refKnown = o.has("ref"),
         )
     }
 
@@ -583,7 +586,15 @@ object FamilieJson {
         addProperty("repeat", d.repeat)
         addProperty("active", d.active)
         d.targetUserId?.let { addProperty("targetUserId", it) }
+        // Familie 1.30: the profile place (its point and radius win on the server; the copy above is the fallback)
+        when {
+            d.ref != null -> addProperty("ref", d.ref)
+            d.unlink -> add("ref", JsonNull.INSTANCE)
+        }
     }
+
+    /** The same body without the reference (an older plugin refused `ref`): the reminder keeps the copy of the point. */
+    fun withoutRef(d: PlaceDraft): PlaceDraft = d.copy(ref = null, unlink = false)
 
     // ─── rides (1.1) ─────────────────────────────────────────────────
 

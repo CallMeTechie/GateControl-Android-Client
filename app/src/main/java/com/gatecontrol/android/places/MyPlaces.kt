@@ -290,6 +290,9 @@ object MyPlaces {
         return o
     }
 
+    /** Only [plugin] uses the place (nothing else would lose it): `usedBy` of a refused deletion. */
+    fun onlyBy(uses: List<PlaceUse>, plugin: String): Boolean = uses.isNotEmpty() && uses.all { it.plugin == plugin }
+
     fun draftOf(p: MyPlace): PlaceDraft = PlaceDraft(p.name, p.icon, p.lat, p.lon, p.radiusM, p.address, p.visibility)
 
     fun round6(v: Double): Double = Math.round(v * 1_000_000.0) / 1_000_000.0

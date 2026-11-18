@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.familie.FamiliePlace
 import com.gatecontrol.android.familie.PlaceDraft
+import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIcons
@@ -41,6 +42,7 @@ import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcSwitchRow
 import com.gatecontrol.android.ui.components.GcTextField
+import com.gatecontrol.android.ui.components.GcTone
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import kotlin.math.roundToInt
 
@@ -106,12 +108,18 @@ fun PlaceEditScreen(
     var repeat by rememberSaveable { mutableStateOf(existing?.repeat ?: "always") }
     var active by rememberSaveable { mutableStateOf(existing?.active ?: true) }
     var target by rememberSaveable { mutableStateOf(existing?.targetUserId ?: me) }
+    // Familie 1.30: one of „Meine Orte“ the reminder follows (null: a point of its own)
+    var ref by rememberSaveable { mutableStateOf(existing?.ref) }
     var askDelete by remember { mutableStateOf(false) }
+    val picker: com.gatecontrol.android.ui.places.PlacePickerViewModel = hiltViewModel()
+    val placesState by picker.state.collectAsStateWithLifecycle()
+    val profilePlaces = placesState.support == com.gatecontrol.android.places.PlacesSupport.SUPPORTED
 
     LaunchedEffect(here) {
         here?.let {
             lat = it.lat
             lon = it.lon
+            ref = null
             viewModel.consumeHere()
         }
     }
@@ -146,6 +154,8 @@ fun PlaceEditScreen(
                                 repeat = repeat,
                                 active = active,
                                 targetUserId = target,
+                                ref = ref,
+                                unlink = ref == null && existing?.ref != null,
                             ),
                         )
                     },
@@ -167,6 +177,32 @@ fun PlaceEditScreen(
             GcTextField(value = title, onValueChange = { title = it.take(80) }, label = stringResource(R.string.familie_place_title_label), placeholder = stringResource(R.string.familie_place_title_hint), enabled = !readOnly)
 
             // --- Ort -------------------------------------------------------
+            // GateControl 1.299 „Meine Orte“: the shared choice first; the map below sets a point of its own
+            if (profilePlaces && !readOnly) {
+                val mine = placesState.places
+                val selected = ref?.let { r -> mine.firstOrNull { it.ref == r } }?.let { com.gatecontrol.android.places.PlacePicking.option(it) }
+                    ?: ref?.let { r -> com.gatecontrol.android.places.PlaceOption(r, title.ifBlank { "?" }, lat = lat, lon = lon, radiusM = radius) }
+                com.gatecontrol.android.ui.places.PlaceChooser(
+                    options = emptyList(),
+                    selected = selected,
+                    onPick = { o ->
+                        if (o.hasPoint) {
+                            lat = o.lat
+                            lon = o.lon
+                            o.radiusM?.let { radius = it.coerceIn(FamiliePlace.MIN_RADIUS, FamiliePlace.MAX_RADIUS) }
+                            ref = o.ref?.takeIf { com.gatecontrol.android.places.MyPlaces.idOf(it) != null }
+                            if (title.isBlank()) title = o.name.take(80)
+                        }
+                    },
+                    showSummary = ref != null,
+                    vm = picker,
+                )
+            }
+            if (existing?.missing == true && ref == existing.ref) {
+                GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
+                    Text(stringResource(R.string.places_missing_copy, existing.title), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                }
+            }
             FamiliePlacePicker(
                 lat = lat,
                 lon = lon,
@@ -176,6 +212,8 @@ fun PlaceEditScreen(
                 onPick = { la, lo, label ->
                     lat = la
                     lon = lo
+                    // a point by hand: the reminder no longer follows a place of „Meine Orte“
+                    ref = null
                     if (label != null && title.isBlank()) title = label.substringBefore(',').take(80)
                 },
                 onHere = viewModel::locateHere,
@@ -191,7 +229,8 @@ fun PlaceEditScreen(
                 onValueChange = { radius = RADII[it.roundToInt().coerceIn(0, RADII.lastIndex)] },
                 valueRange = 0f..RADII.lastIndex.toFloat(),
                 steps = RADII.size - 2,
-                enabled = !readOnly,
+                // a place of „Meine Orte“ brings its radius (changed there, it changes here)
+                enabled = !readOnly && ref == null,
             )
 
             // --- Wann ------------------------------------------------------

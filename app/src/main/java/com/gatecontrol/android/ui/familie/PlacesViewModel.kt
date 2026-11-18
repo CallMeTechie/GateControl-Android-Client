@@ -114,7 +114,15 @@ class PlacesViewModel @Inject constructor(
 
     fun delete(id: Int) = act(close = true) { api.deletePlace(id) }
 
-    fun save(id: Int?, draft: PlaceDraft) = act(close = true) { if (id == null) api.createPlace(draft) else api.updatePlace(id, draft) }
+    /**
+     * Familie 1.30 takes a reference to „Meine Orte“; an older plugin that refuses the field gets the same reminder with the
+     * copy of the point only (as before).
+     */
+    fun save(id: Int?, draft: PlaceDraft) = act(close = true) {
+        val send: suspend (PlaceDraft) -> FamilieResult<Unit> = { d -> if (id == null) api.createPlace(d) else api.updatePlace(id, d) }
+        val r = send(draft)
+        if (refRefused(r, draft)) send(com.gatecontrol.android.familie.FamilieJson.withoutRef(draft)) else r
+    }
 
     fun search(query: String, locale: Locale) = lookup.search(query, locale)
 
@@ -128,3 +136,7 @@ class PlacesViewModel @Inject constructor(
         _message.value = null
     }
 }
+
+/** An older Familie plugin refused the reference to „Meine Orte“ (an unknown field): send again without it. Pure. */
+internal fun refRefused(r: FamilieResult<*>, draft: PlaceDraft): Boolean =
+    (draft.ref != null || draft.unlink) && r is FamilieResult.Failed && r.http == 400 && (r.field == null || r.field == "ref")

@@ -34,8 +34,13 @@ data class PlaceOption(
     val usage: Int = 0,
     val lastUsedMs: Long? = null,
     val rank: Int = Int.MAX_VALUE,
+    /** The plugin knows the point, the phone does not (Familie's rule places): choosable without one. */
+    val remote: Boolean = false,
 ) {
     val hasPoint: Boolean get() = MyPlaces.hasPoint(lat, lon)
+
+    /** May be chosen: a real point, or one only the plugin knows. */
+    val pickable: Boolean get() = hasPoint || remote
 
     /** Tells the choices apart: the reference, else the point. */
     val key: String get() = ref ?: "point:${lat ?: "-"},${lon ?: "-"}"
@@ -107,7 +112,7 @@ object PlacePicking {
             if (out.size < max && o.key !in out) out[o.key] = o
         }
         selected?.let(::add)
-        val usable = options.filter { it.hasPoint }
+        val usable = options.filter { it.pickable }
         usable.filter { it.usage > 0 }.sortedWith(byUse).forEach(::add)
         if (here != null) usable.sortedBy { distanceOf(it, here) ?: Int.MAX_VALUE }.forEach(::add)
         usable.sortedWith(byUse).forEach(::add)

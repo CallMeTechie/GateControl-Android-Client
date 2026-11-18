@@ -332,7 +332,7 @@ class RuleEditorViewModel @Inject constructor(
             if (r is FamilieResult.Ok) {
                 val place = r.value
                 _options.value = _options.value.copy(places = _options.value.places.filter { it.id != place.id } + place)
-                edit { it.copy(trigger = it.trigger.copy(placeId = place.id, placeName = place.name)) }
+                edit { it.copy(trigger = it.trigger.copy(placeId = place.id, placeName = place.name, placeRef = null, placeMissing = false)) }
                 lookup.clearHits()
                 events.trySend(RuleEditorEvent.PlaceCreated)
             } else {

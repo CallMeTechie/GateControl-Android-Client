@@ -370,6 +370,12 @@ data class FamiliePlace(
     val home: String? = null,
     /** 1.24: the reminder moved (the hub reminds, this phone must not watch it for the Familie plugin any more). */
     val moved: Boolean = false,
+    /** 1.30: one of „Meine Orte“ (`profile:<id>`) the reminder follows; null: a point of its own. */
+    val ref: String? = null,
+    /** 1.30: the profile place is gone or no longer visible — [lat]/[lon]/[radius] are the last copy, still watched. */
+    val missing: Boolean = false,
+    /** 1.30: the answer carries `ref` at all — the plugin knows references to „Meine Orte“. */
+    val refKnown: Boolean = false,
 ) {
     /** The reminder lives in „Notizen & Aufgaben“: not the Familie plugin's any more (no geofence, not on its page). */
     val inHub: Boolean get() = moved || home == "notizen"
@@ -402,4 +408,8 @@ data class PlaceDraft(
     val repeat: String = "always",
     val active: Boolean = true,
     val targetUserId: Int? = null,
+    /** Familie 1.30: one of „Meine Orte“ (`profile:<id>`); the point above goes along as the copy. */
+    val ref: String? = null,
+    /** Familie 1.30: the reminder had a reference and gets a point by hand now (`ref: null`). */
+    val unlink: Boolean = false,
 )

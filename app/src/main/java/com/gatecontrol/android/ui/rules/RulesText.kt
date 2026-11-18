@@ -144,7 +144,7 @@ internal fun triggerText(t: RuleTrigger, options: RuleOptions, nameOf: (Int) -> 
     val person = t.userId?.let { id ->
         nameOf(id) ?: options.people.firstOrNull { it.userId == id }?.name ?: options.school?.students?.firstOrNull { it.userId == id }?.name
     }
-    val place = t.placeName ?: t.placeId?.let { id -> options.places.firstOrNull { it.id == id }?.name }
+    val place = t.placeName ?: t.placeRef?.let { r -> options.profilePlaces?.firstOrNull { it.ref == r }?.name } ?: t.placeId?.let { id -> options.places.firstOrNull { it.id == id }?.name }
     return when (t.type) {
         RuleTriggerType.SCHEDULE -> scheduleText(t)
         RuleTriggerType.PERSON_HOME -> person?.let { stringResource(R.string.rules_person_home, it) } ?: triggerLabel(t.type)

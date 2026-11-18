@@ -651,4 +651,12 @@ object NFeature {
     // plugin 1.7.0
     /** `Task.deadline`; `deadline` in `GET reminders` and in the reminder's push, its button `open_file`; `me.driveDeadlines`. */
     const val DRIVE_DEADLINES = "driveDeadlines"
+
+    // plugin 1.8.0
+    /**
+     * „Meine Orte“ live in GateControl's profile: the ids of `GET places` are the profile's, `place { placeId }` /
+     * `{ ref: 'profile:<id>' }` point at them; changing and deleting goes to the profile (the plugin answers
+     * `409 profile_only`). Without the word (1.7) the ids are the plugin's own.
+     */
+    const val PROFILE_PLACES = "profilePlaces"
 }

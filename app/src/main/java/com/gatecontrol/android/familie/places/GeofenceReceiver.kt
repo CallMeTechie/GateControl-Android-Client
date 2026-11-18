@@ -62,15 +62,17 @@ class GeofenceReceiver : BroadcastReceiver() {
             Geofence.GEOFENCE_TRANSITION_EXIT -> FamiliePlace.TRIGGER_EXIT
             else -> return
         }
-        val ids = event.triggeringGeofences.orEmpty().map { it.requestId }
-        val placeIds = ids.mapNotNull { GeofenceRegistrar.placeIdOf(it) }
-        val rulePlaceIds = ids.mapNotNull { GeofenceRegistrar.rulePlaceIdOf(it) }
-        if (placeIds.isEmpty() && rulePlaceIds.isEmpty()) return
+        val all = event.triggeringGeofences.orEmpty().map { it.requestId }
+        if (all.none { GeofenceRegistrar.placeIdOf(it) != null || GeofenceRegistrar.rulePlaceIdOf(it) != null }) return
         val at = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString()
         val pending = goAsync()
         scope.launch {
             try {
                 withTimeoutOrNull(TIMEOUT_MS) {
+                    // the report on adding them again (the phone was on this side already) is no transition: only its side is kept
+                    val ids = all.filter { registrar.observe(it, transition == FamiliePlace.TRIGGER_ENTER) }
+                    val placeIds = ids.mapNotNull { GeofenceRegistrar.placeIdOf(it) }
+                    val rulePlaceIds = ids.mapNotNull { GeofenceRegistrar.rulePlaceIdOf(it) }
                     for (placeId in placeIds) {
                         val fence = registrar.storedFence(placeId) ?: continue
                         if (fence.trigger != transition) continue

@@ -22,6 +22,8 @@ import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.familie.familieLocalized
 import com.gatecontrol.android.familie.locate.FamiliePermissions
 import com.gatecontrol.android.familie.places.GeofenceBudget
+import com.gatecontrol.android.familie.places.FenceSide
+import com.gatecontrol.android.familie.places.FenceSides
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
 import com.gatecontrol.android.location.DeviceLocator
 import com.gatecontrol.android.location.LocateResult
@@ -116,6 +118,9 @@ class NotizenGeofences @Inject constructor(
         scope.launch { wanted.collectLatest { delay(DEBOUNCE_MS); runCatching { sync() } } }
         scope.launch { repo.changed.collect { if (it.isEmpty() || "places" in it || "tasks" in it) wanted.tryEmit(Unit) } }
         scope.launch { repo.me.distinctUntilChangedBy { it?.taskPlaces to it?.placeSearch }.collect { if (it != null) wanted.tryEmit(Unit) } }
+        // „Meine Orte“ changed (GateControl's control `places`): Notizen moved the copies of its tasks' places — the list
+        // again, the geofences replaced
+        scope.launch { com.gatecontrol.android.places.PlacesSignals.changes.collect { c -> if (!c.reconnect) wanted.tryEmit(Unit) } }
         // the Familie plugin comes first: before it registers more places, the hub's least important ones make room
         registrar.makeRoom = ::makeRoom
         // the Familie plugin registered other places: the room left for the hub may have changed
@@ -257,22 +262,29 @@ class NotizenGeofences @Inject constructor(
         if (lock.withLock { cache.placeState() }.registered.isNotEmpty() || cache.watch().fences.isNotEmpty()) register() else publish()
     }
 
-    /** The kept list as geofences: the hub's own are taken away and set again (the Familie plugin's stay untouched). */
+    /**
+     * The kept list as geofences, replaced in place (the ones no longer wanted go, the others are added again with the
+     * same request id — never all removed first) with `INITIAL_TRIGGER_ENTER | _EXIT`: Android says at once which side the
+     * phone is on, and [onTransition] tells a real arrival from being there already ([FenceSides]). The Familie plugin's
+     * fences stay untouched.
+     */
     @SuppressLint("MissingPermission") // checked by readiness()
     private suspend fun register() = registerLock.withLock {
         var registered = emptyList<String>()
         try {
             if (!registrar.playServicesAvailable()) return@withLock
             val client = LocationServices.getGeofencingClient(context)
-            await(client.removeGeofences(pendingIntent(context)))
             val watch = cache.watch()
             val fences = PlaceLogic.select(watch.fences, budget())
-            if (fences.isEmpty()) return@withLock
-            if (readiness() != FamiliePermissions.GeofenceReadiness.READY) {
-                Timber.i("Notizen: %d places wait for the location permission", fences.size)
+            val before = lock.withLock { cache.placeState() }
+            if (fences.isEmpty() || readiness() != FamiliePermissions.GeofenceReadiness.READY) {
+                await(client.removeGeofences(pendingIntent(context)))
+                update { s -> s.copy(sides = emptyMap()) }
+                if (fences.isNotEmpty()) Timber.i("Notizen: %d places wait for the location permission", fences.size)
                 return@withLock
             }
             val geofences = fences.map(::geofence).toMutableList()
+            val sigs = LinkedHashMap(signatures(fences))
             // leaving the area the additional places were chosen for asks the server again (with the new, rounded position)
             val cLat = watch.cellLat
             val cLon = watch.cellLon
@@ -284,10 +296,18 @@ class NotizenGeofences @Inject constructor(
                     .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_EXIT)
                     .setNotificationResponsiveness(MOVE_RESPONSIVENESS_MS)
                     .build()
+                sigs[MOVE] = FenceSides.signature(cLat, cLon, watch.refreshM, "move")
             }
+            // the ones no longer watched go; without a kept side (an older version of the app) everything of the hub once
+            val remove = FenceSides.toRemove(if (before.sides.isEmpty()) null else before.registered + before.sides.keys, sigs.keys)
+            when {
+                remove == null -> await(client.removeGeofences(pendingIntent(context)))
+                remove.isNotEmpty() -> await(client.removeGeofences(remove.map { REQUEST_PREFIX + it }))
+            }
+            // the sides first: the report on adding may come before addGeofences returns
+            update { s -> s.copy(sides = FenceSides.afterRegister(s.sides, sigs, clock())) }
             val request = GeofencingRequest.Builder()
-                // no trigger for being inside already: registering again (boot, a change) must not remind again
-                .setInitialTrigger(0)
+                .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER or GeofencingRequest.INITIAL_TRIGGER_EXIT)
                 .addGeofences(geofences)
                 .build()
             val ok = try {
@@ -295,7 +315,7 @@ class NotizenGeofences @Inject constructor(
             } catch (e: SecurityException) {
                 false
             }
-            if (ok) registered = fences.map { it.id }
+            if (ok) registered = fences.map { it.id } else update { s -> s.copy(sides = emptyMap()) }
             Timber.i("Notizen: %d places %s", fences.size, if (ok) "registered" else "not registered")
         } finally {
             val ids = registered
@@ -324,13 +344,23 @@ class NotizenGeofences @Inject constructor(
      */
     suspend fun onTransition(fenceIds: List<String>, transition: String) = fireLock.withLock {
         val now = clock()
-        if (MOVE in fenceIds && transition == NPlace.EXIT) {
+        // the side of each fence first: the report on adding them again is no transition (the phone was there already)
+        val entered = transition == NPlace.ENTER
+        var acted = emptyList<String>()
+        update { s ->
+            val (sides, moved) = observeAll(s.sides, fenceIds, entered, now)
+            acted = moved
+            s.copy(sides = sides)
+        }
+        if (MOVE in acted && transition == NPlace.EXIT) {
             lastFix = null
             wanted.tryEmit(Unit)
         }
-        val ids = fenceIds.mapNotNull { NotizenPlacesJson.fenceId(it) }
-        if (ids.isEmpty()) return@withLock
-        var state = update { PlaceGuard.moved(it, ids, transition == NPlace.ENTER) }
+        val all = fenceIds.mapNotNull { NotizenPlacesJson.fenceId(it) }
+        if (all.isEmpty()) return@withLock
+        // inside or not: always the side Android reports („Gerade in der Nähe“); a reminder only for a real transition
+        var state = update { PlaceGuard.moved(it, all, entered) }
+        val ids = all.filter { it in acted }
         val watch = cache.watch()
         val due = watch.fences.filter { it.id in ids }.flatMap { f -> f.tasks.map { f to it } }
             .filter { (f, t) -> t.trigger == transition && PlaceGuard.muted(state, t.taskId, f.id, now) == null }
@@ -477,13 +507,28 @@ class NotizenGeofences @Inject constructor(
         private const val RESPONSIVENESS_MS = 2 * 60_000
         private const val MOVE_RESPONSIVENESS_MS = 5 * 60_000
 
+        /** Request id (without the prefix) → what makes the fence the same one: the point, the watched radius, enter / exit. */
+        fun signatures(fences: List<NFence>): Map<String, String> =
+            fences.associate { f -> f.id to FenceSides.signature(f.lat, f.lon, f.radius, "${f.enter}|${f.exit}") }
+
+        /** [FenceSides.observe] for each of [ids]: the new sides and the ids that really moved (pure). */
+        fun observeAll(sides: Map<String, FenceSide>, ids: List<String>, entered: Boolean, nowMs: Long): Pair<Map<String, FenceSide>, List<String>> {
+            val next = sides.toMutableMap()
+            val moved = ids.filter { id ->
+                val (state, m) = FenceSides.observe(next[id], FenceSides.sideOf(entered), nowMs)
+                if (state != null) next[id] = state
+                m
+            }
+            return next to moved
+        }
+
         /** The fence ids ([NFence.id], or `cell`) of Play services' request ids; others are not the hub's. */
         fun fenceIdsOf(requestIds: List<String>): List<String> = requestIds.filter { it.startsWith(REQUEST_PREFIX) }.map { it.removePrefix(REQUEST_PREFIX) }
 
         /** Both transitions, whatever the tasks wait for: the phone knows which places it is inside („Gerade in der Nähe“). */
         private fun geofence(f: NFence): Geofence = Geofence.Builder()
             .setRequestId(REQUEST_PREFIX + f.id)
-            .setCircularRegion(f.lat, f.lon, f.radius.toFloat())
+            .setCircularRegion(f.lat, f.lon, FenceSides.radius(f.radius).toFloat())
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
             .setNotificationResponsiveness(RESPONSIVENESS_MS)

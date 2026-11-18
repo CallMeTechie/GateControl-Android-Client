@@ -77,7 +77,7 @@ object RuleLogic {
         return when (t.type) {
             RuleTriggerType.SCHEDULE -> t.weekdays.isNotEmpty() && t.time != null
             in RuleTriggerType.PERSON -> t.userId != null
-            in RuleTriggerType.PLACE -> t.placeId != null
+            in RuleTriggerType.PLACE -> t.placeId != null || t.placeRef != null
             RuleTriggerType.SCHOOL_CHANGE -> t.kinds.isNotEmpty()
             else -> true
         }

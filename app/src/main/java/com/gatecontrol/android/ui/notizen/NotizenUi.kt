@@ -572,6 +572,8 @@ internal fun messageText(code: String): String = when (code) {
     "place_not_here" -> stringResource(R.string.notizen_pl_msg_not_here)
     "place_consent_other" -> stringResource(R.string.notizen_pl_msg_consent_other)
     "too_many" -> stringResource(R.string.notizen_pl_msg_too_many)
+    "place_in_use" -> stringResource(R.string.places_in_use_elsewhere)
+    "place_duplicate" -> stringResource(R.string.places_err_duplicate)
     "parents_only" -> stringResource(R.string.notizen_msg_parents_only)
     "family" -> stringResource(R.string.notizen_msg_family_list)
     "not_member" -> stringResource(R.string.notizen_msg_not_member)

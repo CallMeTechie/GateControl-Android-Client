@@ -42,6 +42,8 @@ import javax.inject.Inject
 class NotizenSourcesViewModel @Inject constructor(
     private val repo: NotizenRepository,
     private val geofences: com.gatecontrol.android.notizen.NotizenGeofences,
+    /** Plugin 1.8 (`profilePlaces`): „Meine Orte“ live in the profile — renaming and deleting go there. */
+    private val profilePlaces: com.gatecontrol.android.places.PlacesRepository,
 ) : ViewModel() {
     data class Ui(
         val me: NMe? = null,
@@ -116,11 +118,58 @@ class NotizenSourcesViewModel @Inject constructor(
 
     fun renamePlace(id: Long, name: String) {
         if (name.isBlank()) return
+        if (profile()) {
+            profileChange { p ->
+                val old = place(id) ?: return@profileChange com.gatecontrol.android.places.PlaceEdit.Refused("NOT_FOUND")
+                p.update(old, com.gatecontrol.android.places.MyPlaces.draftOf(old).copy(name = name))
+            }
+            return
+        }
         placeChange({ repo.api.patchPlace(id, com.google.gson.JsonObject().apply { addProperty("name", name.trim().take(80)); addProperty("named", true) }) })
     }
 
-    /** Tasks that hang on the place keep it. */
-    fun deletePlace(id: Long) = placeChange({ repo.api.deletePlace(id) })
+    /**
+     * Tasks that hang on the place keep it. Plugin 1.8: the place of the profile is deleted there — at once when only
+     * tasks use it (they keep their copy, as before), else the person is sent to Profil › Meine Orte (other plugins use it).
+     */
+    fun deletePlace(id: Long) {
+        if (profile()) {
+            profileChange { p ->
+                val r = p.delete(id)
+                if (r is com.gatecontrol.android.places.PlaceEdit.Refused && r.code == com.gatecontrol.android.places.PlacesRepository.CODE_IN_USE &&
+                    com.gatecontrol.android.places.MyPlaces.onlyBy(r.usedBy, NOTIZEN_PLUGIN)
+                ) {
+                    p.delete(id, force = true)
+                } else {
+                    r
+                }
+            }
+            return
+        }
+        placeChange({ repo.api.deletePlace(id) })
+    }
+
+    private fun profile(): Boolean = _ui.value.me?.has(com.gatecontrol.android.notizen.NFeature.PROFILE_PLACES) == true
+
+    private suspend fun place(id: Long): com.gatecontrol.android.places.MyPlace? =
+        profilePlaces.current()?.places?.firstOrNull { it.id == id } ?: profilePlaces.refresh().places.firstOrNull { it.id == id }
+
+    /** A change of „Meine Orte“ in the profile (plugin 1.8): its answer as one of the page's messages. */
+    private fun profileChange(call: suspend (com.gatecontrol.android.places.PlacesRepository) -> com.gatecontrol.android.places.PlaceEdit) {
+        viewModelScope.launch {
+            val r = call(profilePlaces)
+            _message.value = when {
+                r is com.gatecontrol.android.places.PlaceEdit.Done -> null
+                r is com.gatecontrol.android.places.PlaceEdit.Refused && r.code == com.gatecontrol.android.places.PlacesRepository.CODE_OFFLINE -> "place_offline"
+                r is com.gatecontrol.android.places.PlaceEdit.Refused && r.code == com.gatecontrol.android.places.PlacesRepository.CODE_IN_USE -> "place_in_use"
+                r is com.gatecontrol.android.places.PlaceEdit.Refused && r.code == com.gatecontrol.android.places.PlacesRepository.CODE_DUPLICATE -> "place_duplicate"
+                r is com.gatecontrol.android.places.PlaceEdit.Refused -> r.code.lowercase()
+                else -> null
+            }
+            loadPlaces()
+            if (r is com.gatecontrol.android.places.PlaceEdit.Done) repo.touched("places")
+        }
+    }
 
     /** „Nicht mehr merken für: Baumarkt“. */
     fun forgetPlace(key: String) = placeChange({ repo.api.placeFav(key, null) })
@@ -442,3 +491,6 @@ class NotizenImportViewModel @Inject constructor(
         source?.close()
     }
 }
+
+/** The id of the Notizen plugin in „Genutzt von“. */
+private const val NOTIZEN_PLUGIN = "gatecontrol-notizen"
