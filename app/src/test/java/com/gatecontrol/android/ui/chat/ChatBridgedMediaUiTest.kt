@@ -235,7 +235,7 @@ class ChatBridgedMediaUiTest {
 
     private fun chatScreen(dark: Boolean, c: ChatConversation) {
         hints.setSeen("whatsapp", true)
-        val vm = ConversationViewModel(context, repository, media, extras, device, hints).also { viewModels += it }
+        val vm = ConversationViewModel(context, repository, media, extras, device, hints, mockk(relaxed = true)).also { viewModels += it }
         val home = homeViewModel()
         draw(dark) { ConversationScreen(conversationId = c.id, onBack = {}, onOpenInfo = {}, onOpenImage = {}, onOpenLinked = {}, viewModel = vm, homeViewModel = home) }
     }

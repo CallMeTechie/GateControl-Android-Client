@@ -194,7 +194,7 @@ class ChatBridgedUiTest {
         every { media.outboxDir } returns File(context.filesDir, "chat-outbox")
     }
 
-    private fun conversationViewModel() = ConversationViewModel(context, repository, media, extras, device, hints).also { viewModels += it }
+    private fun conversationViewModel() = ConversationViewModel(context, repository, media, extras, device, hints, mockk(relaxed = true)).also { viewModels += it }
 
     private fun homeViewModel(): ChatHomeViewModel {
         val plugins: PluginDirectory = mockk(relaxed = true)

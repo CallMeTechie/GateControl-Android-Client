@@ -319,8 +319,13 @@ class ChatExtrasRepository @Inject constructor(
 
     suspend fun toList(messageId: Long, items: List<String>): ChatResult<Unit> = api.toList(messageId, items)
 
-    suspend fun toCalendar(messageId: Long, date: ChatSuggestedDate, fallbackTitle: String): ChatResult<Unit> =
-        api.toCalendar(messageId, date.title ?: fallbackTitle, date.startsAt, null)
+    /** „Termin anlegen“ into Familie's calendar with what the person checked in the form. */
+    suspend fun toCalendar(messageId: Long, d: ChatSuggestedEventDraft): ChatResult<Unit> =
+        api.toCalendar(messageId, d.title.trim(), java.time.Instant.ofEpochMilli(familieStart(d)).toString(), null, d.allDay)
+
+    /** An all-day date goes as its noon: Familie reads the day in the server's time zone, which may not be the device's. */
+    private fun familieStart(d: ChatSuggestedEventDraft, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Long =
+        if (!d.allDay) d.startMs else java.time.Instant.ofEpochMilli(d.startMs).atZone(zone).toLocalDate().atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
 
     /**
      * "In Drive speichern" of [message]'s file. Held back by the virus scan (Messenger 1.11, `423`): the cached message
