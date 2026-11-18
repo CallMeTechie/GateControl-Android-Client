@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.130.0] - 2026-11-18
+
+### Features
+- Profil › Meine Orte, gemeinsame Ortsauswahl, Ortsnachrichten und Ankunft mit place.ref (#257)
+
+---
+
+## [1.129.5] - 2026-11-18
+
+### Fixes
+- „Termin anlegen“ zeigt erst das Formular, Kalender wählbar, Datum „30.11“ richtig (#256)
+
+---
+
 ## [1.129.4] - 2026-11-18
 
 ### Fixes
