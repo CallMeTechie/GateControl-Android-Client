@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.130.0] - 2026-11-18
+
+### Features
+- Profil › Meine Orte, gemeinsame Ortsauswahl, Ortsnachrichten und Ankunft mit place.ref (#257)
+
+---
+
 ## [1.129.5] - 2026-11-18
 
 ### Fixes
