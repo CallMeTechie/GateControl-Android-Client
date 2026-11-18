@@ -299,6 +299,8 @@ data class ChatEventPlace(
     val lat: Double?,
     val lon: Double?,
     val radiusM: Int? = null,
+    /** Messenger 1.28 (`arrival.dest.ref`): one of „Meine Orte“ (`profile:<id>`) or a Familie place (`home`, `place:<id>`). */
+    val ref: String? = null,
 )
 
 data class ChatChecklistItem(val id: String, val text: String, val doneBy: Long?)
@@ -374,6 +376,19 @@ data class ChatArrival(
         const val STATE_ARRIVED = "arrived"
         const val STATE_STOPPED = "stopped"
         const val DEFAULT_RADIUS_M = 150
+
+        /**
+         * Messenger 1.28: the destination from the shared choice — one of „Meine Orte“ as `ref` (with the copy), a
+         * Familie place also as `familiePlaceId` (older servers), a point only here without either.
+         */
+        fun destOf(o: com.gatecontrol.android.places.PlaceOption): ChatEventPlace = ChatEventPlace(
+            familiePlaceId = o.ref?.takeIf { o.profileId == null },
+            label = o.name.take(120),
+            lat = o.lat,
+            lon = o.lon,
+            radiusM = o.radiusM,
+            ref = o.ref?.takeIf { com.gatecontrol.android.places.MyPlaces.isRef(it) },
+        )
     }
 }
 

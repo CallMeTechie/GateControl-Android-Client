@@ -351,6 +351,8 @@ data class ChatFeatures(
     val tokens: Set<String> = emptySet(),
     /** Messenger 1.27 `placeMessages`: Ortsnachrichten, „Nachrichten senden über“ and the full plus menu. */
     val placeMessages: Boolean = false,
+    /** Messenger 1.28 `profilePlaces`: `GET places` (Meine Orte + Familie), `place.ref` / `arrival.dest.ref`. */
+    val profilePlaces: Boolean = false,
 ) {
     /** File messages may carry `video { durationMs, width, height }` (Messenger 1.3.0). */
     val videoMeta: Boolean get() = VIDEO_META in tokens

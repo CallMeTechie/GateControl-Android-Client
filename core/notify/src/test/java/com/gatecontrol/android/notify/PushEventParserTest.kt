@@ -197,6 +197,16 @@ class PushEventParserTest {
     }
 
     @Test
+    fun `control places names the ids, never more than 100, and whether they were deleted`() {
+        assertEquals(PushEvent.Control(ServerControl.PlacesChanged(listOf(12L, 13L), false)), control("""{"type":"places","ids":[12,13,12],"deleted":false}"""))
+        assertEquals(PushEvent.Control(ServerControl.PlacesChanged(listOf(7L), true)), control("""{"type":"places","ids":[7,-1,"x",0],"deleted":true}"""))
+        // no ids (or garbage): still a reason to load the list again
+        assertEquals(PushEvent.Control(ServerControl.PlacesChanged(emptyList(), false)), control("""{"type":"places"}"""))
+        val many = (1..150).joinToString(",")
+        assertEquals(100, ((control("""{"type":"places","ids":[$many]}""") as PushEvent.Control).control as ServerControl.PlacesChanged).ids.size)
+    }
+
+    @Test
     fun `hello state is parsed with every field`() {
         val hello = PushEventParser.parse(
             "hello", null,

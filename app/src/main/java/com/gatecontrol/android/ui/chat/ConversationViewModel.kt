@@ -143,6 +143,9 @@ class ConversationViewModel @Inject constructor(
     /** Messenger 1.4: home actions, Familie places and this device's chat settings. */
     val homeActions: StateFlow<List<com.gatecontrol.android.chat.ChatHomeAction>?> = extras.actions
     val places: StateFlow<List<com.gatecontrol.android.chat.ChatPlace>?> = extras.places
+    /** Messenger 1.28: the places of the shared choice (Meine Orte + Familie); used only with [profilePlaces]. */
+    val pickPlaces: StateFlow<List<com.gatecontrol.android.places.PlaceOption>?> = extras.pickPlaces
+    val profilePlaces: Boolean get() = extras.profilePlaces
     val deviceConfig: StateFlow<com.gatecontrol.android.chat.ChatDeviceConfig> = device.config
     val wallpaperFile: File get() = device.wallpaperFile
     private val _richBusy = MutableStateFlow(false)
@@ -814,6 +817,8 @@ class ConversationViewModel @Inject constructor(
         viewModelScope.launch { if (uiState.value.profile?.features?.actions == true) extras.refreshActions() }
         // Familie places only when Familie offers them (`integrations.familie.places`).
         viewModelScope.launch { if (uiState.value.profile?.familie?.places != false) extras.refreshPlaces() }
+        // Messenger 1.28: „Meine Orte“ for the arrival's choice
+        viewModelScope.launch { if (extras.profilePlaces) extras.refreshPickPlaces() }
     }
 
     private fun after(r: ChatResult<*>, done: Int? = null) {

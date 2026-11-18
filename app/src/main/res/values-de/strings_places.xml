@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- „Meine Orte“ (GateControl 1.299): Profil › Meine Orte and the shared choice of a place. -->
+<resources>
+    <string name="places_add">Ort</string>
+    <string name="places_all">Alle Orte…</string>
+    <string name="places_cancel">Abbrechen</string>
+    <string name="places_change">Ändern</string>
+    <string name="places_close">Schließen</string>
+    <string name="places_delete">Löschen</string>
+    <string name="places_delete_force">Trotzdem löschen</string>
+    <string name="places_delete_q">„%1$s“ löschen?</string>
+    <string name="places_delete_text">Der Ort verschwindet aus „Meine Orte“.</string>
+    <string name="places_deleted">Ort gelöscht.</string>
+    <string name="places_detail_hint">Änderst du Punkt oder Radius, gilt das sofort für alles oben. Löschen geht erst, wenn nichts mehr den Ort nutzt – oder mit Rückfrage für alle.</string>
+    <string name="places_edit">Ort ändern</string>
+    <string name="places_editor_hint">Suche nach Adresse, tippe auf die Karte oder nimm den aktuellen Standort (◎). Ohne Punkt auf der Karte lässt sich nicht speichern.</string>
+    <string name="places_empty">Noch keine Orte. Lege Zuhause, Arbeit oder die Schule an – Ortsnachrichten, Aufgaben und Erinnerungen bieten sie dann zur Auswahl an.</string>
+    <string name="places_err_duplicate">Diesen Namen gibt es schon.</string>
+    <string name="places_err_invalid">Bitte prüfe deine Eingaben.</string>
+    <string name="places_err_limit">Du hast schon %1$d Orte – mehr geht nicht.</string>
+    <string name="places_err_not_found">Diesen Ort gibt es nicht mehr.</string>
+    <string name="places_err_offline">Keine Verbindung zum Server.</string>
+    <string name="places_err_other">Das hat nicht geklappt.</string>
+    <string name="places_err_rate">Zu viele Änderungen – bitte später noch einmal.</string>
+    <string name="places_familie_kept">gepflegt von Eltern</string>
+    <string name="places_from">aus %1$s übernommen</string>
+    <string name="places_from_familie">Familie-Ort</string>
+    <string name="places_from_mine">aus „Meine Orte“</string>
+    <string name="places_group_addresses">Adressen</string>
+    <string name="places_group_mine">Meine Orte</string>
+    <string name="places_group_near">In der Nähe</string>
+    <string name="places_group_new">Neu</string>
+    <string name="places_group_recent">Zuletzt genutzt</string>
+    <string name="places_here">hier</string>
+    <string name="places_here_btn">Aktueller Standort</string>
+    <string name="places_hint">Diese Orte sehen alle Plugins, die du nutzt. Wer sonst einen Ort sieht, stellst du je Ort ein.</string>
+    <string name="places_icon">Symbol</string>
+    <string name="places_icon_family">Familie</string>
+    <string name="places_icon_gym">Fitnessstudio</string>
+    <string name="places_icon_home">Zuhause</string>
+    <string name="places_icon_pin">Ort</string>
+    <string name="places_icon_school">Schule</string>
+    <string name="places_icon_shop">Einkaufen</string>
+    <string name="places_icon_work">Arbeit</string>
+    <string name="places_in_use_after">Löschst du ihn trotzdem, behalten sie die letzte Kopie des Punkts und weisen dich darauf hin.</string>
+    <string name="places_in_use_text">„%1$s“ wird noch genutzt:</string>
+    <string name="places_in_use_title">Ort wird noch genutzt</string>
+    <string name="places_locate_failed">Kein Standort gefunden – bitte noch einmal versuchen.</string>
+    <string name="places_locate_no_permission">Die App darf den Standort nicht abfragen.</string>
+    <string name="places_locate_off">Die Standortermittlung ist ausgeschaltet.</string>
+    <string name="places_map_cd">Karte mit „%1$s“</string>
+    <string name="places_map_hint">Tippe auf die Karte, um den Punkt zu setzen.</string>
+    <string name="places_map_pick_cd">Karte – tippen setzt den Punkt</string>
+    <string name="places_map_save">In „Meine Orte“ speichern</string>
+    <string name="places_map_title">Auf der Karte wählen</string>
+    <string name="places_name">Name</string>
+    <string name="places_name_hint">z. B. Arbeit</string>
+    <string name="places_new">Neuer Ort</string>
+    <string name="places_new_here">Aktueller Standort als Ort</string>
+    <string name="places_new_here_sub">wird in „Meine Orte“ gespeichert</string>
+    <string name="places_new_map">Auf der Karte wählen</string>
+    <string name="places_new_map_sub">einmalig oder als neuer Ort</string>
+    <string name="places_no_point">kein Standort</string>
+    <string name="places_no_point_detail">Dieser Ort hat keinen Standort. Was ihn nutzt, löst nicht aus, bis du ihn setzt.</string>
+    <string name="places_no_point_line">ohne Punkt auf der Karte</string>
+    <string name="places_none_yet">Noch keine Orte</string>
+    <string name="places_offline">Ohne Verbindung – du siehst die zuletzt geladenen Orte.</string>
+    <string name="places_only_here">Nur hier</string>
+    <string name="places_osm">© OpenStreetMap</string>
+    <string name="places_osm_short">OpenStreetMap</string>
+    <string name="places_pick_none">Noch keine Orte – lege unten einen neuen an.</string>
+    <string name="places_pick_search">Ort oder Adresse suchen</string>
+    <string name="places_point_only">nur hier</string>
+    <string name="places_radius">Radius · %1$d m</string>
+    <string name="places_radius_line">Radius %1$d m</string>
+    <string name="places_radius_short">%1$d m</string>
+    <string name="places_save">Speichern</string>
+    <string name="places_save_q_text">Ja legt ihn in „Meine Orte“ an, „Nur hier“ nutzt ihn nur in diesem Formular.</string>
+    <string name="places_save_q_text_only">Er wird in „Meine Orte“ angelegt.</string>
+    <string name="places_save_q_title">Als Ort speichern?</string>
+    <string name="places_saved">Ort gespeichert.</string>
+    <string name="places_search">Suchen</string>
+    <string name="places_search_addresses">Nach Adressen suchen</string>
+    <string name="places_search_busy">Zu viele Suchen – bitte später noch einmal.</string>
+    <string name="places_search_device_hint">Die Adresssuche des Servers ist aus – gesucht wird mit der Adresssuche des Geräts.</string>
+    <string name="places_search_down">Die Adresssuche antwortet gerade nicht.</string>
+    <string name="places_search_hint">Adresse suchen</string>
+    <string name="places_search_local_none">Keiner deiner Orte passt.</string>
+    <string name="places_search_min">Adressen ab 3 Zeichen.</string>
+    <string name="places_search_none">Keine Treffer.</string>
+    <string name="places_search_off">Hier ist keine Adresssuche verfügbar – tippe auf die Karte.</string>
+    <string name="places_search_press">„Suchen“ fragt nach Adressen.</string>
+    <string name="places_section_familie">Familie-Orte · gemeinsam</string>
+    <string name="places_section_mine">Meine Orte · %1$d</string>
+    <string name="places_selected">gewählt</string>
+    <string name="places_set">Setzen</string>
+    <string name="places_src_familie">Familie</string>
+    <string name="places_title">Meine Orte</string>
+    <string name="places_unsupported">Dein Server kennt „Meine Orte“ noch nicht (ab GateControl 1.299).</string>
+    <string name="places_unused">nicht genutzt</string>
+    <string name="places_use">Übernehmen</string>
+    <string name="places_use_other">%1$d× in %2$s</string>
+    <string name="places_used_by">Genutzt von</string>
+    <string name="places_used_none">Noch nutzt nichts diesen Ort.</string>
+    <string name="places_via_device">Treffer der Adresssuche des Geräts</string>
+    <string name="places_vis_all">Alle</string>
+    <string name="places_vis_family">Familie</string>
+    <string name="places_vis_self">Nur ich</string>
+    <string name="places_vis_self_short">nur ich</string>
+    <string name="places_visibility">Wer sieht den Ort</string>
+    <plurals name="places_count">
+        <item quantity="one">%d Ort</item>
+        <item quantity="other">%d Orte</item>
+    </plurals>
+    <plurals name="places_count_missing">
+        <item quantity="one">%d ohne Standort</item>
+        <item quantity="other">%d ohne Standort</item>
+    </plurals>
+    <plurals name="places_missing">
+        <item quantity="one">%d Ort hat keinen Standort. Ortsnachrichten und Aufgaben dort lösen nicht aus, bis du ihn setzt.</item>
+        <item quantity="other">%d Orte haben keinen Standort. Ortsnachrichten und Aufgaben dort lösen nicht aus, bis du sie setzt.</item>
+    </plurals>
+    <plurals name="places_search_busy_min">
+        <item quantity="one">Zu viele Suchen – in %d Minute wieder.</item>
+        <item quantity="other">Zu viele Suchen – in %d Minuten wieder.</item>
+    </plurals>
+    <plurals name="places_use_location_message">
+        <item quantity="one">%d Ortsnachricht</item>
+        <item quantity="other">%d Ortsnachrichten</item>
+    </plurals>
+    <plurals name="places_use_reminder">
+        <item quantity="one">%d Erinnerung</item>
+        <item quantity="other">%d Erinnerungen</item>
+    </plurals>
+    <plurals name="places_use_rule">
+        <item quantity="one">%d Regel</item>
+        <item quantity="other">%d Regeln</item>
+    </plurals>
+    <plurals name="places_use_task">
+        <item quantity="one">%d Aufgabe</item>
+        <item quantity="other">%d Aufgaben</item>
+    </plurals>
+    <plurals name="places_uses_plugins">
+        <item quantity="one">%d Plugins</item>
+        <item quantity="other">%d Plugins</item>
+    </plurals>
+    <plurals name="places_waiting">
+        <item quantity="one">%1$s wartet</item>
+        <item quantity="other">%1$s warten</item>
+    </plurals>
+</resources>

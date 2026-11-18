@@ -236,6 +236,7 @@ object ChatJson {
             disappearing = f.flag("disappearing") ?: false,
             tokens = tokens,
             placeMessages = f.flag("placeMessages") == true,
+            profilePlaces = f.flag("profilePlaces") == true,
         )
     }
 

@@ -605,6 +605,10 @@ class ChatApi @Inject constructor(
 
     suspend fun places(): ChatResult<List<ChatPlace>> = get("familie/places", parse = ChatJson14::places)
 
+    /** Messenger 1.28 (`features.profilePlaces`): „Meine Orte“ and the Familie places in the order of the chips. */
+    suspend fun pickPlaces(): ChatResult<List<com.gatecontrol.android.places.PlaceOption>> =
+        get("places", parse = com.gatecontrol.android.places.PlaceSources::messenger)
+
     // ─── Messenger 1.27: Ortsnachrichten ────────────────────────────
 
     suspend fun placeMessages(): ChatResult<ChatPmList> = get("place-messages", parse = ChatPlaceMessages::list)

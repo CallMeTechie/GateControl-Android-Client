@@ -151,6 +151,10 @@ class ChatPlaceMessagesViewModel @Inject constructor(
 ) : ViewModel() {
     val list = repo.list
     val places = extras.places
+    /** Messenger 1.28: the places of the shared choice (Meine Orte + Familie, sorted by use). */
+    val pickPlaces = extras.pickPlaces
+    /** Messenger 1.28 `profilePlaces`: the form chooses from „Meine Orte“ and keeps `place.ref`; else as before. */
+    val profilePlaces: Boolean get() = extras.profilePlaces
     val profile = chat.profile
     val conversations: StateFlow<List<ChatConversation>> = chat.conversations.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val deviceId: String get() = repo.deviceId
@@ -209,7 +213,12 @@ class ChatPlaceMessagesViewModel @Inject constructor(
             repo.refresh()
             _dropped.value = repo.dropped()
         }
-        viewModelScope.launch { if (chat.profile.value?.familie?.places != false) extras.refreshPlaces() }
+        viewModelScope.launch {
+            when {
+                extras.profilePlaces -> extras.refreshPickPlaces()
+                chat.profile.value?.familie?.places != false -> extras.refreshPlaces()
+            }
+        }
     }
 
     private fun run(block: suspend () -> ChatResult<*>, done: Int?, onOk: () -> Unit = {}) {
@@ -617,7 +626,10 @@ fun PlaceMessageEditor(
     val person = target?.person?.takeIf { it.conversationId == target.id }
     // without Familie places only the map
     val showMap = mapMode || familie.isEmpty()
-    val place = d.place?.let { if (showMap) it.copy(name = mapName.trim().take(ChatPlaceMessages.NAME_MAX), familieId = null) else it }
+    // Messenger 1.28: the shared choice (Meine Orte, Familie, a point only here) — the place is what was chosen
+    val shared = vm.profilePlaces
+    val pickOptions by vm.pickPlaces.collectAsStateWithLifecycle()
+    val place = if (shared) d.place else d.place?.let { if (showMap) it.copy(name = mapName.trim().take(ChatPlaceMessages.NAME_MAX), familieId = null, ref = null) else it }
     val ready = place != null && ChatPlaceMessages.hasPoint(place) && place.name.isNotBlank() && d.text.isNotBlank() && d.conversationId != null && ChatPlaceMessages.windowOk(d.window)
     val save = { vm.save(editing?.id, d.copy(place = place), quiet = onSaved != null) { onSaved?.invoke(); onDismiss() } }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
@@ -666,6 +678,13 @@ fun PlaceMessageEditor(
                 }
 
                 GcSectionLabel(stringResource(R.string.chat_pm_place))
+                if (shared) {
+                    SharedPlaceChoice(
+                        place = d.place,
+                        options = pickOptions.orEmpty(),
+                        onPlace = { p -> d = d.copy(place = p) },
+                    )
+                } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     familie.forEach { f ->
                         GcFilterChip(f.name, !showMap && d.place?.familieId == f.familieId, {
@@ -724,7 +743,9 @@ fun PlaceMessageEditor(
                         )
                     }
                 }
-                d.place?.let { p ->
+                }
+                // a place of the profile or of the Familie brings its radius; a point only here gets one
+                d.place?.takeIf { !shared || it.ref == null }?.let { p ->
                     Text(stringResource(R.string.chat_pm_radius, p.radiusM), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
                     if (p.radiusM < ChatPlaceWatch.FENCE_MIN_M) {
                         Text(stringResource(R.string.chat_pm_radius_min, ChatPlaceWatch.FENCE_MIN_M), style = MaterialTheme.typography.bodySmall, color = extra.muted)
@@ -1028,3 +1049,32 @@ private const val SWIPE_DELETE = "delete"
 
 /** The states a change in the Android settings of the app fixes (the location, the notifications). */
 private val SETTINGS_FIXES = setOf(ChatPmHealth.NEED_LOCATION, ChatPmHealth.NEED_BACKGROUND, ChatPmHealth.NOTIFICATIONS_OFF)
+
+/**
+ * Messenger 1.28: the place of an Ortsnachricht from the shared choice (Bild 5) — at most three chips and „Alle Orte…“,
+ * the line under them, the map with the circle the phone watches; a deleted profile place says so (the copy still counts).
+ */
+@Composable
+internal fun SharedPlaceChoice(place: ChatPmPlace?, options: List<com.gatecontrol.android.places.PlaceOption>, onPlace: (ChatPmPlace) -> Unit) {
+    val selected = place?.let { ChatPlaceMessages.optionOf(it, options) }
+    com.gatecontrol.android.ui.places.PlaceChooser(
+        options = options,
+        selected = selected,
+        onPick = { o -> ChatPlaceMessages.fromOption(o)?.let(onPlace) },
+        modifier = Modifier.testTag("place-message-choice"),
+    )
+    if (place?.missing == true) {
+        GcBanner(tone = GcTone.Warn, icon = Icons.Outlined.Info, modifier = Modifier.testTag("place-missing")) {
+            Text(stringResource(R.string.chat_pm_place_missing, place.name), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        }
+    }
+    place?.takeIf { ChatPlaceMessages.hasPoint(it) }?.let { p ->
+        OsmMap(
+            point = LatLon(p.lat, p.lon),
+            contentDescription = stringResource(R.string.chat_pm_map_familie, p.name),
+            modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(16.dp)),
+            zoom = 15.0,
+            radiusM = ChatPlaceWatch.fenceRadius(p.radiusM).toDouble(),
+        )
+    }
+}

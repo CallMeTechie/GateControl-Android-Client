@@ -228,4 +228,6 @@ sealed interface ServerControl {
     data class SupportBundleRequested(val requestedAt: String?) : ServerControl
     data class PeerState(val enabled: Boolean) : ServerControl
     data object ConfigChanged : ServerControl
+    /** GateControl 1.299 „Meine Orte“: places of the owner were created, changed or ([deleted]) removed — load them again. */
+    data class PlacesChanged(val ids: List<Long>, val deleted: Boolean) : ServerControl
 }

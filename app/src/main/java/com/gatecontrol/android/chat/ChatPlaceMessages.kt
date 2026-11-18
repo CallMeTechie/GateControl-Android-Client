@@ -22,8 +22,21 @@ import java.time.LocalDateTime
  * unit-tested; the runner and the screens act on what these say.
  */
 
-/** The place of an Ortsnachricht: a Familie place ([familieId]) or one picked on the map. */
-data class ChatPmPlace(val familieId: String?, val name: String, val lat: Double, val lon: Double, val radiusM: Int)
+/**
+ * The place of an Ortsnachricht: a Familie place ([familieId]) or one picked on the map. Messenger 1.28: [ref] — one of
+ * „Meine Orte“ (`profile:<id>`) or a Familie place (`home`, `place:<id>`); name, point and radius are the copy the phone
+ * watches. [missing]: the profile place was deleted (or is no longer visible) — the copy still counts, a new place may be
+ * chosen.
+ */
+data class ChatPmPlace(
+    val familieId: String?,
+    val name: String,
+    val lat: Double,
+    val lon: Double,
+    val radiusM: Int,
+    val ref: String? = null,
+    val missing: Boolean = false,
+)
 
 /** Only at these times: [days] ISO (Mo = 1 … So = 7), [from]–[to] as `HH:MM` (over midnight when [to] is earlier). */
 data class ChatPmWindow(val days: List<Int>, val from: String, val to: String)
@@ -143,6 +156,8 @@ object ChatPlaceMessages {
             lat = lat,
             lon = lon,
             radiusM = clampRadius(o.int("radiusM")),
+            ref = o.str("ref")?.takeIf { com.gatecontrol.android.places.MyPlaces.isRef(it) },
+            missing = o.flag("missing") == true,
         )
     }
 
@@ -232,6 +247,8 @@ object ChatPlaceMessages {
     // ─── writing ────────────────────────────────────────────────────
 
     fun placeJson(p: ChatPmPlace): JsonObject = JsonObject().apply {
+        // Messenger 1.28: the reference; the copy goes along as the fallback (the server takes the profile's point)
+        p.ref?.let { addProperty("ref", it) }
         p.familieId?.let { f -> f.toLongOrNull()?.let { addProperty("familieId", it) } ?: addProperty("familieId", f) }
         addProperty("name", p.name)
         addProperty("lat", p.lat)
@@ -345,6 +362,39 @@ object ChatPlaceMessages {
     fun familieWithoutPoint(places: List<ChatPlace>): List<ChatPlace> = places.filter { fromFamilie(it) == null }
 
     fun clampRadius(m: Int?): Int = (m ?: RADIUS_DEFAULT_M).coerceIn(RADIUS_MIN_M, RADIUS_MAX_M)
+
+    /**
+     * Messenger 1.28: the place chosen in the shared choice. One of „Meine Orte“ keeps `profile:<id>` (no `familieId`), a
+     * Familie place its id as `familieId` and — when it is a reference the Messenger takes — as `ref`; a point picked only
+     * for this form neither. null: no point (nothing to watch).
+     */
+    fun fromOption(o: com.gatecontrol.android.places.PlaceOption): ChatPmPlace? {
+        if (!o.hasPoint) return null
+        val profile = o.profileId != null
+        return ChatPmPlace(
+            familieId = if (profile) null else o.ref,
+            name = o.name.take(NAME_MAX),
+            lat = o.lat!!,
+            lon = o.lon!!,
+            radiusM = clampRadius(o.radiusM),
+            ref = o.ref?.takeIf { com.gatecontrol.android.places.MyPlaces.isRef(it) },
+        ).takeIf { hasPoint(it) }
+    }
+
+    /** The place of an Ortsnachricht as a choice: by its reference (or Familie id) among [options], else its own copy. */
+    fun optionOf(p: ChatPmPlace, options: List<com.gatecontrol.android.places.PlaceOption>): com.gatecontrol.android.places.PlaceOption {
+        val key = p.ref ?: p.familieId
+        options.firstOrNull { key != null && it.ref == key }?.let { return it }
+        return com.gatecontrol.android.places.PlaceOption(
+            ref = key,
+            name = p.name,
+            icon = if (key == "home") com.gatecontrol.android.places.PlaceIcons.HOME else com.gatecontrol.android.places.PlaceIcons.PIN,
+            lat = p.lat.takeIf { hasPoint(p) },
+            lon = p.lon.takeIf { hasPoint(p) },
+            radiusM = p.radiusM,
+            familie = key != null && com.gatecontrol.android.places.MyPlaces.idOf(key) == null,
+        )
+    }
 
     /** A Familie place for the form: its name, point and radius (kept within 100–2000 m), its id as `familieId`. */
     fun fromFamilie(p: ChatPlace): ChatPmPlace? {
