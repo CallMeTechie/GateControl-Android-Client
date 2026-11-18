@@ -69,6 +69,8 @@ class ServerControlHandler @Inject constructor(
     // ─── Push ───────────────────────────────────────────────────────────
 
     override fun onServerState(state: ServerState) {
+        // every (re)connect of the stream: a change of „Meine Orte“ missed while offline is loaded then
+        com.gatecontrol.android.places.PlacesSignals.reconnected()
         state.policyVersion?.let { version ->
             if (version != lastPolicySignal) {
                 lastPolicySignal = version
@@ -95,6 +97,8 @@ class ServerControlHandler @Inject constructor(
             is ServerControl.SupportBundleRequested -> SupportRequestHolder.update(true, control.requestedAt)
             is ServerControl.PeerState -> if (!control.enabled) launchSafely { peerDisabled("push") }
             ServerControl.ConfigChanged -> launchSafely { syncConfig("push") }
+            // „Meine Orte“: the list, the choice and the geofences load them again (PlacesRepository)
+            is ServerControl.PlacesChanged -> com.gatecontrol.android.places.PlacesSignals.changed(control.ids, control.deleted)
         }
     }
 

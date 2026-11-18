@@ -346,6 +346,29 @@ interface ApiClient {
     @HTTP(method = "DELETE", path = "api/v1/client/me/profile/emails/{id}")
     suspend fun deleteMyEmail(@Path("id") id: Long): Response<JsonObject>
 
+    // ─── „Meine Orte“ (server 1.299+, 404 before). Raw JSON: the app parses it (MyPlaces). ──
+
+    @GET("api/v1/client/me/profile/places")
+    suspend fun getMyPlaces(): Response<JsonObject>
+
+    @POST("api/v1/client/me/profile/places")
+    suspend fun addMyPlace(@Body body: RequestBody): Response<JsonObject>
+
+    @PATCH("api/v1/client/me/profile/places/{id}")
+    suspend fun patchMyPlace(@Path("id") id: Long, @Body body: RequestBody): Response<JsonObject>
+
+    /** `force=1`: also when a plugin still uses the place (else 409 IN_USE with `usedBy`). */
+    @HTTP(method = "DELETE", path = "api/v1/client/me/profile/places/{id}")
+    suspend fun deleteMyPlace(@Path("id") id: Long, @Query("force") force: Int? = null): Response<JsonObject>
+
+    /** Sets the place's `lastUsedAt` (the order of the choice). */
+    @POST("api/v1/client/me/profile/places/{id}/used")
+    suspend fun markMyPlaceUsed(@Path("id") id: Long): Response<JsonObject>
+
+    /** The server's address search (`q` 3–120 characters, `near` rounded to ~1 km), only on an explicit „Suchen“. */
+    @GET("api/v1/client/me/places/search")
+    suspend fun searchPlaces(@Query("q") q: String, @Query("near") near: String? = null): Response<JsonObject>
+
     /** „Meine Daten“ as a JSON file (`Content-Disposition: attachment; filename=…`). */
     @Streaming
     @GET("api/v1/client/me/profile/export")

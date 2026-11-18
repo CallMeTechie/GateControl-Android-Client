@@ -154,12 +154,19 @@ object PushEventParser {
         return PushEvent.Plugin(plugin, type, data)
     }
 
+    /** `ids` of the control `places`: at most 100 positive ids, never a name or a point. */
+    private fun placeIds(e: com.google.gson.JsonElement?): List<Long> =
+        e?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapNotNull { v -> v.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong?.takeIf { it > 0 } }
+            ?.distinct()?.take(100).orEmpty()
+
     private fun control(o: JsonObject): PushEvent {
         val control = when (o.str("type")) {
             "policy_changed" -> ServerControl.PolicyChanged(policyVersion(o.get("policy_version")))
             "support_bundle_requested" -> ServerControl.SupportBundleRequested(timestamp(o.str("requested_at")))
             "peer_state" -> ServerControl.PeerState(o.bool("enabled") ?: return PushEvent.Ignored("control", "invalid"))
             "config_changed" -> ServerControl.ConfigChanged
+            "places" -> ServerControl.PlacesChanged(placeIds(o.get("ids")), o.bool("deleted") == true)
             else -> return PushEvent.Ignored("control", "unknown_control")
         }
         return PushEvent.Control(control)

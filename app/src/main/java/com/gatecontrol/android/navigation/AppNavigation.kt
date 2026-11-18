@@ -69,6 +69,7 @@ import com.gatecontrol.android.ui.settings.LogsScreen
 import com.gatecontrol.android.ui.profile.ProfileScreen
 import com.gatecontrol.android.ui.rules.RulesRoutes
 import com.gatecontrol.android.ui.rules.rulesGraph
+import com.gatecontrol.android.ui.places.placesGraph
 import com.gatecontrol.android.ui.settings.ServerSettingsScreen
 import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.settings.SplitTunnelScreen
@@ -711,6 +712,7 @@ fun AppNavigation(
                                     onOpenEnroll = { navController.navigate(Screen.Enroll.create()) },
                                     onOpenRoutes = { navController.navigate(Screen.NotifyRoutes.route) { launchSingleTop = true } },
                                     onOpenRules = { navController.navigate(RulesRoutes.LIST) { launchSingleTop = true } },
+                                    onOpenPlaces = { navController.navigate(com.gatecontrol.android.ui.places.PlacesRoutes.LIST) { launchSingleTop = true } },
                                     onSelectPane = { paneKey = it.key },
                                     features = pinnable,
                                     onArrangePages = { navController.navigate(Screen.StartPagesArrange.route) { launchSingleTop = true } },
@@ -1240,12 +1242,16 @@ fun AppNavigation(
                         onBack = { navController.popBackStack() },
                         onOpenSettings = openSettings,
                         onOpenRules = { navController.navigate(RulesRoutes.LIST) { launchSingleTop = true } },
+                        onOpenPlaces = { navController.navigate(com.gatecontrol.android.ui.places.PlacesRoutes.LIST) { launchSingleTop = true } },
                     )
                 }
             }
 
             // Familie "Regeln und Erinnerungen" incl. reminder/new?actionId=… (long press on a widget).
             rulesGraph(navController)
+
+            // Profil › Meine Orte (GateControl 1.299).
+            placesGraph(navController)
 
             composable(Screen.InfoCardPicker.route) {
                 GcContentWidth { InfoCardPickerScreen(onBack = { navController.popBackStack() }) }
@@ -1814,12 +1820,13 @@ private fun SettingsPaneContent(
     onOpenEnroll: () -> Unit,
     onSelectPane: (SettingsPane) -> Unit,
     onOpenRules: () -> Unit = {},
+    onOpenPlaces: (() -> Unit)? = null,
     onOpenRoutes: (() -> Unit)? = null,
     features: List<String> = emptyList(),
     onArrangePages: () -> Unit = {},
 ) {
     when (pane) {
-        SettingsPane.Profile -> ProfileScreen(onBack = {}, onOpenRules = onOpenRules)
+        SettingsPane.Profile -> ProfileScreen(onBack = {}, onOpenRules = onOpenRules, onOpenPlaces = onOpenPlaces)
         SettingsPane.Connection -> ConnectionDetailsScreen(onBack = {}, onOpenDiagnosis = { onSelectPane(SettingsPane.Diagnosis) })
         SettingsPane.Server -> ServerSettingsScreen(onBack = {}, onNavigateToQrScanner = onOpenEnroll)
         SettingsPane.SplitTunnel -> SplitTunnelScreen(onBack = {})

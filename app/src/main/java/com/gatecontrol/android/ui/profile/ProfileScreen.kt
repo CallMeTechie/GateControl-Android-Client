@@ -105,6 +105,8 @@ fun ProfileScreen(
     onOpenSettings: (() -> Unit)? = null,
     /** Familie "Regeln und Erinnerungen" (B1); null: the row is not offered. */
     onOpenRules: (() -> Unit)? = null,
+    /** Profil › Meine Orte (GateControl 1.299); null: the row is not offered. Shown only when the server has them. */
+    onOpenPlaces: (() -> Unit)? = null,
     viewModel: ProfileViewModel = hiltViewModel(),
     presenceViewModel: ProfilePresenceViewModel = hiltViewModel(),
     fieldsViewModel: ProfileFieldsViewModel = hiltViewModel(),
@@ -253,6 +255,9 @@ fun ProfileScreen(
                 saving = fieldsSaving,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+        }
+        if (onOpenPlaces != null && profile != null && state.support == ProfileSupport.SUPPORTED) {
+            com.gatecontrol.android.ui.places.ProfilePlacesRow(onOpen = onOpenPlaces, modifier = Modifier.padding(horizontal = 16.dp))
         }
         ProfilePresenceSection(presenceViewModel, Modifier.padding(horizontal = 16.dp))
         if (onOpenRules != null) {

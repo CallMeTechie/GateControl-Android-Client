@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- „Meine Orte“ (GateControl 1.299): Profil › Meine Orte and the shared choice of a place. -->
+<resources>
+    <string name="places_add">Place</string>
+    <string name="places_all">All places…</string>
+    <string name="places_cancel">Cancel</string>
+    <string name="places_change">Change</string>
+    <string name="places_close">Close</string>
+    <string name="places_delete">Delete</string>
+    <string name="places_delete_force">Delete anyway</string>
+    <string name="places_delete_q">Delete “%1$s”?</string>
+    <string name="places_delete_text">The place is removed from “My places”.</string>
+    <string name="places_deleted">Place deleted.</string>
+    <string name="places_detail_hint">If you change the point or the radius, it applies at once to everything above. Deleting works only when nothing uses the place any more – or after a question, for all of them.</string>
+    <string name="places_edit">Edit place</string>
+    <string name="places_editor_hint">Search for an address, tap the map or take the current location (◎). Without a point on the map it cannot be saved.</string>
+    <string name="places_empty">No places yet. Add home, work or school – location messages, tasks and reminders then offer them to choose from.</string>
+    <string name="places_err_duplicate">You already have a place with this name.</string>
+    <string name="places_err_invalid">Please check what you entered.</string>
+    <string name="places_err_limit">You already have %1$d places – that is the limit.</string>
+    <string name="places_err_not_found">This place no longer exists.</string>
+    <string name="places_err_offline">No connection to the server.</string>
+    <string name="places_err_other">That did not work.</string>
+    <string name="places_err_rate">Too many changes – please try again later.</string>
+    <string name="places_familie_kept">kept by the parents</string>
+    <string name="places_from">taken over from %1$s</string>
+    <string name="places_from_familie">family place</string>
+    <string name="places_from_mine">from “My places”</string>
+    <string name="places_group_addresses">Addresses</string>
+    <string name="places_group_mine">My places</string>
+    <string name="places_group_near">Nearby</string>
+    <string name="places_group_new">New</string>
+    <string name="places_group_recent">Recently used</string>
+    <string name="places_here">here</string>
+    <string name="places_here_btn">Current location</string>
+    <string name="places_hint">All plugins you use see these places. Who else sees a place is set for each place.</string>
+    <string name="places_icon">Symbol</string>
+    <string name="places_icon_family">Family</string>
+    <string name="places_icon_gym">Gym</string>
+    <string name="places_icon_home">Home</string>
+    <string name="places_icon_pin">Place</string>
+    <string name="places_icon_school">School</string>
+    <string name="places_icon_shop">Shopping</string>
+    <string name="places_icon_work">Work</string>
+    <string name="places_in_use_after">If you delete it anyway, they keep the last copy of the point and tell you so.</string>
+    <string name="places_in_use_text">“%1$s” is still in use:</string>
+    <string name="places_in_use_title">Place still in use</string>
+    <string name="places_locate_failed">No location found – please try again.</string>
+    <string name="places_locate_no_permission">The app may not access the location.</string>
+    <string name="places_locate_off">Location is switched off.</string>
+    <string name="places_map_cd">Map with “%1$s”</string>
+    <string name="places_map_hint">Tap the map to set the point.</string>
+    <string name="places_map_pick_cd">Map – a tap sets the point</string>
+    <string name="places_map_save">Save in “My places”</string>
+    <string name="places_map_title">Choose on the map</string>
+    <string name="places_name">Name</string>
+    <string name="places_name_hint">e.g. Work</string>
+    <string name="places_new">New place</string>
+    <string name="places_new_here">Current location as a place</string>
+    <string name="places_new_here_sub">saved in “My places”</string>
+    <string name="places_new_map">Choose on the map</string>
+    <string name="places_new_map_sub">just once or as a new place</string>
+    <string name="places_no_point">no location</string>
+    <string name="places_no_point_detail">This place has no location. Nothing that uses it triggers until you set it.</string>
+    <string name="places_no_point_line">no point on the map</string>
+    <string name="places_none_yet">No places yet</string>
+    <string name="places_offline">Offline – you see the places loaded last.</string>
+    <string name="places_only_here">Only here</string>
+    <string name="places_osm">© OpenStreetMap</string>
+    <string name="places_osm_short">OpenStreetMap</string>
+    <string name="places_pick_none">No places yet – add a new one below.</string>
+    <string name="places_pick_search">Search place or address</string>
+    <string name="places_point_only">only here</string>
+    <string name="places_radius">Radius · %1$d m</string>
+    <string name="places_radius_line">Radius %1$d m</string>
+    <string name="places_radius_short">%1$d m</string>
+    <string name="places_save">Save</string>
+    <string name="places_save_q_text">Yes adds it to “My places”, “Only here” uses it in this form only.</string>
+    <string name="places_save_q_text_only">It is added to “My places”.</string>
+    <string name="places_save_q_title">Save as a place?</string>
+    <string name="places_saved">Place saved.</string>
+    <string name="places_search">Search</string>
+    <string name="places_search_addresses">Search addresses</string>
+    <string name="places_search_busy">Too many searches – please try again later.</string>
+    <string name="places_search_device_hint">The server’s address search is off – the device’s address search is used.</string>
+    <string name="places_search_down">The address search does not answer right now.</string>
+    <string name="places_search_hint">Search address</string>
+    <string name="places_search_local_none">None of your places matches.</string>
+    <string name="places_search_min">Addresses from 3 characters.</string>
+    <string name="places_search_none">No results.</string>
+    <string name="places_search_off">No address search available here – tap the map.</string>
+    <string name="places_search_press">“Search” looks for addresses.</string>
+    <string name="places_section_familie">Family places · shared</string>
+    <string name="places_section_mine">My places · %1$d</string>
+    <string name="places_selected">selected</string>
+    <string name="places_set">Set</string>
+    <string name="places_src_familie">Family</string>
+    <string name="places_title">My places</string>
+    <string name="places_unsupported">Your server does not know “My places” yet (GateControl 1.299 or later).</string>
+    <string name="places_unused">not used</string>
+    <string name="places_use">Use</string>
+    <string name="places_use_other">%1$d× in %2$s</string>
+    <string name="places_used_by">Used by</string>
+    <string name="places_used_none">Nothing uses this place yet.</string>
+    <string name="places_via_device">Results of the device’s address search</string>
+    <string name="places_vis_all">Everyone</string>
+    <string name="places_vis_family">Family</string>
+    <string name="places_vis_self">Only me</string>
+    <string name="places_vis_self_short">only me</string>
+    <string name="places_visibility">Who sees the place</string>
+    <plurals name="places_count">
+        <item quantity="one">%d place</item>
+        <item quantity="other">%d places</item>
+    </plurals>
+    <plurals name="places_count_missing">
+        <item quantity="one">%d without location</item>
+        <item quantity="other">%d without location</item>
+    </plurals>
+    <plurals name="places_missing">
+        <item quantity="one">%d place has no location. Location messages and tasks there do not trigger until you set it.</item>
+        <item quantity="other">%d places have no location. Location messages and tasks there do not trigger until you set them.</item>
+    </plurals>
+    <plurals name="places_search_busy_min">
+        <item quantity="one">Too many searches – again in %d minute.</item>
+        <item quantity="other">Too many searches – again in %d minutes.</item>
+    </plurals>
+    <plurals name="places_use_location_message">
+        <item quantity="one">%d location message</item>
+        <item quantity="other">%d location messages</item>
+    </plurals>
+    <plurals name="places_use_reminder">
+        <item quantity="one">%d reminder</item>
+        <item quantity="other">%d reminders</item>
+    </plurals>
+    <plurals name="places_use_rule">
+        <item quantity="one">%d rule</item>
+        <item quantity="other">%d rules</item>
+    </plurals>
+    <plurals name="places_use_task">
+        <item quantity="one">%d task</item>
+        <item quantity="other">%d tasks</item>
+    </plurals>
+    <plurals name="places_uses_plugins">
+        <item quantity="one">%d plugins</item>
+        <item quantity="other">%d plugins</item>
+    </plurals>
+    <plurals name="places_waiting">
+        <item quantity="one">%1$s waiting</item>
+        <item quantity="other">%1$s waiting</item>
+    </plurals>
+</resources>

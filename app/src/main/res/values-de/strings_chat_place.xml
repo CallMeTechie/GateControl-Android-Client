@@ -141,4 +141,5 @@
     <string name="chat_pm_no_fix">Der aktuelle Standort war nicht zu ermitteln.</string>
     <string name="chat_pm_map_familie">Karte von %s mit dem überwachten Kreis</string>
     <string name="chat_pm_radius_min">Das Handy überwacht mindestens %d m: kleinere Kreise verpassen die Ankunft in Gebäuden oft.</string>
+    <string name="chat_pm_place_missing">„%1$s“ gibt es in „Meine Orte“ nicht mehr. Die Ortsnachricht nutzt weiter den letzten Punkt – wähle einen Ort neu, wenn sich etwas geändert hat.</string>
 </resources>

@@ -236,6 +236,8 @@ object GcIcons {
     val MoreHorizontal = icon("MoreHorizontal", 2.6f, "M5 12h.01M12 12h.01M19 12h.01")
     val FolderMove = icon("FolderMove", 1.8f, "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M10 13h6M14 11l2 2-2 2")
     val Info = icon("Info", 2f, circle(12f, 12f, 9f), "M12 11v6M12 7.5v.5")
+    /** „Meine Orte“: the symbol „Fitnessstudio“ (a dumbbell). */
+    val Dumbbell = icon("Dumbbell", 2f, "M6.5 6.5v11M17.5 6.5v11M3.5 9.5v5M20.5 9.5v5M6.5 12h11")
     val Scan = icon("Scan", 2f, "M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M4 12h16")
     /** Drive › "Auf dem Gerät": the files of this phone (a hard disk). */
     val HardDrive = icon("HardDrive", 2f, rect(3f, 13f, 18f, 7f, 2f), "M5 13 7.5 5h9L19 13", "M16 16.5h.01M13 16.5h.01")

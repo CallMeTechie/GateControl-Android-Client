@@ -67,6 +67,17 @@ class ChatExtrasRepository @Inject constructor(
         scope.launch {
             repository.accountEvents.collect { e -> if (e.type == "lists.update") refreshLists() }
         }
+        // „Meine Orte“ changed (GateControl's control `places`), an Ortsnachricht's place was moved: the choice again
+        scope.launch {
+            com.gatecontrol.android.places.PlacesSignals.changes.collect { c ->
+                if (!c.reconnect && profilePlaces && _pickPlaces.value != null) runCatching { refreshPickPlaces() }
+            }
+        }
+        scope.launch {
+            repository.accountEvents.collect { e ->
+                if (e.type == ChatPlaceMessages.EVENT && profilePlaces && _pickPlaces.value != null) runCatching { refreshPickPlaces() }
+            }
+        }
         // Another login: nothing of the old one stays.
         scope.launch {
             repository.available.drop(1).collect { on ->
@@ -76,6 +87,7 @@ class ChatExtrasRepository @Inject constructor(
     }
 
     private fun clear() {
+        _pickPlaces.value = null
         _feed.value = null
         _lists.value = emptyList()
         _blocks.value = null
@@ -337,6 +349,29 @@ class ChatExtrasRepository @Inject constructor(
             val cached = repository.cachedMessage(message.id) ?: message
             ChatToolsLogic.withScan(cached, refusal)?.let { repository.storeMessages(listOf(it)) }
         }
+        return r
+    }
+
+    private val _pickPlaces = MutableStateFlow<List<com.gatecontrol.android.places.PlaceOption>?>(null)
+    /**
+     * The places of the choice in the Messenger's forms (Ortsnachricht, Ankunft): with Messenger 1.28 `GET places`
+     * (Meine Orte + Familie, sorted by use), before that the Familie places as choices. null until loaded.
+     */
+    val pickPlaces: StateFlow<List<com.gatecontrol.android.places.PlaceOption>?> = _pickPlaces.asStateFlow()
+
+    /** Messenger 1.28: the forms choose from „Meine Orte“ and keep `place.ref`. */
+    val profilePlaces: Boolean get() = features?.profilePlaces == true
+
+    suspend fun refreshPickPlaces(): ChatResult<List<com.gatecontrol.android.places.PlaceOption>> {
+        if (!profilePlaces) {
+            val r = refreshPlaces()
+            val opts = (r as? ChatResult.Ok)?.value?.let(com.gatecontrol.android.places.PlaceSources::familie)
+            if (opts != null) _pickPlaces.value = opts else if (_pickPlaces.value == null) _pickPlaces.value = emptyList()
+            return if (opts != null) ChatResult.Ok(opts) else ChatResult.Ok(_pickPlaces.value.orEmpty())
+        }
+        val r = api.pickPlaces()
+        if (r is ChatResult.Ok) _pickPlaces.value = r.value
+        else if (_pickPlaces.value == null) _pickPlaces.value = emptyList()
         return r
     }
 

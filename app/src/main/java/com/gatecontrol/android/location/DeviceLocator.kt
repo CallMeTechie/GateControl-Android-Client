@@ -79,6 +79,21 @@ object DeviceLocator {
             ?: LocateResult.NoFix
     }
 
+    /**
+     * The phone's last known position up to [maxAgeMs] old, without asking for a new fix (cheap: for distances in a list).
+     * null without a permission, with the location off or nothing recent.
+     */
+    @Suppress("MissingPermission") // checked by hasPermission() first
+    fun lastKnown(context: Context, maxAgeMs: Long = 30 * 60_000L): Location? {
+        if (!hasPermission(context)) return null
+        val lm = context.getSystemService(LocationManager::class.java) ?: return null
+        if (!runCatching { lm.isLocationEnabled }.getOrDefault(false)) return null
+        return listOf(LocationManager.FUSED_PROVIDER, LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .mapNotNull { p -> runCatching { if (lm.hasProvider(p)) lm.getLastKnownLocation(p) else null }.getOrNull() }
+            .filter { ageMs(it) <= maxAgeMs }
+            .minByOrNull { if (it.hasAccuracy()) it.accuracy else Float.MAX_VALUE }
+    }
+
     @Suppress("MissingPermission")
     private suspend fun current(context: Context, lm: LocationManager, provider: String): Location? =
         suspendCancellableCoroutine { cont ->

@@ -219,6 +219,7 @@ object ChatSerializer {
             addProperty("disappearing", f.disappearing)
             f.tokens.forEach { addProperty(it, true) }
             if (f.placeMessages) addProperty("placeMessages", true)
+            if (f.profilePlaces) addProperty("profilePlaces", true)
         })
         add("limits", JsonObject().apply {
             val l = p.limits

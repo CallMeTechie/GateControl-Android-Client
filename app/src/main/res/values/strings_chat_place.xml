@@ -141,4 +141,5 @@
     <string name="chat_pm_no_fix">The current location could not be found.</string>
     <string name="chat_pm_map_familie">Map of %s with the watched circle</string>
     <string name="chat_pm_radius_min">The phone watches at least %d m: smaller circles often miss the arrival inside buildings.</string>
+    <string name="chat_pm_place_missing">“%1$s” no longer exists in “My places”. The location message keeps using the last point – choose a place again if something changed.</string>
 </resources>

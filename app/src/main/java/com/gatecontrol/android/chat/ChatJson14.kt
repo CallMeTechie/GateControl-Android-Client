@@ -515,7 +515,10 @@ object ChatJson14 {
     fun place(o: JsonObject?): ChatEventPlace? {
         if (o == null) return null
         val label = ChatJson.line(o.str("label") ?: o.str("name"), 120) ?: return null
-        return ChatEventPlace(o.key("familiePlaceId"), label, lat(o), lon(o), o.int("radiusM")?.coerceIn(10, 100_000))
+        return ChatEventPlace(
+            o.key("familiePlaceId"), label, lat(o), lon(o), o.int("radiusM")?.coerceIn(10, 100_000),
+            ref = o.str("ref")?.takeIf { com.gatecontrol.android.places.MyPlaces.isRef(it) },
+        )
     }
 
     fun writePlace(p: ChatEventPlace): JsonObject = JsonObject().apply {
@@ -707,7 +710,10 @@ object ChatJson14 {
 
     /** `arrival` of a send body. */
     fun arrivalSendBody(dest: ChatEventPlace, onArriveActionId: String?, onArrivePlugin: String? = null): JsonObject = JsonObject().apply {
-        add("dest", writePlace(dest.copy(radiusM = (dest.radiusM ?: ChatArrival.DEFAULT_RADIUS_M).coerceIn(30, 5000))))
+        add("dest", writePlace(dest.copy(radiusM = (dest.radiusM ?: ChatArrival.DEFAULT_RADIUS_M).coerceIn(30, 5000))).apply {
+            // Messenger 1.28: the reference (the server takes point and radius of the profile place); the copy stays the fallback
+            dest.ref?.let { addProperty("ref", it) }
+        })
         onArriveActionId?.let { id ->
             add("onArrive", JsonObject().apply {
                 addProperty("actionId", id)

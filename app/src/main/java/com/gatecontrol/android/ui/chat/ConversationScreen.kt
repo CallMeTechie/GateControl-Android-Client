@@ -210,6 +210,7 @@ fun ConversationScreen(
     // Messenger 1.4.
     val homeActions by viewModel.homeActions.collectAsStateWithLifecycle()
     val places by viewModel.places.collectAsStateWithLifecycle()
+    val pickPlaces by viewModel.pickPlaces.collectAsStateWithLifecycle()
     val deviceConfig by viewModel.deviceConfig.collectAsStateWithLifecycle()
     val richBusy by viewModel.richBusy.collectAsStateWithLifecycle()
     var showPoll by remember { mutableStateOf(false) }
@@ -1087,6 +1088,7 @@ fun ConversationScreen(
     if (arrivalSheet) {
         ArrivalSheet(
             places = places.takeIf { state.profile?.familie?.places != false } ?: emptyList(),
+            pickPlaces = if (viewModel.profilePlaces) pickPlaces.orEmpty() else null,
             actions = if (state.profile?.features?.actions == true) homeActions.orEmpty() else emptyList(),
             initial = arrivalDest,
             busy = richBusy,

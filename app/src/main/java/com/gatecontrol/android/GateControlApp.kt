@@ -141,6 +141,13 @@ class GateControlApp : Application() {
             Timber.w(e, "Notizen: places not started")
         }
 
+        // „Meine Orte“ (GateControl 1.299): the own places of the profile, kept on the phone for the choice offline.
+        try {
+            EntryPointAccessors.fromApplication(this, com.gatecontrol.android.places.PlacesEntryPoint::class.java).placesRepository().start()
+        } catch (e: Throwable) {
+            Timber.w(e, "Places: not started")
+        }
+
         // Chats, Messenger 1.27: the Ortsnachrichten of this phone as geofences (nothing without `features.placeMessages`).
         try {
             EntryPointAccessors.fromApplication(this, com.gatecontrol.android.chat.ChatPlaceEntryPoint::class.java).placeGeofences().start()

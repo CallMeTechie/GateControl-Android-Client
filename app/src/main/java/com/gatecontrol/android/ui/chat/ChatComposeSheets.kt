@@ -69,6 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -642,6 +643,8 @@ fun ArrivalSheet(
     /** "Orte für Regeln teilen" is off (Familie with rule places): a hint that leads to the profile. */
     placesShared: Boolean? = null,
     onOpenProfile: (() -> Unit)? = null,
+    /** Messenger 1.28 (`profilePlaces`): the shared choice from „Meine Orte“ and the Familie places; null: as before. */
+    pickPlaces: List<com.gatecontrol.android.places.PlaceOption>? = null,
 ) {
     val extra = GateControlTheme.extraColors
     val usable = places.orEmpty().filter { it.lat != null && it.lon != null }
@@ -660,6 +663,23 @@ fun ArrivalSheet(
                 Text(stringResource(R.string.chat_arrival_sub), style = MaterialTheme.typography.bodyMedium, color = extra.muted)
             }
             GcSectionLabel(stringResource(R.string.chat_arrival_dest))
+            if (pickPlaces != null) {
+                val current = picked
+                val selected = current?.let { c ->
+                    pickPlaces.firstOrNull { o -> o.ref != null && (o.ref == c.ref || o.ref == c.familiePlaceId) }
+                        ?: com.gatecontrol.android.places.PlaceOption(ref = c.ref, name = c.label, lat = c.lat, lon = c.lon, radiusM = c.radiusM)
+                }
+                com.gatecontrol.android.ui.places.PlaceChooser(
+                    options = pickPlaces,
+                    selected = selected,
+                    onPick = { o ->
+                        mapMode = false
+                        label = o.name
+                        picked = com.gatecontrol.android.chat.ChatArrival.destOf(o)
+                    },
+                    modifier = Modifier.testTag("arrival-choice"),
+                )
+            } else {
             if (usable.isEmpty() && places != null) Text(stringResource(R.string.chat_arrival_no_places), style = MaterialTheme.typography.bodySmall, color = extra.muted)
             ArrivalDestinations(
                 places = usable,
@@ -687,6 +707,7 @@ fun ArrivalSheet(
                     onTap = { pt -> picked = ChatEventPlace(null, label.ifBlank { "" }, pt.lat, pt.lon) },
                 )
                 Field(label, { label = it }, stringResource(R.string.chat_arrival_dest_label), max = 120)
+            }
             }
             if (actions.isNotEmpty()) {
                 GcSectionLabel(stringResource(R.string.chat_arrival_on_arrive_pick))
