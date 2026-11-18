@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.129.4] - 2026-11-18
+
+### Fixes
+- Ortsnachricht löst nach Neustart der App am Ort zuverlässig aus, Status je Ortsnachricht (#255)
+
+---
+
 ## [1.129.3] - 2026-11-17
 
 ### Fixes
