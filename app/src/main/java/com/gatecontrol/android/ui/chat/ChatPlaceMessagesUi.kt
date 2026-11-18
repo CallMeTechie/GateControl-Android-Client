@@ -88,7 +88,11 @@ import com.gatecontrol.android.chat.ChatPlaceGeofences
 import com.gatecontrol.android.chat.ChatPlaceMessage
 import com.gatecontrol.android.chat.ChatPlaceMessages
 import com.gatecontrol.android.chat.ChatPlaceMessagesRepository
+import com.gatecontrol.android.chat.ChatPmDiag
 import com.gatecontrol.android.chat.ChatPmDraft
+import com.gatecontrol.android.chat.ChatPmEvent
+import com.gatecontrol.android.chat.ChatPmHealth
+import com.gatecontrol.android.chat.ChatPlaceWatch
 import com.gatecontrol.android.chat.ChatPmPlace
 import com.gatecontrol.android.chat.ChatPmWindow
 import com.gatecontrol.android.chat.ChatRepository
@@ -118,6 +122,10 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /*
@@ -135,6 +143,7 @@ sealed interface PlaceNotice {
 
 @HiltViewModel
 class ChatPlaceMessagesViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val repo: ChatPlaceMessagesRepository,
     private val geofences: ChatPlaceGeofences,
     private val chat: ChatRepository,
@@ -160,9 +169,40 @@ class ChatPlaceMessagesViewModel @Inject constructor(
     private val noticeCh = Channel<PlaceNotice>(Channel.BUFFERED)
     val notices = noticeCh.receiveAsFlow()
 
+    private val _diag = MutableStateFlow(ChatPmDiag(readiness = _readiness.value))
+    /** The phone's state for the status lines: the permission, the registered places, the last events. */
+    val diag: StateFlow<ChatPmDiag> = _diag
+
+    private val _locating = MutableStateFlow(false)
+    val locating: StateFlow<Boolean> = _locating
+
+    init {
+        viewModelScope.launch { combine(repo.diagTick, repo.list) { _, _ -> }.collect { refreshDiag() } }
+    }
+
+    private suspend fun refreshDiag() {
+        _diag.value = withContext(Dispatchers.IO) { runCatching { geofences.diag() }.getOrNull() } ?: return
+    }
+
+    /** „Aktuellen Standort übernehmen“: the phone's position now, or null (no permission, no fix). */
+    fun locateHere(onFix: (Double, Double) -> Unit) {
+        if (_locating.value) return
+        _locating.value = true
+        viewModelScope.launch {
+            try {
+                val r = com.gatecontrol.android.location.DeviceLocator.locate(appContext)
+                val loc = (r as? com.gatecontrol.android.location.LocateResult.Fix)?.location
+                if (loc != null) onFix(loc.latitude, loc.longitude) else noticeCh.trySend(PlaceNotice.Done(R.string.chat_pm_no_fix))
+            } finally {
+                _locating.value = false
+            }
+        }
+    }
+
     /** The list, the Familie places, the permission (again after a return from the Android settings). */
     fun load() {
         _readiness.value = geofences.readiness()
+        viewModelScope.launch { refreshDiag() }
         _dropped.value = repo.dropped()
         geofences.onSystemChange()
         viewModelScope.launch {
@@ -198,6 +238,7 @@ class ChatPlaceMessagesViewModel @Inject constructor(
 
     /** Only the list (the chat info's section). */
     fun refresh() {
+        viewModelScope.launch { refreshDiag() }
         viewModelScope.launch { repo.refresh() }
     }
 
@@ -225,6 +266,80 @@ internal fun windowText(ctx: Context, w: ChatPmWindow): String {
         w.days.joinToString(", ") { ctx.getString(DAY_RES[it - 1]) }
     }
     return ctx.getString(R.string.chat_pm_window, days, w.from, w.to)
+}
+
+/** The status of an Ortsnachricht in one line: „Wird überwacht“, „Nicht aktiv: Standort „Immer“ fehlt“ … */
+internal fun placeHealthText(ctx: Context, h: ChatPmHealth): String = ctx.getString(
+    when (h) {
+        ChatPmHealth.WATCHING -> R.string.chat_pm_st_watching
+        ChatPmHealth.OFF -> R.string.chat_pm_st_off
+        ChatPmHealth.OTHER_DEVICE -> R.string.chat_pm_st_other_device
+        ChatPmHealth.NO_POINT -> R.string.chat_pm_st_no_point
+        ChatPmHealth.NO_PLAY_SERVICES -> R.string.chat_pm_st_no_play
+        ChatPmHealth.NEED_LOCATION -> R.string.chat_pm_st_need_location
+        ChatPmHealth.NEED_BACKGROUND -> R.string.chat_pm_st_need_background
+        ChatPmHealth.LOCATION_OFF -> R.string.chat_pm_st_location_off
+        ChatPmHealth.NOTIFICATIONS_OFF -> R.string.chat_pm_st_notifications_off
+        ChatPmHealth.NOT_REGISTERED -> R.string.chat_pm_st_not_registered
+    },
+)
+
+private fun skipText(ctx: Context, why: String?): String = ctx.getString(
+    when (why) {
+        ChatPlaceWatch.WHY_WINDOW -> R.string.chat_pm_why_window
+        ChatPlaceWatch.WHY_TOO_SOON -> R.string.chat_pm_why_too_soon
+        ChatPlaceWatch.WHY_INACTIVE -> R.string.chat_pm_why_inactive
+        ChatPlaceWatch.WHY_OTHER_DEVICE -> R.string.chat_pm_why_other_device
+        ChatPlaceWatch.WHY_ASK_EXPIRED -> R.string.chat_pm_why_ask_expired
+        else -> R.string.chat_pm_why_unknown
+    },
+)
+
+/** „Zuletzt erkannt: Ankunft 07:42, außerhalb der Zeiten“, „Zuletzt ausgelöst: 18.11. 07:42“ … — or null (nothing yet). */
+internal fun placeLastText(ctx: Context, p: ChatPlaceMessage, log: List<ChatPmEvent>): String? {
+    val e = ChatPlaceWatch.lastEvent(p, log) ?: return null
+    val iso = java.time.Instant.ofEpochMilli(e.atMs).toString()
+    val time = ChatText.listTime(ctx, iso).let { day -> val c = ChatText.clock(ctx, iso); if (day == c) c else "$day $c" }
+    val what = ctx.getString(if (p.trigger == ChatPlaceMessages.EXIT) R.string.chat_pm_departure else R.string.chat_pm_arrival)
+    return when (e.kind) {
+        ChatPlaceWatch.SENT -> ctx.getString(R.string.chat_pm_last_sent, time)
+        ChatPlaceWatch.ASKED -> ctx.getString(R.string.chat_pm_last_asked, time)
+        ChatPlaceWatch.DETECTED -> ctx.getString(R.string.chat_pm_last_detected, what, time)
+        ChatPlaceWatch.SKIPPED -> ctx.getString(R.string.chat_pm_last_skipped, what, time, skipText(ctx, e.detail))
+        ChatPlaceWatch.FAILED -> ctx.getString(R.string.chat_pm_last_failed, time, e.detail ?: "?")
+        ChatPlaceWatch.DROPPED -> ctx.getString(R.string.chat_pm_last_dropped, time)
+        ChatPlaceWatch.BLOCKED -> ctx.getString(R.string.chat_pm_last_blocked, what, time)
+        ChatPlaceWatch.UNAVAILABLE -> ctx.getString(R.string.chat_pm_last_unavailable, time)
+        ChatPlaceWatch.CAUGHT_UP -> ctx.getString(R.string.chat_pm_last_caught_up, time)
+        ChatPlaceWatch.DECLINED -> ctx.getString(R.string.chat_pm_last_declined, time)
+        else -> null
+    }
+}
+
+/** The status and the last event of [p], one line each („Wird überwacht“ / „Zuletzt …“). */
+internal fun placeStatusLines(ctx: Context, p: ChatPlaceMessage, deviceId: String, diag: ChatPmDiag): List<String> =
+    listOfNotNull(placeHealthText(ctx, ChatPlaceWatch.health(p, deviceId, diag)), placeLastText(ctx, p, diag.log[p.id].orEmpty()))
+
+/** The status of an Ortsnachricht: a dot in the tone (watched: the accent, else the warning), the lines next to it. */
+@Composable
+internal fun PlaceStatus(p: ChatPlaceMessage, deviceId: String, diag: ChatPmDiag, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val extra = GateControlTheme.extraColors
+    val h = ChatPlaceWatch.health(p, deviceId, diag)
+    val color = when (h) {
+        ChatPmHealth.WATCHING -> extra.accentText
+        ChatPmHealth.OFF, ChatPmHealth.OTHER_DEVICE -> extra.muted
+        else -> extra.warn
+    }
+    Column(modifier.testTag("place-status-${p.id}"), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(color))
+            Text(placeHealthText(ctx, h), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = color)
+        }
+        placeLastText(ctx, p, diag.log[p.id].orEmpty())?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = extra.muted, modifier = Modifier.padding(start = 14.dp))
+        }
+    }
 }
 
 /** The label of a way of an Ortsnachricht: „Automatisch“, „WhatsApp“. */
@@ -282,6 +397,7 @@ fun ChatPlaceMessagesScreen(onBack: () -> Unit, vm: ChatPlaceMessagesViewModel =
     val busy by vm.busy.collectAsStateWithLifecycle()
     val readiness by vm.readiness.collectAsStateWithLifecycle()
     val dropped by vm.dropped.collectAsStateWithLifecycle()
+    val diag by vm.diag.collectAsStateWithLifecycle()
     val conversations by vm.conversations.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<ChatPlaceMessage?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -322,6 +438,7 @@ fun ChatPlaceMessagesScreen(onBack: () -> Unit, vm: ChatPlaceMessagesViewModel =
                         here = p.deviceId == vm.deviceId,
                         dropped = dropped[p.id],
                         busy = busy,
+                        status = { PlaceStatus(p, vm.deviceId, diag, Modifier.padding(top = 4.dp)) },
                         onToggle = { on -> vm.setEnabled(p.id, on) },
                         onOpen = { editing = p },
                         onDelete = { deleting = p },
@@ -399,6 +516,7 @@ private fun PlaceMessageCard(
     here: Boolean,
     dropped: Long?,
     busy: Boolean,
+    status: @Composable () -> Unit = {},
     onToggle: (Boolean) -> Unit,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
@@ -440,6 +558,7 @@ private fun PlaceMessageCard(
                     }
                     Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                 }
+                status()
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Switch(checked = p.active, onCheckedChange = onToggle, enabled = !busy)
@@ -475,14 +594,22 @@ fun PlaceMessageEditor(
     val extra = GateControlTheme.extraColors
     val placesState by vm.places.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val diag by vm.diag.collectAsStateWithLifecycle()
+    val readiness by vm.readiness.collectAsStateWithLifecycle()
+    val locating by vm.locating.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.load() }
     PlaceNotices(vm)
     val familie = placesState.orEmpty().mapNotNull { ChatPlaceMessages.fromFamilie(it) }
+    // Familie places without a position (an address only): shown, and picked on the map — never dropped silently
+    val familieNoPoint = ChatPlaceMessages.familieWithoutPoint(placesState.orEmpty())
     var d by remember(editing?.id) {
         mutableStateOf(editing?.let { ChatPlaceMessages.draftOf(it) } ?: ChatPmDraft(conversationId = fixed?.id))
     }
-    var mapMode by remember(editing?.id) { mutableStateOf(editing != null && editing.place.familieId == null) }
-    var mapName by remember(editing?.id) { mutableStateOf(editing?.place?.takeIf { it.familieId == null }?.name.orEmpty()) }
+    // one saved without a point (0/0) is fixed on the map
+    val onMap = editing != null && (editing.place.familieId == null || !ChatPlaceMessages.hasPoint(editing.place))
+    var mapMode by remember(editing?.id) { mutableStateOf(onMap) }
+    var mapName by remember(editing?.id) { mutableStateOf(if (onMap) editing.place.name else "") }
+    var noPointName by remember(editing?.id) { mutableStateOf(editing?.place?.takeIf { !ChatPlaceMessages.hasPoint(it) }?.name) }
     var picking by remember { mutableStateOf(false) }
     var timeFor by remember { mutableStateOf<Boolean?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -491,7 +618,7 @@ fun PlaceMessageEditor(
     // without Familie places only the map
     val showMap = mapMode || familie.isEmpty()
     val place = d.place?.let { if (showMap) it.copy(name = mapName.trim().take(ChatPlaceMessages.NAME_MAX), familieId = null) else it }
-    val ready = place != null && place.name.isNotBlank() && d.text.isNotBlank() && d.conversationId != null && ChatPlaceMessages.windowOk(d.window)
+    val ready = place != null && ChatPlaceMessages.hasPoint(place) && place.name.isNotBlank() && d.text.isNotBlank() && d.conversationId != null && ChatPlaceMessages.windowOk(d.window)
     val save = { vm.save(editing?.id, d.copy(place = place), quiet = onSaved != null) { onSaved?.invoke(); onDismiss() } }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         // a full-screen dialog draws edge to edge (decorFitsSystemWindows = false) and is outside the app's Scaffold:
@@ -517,6 +644,22 @@ fun PlaceMessageEditor(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // is it armed? the status of the one being changed; for a new one what is missing on this phone
+                if (editing != null) {
+                    val h = ChatPlaceWatch.health(editing, vm.deviceId, diag)
+                    GcBanner(
+                        tone = if (h == ChatPmHealth.WATCHING) GcTone.Ok else GcTone.Warn,
+                        icon = if (h == ChatPmHealth.WATCHING) Icons.Outlined.WhereToVote else Icons.Outlined.Info,
+                        modifier = Modifier.testTag("place-message-editor-status"),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            placeStatusLines(ctx, editing, vm.deviceId, diag).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                            if (h in SETTINGS_FIXES) TextButton(onClick = { openAppSettings(ctx) }) { Text(stringResource(R.string.chat_pm_open_settings_any)) }
+                        }
+                    }
+                } else if (readiness != FamiliePermissions.GeofenceReadiness.READY) {
+                    DeviceNote(readiness, vm.deviceName) { openAppSettings(ctx) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GcFilterChip(stringResource(R.string.chat_pm_enter), d.trigger == ChatPlaceMessages.ENTER, { d = d.copy(trigger = ChatPlaceMessages.ENTER) })
                     GcFilterChip(stringResource(R.string.chat_pm_exit), d.trigger == ChatPlaceMessages.EXIT, { d = d.copy(trigger = ChatPlaceMessages.EXIT) })
@@ -527,17 +670,33 @@ fun PlaceMessageEditor(
                     familie.forEach { f ->
                         GcFilterChip(f.name, !showMap && d.place?.familieId == f.familieId, {
                             mapMode = false
+                            noPointName = null
                             d = d.copy(place = f)
                         })
                     }
-                    GcFilterChip(stringResource(R.string.chat_pm_other_place), showMap, {
+                    familieNoPoint.forEach { f ->
+                        GcFilterChip(f.name, showMap && noPointName == f.name, {
+                            // no position for it: the map with its name, the point is picked there
+                            mapMode = true
+                            noPointName = f.name
+                            mapName = f.name.take(ChatPlaceMessages.NAME_MAX)
+                            d = d.copy(place = null)
+                        })
+                    }
+                    GcFilterChip(stringResource(R.string.chat_pm_other_place), showMap && noPointName == null, {
                         mapMode = true
+                        noPointName = null
                         if (d.place?.familieId != null) d = d.copy(place = null)
                     })
                 }
+                noPointName?.let { n ->
+                    GcBanner(tone = GcTone.Warn, icon = Icons.Outlined.Info, modifier = Modifier.testTag("place-no-point")) {
+                        Text(stringResource(R.string.chat_pm_no_point, n), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    }
+                }
                 if (showMap) {
                     Text(stringResource(R.string.chat_pm_map_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-                    val p = d.place
+                    val p = d.place?.takeIf { ChatPlaceMessages.hasPoint(it) }
                     OsmMap(
                         point = p?.let { LatLon(it.lat, it.lon) },
                         contentDescription = stringResource(R.string.chat_pm_map),
@@ -546,12 +705,30 @@ fun PlaceMessageEditor(
                         radiusM = p?.radiusM?.toDouble(),
                         onTap = { pt -> d = d.copy(place = ChatPmPlace(null, mapName, pt.lat, pt.lon, d.place?.radiusM ?: ChatPlaceMessages.RADIUS_DEFAULT_M)) },
                     )
+                    TextButton(
+                        onClick = { vm.locateHere { lat, lon -> d = d.copy(place = ChatPmPlace(null, mapName, lat, lon, d.place?.radiusM ?: ChatPlaceMessages.RADIUS_DEFAULT_M)) } },
+                        enabled = !locating,
+                        modifier = Modifier.testTag("place-locate-here"),
+                    ) { Text(stringResource(R.string.chat_pm_locate_here)) }
                     GcTextField(mapName, { mapName = it.take(ChatPlaceMessages.NAME_MAX) }, stringResource(R.string.chat_pm_place_name))
                 } else {
                     Text(stringResource(R.string.chat_pm_familie_place), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    // where the Familie place is: the point and the circle the phone watches, to check it at a glance
+                    d.place?.takeIf { it.familieId != null }?.let { fp ->
+                        OsmMap(
+                            point = LatLon(fp.lat, fp.lon),
+                            contentDescription = stringResource(R.string.chat_pm_map_familie, fp.name),
+                            modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(16.dp)),
+                            zoom = 15.0,
+                            radiusM = ChatPlaceWatch.fenceRadius(fp.radiusM).toDouble(),
+                        )
+                    }
                 }
                 d.place?.let { p ->
                     Text(stringResource(R.string.chat_pm_radius, p.radiusM), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+                    if (p.radiusM < ChatPlaceWatch.FENCE_MIN_M) {
+                        Text(stringResource(R.string.chat_pm_radius_min, ChatPlaceWatch.FENCE_MIN_M), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    }
                     Slider(
                         value = p.radiusM.toFloat(),
                         onValueChange = { v -> d = d.copy(place = p.copy(radiusM = ChatPlaceMessages.clampRadius((v / 50f).roundToInt() * 50))) },
@@ -751,11 +928,14 @@ fun ChatInfoPlaceMessagesSection(
 ) {
     val list by vm.list.collectAsStateWithLifecycle()
     val conversations by vm.conversations.collectAsStateWithLifecycle()
+    val diag by vm.diag.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<ChatPlaceMessage?>(null) }
     LaunchedEffect(vm) { vm.refresh() }
     PlaceNotices(vm)
+    val ctx = LocalContext.current
     ChatInfoPlaceMessages(
         items = ChatPlaceMessages.forChat(list?.items.orEmpty(), conv),
+        status = { p -> placeStatusLines(ctx, p, vm.deviceId, diag) },
         onEdit = { editing = it },
         onDelete = { vm.delete(it.id) },
         onOpenAll = onOpenAll,
@@ -775,6 +955,7 @@ fun ChatInfoPlaceMessagesSection(
 @Composable
 internal fun ChatInfoPlaceMessages(
     items: List<ChatPlaceMessage>,
+    status: (ChatPlaceMessage) -> List<String> = { emptyList() },
     onEdit: (ChatPlaceMessage) -> Unit,
     onDelete: (ChatPlaceMessage) -> Unit,
     onOpenAll: () -> Unit,
@@ -795,7 +976,7 @@ internal fun ChatInfoPlaceMessages(
                         stringResource(if (p.trigger == ChatPlaceMessages.EXIT) R.string.chat_pm_exit_short else R.string.chat_pm_enter_short),
                         p.place.name,
                     ),
-                    description = ChatPlaceMessages.preview(p.text),
+                    description = (listOf(ChatPlaceMessages.preview(p.text)) + status(p)).joinToString("\n"),
                     onClick = { onEdit(p) },
                     titleColor = if (p.active) MaterialTheme.colorScheme.onSurface else extra.muted,
                     leading = {
@@ -844,3 +1025,6 @@ internal fun ChatInfoPlaceMessages(
 }
 
 private const val SWIPE_DELETE = "delete"
+
+/** The states a change in the Android settings of the app fixes (the location, the notifications). */
+private val SETTINGS_FIXES = setOf(ChatPmHealth.NEED_LOCATION, ChatPmHealth.NEED_BACKGROUND, ChatPmHealth.NOTIFICATIONS_OFF)
