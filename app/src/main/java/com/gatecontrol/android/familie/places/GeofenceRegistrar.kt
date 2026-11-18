@@ -71,8 +71,18 @@ class GeofenceRegistrar @Inject constructor(
     private val repository: FamilieRepository,
     private val storage: FamilieStorage,
 ) {
-    /** [rules]: the rule places (Familie 1.5) this phone watches, next to the reminders. */
-    private data class Stored(val owner: String? = null, val fences: List<StoredFence>? = null, val rules: List<RuleFence>? = null)
+    /**
+     * [rules]: the rule places (Familie 1.5) this phone watches, next to the reminders. [registered]: the request ids
+     * added last (null: an older version of the app, which did not keep them); [sides]: the side of each fence
+     * ([FenceSides]).
+     */
+    private data class Stored(
+        val owner: String? = null,
+        val fences: List<StoredFence>? = null,
+        val rules: List<RuleFence>? = null,
+        val registered: List<String>? = null,
+        val sides: Map<String, FenceSide>? = null,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
@@ -168,22 +178,46 @@ class GeofenceRegistrar @Inject constructor(
 
     /** Places already handled locally (repeat once): unregister without waiting for the server. */
     suspend fun removeLocal(placeId: Int) = mutex.withLock {
+        val id = requestId(placeId)
         val left = stored().filter { it.placeId != placeId }
-        storage.write(FILE, Stored(storage.ownerKey(), left, storedRules()))
-        runCatching { LocationServices.getGeofencingClient(context).removeGeofences(listOf(requestId(placeId))) }
+        val s = readStored()
+        writeStored(left, storedRules(), s?.registered?.minus(id), s?.sides.orEmpty() - id)
+        runCatching { LocationServices.getGeofencingClient(context).removeGeofences(listOf(id)) }
         Unit
+    }
+
+    /**
+     * Android reports [enter] (or leaving) for the fence [requestId]: whether this is a transition to act on — or only
+     * the report on adding it again (the phone was there already, [FenceSides.observe]). The side is kept either way.
+     */
+    suspend fun observe(requestId: String, enter: Boolean, nowMs: Long = System.currentTimeMillis()): Boolean = mutex.withLock {
+        val s = readStored() ?: return@withLock true
+        val sides = s.sides.orEmpty()
+        val (next, moved) = FenceSides.observe(sides[requestId], FenceSides.sideOf(enter), nowMs)
+        if (next != null && next != sides[requestId]) storage.write(FILE, s.copy(sides = sides + (requestId to next)))
+        moved
+    }
+
+    /** Writes the reminders and rule places, keeping what is known about the registered fences (or [registered]/[sides]). */
+    private fun writeStored(
+        fences: List<StoredFence>,
+        rules: List<RuleFence>,
+        registered: List<String>? = readStored()?.registered,
+        sides: Map<String, FenceSide>? = readStored()?.sides,
+    ) {
+        storage.write(FILE, Stored(storage.ownerKey(), fences, rules, registered, sides))
     }
 
     /** Removes every fence, reminders and rule places (plugin gone, not a member, module off). */
     suspend fun clear() {
-        mutex.withLock { storage.write(FILE, Stored(storage.ownerKey(), emptyList(), emptyList())) }
+        mutex.withLock { writeStored(emptyList(), emptyList()) }
         register(emptyList(), emptyList())
     }
 
     private suspend fun apply(places: List<FamiliePlace>) {
         val fences = places.map(::toFence)
         val rules = mutex.withLock {
-            storedRules().also { storage.write(FILE, Stored(storage.ownerKey(), fences, it)) }
+            storedRules().also { writeStored(fences, it) }
         }
         register(fences, rules)
     }
@@ -193,7 +227,7 @@ class GeofenceRegistrar @Inject constructor(
         val (fences, changed) = mutex.withLock {
             val before = storedRules()
             val fences = stored()
-            storage.write(FILE, Stored(storage.ownerKey(), fences, rules))
+            writeStored(fences, rules)
             fences to (before != rules)
         }
         if (changed) register(fences, rules)
@@ -207,22 +241,39 @@ class GeofenceRegistrar @Inject constructor(
         }
     }
 
+    /**
+     * Replaces the fences in place (the ones no longer wanted go, the others are added again with the same request id —
+     * never all removed first) with `INITIAL_TRIGGER_ENTER | _EXIT`: Android says at once which side the phone is on, and
+     * [observe] tells a real arrival (outside before) from being there already ([FenceSides]).
+     */
     @SuppressLint("MissingPermission") // checked by readiness()
     private suspend fun registerLocked(fences: List<StoredFence>, rules: List<RuleFence>) = mutex.withLock {
         if (!playServicesAvailable()) return@withLock
         val client = LocationServices.getGeofencingClient(context)
-        await(client.removeGeofences(pendingIntent(context)))
         val geofences = combined(fences, rules)
-        if (geofences.isEmpty()) return@withLock
+        val sigs = signatures(fences, rules)
+        val before = readStored()
+        val remove = FenceSides.toRemove(before?.registered, sigs.keys)
+        if (geofences.isEmpty()) {
+            if (remove == null || remove.isNotEmpty()) await(client.removeGeofences(pendingIntent(context)))
+            writeStored(fences, rules, emptyList(), emptyMap())
+            return@withLock
+        }
         if (readiness() != FamiliePermissions.GeofenceReadiness.READY) {
             Timber.i("Familie: %d geofences wait for the location permission", geofences.size)
             return@withLock
         }
         runCatching { makeRoom?.invoke(geofences.size) }
         roomMakers.forEach { f -> runCatching { f(geofences.size) } }
+        // the ones no longer watched go (an older version's list is unknown: everything of this receiver, once)
+        when {
+            remove == null -> await(client.removeGeofences(pendingIntent(context)))
+            remove.isNotEmpty() -> await(client.removeGeofences(remove.toList()))
+        }
+        // the sides first: the report on adding may come before addGeofences returns
+        writeStored(fences, rules, before?.registered, FenceSides.afterRegister(before?.sides.orEmpty(), sigs, System.currentTimeMillis()))
         val request = GeofencingRequest.Builder()
-            // No trigger for being inside already: re-registering (boot, app start) must not remind or report again.
-            .setInitialTrigger(0)
+            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER or GeofencingRequest.INITIAL_TRIGGER_EXIT)
             .addGeofences(geofences)
             .build()
         val ok = try {
@@ -230,6 +281,8 @@ class GeofenceRegistrar @Inject constructor(
         } catch (e: SecurityException) {
             false
         }
+        // not added: unknown what Android kept — the next registration starts clean
+        writeStored(fences, rules, if (ok) sigs.keys.toList() else null)
         Timber.i("Familie: %d place reminders, %d rule places %s", fences.size, rules.size, if (ok) "registered" else "not registered")
     }
 
@@ -287,19 +340,26 @@ class GeofenceRegistrar @Inject constructor(
         fun combinedIds(fences: List<StoredFence>, rules: List<RuleFence>): List<String> =
             (fences.map { requestId(it.placeId) } + rules.filter { it.enter || it.exit }.map { ruleRequestId(it.placeId) }).take(MAX_FENCES)
 
+        /** Request id → what makes the fence the same one ([FenceSides.signature]) of what [combinedIds] keeps (pure). */
+        fun signatures(fences: List<StoredFence>, rules: List<RuleFence>): Map<String, String> {
+            val ids = combinedIds(fences, rules).toSet()
+            return fences.filter { requestId(it.placeId) in ids }.associate { requestId(it.placeId) to FenceSides.signature(it.lat, it.lon, it.radius, it.trigger) } +
+                rules.filter { ruleRequestId(it.placeId) in ids }.associate { ruleRequestId(it.placeId) to FenceSides.signature(it.lat, it.lon, it.radius, "rule") }
+        }
+
         private fun combined(fences: List<StoredFence>, rules: List<RuleFence>): List<Geofence> {
             val ids = combinedIds(fences, rules).toSet()
             return fences.filter { requestId(it.placeId) in ids }.map(::geofence) +
                 rules.filter { ruleRequestId(it.placeId) in ids }.map(::ruleGeofence)
         }
 
+        // both transitions on every fence: the phone keeps the side of each ([observe]); what a rule or a reminder
+        // waits for is decided when one fires (GeofenceReceiver)
         private fun ruleGeofence(f: RuleFence): Geofence = Geofence.Builder()
             .setRequestId(ruleRequestId(f.placeId))
-            .setCircularRegion(f.lat, f.lon, f.radius.toFloat())
+            .setCircularRegion(f.lat, f.lon, FenceSides.radius(f.radius).toFloat())
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
-            .setTransitionTypes(
-                (if (f.enter) Geofence.GEOFENCE_TRANSITION_ENTER else 0) or (if (f.exit) Geofence.GEOFENCE_TRANSITION_EXIT else 0),
-            )
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
             .setNotificationResponsiveness(RULE_RESPONSIVENESS_MS)
             .build()
 
@@ -308,9 +368,9 @@ class GeofenceRegistrar @Inject constructor(
 
         private fun geofence(f: StoredFence): Geofence = Geofence.Builder()
             .setRequestId(requestId(f.placeId))
-            .setCircularRegion(f.lat, f.lon, f.radius.toFloat())
+            .setCircularRegion(f.lat, f.lon, FenceSides.radius(f.radius).toFloat())
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
-            .setTransitionTypes(if (f.trigger == FamiliePlace.TRIGGER_EXIT) Geofence.GEOFENCE_TRANSITION_EXIT else Geofence.GEOFENCE_TRANSITION_ENTER)
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
             .setNotificationResponsiveness(RESPONSIVENESS_MS)
             .build()
 

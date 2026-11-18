@@ -64,6 +64,19 @@ object RuleJson {
         return RuleOptionPlace(id, clean(p.str("name") ?: p.str("label"), 60).ifBlank { "#$id" })
     }
 
+    /** Familie 1.30 `profilePlaces[]` of `rules/options`. */
+    fun profilePlace(p: JsonObject): RuleProfilePlace? {
+        val ref = p.str("ref")?.takeIf { com.gatecontrol.android.places.MyPlaces.idOf(it) != null } ?: return null
+        return RuleProfilePlace(
+            ref = ref,
+            name = clean(p.str("name"), 60).ifBlank { return null },
+            icon = com.gatecontrol.android.places.PlaceIcons.valid(p.str("icon")),
+            radius = p.int("radius")?.coerceIn(10, 100_000),
+            ownerName = p.str("ownerName")?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
+            own = p.bool("own") == true,
+        )
+    }
+
     /** `POST presence/places`. */
     fun placeBody(name: String, lat: Double, lon: Double, radius: Int): JsonObject = JsonObject().apply {
         addProperty("name", name.trim().take(40))
@@ -154,6 +167,8 @@ object RuleJson {
             userId = src.int("userId") ?: o.int("userId"),
             placeId = src.int("placeId") ?: o.int("placeId"),
             placeName = (src.str("placeName") ?: o.str("placeName"))?.let { clean(it, 60) }?.takeIf { it.isNotBlank() },
+            placeRef = (src.str("placeRef") ?: o.str("placeRef"))?.takeIf { com.gatecontrol.android.places.MyPlaces.idOf(it) != null },
+            placeMissing = (src.bool("placeMissing") ?: o.bool("placeMissing")) == true,
             graceMinutes = (src.int("graceMinutes") ?: o.int("graceMinutes"))?.coerceIn(0, 120),
             kinds = if (school) schoolKinds(src) else emptyList(),
             days = if (school) src.str("days")?.takeIf { it in RuleSchoolDays.ALL } ?: RuleSchoolDays.ANY else null,
@@ -312,6 +327,7 @@ object RuleJson {
                 RuleOptionCalendar(source, clean(c.str("label"), 60).ifBlank { source })
             }?.distinctBy { it.source }.orEmpty(),
             places = o.arr("places")?.objects()?.mapNotNull(::place)?.distinctBy { it.id }.orEmpty(),
+            profilePlaces = o.arr("profilePlaces")?.objects()?.mapNotNull(::profilePlace)?.distinctBy { it.ref }?.take(MAX_ITEMS),
             people = o.arr("people")?.objects()?.mapNotNull { p ->
                 val id = p.int("userId") ?: p.int("id") ?: return@mapNotNull null
                 RuleOptionPerson(id, clean(p.str("name"), 60).ifBlank { "#$id" }, child = p.str("role") == "child")
@@ -399,7 +415,8 @@ object RuleJson {
             }
             in RuleTriggerType.PERSON -> t.userId?.let { addProperty("userId", it) }
             in RuleTriggerType.PLACE -> {
-                t.placeId?.let { addProperty("placeId", it) }
+                // Familie 1.30: a place of „Meine Orte“ goes as its reference (the linked rule place is Familie's business)
+                if (t.placeRef != null) addProperty("placeId", t.placeRef) else t.placeId?.let { addProperty("placeId", it) }
                 if (t.userId == null) add("userId", JsonNull.INSTANCE) else addProperty("userId", t.userId)
             }
             RuleTriggerType.ALL_AWAY -> t.graceMinutes?.let { addProperty("graceMinutes", it) }

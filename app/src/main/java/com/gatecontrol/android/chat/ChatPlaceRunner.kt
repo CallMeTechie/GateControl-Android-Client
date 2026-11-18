@@ -367,6 +367,13 @@ class ChatPlaceGeofences @Inject constructor(
         repo.start()
         registrar.addRoomMaker(::makeRoom)
         scope.launch { repo.list.collect { runCatching { register() } } }
+        // „Meine Orte“ changed (GateControl's control `places`): the Messenger moved the copies of the Ortsnachrichten —
+        // the list again (its change registers the geofences again)
+        scope.launch {
+            com.gatecontrol.android.places.PlacesSignals.changes.collect { c ->
+                if (!c.reconnect && repo.featureOn() != false) runCatching { repo.refresh() }
+            }
+        }
         scope.launch {
             registrar.changes.collect { if (GeofenceBudget.placeMessages(registrar.plannedCount()) != budget) runCatching { register() } }
         }

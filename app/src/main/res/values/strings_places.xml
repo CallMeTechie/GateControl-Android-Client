@@ -43,6 +43,7 @@
     <string name="places_icon_shop">Shopping</string>
     <string name="places_icon_work">Work</string>
     <string name="places_in_use_after">If you delete it anyway, they keep the last copy of the point and tell you so.</string>
+    <string name="places_in_use_elsewhere">Other plugins still use the place – you can delete it under Profile › My places.</string>
     <string name="places_in_use_text">“%1$s” is still in use:</string>
     <string name="places_in_use_title">Place still in use</string>
     <string name="places_locate_failed">No location found – please try again.</string>
@@ -53,6 +54,7 @@
     <string name="places_map_pick_cd">Map – a tap sets the point</string>
     <string name="places_map_save">Save in “My places”</string>
     <string name="places_map_title">Choose on the map</string>
+    <string name="places_missing_copy">“%1$s”: the place no longer exists in “My places” (or is no longer shared). The last point still counts – choose a place again if something changed.</string>
     <string name="places_name">Name</string>
     <string name="places_name_hint">e.g. Work</string>
     <string name="places_new">New place</string>

@@ -115,6 +115,13 @@ data class RuleTrigger(
     val userId: Int? = null,
     val placeId: Int? = null,
     val placeName: String? = null,
+    /**
+     * Familie 1.30: one of „Meine Orte“ of a family member (`profile:<id>`) the rule waits at — sent as `placeId`; the
+     * answer's [placeId] is then Familie's linked rule place.
+     */
+    val placeRef: String? = null,
+    /** Familie 1.30: that place is gone or no longer shared — the copy of its point still counts. */
+    val placeMissing: Boolean = false,
     val graceMinutes: Int? = null,
     val kinds: List<String> = emptyList(),
     val days: String? = null,
@@ -307,6 +314,9 @@ data class RuleOptionCalendar(val source: String, val label: String)
 
 data class RuleOptionPlace(val id: Int, val name: String)
 
+/** Familie 1.30 `rules/options` → `profilePlaces[]`: a place of „Meine Orte“ shared with the family (never „Nur ich“). */
+data class RuleProfilePlace(val ref: String, val name: String, val icon: String, val radius: Int?, val ownerName: String?, val own: Boolean)
+
 data class RuleOptionPerson(val userId: Int, val name: String, val child: Boolean = false)
 
 /** A child whose internet a rule may pause (`rules/options` → `internet.children[]`). */
@@ -345,6 +355,8 @@ data class RuleOptions(
     val buttons: Boolean = true,
     /** The timetable's children; null without the Schule plugin (or before Familie 1.12). */
     val school: RuleOptionSchool? = null,
+    /** Familie 1.30: the places of „Meine Orte“ a rule may wait at; null: an older plugin (only its own places). */
+    val profilePlaces: List<RuleProfilePlace>? = null,
     /** The internet action; not available from a plugin before 1.20. */
     val internet: RuleOptionInternet = RuleOptionInternet(),
 ) {

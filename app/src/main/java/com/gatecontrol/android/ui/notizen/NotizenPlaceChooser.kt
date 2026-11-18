@@ -52,6 +52,8 @@ data class PlaceChoice(
     /** A point the person set on the map in this dialog. */
     val point: NSpot? = null,
     val lang: String = "de",
+    /** Plugin 1.8 (`profilePlaces`): the own places are those of the profile — the shared choice „Alle Orte…“ is offered. */
+    val profile: Boolean = false,
 ) {
     val searchOn: Boolean get() = searchState == NPlacesInfo.ON
 }
@@ -109,6 +111,51 @@ object PlaceChoices {
     /** The search word as typed is the kind the dialog was opened for: ask by its key (the server's own word table). */
     fun byKey(c: PlaceChoice): String? = c.key?.takeIf { c.query.isBlank() || c.query.trim().equals(c.label, ignoreCase = true) }
 
+    /**
+     * Plugin 1.8: „Meine Orte“ in the dialog like the chips of every form (Bild 8) — the chosen one, the most used, then
+     * the rest in the plugin's order; at most [max], the others in „Alle Orte…“.
+     */
+    fun mineShort(c: PlaceChoice, max: Int = 3): List<NSpot> {
+        val all = mine(c)
+        if (!c.profile) return all
+        val sel = all.filter { it.uid == c.selected?.uid }
+        val used = all.filter { it.uid != c.selected?.uid }.sortedByDescending { it.uses }
+        return (sel + used).distinctBy { it.uid }.take(max)
+    }
+
+    /** The places of the dialog for the shared choice: the family's (blue), the own ones come from the profile. */
+    fun sheetOptions(c: PlaceChoice): List<com.gatecontrol.android.places.PlaceOption> = c.places.family.mapIndexed { i, s ->
+        com.gatecontrol.android.places.PlaceOption(
+            ref = FAMILY_REF + s.familyId,
+            name = s.name,
+            icon = if (s.familyId == "home") com.gatecontrol.android.places.PlaceIcons.HOME else com.gatecontrol.android.places.PlaceIcons.PIN,
+            lat = s.lat,
+            lon = s.lon,
+            radiusM = s.radius,
+            address = s.address,
+            familie = true,
+            rank = i,
+        )
+    }
+
+    /** The choice of the shared sheet as a place of the dialog: one of „Meine Orte“ by its profile id, a family place, a point. */
+    fun spotOf(o: com.gatecontrol.android.places.PlaceOption, c: PlaceChoice): NSpot? {
+        if (!o.hasPoint) return null
+        o.ref?.takeIf { it.startsWith(FAMILY_REF) }?.let { r -> return c.places.family.firstOrNull { it.familyId == r.removePrefix(FAMILY_REF) } }
+        return NSpot(
+            name = o.name.take(80),
+            address = o.address,
+            lat = o.lat,
+            lon = o.lon,
+            radius = o.radiusM,
+            // plugin 1.8: the ids of „Meine Orte“ are the profile's
+            placeId = o.profileId?.takeIf { c.profile },
+            named = o.profileId != null,
+        )
+    }
+
+    private const val FAMILY_REF = "nfam:"
+
     /** Without a position: near one of my places, as the portal searches — „Zuhause“ first. */
     fun nearSpot(p: NPlaces): NSpot? = p.family.firstOrNull { it.familyId == "home" } ?: p.family.firstOrNull() ?: p.places.firstOrNull { it.named } ?: p.places.firstOrNull()
 }
@@ -157,6 +204,7 @@ class PlaceChooser(
             canRemove = removable,
             point = cur ?: picked?.takeIf { it.placeId == null && it.familyId == null && it.ref == null },
             lang = me?.lang ?: "de",
+            profile = me?.has(NFeature.PROFILE_PLACES) == true,
         )
         scope.launch { (repo.api.places() as? NResult.Ok)?.value?.let { p -> _ui.update { it.copy(places = p) } } }
         if (search && state == NPlacesInfo.ON && key != null && picked == null && suggest?.place == null) search()
@@ -169,6 +217,20 @@ class PlaceChooser(
 
     fun setQuery(q: String) = _ui.update { it.copy(query = q.take(80)) }
     fun select(s: NSpot) = _ui.update { it.copy(selected = s, any = false) }
+
+    /**
+     * Plugin 1.8: a place of the shared choice („Alle Orte…“) — one of „Meine Orte“ (also one just saved there, listed
+     * from now on), a family place, or a point only for this task.
+     */
+    fun pickShared(s: NSpot) = _ui.update { u ->
+        val newMine = s.placeId != null && u.places.places.none { it.placeId == s.placeId }
+        u.copy(
+            selected = s,
+            any = false,
+            point = if (s.placeId == null && s.familyId == null) s else u.point,
+            places = if (newMine) u.places.copy(places = u.places.places + s) else u.places,
+        )
+    }
     fun selectAny() = _ui.update { it.copy(any = true, selected = null) }
     fun setTrigger(t: String) = _ui.update { it.copy(trigger = if (t == NPlace.EXIT) NPlace.EXIT else NPlace.ENTER) }
     fun setRemember(v: Boolean) = _ui.update { it.copy(remember = v) }

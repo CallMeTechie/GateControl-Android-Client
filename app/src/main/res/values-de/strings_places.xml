@@ -43,6 +43,7 @@
     <string name="places_icon_shop">Einkaufen</string>
     <string name="places_icon_work">Arbeit</string>
     <string name="places_in_use_after">Löschst du ihn trotzdem, behalten sie die letzte Kopie des Punkts und weisen dich darauf hin.</string>
+    <string name="places_in_use_elsewhere">Andere Plugins nutzen den Ort noch – löschen kannst du ihn unter Profil › Meine Orte.</string>
     <string name="places_in_use_text">„%1$s“ wird noch genutzt:</string>
     <string name="places_in_use_title">Ort wird noch genutzt</string>
     <string name="places_locate_failed">Kein Standort gefunden – bitte noch einmal versuchen.</string>
@@ -53,6 +54,7 @@
     <string name="places_map_pick_cd">Karte – tippen setzt den Punkt</string>
     <string name="places_map_save">In „Meine Orte“ speichern</string>
     <string name="places_map_title">Auf der Karte wählen</string>
+    <string name="places_missing_copy">„%1$s“: den Ort gibt es in „Meine Orte“ nicht mehr (oder er ist nicht mehr freigegeben). Es gilt der letzte Punkt – wähle einen Ort neu, wenn sich etwas geändert hat.</string>
     <string name="places_name">Name</string>
     <string name="places_name_hint">z. B. Arbeit</string>
     <string name="places_new">Neuer Ort</string>

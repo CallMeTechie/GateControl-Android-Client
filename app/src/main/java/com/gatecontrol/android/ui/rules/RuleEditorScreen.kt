@@ -369,7 +369,28 @@ private fun EditorContent(
             in RuleTriggerType.PERSON -> FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 options.people.forEach { p -> PickChip(p.name, t.userId == p.userId) { vm.edit { r -> r.copy(trigger = r.trigger.copy(userId = p.userId)) } } }
             }
-            in RuleTriggerType.PLACE -> {
+            in RuleTriggerType.PLACE -> if (options.profilePlaces != null) {
+                // Familie 1.30: the shared choice — the rule places and the places of „Meine Orte“ shared with the family
+                val choices = com.gatecontrol.android.familie.rules.RulePlaceChoices.options(options)
+                if (choices.isEmpty()) Text(stringResource(R.string.rules_no_places), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                com.gatecontrol.android.ui.places.PlaceChooser(
+                    options = choices,
+                    selected = com.gatecontrol.android.familie.rules.RulePlaceChoices.selected(t, choices),
+                    onPick = { o -> vm.edit { r -> r.copy(trigger = com.gatecontrol.android.familie.rules.RulePlaceChoices.apply(r.trigger, o)) } },
+                    withMine = false,
+                    oneOff = false,
+                    showSummary = false,
+                )
+                if (t.placeMissing) Text(stringResource(R.string.places_missing_copy, t.placeName ?: ""), style = MaterialTheme.typography.bodySmall, color = extra.warn)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Familie 1.5: parents add places for rules (the server says `parents_only` to anyone else)
+                    if (canHouse) PickChip(stringResource(R.string.rules_place_new), false) { onDialog(EditorDialog.NewPlace) }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PickChip(stringResource(R.string.rules_anyone), t.userId == null) { vm.edit { r -> r.copy(trigger = r.trigger.copy(userId = null)) } }
+                    options.people.forEach { p -> PickChip(p.name, t.userId == p.userId) { vm.edit { r -> r.copy(trigger = r.trigger.copy(userId = p.userId)) } } }
+                }
+            } else {
                 if (options.places.isEmpty()) Text(stringResource(R.string.rules_no_places), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     options.places.forEach { p -> PickChip(p.name, t.placeId == p.id) { vm.edit { r -> r.copy(trigger = r.trigger.copy(placeId = p.id, placeName = p.name)) } } }

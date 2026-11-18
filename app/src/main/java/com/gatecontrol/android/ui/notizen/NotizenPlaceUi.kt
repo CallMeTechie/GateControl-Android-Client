@@ -107,6 +107,8 @@ internal class PlaceDialogActions(
     val remove: () -> Unit,
     val dismiss: () -> Unit,
     val openUrl: (String) -> Unit,
+    /** Plugin 1.8: „Alle Orte…“ — the shared choice of „Meine Orte“; null: not offered (an older plugin). */
+    val all: (() -> Unit)? = null,
 )
 
 /**
@@ -177,10 +179,21 @@ internal fun PlaceDialogBody(c: PlaceChoice, a: PlaceDialogActions, modifier: Mo
                         )
                     }
                 }
-                val mine = PlaceChoices.mine(c)
+                val mine = PlaceChoices.mineShort(c)
                 Text(stringResource(R.string.notizen_pl_mine), style = MaterialTheme.typography.labelLarge, color = x.muted, modifier = Modifier.padding(top = 6.dp))
                 if (mine.isEmpty()) Text(stringResource(R.string.notizen_pl_mine_none), style = MaterialTheme.typography.bodySmall, color = x.muted)
                 mine.forEach { s -> SpotRow(s, c.selected?.uid == s.uid && !c.any, mineHint(s), c.lang, distance = false) { a.select(s) } }
+                a.all?.let { all ->
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = all).padding(horizontal = 4.dp).testTag("place-dialog-all"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(GcIcons.Search, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Text(stringResource(R.string.places_all), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                        Icon(GcIcons.ChevronRight, null, tint = x.muted, modifier = Modifier.size(18.dp))
+                    }
+                }
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = a.map).padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -390,6 +403,19 @@ internal fun PlaceChoiceHost(chooser: PlaceChooser, onPicked: (PlacePicked) -> U
     if (!c.open) return
     val context = LocalContext.current
     var map by rememberSaveable { mutableStateOf(false) }
+    // plugin 1.8: the shared choice of „Meine Orte“ („Alle Orte…“)
+    var sheet by rememberSaveable { mutableStateOf(false) }
+    if (sheet) {
+        com.gatecontrol.android.ui.places.PlacePickerSheet(
+            options = PlaceChoices.sheetOptions(c),
+            selected = null,
+            onPick = { o ->
+                sheet = false
+                PlaceChoices.spotOf(o, c)?.let(chooser::pickShared)
+            },
+            onDismiss = { sheet = false },
+        )
+    }
     /** Asked once per choice: who says no still gets a search (near one of „Meine Orte“). */
     var asked by rememberSaveable { mutableStateOf(false) }
     val anyName = stringResource(R.string.notizen_pl_any, c.label.orEmpty())
@@ -435,6 +461,7 @@ internal fun PlaceChoiceHost(chooser: PlaceChooser, onPicked: (PlacePicked) -> U
             remove = { chooser.close(); onRemove() },
             dismiss = chooser::close,
             openUrl = { openWeb(context, it) },
+            all = if (c.profile) ({ sheet = true }) else null,
         ),
     )
 }

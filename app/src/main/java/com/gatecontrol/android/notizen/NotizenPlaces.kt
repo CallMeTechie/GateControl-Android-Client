@@ -638,6 +638,8 @@ data class PlaceState(
     val inside: Set<String> = emptySet(),
     /** The fence ids registered with Android. */
     val registered: List<String> = emptyList(),
+    /** The side of each registered fence (and of `cell`), see [com.gatecontrol.android.familie.places.FenceSides]. */
+    val sides: Map<String, com.gatecontrol.android.familie.places.FenceSide> = emptyMap(),
 ) {
     fun toJson() = JsonObject().apply {
         add("fired", JsonObject().apply { fired.forEach { (k, v) -> addProperty(k, v) } })
@@ -646,6 +648,7 @@ data class PlaceState(
         add("skipped", JsonArray().apply { skipped.forEach { add(it) } })
         add("inside", JsonArray().apply { inside.forEach { add(it) } })
         add("registered", JsonArray().apply { registered.forEach { add(it) } })
+        add("sides", com.gatecontrol.android.familie.places.FenceSides.write(sides))
     }
 
     companion object {
@@ -668,6 +671,7 @@ data class PlaceState(
                 skipped = strings(o.arr("skipped")).filter { PAIR.matches(it) }.toSet(),
                 inside = strings(o.arr("inside")).mapNotNull { NotizenPlacesJson.fenceId(it) }.toSet(),
                 registered = strings(o.arr("registered")).mapNotNull { NotizenPlacesJson.fenceId(it) },
+                sides = com.gatecontrol.android.familie.places.FenceSides.read(o.obj("sides")).filterKeys { it == "cell" || NotizenPlacesJson.fenceId(it) != null },
             )
         }
     }
