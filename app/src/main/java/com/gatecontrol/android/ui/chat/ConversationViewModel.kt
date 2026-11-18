@@ -137,6 +137,7 @@ class ConversationViewModel @Inject constructor(
     private val extras: com.gatecontrol.android.chat.ChatExtrasRepository,
     private val device: com.gatecontrol.android.chat.ChatDeviceSettings,
     private val bridgeHints: com.gatecontrol.android.chat.ChatBridgeHints,
+    private val calendars: com.gatecontrol.android.chat.ChatCalendarTargets,
 ) : ViewModel() {
 
     /** Messenger 1.4: home actions, Familie places and this device's chat settings. */
@@ -897,8 +898,49 @@ class ConversationViewModel @Inject constructor(
 
     fun toList(m: ChatMessage, items: List<String>) = viewModelScope.launch { after(extras.toList(m.id, items), com.gatecontrol.android.R.string.chat_suggest_list_done) }
 
-    fun toCalendar(m: ChatMessage, date: com.gatecontrol.android.chat.ChatSuggestedDate) =
-        viewModelScope.launch { after(extras.toCalendar(m.id, date, m.text?.lineSequence()?.firstOrNull()?.take(60) ?: ""), com.gatecontrol.android.R.string.chat_suggest_calendar_done) }
+    /** Whether the Mail plugin is there: its calendars are offered by „Termin anlegen“. */
+    val mailCalendars: Boolean get() = calendars.mailAvailable
+
+    /**
+     * „Termin anlegen“: the calendars of the form — the Mail plugin's writable ones, then Familie's ([familie]: its
+     * calendar is on) — and the one it starts with (picked last, else Mail, else Familie).
+     */
+    suspend fun calendarTargets(familie: Boolean): Pair<List<com.gatecontrol.android.chat.ChatCalendarTarget>, String?> {
+        val list = com.gatecontrol.android.chat.ChatCalendarChoice.targets(
+            calendars.mailCalendars(), familie, context.getString(com.gatecontrol.android.R.string.chat_suggest_calendar_familie),
+        )
+        return list to com.gatecontrol.android.chat.ChatCalendarChoice.default(list, calendars.last)?.key
+    }
+
+    /** Saves what the person checked in the form „Termin anlegen“ into [target]; [onDone] true: saved. */
+    fun saveSuggestedEvent(
+        m: ChatMessage,
+        d: com.gatecontrol.android.chat.ChatSuggestedEventDraft,
+        target: com.gatecontrol.android.chat.ChatCalendarTarget,
+        onDone: (Boolean) -> Unit,
+    ) = viewModelScope.launch {
+        val mailId = target.mailCalendarId
+        val code: String? = if (mailId != null) {
+            when (val r = calendars.saveMail(d, mailId)) {
+                is com.gatecontrol.android.mail.MResult.Ok -> null
+                is com.gatecontrol.android.mail.MResult.Failed -> r.code
+                com.gatecontrol.android.mail.MResult.Offline -> "offline"
+                com.gatecontrol.android.mail.MResult.NotConfigured -> "not_configured"
+            }
+        } else {
+            when (val r = extras.toCalendar(m.id, d)) {
+                is ChatResult.Ok -> null
+                else -> codeOf(r) ?: "failed"
+            }
+        }
+        if (code == null) {
+            calendars.remember(target.key)
+            notices.trySend(ConversationNotice.Done(com.gatecontrol.android.R.string.chat_suggest_calendar_saved, target.name))
+        } else {
+            notices.trySend(ConversationNotice.Error(code))
+        }
+        onDone(code == null)
+    }
 
     /**
      * Messenger 1.10: the file of [m] into the person's Drive folder [folderId]; the notice names where it went — or,

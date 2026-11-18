@@ -52,6 +52,8 @@ data class ChatDeviceConfig(
     val secure: Boolean = false,
     /** Ids of home actions hidden from the attach sheet. */
     val hiddenActions: Set<String> = emptySet(),
+    /** The calendar „Termin anlegen“ saved into last ([ChatCalendarTarget.key]); null: never. */
+    val calendarTarget: String? = null,
 )
 
 @Singleton
@@ -74,6 +76,7 @@ class ChatDeviceSettings @Inject constructor(@ApplicationContext private val con
                 appLock = p[APP_LOCK] ?: false,
                 secure = p[SECURE] ?: false,
                 hiddenActions = p[HIDDEN_ACTIONS].orEmpty(),
+                calendarTarget = p[CALENDAR_TARGET]?.takeIf { it.length <= 40 },
             )
         }
         .stateIn(scope, SharingStarted.Eagerly, ChatDeviceConfig())
@@ -92,6 +95,7 @@ class ChatDeviceSettings @Inject constructor(@ApplicationContext private val con
             p[APP_LOCK] = next.appLock
             p[SECURE] = next.secure
             p[HIDDEN_ACTIONS] = next.hiddenActions
+            next.calendarTarget?.let { p[CALENDAR_TARGET] = it } ?: p.remove(CALENDAR_TARGET)
         }
     }
 
@@ -135,6 +139,7 @@ class ChatDeviceSettings @Inject constructor(@ApplicationContext private val con
         val APP_LOCK = booleanPreferencesKey("app_lock")
         val SECURE = booleanPreferencesKey("secure")
         val HIDDEN_ACTIONS = stringSetPreferencesKey("hidden_actions")
+        val CALENDAR_TARGET = stringPreferencesKey("calendar_target")
     }
 }
 

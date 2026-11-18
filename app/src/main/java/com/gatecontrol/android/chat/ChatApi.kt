@@ -587,13 +587,14 @@ class ChatApi @Inject constructor(
     suspend fun toList(messageId: Long, items: List<String>): ChatResult<Unit> =
         post("messages/$messageId/to-list", JsonObject().apply { add("items", JsonArray().apply { items.forEach { add(it) } }) }, unit)
 
-    suspend fun toCalendar(messageId: Long, title: String, startsAt: String, endsAt: String?): ChatResult<Unit> =
+    suspend fun toCalendar(messageId: Long, title: String, startsAt: String, endsAt: String?, allDay: Boolean = false): ChatResult<Unit> =
         post(
             "messages/$messageId/to-calendar",
             JsonObject().apply {
                 addProperty("title", title)
                 addProperty("startsAt", startsAt)
                 endsAt?.let { addProperty("endsAt", it) }
+                if (allDay) addProperty("allDay", true)
             },
             unit,
         )

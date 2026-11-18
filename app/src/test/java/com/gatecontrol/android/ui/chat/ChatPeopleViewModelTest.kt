@@ -203,7 +203,7 @@ class ChatPeopleViewModelTest {
         return ChatListViewModel(repository, push, ChatUpdateHint(context), extras, bridges).also { viewModels += it }
     }
 
-    private fun chatVm() = ConversationViewModel(context, repository, media, extras, device, ChatBridgeHints(context)).also { viewModels += it }
+    private fun chatVm() = ConversationViewModel(context, repository, media, extras, device, ChatBridgeHints(context), mockk(relaxed = true)).also { viewModels += it }
 
     // ─── the list ───────────────────────────────────────────────────
 

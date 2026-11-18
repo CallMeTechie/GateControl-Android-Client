@@ -866,3 +866,66 @@ private fun SheetChoice(label: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) { Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface) }
 }
+
+/**
+ * „Termin anlegen“ of a message (Messenger 1.4 suggestion): the form with what was found — title without the date
+ * words, day, time — and the calendar to save in ([targets]; [initialTarget] the one picked last, else Mail, else
+ * Familie). Nothing is saved before „Speichern“. [targets] null: still loading.
+ */
+@Composable
+fun SuggestedEventDialog(
+    prefill: com.gatecontrol.android.chat.ChatDatePrefill,
+    targets: List<com.gatecontrol.android.chat.ChatCalendarTarget>?,
+    initialTarget: String?,
+    mailMissing: Boolean,
+    busy: Boolean,
+    onSave: (com.gatecontrol.android.chat.ChatSuggestedEventDraft) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val extra = GateControlTheme.extraColors
+    val zone = ZoneId.systemDefault()
+    var title by rememberSaveable { mutableStateOf(prefill.title) }
+    var startMs by rememberSaveable { mutableStateOf(prefill.startMs) }
+    var allDay by rememberSaveable { mutableStateOf(prefill.allDay) }
+    var targetKey by rememberSaveable { mutableStateOf(initialTarget) }
+    var pick by remember { mutableStateOf<String?>(null) }
+    val target = targets?.firstOrNull { it.key == targetKey } ?: targets?.firstOrNull { it.key == initialTarget } ?: targets?.firstOrNull()
+    val valid = title.isNotBlank() && target != null
+    EditorScaffold(stringResource(R.string.chat_suggest_calendar), onDismiss, stringResource(R.string.chat_suggest_calendar_save), valid, busy, {
+        val t = target ?: return@EditorScaffold
+        onSave(com.gatecontrol.android.chat.ChatSuggestedEventDraft(title.trim(), startMs, allDay, t.key))
+    }) {
+        Field(title, { title = it }, stringResource(R.string.chat_event_title), stringResource(R.string.chat_event_title_hint), max = com.gatecontrol.android.chat.ChatDateHint.TITLE_MAX)
+        GcCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            ChoiceRow(stringResource(R.string.chat_event_date), DateTimeFormatter.ofPattern("EEE dd.MM.yyyy", locale(ctx)).format(Instant.ofEpochMilli(startMs).atZone(zone)), { pick = "date" })
+            GcSwitchRow(stringResource(R.string.chat_event_all_day), null, allDay, { allDay = it })
+            if (!allDay) {
+                ChoiceRow(stringResource(R.string.chat_event_time), DateTimeFormatter.ofPattern("HH:mm", locale(ctx)).format(Instant.ofEpochMilli(startMs).atZone(zone)), { pick = "time" })
+            }
+            ChoiceRow(
+                stringResource(R.string.chat_suggest_calendar_target),
+                target?.name ?: stringResource(if (targets == null) R.string.chat_suggest_calendar_loading else R.string.chat_suggest_calendar_none),
+                { if (!targets.isNullOrEmpty()) pick = "target" },
+            )
+        }
+        if (mailMissing) {
+            Text(stringResource(R.string.chat_suggest_calendar_mail_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+        }
+    }
+    when (pick) {
+        "date" -> DateTimePickerDialog(startMs, dateOnly = true, onPick = { ms ->
+            val time = Instant.ofEpochMilli(startMs).atZone(zone).toLocalTime()
+            startMs = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().atTime(time).atZone(zone).toInstant().toEpochMilli()
+            pick = null
+        }, onDismiss = { pick = null })
+        "time" -> TimeOnlyDialog(startMs, onPick = { ms -> startMs = ms; pick = null }, onDismiss = { pick = null })
+        "target" -> OptionDialog(
+            stringResource(R.string.chat_suggest_calendar_target),
+            targets.orEmpty().map { it.key to it.name },
+            target?.key,
+            { targetKey = it; pick = null },
+            { pick = null },
+        )
+    }
+}

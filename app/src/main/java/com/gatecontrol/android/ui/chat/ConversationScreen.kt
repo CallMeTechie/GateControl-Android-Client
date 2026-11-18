@@ -223,6 +223,8 @@ fun ConversationScreen(
     var confirmCancelEvent by remember { mutableStateOf<ChatMessage?>(null) }
     var confirmRun by remember { mutableStateOf<Pair<ChatMessage, com.gatecontrol.android.chat.ChatCardButton?>?>(null) }
     var remindFor by remember { mutableStateOf<ChatMessage?>(null) }
+    // „Termin anlegen“: the form of a message's date (nothing is saved before its „Speichern“)
+    var eventFor by remember { mutableStateOf<Pair<ChatMessage, com.gatecontrol.android.chat.ChatDatePrefill>?>(null) }
     /** "In Drive speichern": the message whose file goes into a Drive folder being picked. */
     var driveFor by remember { mutableStateOf<ChatMessage?>(null) }
     var pinnedIndex by remember { mutableStateOf(0) }
@@ -1139,6 +1141,28 @@ fun ConversationScreen(
     remindFor?.let { m ->
         RemindSheet(onPick = { at -> remindFor = null; viewModel.remind(m, at) }, onDismiss = { remindFor = null })
     }
+    eventFor?.let { (m, prefill) ->
+        val familieCalendar = state.profile?.familie?.calendar != false
+        val targets by androidx.compose.runtime.produceState<Pair<List<com.gatecontrol.android.chat.ChatCalendarTarget>, String?>?>(null, m.id) {
+            value = viewModel.calendarTargets(familieCalendar)
+        }
+        var saving by remember(m.id) { mutableStateOf(false) }
+        SuggestedEventDialog(
+            prefill = prefill,
+            targets = targets?.first,
+            initialTarget = targets?.second,
+            mailMissing = targets?.first?.none { it.isMail } == true,
+            busy = saving,
+            onSave = { d ->
+                val t = targets?.first?.firstOrNull { it.key == d.targetKey }
+                if (t != null && !saving) {
+                    saving = true
+                    viewModel.saveSuggestedEvent(m, d, t) { ok -> saving = false; if (ok) eventFor = null }
+                }
+            },
+            onDismiss = { if (!saving) eventFor = null },
+        )
+    }
 
     actionsFor?.let { m ->
         val tools = state.profile?.features?.msgTools == true && !m.deleted && !m.isSystem
@@ -1151,12 +1175,21 @@ fun ConversationScreen(
             value = if (tools && !bridged && !m.text.isNullOrBlank()) viewModel.suggest(m) else null
         }
         val pinnedNow = c?.pinned?.contains(m.id) == true
+        // the date as the app reads it (also „30.11“ without the last dot), the title without the date words
+        val sentAt = remember(m.id) { runCatching { java.time.Instant.parse(m.createdAt).toEpochMilli() }.getOrDefault(System.currentTimeMillis()) }
+        val prefill = remember(suggestion, m.id) {
+            suggestion?.dates?.firstOrNull()?.takeIf { familie?.calendar != false || viewModel.mailCalendars }?.let { d ->
+                com.gatecontrol.android.chat.ChatDateHint.prefill(m.text, sentAt, java.time.ZoneId.systemDefault(), d)
+            }
+        }
+        val dateLabel = prefill?.let { com.gatecontrol.android.chat.ChatDateHint.label(it, java.time.ZoneId.systemDefault(), androidx.compose.ui.platform.LocalConfiguration.current.locales[0]) }
         MessageActionsSheet(
             m = m,
             tools = tools,
             canPin = tools && c?.can?.pin != false && c?.readonly != true,
             pinned = pinnedNow,
-            suggestion = suggestion?.let { s -> s.copy(items = s.items.takeIf { familie?.lists != false }.orEmpty(), dates = s.dates.takeIf { familie?.calendar != false }.orEmpty()) },
+            suggestion = suggestion?.let { s -> s.copy(items = s.items.takeIf { familie?.lists != false }.orEmpty()) },
+            dateLabel = dateLabel,
             onPin = {
                 actionsFor = null
                 viewModel.pin(m, !pinnedNow)
@@ -1169,9 +1202,9 @@ fun ConversationScreen(
                 actionsFor = null
                 viewModel.toList(m, items)
             },
-            onToCalendar = { d ->
+            onToCalendar = {
                 actionsFor = null
-                viewModel.toCalendar(m, d)
+                prefill?.let { eventFor = m to it }
             },
             // Messenger 1.20: in a channel or a group where only the admins write, reacting stays (`can.react`)
             reactions = state.profile?.features?.reactions != false && !m.deleted && (c == null || com.gatecontrol.android.chat.ChatBridgeChat.reacts(c, m)),
@@ -1529,7 +1562,8 @@ private fun MessageActionsSheet(
     onPin: () -> Unit,
     onRemind: () -> Unit,
     onToList: (List<String>) -> Unit,
-    onToCalendar: (com.gatecontrol.android.chat.ChatSuggestedDate) -> Unit,
+    dateLabel: String?,
+    onToCalendar: () -> Unit,
     reactions: Boolean,
     myReaction: String?,
     canEdit: Boolean,
@@ -1571,8 +1605,8 @@ private fun MessageActionsSheet(
                     trailing = pluralStringResource(R.plurals.chat_suggest_items, items.size, items.size),
                 ) { onToList(items) }
             }
-            suggestion?.dates?.firstOrNull()?.let { d ->
-                SheetRow(Icons.Outlined.Event, stringResource(R.string.chat_suggest_calendar), highlight = true, trailing = d.label?.uppercase()) { onToCalendar(d) }
+            if (dateLabel != null) {
+                SheetRow(Icons.Outlined.Event, stringResource(R.string.chat_suggest_calendar), highlight = true, trailing = dateLabel.uppercase(), onClick = onToCalendar)
             }
             if (tools) SheetRow(Icons.Outlined.Alarm, stringResource(R.string.chat_remind_me), onClick = onRemind)
             if (canEdit) SheetRow(Icons.Outlined.Edit, stringResource(R.string.chat_edit), onClick = onEdit)

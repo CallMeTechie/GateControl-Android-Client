@@ -301,7 +301,7 @@ class ChatPeopleUiTest {
 
     private fun chat(dark: Boolean) {
         hints.setSeen("whatsapp", true)
-        val vm = ConversationViewModel(context, repository, media, extras, device, hints).also { viewModels += it }
+        val vm = ConversationViewModel(context, repository, media, extras, device, hints, mockk(relaxed = true)).also { viewModels += it }
         val home = homeViewModel()
         draw(dark) { ConversationScreen(conversationId = 41, onBack = {}, onOpenInfo = {}, onOpenImage = {}, onOpenLinked = {}, viewModel = vm, homeViewModel = home) }
     }
