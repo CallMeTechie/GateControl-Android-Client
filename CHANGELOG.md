@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.131.0] - 2026-11-18
+
+### Features
+- Familie-Erinnerungen und -Regeln, Notizen-Aufgaben, Geofences mit „Meine Orte“ (Teil b) (#258)
+
+---
+
 ## [1.130.0] - 2026-11-18
 
 ### Features
