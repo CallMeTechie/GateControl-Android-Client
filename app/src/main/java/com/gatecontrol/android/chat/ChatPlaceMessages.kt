@@ -249,7 +249,7 @@ object ChatPlaceMessages {
 
     /** The body of `POST place-messages` (and of a change: `PUT place-messages/:id`, every field). */
     fun body(d: ChatPmDraft, deviceId: String): JsonObject? {
-        val place = d.place ?: return null
+        val place = d.place?.takeIf { hasPoint(it) } ?: return null
         val cid = d.conversationId ?: return null
         val text = clipText(d.text.trim()).trim().takeIf { it.isNotEmpty() } ?: return null
         if (!windowOk(d.window)) return null
@@ -335,13 +335,22 @@ object ChatPlaceMessages {
     fun windowOk(w: ChatPmWindow?): Boolean =
         w == null || (w.days.isNotEmpty() && w.days.all { it in 1..7 } && HHMM_RE.matches(w.from) && HHMM_RE.matches(w.to) && w.from != w.to)
 
+    /**
+     * A place the phone can watch: a real point. 0/0 (the sea off Africa — what an empty position turns into) is
+     * none: such an Ortsnachricht would never trigger.
+     */
+    fun hasPoint(p: ChatPmPlace): Boolean = p.lat in -90.0..90.0 && p.lon in -180.0..180.0 && !(p.lat == 0.0 && p.lon == 0.0)
+
+    /** The Familie places without a position (an address only, none set): named in the form, never dropped silently. */
+    fun familieWithoutPoint(places: List<ChatPlace>): List<ChatPlace> = places.filter { fromFamilie(it) == null }
+
     fun clampRadius(m: Int?): Int = (m ?: RADIUS_DEFAULT_M).coerceIn(RADIUS_MIN_M, RADIUS_MAX_M)
 
     /** A Familie place for the form: its name, point and radius (kept within 100–2000 m), its id as `familieId`. */
     fun fromFamilie(p: ChatPlace): ChatPmPlace? {
         val lat = p.lat ?: return null
         val lon = p.lon ?: return null
-        return ChatPmPlace(p.id, p.name.take(NAME_MAX), lat, lon, clampRadius(p.radiusM))
+        return ChatPmPlace(p.id, p.name.take(NAME_MAX), lat, lon, clampRadius(p.radiusM)).takeIf { hasPoint(it) }
     }
 
     private fun minutes(hhmm: String): Int? = HHMM_RE.matchEntire(hhmm)?.let { m -> m.groupValues[1].toInt() * 60 + hhmm.substring(3).toInt() }
@@ -384,7 +393,7 @@ object ChatPlaceMessages {
      * one never pushes out one that already runs.
      */
     fun watched(items: List<ChatPlaceMessage>, deviceId: String, budget: Int): List<ChatPlaceMessage> =
-        items.filter { it.active && it.deviceId == deviceId }
+        items.filter { it.active && it.deviceId == deviceId && hasPoint(it.place) }
             .sortedWith(compareBy<ChatPlaceMessage> { it.createdAt ?: "" }.thenBy { it.id })
             .take(budget.coerceAtLeast(0))
 

@@ -156,6 +156,35 @@ class ChatPlaceMessagesUiTest {
         rule.onNodeWithTag("chat-info-place-messages").assertDoesNotExist()
     }
 
+    @Test
+    fun `the chat info says whether it is armed and what happened last`() {
+        val ctx = ApplicationProvider.getApplicationContext<Application>()
+        val me = saved.deviceId
+        val today742 = java.time.LocalDate.now().atTime(7, 42).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val diag = com.gatecontrol.android.chat.ChatPmDiag(
+            registered = setOf(7L),
+            log = mapOf(7L to listOf(com.gatecontrol.android.chat.ChatPmEvent(today742, com.gatecontrol.android.chat.ChatPlaceWatch.SKIPPED, com.gatecontrol.android.chat.ChatPlaceWatch.WHY_WINDOW))),
+        )
+        assertEquals(
+            listOf("Wird auf diesem Handy überwacht", "Zuletzt erkannt: Ankunft 07:42, außerhalb der Zeiten"),
+            placeStatusLines(ctx, saved, me, diag),
+        )
+        assertEquals("Nicht aktiv hier: läuft auf einem anderen Handy", placeStatusLines(ctx, saved, "android-ffffffffffffffff", diag).first())
+        val noBackground = diag.copy(readiness = com.gatecontrol.android.familie.locate.FamiliePermissions.GeofenceReadiness.NEED_BACKGROUND)
+        assertEquals("Nicht aktiv: Standort „Immer“ fehlt", placeStatusLines(ctx, saved, me, noBackground).first())
+        val zero = saved.copy(place = saved.place.copy(lat = 0.0, lon = 0.0))
+        assertEquals("Nicht aktiv: Ort ohne Standort", placeStatusLines(ctx, zero, me, diag).first())
+        rule.setContent {
+            GateControlTheme(darkTheme = false) {
+                Column(Modifier.background(MaterialTheme.colorScheme.background)) {
+                    ChatInfoPlaceMessages(listOf(saved), status = { placeStatusLines(ctx, it, me, diag) }, onEdit = {}, onDelete = {}, onOpenAll = {})
+                }
+            }
+        }
+        rule.onNodeWithText("Zuletzt erkannt: Ankunft 07:42, außerhalb der Zeiten", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Wird auf diesem Handy überwacht", substring = true).assertIsDisplayed()
+    }
+
     @Test fun `the chat info lists its Ortsnachrichten light`() = section(dark = false)
 
     @Test fun `the chat info lists its Ortsnachrichten dark`() = section(dark = true)

@@ -8,12 +8,15 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.location.LocationManager
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.work.BackoffPolicy
@@ -32,9 +35,11 @@ import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.familie.locate.FamiliePermissions
 import com.gatecontrol.android.familie.places.GeofenceBudget
 import com.gatecontrol.android.familie.places.GeofenceRegistrar
+import com.gatecontrol.android.location.DeviceLocator
 import com.gatecontrol.android.push.PushOpenActivity
 import com.gatecontrol.android.support.CrashReports
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
@@ -155,8 +160,9 @@ class ChatPlaceMessagesRepository @Inject constructor(
     private fun clear() {
         synchronized(lock) {
             store(null)
-            prefs.edit { remove(KEY_FIRED); remove(KEY_DROPPED) }
+            prefs.edit { remove(KEY_FIRED); remove(KEY_DROPPED); remove(KEY_FENCES); remove(KEY_LOG); remove(KEY_REGISTERED); remove(KEY_LOST) }
         }
+        _diagTick.value++
     }
 
     /** The copy on the phone (for a trigger without a network). */
@@ -167,7 +173,9 @@ class ChatPlaceMessagesRepository @Inject constructor(
     suspend fun refresh(): ChatResult<ChatPmList> {
         val r = api.placeMessages()
         if (r is ChatResult.Ok) synchronized(lock) { store(r.value) }
-        else if (r is ChatResult.Failed && (r.http == 404 || r.http == 403)) clear()
+        // 404/403 while the profile still says `placeMessages` (the messenger restarting, a proxy in between): the copy
+        // on the phone stays and keeps watching — only a profile without the feature (or another login) clears it
+        else if (r is ChatResult.Failed && (r.http == 404 || r.http == 403) && featureOn() != true) clear()
         return r
     }
 
@@ -246,9 +254,60 @@ class ChatPlaceMessagesRepository @Inject constructor(
     fun dropped(): Map<Long, Long> = synchronized(lock) { readMap(KEY_DROPPED) }
 
     /** [ms] null: no longer dropped (it went out since). */
-    fun dropped(id: Long, ms: Long?) = synchronized(lock) {
-        val m = readMap(KEY_DROPPED)
-        writeMap(KEY_DROPPED, if (ms == null) m - id else m + (id to ms))
+    fun dropped(id: Long, ms: Long?) {
+        synchronized(lock) {
+            val m = readMap(KEY_DROPPED)
+            writeMap(KEY_DROPPED, if (ms == null) m - id else m + (id to ms))
+        }
+        if (ms != null) logEvent(id, ChatPlaceWatch.DROPPED, atMs = ms)
+    }
+
+    // ─── what the phone knows about the places and did (the status) ─
+
+    private val _diagTick = MutableStateFlow(0L)
+    /** Bumped on every change of the log, the registered fences or the sides: the status lines draw again. */
+    val diagTick: StateFlow<Long> = _diagTick.asStateFlow()
+
+    private fun readJson(key: String): JsonObject? = prefs.getString(key, null)?.let { runCatching { ChatJsonPatch.parse(it) }.getOrNull() }
+
+    /** The side of each watched place, by id ([ChatPlaceWatch]). */
+    fun fences(): Map<Long, ChatPmFence> = synchronized(lock) { ChatPlaceWatch.readFences(readJson(KEY_FENCES)) }
+
+    fun setFences(m: Map<Long, ChatPmFence>) {
+        synchronized(lock) { prefs.edit { putString(KEY_FENCES, ChatPlaceWatch.writeFences(m).toString()) } }
+        _diagTick.value++
+    }
+
+    /** The last events of each Ortsnachricht on this phone. */
+    fun log(): Map<Long, List<ChatPmEvent>> = synchronized(lock) { ChatPlaceWatch.readLog(readJson(KEY_LOG)) }
+
+    fun logEvent(id: Long, kind: String, detail: String? = null, atMs: Long = System.currentTimeMillis()) {
+        synchronized(lock) {
+            val m = ChatPlaceWatch.readLog(readJson(KEY_LOG))
+            // only the Ortsnachrichten that still exist (the list may not be loaded yet: then all stay)
+            val known = _list.value?.items?.map { it.id }?.toSet()
+            val next = (m + (id to ChatPlaceWatch.append(m[id].orEmpty(), ChatPmEvent(atMs, kind, detail))))
+                .filterKeys { known == null || it in known || it == id }
+            prefs.edit { putString(KEY_LOG, ChatPlaceWatch.writeLog(next).toString()) }
+        }
+        Timber.i("Chats: Ortsnachricht %d %s %s", id, kind, detail.orEmpty())
+        _diagTick.value++
+    }
+
+    /** The ids registered with Android last (empty: none, or waiting for the permission). */
+    fun registered(): Set<Long> = synchronized(lock) { prefs.getString(KEY_REGISTERED, null)?.split(',')?.mapNotNull { it.toLongOrNull() }?.toSet().orEmpty() }
+
+    fun setRegistered(ids: Collection<Long>) {
+        synchronized(lock) { prefs.edit { putString(KEY_REGISTERED, ids.joinToString(",")) } }
+        _diagTick.value++
+    }
+
+    /** Android said the geofences are gone (the location was switched off): until they are added again. */
+    fun lost(): Boolean = prefs.getBoolean(KEY_LOST, false)
+
+    fun setLost(on: Boolean) {
+        prefs.edit { putBoolean(KEY_LOST, on) }
+        _diagTick.value++
     }
 
     companion object {
@@ -258,10 +317,23 @@ class ChatPlaceMessagesRepository @Inject constructor(
         private const val KEY_LIST = "list"
         private const val KEY_FIRED = "fired"
         private const val KEY_DROPPED = "dropped"
+        private const val KEY_FENCES = "fences"
+        private const val KEY_LOG = "log"
+        private const val KEY_REGISTERED = "registered"
+        private const val KEY_LOST = "lost"
     }
 }
 
-/** The phone watches the places of its own Ortsnachrichten and acts when one fires. */
+/**
+ * The phone watches the places of its own Ortsnachrichten and acts when one fires.
+ *
+ * The fences are added again on every start of the app, a boot, an update, the location switched on again and every
+ * change of the list — with `INITIAL_TRIGGER_ENTER | _EXIT` and without removing them first, so there is never a moment
+ * without them and Android says at once which side the phone is on. [ChatPlaceWatch.observe] tells a real arrival (the
+ * phone was outside before) from being there already: adding them again while the phone is at the place, before the old
+ * fence reported the arrival, no longer swallows it (18.11.: the app started at 07:42 at work, seven minutes after the
+ * arrival, and the fences were removed and added with `setInitialTrigger(0)` — no „Jetzt senden?“).
+ */
 @Singleton
 class ChatPlaceGeofences @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -271,11 +343,22 @@ class ChatPlaceGeofences @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
     private val mutex = Mutex()
+    private val fireMutex = Mutex()
     @Volatile private var started = false
     @Volatile private var registered: List<Long> = emptyList()
     @Volatile private var budget = -1
 
     fun readiness(): FamiliePermissions.GeofenceReadiness = registrar.readiness()
+
+    /** The phone's state for the status lines. */
+    fun diag(): ChatPmDiag = ChatPmDiag(
+        readiness = readiness(),
+        locationOn = DeviceLocator.isLocationOn(context),
+        notificationsOn = notifier.enabled(),
+        registered = repo.registered(),
+        lost = repo.lost(),
+        log = repo.log(),
+    )
 
     /** App start: the list and its geofences, from now on after every change (and when the Familie plugin's change). */
     fun start() {
@@ -286,6 +369,19 @@ class ChatPlaceGeofences @Inject constructor(
         scope.launch { repo.list.collect { runCatching { register() } } }
         scope.launch {
             registrar.changes.collect { if (GeofenceBudget.placeMessages(registrar.plannedCount()) != budget) runCatching { register() } }
+        }
+        // the location was switched off and on again: Android dropped the geofences meanwhile (GEOFENCE_NOT_AVAILABLE)
+        runCatching {
+            ContextCompat.registerReceiver(
+                context,
+                object : BroadcastReceiver() {
+                    override fun onReceive(c: Context, i: Intent) {
+                        if (DeviceLocator.isLocationOn(context)) scope.launch { runCatching { register() } }
+                    }
+                },
+                IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
         }
     }
 
@@ -298,29 +394,45 @@ class ChatPlaceGeofences @Inject constructor(
     suspend fun register() = mutex.withLock {
         if (!registrar.playServicesAvailable()) return@withLock
         val client = LocationServices.getGeofencingClient(context)
-        await(client.removeGeofences(pendingIntent(context)))
-        registered = emptyList()
         val items = if (repo.featureOn() == false) emptyList() else repo.cachedItems()
         budget = GeofenceBudget.placeMessages(registrar.plannedCount())
         val fences = ChatPlaceMessages.watched(items, repo.deviceId, budget)
         registrar.setPlaceMessagesPlanned(fences.size)
-        if (fences.isEmpty()) return@withLock
-        if (readiness() != FamiliePermissions.GeofenceReadiness.READY) {
-            Timber.i("Chats: %d Ortsnachrichten wait for the location permission", fences.size)
+        val before = (registered + repo.registered()).toSet()
+        if (fences.isEmpty()) {
+            if (before.isNotEmpty()) await(client.removeGeofences(pendingIntent(context)))
+            registered = emptyList()
+            repo.setRegistered(emptyList())
+            repo.setFences(emptyMap())
             return@withLock
         }
+        if (readiness() != FamiliePermissions.GeofenceReadiness.READY) {
+            Timber.i("Chats: %d Ortsnachrichten wait for the location permission", fences.size)
+            registered = emptyList()
+            repo.setRegistered(emptyList())
+            return@withLock
+        }
+        // the ones no longer watched go; the others are replaced in place (the same request id), never removed first
+        val gone = before - fences.map { it.id }.toSet()
+        if (gone.isNotEmpty()) await(client.removeGeofences(gone.map { ChatPlaceMessages.requestId(it) }))
         val request = GeofencingRequest.Builder()
-            // being inside already when registering (boot, a change) sends nothing
-            .setInitialTrigger(0)
+            // Android says at once which side the phone is on; [ChatPlaceWatch.observe] knows whether that is news
+            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER or GeofencingRequest.INITIAL_TRIGGER_EXIT)
             .addGeofences(fences.map(::geofence))
             .build()
+        val nowMs = System.currentTimeMillis()
+        // the sides first: the report on adding may come before addGeofences returns
+        fireMutex.withLock { repo.setFences(ChatPlaceWatch.afterRegister(repo.fences(), fences, nowMs)) }
         val ok = try {
             await(client.addGeofences(request, pendingIntent(context)))
         } catch (e: SecurityException) {
             false
         }
-        if (ok) registered = fences.map { it.id }
+        registered = if (ok) fences.map { it.id } else emptyList()
+        repo.setRegistered(registered)
+        if (ok) repo.setLost(false)
         Timber.i("Chats: %d Ortsnachrichten %s", fences.size, if (ok) "registered" else "not registered")
+        scheduleCheck()
     }
 
     /** The Familie plugin is about to register [family] fences: what no longer fits of the Ortsnachrichten goes first. */
@@ -330,21 +442,91 @@ class ChatPlaceGeofences @Inject constructor(
         val drop = registered.drop(keep.size)
         if (registrar.playServicesAvailable()) await(LocationServices.getGeofencingClient(context).removeGeofences(drop.map { ChatPlaceMessages.requestId(it) }))
         registered = keep
+        repo.setRegistered(keep)
         registrar.setPlaceMessagesPlanned(keep.size)
     }
 
+    /** Android: the geofences are gone (the location is off). They come back with the location ([start]) or the next start. */
+    fun onUnavailable() {
+        repo.setLost(true)
+        repo.registered().forEach { repo.logEvent(it, ChatPlaceWatch.UNAVAILABLE) }
+    }
+
     /**
-     * Android says the phone entered or left the places [ids]: what is due ([ChatPlaceMessages.due]) asks first or goes
-     * out right away; either way it counts as sent for the hour.
+     * Android says the phone is on [transition]'s side of the places [ids] — an arrival or a departure, or only the
+     * report on adding them ([ChatPlaceWatch.observe]). What is due asks first or goes out right away; either way it
+     * counts as sent for the hour. Each step goes into the log.
      */
-    suspend fun onTransition(ids: List<Long>, transition: String) {
+    suspend fun onTransition(ids: List<Long>, transition: String) = fireMutex.withLock {
         val nowMs = System.currentTimeMillis()
-        val due = ChatPlaceMessages.due(repo.cachedItems(), ids, transition, repo.deviceId, LocalDateTime.now(), nowMs, repo.localFired())
+        val now = LocalDateTime.now()
         val at = Instant.ofEpochMilli(nowMs).truncatedTo(ChronoUnit.SECONDS).toString()
-        for (p in due) {
-            repo.markFired(p.id, nowMs)
-            if (p.ask) notifier.ask(p, at) else ChatPlaceFireWorker.enqueue(context, p.id, at)
+        val side = ChatPlaceWatch.sideOf(transition)
+        val states = repo.fences().toMutableMap()
+        for (id in ids) {
+            val fresh = states[id]?.let { it.side == null } == true
+            val (next, moved) = ChatPlaceWatch.observe(states[id], side, nowMs)
+            if (next != null) states[id] = next
+            val p = repo.item(id)
+            if (!moved) {
+                // a new fence learned its side: being there already when saving sends nothing
+                if (fresh && p != null) repo.logEvent(id, ChatPlaceWatch.LEARNED, side, nowMs)
+                continue
+            }
+            if (p == null) {
+                repo.logEvent(id, ChatPlaceWatch.SKIPPED, ChatPlaceWatch.WHY_UNKNOWN, nowMs)
+                continue
+            }
+            // a departure of an Ortsnachricht „Beim Ankommen“ (and the other way round) only moves the side
+            if (p.trigger != transition) continue
+            repo.logEvent(id, ChatPlaceWatch.DETECTED, transition, nowMs)
+            val why = ChatPlaceWatch.skipReason(p, transition, repo.deviceId, now, nowMs, repo.localFired())
+            if (why != null) {
+                repo.logEvent(id, ChatPlaceWatch.SKIPPED, why, nowMs)
+                continue
+            }
+            act(p, at, nowMs)
         }
+        repo.setFences(states)
+        scheduleCheck()
+    }
+
+    /** At the start of a window: what waits for it (the phone got there before) goes now. */
+    suspend fun onWindowStart() {
+        fireMutex.withLock {
+            val nowMs = System.currentTimeMillis()
+            val at = Instant.ofEpochMilli(nowMs).truncatedTo(ChronoUnit.SECONDS).toString()
+            val due = ChatPlaceWatch.catchUp(repo.cachedItems(), repo.fences(), repo.deviceId, LocalDateTime.now(), nowMs, repo.localFired())
+            for (p in due) {
+                repo.logEvent(p.id, ChatPlaceWatch.CAUGHT_UP, null, nowMs)
+                act(p, at, nowMs)
+            }
+        }
+        scheduleCheck()
+    }
+
+    private suspend fun act(p: ChatPlaceMessage, at: String, nowMs: Long) {
+        if (p.ask) {
+            if (notifier.ask(p, at)) {
+                repo.markFired(p.id, nowMs)
+                repo.logEvent(p.id, ChatPlaceWatch.ASKED, null, nowMs)
+            } else {
+                // no notification may be shown (Mitteilungen off): nothing counts as asked, the status says why
+                repo.logEvent(p.id, ChatPlaceWatch.BLOCKED, null, nowMs)
+            }
+        } else {
+            repo.markFired(p.id, nowMs)
+            repo.logEvent(p.id, ChatPlaceWatch.CONFIRMED, null, nowMs)
+            ChatPlaceFireWorker.enqueue(context, p.id, at)
+        }
+    }
+
+    /** The next window start an Ortsnachricht waits for (the phone is at its place): a job then, else none. */
+    private fun scheduleCheck() {
+        val now = LocalDateTime.now()
+        val next = ChatPlaceWatch.nextCheck(repo.cachedItems(), repo.fences(), repo.deviceId, now)
+        val delayMs = next?.let { java.time.Duration.between(now, it).toMillis().coerceAtLeast(0L) }
+        ChatPlaceWindowWorker.schedule(context, delayMs)
     }
 
     private suspend fun <T> await(task: Task<T>): Boolean = withTimeoutOrNull(TASK_TIMEOUT_MS) {
@@ -358,11 +540,12 @@ class ChatPlaceGeofences @Inject constructor(
         /** Battery-friendly, as the other places: Android reports an arrival within about two minutes. */
         private const val RESPONSIVENESS_MS = 2 * 60_000
 
+        /** Both directions for every place: the phone keeps its side ([ChatPlaceWatch]); the trigger is checked on the phone. */
         private fun geofence(p: ChatPlaceMessage): Geofence = Geofence.Builder()
             .setRequestId(ChatPlaceMessages.requestId(p.id))
-            .setCircularRegion(p.place.lat, p.place.lon, ChatPlaceMessages.clampRadius(p.place.radiusM).toFloat())
+            .setCircularRegion(p.place.lat, p.place.lon, ChatPlaceWatch.fenceRadius(p.place.radiusM).toFloat())
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
-            .setTransitionTypes(if (p.trigger == ChatPlaceMessages.EXIT) Geofence.GEOFENCE_TRANSITION_EXIT else Geofence.GEOFENCE_TRANSITION_ENTER)
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
             .setNotificationResponsiveness(RESPONSIVENESS_MS)
             .build()
 
@@ -373,6 +556,34 @@ class ChatPlaceGeofences @Inject constructor(
             Intent(context, ChatPlaceReceiver::class.java).setAction(ChatPlaceReceiver.ACTION_GEOFENCE),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
         )
+    }
+}
+
+/** At the start of a time window: [ChatPlaceGeofences.onWindowStart]. One job at a time, the earliest start. */
+class ChatPlaceWindowWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        EntryPointAccessors.fromApplication(applicationContext, ChatPlaceEntryPoint::class.java).placeGeofences().onWindowStart()
+        return Result.success()
+    }
+
+    companion object {
+        private const val NAME = "chat-place-window"
+
+        /** [delayMs] null: nothing waits for a window — the job goes. */
+        fun schedule(context: Context, delayMs: Long?) {
+            runCatching {
+                val wm = WorkManager.getInstance(context)
+                if (delayMs == null) {
+                    wm.cancelUniqueWork(NAME)
+                    return
+                }
+                val request = OneTimeWorkRequestBuilder<ChatPlaceWindowWorker>()
+                    .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+                    .build()
+                wm.enqueueUniqueWork(NAME, ExistingWorkPolicy.REPLACE, request)
+            }.onFailure { Timber.w("Chats: window check not queued (%s)", it.javaClass.simpleName) }
+        }
     }
 }
 
@@ -391,6 +602,12 @@ class ChatPlaceNotifier @Inject constructor(
     private fun allowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
+    /** Whether „Jetzt senden?“ can be seen: the permission, the app's notifications and this channel not switched off. */
+    fun enabled(): Boolean = runCatching {
+        val nm = NotificationManagerCompat.from(context)
+        allowed() && nm.areNotificationsEnabled() && nm.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
+    }.getOrDefault(true)
+
     private fun channel(ctx: Context): String {
         val nm = context.getSystemService(NotificationManager::class.java)
         nm?.createNotificationChannel(
@@ -406,9 +623,12 @@ class ChatPlaceNotifier @Inject constructor(
 
     private fun to(ctx: Context, p: ChatPlaceMessage): String = p.target?.title ?: ctx.getString(R.string.chat_pm_someone)
 
-    /** „Du bist bei Zuhause angekommen — An Kim über WhatsApp: „…“ — Jetzt senden · Ändern · Nicht senden“ (15 minutes). */
-    suspend fun ask(p: ChatPlaceMessage, at: String) {
-        if (!allowed()) return
+    /**
+     * „Du bist bei Zuhause angekommen — An Kim über WhatsApp: „…“ — Jetzt senden · Ändern · Nicht senden“ (15 minutes).
+     * False: it cannot be shown (no permission, notifications or the channel switched off).
+     */
+    suspend fun ask(p: ChatPlaceMessage, at: String): Boolean {
+        if (!enabled()) return false
         val ctx = localized()
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val id = askId(p.id)
@@ -438,7 +658,7 @@ class ChatPlaceNotifier @Inject constructor(
             .addAction(0, ctx.getString(R.string.chat_pm_change), change)
             .addAction(0, ctx.getString(R.string.chat_pm_skip), skip)
             .build()
-        notify(id, n)
+        return notify(id, n)
     }
 
     /** „Gesendet an Kim — „…“ · beim Ankommen in Zuhause — Zurücknehmen“. */
@@ -482,12 +702,12 @@ class ChatPlaceNotifier @Inject constructor(
 
     fun cancelSent(id: Long) = runCatching { NotificationManagerCompat.from(context).cancel(sentId(id)) }
 
-    private fun notify(id: Int, n: android.app.Notification) {
-        try {
-            NotificationManagerCompat.from(context).notify(id, n)
-        } catch (_: SecurityException) {
-            // the permission was taken away meanwhile
-        }
+    private fun notify(id: Int, n: android.app.Notification): Boolean = try {
+        NotificationManagerCompat.from(context).notify(id, n)
+        true
+    } catch (_: SecurityException) {
+        // the permission was taken away meanwhile
+        false
     }
 
     companion object {
@@ -521,6 +741,8 @@ class ChatPlaceReceiver : BroadcastReceiver() {
                 val event = GeofencingEvent.fromIntent(intent) ?: return
                 if (event.hasError()) {
                     Timber.w("Chats: geofence error %d", event.errorCode)
+                    // the location was switched off: Android dropped the fences; they come back with the location
+                    if (event.errorCode == GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE) geofences.onUnavailable()
                     return
                 }
                 val transition = when (event.geofenceTransition) {
@@ -538,10 +760,17 @@ class ChatPlaceReceiver : BroadcastReceiver() {
                 notifier.cancelAsk(id)
                 val atMs = ChatPlaceMessages.ms(at) ?: return
                 // the question went away after 15 minutes: nothing goes out any more
-                if (ChatPlaceMessages.askExpired(atMs, System.currentTimeMillis())) return
+                if (ChatPlaceMessages.askExpired(atMs, System.currentTimeMillis())) {
+                    repo.logEvent(id, ChatPlaceWatch.SKIPPED, ChatPlaceWatch.WHY_ASK_EXPIRED)
+                    return
+                }
+                repo.logEvent(id, ChatPlaceWatch.CONFIRMED)
                 ChatPlaceFireWorker.enqueue(context, id, at)
             }
-            ACTION_SKIP -> intent.getLongExtra(EXTRA_ID, 0L).takeIf { it > 0 }?.let { notifier.cancelAsk(it) }
+            ACTION_SKIP -> intent.getLongExtra(EXTRA_ID, 0L).takeIf { it > 0 }?.let {
+                notifier.cancelAsk(it)
+                repo.logEvent(it, ChatPlaceWatch.DECLINED)
+            }
             ACTION_UNDO -> {
                 val id = intent.getLongExtra(EXTRA_ID, 0L).takeIf { it > 0 } ?: return
                 val messageId = intent.getLongExtra(EXTRA_MESSAGE, 0L).takeIf { it > 0 } ?: return
@@ -611,6 +840,7 @@ class ChatPlaceFireWorker(appContext: Context, params: WorkerParameters) : Corou
         return when (val r = deps.chatApi().firePlaceMessage(id, at, repo.deviceId)) {
             is ChatResult.Ok -> {
                 repo.applyFired(r.value)
+                if (!r.value.duplicate) repo.logEvent(id, ChatPlaceWatch.SENT)
                 val p = r.value.placeMessage ?: repo.item(id)
                 // a repeat of the same trigger (`duplicate`) was announced already
                 if (p != null && !r.value.duplicate) deps.placeNotifier().sent(p, r.value.message?.id)
@@ -618,7 +848,10 @@ class ChatPlaceFireWorker(appContext: Context, params: WorkerParameters) : Corou
             }
             is ChatResult.Failed -> when {
                 r.code == "expired" -> { repo.dropped(id, System.currentTimeMillis()); Result.success() }
-                r.code in ChatPlaceMessages.FINAL_CODES || r.http in 400..499 -> Result.success()
+                r.code in ChatPlaceMessages.FINAL_CODES || r.http in 400..499 -> {
+                    repo.logEvent(id, ChatPlaceWatch.FAILED, r.code)
+                    Result.success()
+                }
                 else -> retry(id)
             }
             ChatResult.NotConfigured -> Result.success()
