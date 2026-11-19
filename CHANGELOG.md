@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.131.1] - 2026-11-19
+
+### Fixes
+- Pi-hole-Reste aus dem Einstellungsspeicher entfernt (#259)
+
+---
+
 ## [1.131.0] - 2026-11-18
 
 ### Features
