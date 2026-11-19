@@ -25,6 +25,9 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.job
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -43,6 +46,9 @@ import org.junit.jupiter.api.Test
 class SettingsViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
+
+    /** The pages of a test, ended before Main goes. */
+    private val models = mutableListOf<SettingsViewModel>()
 
     private lateinit var setupRepository: SetupRepository
     private lateinit var settingsRepository: SettingsRepository
@@ -91,11 +97,22 @@ class SettingsViewModelTest {
             supportBundleCollector, supportBundleUploader,
             com.gatecontrol.android.service.fakeClientPolicyManager(),
             machineFingerprint,
-        )
+        ).also { models += it }
     }
 
+    /**
+     * The support bundle is collected on Dispatchers.IO and comes back to Main: a test can be over before it is (or the
+     * wait gave up). The page ends here, while Main still is the test's dispatcher — coming back after resetMain would be
+     * an uncaught exception that fails whichever test runs next.
+     */
     @AfterEach
     fun tearDown() {
+        models.forEach { it.viewModelScope.cancel() }
+        val until = System.currentTimeMillis() + 5_000
+        while (models.any { !it.viewModelScope.coroutineContext.job.isCompleted } && System.currentTimeMillis() < until) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(2)
+        }
         Dispatchers.resetMain()
     }
 
@@ -264,7 +281,7 @@ class SettingsViewModelTest {
             supportBundleCollector, supportBundleUploader,
             com.gatecontrol.android.service.fakeClientPolicyManager(policy),
             machineFingerprint,
-        )
+        ).also { models += it }
         testDispatcher.scheduler.advanceUntilIdle()
 
         vm.setAutoConnect(false)

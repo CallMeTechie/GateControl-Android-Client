@@ -20,6 +20,9 @@ import io.mockk.slot
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.job
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -40,6 +43,9 @@ import retrofit2.Response
 class DiagnosisViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
+
+    /** The pages of a test, ended before Main goes. */
+    private val models = mutableListOf<DiagnosisViewModel>()
 
     private val report = DiagnosisReport(
         startedAt = 1_790_000_000_000L,
@@ -79,11 +85,22 @@ class DiagnosisViewModelTest {
         SupportRequestHolder.clear()
         coEvery { runner.run(any()) } returns report
         every { collector.collect(any(), any(), any(), any(), any(), any(), any()) } returns mapOf("schema" to 1)
-        vm = DiagnosisViewModel(context, runner, setup, settings, fingerprint, collector, uploader)
+        vm = DiagnosisViewModel(context, runner, setup, settings, fingerprint, collector, uploader).also { models += it }
     }
 
+    /**
+     * The problem report is collected on Dispatchers.IO and comes back to Main: a test can be over before it is (or the
+     * wait gave up). The page ends here, while Main still is the test's dispatcher — coming back after resetMain would be
+     * an uncaught exception that fails whichever test runs next.
+     */
     @AfterEach
     fun tearDown() {
+        models.forEach { it.viewModelScope.cancel() }
+        val until = System.currentTimeMillis() + 5_000
+        while (models.any { !it.viewModelScope.coroutineContext.job.isCompleted } && System.currentTimeMillis() < until) {
+            dispatcher.scheduler.advanceUntilIdle()
+            Thread.sleep(2)
+        }
         Dispatchers.resetMain()
     }
 
