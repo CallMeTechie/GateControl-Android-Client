@@ -29,6 +29,7 @@ import com.gatecontrol.android.dnsprotect.DnsAll
 import com.gatecontrol.android.dnsprotect.DnsCounters
 import com.gatecontrol.android.dnsprotect.DnsDevice
 import com.gatecontrol.android.dnsprotect.DnsDuration
+import com.gatecontrol.android.dnsprotect.DnsInternet
 import com.gatecontrol.android.dnsprotect.DnsLogic
 import com.gatecontrol.android.dnsprotect.DnsMay
 import com.gatecontrol.android.dnsprotect.DnsPause
@@ -229,10 +230,79 @@ class DnsProtectUiTest {
         assertEquals(0, count("Schutz unterbrechen"))
         // No list delivered: the section is left out.
         assertEquals(0, count("TOP GESPERRTE DOMAINS"))
-        // "Nur Admins": the state, no button, no notice.
+        // "Nur Admins": the state, no button, but the notice why.
         page { Screen(ui(locked.copy(may = DnsMay(reason = "admins_only")))) }
+        shot("screen-admins-only")
+        rule.onNodeWithText("Unterbrechen nicht erlaubt").assertIsDisplayed()
+        rule.onNodeWithText("Unterbrechen dürfen hier nur Admins.").assertIsDisplayed()
+        assertEquals(0, count("Schutz unterbrechen"))
+        // An unknown reason (a newer plugin): neither a button nor a wrong sentence.
+        page { Screen(ui(locked.copy(may = DnsMay(reason = "something_new")))) }
         assertEquals(0, count("Unterbrechen nicht erlaubt"))
         assertEquals(0, count("Schutz unterbrechen"))
+    }
+
+    private val internet = DnsInternet(until = "2026-11-12T19:49:00.000Z", remainingSeconds = 21_660)
+
+    @Test
+    fun `internet paused by Familie - the notice, no chips, the protection keeps running`() {
+        val held = active.copy(internet = internet, may = DnsMay(reason = "internet_paused", maxMinutes = 60))
+        page { Screen(ui(held)) }
+        shot("screen-internet-paused")
+        rule.onNodeWithText("Schutz aktiv").assertIsDisplayed()
+        rule.onNodeWithText("Internet pausiert bis 20:49 Uhr (Familie)").assertIsDisplayed()
+        rule.onNodeWithText("Nur ausdrücklich erlaubte Seiten gehen. Den Schutz zu unterbrechen ändert daran nichts.").assertIsDisplayed()
+        assertEquals(0, count("Schutz unterbrechen"))
+        assertEquals(0, count("Unterbrechen nicht erlaubt"))
+        // Over on this device's clock (the screen's countdown says so): no notice.
+        page { DnsProtectCards(ui(held), DnsSnapshot(held, now), null, internetPaused = false, onPause = {}, onResume = {}, onOthers = {}) }
+        assertEquals(0, count("Internet pausiert bis 20:49 Uhr (Familie)"))
+    }
+
+    @Test
+    fun `internet paused with a rights reason - both notices, the rights' reason first in may`() {
+        page { Screen(ui(locked.copy(internet = internet))) }
+        shot("screen-internet-paused-profile")
+        rule.onNodeWithText("Internet pausiert bis 20:49 Uhr (Familie)").assertIsDisplayed()
+        rule.onNodeWithText("Nur ausdrücklich erlaubte Seiten gehen.").assertIsDisplayed()
+        rule.onNodeWithText("Unterbrechen nicht erlaubt").assertIsDisplayed()
+    }
+
+    @Test
+    fun `suspended before the internet was paused - the card to switch back on and the notice`() {
+        page { Screen(ui(paused.copy(internet = internet))) }
+        rule.onNodeWithText("Internet pausiert bis 20:49 Uhr (Familie)").assertIsDisplayed()
+        rule.onNodeWithText("Nur ausdrücklich erlaubte Seiten gehen.").assertIsDisplayed()
+        rule.onNodeWithText("Wieder einschalten").assertIsDisplayed()
+    }
+
+    @Test
+    fun `+30 Min while suspended - extends, the whole duration counts afterwards`() {
+        val chosen = mutableListOf<DnsDuration>()
+        page { Screen(ui(paused), onPause = { chosen += it }) }
+        rule.onNodeWithText("+30 Min.").performClick()
+        assertEquals(listOf<DnsDuration>(DnsDuration.Extend(30)), chosen.toList())
+        // The answer: 60 minutes in all, 54:10 left — the "1 Std" chip counts.
+        val extended = paused.copy(
+            pause = paused.pause!!.copy(until = "2026-11-12T14:42:10.000Z", remainingSeconds = 3250, minutes = 60),
+        )
+        page { Screen(ui(extended)) }
+        shot("screen-paused-extended")
+        rule.onNodeWithText("unterbrochen · 54:10").assertIsDisplayed()
+        assertEquals(0, count("1 Std"))
+        rule.onNodeWithText("30 Min").assertIsNotEnabled()
+        rule.onNodeWithText("Unterbrochen von dir um 14:42 für 1 Stunde. Solange wird auf diesem Gerät nichts gesperrt.").assertIsDisplayed()
+        // Not allowed (e.g. already at the longest duration) or without an end: no "+30 Min.".
+        page { Screen(ui(extended.copy(may = extended.may.copy(extend = false)))) }
+        assertEquals(0, count("+30 Min."))
+        rule.onNodeWithText("Wieder einschalten").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a profile that also holds at home (plugin 1_2)`() {
+        page { Screen(ui(locked.copy(profileHome = true))) }
+        shot("screen-profile-home")
+        rule.onNodeWithText("Profil „Kinder“ · gilt zu Hause und unterwegs").assertIsDisplayed()
     }
 
     @Test
@@ -283,6 +353,50 @@ class DnsProtectUiTest {
         assertEquals(1, opened)
         rule.onNodeWithText("Einschalten").performClick()
         assertEquals(1, resumed)
+    }
+
+    @Test
+    fun `the tile on Start - internet paused in place of the counters`() {
+        val s = active.copy(internet = DnsInternet(until = "2026-11-12T19:49:00.000Z"), may = DnsMay(reason = "internet_paused"))
+        page { DnsStartTile(ui(s), null, onOpen = {}, onResume = {}) }
+        shot("start-tile-internet-paused")
+        rule.onNodeWithText("DNS-Schutz aktiv").assertIsDisplayed()
+        rule.onNodeWithText("Internet pausiert bis 20:49 Uhr (Familie)").assertIsDisplayed()
+        assertEquals(0, count("Unterbrechen"))
+    }
+
+    @Test
+    fun `for others - the person's pause and internet of plugin 1_1`() {
+        val people = DnsPeople(
+            people = listOf(
+                DnsPerson(
+                    4, "Lea", may = DnsMay(resume = true),
+                    pause = DnsPause("user", until = "2026-11-12T14:12:00.000Z", minutes = 30),
+                    devices = listOf(
+                        DnsPersonDevice(21, "Leas Handy", "filtered", suspended = true, may = DnsMay(resume = true)),
+                        DnsPersonDevice(22, "Leas Tablet", "filtered", suspended = true, may = DnsMay(resume = true)),
+                    ),
+                ),
+                DnsPerson(
+                    5, "Tim", may = DnsMay(reason = "internet_paused"),
+                    internet = DnsInternet(until = "2026-11-12T19:49:00.000Z"),
+                    devices = listOf(
+                        DnsPersonDevice(30, "Tims Tablet", "filtered", may = DnsMay(reason = "internet_paused"), internetPaused = "2026-11-12T19:49:00.000Z"),
+                        DnsPersonDevice(31, "Tims PC", "filtered", may = DnsMay(reason = "internet_paused"), internetPaused = "2026-11-12T19:49:00.000Z"),
+                    ),
+                ),
+            ),
+        )
+        page {
+            Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
+                DnsOthersList(ui(active, people = people), null, {}, { _, _ -> }, {}, onRetry = {})
+            }
+        }
+        shot("others-internet-paused")
+        // Lea: the person's pause (not "teilweise", not from the devices).
+        rule.onNodeWithText("unterbrochen bis 15:12 Uhr").assertIsDisplayed()
+        // Tim: in place of the buttons.
+        assertEquals(3, count("Internet pausiert bis 20:49 Uhr"))
     }
 
     @Test

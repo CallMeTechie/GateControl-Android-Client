@@ -6,6 +6,7 @@
     <string name="dns_state_active_title">Schutz aktiv</string>
     <string name="dns_state_active_sub">Werbung und Schadseiten werden gesperrt</string>
     <string name="dns_state_active_profile">Profil „%1$s“ · Werbung und Schadseiten werden gesperrt</string>
+    <string name="dns_state_active_profile_home">Profil „%1$s“ · gilt zu Hause und unterwegs</string>
     <string name="dns_state_paused_clock">unterbrochen · %1$s</string>
     <string name="dns_state_paused_until">bis %1$s Uhr · schaltet sich von selbst ein</string>
     <string name="dns_state_paused_open">Unterbrochen</string>
@@ -38,6 +39,7 @@
     <string name="dns_pause_hint_person">Gilt für deine Geräte und endet von selbst.</string>
     <string name="dns_pause_forever_locked">„Bis ich wieder einschalte“ hat dein Admin nicht freigegeben.</string>
     <string name="dns_resume">Wieder einschalten</string>
+    <string name="dns_extend">+%1$d Min.</string>
     <string name="dns_applying">Wird angewendet&#8230;</string>
     <string name="dns_paused_plain">Der Schutz ist unterbrochen.</string>
     <string name="dns_paused_at">Unterbrochen um %1$s.</string>
@@ -61,6 +63,12 @@
     <string name="dns_fallback_banner_text">Dein Internet läuft weiter, aber ohne Schutz. Dein Admin wurde benachrichtigt. Der Schutz schaltet sich von selbst wieder ein.</string>
     <string name="dns_not_allowed_title">Unterbrechen nicht erlaubt</string>
     <string name="dns_not_allowed_profile">Für dein Profil hat der Admin das Unterbrechen gesperrt. Geht eine Seite nicht, die du brauchst, frag deine Eltern oder den Admin.</string>
+    <string name="dns_not_allowed_admins_only">Unterbrechen dürfen hier nur Admins.</string>
+    <!-- Familie: „Internet pausieren“ wirkt auch über das VPN (Plugin 1.1) -->
+    <string name="dns_internet_title_until">Internet pausiert bis %1$s Uhr (Familie)</string>
+    <string name="dns_internet_title">Internet pausiert (Familie)</string>
+    <string name="dns_internet_text">Nur ausdrücklich erlaubte Seiten gehen.</string>
+    <string name="dns_internet_no_pause">Den Schutz zu unterbrechen ändert daran nichts.</string>
 
     <string name="dns_top_title">Top gesperrte Domains</string>
     <string name="dns_today_title">Zeiten heute</string>
@@ -97,6 +105,8 @@
     <string name="dns_others_paused_until">unterbrochen bis %1$s Uhr</string>
     <string name="dns_others_paused_open">unterbrochen, bis wieder eingeschaltet wird</string>
     <string name="dns_others_paused_some">teilweise unterbrochen</string>
+    <string name="dns_others_internet_until">Internet pausiert bis %1$s Uhr</string>
+    <string name="dns_others_internet">Internet pausiert</string>
     <string name="dns_others_forever">Bis wieder eingeschaltet wird</string>
     <string name="dns_others_empty">Es gibt niemanden, für den du unterbrechen darfst.</string>
     <string name="dns_others_failed">Die Liste konnte nicht geladen werden.</string>
@@ -111,4 +121,5 @@
     <string name="dns_reason_fallback">Filter ausgefallen.</string>
     <string name="dns_reason_off">DNS-Schutz ist aus.</string>
     <string name="dns_reason_paused_for_all">Für alle Geräte unterbrochen – nur ein Admin schaltet wieder ein.</string>
+    <string name="dns_reason_internet_paused">Internet pausiert (Familie).</string>
 </resources>

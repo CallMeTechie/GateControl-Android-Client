@@ -445,6 +445,8 @@ fun StartCards(
     info: @Composable () -> Unit,
     usage: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    /** The DNS protection's tile (Start only). */
+    dns: @Composable () -> Unit = {},
     onOpenDoor: (() -> Unit)? = null,
     /** The widget page beside Start these cards stand on (null: Start). */
     page: String? = null,
@@ -504,6 +506,7 @@ fun StartCards(
                 first == StartEntry.Agenda -> com.gatecontrol.android.ui.mail.start.MailAgendaCard(page = page)
                 first == StartEntry.Info -> info()
                 first == StartEntry.Usage -> usage()
+                first == StartEntry.Dns -> dns()
             }
         }
     }

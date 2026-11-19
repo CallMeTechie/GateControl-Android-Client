@@ -144,4 +144,35 @@ class StartLayoutTest {
         assertTrue(StartLayout.canMove(entries, "agenda", 1))
         assertEquals(listOf(listOf(StartEntry.Agenda)), StartLayout.rows(listOf(StartEntry.Agenda)))
     }
+
+    @Test
+    fun `the DNS protection's tile is a card while the server reports one, on top of the cards until arranged`() {
+        assertEquals("dns", StartLayout.encode(StartEntry.Dns))
+        assertEquals(StartEntry.Dns, StartLayout.decode("dns"))
+        assertTrue(TabLayout.isValidEntry("dns"))
+        val dns = StartExtras(dns = true)
+        // Not arranged yet: above the cards, below the tiles (where it stood before it could be arranged).
+        assertEquals(
+            listOf("tile:$door", "dns", "widget:$car", "info", "usage"),
+            StartLayout.merge(emptyList(), listOf(door), listOf(widget(car)), extras = dns).map { it.key },
+        )
+        // Arranged: where it was put.
+        val saved = listOf("tile:$door", "widget:$car", "info", "dns", "usage")
+        assertEquals(saved, StartLayout.merge(saved, listOf(door), listOf(widget(car)), extras = dns).map { it.key })
+        // No DNS protection reported: the stored entry does nothing.
+        assertEquals(listOf("tile:$door", "widget:$car", "info", "usage"), StartLayout.merge(saved, listOf(door), listOf(widget(car))).map { it.key })
+        // Never on a widget page beside Start.
+        assertEquals(listOf("widget:$car"), StartLayout.merge(saved, emptyList(), listOf(widget(car)), cards = false, extras = dns).map { it.key })
+        // It moves among the cards, not among the tiles; a row of its own.
+        val entries = StartLayout.merge(saved, listOf(door), listOf(widget(car)), extras = dns)
+        assertSame(entries, StartLayout.move(entries, "dns", "tile:$door"))
+        assertEquals(listOf("tile:$door", "widget:$car", "dns", "info", "usage"), StartLayout.moveBy(entries, "dns", -1).map { it.key })
+        assertFalse(StartEntry.Dns.isHalf)
+        assertEquals(listOf(listOf(StartEntry.Dns)), StartLayout.rows(listOf(StartEntry.Dns)))
+        // With Mail's calendar widget pinned just now: the DNS tile stays the first card.
+        assertEquals(
+            listOf("dns", "agenda", "info", "usage"),
+            StartLayout.merge(emptyList(), emptyList(), emptyList(), extras = StartExtras(agenda = true, dns = true)).map { it.key },
+        )
+    }
 }

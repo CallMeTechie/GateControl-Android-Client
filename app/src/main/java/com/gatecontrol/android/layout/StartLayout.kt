@@ -35,10 +35,18 @@ sealed interface StartEntry {
     data object Agenda : StartEntry {
         override val key: String get() = StartLayout.AGENDA
     }
+
+    /** The DNS protection's tile (state, today's counters, the button) — while the server reports one; Start only. */
+    data object Dns : StartEntry {
+        override val key: String get() = StartLayout.DNS
+    }
 }
 
-/** What Mail pins to Start on this device (Mail 1.4.0): favourite contacts as tiles, the calendar widget. */
-data class StartExtras(val contacts: List<Long> = emptyList(), val agenda: Boolean = false) {
+/**
+ * Blocks beside the pins: what Mail pins to Start on this device (Mail 1.4.0) — favourite contacts
+ * as tiles, the calendar widget — and [dns], the DNS protection's tile while the server reports one.
+ */
+data class StartExtras(val contacts: List<Long> = emptyList(), val agenda: Boolean = false, val dns: Boolean = false) {
     companion object {
         val NONE = StartExtras()
     }
@@ -49,7 +57,7 @@ data class StartExtras(val contacts: List<Long> = emptyList(), val agenda: Boole
  * of their own (their order among each other), then widgets, Info card and
  * usage card in one common order; half-width widgets side by side share a
  * row ([rows]). Stored as `tile:<plugin>/<id>`, `widget:<device>` (half),
- * `widget2:<device>` (full width), `info`, `usage`.
+ * `widget2:<device>` (full width), `info`, `usage`, `agenda`, `dns`.
  */
 object StartLayout {
     const val TILE = "tile:"
@@ -59,6 +67,7 @@ object StartLayout {
     const val USAGE = "usage"
     const val CONTACT = "contact:"
     const val AGENDA = "agenda"
+    const val DNS = "dns"
     private val CONTACT_ID = Regex("^[1-9][0-9]{0,15}$")
 
     fun encode(entry: StartEntry): String = when (entry) {
@@ -68,6 +77,7 @@ object StartLayout {
         StartEntry.Usage -> USAGE
         is StartEntry.Contact -> CONTACT + entry.id
         StartEntry.Agenda -> AGENDA
+        StartEntry.Dns -> DNS
     }
 
     fun encodeAll(entries: List<StartEntry>): List<String> = entries.map(::encode)
@@ -76,6 +86,7 @@ object StartLayout {
         raw == INFO -> StartEntry.Info
         raw == USAGE -> StartEntry.Usage
         raw == AGENDA -> StartEntry.Agenda
+        raw == DNS -> StartEntry.Dns
         raw.startsWith(CONTACT) -> raw.removePrefix(CONTACT).takeIf { CONTACT_ID.matches(it) }?.toLongOrNull()?.let { StartEntry.Contact(it) }
         raw.startsWith(TILE) -> raw.removePrefix(TILE).takeIf { it.isNotEmpty() }?.let { StartEntry.Tile(it) }
         raw.startsWith(WIDGET_WIDE) -> raw.removePrefix(WIDGET_WIDE).takeIf { it.isNotEmpty() }?.let { StartEntry.Widget(it, wide = true) }
@@ -123,6 +134,7 @@ object StartLayout {
                 // The width is the pin's: arranging and the pin sheet keep both in step.
                 is StartEntry.Widget -> widgetByDevice[entry.device]?.let { blocks += it }
                 StartEntry.Agenda -> if (extras.agenda) blocks += entry
+                StartEntry.Dns -> if (withCards && extras.dns) blocks += entry
                 StartEntry.Info, StartEntry.Usage -> if (withCards) blocks += entry
             }
         }
@@ -136,6 +148,8 @@ object StartLayout {
         }
         // Mail's calendar widget, pinned just now: on top of the cards.
         if (extras.agenda && seen.add(AGENDA)) blocks.add(0, StartEntry.Agenda)
+        // The DNS protection's tile, not arranged yet: where it stood before it could be (above the cards).
+        if (withCards && extras.dns && seen.add(DNS)) blocks.add(0, StartEntry.Dns)
         if (withCards && seen.add(INFO)) blocks += StartEntry.Info
         if (withCards && seen.add(USAGE)) blocks += StartEntry.Usage
         return orderedTiles + blocks

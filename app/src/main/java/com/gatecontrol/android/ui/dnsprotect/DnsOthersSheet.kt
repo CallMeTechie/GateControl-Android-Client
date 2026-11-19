@@ -144,8 +144,10 @@ private fun PersonRows(
 ) {
     val suspended = person.devices.count { it.suspended }
     val state = when {
-        suspended > 0 && suspended == person.devices.size ->
-            person.devices.firstNotNullOfOrNull { it.pause }?.let { dnsPauseLine(it) } ?: stringResource(R.string.dns_others_paused_open)
+        // "Internet pausiert" (Familie) in place of the buttons' state: suspending would not change it.
+        person.internet != null -> dnsInternetLine(person.internet.until)
+        person.pause != null -> dnsPauseLine(person.pause)
+        suspended > 0 && suspended == person.devices.size -> stringResource(R.string.dns_others_paused_open)
         suspended > 0 -> stringResource(R.string.dns_others_paused_some)
         else -> dnsReasonText(person.may.reason)
             ?: pluralStringResource(R.plurals.dns_others_devices, person.devices.size, person.devices.size)
@@ -170,7 +172,11 @@ private fun PersonRows(
                 open = open,
                 onOpen = onOpen,
                 title = device.name,
-                state = device.pause?.let { dnsPauseLine(it) } ?: dnsReasonText(device.may.reason),
+                state = when {
+                    device.internetPaused != null -> dnsInternetLine(device.internetPaused)
+                    device.pause != null -> dnsPauseLine(device.pause)
+                    else -> dnsReasonText(device.may.reason)
+                },
                 may = device.may,
                 busy = busy,
                 target = DnsTarget.Peer(device.peerId),

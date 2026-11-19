@@ -528,9 +528,6 @@ fun VpnScreen(
 
         // --- Client policy: kill switch / always-on need the system settings
         com.gatecontrol.android.ui.components.GcPolicySystemVpnCard(clientPolicy)
-
-        // --- DNS protection of the server: state, today's counters, the button
-        com.gatecontrol.android.ui.dnsprotect.DnsStartCard(onOpen = onOpenDnsProtect)
     }
     // --- Quick actions, widgets, Info and usage card in the arranged order ---
     val quickActionsViewModel: com.gatecontrol.android.ui.quickactions.QuickActionsViewModel = hiltViewModel()
@@ -577,6 +574,8 @@ fun VpnScreen(
             cards = startEntries.filter { it !is StartEntry.Tile && it !is StartEntry.Contact && (withUsage || it != StartEntry.Usage) },
             info = infoCard,
             usage = usageCard,
+            // --- DNS protection of the server: state, today's counters, the button (arranged like the cards)
+            dns = { com.gatecontrol.android.ui.dnsprotect.DnsStartCard(onOpen = onOpenDnsProtect) },
             onOpenDoor = onOpenDoor,
             viewModel = quickActionsViewModel,
         )

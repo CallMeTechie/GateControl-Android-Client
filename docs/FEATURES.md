@@ -339,7 +339,7 @@ dem Start-Tab). Ein integrierter Test prüft, ob DNS-Anfragen korrekt über den 
 
 ---
 
-## DNS-Schutz (Plugin `gatecontrol-dns` 1.0, GateControl 1.264+)
+## DNS-Schutz (Plugin `gatecontrol-dns` 1.0/1.1, GateControl 1.264+ bzw. 1.267+)
 
 Der DNS-Filter des Servers für die VPN-Geräte. Die App zeichnet nur, was
 der Server sagt (`may` in `GET status`); jede Regel setzt das Plugin durch.
@@ -356,21 +356,43 @@ der Server sagt (`may` in `GET status`); jede Regel setzt das Plugin durch.
   30 Min, 1 Std (nicht erlaubte ausgegraut), 4 Std nur wenn erlaubt, und
   „Bis ich wieder einschalte“ (ausgegraut ohne Freigabe). Unterbrochen
   zählt der gewählte Chip die Restzeit gegen die Uhr des Servers herunter,
-  darunter „Wieder einschalten“. „Unterbrechen nicht erlaubt“ (Profil)
-  ersetzt die Chips durch einen Hinweis; bei „Nur Admins“ gibt es keinen
-  Knopf. Dazu „Zeiten heute“ und „Top gesperrte Domains“, wenn der Server
-  sie liefert.
+  darunter „Wieder einschalten“ und – wenn der Server es erlaubt
+  (`may.extend`) – „+30 Min.“ (`POST pause { extend: 30 }`). Nach „+30 Min.“
+  gilt die ganze Dauer (`pause.minutes`, Plugin 1.1). „Unterbrechen nicht
+  erlaubt“ ersetzt die Chips durch einen Hinweis – beim Profil mit dem
+  Profil-Satz, bei „Nur Admins“ mit „Unterbrechen dürfen hier nur Admins.“
+  (kein Knopf). Dazu „Zeiten heute“ und „Top gesperrte Domains“, wenn der
+  Server sie liefert.
+- **Internet pausiert** (Familie, Plugin 1.1 / GateControl 1.267+): Liefert
+  `status.internet`, steht unter den Zählern „Internet pausiert bis HH:MM
+  Uhr (Familie) – Nur ausdrücklich erlaubte Seiten gehen.“; ist
+  `may.reason` `internet_paused`, dazu „Den Schutz zu unterbrechen ändert
+  daran nichts.“ (keine Chips). Das Ende zählt gegen die Uhr des Servers;
+  danach fragt die App neu. Die Kachel auf Start nennt die Pause statt der
+  Zähler.
 - **Kachel auf Start:** Zustand, Zähler und Knopf („Unterbrechen“ öffnet
-  den Bildschirm, „Einschalten“ schaltet direkt wieder ein).
+  den Bildschirm, „Einschalten“ schaltet direkt wieder ein). Sie ist ein
+  Block von „Start-Tab anordnen“ (Eintrag `dns`, nur auf Start, solange der
+  Server einen DNS-Schutz meldet); noch nicht angeordnet steht sie über den
+  übrigen Karten.
 - **Für andere unterbrechen** (Admins, Eltern; `status.manage`): Personen
   und ihre Geräte aus `GET people`, Admins auch „Alle VPN-Geräte“, jeweils
-  nur mit den für das Ziel erlaubten Dauern.
+  nur mit den für das Ziel erlaubten Dauern. Die Zeile einer Person zeigt
+  `people[].pause` (Plugin 1.1; ältere Plugins: aus den Geräten abgeleitet)
+  und bei `people[].internet` bzw. `devices[].internetPaused` „Internet
+  pausiert bis HH:MM Uhr“.
 - **Abfragen:** beim Öffnen, alle 45 s solange der Bildschirm vorn ist,
   kurz nach dem Ende einer Unterbrechung; nach `rate_limited` alle 2 Min.
+- **Profil zu Hause und unterwegs** (Plugin 1.2): `status.profile.home: true`
+  → „Profil „Kinder“ · gilt zu Hause und unterwegs“; fehlt das Feld, wie
+  bisher.
 - **Fehler:** kein Netz → letzter Stand mit Hinweis; Plugin gestört
   (502/503/504) → „gerade nicht erreichbar“; `off`, `unsupported`, 404 des
   Kerns, `no_user` → Karte weg und `permissions` neu laden; Ablehnungen
-  zeigen den Satz des Servers.
+  zeigen den Satz des Servers. Den 404 des Kerns erkennt die App an
+  `reason: "plugin_unavailable"` (Server 1.301+), auf älteren Servern an
+  einem 404 ohne `error`-Text; ein 404 des Plugins (mit Text: Gerät/Person
+  unbekannt) lädt nur Status bzw. Liste neu.
 
 Code: `dnsprotect/` (Modelle, `DnsJson`, `DnsLogic`, `DnsRepository`),
 `ui/dnsprotect/`.

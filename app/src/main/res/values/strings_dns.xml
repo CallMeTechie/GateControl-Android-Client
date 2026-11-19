@@ -6,6 +6,7 @@
     <string name="dns_state_active_title">Protection on</string>
     <string name="dns_state_active_sub">Ads and harmful sites are blocked</string>
     <string name="dns_state_active_profile">Profile “%1$s” · ads and harmful sites are blocked</string>
+    <string name="dns_state_active_profile_home">Profile “%1$s” · holds at home and on the road</string>
     <string name="dns_state_paused_clock">paused · %1$s</string>
     <string name="dns_state_paused_until">until %1$s · switches back on by itself</string>
     <string name="dns_state_paused_open">Paused</string>
@@ -38,6 +39,7 @@
     <string name="dns_pause_hint_person">Applies to your devices and ends by itself.</string>
     <string name="dns_pause_forever_locked">Your admin has not enabled “Until I switch it back on”.</string>
     <string name="dns_resume">Switch back on</string>
+    <string name="dns_extend">+%1$d min</string>
     <string name="dns_applying">Applying&#8230;</string>
     <string name="dns_paused_plain">The protection is paused.</string>
     <string name="dns_paused_at">Paused at %1$s.</string>
@@ -61,6 +63,12 @@
     <string name="dns_fallback_banner_text">Your internet keeps working, but without protection. Your admin has been notified. The protection switches back on by itself.</string>
     <string name="dns_not_allowed_title">Pausing not allowed</string>
     <string name="dns_not_allowed_profile">The admin has locked pausing for your profile. If a site you need does not work, ask your parents or the admin.</string>
+    <string name="dns_not_allowed_admins_only">Only admins may pause here.</string>
+    <!-- Family: "Pause internet" also holds over the VPN (plugin 1.1) -->
+    <string name="dns_internet_title_until">Internet paused until %1$s (Family)</string>
+    <string name="dns_internet_title">Internet paused (Family)</string>
+    <string name="dns_internet_text">Only explicitly allowed sites work.</string>
+    <string name="dns_internet_no_pause">Pausing the protection does not change that.</string>
 
     <string name="dns_top_title">Top blocked domains</string>
     <string name="dns_today_title">Times today</string>
@@ -97,6 +105,8 @@
     <string name="dns_others_paused_until">paused until %1$s</string>
     <string name="dns_others_paused_open">paused until it is switched back on</string>
     <string name="dns_others_paused_some">partly paused</string>
+    <string name="dns_others_internet_until">Internet paused until %1$s</string>
+    <string name="dns_others_internet">Internet paused</string>
     <string name="dns_others_forever">Until it is switched back on</string>
     <string name="dns_others_empty">There is nobody you may pause for.</string>
     <string name="dns_others_failed">The list could not be loaded.</string>
@@ -111,4 +121,5 @@
     <string name="dns_reason_fallback">Filter down.</string>
     <string name="dns_reason_off">DNS protection is off.</string>
     <string name="dns_reason_paused_for_all">Paused for all devices – only an admin switches it back on.</string>
+    <string name="dns_reason_internet_paused">Internet paused (Family).</string>
 </resources>
