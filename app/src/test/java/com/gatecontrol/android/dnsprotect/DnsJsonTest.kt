@@ -139,7 +139,7 @@ class DnsJsonTest {
     @Test
     fun `permissions carry vpnDns as an object, null or not at all`() {
         val gson = Gson()
-        val base = """"ok":true,"permissions":{"services":true,"traffic":false,"dns":false,"rdp":false,"pihole":true},"scopes":[]"""
+        val base = """"ok":true,"permissions":{"services":true,"traffic":false,"dns":false,"rdp":false},"scopes":[]"""
         val with = gson.fromJson("""{$base,"vpnDns":{"plugin":"gatecontrol-dns","state":"filtering"}}""", PermissionsResponse::class.java)
         assertNotNull(with.vpnDns)
         assertEquals("gatecontrol-dns", with.vpnDns?.plugin)

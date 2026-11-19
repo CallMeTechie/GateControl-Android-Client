@@ -42,9 +42,6 @@ object NetworkTabs {
     /** Old name of the Remote segment (the former tab's route `rdp`). */
     private const val LEGACY_REMOTE = "rdp"
 
-    /** Segment of the removed Pi-hole link (a stored default, an old link); DNS-Schutz stands in its place. */
-    private const val LEGACY_PIHOLE = "pihole"
-
     /**
      * The segments the token may use, in order: Dienste, DNS-Schutz,
      * Remote. [dns]: the server reports a DNS protection.
@@ -55,10 +52,9 @@ object NetworkTabs {
         if (remote) add(REMOTE)
     }
 
-    /** A requested segment under its current name (the old `rdp` is Remote, the old `pihole` is DNS-Schutz). */
+    /** A requested segment under its current name (the old `rdp` is Remote). */
     fun normalize(tab: String?): String? = when (tab) {
         LEGACY_REMOTE -> REMOTE
-        LEGACY_PIHOLE -> DNS
         else -> tab
     }
 

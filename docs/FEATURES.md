@@ -83,8 +83,7 @@ Familie-Plugin mit Tab anbietet — **Familie**. Seit dem Messenger-Plugin
 
 - **Netzwerk** hat die Segmente **Dienste**, **DNS-Schutz** und **Remote**
   (die RDP-Hosts, bis 1.34 ein eigener Tab). **DNS-Schutz** erscheint,
-  wenn der Server einen DNS-Schutz meldet (siehe „DNS-Schutz“); die
-  frühere Pi-hole-Anbindung gibt es nicht mehr. Es erscheinen nur die
+  wenn der Server einen DNS-Schutz meldet (siehe „DNS-Schutz“). Es erscheinen nur die
   Segmente, die das Token nutzen darf; mit nur einem entfällt der
   Umschalter. Pushes mit der App-Route `rdp`/`remote` öffnen Netzwerk →
   Remote, `services` öffnet Netzwerk → Dienste; die alte Route `rdp` leitet
@@ -257,7 +256,9 @@ Durchsatz-Karte, Tab-Leiste) ohne Scrollen auf ein Handy-Display.
 - **Netzwerk-Tab:** langes Drücken auf Dienste, DNS-Schutz oder Remote legt
   fest, womit der Tab öffnet („Als Standard festgelegt“); ein Link mit
   Ziel (Push, alte Remote-Route) geht weiterhin vor. Ein früher gewählter Standard
-  „Pi-hole“ öffnet den DNS-Schutz, ohne DNS-Schutz das erste Segment.
+  „Pi-hole“ wird beim ersten Start nach dem Update einmalig zu „DNS-Schutz“
+  (ohne DNS-Schutz öffnet das erste Segment); dabei werden auch die
+  gespeicherten Pausen-Werte der alten Pi-hole-Ansicht gelöscht.
 - Kill-Switch und Split-Tunneling stehen (nur noch) in den Einstellungen.
   Die Verbindungsdetails (Tunnel-IP, verbunden
   seit, letzter Handshake, Server) und der **DNS-Leak-Test** stehen unter
@@ -346,8 +347,7 @@ der Server sagt (`may` in `GET status`); jede Regel setzt das Plugin durch.
 - **Erkennung:** `vpnDns` in `GET /api/v1/client/permissions`
   (`{ plugin, state }`). Fehlt das Feld oder ist es `null` (älterer Server,
   Plugin aus, Schutz ausgeschaltet), gibt es weder den Reiter noch die
-  Kachel — auch dann nicht, wenn ein älterer Server noch Pi-hole meldet
-  (`pihole`/`piholeControl` liest die App nicht mehr).
+  Kachel.
   Die Plugin-Kennung kommt immer aus `vpnDns.plugin`.
 - **Bildschirm „DNS-Schutz“** (Netzwerk, zwischen Dienste und Remote):
   Statuskarte (aktiv · unterbrochen mit Restzeit · ausgefallen · wird nicht

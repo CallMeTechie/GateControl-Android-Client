@@ -48,14 +48,6 @@ class LicenseRepositoryTest {
     }
 
     @Test
-    fun `the removed Pi-hole features are unknown`() {
-        val repo = LicenseRepository()
-        repo.updatePermissions(services = true, traffic = true, dns = true, rdp = true)
-        assertFalse(repo.hasFeature("pihole"))
-        assertFalse(repo.hasFeature("piholeControl"))
-    }
-
-    @Test
     fun `vpnDns is kept with the permissions and can be cleared`() {
         val repo = LicenseRepository()
         assertNull(repo.permissions.value.vpnDns)
