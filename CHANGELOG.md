@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.132.0] - 2026-11-19
+
+### Features
+- DNS-Schutz ab Plugin 1.1/1.2 – „Internet pausiert“, „+30 Min.“, Kachel anordnen, Hinweis „Nur Admins“ (#260)
+
+---
+
 ## [1.131.1] - 2026-11-19
 
 ### Fixes
