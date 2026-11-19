@@ -29,7 +29,9 @@ object DnsJson {
                 DnsDevice(id, d.str("name").orEmpty(), d.str("state").orEmpty(), d.str("ownDns"))
             },
             profileName = o.obj("profile")?.str("name")?.takeIf { it.isNotBlank() },
+            profileHome = o.obj("profile")?.bool("home") ?: false,
             pause = o.obj("pause")?.let(::pause),
+            internet = internet(o.obj("internet")),
             outageSince = o.obj("outage")?.str("since"),
             counters = DnsCounters(
                 scope = c?.str("scope").orEmpty(),
@@ -63,7 +65,14 @@ object DnsJson {
         byName = o.obj("by")?.str("name")?.takeIf { it.isNotBlank() },
         byMe = o.bool("byMe"),
         remainingSeconds = o.num("remainingSeconds")?.toLong(),
+        minutes = o.num("minutes")?.toInt()?.takeIf { it > 0 },
     )
+
+    /** `{ paused: true, until, remainingSeconds }`; null for anything else. */
+    fun internet(o: JsonObject?): DnsInternet? {
+        if (o == null || !o.bool("paused")) return null
+        return DnsInternet(until = o.str("until"), remainingSeconds = o.num("remainingSeconds")?.toLong()?.coerceAtLeast(0))
+    }
 
     fun may(o: JsonObject?): DnsMay = if (o == null) DnsMay() else DnsMay(
         pause = o.bool("pause"),
@@ -82,31 +91,41 @@ object DnsJson {
         all = o.obj("all")?.let { a -> DnsAll(may(a.obj("may")), a.obj("pause")?.let(::pause)) },
         people = o.arr("people")?.objects()?.mapNotNull { p ->
             val id = p.num("userId")?.toInt() ?: return@mapNotNull null
+            val devices = p.arr("devices")?.objects()?.mapNotNull { d ->
+                val peer = d.num("peerId")?.toInt() ?: return@mapNotNull null
+                DnsPersonDevice(
+                    peerId = peer,
+                    name = d.str("name").orEmpty(),
+                    state = d.str("state").orEmpty(),
+                    suspended = d.bool("suspended"),
+                    pause = d.obj("pause")?.let(::pause),
+                    may = may(d.obj("may")),
+                    internetPaused = d.str("internetPaused")?.takeIf { it.isNotBlank() },
+                )
+            }.orEmpty()
             DnsPerson(
                 userId = id,
                 name = p.str("name").orEmpty(),
                 self = p.bool("self"),
                 may = may(p.obj("may")),
-                devices = p.arr("devices")?.objects()?.mapNotNull { d ->
-                    val peer = d.num("peerId")?.toInt() ?: return@mapNotNull null
-                    DnsPersonDevice(
-                        peerId = peer,
-                        name = d.str("name").orEmpty(),
-                        state = d.str("state").orEmpty(),
-                        suspended = d.bool("suspended"),
-                        pause = d.obj("pause")?.let(::pause),
-                        may = may(d.obj("may")),
-                    )
-                }.orEmpty(),
+                devices = devices,
+                // Plugin 1.1 says it (null included); an older one did not: the common one of the devices.
+                pause = if (p.has("pause")) p.obj("pause")?.let(::pause) else devices.commonPause(),
+                internet = internet(p.obj("internet")),
             )
         }.orEmpty(),
     )
 
-    /** Body of `POST pause`: exactly one of `minutes` / `forever`, and the target. */
+    /** All devices suspended: the first one's suspension (as plugin 1.1 answers `people[].pause`). */
+    private fun List<DnsPersonDevice>.commonPause(): DnsPause? =
+        if (isNotEmpty() && all { it.suspended }) firstNotNullOfOrNull { it.pause } else null
+
+    /** Body of `POST pause`: exactly one of `minutes` / `forever` / `extend`, and the target. */
     fun pauseBody(duration: DnsDuration, target: DnsTarget): JsonObject = targetBody(target).apply {
         when (duration) {
             is DnsDuration.Minutes -> addProperty("minutes", duration.minutes)
             DnsDuration.Forever -> addProperty("forever", true)
+            is DnsDuration.Extend -> addProperty("extend", duration.minutes)
         }
     }
 

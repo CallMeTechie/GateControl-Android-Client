@@ -198,6 +198,7 @@ fun StartArrangeScreen(
                     }
                     StartEntry.Info -> Triple(stringResource(R.string.arrange_info), GcIcons.Sliders, false)
                     StartEntry.Agenda -> Triple(stringResource(R.string.agenda_title), GcIcons.Calendar, true)
+                    StartEntry.Dns -> Triple(stringResource(R.string.nav_dns_protect), GcIcons.ShieldCheck, false)
                     else -> Triple(stringResource(R.string.arrange_usage), GcIcons.Activity, false)
                 }
                 ReorderableItem(reorderState, key = card.key) { dragging ->

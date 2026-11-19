@@ -50,18 +50,34 @@ fun DnsStartCard(
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val remaining = rememberDnsRemaining(ui.snapshot, onEnded = { viewModel.refresh() })
+    val internetLeft = rememberDnsInternetRemaining(ui.snapshot, onEnded = { viewModel.refresh() })
     // Back on Start: the counters and the state as they are now.
     val shown = ui.coarse != null && !ui.gone
     LifecycleResumeEffect(shown) {
         if (shown) viewModel.refresh()
         onPauseOrDispose { }
     }
-    DnsStartTile(ui = ui, remaining = remaining, onOpen = onOpen, onResume = { viewModel.resume() })
+    DnsStartTile(
+        ui = ui,
+        remaining = remaining,
+        internetPaused = ui.snapshot?.status?.internet != null && (internetLeft == null || internetLeft > 0),
+        onOpen = onOpen,
+        onResume = { viewModel.resume() },
+    )
 }
 
-/** The tile for a state; nothing without a reported DNS protection. */
+/**
+ * The tile for a state; nothing without a reported DNS protection. [internetPaused]: "Internet
+ * pausiert" (Familie) holds — the active tile says so in place of the counters.
+ */
 @Composable
-internal fun DnsStartTile(ui: DnsUiState, remaining: Long?, onOpen: () -> Unit, onResume: () -> Unit) {
+internal fun DnsStartTile(
+    ui: DnsUiState,
+    remaining: Long?,
+    onOpen: () -> Unit,
+    onResume: () -> Unit,
+    internetPaused: Boolean = ui.snapshot?.status?.internet != null,
+) {
     val coarse = ui.coarse ?: return
     if (ui.gone) return
     val extra = GateControlTheme.extraColors
@@ -76,12 +92,19 @@ internal fun DnsStartTile(ui: DnsUiState, remaining: Long?, onOpen: () -> Unit, 
         DnsStatus.ACTIVE -> {
             title = stringResource(R.string.dns_tile_active)
             val c = status?.counters
-            subtitle = if (c == null) "" else stringResource(
-                R.string.dns_tile_counts,
-                dnsCount(c.blocked),
-                dnsCount(c.queries),
-                DnsLogic.percent(c.percent, appLocale()),
-            )
+            val snapshot = ui.snapshot
+            subtitle = when {
+                internetPaused && snapshot != null ->
+                    DnsLogic.internetEndsAtMs(snapshot)?.let { stringResource(R.string.dns_internet_title_until, DnsLogic.timeOfDay(it)) }
+                        ?: stringResource(R.string.dns_internet_title)
+                c == null -> ""
+                else -> stringResource(
+                    R.string.dns_tile_counts,
+                    dnsCount(c.blocked),
+                    dnsCount(c.queries),
+                    DnsLogic.percent(c.percent, appLocale()),
+                )
+            }
         }
         DnsStatus.PAUSED -> {
             title = stringResource(R.string.dns_tile_paused)

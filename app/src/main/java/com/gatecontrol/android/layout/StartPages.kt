@@ -219,6 +219,8 @@ object StartPages {
         fun extrasOf(page: String?) = StartExtras(
             contacts = extras.contacts.filter { pageOf(StartLayout.CONTACT + it) == page },
             agenda = extras.agenda && pageOf(StartLayout.AGENDA) == page,
+            // Like Info and usage card: Start only.
+            dns = extras.dns && page == null,
         )
         result[null] = StartLayout.merge(
             split.start,

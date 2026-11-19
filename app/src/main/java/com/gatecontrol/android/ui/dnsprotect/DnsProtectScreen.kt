@@ -50,6 +50,7 @@ import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
+import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcStatCard
@@ -113,6 +114,7 @@ fun DnsProtectContent(
             }
             else -> {
                 val remaining = rememberDnsRemaining(snapshot, onEnded = { viewModel.refresh() })
+                val internetLeft = rememberDnsInternetRemaining(snapshot, onEnded = { viewModel.refresh() })
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -121,6 +123,7 @@ fun DnsProtectContent(
                         ui = ui,
                         snapshot = snapshot,
                         remaining = remaining,
+                        internetPaused = snapshot.status.internet != null && (internetLeft == null || internetLeft > 0),
                         onPause = { viewModel.pause(it) },
                         onResume = { viewModel.resume() },
                         onOthers = {
@@ -134,7 +137,10 @@ fun DnsProtectContent(
     }
 }
 
-/** The cards of the screen for a known status, top to bottom. */
+/**
+ * The cards of the screen for a known status, top to bottom. [internetPaused]: "Internet pausiert"
+ * (Familie) still holds on this device's clock.
+ */
 @Composable
 internal fun DnsProtectCards(
     ui: DnsUiState,
@@ -143,6 +149,7 @@ internal fun DnsProtectCards(
     onPause: (DnsDuration) -> Unit,
     onResume: () -> Unit,
     onOthers: () -> Unit,
+    internetPaused: Boolean = snapshot.status.internet != null,
 ) {
     val extra = GateControlTheme.extraColors
     val status = snapshot.status
@@ -153,10 +160,12 @@ internal fun DnsProtectCards(
     }
     StatusCard(status, remaining)
     Counters(status)
+    // The family plugin's pause, whatever the reason in `may` says (the rights' reasons come first there).
+    if (internetPaused) InternetBanner(snapshot)
     when {
         status.state == DnsStatus.FALLBACK -> FallbackBanner()
         DnsLogic.showsPauseCard(status) -> PauseCard(ui, snapshot, remaining, onPause, onResume)
-        status.state == DnsStatus.ACTIVE && status.may.reason == "profile" -> NotAllowedBanner()
+        else -> DnsLogic.notAllowedReason(status)?.let { NotAllowedBanner(it) }
     }
     if (status.today.isNotEmpty()) {
         GcCard(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -196,7 +205,9 @@ private fun StatusCard(status: DnsStatus, remaining: Long?) {
     when (status.state) {
         DnsStatus.ACTIVE -> {
             title = stringResource(R.string.dns_state_active_title)
-            subtitle = status.profileName?.let { stringResource(R.string.dns_state_active_profile, it) }
+            subtitle = status.profileName?.let {
+                stringResource(if (status.profileHome) R.string.dns_state_active_profile_home else R.string.dns_state_active_profile, it)
+            }
                 ?: stringResource(R.string.dns_state_active_sub)
         }
         DnsStatus.PAUSED -> {
@@ -323,13 +334,27 @@ private fun PauseCard(ui: DnsUiState, snapshot: DnsSnapshot, remaining: Long?, o
             onClick = { onPause(DnsDuration.Forever) },
             modifier = Modifier.fillMaxWidth(),
         )
-        if (paused && may.resume) {
-            GcPrimaryButton(
-                text = stringResource(R.string.dns_resume),
-                onClick = onResume,
-                enabled = !ui.working,
-                icon = GcIcons.ShieldCheck,
-            )
+        val extend = DnsLogic.showsExtend(status)
+        if ((paused && may.resume) || extend) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (paused && may.resume) {
+                    GcPrimaryButton(
+                        text = stringResource(R.string.dns_resume),
+                        onClick = onResume,
+                        enabled = !ui.working,
+                        icon = GcIcons.ShieldCheck,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (extend) {
+                    GcOutlineButton(
+                        text = stringResource(R.string.dns_extend, DnsLogic.EXTEND_MINUTES),
+                        onClick = { onPause(DnsDuration.Extend(DnsLogic.EXTEND_MINUTES)) },
+                        enabled = !ui.working,
+                        fillWidth = !may.resume,
+                    )
+                }
+            }
         }
         val hint = if (pause != null) {
             val at = DnsLogic.timeOfDay(pause.since)
@@ -370,8 +395,31 @@ private fun FallbackBanner() {
     }
 }
 
+/** "Internet pausiert bis 20:49 Uhr (Familie)": only explicitly allowed sites answer; suspending does not help. */
 @Composable
-private fun NotAllowedBanner() {
+private fun InternetBanner(snapshot: DnsSnapshot) {
+    val status = snapshot.status
+    val until = DnsLogic.internetEndsAtMs(snapshot)?.let { DnsLogic.timeOfDay(it) }
+    GcBanner(tone = GcTone.Info, icon = GcIcons.Clock) {
+        Column(Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (until != null) stringResource(R.string.dns_internet_title_until, until) else stringResource(R.string.dns_internet_title),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            val text = stringResource(R.string.dns_internet_text)
+            Text(
+                if (status.may.reason == "internet_paused") text + " " + stringResource(R.string.dns_internet_no_pause) else text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+/** Suspending is not offered for a rights reason ([reason] `profile` or `admins_only`): the state stays, no button. */
+@Composable
+private fun NotAllowedBanner(reason: String) {
     GcBanner(tone = GcTone.Info, icon = GcIcons.Lock) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -379,7 +427,11 @@ private fun NotAllowedBanner() {
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(stringResource(R.string.dns_not_allowed_profile), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                stringResource(if (reason == "admins_only") R.string.dns_not_allowed_admins_only else R.string.dns_not_allowed_profile),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }

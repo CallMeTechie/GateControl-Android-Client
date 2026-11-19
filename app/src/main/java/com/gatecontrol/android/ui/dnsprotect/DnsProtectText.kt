@@ -43,6 +43,7 @@ internal fun dnsReasonText(reason: String?): String? = when (reason) {
     "fallback" -> stringResource(R.string.dns_reason_fallback)
     "off" -> stringResource(R.string.dns_reason_off)
     "paused_for_all" -> stringResource(R.string.dns_reason_paused_for_all)
+    "internet_paused" -> stringResource(R.string.dns_reason_internet_paused)
     else -> null
 }
 
@@ -73,15 +74,35 @@ internal fun dnsPauseLine(pause: DnsPause): String {
     else stringResource(R.string.dns_others_paused_until, until)
 }
 
+/** "Internet pausiert bis 20:49 Uhr" for a row of "Für andere unterbrechen" ([untilIso] the server's end). */
+@Composable
+internal fun dnsInternetLine(untilIso: String?): String =
+    DnsLogic.timeOfDay(untilIso)?.let { stringResource(R.string.dns_others_internet_until, it) }
+        ?: stringResource(R.string.dns_others_internet)
+
 /**
  * Seconds left of the running suspension, counted down every second; null
  * without an end. A little after it ran out [onEnded] asks the server.
  */
 @Composable
-internal fun rememberDnsRemaining(snapshot: DnsSnapshot?, onEnded: () -> Unit): Long? {
-    val end = snapshot?.let(DnsLogic::pauseEndsAtMs)
+internal fun rememberDnsRemaining(snapshot: DnsSnapshot?, onEnded: () -> Unit): Long? =
+    rememberDnsCountdown(snapshot, DnsLogic::pauseEndsAtMs, onEnded)
+
+/**
+ * Seconds left of "Internet pausiert" (Familie), counted down; null without it or an end.
+ * A little after it ran out [onEnded] asks the server (the notice goes then).
+ */
+@Composable
+internal fun rememberDnsInternetRemaining(snapshot: DnsSnapshot?, onEnded: () -> Unit): Long? =
+    rememberDnsCountdown(snapshot, DnsLogic::internetEndsAtMs, onEnded)
+
+/** Seconds until [endOf] of the answer, every second; once it ran out (and the answer still saw it coming) [onEnded]. */
+@Composable
+private fun rememberDnsCountdown(snapshot: DnsSnapshot?, endOf: (DnsSnapshot) -> Long?, onEnded: () -> Unit): Long? {
+    fun left(s: DnsSnapshot, now: Long): Long? = endOf(s)?.let { ((it - now + 999) / 1000).coerceAtLeast(0) }
+    val end = snapshot?.let(endOf)
     val remaining by produceState(
-        initialValue = snapshot?.let { DnsLogic.remainingSeconds(it, System.currentTimeMillis()) },
+        initialValue = snapshot?.let { left(it, System.currentTimeMillis()) },
         snapshot,
     ) {
         if (snapshot == null || end == null) {
@@ -89,9 +110,9 @@ internal fun rememberDnsRemaining(snapshot: DnsSnapshot?, onEnded: () -> Unit): 
             return@produceState
         }
         while (true) {
-            val left = DnsLogic.remainingSeconds(snapshot, System.currentTimeMillis()) ?: break
-            value = left
-            if (left <= 0L) {
+            val l = left(snapshot, System.currentTimeMillis()) ?: break
+            value = l
+            if (l <= 0L) {
                 // Once per answer: an answer that already said "over" does not ask again.
                 if (end > snapshot.receivedAtMs) {
                     delay(DnsLogic.AFTER_END_MS)

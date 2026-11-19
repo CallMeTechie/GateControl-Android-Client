@@ -211,4 +211,14 @@ class StartPagesTest {
         val synced = StartPages.syncPins(saved, listOf(door), emptyList(), target = "w2", extras = StartExtras(listOf(6, 7), agenda = false))
         assertEquals(listOf("tile:$door", "info", "usage", "page:w2", "contact:6", "contact:7"), synced)
     }
+
+    @Test
+    fun `the DNS tile only on Start, kept in its place when pins change`() {
+        val saved = listOf("tile:$door", "info", "dns", "usage", "page:w2", "dns")
+        val pages = StartPages.merge(saved, listOf(door), emptyList(), StartExtras(dns = true))
+        assertEquals(listOf("tile:$door", "info", "dns", "usage"), pages[null]!!.map { it.key })
+        assertEquals(emptyList<String>(), pages["w2"]!!.map { it.key })
+        val synced = StartPages.syncPins(listOf("tile:$door", "info", "dns", "usage"), listOf(door), emptyList(), target = null, extras = StartExtras(dns = true))
+        assertEquals(listOf("tile:$door", "info", "dns", "usage"), synced)
+    }
 }

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.layout
 
+import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.mail.MailContactLogic
 import com.gatecontrol.android.mail.MailPimRepository
 import com.gatecontrol.android.mail.StartContactPin
@@ -30,13 +31,14 @@ class StartArrangement @Inject constructor(
     private val quickActions: QuickActionRepository,
     private val tabLayout: TabLayoutRepository,
     private val mail: MailPimRepository,
+    private val license: LicenseRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
     /** The blocks of the start tab (key null) and of each widget page beside it ([StartPages]); Mail's favourites and calendar widget too. */
     val pages: StateFlow<Map<String?, List<StartEntry>>> =
-        combine(tabLayout.layout, quickActions.pins, quickActions.widgets, mail.startPins) { layout, pins, widgets, mailPins ->
-            StartPages.merge(layout.start, pins.map { it.key }, widgets.map { StartEntry.Widget(it.device, it.wide) }, mailPins.extras)
+        combine(tabLayout.layout, quickActions.pins, quickActions.widgets, mail.startPins, dnsReported()) { layout, pins, widgets, mailPins, dns ->
+            StartPages.merge(layout.start, pins.map { it.key }, widgets.map { StartEntry.Widget(it.device, it.wide) }, mailPins.extras.copy(dns = dns))
         }.stateIn(scope, SharingStarted.Eagerly, StartPages.merge(emptyList(), emptyList(), emptyList()))
 
     /** The start tab's blocks. */
@@ -76,7 +78,7 @@ class StartArrangement @Inject constructor(
     suspend fun syncFromPins(page: String? = null) {
         val tiles = quickActions.currentPins().map { it.key }
         val widgets = quickActions.currentWidgets().map { StartEntry.Widget(it.device, it.wide) }
-        val extras = mail.currentStartPins().extras
+        val extras = mail.currentStartPins().extras.copy(dns = license.permissions.value.vpnDns != null)
         tabLayout.updateStart { StartPages.syncPins(it, tiles, widgets, page, extras) }
     }
 
@@ -95,6 +97,9 @@ class StartArrangement @Inject constructor(
         if (on) mail.refreshUpcomingSoon()
         syncFromPins(page)
     }
+
+    /** Whether the server reports a DNS protection (`permissions.vpnDns`): its tile is a block of Start then. */
+    private fun dnsReported() = license.permissions.map { it.vpnDns != null }.distinctUntilChanged()
 
     /** Asks the server for the account's order (throttled). */
     fun refresh() {
