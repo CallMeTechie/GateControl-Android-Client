@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.gatecontrol.android.data.EncryptedStorage
+import com.gatecontrol.android.data.PiholeLeftovers
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import dagger.Module
@@ -15,7 +16,8 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "gatecontrol_settings"
+    name = "gatecontrol_settings",
+    produceMigrations = { listOf(PiholeLeftovers) },
 )
 
 @Module

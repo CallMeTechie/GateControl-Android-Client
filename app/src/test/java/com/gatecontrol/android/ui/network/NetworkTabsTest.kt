@@ -46,17 +46,15 @@ class NetworkTabsTest {
     }
 
     @Test
-    fun `the removed Pi-hole segment opens DNS-Schutz, else the first segment`() {
-        // A default stored or a link made while the app still had Pi-hole.
-        assertEquals("dns", NetworkTabs.initial(null, all, default = "pihole"))
-        assertEquals("dns", NetworkTabs.initial("pihole", all))
+    fun `DNS-Schutz as default or link, without DNS-Schutz the first segment`() {
+        // A stored default "pihole" of the removed Pi-hole view is "dns" in the store (PiholeLeftovers).
+        assertEquals("dns", NetworkTabs.initial(null, all, default = "dns"))
         assertEquals("dns", NetworkTabs.initial("dns", all, default = "remote"))
         val noDns = NetworkTabs.available(services = true, remote = true)
-        assertEquals("services", NetworkTabs.initial(null, noDns, default = "pihole"))
-        assertEquals("services", NetworkTabs.initial("pihole", noDns))
-        assertEquals("remote", NetworkTabs.initial("pihole", noDns, default = "remote"))
+        assertEquals("services", NetworkTabs.initial(null, noDns, default = "dns"))
         assertEquals("services", NetworkTabs.initial("dns", noDns))
-        assertEquals("remote", NetworkTabs.initial(null, NetworkTabs.available(services = false, remote = true), default = "pihole"))
-        assertNull(NetworkTabs.initial(null, emptyList(), default = "pihole"))
+        assertEquals("remote", NetworkTabs.initial("dns", noDns, default = "remote"))
+        assertEquals("remote", NetworkTabs.initial(null, NetworkTabs.available(services = false, remote = true), default = "dns"))
+        assertNull(NetworkTabs.initial(null, emptyList(), default = "dns"))
     }
 }
