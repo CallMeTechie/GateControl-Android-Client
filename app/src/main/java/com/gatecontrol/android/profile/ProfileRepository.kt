@@ -154,7 +154,9 @@ class ProfileRepository @Inject constructor(
         _state.value
     }
 
-    // Cache first, then the state: a concurrent loadCache() never reads an older copy.
+    // Cache first, then the state. Only under [mutex] (refresh, loadCache and the changes): loadCache() reads the cache,
+    // suspends (the encrypted fields), then sets the state — a change stored in between would be overwritten by the
+    // older copy it had read (the colour jumped back until the next refresh).
     private suspend fun store(profile: MyProfile, details: ProfileDetails? = _state.value.details) {
         runCatching { settingsRepository.setProfileCache(ProfileJson.encode(profile, owner())) }
         _state.value = ProfileState(profile, ProfileSupport.SUPPORTED, details)
@@ -284,46 +286,59 @@ class ProfileRepository @Inject constructor(
     }.getOrNull()
 
     /** Uploads [image] ([mime]: image/webp | image/jpeg | image/png), ≤ 96 KB, square. */
-    suspend fun uploadAvatar(image: ByteArray, mime: String): ProfileResult = change { url ->
-        val response = apiClientProvider.getClient(url).putMyAvatar(image.toRequestBody(mime.toMediaType()))
-        response.also { r ->
+    suspend fun uploadAvatar(image: ByteArray, mime: String): ProfileResult = change(
+        call = { url -> apiClientProvider.getClient(url).putMyAvatar(image.toRequestBody(mime.toMediaType())) },
+        apply = { url, r ->
             // The picture is already here: the new (immutable) address shows it without a download.
             val newUrl = r.body()?.takeIf { r.isSuccessful }?.get("avatarUrl")
                 ?.takeIf { it.isJsonPrimitive }?.asString?.let(ProfileJson::avatarUrl)
             if (newUrl != null) {
                 AvatarUrls.resolve(url, newUrl)?.let { avatarLoader.prime(it, image) }
-                _state.value.profile?.let { store(it.copy(avatarUrl = newUrl)) }
+                mutex.withLock { _state.value.profile?.let { store(it.copy(avatarUrl = newUrl)) } }
             }
-        }
-    }
+        },
+    )
 
-    suspend fun removeAvatar(): ProfileResult = change { url ->
-        apiClientProvider.getClient(url).deleteMyAvatar().also { r ->
-            if (r.isSuccessful) _state.value.profile?.let { store(it.copy(avatarUrl = null)) }
-        }
-    }
+    suspend fun removeAvatar(): ProfileResult = change(
+        call = { url -> apiClientProvider.getClient(url).deleteMyAvatar() },
+        apply = { _, r ->
+            if (r.isSuccessful) mutex.withLock { _state.value.profile?.let { store(it.copy(avatarUrl = null)) } }
+        },
+    )
 
     /** [key] from the palette, null = back to the server's default. */
-    suspend fun setColor(key: String?): ProfileResult = change { url ->
-        val json = if (key == null) """{"color":null}""" else """{"color":"${AvatarPalette.validKey(key) ?: return@change null}"}"""
-        apiClientProvider.getClient(url).putMyColor(json.toRequestBody(JSON)).also { r ->
+    suspend fun setColor(key: String?): ProfileResult = change(
+        call = call@{ url ->
+            val json = if (key == null) """{"color":null}""" else """{"color":"${AvatarPalette.validKey(key) ?: return@call null}"}"""
+            apiClientProvider.getClient(url).putMyColor(json.toRequestBody(JSON))
+        },
+        apply = { _, r ->
             val body = r.body()
             if (r.isSuccessful && body != null) {
                 val newKey = body.get("color")?.takeIf { it.isJsonPrimitive }?.asString?.let(AvatarPalette::validKey)
                 val hex = body.get("colorHex")?.takeIf { it.isJsonPrimitive }?.asString?.let(AvatarPalette::validHex)
-                _state.value.profile?.let { p ->
-                    store(p.copy(color = newKey ?: key, colorHex = hex ?: AvatarPalette.hexOf(newKey ?: key, p.palette) ?: p.colorHex))
+                mutex.withLock {
+                    _state.value.profile?.let { p ->
+                        store(p.copy(color = newKey ?: key, colorHex = hex ?: AvatarPalette.hexOf(newKey ?: key, p.palette) ?: p.colorHex))
+                    }
                 }
             }
-        }
-    }
+        },
+    )
 
-    /** Runs a change, maps the answer, then refreshes the profile from the server. */
-    private suspend fun change(call: suspend (serverUrl: String) -> Response<JsonObject>?): ProfileResult {
+    /**
+     * Runs a change ([call], under the timeout), takes over its answer ([apply], outside: waiting for the lock is no
+     * network time), maps the answer, then refreshes the profile from the server.
+     */
+    private suspend fun change(
+        call: suspend (serverUrl: String) -> Response<JsonObject>?,
+        apply: suspend (serverUrl: String, response: Response<JsonObject>) -> Unit,
+    ): ProfileResult {
         val url = setupRepository.getServerUrl()
         if (url.isBlank()) return ProfileResult.Failed(CODE_OFFLINE)
         val result = try {
             val response = withTimeoutOrNull(WRITE_TIMEOUT_MS) { call(url) }
+            if (response != null) apply(url, response)
             when {
                 response == null -> ProfileResult.Failed(CODE_OFFLINE)
                 response.isSuccessful &&

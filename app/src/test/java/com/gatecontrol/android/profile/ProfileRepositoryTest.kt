@@ -11,6 +11,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
@@ -88,6 +89,31 @@ class ProfileRepositoryTest {
         assertEquals("#3B82F6", r.state.value.profile?.colorHex)
         r.setColor(null)
         assertEquals("""{"color":null}""", Buffer().also { body.captured.writeTo(it) }.readUtf8())
+    }
+
+    @Test
+    fun `a cache load running meanwhile does not undo a colour change`() = kotlinx.coroutines.runBlocking {
+        // runBlocking: the cache load runs on the repository's own Dispatchers.IO, the wait below is real time.
+        // CI (#249, #255): the load had read the cached green, the change stored blue, the load then set green again.
+        val revision = MutableStateFlow(0L)
+        every { setup.revision } returns revision
+        val reading = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        every { secure.getString("profile_details_v1", any()) } answers { reading.countDown(); release.await(); "" }
+        coEvery { api.getMyProfile() } returns Response.success(json(profile))
+        coEvery { api.putMyColor(any()) } returns Response.success(json("""{"ok":true,"color":"blue","colorHex":"#3B82F6"}"""))
+        val r = repo()
+        r.refresh()
+        revision.value = 1L // server or token changed: the cache is read again
+        assertTrue(reading.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        // the load has read the cached green and waits for the encrypted fields; the change comes now
+        coEvery { api.getMyProfile() } returns Response.error(500, "{}".toResponseBody("application/json".toMediaType()))
+        val change = async(kotlinx.coroutines.Dispatchers.Default) { r.setColor("blue") }
+        kotlinx.coroutines.withTimeoutOrNull(300) { change.await() }
+        release.countDown()
+        assertEquals(ProfileResult.Ok, change.await())
+        r.refresh() // after the load (it holds the lock) and the refresh the change started (the server fails: no change)
+        assertEquals("#3B82F6", r.state.value.profile?.colorHex)
     }
 
     @Test
