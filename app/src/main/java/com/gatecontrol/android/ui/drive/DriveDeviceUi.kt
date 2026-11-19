@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.drive
 
+import com.gatecontrol.android.ui.components.rememberLoaded
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
@@ -253,10 +254,12 @@ private fun rememberDeviceThumb(e: DeviceEntry, sizeDp: Int): ImageBitmap? {
     if (LocalInspectionMode.current) return null
     val px = with(LocalDensity.current) { sizeDp.dp.roundToPx() }.coerceIn(48, 512)
     val key = DeviceThumbs.key(e, px)
-    val bitmap by produceState(DeviceThumbs.peek(key)?.asImageBitmap(), key) {
-        if (value == null) value = DeviceThumbs.load(e, px)?.asImageBitmap()
-    }
-    return bitmap
+    // a new file (or size) starts afresh, not with the picture of the one before
+    return rememberLoaded(
+        key,
+        peek = { DeviceThumbs.peek(key)?.asImageBitmap() },
+        load = { DeviceThumbs.load(e, px)?.asImageBitmap() },
+    )
 }
 
 /** "240 KB · vor 12 Min." of a file, "12 Elemente · 3. Okt." of a folder; [extra] at the end. */

@@ -1,8 +1,7 @@
 package com.gatecontrol.android.ui.notifications
 
+import com.gatecontrol.android.ui.components.rememberLoaded
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -32,8 +31,10 @@ fun rememberPushPicture(path: String?, maxSidePx: Int): ImageBitmap? {
     val loader = remember(context) {
         runCatching { EntryPointAccessors.fromApplication(context, NotifyMediaEntryPoint::class.java).notifyMediaLoader() }.getOrNull()
     } ?: return null
-    val bitmap by produceState(loader.peek(path, maxSidePx)?.asImageBitmap(), path, maxSidePx) {
-        if (value == null) value = loader.load(path, maxSidePx)?.asImageBitmap()
-    }
-    return bitmap
+    // a new picture starts afresh, not with the one before
+    return rememberLoaded(
+        path, maxSidePx,
+        peek = { loader.peek(path, maxSidePx)?.asImageBitmap() },
+        load = { loader.load(path, maxSidePx)?.asImageBitmap() },
+    )
 }

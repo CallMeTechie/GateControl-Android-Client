@@ -59,4 +59,21 @@ class GcLoadedTest {
         rule.onNodeWithText("cached story-2").assertExists()
         assertEquals(listOf("story-1"), loads)
     }
+
+    /** Drive: the same entry as the large preview is another picture — the third key starts afresh too. */
+    @Test
+    fun aChangeOfTheThirdKeyLoadsAfresh() {
+        var large by mutableStateOf(false)
+        val loads = mutableListOf<Boolean>()
+        rule.setContent {
+            val big = large
+            val v = rememberLoaded(5L, "media-5", big, peek = { null }, load = { loads += big; if (big) "large" else "small" })
+            BasicText(v ?: "loading")
+        }
+        rule.onNodeWithText("small").assertExists()
+        large = true
+        rule.waitForIdle()
+        rule.onNodeWithText("large").assertExists()
+        assertEquals(listOf(false, true), loads)
+    }
 }

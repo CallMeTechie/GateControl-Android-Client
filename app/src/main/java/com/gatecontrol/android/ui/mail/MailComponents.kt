@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.mail
 
+import com.gatecontrol.android.ui.components.rememberLoaded
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -19,7 +20,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import com.gatecontrol.android.mail.MailEntryPoint
 import com.gatecontrol.android.ui.scan.scanCodeText
 import dagger.hilt.android.EntryPointAccessors
@@ -125,10 +125,12 @@ private fun rememberMailAvatar(mediaId: String?): ImageBitmap? {
     val store = remember(context, preview) {
         if (preview) null else runCatching { EntryPointAccessors.fromApplication(context, MailEntryPoint::class.java).mailAvatars() }.getOrNull()
     }
-    val bitmap by produceState(mediaId?.let { store?.peek(it) }?.asImageBitmap(), mediaId, store) {
-        value = if (mediaId == null || store == null) null else value ?: store.bitmap(mediaId)?.asImageBitmap()
-    }
-    return bitmap
+    // a new picture starts afresh, not with the one before
+    return rememberLoaded(
+        mediaId, store,
+        peek = { mediaId?.let { store?.peek(it) }?.asImageBitmap() },
+        load = { if (mediaId == null || store == null) null else store.bitmap(mediaId)?.asImageBitmap() },
+    )
 }
 
 /**
