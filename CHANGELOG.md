@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.132.1] - 2026-11-19
+
+### Fixes
+- Farbwechsel wird nicht mehr vom Cache-Laden überschrieben (#261)
+
+---
+
 ## [1.132.0] - 2026-11-19
 
 ### Features
