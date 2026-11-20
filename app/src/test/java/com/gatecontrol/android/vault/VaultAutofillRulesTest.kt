@@ -67,7 +67,8 @@ class VaultAutofillRulesTest {
     fun `the address bar gives the domain only when it is clearly an address`() {
         assertEquals("login.sparkasse.de", VaultBrowsers.domainFromAddressBar("login.sparkasse.de/de/home.html"))
         assertEquals("accounts.example.com", VaultBrowsers.domainFromAddressBar("https://accounts.example.com/signin?x=1"))
-        assertEquals("example.com", VaultBrowsers.domainFromAddressBar("  http://www.Example.com:8080/  "))
+        // the host as it is ("www." stays, so that an entry for exactly this address can tell)
+        assertEquals("www.example.com", VaultBrowsers.domainFromAddressBar("  http://www.Example.com:8080/  "))
         assertEquals("192.168.1.1", VaultBrowsers.domainFromAddressBar("192.168.1.1:8443/login"))
         // a search, a page title, the browser's own pages, scripts, files, user info
         assertNull(VaultBrowsers.domainFromAddressBar("sparkasse login"))
@@ -149,7 +150,7 @@ class VaultAutofillRulesTest {
     @Test
     fun `a reported page counts only for http and https`() {
         assertEquals("login.bank.example.de", VaultBrowsers.reportedDomain("login.bank.example.de", "https"))
-        assertEquals("bank.example.de", VaultBrowsers.reportedDomain("www.bank.example.de:8443", "HTTPS"))
+        assertEquals("www.bank.example.de", VaultBrowsers.reportedDomain("www.bank.example.de:8443", "HTTPS"))
         assertEquals("intranet.example", VaultBrowsers.reportedDomain("intranet.example", "http"))
         // older browsers report no scheme
         assertEquals("bank.example.de", VaultBrowsers.reportedDomain("bank.example.de", null))

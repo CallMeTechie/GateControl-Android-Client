@@ -127,7 +127,7 @@ class VaultAutofillActivity : FragmentActivity() {
         // never for a web page: a browser is no app of a login
         val mayRemember = !form.web && form.webDomain == null
         var remember by rememberSaveable { mutableStateOf(mayRemember) }
-        val label = form.webDomain ?: if (form.web) stringResource(R.string.vault_af_unknown_page) else VaultAutofillService.appLabel(this, form.packageName)
+        val label = form.webDomain?.let { VaultMatch.host(it) ?: it } ?: if (form.web) stringResource(R.string.vault_af_unknown_page) else VaultAutofillService.appLabel(this, form.packageName)
         val fitting = remember(entries, form) { VaultMatch.matches(entries, form.packageName, form.webDomain, form.web) }
         val live = entries.filter { !it.trashed && (it.data.username.isNotEmpty() || it.data.password.isNotEmpty()) }
         val shown = if (query.isBlank()) fitting.ifEmpty { live } else live.filter {
@@ -193,6 +193,7 @@ class VaultAutofillActivity : FragmentActivity() {
                     val data = existing?.data?.copy(fields = existing.data.fields + ("password" to save.password) + ("username" to username))
                         ?: EntryData(
                             type = "login", title = title.trim(),
+                            // the page's host as it is; "Passt zu" stays the default (the whole domain, no `match`)
                             urls = listOfNotNull(save.webDomain?.let { "https://$it" }),
                             apps = VaultAutofillRules.appsToRemember(save.packageName, save.webDomain, save.web),
                             fields = mapOf("username" to username, "password" to save.password),

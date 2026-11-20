@@ -141,6 +141,8 @@ data class VItemsPage(val seq: Long, val items: List<VItem>, val more: Boolean, 
  * Field keys per type: login `username`, `password`, `totp` · totp `totp` · card `holder`, `number`, `expiry`
  * (MM/YY), `cvc`, `pin` · wifi `ssid`, `password`, `security` · identity `name`, `email`, `phone`, `address`,
  * `birthday` · note: only `notes`. `totp` is an `otpauth://` URI or a base32 secret. Unknown keys are kept as they are.
+ * Optional `match` (entries with `urls`): `"exact"` fits only the exact host of one of its `urls`; missing or
+ * `"domain"` the registrable domain (the default); any other value counts as the domain but is kept unchanged.
  */
 data class EntryData(
     val type: String,
@@ -151,6 +153,8 @@ data class EntryData(
     val apps: List<String> = emptyList(),
     val fields: Map<String, String> = emptyMap(),
     val custom: List<CustomField> = emptyList(),
+    /** `match`: "exact" or null (the domain, the default); another client's unknown value is carried over as it is. */
+    val match: String? = null,
     /** Keys this version does not know, carried over unchanged. */
     val extra: JsonObject = JsonObject(),
 ) {
@@ -160,6 +164,8 @@ data class EntryData(
     val username get() = field("username").ifEmpty { field("email") }
     val password get() = field("password")
     val totp get() = field("totp")
+    /** „Passt zu: Nur genau dieser Adresse“ — fits only the exact host, not the whole domain. */
+    val exactMatch get() = match == MATCH_EXACT
 
     fun toJson(): String {
         val o = extra.deepCopy()
@@ -168,6 +174,8 @@ data class EntryData(
         o.addProperty("title", title)
         if (fav) o.addProperty("fav", true) else o.remove("fav")
         if (notes.isNotEmpty()) o.addProperty("notes", notes) else o.remove("notes")
+        // only "exact" (or another client's value) is written; the domain is the default without the key
+        if (match != null && match != MATCH_DOMAIN) o.addProperty("match", match) else if (o.str("match") != null) o.remove("match")
         o.add("urls", JsonArray().also { a -> urls.filter { it.isNotBlank() }.forEach { a.add(it) } })
         o.add("apps", JsonArray().also { a -> apps.filter { it.isNotBlank() }.forEach { a.add(it) } })
         o.add("fields", JsonObject().also { f -> fields.filterValues { it.isNotEmpty() }.toSortedMap().forEach { (k, v) -> f.addProperty(k, v) } })
@@ -184,6 +192,8 @@ data class EntryData(
 
     companion object {
         val TYPES = listOf("login", "totp", "note", "card", "wifi", "identity")
+        const val MATCH_EXACT = "exact"
+        const val MATCH_DOMAIN = "domain"
         private val KNOWN = setOf("v", "type", "title", "fav", "notes", "urls", "apps", "fields", "custom")
 
         fun fromJson(json: String): EntryData? {
@@ -195,7 +205,9 @@ data class EntryData(
                 val c = e as? JsonObject ?: return@mapNotNull null
                 CustomField(c.str("name").orEmpty(), c.str("value").orEmpty(), c.bool("secret") == true)
             }.orEmpty()
-            val extra = JsonObject().also { x -> o.entrySet().filter { it.key !in KNOWN }.forEach { (k, v) -> x.add(k, v) } }
+            // a string `match` is read ("domain", the default, is the same as none); anything else stays in `extra`
+            val matchRaw = o.str("match")
+            val extra = JsonObject().also { x -> o.entrySet().filter { it.key !in KNOWN && !(it.key == "match" && matchRaw != null) }.forEach { (k, v) -> x.add(k, v) } }
             return EntryData(
                 type = type,
                 title = o.str("title").orEmpty(),
@@ -205,6 +217,7 @@ data class EntryData(
                 apps = o.arr("apps")?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.asString }.orEmpty(),
                 fields = fields,
                 custom = custom,
+                match = matchRaw?.takeIf { it != MATCH_DOMAIN },
                 extra = extra,
             )
         }

@@ -49,12 +49,17 @@ object VaultImport {
         return when (i.int("type")) {
             1 -> {
                 val l = i.obj("login") ?: JsonObject()
-                val urls = l.arr("uris")?.mapNotNull { (it as? JsonObject)?.str("uri") }.orEmpty()
+                val uris = l.arr("uris")?.mapNotNull { it as? JsonObject }.orEmpty().filter { it.str("uri") != null }
+                val urls = uris.map { it.str("uri")!! }
+                // „Passt zu“ as the plugin imports it: Bitwarden's match 1 (host) or 3 (exact) on ALL web addresses →
+                // "exact"; 0, none or mixed → the default (the whole domain)
+                val web = uris.filter { !it.str("uri")!!.startsWith("androidapp://") }
+                val exact = web.isNotEmpty() && web.all { it.int("match") == 1 || it.int("match") == 3 }
                 EntryData(
                     type = "login", title = name.ifBlank { urls.firstNotNullOfOrNull { VaultMatch.host(it) }.orEmpty() }, fav = fav, notes = notes,
                     urls = urls, apps = urls.filter { it.startsWith("androidapp://") }.map { it.removePrefix("androidapp://") },
                     fields = mapOf("username" to l.str("username").orEmpty(), "password" to l.str("password").orEmpty(), "totp" to l.str("totp").orEmpty()),
-                    custom = custom,
+                    custom = custom, match = if (exact) EntryData.MATCH_EXACT else null,
                 )
             }
             2 -> EntryData(type = "note", title = name, fav = fav, notes = notes, custom = custom)

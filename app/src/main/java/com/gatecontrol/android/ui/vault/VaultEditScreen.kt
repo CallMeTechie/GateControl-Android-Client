@@ -174,6 +174,7 @@ fun VaultEditScreen(
         var totpScan by remember { mutableStateOf(false) }
         var discard by remember { mutableStateOf(false) }
         var vaultMenu by remember { mutableStateOf(false) }
+        var matchMenu by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
         var busy by remember { mutableStateOf(false) }
         val hasWifi = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI) }
@@ -270,6 +271,37 @@ fun VaultEditScreen(
                     urls.forEachIndexed { i, u ->
                         GcTextField(u, { nv -> draft = draft.copy(urls = urls.toMutableList().also { it[i] = nv }) }, stringResource(R.string.vault_field_url),
                             placeholder = "example.com", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false))
+                    }
+                    // „Passt zu“: the whole domain (default, no `match`) or only exactly these addresses (`match: "exact"`)
+                    if (urls.any { it.isNotBlank() } || draft.match != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(stringResource(R.string.vault_field_match), style = MaterialTheme.typography.titleSmall, color = x.muted)
+                            Box {
+                                Row(
+                                    Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.background)
+                                        .border(1.dp, x.border2, RoundedCornerShape(14.dp)).clickable(role = Role.Button) { matchMenu = true }.padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Text(
+                                        stringResource(if (draft.exactMatch) R.string.vault_match_exact else R.string.vault_match_domain),
+                                        style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f),
+                                    )
+                                    GcChevron()
+                                }
+                                DropdownMenu(matchMenu, onDismissRequest = { matchMenu = false }) {
+                                    // back to the domain: the key goes (an unknown value of another client stays until changed here)
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.vault_match_domain)) }, onClick = {
+                                        if (draft.exactMatch) draft = draft.copy(match = null)
+                                        matchMenu = false
+                                    })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.vault_match_exact)) }, onClick = {
+                                        draft = draft.copy(match = EntryData.MATCH_EXACT)
+                                        matchMenu = false
+                                    })
+                                }
+                            }
+                            Text(stringResource(R.string.vault_match_hint), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                        }
                     }
                     draft.apps.forEachIndexed { i, a ->
                         GcTextField(a, { nv -> draft = draft.copy(apps = draft.apps.toMutableList().also { it[i] = nv }) }, stringResource(R.string.vault_field_app),

@@ -59,7 +59,7 @@ class VaultAutofillService : AutofillService() {
         repository.ensureLoaded()
         if (repository.state.value.account == null) return callback.onSuccess(null)
         // a web page shows its domain; one whose domain is not known is said so (nothing fits it)
-        val label = form.webDomain ?: if (form.web) getString(R.string.vault_af_unknown_page) else appLabel(this, form.packageName)
+        val label = form.webDomain?.let { VaultMatch.host(it) ?: it } ?: if (form.web) getString(R.string.vault_af_unknown_page) else appLabel(this, form.packageName)
         val response = FillResponse.Builder()
         if (!repository.unlocked.value) {
             response.setAuthentication(
