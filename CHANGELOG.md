@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.132.2] - 2026-11-20
+
+### Fixes
+- Bilder laden bei neuem Schlüssel neu (rememberLoaded statt produceState-Muster) (#262)
+
+---
+
 ## [1.132.1] - 2026-11-19
 
 ### Fixes
