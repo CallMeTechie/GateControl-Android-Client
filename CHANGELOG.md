@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.133.0] - 2026-11-20
+
+### Features
+- Einstellung „Passt zu“ – nur genau diese Adresse statt ganzer Domain (#263)
+
+---
+
 ## [1.132.2] - 2026-11-20
 
 ### Fixes
