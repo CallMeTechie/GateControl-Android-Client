@@ -73,9 +73,10 @@ object VaultBrowsers {
     /**
      * The page's domain for a form of [packageName]: what the page reports ([reported], the browser's own autofill),
      * else for a browser of [URL_BARS] its address bar's text ([addressBar]); null when neither is safely known.
+     * The host as it is ([VaultMatch.exactHost], "www." kept), so that an entry for exactly this address can tell.
      */
     fun pageDomain(packageName: String?, reported: String?, addressBar: String?): String? {
-        reported?.trim()?.takeIf { it.isNotEmpty() }?.let { return VaultMatch.host(it) }
+        reported?.trim()?.takeIf { it.isNotEmpty() }?.let { return VaultMatch.exactHost(it) }
         if (urlBarIds(packageName).isEmpty()) return null
         return domainFromAddressBar(addressBar)
     }
@@ -99,7 +100,7 @@ object VaultBrowsers {
         }
         val authority = rest.substringAfter("://", rest).substringBefore('/').substringBefore('?').substringBefore('#')
         if ('@' in authority) return null
-        val host = VaultMatch.host(rest) ?: return null
+        val host = VaultMatch.exactHost(rest) ?: return null
         if (host.all { it.isDigit() || it == '.' }) {
             val parts = host.split('.')
             return host.takeIf { parts.size == 4 && parts.all { p -> p.isNotEmpty() && p.length <= 3 && p.toInt() <= 255 } }
@@ -121,7 +122,7 @@ object VaultBrowsers {
         val d = domain?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val sc = scheme?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
         if (sc != null && sc != "https" && sc != "http") return null
-        return VaultMatch.host(d)
+        return VaultMatch.exactHost(d)
     }
 
     /** The fields to fill and the page they are on ([pickPage]). */

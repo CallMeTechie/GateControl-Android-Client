@@ -173,6 +173,10 @@
     <string name="vault_custom_remove">Remove field</string>
     <string name="vault_add_url">Add website</string>
     <string name="vault_add_app">Add app</string>
+    <string name="vault_field_match">Matches</string>
+    <string name="vault_match_domain">Whole domain (default)</string>
+    <string name="vault_match_exact">Only this exact address</string>
+    <string name="vault_match_hint">If several services run under the same domain, the vault suggests this entry only on exactly this address.</string>
 
     <!-- Detail -->
     <string name="vault_totp_left">Valid for %1$d more seconds</string>
