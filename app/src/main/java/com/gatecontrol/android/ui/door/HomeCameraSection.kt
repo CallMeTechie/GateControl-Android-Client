@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.door
 
+import com.gatecontrol.android.ui.components.rememberLoaded
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.view.ViewGroup
@@ -39,7 +40,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -508,9 +508,12 @@ private fun ClipsCard(camera: HomeCamera, clips: HomeCameraViewModel.ClipsUi, vi
 private fun ClipRow(clip: HomeClip, viewModel: HomeCameraViewModel) {
     val extra = GateControlTheme.extraColors
     val kind = stringResource(kindRes(clip.kind))
-    val thumb by produceState(viewModel.peekThumb(clip), clip.id, clip.thumbPath) {
-        if (value == null && clip.thumbPath != null) value = viewModel.thumb(clip)
-    }
+    // a new clip in this row starts afresh (the list moves on: not the previous clip's picture)
+    val thumb = rememberLoaded(
+        clip.id, clip.thumbPath,
+        peek = { viewModel.peekThumb(clip) },
+        load = { if (clip.thumbPath != null) viewModel.thumb(clip) else null },
+    )
     val playable = clip.clipPath != null
     Row(
         Modifier

@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.mail.contacts
 
+import com.gatecontrol.android.ui.components.rememberLoaded
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
@@ -22,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -75,14 +75,18 @@ internal fun rememberCardPhoto(id: Long?, etag: String?): ImageBitmap? {
         if (preview) null else runCatching { EntryPointAccessors.fromApplication(context, MailEntryPoint::class.java).mailPim() }.getOrNull()
     }
     val key = if (id != null && etag != null) "$id:$etag" else null
-    val bitmap by produceState(key?.let { CardPhotos.memory.get(it) }?.asImageBitmap(), key, repo) {
-        if (key == null || id == null || etag == null || repo == null || value != null) return@produceState
-        val p = repo.photo(id, etag) ?: return@produceState
-        val bmp = runCatching { BitmapFactory.decodeByteArray(p.bytes, 0, p.bytes.size) }.getOrNull() ?: return@produceState
-        CardPhotos.memory.put(key, bmp)
-        value = bmp.asImageBitmap()
-    }
-    return bitmap
+    // a new contact (or photo) starts afresh, not with the photo of the one before
+    return rememberLoaded(
+        key, repo,
+        peek = { key?.let { CardPhotos.memory.get(it) }?.asImageBitmap() },
+        load = load@{
+            if (key == null || id == null || etag == null || repo == null) return@load null
+            val p = repo.photo(id, etag) ?: return@load null
+            val bmp = runCatching { BitmapFactory.decodeByteArray(p.bytes, 0, p.bytes.size) }.getOrNull() ?: return@load null
+            CardPhotos.memory.put(key, bmp)
+            bmp.asImageBitmap()
+        },
+    )
 }
 
 /** Round: the contact's photo, else the initials on a color of the name. */

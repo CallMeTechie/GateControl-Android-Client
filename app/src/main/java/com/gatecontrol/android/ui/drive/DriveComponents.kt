@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.drive
 
+import com.gatecontrol.android.ui.components.rememberLoaded
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -10,7 +11,6 @@ import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -191,13 +191,15 @@ internal fun rememberDrivePreview(node: DNode, large: Boolean = false): ImageBit
         runCatching { EntryPointAccessors.fromApplication(context, DrivePreviewsEntryPoint::class.java) }.getOrNull()
     } ?: return null
     val previews = remember(entry) { entry.drivePreviews() }
-    val bitmap by produceState(previews.peek(node, large)?.asImageBitmap(), node.id, node.mediaId, large) {
-        if (value == null) {
-            val full = if (node.mediaId != null) node else entry.driveNodeResolver().resolve(node.id) ?: return@produceState
-            value = previews.load(full, large)?.asImageBitmap()
-        }
-    }
-    return bitmap
+    // a new entry (or size) starts afresh, not with the picture of the one before
+    return rememberLoaded(
+        node.id, node.mediaId, large,
+        peek = { previews.peek(node, large)?.asImageBitmap() },
+        load = {
+            val full = if (node.mediaId != null) node else entry.driveNodeResolver().resolve(node.id)
+            full?.let { previews.load(it, large)?.asImageBitmap() }
+        },
+    )
 }
 
 @Composable
