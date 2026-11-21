@@ -212,3 +212,29 @@ data class QuickActionReadingItem(
         }
     }
 }
+
+/**
+ * A widget's badge (core 1.175+, e.g. a car's battery) as the small
+ * surfaces draw it — the start tab's buttons and the home-screen widget:
+ * the [icon], [text] („78 %“, null without a value), [tone] (good, warn,
+ * crit or null for the quiet colour) and [description] for screen readers
+ * („Akku: 78 %“).
+ */
+data class QuickActionBadgeView(val icon: String, val text: String?, val tone: String?, val description: String) {
+    companion object {
+        fun of(item: QuickActionItem): QuickActionBadgeView? = of(item.widget?.badge)
+
+        fun of(badge: QuickActionReadingItem?): QuickActionBadgeView? {
+            badge ?: return null
+            val icon = QuickActionIcons.sanitize(badge.icon) ?: return null
+            val text = badge.value?.let { v -> listOfNotNull(v, badge.unit).joinToString(" ") }
+            val tone = when (badge.state) {
+                "good", "on" -> "good"
+                "warn" -> "warn"
+                "crit" -> "crit"
+                else -> null
+            }
+            return QuickActionBadgeView(icon, text, tone, listOf(badge.label, text.orEmpty()).filter { it.isNotBlank() }.joinToString(": "))
+        }
+    }
+}

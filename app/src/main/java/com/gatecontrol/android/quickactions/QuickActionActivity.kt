@@ -123,9 +123,21 @@ class QuickActionActivity : ComponentActivity() {
                 )
 
         fun showResult(context: Context, item: QuickActionItem, result: QuickActionResult) {
-            val text = result.message?.takeIf { it.isNotBlank() }
-                ?: context.getString(if (result.ok) R.string.quick_action_done else R.string.quick_action_failed, item.title)
-            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, resultText(context, item, result), Toast.LENGTH_SHORT).show()
+        }
+
+        /** The plugin's own text („„Abendlicht“ gestartet“), else one for the reason, else „erledigt“ / „fehlgeschlagen“. */
+        internal fun resultText(context: Context, item: QuickActionItem, result: QuickActionResult): String {
+            result.message?.takeIf { it.isNotBlank() }?.let { return it }
+            val res = when {
+                result.ok -> R.string.quick_action_done
+                result.reason == QuickActionResult.GONE -> R.string.quick_action_gone
+                result.reason == QuickActionResult.NO_USER -> R.string.quick_action_no_user
+                result.reason == QuickActionResult.BUSY -> R.string.quick_action_busy
+                result.reason == QuickActionResult.TIMEOUT -> R.string.quick_action_timeout
+                else -> R.string.quick_action_failed
+            }
+            return context.getString(res, item.title)
         }
     }
 }
