@@ -45,7 +45,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +68,7 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.layout.StartEntry
 import com.gatecontrol.android.layout.StartLayout
 import com.gatecontrol.android.quickactions.QuickActionActivity
+import com.gatecontrol.android.quickactions.QuickActionBadgeView
 import com.gatecontrol.android.quickactions.QuickActionDeviceGroup
 import com.gatecontrol.android.quickactions.QuickActionDevices
 import com.gatecontrol.android.quickactions.QuickActionIcons
@@ -556,7 +559,7 @@ internal fun toneColors(tone: String?): Pair<Color, Color>? {
  * state's tone with the state's icon; progress while it runs.
  */
 @Composable
-private fun QuickActionTile(
+internal fun QuickActionTile(
     item: QuickActionItem,
     width: Dp,
     running: Boolean,
@@ -609,6 +612,7 @@ private fun QuickActionTile(
             } else {
                 Icon(icon, contentDescription = null, tint = glyph, modifier = Modifier.size(28.dp))
             }
+            QuickActionBadgeView.of(item)?.let { TileBadge(it, Modifier.align(Alignment.TopEnd).padding(3.dp)) }
         }
         // Two lines, long words hyphenated, the size stepping down before
         // anything is cut: „Haustür öffnen“, „Scheibenheizung“ fit a fifth of a row.
@@ -631,6 +635,36 @@ private fun QuickActionTile(
         )
     }
 }
+
+/**
+ * The widget's badge on a start-tab button (core 1.175+, e.g. a car's
+ * battery): a small battery-like icon in the state's colour and the value
+ * („78 %“) in the button's top right corner, on a light backing so it reads
+ * on a filled switch as well.
+ */
+@Composable
+internal fun TileBadge(badge: QuickActionBadgeView, modifier: Modifier = Modifier) {
+    val extra = GateControlTheme.extraColors
+    val glyph = remember(badge.icon) { QuickActionIcons.vectorOrNull(badge.icon) } ?: return
+    val tint = if (badge.tone != null) stateColors(badge.tone).first else extra.muted
+    Row(
+        modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
+            .padding(horizontal = 3.dp, vertical = 1.dp)
+            .semantics { contentDescription = badge.description }
+            .testTag(TILE_BADGE_TAG),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Icon(glyph, contentDescription = null, tint = tint, modifier = Modifier.size(10.dp))
+        if (badge.text != null) {
+            Text(badge.text, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold), color = tint, maxLines = 1)
+        }
+    }
+}
+
+internal const val TILE_BADGE_TAG = "tile-badge"
 
 /** Long press of [item] (QuickActionLongPress): a door action opens the door screen, others have none. */
 internal fun longPress(item: QuickActionItem, onOpenDoor: (() -> Unit)?): (() -> Unit)? =

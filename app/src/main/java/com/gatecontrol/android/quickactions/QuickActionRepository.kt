@@ -134,8 +134,32 @@ sealed interface QuickActionsLoad {
     data class Failed(val reason: String) : QuickActionsLoad
 }
 
-/** Result of running an action. */
-data class QuickActionResult(val ok: Boolean, val message: String?)
+/**
+ * Result of running an action. [reason]: why it failed when the server
+ * sent no text of its own ([GONE], [NO_USER], [BUSY], [TIMEOUT]; null
+ * otherwise), so the app can say more than „fehlgeschlagen“.
+ */
+data class QuickActionResult(val ok: Boolean, val message: String?, val reason: String? = null) {
+    companion object {
+        /** 404: the plugin no longer lists the action (a chain switched off, a device taken away). */
+        const val GONE = "gone"
+        /** 403: the app's token has no owner. */
+        const val NO_USER = "no_user"
+        /** 429: too many runs in a minute. */
+        const val BUSY = "busy"
+        /** No answer in time (the app's own wait, or 504 from the server). */
+        const val TIMEOUT = "timeout"
+
+        /** The reason for an HTTP status without a message of the plugin, null for any other. */
+        fun reasonOf(code: Int): String? = when (code) {
+            404 -> GONE
+            403 -> NO_USER
+            429 -> BUSY
+            504 -> TIMEOUT
+            else -> null
+        }
+    }
+}
 
 /**
  * Plugin quick actions (`GET /api/v1/client/actions`, server-side hooks of
@@ -330,6 +354,8 @@ class QuickActionRepository @Inject constructor(
     suspend fun run(item: QuickActionItem): QuickActionResult {
         val outcome = call(item.plugin, item.id, QuickActionRunRequest.SOURCE_APP)
         if (outcome.result.ok) update(item.key, outcome.state?.takeIf { item.toggle }, outcome.widget)
+        // Gone (e.g. a logic chain no longer released for this person): the list again, so its pin follows.
+        if (outcome.result.reason == QuickActionResult.GONE) refreshAsync()
         return outcome.result
     }
 
@@ -371,7 +397,7 @@ class QuickActionRepository @Inject constructor(
         return try {
             val response = withTimeoutOrNull(RUN_TIMEOUT_MS) {
                 apiClientProvider.getClient(serverUrl).runQuickAction(plugin, id, lang(), QuickActionRunRequest(source, control, value))
-            } ?: return Outcome(QuickActionResult(false, null))
+            } ?: return Outcome(QuickActionResult(false, null, QuickActionResult.TIMEOUT))
             val body = response.body()
             if (!response.isSuccessful || body?.ok != true) {
                 Timber.w("Quick action %s/%s failed: HTTP %d", plugin, id, response.code())
@@ -380,7 +406,10 @@ class QuickActionRepository @Inject constructor(
                     response.errorBody()?.use { b -> b.string().takeIf { it.length < 16_384 } }
                         ?.let { gson.fromJson(it, QuickActionRunResponse::class.java) }?.message
                 }.getOrNull()
-                return Outcome(QuickActionResult(false, errorMessage?.let(::clean)?.take(200)?.takeIf { it.isNotBlank() }))
+                val text = errorMessage?.let(::clean)?.take(200)?.takeIf { it.isNotBlank() }
+                // A 200 with ok false (a chain whose „Nur wenn“ does not hold) carries the plugin's own text.
+                val reason = if (text == null && !response.isSuccessful) QuickActionResult.reasonOf(response.code()) else null
+                return Outcome(QuickActionResult(false, text, reason))
             }
             Outcome(
                 result = QuickActionResult(true, body.message?.let(::clean)?.take(200)),

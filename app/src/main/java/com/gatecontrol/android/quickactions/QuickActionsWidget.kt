@@ -78,6 +78,9 @@ class QuickActionsWidget : GlanceAppWidget() {
         val buttonBg = ColorProvider(day = Color(0xFFE8EBEF), night = Color(0xFF262D38))
         val onBg = ColorProvider(day = Color(0xFFD5F5E6), night = Color(0xFF173B2C))
         val accent = ColorProvider(day = Color(0xFF13A86A), night = Color(0xFF3DDC97))
+        val warn = ColorProvider(day = Color(0xFF9A5B00), night = Color(0xFFF5B544))
+        val crit = ColorProvider(day = Color(0xFFB42323), night = Color(0xFFFF8080))
+        val BADGE_ICON_SIZE = 11.dp
         val BUTTON_WIDTH = 96.dp
         val ICON_SIZE = 18.dp
         val ROW_HEIGHT = 52.dp
@@ -154,16 +157,39 @@ class QuickActionsWidget : GlanceAppWidget() {
                     style = TextStyle(color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold),
                     maxLines = 1,
                 )
-                Text(
-                    when {
-                        item.toggle -> context.getString(if (item.isOn) R.string.quick_action_on else R.string.quick_action_off)
-                        else -> item.subtitle ?: item.pluginName
-                    },
-                    style = TextStyle(color = if (item.isOn) accent else muted, fontSize = 11.sp),
-                    maxLines = 1,
-                )
+                val line = when {
+                    item.toggle -> context.getString(if (item.isOn) R.string.quick_action_on else R.string.quick_action_off)
+                    else -> item.subtitle ?: item.pluginName
+                }
+                val lineStyle = TextStyle(color = if (item.isOn) accent else muted, fontSize = 11.sp)
+                val badge = QuickActionBadgeView.of(item)
+                if (badge == null) {
+                    Text(line, style = lineStyle, maxLines = 1)
+                } else {
+                    // The widget's badge (e.g. a car's battery) before the line: icon and „78 %“ in the state's colour.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val badgePx = (BADGE_ICON_SIZE.value * context.resources.displayMetrics.density).toInt()
+                        val tone = badgeColor(badge.tone)
+                        QuickActionIcons.bitmap(badge.icon, badgePx, android.graphics.Color.WHITE)?.let {
+                            Image(ImageProvider(it), contentDescription = badge.description, colorFilter = ColorFilter.tint(tone), modifier = GlanceModifier.size(BADGE_ICON_SIZE))
+                            Spacer(GlanceModifier.width(2.dp))
+                        }
+                        if (badge.text != null) {
+                            Text(badge.text, style = TextStyle(color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                            Spacer(GlanceModifier.width(4.dp))
+                        }
+                        Text(line, style = lineStyle, maxLines = 1)
+                    }
+                }
             }
         }
+    }
+
+    private fun badgeColor(tone: String?): androidx.glance.unit.ColorProvider = when (tone) {
+        "good" -> accent
+        "warn" -> warn
+        "crit" -> crit
+        else -> muted
     }
 }
 
