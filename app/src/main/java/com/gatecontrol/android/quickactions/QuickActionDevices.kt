@@ -8,6 +8,9 @@ import com.google.gson.reflect.TypeToken
  * lock; core 1.172+), in the server's order. Actions without a device are
  * a device of their own. [carrier] is the action that brings the device's
  * widget; [powerAction] its switch when that is the device's power switch.
+ * A carrier that is a plain button (no toggle) is the widget itself and
+ * [cardButton] says it is no button of it; a carrier toggle without power
+ * stays a button, else it could not be switched.
  */
 data class QuickActionDeviceGroup(
     /** `<plugin>/<device id>`, or `<plugin>/@<action id>` for an action on its own. */
@@ -23,6 +26,9 @@ data class QuickActionDeviceGroup(
     val widget: QuickActionWidgetItem? get() = carrier?.widget
     val powerAction: QuickActionItem? get() = carrier?.takeIf { it.toggle && it.widget?.power == true }
 
+    /** Whether [action] shows as a button on the widget: not the switch, not a carrier that is a plain button. */
+    fun cardButton(action: QuickActionItem): Boolean = action != powerAction && !(action == carrier && !action.toggle)
+
     /** Everything a widget of this device can show, in display order (see [WidgetPart]). */
     fun parts(): List<WidgetPart> = buildList {
         val w = widget
@@ -32,7 +38,7 @@ data class QuickActionDeviceGroup(
         if (w != null) add(WidgetPart(WidgetPart.STATUS, WidgetPart.Kind.STATUS, null))
         if (w?.timeline != null) add(WidgetPart(WidgetPart.TIMELINE, WidgetPart.Kind.TIMELINE, null))
         w?.controls?.forEach { add(WidgetPart(WidgetPart.control(it.id), WidgetPart.Kind.CONTROL, it.label ?: it.id)) }
-        actions.filter { it != powerAction }.forEach { add(WidgetPart(WidgetPart.action(it.id), WidgetPart.Kind.ACTION, it.title)) }
+        actions.filter(::cardButton).forEach { add(WidgetPart(WidgetPart.action(it.id), WidgetPart.Kind.ACTION, it.title)) }
     }
 }
 

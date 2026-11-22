@@ -38,17 +38,39 @@ class QuickActionDevicesTest {
     @Test
     fun `the parts of a widget follow the device's widget and actions`() {
         val car = QuickActionDevices.group(listOf(climate, lock)).single()
-        assertNull(car.powerAction, "power: false — the carrier is a button like the others")
+        assertNull(car.powerAction, "power: false — the carrier toggle is a button like the others")
         assertEquals(
             listOf("value", "reading:range", "reading:lock", "status", "action:climate:1", "action:lock:1"),
             car.parts().map { it.id },
         )
+        assertTrue(car.cardButton(climate), "a toggle without power stays switchable as a button")
         val room = QuickActionDevices.group(listOf(ac)).single()
         assertEquals(ac, room.powerAction)
         assertEquals(listOf("action:ac:2", "value", "status", "control:target"), room.parts().map { it.id })
         assertEquals(WidgetPart.Kind.POWER, room.parts().first().kind)
         val plain = QuickActionDevices.group(listOf(scene)).single()
         assertEquals(listOf("action:scene:4"), plain.parts().map { it.id }, "a device without a widget shows its buttons")
+    }
+
+    @Test
+    fun `a carrier that is a plain button is no button of its widget, a stored shown for it is ignored`() {
+        val room = climate.copy(id = "heat:1", toggle = false, state = null)
+        val boost = QuickActionItem("skoda", "Fahrzeuge", "heat:1:boost", "Boost", deviceId = "v:1", deviceTitle = "Enyaq")
+        val device = QuickActionDevices.group(listOf(room, boost)).single()
+        assertFalse(device.cardButton(room))
+        assertTrue(device.cardButton(boost))
+        assertEquals(listOf("value", "reading:range", "reading:lock", "status", "action:heat:1:boost"), device.parts().map { it.id })
+        val old = StartWidgetPin(
+            device = device.key,
+            parts = listOf("value", "action:heat:1", "action:heat:1:boost"),
+            known = listOf("value", "reading:range", "reading:lock", "status", "action:heat:1", "action:heat:1:boost"),
+        )
+        assertEquals(listOf("value", "action:heat:1:boost"), old.shownParts(device).map { it.id })
+        assertFalse("action:heat:1" in StartWidgetPin(device = device.key).shownParts(device).map { it.id }, "parts = null (all): still without it")
+        val decoded = StartWidgetPin.decode(StartWidgetPin.encode(listOf(old))).single()
+        assertEquals(device, decoded.resolve(listOf(device)), "the stored pin still finds its device")
+        val room2 = QuickActionDevices.group(listOf(ac)).single()
+        assertFalse(room2.cardButton(ac), "the power switch stays the switch, no button")
     }
 
     @Test

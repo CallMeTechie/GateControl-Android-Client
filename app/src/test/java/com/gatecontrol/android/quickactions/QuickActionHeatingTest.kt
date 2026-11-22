@@ -184,7 +184,7 @@ class QuickActionHeatingTest {
     }
 
     @Test
-    fun `the card offers the day bar as a part after the status, with the boost and plan buttons`() {
+    fun `the card offers the day bar as a part after the status, with the boost and plan buttons but not the room's own`() {
         val boost = QuickActionItem(plugin = "gatecontrol-smarthome", pluginName = "Smart Home", id = "heat:4:boost", title = "Boost beenden", deviceId = "heat:4", deviceTitle = "Leseecke")
         val plan = QuickActionItem(plugin = "gatecontrol-smarthome", pluginName = "Smart Home", id = "heat:4:plan", title = "Zurück zum Plan", deviceId = "heat:4", deviceTitle = "Leseecke")
         val device = QuickActionDevices.group(listOf(room(), boost, plan)).single()
@@ -193,10 +193,11 @@ class QuickActionHeatingTest {
         assertEquals(
             listOf(
                 WidgetPart.VALUE, WidgetPart.STATUS, WidgetPart.TIMELINE, WidgetPart.control("sp"), WidgetPart.control("preset"),
-                WidgetPart.action("heat:4"), WidgetPart.action("heat:4:boost"), WidgetPart.action("heat:4:plan"),
+                WidgetPart.action("heat:4:boost"), WidgetPart.action("heat:4:plan"),
             ),
             ids,
         )
+        assertFalse(WidgetPart.action("heat:4") in ids, "the room's own button is the card, not a button on it")
         // A widget pinned before the plugin had a bar shows it once it comes (a new part).
         val pin = StartWidgetPin(device = device.key, parts = listOf(WidgetPart.VALUE, WidgetPart.STATUS), known = listOf(WidgetPart.VALUE, WidgetPart.STATUS))
         assertTrue(WidgetPart.TIMELINE in pin.shownParts(device).map { it.id })
