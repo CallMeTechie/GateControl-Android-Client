@@ -845,4 +845,25 @@
     <string name="info_card_move_up">%1$s nach oben schieben</string>
     <string name="info_card_move_down">%1$s nach unten schieben</string>
     <string name="profile_open_desc">Profil und Einstellungen</string>
+    <!-- Einstellungen › Verbindung › „TV koppeln“: GateControl TV über den Server (Server ab 1.318.0) -->
+    <string name="tv_pair_title">TV koppeln</string>
+    <string name="tv_pair_row_desc">GateControl TV mit dem Code am Fernseher einrichten</string>
+    <string name="tv_pair_hint">Öffne GateControl auf dem Fernseher. Gib den angezeigten Code hier ein oder scanne den QR-Code. Klappt von überall: Das Handy braucht nur Internet, kein gemeinsames WLAN.</string>
+    <string name="tv_pair_qr_read">QR-Code des Fernsehers gelesen. Gib jetzt den Code daneben ein.</string>
+    <string name="tv_pair_code_label">Code am Fernseher</string>
+    <string name="tv_pair_code_hint">8 Zeichen, z. B. K7Q4-MZAB</string>
+    <string name="tv_pair_button">Koppeln</string>
+    <string name="tv_pair_scan">QR-Code am Fernseher scannen</string>
+    <string name="tv_pair_done">TV gekoppelt. Er richtet VPN und Startseite jetzt selbst ein.</string>
+    <string name="tv_pair_done_named">„%1$s“ ist gekoppelt. Er richtet VPN und Startseite jetzt selbst ein.</string>
+    <string name="tv_pair_footer">Der Fernseher kommt mit deinem Konto zu deinen Geräten. Dort kannst du ihn jederzeit wieder entfernen.</string>
+    <string name="tv_pair_err_code">Code falsch oder abgelaufen. Vergleiche ihn mit dem Fernseher, nach 10 Minuten zeigt er einen neuen.</string>
+    <string name="tv_pair_err_locked">Zu viele falsche Codes. Versuche es in %1$d Min. wieder.</string>
+    <string name="tv_pair_err_not_allowed">Dein Konto darf keine eigenen Geräte einrichten. Frag deinen Administrator.</string>
+    <string name="tv_pair_err_rate">Zu viele Versuche. Warte kurz und versuche es noch einmal.</string>
+    <string name="tv_pair_err_server_old">Dein GateControl-Server kann noch keine Fernseher koppeln (ab Version 1.318.0).</string>
+    <string name="tv_pair_err_other_server">Dieser Fernseher will sich mit einem anderen Server verbinden als dieses Handy.</string>
+    <string name="tv_pair_err_not_tv">Das ist nicht der QR-Code von GateControl TV.</string>
+    <string name="tv_pair_err_not_set_up">Richte dieses Handy zuerst mit deinem Server ein.</string>
+    <string name="tv_pair_err_network">Der Server ist nicht erreichbar. Prüfe die Verbindung und versuche es noch einmal.</string>
 </resources>

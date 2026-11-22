@@ -74,6 +74,7 @@ import com.gatecontrol.android.ui.settings.ServerSettingsScreen
 import com.gatecontrol.android.ui.settings.SettingsScreen
 import com.gatecontrol.android.ui.settings.SplitTunnelScreen
 import com.gatecontrol.android.ui.settings.TrustedNetworksScreen
+import com.gatecontrol.android.ui.settings.TvPairScreen
 import com.gatecontrol.android.ui.location.LocationSharingScreen
 import com.gatecontrol.android.ui.diagnosis.DiagnosisScreen
 import com.gatecontrol.android.ui.quickactions.QuickActionsScreen
@@ -176,6 +177,9 @@ fun AppNavigation(
     /** gatecontrol://enroll link the app was opened with; consumed once shown. */
     pendingSetupLink: String? = null,
     onSetupLinkConsumed: () -> Unit = {},
+    /** gatecontrol://tv-pair link (the QR code of GateControl TV) the app was opened with; consumed once shown. */
+    pendingTvPairLink: String? = null,
+    onTvPairLinkConsumed: () -> Unit = {},
 ) {
     val startDestination = if (isSetupComplete) Screen.Vpn.route else Screen.Setup.route
 
@@ -701,6 +705,7 @@ fun AppNavigation(
                                 onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
                                 onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                                 onNavigateToPages = { paneKey = SettingsPane.Pages.key },
+                                onNavigateToTvPair = { navController.navigate(Screen.TvPair.create()) { launchSingleTop = true } },
                                 selectedPane = pane,
                                 viewModel = settingsViewModel,
                             )
@@ -736,6 +741,7 @@ fun AppNavigation(
                         onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
                         onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                         onNavigateToPages = { navController.navigate(Screen.SettingsPages.route) { launchSingleTop = true } },
+                        onNavigateToTvPair = { navController.navigate(Screen.TvPair.create()) { launchSingleTop = true } },
                     )
                 }
             }
@@ -1146,6 +1152,27 @@ fun AppNavigation(
                 }
             }
 
+            composable(
+                route = Screen.TvPair.route,
+                arguments = listOf(
+                    navArgument(Screen.TvPair.ARG_LINK) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { backStackEntry ->
+                // An opened link arrives as an argument, a scan from the in-app scanner via savedStateHandle.
+                val scanned by backStackEntry.savedStateHandle.getStateFlow<String?>("qr_result", null).collectAsStateWithLifecycle()
+                GcContentWidth {
+                    TvPairScreen(
+                        onBack = { navController.popBackStack() },
+                        onScan = { navController.navigate(Screen.QrScanner.route) },
+                        link = scanned ?: backStackEntry.arguments?.getString(Screen.TvPair.ARG_LINK),
+                    )
+                }
+            }
+
             composable(Screen.SettingsServer.route) {
                 GcContentWidth {
                     ServerSettingsScreen(
@@ -1368,6 +1395,13 @@ fun AppNavigation(
             if (pendingSetupLink != null) {
                 navController.navigate(Screen.Enroll.create(pendingSetupLink))
                 onSetupLinkConsumed()
+            }
+        }
+        // QR code of GateControl TV (camera app, link): "TV koppeln" — the screen itself says when this phone is not set up.
+        LaunchedEffect(pendingTvPairLink) {
+            if (pendingTvPairLink != null) {
+                navController.navigate(Screen.TvPair.create(pendingTvPairLink))
+                onTvPairLinkConsumed()
             }
         }
         }

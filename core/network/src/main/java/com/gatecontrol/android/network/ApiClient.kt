@@ -37,6 +37,18 @@ interface ApiClient {
     @POST("api/v1/client/enroll")
     suspend fun enroll(@Body request: EnrollRequest): EnrollResponse
 
+    // ─── Pairing of GateControl TV (server ≥ 1.318.0; 404 before) ────
+    // start and poll are public (the TV has no token yet), approve needs the phone's device token.
+
+    @POST("api/v1/client/pair/start")
+    suspend fun pairStart(@Body request: PairStartRequest): Response<PairStartResponse>
+
+    @POST("api/v1/client/pair/poll")
+    suspend fun pairPoll(@Body request: PairPollRequest): Response<PairPollResponse>
+
+    @POST("api/v1/client/pair/approve")
+    suspend fun pairApprove(@Body request: PairApproveRequest): Response<PairApproveResponse>
+
     /**
      * Public (GateControl ≥ 1.201.0): company sign-in methods. 404 on older
      * servers — the app then offers only the setup code.

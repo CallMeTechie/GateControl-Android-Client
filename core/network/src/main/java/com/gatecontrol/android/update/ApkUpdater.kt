@@ -9,10 +9,10 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
-import com.gatecontrol.android.BuildConfig
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.homecache.HomeCacheLan
 import com.gatecontrol.android.network.ApiClientProvider
+import com.gatecontrol.android.network.ClientPlatform
 import com.gatecontrol.android.network.HomeCache
 import com.gatecontrol.android.network.UpdateCheckResponse
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -107,8 +107,17 @@ object ApkUpdateLogic {
 }
 
 /**
- * The own APK download of the GitHub build ([BuildConfig.DISTRIBUTION] `github`; the Play build updates through Play
- * only). The update check is asked again right before (fresh `lan` hint, the device's LAN addresses only while at
+ * Whether the app loads and installs its updates itself ([ApkUpdater]). Bound by each app: the phone app's GitHub
+ * build and GateControl TV yes, the phone app's Play build no (it updates through Play only).
+ */
+fun interface ApkUpdateChannel {
+    fun ownDownload(): Boolean
+}
+
+/**
+ * The own APK download of the GitHub build and of GateControl TV ([ApkUpdateChannel]; the phone app's Play build
+ * updates through Play only). Shared by both apps (core/network); [ClientPlatform] picks the APK the server offers
+ * (`client`/`platform` of the update check: the phone's or the TV's). The update check is asked again right before (fresh `lan` hint, the device's LAN addresses only while at
  * home): at home the APK comes from the home gateway's cache ([HomeCacheLan] — pinned certificate, SHA-256 checked),
  * otherwise, or on any error there, from `downloadUrl`. Before Android's installer opens, the APK is checked: its
  * SHA-256 against the server's (when it names one) and — always — package, version and signing certificate against
@@ -120,6 +129,8 @@ class ApkUpdater @Inject constructor(
     private val setup: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
     private val homeCache: HomeCacheLan,
+    private val platform: ClientPlatform,
+    private val channel: ApkUpdateChannel,
 ) {
     private val lock = Mutex()
     private val _state = MutableStateFlow<ApkUpdateState>(ApkUpdateState.Idle)
@@ -128,8 +139,8 @@ class ApkUpdater @Inject constructor(
     private val dir: File get() = File(context.cacheDir, DIR)
     private val apk: File get() = File(dir, FILE)
 
-    /** The own download is offered (GitHub build only). */
-    val enabled: Boolean get() = !PlayUpdater.enabled
+    /** The own download is offered (not in the phone app's Play build). */
+    val enabled: Boolean get() = channel.ownDownload()
 
     fun reset() {
         if (_state.value !is ApkUpdateState.Downloading && _state.value != ApkUpdateState.Verifying) _state.value = ApkUpdateState.Idle
@@ -159,8 +170,9 @@ class ApkUpdater @Inject constructor(
         _state.value = ApkUpdateState.Downloading(0, offer.fileSize ?: 0, home = false)
         val server = setup.getServerUrl()
         // asked again now: the hint holds ten minutes, and only while this device is at home
+        val query = platform.updateQuery
         val fresh = if (server.isBlank()) null else runCatching {
-            apiClientProvider.getClient(server).checkUpdateWithLocal(currentVersion, "android", "android", homeCache.localHeader())
+            apiClientProvider.getClient(server).checkUpdateWithLocal(currentVersion, query.platform, query.client, homeCache.localHeader())
         }.getOrNull()?.takeIf { it.available && it.version == offer.version }
         val answer = fresh ?: offer
         val expected = HomeCache.normalizeSha256(answer.sha256)
@@ -273,7 +285,7 @@ class ApkUpdater @Inject constructor(
             apkSigners = hashes(apkInfo?.apkContentsSigners),
             apkHistory = if (apkInfo?.hasPastSigningCertificates() == true) hashes(apkInfo.signingCertificateHistory) else emptySet(),
             ownPackage = context.packageName,
-            ownVersionCode = BuildConfig.VERSION_CODE.toLong(),
+            ownVersionCode = own.longVersionCode,
             installed = hashes(ownInfo?.apkContentsSigners),
         )
     }

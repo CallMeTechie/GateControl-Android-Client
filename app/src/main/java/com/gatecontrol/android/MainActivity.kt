@@ -14,6 +14,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import java.util.Locale
 import com.gatecontrol.android.common.EnrollmentLink
+import com.gatecontrol.android.common.TvPairLink
 import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
@@ -46,6 +47,9 @@ class MainActivity : FragmentActivity() {
 
     /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
     private var pendingSetupLink by mutableStateOf<String?>(null)
+
+    /** gatecontrol://tv-pair link (QR code of GateControl TV), opens "TV koppeln" with it. */
+    private var pendingTvPairLink by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,6 +96,8 @@ class MainActivity : FragmentActivity() {
                     plugins = plugins,
                     pendingSetupLink = pendingSetupLink,
                     onSetupLinkConsumed = { pendingSetupLink = null },
+                    pendingTvPairLink = pendingTvPairLink,
+                    onTvPairLinkConsumed = { pendingTvPairLink = null },
                 )
                 // Drive work photos: "Wo bist du gerade?" for a new WLAN, over whatever screen is open.
                 if (isSetupComplete) com.gatecontrol.android.ui.drive.DriveWorkAskHost()
@@ -125,6 +131,7 @@ class MainActivity : FragmentActivity() {
     private fun captureSetupLink(intent: Intent?) {
         val raw = intent?.dataString ?: return
         if (EnrollmentLink.parse(raw) != null) pendingSetupLink = raw
+        if (TvPairLink.parse(raw) != null) pendingTvPairLink = raw
         // Answer of "Mit Microsoft anmelden" (via SigninRedirectActivity): for the setup screen.
         if (com.gatecontrol.android.common.SigninRedirect.isSigninLink(raw)) {
             com.gatecontrol.android.ui.setup.SigninRedirects.offer(raw)

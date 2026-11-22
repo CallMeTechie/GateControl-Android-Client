@@ -708,3 +708,77 @@ data class SpeedTestUploadResponse(
     val bytes: Long = 0,
     @SerializedName("serverMs") val serverMs: Long? = null,
 )
+
+// --- Pairing of GateControl TV (server ≥ 1.318.0, routes/api/client/pair.js) ---
+
+/** `POST /api/v1/client/pair/start` (public, the TV): a name it suggests, its platform and version. */
+data class PairStartRequest(
+    val name: String?,
+    val platform: String,
+    val clientVersion: String?,
+)
+
+/**
+ * Answer of `pair/start` (201): the pairing id (in the QR link), the poll secret (only the TV knows it), the display
+ * code `ABCD-EFGH`, its end (epoch ms), the poll interval (s) and the link for the QR code. Never logged: [toString]
+ * hides the secret.
+ */
+data class PairStartResponse(
+    val ok: Boolean,
+    val pairingId: String? = null,
+    val pollSecret: String? = null,
+    val code: String? = null,
+    val expiresAt: Long? = null,
+    val interval: Int? = null,
+    val url: String? = null,
+    val link: String? = null,
+    val error: String? = null,
+) {
+    override fun toString(): String =
+        "PairStartResponse(ok=$ok, pairingId=$pairingId, pollSecret=***, code=$code, expiresAt=$expiresAt, " +
+            "interval=$interval, url=$url, error=$error)"
+}
+
+/** `POST /api/v1/client/pair/poll` (public, the TV). Never logged: [toString] hides the secret. */
+data class PairPollRequest(
+    val pairingId: String,
+    val pollSecret: String,
+) {
+    override fun toString(): String = "PairPollRequest(pairingId=$pairingId, pollSecret=***)"
+}
+
+/**
+ * Answer of `pair/poll`: `status` `pending` (with `interval`), or `approved` with the setup code for
+ * `POST /api/v1/client/enroll` (exactly once) and the name the phone gave the TV. Errors come as 4xx with `error`
+ * (`invalid_or_expired`, `slow_down` + `interval`, `enroll_not_allowed`, `user_disabled`, `limit_reached`,
+ * `rate_limited`). Never logged: [toString] hides the setup code.
+ */
+data class PairPollResponse(
+    val ok: Boolean,
+    val status: String? = null,
+    val interval: Int? = null,
+    val code: String? = null,
+    val name: String? = null,
+    val error: String? = null,
+) {
+    override fun toString(): String =
+        "PairPollResponse(ok=$ok, status=$status, interval=$interval, code=${if (code != null) "***" else "null"}, " +
+            "name=$name, error=$error)"
+}
+
+/** `POST /api/v1/client/pair/approve` (the phone, with its device token): the code from the TV, the id from the QR. */
+data class PairApproveRequest(
+    val code: String,
+    val pairingId: String? = null,
+    val name: String? = null,
+)
+
+/** Answer of `pair/approve`: the TV's name and platform; errors as 4xx with `error` (+ `retryAfter` when `locked`). */
+data class PairApproveResponse(
+    val ok: Boolean,
+    val name: String? = null,
+    val platform: String? = null,
+    val clientVersion: String? = null,
+    val error: String? = null,
+    val retryAfter: Long? = null,
+)

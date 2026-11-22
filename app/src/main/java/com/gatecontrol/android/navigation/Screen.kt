@@ -430,6 +430,12 @@ sealed class Screen(val route: String) {
     /** Tunnel details (Settings → Verbindung → Verbindungsdetails). */
     data object ConnectionDetails : Screen("settings/connection")
     data object SettingsServer : Screen("settings/server")
+    /** "TV koppeln": approve GateControl TV; `link` = a `gatecontrol://tv-pair` link (QR code, camera app). */
+    data object TvPair : Screen("settings/tv-pair?link={link}") {
+        const val ARG_LINK = "link"
+        fun create(link: String? = null): String =
+            if (link == null) "settings/tv-pair" else "settings/tv-pair?link=" + android.net.Uri.encode(link)
+    }
     data object SplitTunnel : Screen("settings/split")
     data object TrustedNetworks : Screen("settings/trusted-networks")
     data object LocationSharing : Screen("settings/location")
