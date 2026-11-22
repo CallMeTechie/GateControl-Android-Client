@@ -29,6 +29,8 @@ data class QuickActionWidgetItem(
     val badge: QuickActionReadingItem? = null,
     /** SVG path beside the main value in place of the [label] text (core 1.187+), e.g. a calendar for „this month“. */
     val icon: String? = null,
+    /** A bar of segments, e.g. today's heating plan (GateControl 1.318+); display only. */
+    val timeline: QuickActionTimelineItem? = null,
 ) {
     /** Gson bypasses Kotlin defaults: an older stored shape may leave the lists null. */
     @Suppress("SENSELESS_COMPARISON", "UNNECESSARY_SAFE_CALL")
@@ -36,6 +38,7 @@ data class QuickActionWidgetItem(
         controls = (controls ?: emptyList()).filter { it != null && it.id != null && it.kind != null },
         readings = (readings ?: emptyList()).filter { it != null && it.id != null && it.label != null },
         badge = badge?.takeIf { it.icon != null && it.label != null },
+        timeline = timeline?.normalized(),
     )
 
     companion object {
@@ -54,11 +57,12 @@ data class QuickActionWidgetItem(
             val state = raw.state?.takeIf { it in STATES }
             val label = raw.label?.let(QuickActionRepository::clean)?.take(24)?.takeIf { it.isNotBlank() }
             val badge = badgeOf(raw.badge)
-            if (value == null && label == null && status == null && controls.isEmpty() && readings.isEmpty() && badge == null) return null
+            val timeline = QuickActionTimelineItem.from(raw.timeline)
+            if (value == null && label == null && status == null && controls.isEmpty() && readings.isEmpty() && badge == null && timeline == null) return null
             return QuickActionWidgetItem(
                 value = value, unit = unit, status = status, state = state, controls = controls,
                 label = label, readings = readings, power = raw.power != false, badge = badge,
-                icon = QuickActionIcons.sanitize(raw.icon),
+                icon = QuickActionIcons.sanitize(raw.icon), timeline = timeline,
             )
         }
 
@@ -88,16 +92,22 @@ data class QuickActionWidgetItem(
             }
         }
 
-        /** 22 → "22", 21.5 → "21,5" (locale), at most one decimal. */
-        fun formatNumber(d: Double, locale: Locale = Locale.getDefault()): String =
-            NumberFormat.getInstance(locale).apply { maximumFractionDigits = 1; isGroupingUsed = false }.format(d)
+        /** 22 → "22", 21.5 → "21,5" (locale), at most one decimal; [decimals] 1 keeps it: 21 → "21,0". */
+        fun formatNumber(d: Double, locale: Locale = Locale.getDefault(), decimals: Int = 0): String =
+            NumberFormat.getInstance(locale).apply {
+                maximumFractionDigits = 1
+                minimumFractionDigits = decimals.coerceIn(0, 1)
+                isGroupingUsed = false
+            }.format(d)
     }
 }
 
 /**
  * One control of a widget: `stepper` and `slider` carry [number] in
  * [min]..[max] with [step]; `choice` carries the chosen option id in
- * [choice] and its [options].
+ * [choice] (null: no option is active, e.g. a thermostat in boost —
+ * GateControl 1.318+) and its [options]. [disabled]: shown greyed out and
+ * not usable (the host refuses a run with 409 `control_disabled`).
  */
 data class QuickActionControlItem(
     val id: String,
@@ -110,11 +120,16 @@ data class QuickActionControlItem(
     val unit: String? = null,
     val choice: String? = null,
     val options: List<QuickActionControlOptionItem> = emptyList(),
+    val disabled: Boolean = false,
 ) {
     val isNumeric: Boolean get() = kind == KIND_STEPPER || kind == KIND_SLIDER
 
     /** The number of decimals the step needs (0.5 → 1), for display and rounding. */
     val decimals: Int get() = if (step % 1.0 == 0.0) 0 else 1
+
+    /** A value as the control shows it: as many decimals as the step needs (step 0.5: 21 → "21,0 °C"). */
+    fun format(v: Double, locale: Locale = Locale.getDefault()): String =
+        QuickActionWidgetItem.formatNumber(v, locale, decimals) + (unit?.let { " $it" } ?: "")
 
     companion object {
         const val KIND_STEPPER = "stepper"
@@ -127,6 +142,8 @@ data class QuickActionControlItem(
             val kind = raw.kind ?: return null
             val label = raw.label?.let(QuickActionRepository::clean)?.take(20)?.takeIf { it.isNotBlank() }
             val unit = raw.unit?.let(QuickActionRepository::clean)?.take(8)?.takeIf { it.isNotBlank() }
+            // Only a JSON true disables; anything else is false.
+            val disabled = raw.disabled?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean == true
             return when (kind) {
                 KIND_STEPPER, KIND_SLIDER -> {
                     val min = raw.min?.takeIf { it.isFinite() } ?: return null
@@ -134,7 +151,7 @@ data class QuickActionControlItem(
                     val step = raw.step?.takeIf { it.isFinite() && it > 0 } ?: return null
                     val value = raw.value?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
                         ?.asDouble?.takeIf { it.isFinite() } ?: return null
-                    QuickActionControlItem(id, kind, label, value.coerceIn(min, max), min, max, step, unit)
+                    QuickActionControlItem(id, kind, label, value.coerceIn(min, max), min, max, step, unit, disabled = disabled)
                 }
                 KIND_CHOICE -> {
                     val options = raw.options.orEmpty().mapNotNull { o ->
@@ -143,11 +160,17 @@ data class QuickActionControlItem(
                         QuickActionControlOptionItem(oid, text, QuickActionIcons.sanitize(o.icon))
                     }.distinctBy { it.id }.take(8)
                     if (options.size < 2) return null
-                    val chosen = raw.value?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+                    // Missing or JSON null: no option is active (1.318+). Any other unknown value → the first, as before.
+                    val rawValue = raw.value
+                    val choice = if (rawValue == null || rawValue.isJsonNull) {
+                        null
+                    } else {
+                        val chosen = rawValue.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+                        options.firstOrNull { it.id == chosen }?.id ?: options.first().id
+                    }
                     QuickActionControlItem(
                         id = id, kind = KIND_CHOICE, label = label, unit = unit,
-                        choice = options.firstOrNull { it.id == chosen }?.id ?: options.first().id,
-                        options = options,
+                        choice = choice, options = options, disabled = disabled,
                     )
                 }
                 else -> null

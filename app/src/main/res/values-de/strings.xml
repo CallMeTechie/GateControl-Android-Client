@@ -535,6 +535,7 @@
     <string name="quick_action_no_user">%1$s: Dieses Gerät ist keinem Benutzer zugeordnet</string>
     <string name="quick_action_busy">%1$s: zu viele Aktionen – bitte kurz warten</string>
     <string name="quick_action_timeout">%1$s: keine Antwort vom Server</string>
+    <string name="quick_action_control_disabled">%1$s: lässt sich gerade nicht einstellen</string>
     <string name="quick_action_confirm_title">„%1$s“ ausführen?</string>
     <string name="quick_action_confirm_run">Ausführen</string>
     <string name="quick_action_tile_label">Schnellaktion %1$d</string>
@@ -792,6 +793,8 @@
     <string name="quick_actions_as_widget">Widget</string>
     <string name="widget_decrease">%1$s verringern</string>
     <string name="widget_increase">%1$s erhöhen</string>
+    <string name="widget_timeline_description">Zeitplan: %1$s</string>
+    <string name="widget_timeline_now">jetzt %1$s</string>
     <string name="quick_actions_list_hint">Tippe auf ein Gerät, um es als Schnellaktion oder als Widget auf den Start-Tab zu legen. Hier wird nichts geschaltet.</string>
     <plurals name="quick_actions_chip_buttons">
         <item quantity="one">%d Schnellaktion</item>
@@ -820,6 +823,7 @@
     <string name="pin_sheet_part_power">Ein/Aus-Schalter</string>
     <string name="pin_sheet_part_value">Wert</string>
     <string name="pin_sheet_part_status">Statuszeile</string>
+    <string name="pin_sheet_part_timeline">Tagesbalken</string>
     <string name="pin_sheet_part_action">Button „%1$s“</string>
 
     <!-- Start-Tab: wischbare Karten (1.35) -->

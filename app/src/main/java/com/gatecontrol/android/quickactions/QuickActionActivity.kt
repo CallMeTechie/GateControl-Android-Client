@@ -135,6 +135,7 @@ class QuickActionActivity : ComponentActivity() {
                 result.reason == QuickActionResult.NO_USER -> R.string.quick_action_no_user
                 result.reason == QuickActionResult.BUSY -> R.string.quick_action_busy
                 result.reason == QuickActionResult.TIMEOUT -> R.string.quick_action_timeout
+                result.reason == QuickActionResult.CONTROL_DISABLED -> R.string.quick_action_control_disabled
                 else -> R.string.quick_action_failed
             }
             return context.getString(res, item.title)

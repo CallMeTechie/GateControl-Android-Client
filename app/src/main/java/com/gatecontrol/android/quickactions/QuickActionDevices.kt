@@ -30,6 +30,7 @@ data class QuickActionDeviceGroup(
         if (w != null && (w.value != null || w.label != null)) add(WidgetPart(WidgetPart.VALUE, WidgetPart.Kind.VALUE, w.label))
         w?.readings?.forEach { add(WidgetPart(WidgetPart.reading(it.id), WidgetPart.Kind.READING, it.label)) }
         if (w != null) add(WidgetPart(WidgetPart.STATUS, WidgetPart.Kind.STATUS, null))
+        if (w?.timeline != null) add(WidgetPart(WidgetPart.TIMELINE, WidgetPart.Kind.TIMELINE, null))
         w?.controls?.forEach { add(WidgetPart(WidgetPart.control(it.id), WidgetPart.Kind.CONTROL, it.label ?: it.id)) }
         actions.filter { it != powerAction }.forEach { add(WidgetPart(WidgetPart.action(it.id), WidgetPart.Kind.ACTION, it.title)) }
     }
@@ -37,15 +38,17 @@ data class QuickActionDeviceGroup(
 
 /**
  * One part of a widget the person can show or hide. [label] is the
- * plugin's name for it; null for [Kind.STATUS] and a nameless [Kind.VALUE]
+ * plugin's name for it; null for [Kind.STATUS], [Kind.TIMELINE] and a nameless [Kind.VALUE]
  * (the app names those).
  */
 data class WidgetPart(val id: String, val kind: Kind, val label: String?) {
-    enum class Kind { POWER, VALUE, READING, STATUS, CONTROL, ACTION }
+    enum class Kind { POWER, VALUE, READING, STATUS, TIMELINE, CONTROL, ACTION }
 
     companion object {
         const val VALUE = "value"
         const val STATUS = "status"
+        /** The bar of segments (GateControl 1.318+), e.g. today's heating plan. */
+        const val TIMELINE = "timeline"
         fun reading(id: String) = "reading:$id"
         fun control(id: String) = "control:$id"
         fun action(id: String) = "action:$id"

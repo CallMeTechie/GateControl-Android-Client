@@ -523,6 +523,12 @@ data class QuickActionWidget(
     @SerializedName("badge") val badge: QuickActionReading? = null,
     /** An SVG path shown small beside [value] instead of the [label] text (core 1.187+), e.g. a calendar. */
     @SerializedName("icon") val icon: String? = null,
+    /**
+     * A bar of segments over the day, e.g. a heating plan (GateControl 1.318+), display only:
+     * `{ from, to, now|null, segments: [{ from, to, tone|null, color|null, label|null }] }`.
+     * Kept raw so a malformed one never breaks the list; the app checks it strictly.
+     */
+    @SerializedName("timeline") val timeline: JsonElement? = null,
 )
 
 /** A small value of a widget or tile: icon and/or value with unit, coloured by [state]. */
@@ -538,7 +544,8 @@ data class QuickActionReading(
 /**
  * One control of a widget: `stepper` and `slider` carry a number in
  * [min]..[max] with [step]; `choice` carries an option id in [value] (as a
- * JSON string) and its [options].
+ * JSON string, JSON null = no option active, GateControl 1.318+) and its
+ * [options]. [disabled] `true` (1.318+): shown greyed out, not usable.
  */
 data class QuickActionControl(
     @SerializedName("id") val id: String? = null,
@@ -550,6 +557,8 @@ data class QuickActionControl(
     @SerializedName("step") val step: Double? = null,
     @SerializedName("unit") val unit: String? = null,
     @SerializedName("options") val options: List<QuickActionControlOption>? = null,
+    /** Raw, so only a JSON `true` disables (anything else is `false`, never a parse error). */
+    @SerializedName("disabled") val disabled: JsonElement? = null,
 )
 
 data class QuickActionControlOption(
