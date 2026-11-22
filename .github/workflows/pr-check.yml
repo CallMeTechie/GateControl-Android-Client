@@ -68,10 +68,14 @@ jobs:
           retention-days: 3
 
       - name: Build debug APK (build check)
+        # Phone app and GateControl TV (:tv)
         run: ./gradlew assembleDebug
 
       - name: Verify 16 KB page alignment of native libs
-        run: python3 scripts/check_elf_alignment.py app/build/outputs/apk/debug/
+        run: python3 scripts/check_elf_alignment.py app/build/outputs/apk/debug/ tv/build/outputs/apk/debug/
+
+      - name: Check GateControl TV APK (ABI and size)
+        run: python3 scripts/check_tv_apk.py tv/build/outputs/apk/debug/tv-debug.apk
 
       - name: Publish test results
         if: always()
