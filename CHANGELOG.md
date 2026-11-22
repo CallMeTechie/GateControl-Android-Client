@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.136.1] - 2026-11-22
+
+### Fixes
+- Tresor-Videos im Vollbild-Player wie Drive-Videos (#268)
+
+---
+
 ## [1.136.0] - 2026-11-22
 
 ### Features
