@@ -131,6 +131,16 @@ class QuickActionHeatingCardUiTest {
     }
 
     @Test
+    fun `a carrier toggle without power stays a button on its card`() {
+        val r = room()
+        val toggle = r.carrier!!.copy(toggle = true, state = "off")
+        val device = r.copy(actions = listOf(toggle) + r.actions.drop(1))
+        show(device)
+        rule.onNodeWithContentDescription("Leseecke").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Boost beenden").assertIsDisplayed()
+    }
+
+    @Test
     fun `the option that applies is chosen`() {
         show(room(choice = "boost"))
         rule.onNodeWithContentDescription("Boost").assertIsSelected()
