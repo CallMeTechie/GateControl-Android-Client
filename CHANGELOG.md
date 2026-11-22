@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.134.0] - 2026-11-22
+
+### Features
+- Tagesbalken, gesperrte Regler, choice ohne Auswahl (Heizung) (#265)
+
+---
+
 ## [1.133.1] - 2026-11-21
 
 ### Fixes
