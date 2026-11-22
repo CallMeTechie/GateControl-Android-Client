@@ -3,8 +3,6 @@ package com.gatecontrol.android.ui.drive
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.view.SurfaceView
-import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -14,9 +12,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -32,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -40,18 +38,20 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
-import androidx.media3.ui.PlayerView
 import com.gatecontrol.android.R
 import com.gatecontrol.android.drive.DNode
+import com.gatecontrol.android.drive.vault.DriveVaultHeld
 import com.gatecontrol.android.drive.vault.DriveVaultSession
 import com.gatecontrol.android.drive.vault.DriveVaultVideoSource
 import com.gatecontrol.android.drive.vault.DriveVaultView
@@ -60,6 +60,7 @@ import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.SecureScreenEffect
 import kotlinx.coroutines.delay
+import java.io.Closeable
 import java.nio.ByteBuffer
 
 /**
@@ -104,7 +105,12 @@ internal fun vaultViewText(context: Context, code: String): String? = when (code
     else -> null
 }
 
-/** The viewer full screen over the vault page; [onUse] counts as use of the vault (its lock timer starts again). */
+/**
+ * The viewer full screen, over everything (a dialog of its own, as the viewers of Drive's other files: not inside the
+ * vault page's width on a tablet or an unfolded phone, under the system bars, black to the edges). [onUse] counts as
+ * use of the vault (its lock timer starts again); [videoPlayer] gives the player of a video — the view model keeps it,
+ * so a fold, an unfold or a turn of the phone (the activity is made anew) does not stop the film.
+ */
 @Composable
 internal fun DriveVaultViewerScreen(
     state: VaultViewer,
@@ -112,42 +118,102 @@ internal fun DriveVaultViewerScreen(
     onUse: () -> Unit,
     onLock: () -> Unit,
     onOpenWith: () -> Unit,
+    videoPlayer: (VaultViewer.Video) -> Player?,
 ) {
-    SecureScreenEffect()
-    BackHandler(onBack = onClose)
     var menu by remember { mutableStateOf(false) }
     var askOpenWith by remember { mutableStateOf(false) }
-    Box(
-        Modifier.fillMaxSize().background(Color.Black).pointerInput(Unit) {
-            awaitPointerEventScope { while (true) { awaitPointerEvent(); onUse() } }
-        },
+    // the video's full screen (the player's button): kept over a fold, an unfold or a turn, as the viewer is
+    var fullscreen by rememberSaveable(state.node.id) { mutableStateOf(false) }
+    var landscape by rememberSaveable(state.node.id) { mutableStateOf(false) }
+    val video = state is VaultViewer.Video
+    Dialog(
+        onDismissRequest = onClose,
+        // its own window: kept out of screenshots, screen recordings and the recent apps by itself, not only inherited
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false, securePolicy = SecureFlagPolicy.SecureOn),
     ) {
-        when (state) {
-            is VaultViewer.Loading -> DocLoading(stringResource(R.string.drive_vault_view_decrypting), state.progress)
-            is VaultViewer.Picture -> ZoomablePicture(state.bitmap, state.name)
-            is VaultViewer.Pdf -> DocPdfPages(state.doc, onUse)
-            // not selectable: copying would put the plaintext into the clipboard
-            is VaultViewer.Text -> DocTextPage(state.text, state.markdown, selectable = false)
-            is VaultViewer.Video -> VaultVideo(state.cipher, onUse)
-            is VaultViewer.Note -> NotePage(state, onOpenWith = { askOpenWith = true })
-        }
-        DocTopBar(state.name, stringResource(R.string.drive_vault_view_in_memory), onBack = onClose) {
-            GcIconButton(GcIcons.Lock, stringResource(R.string.drive_vault_lock_now), onClick = onLock, tint = Color.White)
-            Box {
-                GcIconButton(GcIcons.MoreVertical, stringResource(R.string.drive_vault_view_more), onClick = { menu = true }, tint = Color.White)
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.drive_vault_open_with)) },
-                        leadingIcon = { Icon(GcIcons.External, contentDescription = null) },
-                        onClick = { menu = false; askOpenWith = true },
-                    )
+        SecureScreenEffect()
+        ViewerFullscreen(on = video && fullscreen, landscape = landscape, survivesRecreation = true)
+        Box(
+            Modifier.fillMaxSize().background(Color.Black).testTag(VAULT_VIEWER_TAG).pointerInput(Unit) {
+                awaitPointerEventScope { while (true) { awaitPointerEvent(); onUse() } }
+            },
+        ) {
+            when (state) {
+                is VaultViewer.Loading -> DocLoading(stringResource(R.string.drive_vault_view_decrypting), state.progress)
+                is VaultViewer.Picture -> ZoomablePicture(state.bitmap, state.name)
+                is VaultViewer.Pdf -> DocPdfPages(state.doc, onUse)
+                // not selectable: copying would put the plaintext into the clipboard
+                is VaultViewer.Text -> DocTextPage(state.text, state.markdown, selectable = false)
+                is VaultViewer.Video -> VaultVideo(
+                    player = remember(state.cipher) { videoPlayer(state) },
+                    fullscreen = fullscreen,
+                    onFullscreen = { fullscreen = it },
+                    onLandscape = { landscape = it },
+                    onUse = onUse,
+                )
+                is VaultViewer.Note -> NotePage(state, onOpenWith = { askOpenWith = true })
+            }
+            if (!(video && fullscreen)) {
+                DocTopBar(state.name, stringResource(R.string.drive_vault_view_in_memory), onBack = onClose) {
+                    GcIconButton(GcIcons.Lock, stringResource(R.string.drive_vault_lock_now), onClick = onLock, tint = Color.White)
+                    Box {
+                        GcIconButton(GcIcons.MoreVertical, stringResource(R.string.drive_vault_view_more), onClick = { menu = true }, tint = Color.White)
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.drive_vault_open_with)) },
+                                leadingIcon = { Icon(GcIcons.External, contentDescription = null) },
+                                onClick = { menu = false; askOpenWith = true },
+                            )
+                        }
+                    }
                 }
             }
         }
+        if (askOpenWith) {
+            OpenWithDialog(onConfirm = { askOpenWith = false; onOpenWith() }, onDismiss = { askOpenWith = false })
+        }
     }
-    if (askOpenWith) {
-        OpenWithDialog(onConfirm = { askOpenWith = false; onOpenWith() }, onDismiss = { askOpenWith = false })
+}
+
+/** The test tag of the viewer's page (its size: the whole screen). */
+internal const val VAULT_VIEWER_TAG = "vault_viewer"
+
+/**
+ * The one player of the vault's viewer, kept by the view model: the activity is made anew when the phone folds, unfolds
+ * or turns — the film plays on. [get] gives the one made for [key] (the video opened) or makes it; it is released
+ * ([release]) with what the viewer holds ([DriveVaultHeld]: on close and on lock, before the ciphertext goes) or when
+ * another video comes. Nothing once [DriveVaultHeld] is closed. Main thread only.
+ */
+internal class VaultKeptPlayer<T : Any>(private val release: (T) -> Unit) {
+    private var key: Any? = null
+    private var value: T? = null
+
+    fun get(key: Any, held: DriveVaultHeld, make: () -> T): T? {
+        val kept = value
+        if (kept != null && this.key === key) return kept
+        drop()
+        if (held.closed) return null
+        val made = make()
+        this.key = key
+        value = made
+        // closed with the rest of the viewer: only if it is still the one kept (another video released it already)
+        return if (held.add(Closeable { if (value === made) drop() })) made else null
     }
+
+    private fun drop() {
+        val v = value ?: return
+        value = null
+        key = null
+        release(v)
+    }
+}
+
+/** The player of a vault's video: decrypted chunk by chunk while it plays, no cache in front (nothing in plaintext). */
+@OptIn(UnstableApi::class)
+internal fun vaultVideoPlayer(context: Context, cipher: DriveVaultSession.Cipher): ExoPlayer {
+    val source = ProgressiveMediaSource.Factory { DriveVaultVideoSource(cipher.file, cipher.content) }
+        .createMediaSource(MediaItem.fromUri("gcvault://video"))
+    return ExoPlayer.Builder(context).build().apply { setMediaSource(source); prepare(); playWhenReady = true }
 }
 
 /** "Mit anderer App öffnen": what it means, before anything leaves the vault. */
@@ -188,34 +254,44 @@ private fun ZoomablePicture(bitmap: ImageBitmap, name: String) {
     )
 }
 
-@OptIn(UnstableApi::class)
+/**
+ * A vault's video in Drive's player ([DriveVideoSurface]: the whole screen, fitted, the full screen button), its surface
+ * secure. The player belongs to the view model (released there); here only its listener.
+ */
 @Composable
-private fun VaultVideo(cipher: DriveVaultSession.Cipher, onUse: () -> Unit) {
-    val context = LocalContext.current
-    val player = remember(cipher) {
-        // no cache in front of the source: Media3 never writes the plaintext anywhere
-        val source = ProgressiveMediaSource.Factory { DriveVaultVideoSource(cipher.file, cipher.content) }
-            .createMediaSource(MediaItem.fromUri("gcvault://video"))
-        ExoPlayer.Builder(context).build().apply { setMediaSource(source); prepare(); playWhenReady = true }
-    }
-    var playing by remember { mutableStateOf(false) }
+private fun VaultVideo(player: Player?, fullscreen: Boolean, onFullscreen: (Boolean) -> Unit, onLandscape: (Boolean) -> Unit, onUse: () -> Unit) {
+    if (player == null) return
+    val landscape by rememberUpdatedState(onLandscape)
+    var playing by remember(player) { mutableStateOf(player.isPlaying) }
     DisposableEffect(player) {
-        val l = object : Player.Listener { override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying } }
+        val l = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                vaultVideoWide(videoSize)?.let { landscape(it) }
+            }
+        }
         player.addListener(l)
-        onDispose { player.removeListener(l); player.release() }
+        // back after a fold or a turn: the film's size is known already
+        vaultVideoWide(player.videoSize)?.let { landscape(it) }
+        onDispose { player.removeListener(l) }
     }
     // watching counts as use of the vault (it would lock in the middle of a film otherwise)
     LaunchedEffect(playing) { while (playing) { onUse(); delay(30_000) } }
-    AndroidView(
-        factory = { c ->
-            PlayerView(c).apply {
-                this.player = player
-                // the video surface is a window of its own: secure as well, or screenshots would show it
-                (videoSurfaceView as? SurfaceView)?.setSecure(true)
-            }
-        },
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).padding(top = 56.dp),
+    DriveVideoSurface(
+        player,
+        fullscreen = fullscreen,
+        onFullscreen = onFullscreen,
+        // the controls above the navigation bar while it shows; in full screen the bars are gone, the picture to the edges
+        modifier = Modifier.fillMaxSize().then(if (fullscreen) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars)),
+        secure = true,
     )
+}
+
+/** Whether a video is wider than high (its pixels as shown: their aspect counted), null while its size is not known. */
+internal fun vaultVideoWide(size: VideoSize): Boolean? {
+    if (size.width <= 0 || size.height <= 0) return null
+    return size.width * size.pixelWidthHeightRatio > size.height
 }
 
 @Composable
