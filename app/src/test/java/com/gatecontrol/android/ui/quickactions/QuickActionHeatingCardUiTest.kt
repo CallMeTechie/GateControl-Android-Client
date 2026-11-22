@@ -25,6 +25,7 @@ import com.gatecontrol.android.quickactions.QuickActionResult
 import com.gatecontrol.android.quickactions.QuickActionTimelineItem
 import com.gatecontrol.android.quickactions.QuickActionTimelineSegment
 import com.gatecontrol.android.quickactions.QuickActionWidgetItem
+import com.gatecontrol.android.quickactions.WidgetPart
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -91,11 +92,11 @@ class QuickActionHeatingCardUiTest {
 
     private val sent = mutableListOf<Pair<String, Any>>()
 
-    private fun show(device: QuickActionDeviceGroup) = rule.setContent {
+    private fun show(device: QuickActionDeviceGroup, parts: List<WidgetPart> = device.parts()) = rule.setContent {
         GateControlTheme(darkTheme = false) {
             QuickActionWidgetCard(
                 device = device,
-                parts = device.parts(),
+                parts = parts,
                 running = null,
                 adjusting = emptySet(),
                 onRun = {},
@@ -115,6 +116,16 @@ class QuickActionHeatingCardUiTest {
         rule.onNodeWithContentDescription("Eco").performClick()
         rule.onNodeWithContentDescription("Eco").assertIsSelected()
         assertEquals(listOf("sp" to 21.5, "preset" to "eco"), sent)
+        rule.onNodeWithContentDescription("Boost beenden").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Zurück zum Plan").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the room's own action is no button on its card, even when a stored pin shows it`() {
+        val device = room()
+        val stale = device.parts() + WidgetPart(WidgetPart.action("heat:4"), WidgetPart.Kind.ACTION, "Leseecke")
+        show(device, stale)
+        rule.onNodeWithContentDescription("Leseecke").assertDoesNotExist()
         rule.onNodeWithContentDescription("Boost beenden").assertIsDisplayed()
         rule.onNodeWithContentDescription("Zurück zum Plan").assertIsDisplayed()
     }

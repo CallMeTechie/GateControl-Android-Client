@@ -38,10 +38,11 @@ class QuickActionDevicesTest {
     @Test
     fun `the parts of a widget follow the device's widget and actions`() {
         val car = QuickActionDevices.group(listOf(climate, lock)).single()
-        assertNull(car.powerAction, "power: false — the carrier is a button like the others")
+        assertNull(car.powerAction, "power: false — no switch")
         assertEquals(
-            listOf("value", "reading:range", "reading:lock", "status", "action:climate:1", "action:lock:1"),
+            listOf("value", "reading:range", "reading:lock", "status", "action:lock:1"),
             car.parts().map { it.id },
+            "the carrier is the widget, not another button of it",
         )
         val room = QuickActionDevices.group(listOf(ac)).single()
         assertEquals(ac, room.powerAction)
@@ -49,6 +50,21 @@ class QuickActionDevicesTest {
         assertEquals(WidgetPart.Kind.POWER, room.parts().first().kind)
         val plain = QuickActionDevices.group(listOf(scene)).single()
         assertEquals(listOf("action:scene:4"), plain.parts().map { it.id }, "a device without a widget shows its buttons")
+    }
+
+    @Test
+    fun `a stored shown for the carrier's button is ignored, the other parts stay`() {
+        val car = QuickActionDevices.group(listOf(climate, lock)).single()
+        val old = StartWidgetPin(
+            device = car.key,
+            parts = listOf("value", "action:climate:1", "action:lock:1"),
+            known = listOf("value", "reading:range", "reading:lock", "status", "action:climate:1", "action:lock:1"),
+        )
+        assertEquals(listOf("value", "action:lock:1"), old.shownParts(car).map { it.id })
+        val legacy = StartWidgetPin(device = car.key)
+        assertFalse("action:climate:1" in legacy.shownParts(car).map { it.id }, "parts = null (all): still without the carrier's button")
+        val decoded = StartWidgetPin.decode(StartWidgetPin.encode(listOf(old))).single()
+        assertEquals(car, decoded.resolve(listOf(car)), "the stored pin still finds its device")
     }
 
     @Test

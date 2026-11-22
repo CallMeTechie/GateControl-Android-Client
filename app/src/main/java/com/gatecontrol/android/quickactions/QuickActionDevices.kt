@@ -8,6 +8,8 @@ import com.google.gson.reflect.TypeToken
  * lock; core 1.172+), in the server's order. Actions without a device are
  * a device of their own. [carrier] is the action that brings the device's
  * widget; [powerAction] its switch when that is the device's power switch.
+ * The carrier is never one of the widget's buttons: it is the widget (its
+ * switch when it is the power switch); the device's other actions are.
  */
 data class QuickActionDeviceGroup(
     /** `<plugin>/<device id>`, or `<plugin>/@<action id>` for an action on its own. */
@@ -32,7 +34,8 @@ data class QuickActionDeviceGroup(
         if (w != null) add(WidgetPart(WidgetPart.STATUS, WidgetPart.Kind.STATUS, null))
         if (w?.timeline != null) add(WidgetPart(WidgetPart.TIMELINE, WidgetPart.Kind.TIMELINE, null))
         w?.controls?.forEach { add(WidgetPart(WidgetPart.control(it.id), WidgetPart.Kind.CONTROL, it.label ?: it.id)) }
-        actions.filter { it != powerAction }.forEach { add(WidgetPart(WidgetPart.action(it.id), WidgetPart.Kind.ACTION, it.title)) }
+        val carrier = carrier
+        actions.filter { it != carrier }.forEach { add(WidgetPart(WidgetPart.action(it.id), WidgetPart.Kind.ACTION, it.title)) }
     }
 }
 

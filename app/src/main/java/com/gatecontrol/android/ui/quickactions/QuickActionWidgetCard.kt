@@ -124,7 +124,8 @@ fun QuickActionWidgetCard(
     val (tint, background) = stateColors(widget?.state ?: device.powerAction?.state)
     val shown = parts.map { it.id }.toSet()
     val power = device.powerAction?.takeIf { WidgetPart.action(it.id) in shown }
-    val actionButtons = device.actions.filter { it != power && WidgetPart.action(it.id) in shown }
+    // The carrier is the widget itself (or its switch), never a button of it; a stored "shown" for it is ignored.
+    val actionButtons = device.actions.filter { it != carrier && WidgetPart.action(it.id) in shown }
     val busy = device.actions.any { it.key == running }
     val valueShown = widget != null && (widget.value != null || widget.label != null) && WidgetPart.VALUE in shown
     val outdoor = widget?.readings?.firstOrNull { it.id == OUTDOOR && it.value != null && WidgetPart.reading(it.id) in shown }
