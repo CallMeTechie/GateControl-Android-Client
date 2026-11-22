@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GateControl TV is dark only (TV rooms, mockup "GateControl TV"): the window matches the Compose page color. -->
+    <style name="Theme.GateControlTv" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/gc_tv_window_bg</item>
+        <item name="android:colorBackground">@color/gc_tv_window_bg</item>
+    </style>
+
+    <color name="gc_tv_window_bg">#0D1015</color>
+</resources>

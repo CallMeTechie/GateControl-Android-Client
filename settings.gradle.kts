@@ -18,7 +18,10 @@ dependencyResolutionManagement {
 rootProject.name = "GateControl"
 
 include(":app")
+// GateControl TV (Fire TV, Android TV): own app, minSdk 28, 32-bit ARM. Shares core/* except core/rdp.
+include(":tv")
 include(":core:common")
+include(":core:designsystem")
 include(":core:data")
 include(":core:network")
 include(":core:notify")

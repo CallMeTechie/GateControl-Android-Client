@@ -230,7 +230,7 @@ class TerminalActivity : ComponentActivity() {
         val v = TerminalView(context, null)
         v.setTerminalViewClient(viewClient)
         v.setTextSize(fontPx(prefs.state.value.fontSp))
-        ResourcesCompat.getFont(context, R.font.jetbrains_mono_regular)?.let { v.setTypeface(it) }
+        ResourcesCompat.getFont(context, com.gatecontrol.android.core.designsystem.R.font.jetbrains_mono_regular)?.let { v.setTypeface(it) }
         v.isFocusable = true
         v.isFocusableInTouchMode = true
         sessions.terminal(sessionClient)?.let { v.attachSession(it) }

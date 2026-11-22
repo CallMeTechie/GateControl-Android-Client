@@ -140,6 +140,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:notify"))
     implementation(project(":core:tunnel"))
+    implementation(project(":core:designsystem"))
     implementation(project(":core:rdp"))
     implementation(project(":termux-terminal"))
 
