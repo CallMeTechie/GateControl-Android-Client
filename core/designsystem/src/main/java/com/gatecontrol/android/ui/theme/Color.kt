@@ -2,7 +2,7 @@ package com.gatecontrol.android.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Design tokens of the 2026 redesign (mockup "GateControl Android – Redesign").
+// Design tokens of the 2026 redesign, shared by the phone app and GateControl TV (mockup "GateControl Android – Redesign").
 // Names follow the mockup's CSS variables: bg, panel, panel2, line, line2,
 // text, muted, faint, acc (+ on/t/bg), warn, err, info, pro.
 

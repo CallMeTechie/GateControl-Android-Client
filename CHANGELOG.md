@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.136.0] - 2026-11-22
+
+### Features
+- GateControl TV (Stufe 0) – eigenes Modul :tv für Fire TV und Android TV (#267)
+
+---
+
 ## [1.135.0] - 2026-11-22
 
 ### Features

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_app_name">GateControl TV</string>
+    <string name="tv_brand">GateControl</string>
+
+    <!-- Navigation rail -->
+    <string name="tv_nav_start">Start</string>
+    <string name="tv_nav_cameras">Cameras</string>
+    <string name="tv_nav_drive">Drive</string>
+    <string name="tv_nav_gatedrop">GateDrop</string>
+    <string name="tv_nav_family">Family</string>
+    <string name="tv_nav_settings">Settings</string>
+
+    <!-- Start page: placeholder rows until pairing (stage 1) -->
+    <string name="tv_status_not_paired">Not paired yet</string>
+    <string name="tv_row_quick_actions">Quick actions</string>
+    <string name="tv_row_cameras">Cameras</string>
+    <string name="tv_row_drive">Recent in Drive</string>
+    <string name="tv_placeholder">Coming soon</string>
+    <string name="tv_page_soon">%1$s is coming in a later version.</string>
+</resources>

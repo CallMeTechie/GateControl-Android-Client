@@ -18,8 +18,8 @@ android {
         applicationId = "com.gatecontrol.client"
         minSdk = 31
         targetSdk = 36
-        versionCode = 23500
-        versionName = "1.135.0"
+        versionCode = 23600
+        versionName = "1.136.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -140,6 +140,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:notify"))
     implementation(project(":core:tunnel"))
+    implementation(project(":core:designsystem"))
     implementation(project(":core:rdp"))
     implementation(project(":termux-terminal"))
 
