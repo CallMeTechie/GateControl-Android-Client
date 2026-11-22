@@ -845,4 +845,25 @@
     <string name="info_card_move_up">Move %1$s up</string>
     <string name="info_card_move_down">Move %1$s down</string>
     <string name="profile_open_desc">Profile and settings</string>
+    <!-- Settings › Verbindung › "Pair a TV": GateControl TV through the server (server 1.318.0+) -->
+    <string name="tv_pair_title">Pair a TV</string>
+    <string name="tv_pair_row_desc">Set up GateControl TV with the code on the TV</string>
+    <string name="tv_pair_hint">Open GateControl on the TV. Type the code it shows here or scan its QR code. Works from anywhere: the phone only needs internet, not the same Wi-Fi.</string>
+    <string name="tv_pair_qr_read">QR code of the TV read. Now type the code shown next to it.</string>
+    <string name="tv_pair_code_label">Code on the TV</string>
+    <string name="tv_pair_code_hint">8 characters, e.g. K7Q4-MZAB</string>
+    <string name="tv_pair_button">Pair</string>
+    <string name="tv_pair_scan">Scan the QR code on the TV</string>
+    <string name="tv_pair_done">TV paired. It now sets up the VPN and its start page by itself.</string>
+    <string name="tv_pair_done_named">“%1$s” is paired. It now sets up the VPN and its start page by itself.</string>
+    <string name="tv_pair_footer">The TV is added to your devices with your account. You can remove it there at any time.</string>
+    <string name="tv_pair_err_code">Wrong or expired code. Compare it with the TV; after 10 minutes the TV shows a new one.</string>
+    <string name="tv_pair_err_locked">Too many wrong codes. Try again in %1$d min.</string>
+    <string name="tv_pair_err_not_allowed">Your account may not set up devices of its own. Ask your administrator.</string>
+    <string name="tv_pair_err_rate">Too many attempts. Wait a moment and try again.</string>
+    <string name="tv_pair_err_server_old">Your GateControl server cannot pair TVs yet (from version 1.318.0).</string>
+    <string name="tv_pair_err_other_server">This TV wants to connect to another server than this phone.</string>
+    <string name="tv_pair_err_not_tv">That is not the QR code of GateControl TV.</string>
+    <string name="tv_pair_err_not_set_up">Set up this phone with your server first.</string>
+    <string name="tv_pair_err_network">The server could not be reached. Check the connection and try again.</string>
 </resources>

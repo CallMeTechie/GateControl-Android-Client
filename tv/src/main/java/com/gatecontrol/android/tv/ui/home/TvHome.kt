@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -59,6 +58,8 @@ import androidx.tv.material3.SelectableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.gatecontrol.android.tv.R
+import com.gatecontrol.android.tv.ui.components.TvPill
+import com.gatecontrol.android.tv.ui.components.TvPillTone
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import com.gatecontrol.android.tv.ui.theme.TV_FOCUS_SCALE
 import java.util.Date
@@ -90,19 +91,31 @@ internal val StartRows = listOf(
 private val RailWidth = 56.dp
 private val ContentStart = 75.dp
 
-/** Start screen of GateControl TV: rail on the left, status bar on top, rows of cards. */
+/** The pill of the status bar: the VPN once paired ("VPN verbunden · gate.example.com"). */
+data class TvTopStatus(val text: String, val tone: TvPillTone)
+
+/**
+ * Start screen of GateControl TV: rail on the left, status bar on top, rows of cards. [status]: the pill of the status
+ * bar (null: "Noch nicht gekoppelt"); [settingsPage]: the page of the rail's Einstellungen (null: a placeholder).
+ */
 @Composable
-fun TvHome(modifier: Modifier = Modifier) {
+fun TvHome(
+    modifier: Modifier = Modifier,
+    status: TvTopStatus? = null,
+    settingsPage: (@Composable () -> Unit)? = null,
+) {
     var current by rememberSaveable { mutableStateOf(TvDestination.Start) }
     val colors = GateControlTvTheme.colors
     val startFocus = remember { FocusRequester() }
 
     Box(modifier.fillMaxSize().background(colors.bg)) {
         Column(Modifier.fillMaxSize().padding(start = ContentStart)) {
-            TopBar(Modifier.padding(top = 18.dp, end = 30.dp))
+            TopBar(status, Modifier.padding(top = 18.dp, end = 30.dp))
             Spacer(Modifier.height(20.dp))
             if (current == TvDestination.Start) {
                 StartPage()
+            } else if (current == TvDestination.Settings && settingsPage != null) {
+                settingsPage()
             } else {
                 Text(
                     text = stringResource(R.string.tv_page_soon, stringResource(current.label)),
@@ -178,7 +191,7 @@ private fun Rail(
 }
 
 @Composable
-private fun TopBar(modifier: Modifier = Modifier) {
+private fun TopBar(status: TvTopStatus?, modifier: Modifier = Modifier) {
     val colors = GateControlTvTheme.colors
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(
@@ -188,29 +201,15 @@ private fun TopBar(modifier: Modifier = Modifier) {
             Icon(TvIcons.Mark, contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(14.dp))
         }
         Text(stringResource(R.string.tv_brand), style = MaterialTheme.typography.titleMedium, color = colors.text)
-        // Stage 1: "VPN verbunden · Zuhause" and the device name once the TV is paired.
-        Pill(stringResource(R.string.tv_status_not_paired))
+        if (status != null) TvPill(status.text, status.tone) else TvPill(stringResource(R.string.tv_status_not_paired))
         Spacer(Modifier.weight(1f))
         Clock()
     }
 }
 
-@Composable
-private fun Pill(text: String) {
-    val colors = GateControlTvTheme.colors
-    Row(
-        Modifier.height(22.dp).background(colors.panel2, RoundedCornerShape(6.dp)).padding(horizontal = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box(Modifier.size(6.dp).background(colors.muted, CircleShape))
-        Text(text, style = MaterialTheme.typography.labelMedium, color = colors.muted)
-    }
-}
-
 /** Time of day in the system's 12/24-hour format, updated by the minute tick (no coroutine loop). */
 @Composable
-private fun Clock() {
+internal fun Clock() {
     val context = LocalContext.current
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     DisposableEffect(context) {

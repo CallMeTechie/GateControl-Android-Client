@@ -5,6 +5,7 @@ import com.gatecontrol.android.data.MachineFingerprint
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.AuthInterceptor
+import com.gatecontrol.android.network.ClientPlatform
 import com.gatecontrol.android.network.MachineBindingMonitor
 import dagger.Module
 import dagger.Provides
@@ -21,7 +22,9 @@ object NetworkModule {
     @Singleton
     fun provideAuthInterceptor(
         setupRepository: SetupRepository,
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        // Bound by each app: "android" (phone) or "android-tv" (GateControl TV).
+        clientPlatform: ClientPlatform,
     ): AuthInterceptor = AuthInterceptor(
         tokenProvider = { setupRepository.getApiToken() },
         serverUrlProvider = { setupRepository.getServerUrl() },
@@ -34,7 +37,7 @@ object NetworkModule {
                 "1.0.0"
             }
         },
-        platformProvider = { "android" },
+        platformProvider = { clientPlatform.wire },
     )
 
     @Provides

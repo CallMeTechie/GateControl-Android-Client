@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- App update: the downloaded and checked APK (cacheDir/update/update.apk), handed to Android's installer only. -->
+    <cache-path name="update" path="update/" />
+</paths>

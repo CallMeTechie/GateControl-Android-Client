@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 // GateControl TV: the app for Fire TV (Fire TV Stick 4K Max: Fire OS 7 = Android 9, a 32-bit system) and
@@ -121,13 +123,26 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 
     implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
+
+    // Hilt, as in :app: the core modules' bindings (setup, network, tunnel) plus the TV's own (TvModule)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    // The pairing and update calls of core/network (Retrofit answers, OkHttp errors)
+    implementation(libs.retrofit)
+    implementation(libs.okhttp)
+    implementation(libs.timber)
+    // The pairing QR code (pure Java, no native code)
+    implementation(libs.zxing.core)
 
     testImplementation(libs.junit5.api)
     testRuntimeOnly(libs.junit5.engine)
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.robolectric)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     testRuntimeOnly(libs.junit.vintage.engine)

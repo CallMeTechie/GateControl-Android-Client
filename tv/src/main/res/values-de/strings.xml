@@ -18,4 +18,94 @@
     <string name="tv_row_drive">Zuletzt in Drive</string>
     <string name="tv_placeholder">Folgt bald</string>
     <string name="tv_page_soon">%1$s kommt in einer späteren Version.</string>
+    <!-- Statusleiste nach der Kopplung -->
+    <string name="tv_status_vpn_on">VPN verbunden · %1$s</string>
+    <string name="tv_status_vpn_off">VPN aus · %1$s</string>
+
+    <!-- Kopplung mit dem Handy (über den Server, auch außerhalb des eigenen WLANs) -->
+    <string name="tv_pair_heading">Mit dem Handy koppeln</string>
+    <string name="tv_pair_lead">Dein Handy mit GateControl erledigt die Anmeldung. Am Fernseher musst du nichts eintippen.</string>
+    <string name="tv_pair_step1">GateControl auf dem Handy öffnen, Einstellungen › „TV koppeln“</string>
+    <string name="tv_pair_step2">Den QR-Code rechts scannen oder den Code daneben eingeben</string>
+    <string name="tv_pair_step3">Auf dem Handy „Koppeln“ tippen. Der TV holt die Einrichtung vom Server und richtet das VPN selbst ein</string>
+    <string name="tv_pair_without_phone">Ohne Handy einrichten</string>
+    <string name="tv_pair_change_server">Andere Serveradresse</string>
+    <string name="tv_pair_new_code">Neuen Code holen</string>
+    <string name="tv_pair_any_network">Das Handy braucht nur Internet, ein gemeinsames WLAN ist nicht nötig.</string>
+    <string name="tv_pair_qr_description">QR-Code zum Koppeln mit dem Handy</string>
+    <string name="tv_pair_code_label">Code fürs Handy</string>
+    <string name="tv_pair_valid_for">Gültig noch %1$d:%2$02d Min.</string>
+    <string name="tv_pair_waiting">Wartet auf Handy …</string>
+    <string name="tv_pair_fetching">Code wird geholt …</string>
+    <string name="tv_pair_enrolling">Wird eingerichtet …</string>
+    <string name="tv_pair_stopped">Kopplung beendet</string>
+    <string name="tv_pair_qr_note">Der QR-Code enthält nur die Serveradresse und eine einmalige Kopplungs-ID, kein Passwort.</string>
+    <string name="tv_pair_err_network">Der Server ist nicht erreichbar. Prüfe das Netz des Fernsehers und die Adresse.</string>
+    <string name="tv_pair_err_server_old">Dieser GateControl-Server kann noch keine Fernseher koppeln (ab Version 1.318.0). Nimm „Ohne Handy einrichten“.</string>
+    <string name="tv_pair_err_busy">Der Server ist gerade ausgelastet. Versuche es gleich noch einmal.</string>
+    <string name="tv_pair_err_not_allowed">Das Konto, das bestätigt hat, darf keine eigenen Geräte einrichten.</string>
+    <string name="tv_pair_err_user_disabled">Das Konto, das bestätigt hat, ist gesperrt.</string>
+    <string name="tv_pair_err_limit">Die Lizenz hat keinen Platz für ein weiteres Gerät.</string>
+    <string name="tv_pair_err_enroll">Die Einrichtung hat nicht geklappt. Hol einen neuen Code und versuche es noch einmal.</string>
+    <string name="tv_pair_err_setup_code">Der Einrichtungscode ist falsch, abgelaufen oder schon benutzt.</string>
+
+    <!-- Serveradresse, einmal eingeben -->
+    <string name="tv_server_heading">Serveradresse</string>
+    <string name="tv_server_lead">Nur einmal: die Adresse deines GateControl-Servers. Danach koppelst du den Fernseher mit dem Handy.</string>
+    <string name="tv_server_label">Serveradresse</string>
+    <string name="tv_server_invalid">Das ist keine Serveradresse, z. B. gc.example.com.</string>
+    <string name="tv_server_https_only">Nur https-Adressen sind erlaubt.</string>
+    <string name="tv_server_note">Es ist dieselbe Adresse wie in der Handy-App (Einstellungen › Server &amp; Registrierung). OK auf dem Feld öffnet die Tastatur.</string>
+    <string name="tv_next">Weiter</string>
+    <string name="tv_back">Zurück</string>
+
+    <!-- Ohne Handy einrichten -->
+    <string name="tv_manual_heading">Ohne Handy einrichten</string>
+    <string name="tv_manual_lead">Serveradresse und der 16-stellige Einrichtungscode aus dem Portal (Meine Geräte › Gerät einrichten).</string>
+    <string name="tv_manual_code_label">Einrichtungscode</string>
+    <string name="tv_manual_submit">Einrichten</string>
+    <string name="tv_manual_note">Der Einrichtungscode gilt 10 Minuten und nur einmal.</string>
+
+    <!-- Einstellungen -->
+    <string name="tv_set_connection">Verbindung</string>
+    <string name="tv_set_updates">Updates</string>
+    <string name="tv_set_device">Gerät &amp; Konto</string>
+    <string name="tv_vpn_connected">Verbunden</string>
+    <string name="tv_vpn_connecting">VPN verbindet …</string>
+    <string name="tv_vpn_disconnected">Nicht verbunden</string>
+    <string name="tv_vpn_error">Verbindung fehlgeschlagen</string>
+    <string name="tv_vpn_tunnel_to">Tunnel zu %1$s</string>
+    <string name="tv_since_minutes">seit %1$d Min.</string>
+    <string name="tv_since_hours">seit %1$d Std.</string>
+    <string name="tv_vpn">VPN</string>
+    <string name="tv_vpn_desc">Ins Heimnetz. Andere Apps auf dem TV (z. B. ein Mediaplayer) erreichen darüber die NAS.</string>
+    <string name="tv_vpn_consent_denied">Ohne die VPN-Erlaubnis des Systems gibt es keinen Tunnel. Schalte es wieder ein, dann wird noch einmal gefragt.</string>
+    <string name="tv_autostart">Nach dem Einschalten verbinden</string>
+    <string name="tv_autostart_desc">Das VPN startet nach einem Neustart des Sticks von selbst</string>
+    <string name="tv_open_on_boot">GateControl beim Start öffnen</string>
+    <string name="tv_open_on_boot_desc">Statt der Fire-TV-Startseite</string>
+    <string name="tv_always_on">Immer-an-VPN</string>
+    <string name="tv_adb_once">Einmal per ADB</string>
+    <string name="tv_always_on_desc">Fire OS hat dafür keine Einstellung. Anleitung anzeigen</string>
+    <string name="tv_always_on_howto">Von einem Rechner im selben Netz, ADB-Debugging am TV an: %1$s</string>
+    <string name="tv_update_installed">Installiert: %1$s</string>
+    <string name="tv_update_checking">Suche nach Updates …</string>
+    <string name="tv_update_up_to_date">GateControl TV ist aktuell.</string>
+    <string name="tv_update_check_failed">Die Update-Prüfung hat nicht geklappt.</string>
+    <string name="tv_update_available">Version %1$s ist verfügbar.</string>
+    <string name="tv_update_check">Nach Updates suchen</string>
+    <string name="tv_update_install">Laden und installieren</string>
+    <string name="tv_update_from_home">aus dem Heimnetz</string>
+    <string name="tv_update_from_server">vom Server</string>
+    <string name="tv_update_loading_pct">Lädt %1$d %% %2$s …</string>
+    <string name="tv_update_loading">Lädt %1$s …</string>
+    <string name="tv_update_verifying">Update wird geprüft …</string>
+    <string name="tv_update_ready">Geprüft. Die Installation des Systems öffnet sich.</string>
+    <string name="tv_update_permission">Einmal erlauben: Fire-TV-Einstellungen › Mein Fire TV › Entwickleroptionen › Unbekannte Apps installieren › GateControl TV. Danach startet die Installation.</string>
+    <string name="tv_update_failed">Das Update hat nicht geklappt (%1$s).</string>
+    <string name="tv_device_server">Server</string>
+    <string name="tv_device_name">Dieser Fernseher</string>
+    <string name="tv_unpair">Kopplung aufheben</string>
+    <string name="tv_unpair_desc">VPN aus, Anmeldung von diesem Fernseher entfernt</string>
+    <string name="tv_unpair_confirm">Zum Aufheben noch einmal OK drücken. Entferne das Gerät auch im Portal.</string>
 </resources>

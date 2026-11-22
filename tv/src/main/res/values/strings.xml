@@ -18,4 +18,94 @@
     <string name="tv_row_drive">Recent in Drive</string>
     <string name="tv_placeholder">Coming soon</string>
     <string name="tv_page_soon">%1$s is coming in a later version.</string>
+    <!-- Status bar once paired -->
+    <string name="tv_status_vpn_on">VPN connected · %1$s</string>
+    <string name="tv_status_vpn_off">VPN off · %1$s</string>
+
+    <!-- Pairing with the phone (through the server, also outside the own Wi-Fi) -->
+    <string name="tv_pair_heading">Pair with your phone</string>
+    <string name="tv_pair_lead">Your phone with GateControl does the sign-in. Nothing to type on the TV.</string>
+    <string name="tv_pair_step1">Open GateControl on the phone: Settings › “Pair a TV”</string>
+    <string name="tv_pair_step2">Scan the QR code on the right or type the code next to it</string>
+    <string name="tv_pair_step3">Tap “Pair” on the phone. The TV then fetches its setup from the server and sets up the VPN by itself</string>
+    <string name="tv_pair_without_phone">Set up without phone</string>
+    <string name="tv_pair_change_server">Other server address</string>
+    <string name="tv_pair_new_code">Get a new code</string>
+    <string name="tv_pair_any_network">The phone only needs internet, the same Wi-Fi is not needed.</string>
+    <string name="tv_pair_qr_description">QR code for pairing with the phone</string>
+    <string name="tv_pair_code_label">Code for the phone</string>
+    <string name="tv_pair_valid_for">Valid for %1$d:%2$02d min</string>
+    <string name="tv_pair_waiting">Waiting for phone …</string>
+    <string name="tv_pair_fetching">Getting a code …</string>
+    <string name="tv_pair_enrolling">Setting up …</string>
+    <string name="tv_pair_stopped">Pairing stopped</string>
+    <string name="tv_pair_qr_note">The QR code only holds the server address and a one-time pairing ID, no password.</string>
+    <string name="tv_pair_err_network">The server could not be reached. Check the network of the TV and the address.</string>
+    <string name="tv_pair_err_server_old">This GateControl server cannot pair TVs yet (from version 1.318.0). Use “Set up without phone”.</string>
+    <string name="tv_pair_err_busy">The server is busy right now. Try again in a moment.</string>
+    <string name="tv_pair_err_not_allowed">The account that approved may not set up devices of its own.</string>
+    <string name="tv_pair_err_user_disabled">The account that approved is disabled.</string>
+    <string name="tv_pair_err_limit">The license has no room for another device.</string>
+    <string name="tv_pair_err_enroll">The setup did not work. Get a new code and try again.</string>
+    <string name="tv_pair_err_setup_code">The setup code is wrong, expired or already used.</string>
+
+    <!-- Server address, typed once -->
+    <string name="tv_server_heading">Server address</string>
+    <string name="tv_server_lead">Once only: the address of your GateControl server. Then you pair the TV with your phone.</string>
+    <string name="tv_server_label">Server address</string>
+    <string name="tv_server_invalid">That is not a server address, e.g. gc.example.com.</string>
+    <string name="tv_server_https_only">Only https addresses are allowed.</string>
+    <string name="tv_server_note">The address is the one your phone app uses (Settings › Server &amp; registration). Press OK on the field to open the keyboard.</string>
+    <string name="tv_next">Next</string>
+    <string name="tv_back">Back</string>
+
+    <!-- Set up without phone -->
+    <string name="tv_manual_heading">Set up without phone</string>
+    <string name="tv_manual_lead">Server address and the 16-character setup code from the portal (My devices › Set up device).</string>
+    <string name="tv_manual_code_label">Setup code</string>
+    <string name="tv_manual_submit">Set up</string>
+    <string name="tv_manual_note">The setup code is valid for 10 minutes and only once.</string>
+
+    <!-- Settings -->
+    <string name="tv_set_connection">Connection</string>
+    <string name="tv_set_updates">Updates</string>
+    <string name="tv_set_device">Device &amp; account</string>
+    <string name="tv_vpn_connected">Connected</string>
+    <string name="tv_vpn_connecting">VPN connecting …</string>
+    <string name="tv_vpn_disconnected">Not connected</string>
+    <string name="tv_vpn_error">Connection failed</string>
+    <string name="tv_vpn_tunnel_to">Tunnel to %1$s</string>
+    <string name="tv_since_minutes">for %1$d min</string>
+    <string name="tv_since_hours">for %1$d h</string>
+    <string name="tv_vpn">VPN</string>
+    <string name="tv_vpn_desc">Into the home network. Other apps on the TV (e.g. a media player) reach the NAS through it.</string>
+    <string name="tv_vpn_consent_denied">Without the VPN permission of the system there is no tunnel. Switch it on again to be asked once more.</string>
+    <string name="tv_autostart">Connect after switching on</string>
+    <string name="tv_autostart_desc">The VPN starts by itself after a restart of the stick</string>
+    <string name="tv_open_on_boot">Open GateControl on start</string>
+    <string name="tv_open_on_boot_desc">Instead of the Fire TV home screen</string>
+    <string name="tv_always_on">Always-on VPN</string>
+    <string name="tv_adb_once">Once via ADB</string>
+    <string name="tv_always_on_desc">Fire OS has no setting for it. Show instructions</string>
+    <string name="tv_always_on_howto">From a computer in the same network, with ADB debugging on: %1$s</string>
+    <string name="tv_update_installed">Installed: %1$s</string>
+    <string name="tv_update_checking">Checking for updates …</string>
+    <string name="tv_update_up_to_date">GateControl TV is up to date.</string>
+    <string name="tv_update_check_failed">The update check did not work.</string>
+    <string name="tv_update_available">Version %1$s is available.</string>
+    <string name="tv_update_check">Check for updates</string>
+    <string name="tv_update_install">Download and install</string>
+    <string name="tv_update_from_home">from the home network</string>
+    <string name="tv_update_from_server">from the server</string>
+    <string name="tv_update_loading_pct">Loading %1$d %% %2$s …</string>
+    <string name="tv_update_loading">Loading %1$s …</string>
+    <string name="tv_update_verifying">Checking the update …</string>
+    <string name="tv_update_ready">Checked. The system installer opens.</string>
+    <string name="tv_update_permission">Allow it once: Fire TV settings › My Fire TV › Developer options › Install unknown apps › GateControl TV. Then the installation starts.</string>
+    <string name="tv_update_failed">The update did not work (%1$s).</string>
+    <string name="tv_device_server">Server</string>
+    <string name="tv_device_name">This TV</string>
+    <string name="tv_unpair">Unpair</string>
+    <string name="tv_unpair_desc">VPN off, sign-in removed from this TV</string>
+    <string name="tv_unpair_confirm">Press OK again to unpair. Remove the device in the portal as well.</string>
 </resources>

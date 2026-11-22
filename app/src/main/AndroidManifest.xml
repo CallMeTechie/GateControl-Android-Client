@@ -121,6 +121,10 @@
                 <data
                     android:scheme="gatecontrol"
                     android:host="enroll" />
+                <!-- QR code of GateControl TV: "TV koppeln" with its pairing id (the code is typed on the phone). -->
+                <data
+                    android:scheme="gatecontrol"
+                    android:host="tv-pair" />
             </intent-filter>
             <!-- Chats: share target of the sharing shortcuts (one per recent
                  conversation, published at runtime by ChatShortcuts). -->

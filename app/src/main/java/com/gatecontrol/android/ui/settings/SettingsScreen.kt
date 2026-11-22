@@ -90,6 +90,8 @@ fun SettingsScreen(
     onOpenPrinting: (() -> Unit)? = null,
     /** "Leiste und Seiten" (functions as tabs or as pages beside Start). */
     onNavigateToPages: (() -> Unit)? = null,
+    /** "TV koppeln" (GateControl TV through the server); null hides the row. */
+    onNavigateToTvPair: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
     selectedPane: SettingsPane? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -235,6 +237,15 @@ fun SettingsScreen(
                 trailing = { GcChevron() },
                 selected = selectedPane == SettingsPane.TrustedNetworks,
             )
+            if (onNavigateToTvPair != null) {
+                GcListRow(
+                    title = stringResource(R.string.tv_pair_title),
+                    description = stringResource(R.string.tv_pair_row_desc),
+                    onClick = onNavigateToTvPair,
+                    leading = { Icon(GcIcons.Tv, contentDescription = null, tint = extra.muted, modifier = Modifier.size(22.dp)) },
+                    trailing = { GcChevron() },
+                )
+            }
         }
 
         // --- Standortfreigabe (location on tap) ------------------------------
