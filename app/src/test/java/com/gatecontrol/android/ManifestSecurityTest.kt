@@ -250,7 +250,11 @@ class ManifestSecurityTest {
         assertFalse(xml.contains("drive-vault"), "no vault folder of the cache is shareable")
         val viewer = moduleFile("src/main/java/com/gatecontrol/android/ui/drive/DriveVaultViewer.kt").readText()
         assertTrue(viewer.contains("SecureScreenEffect()"), "the viewer keeps screenshots out")
-        assertTrue(viewer.contains("setSecure(true)"), "the video surface too")
+        assertTrue(viewer.contains("SecureFlagPolicy.SecureOn"), "the viewer's own window (a dialog) is secure by itself")
+        // the video plays in Drive's player (DriveVideoSurface), asked for a secure surface
+        assertTrue(viewer.contains("secure = true"), "the video surface too")
+        val player = moduleFile("src/main/java/com/gatecontrol/android/ui/drive/DriveMediaViewer.kt").readText()
+        assertTrue(player.contains("if (secure) (videoSurfaceView as? SurfaceView)?.setSecure(true)"), "the player makes its surface secure when asked")
         val screen = moduleFile("src/main/java/com/gatecontrol/android/ui/drive/DriveVaultScreen.kt").readText()
         assertFalse(screen.contains("openFile("), "a vault file is never handed to openFile (a cache file for another app)")
     }

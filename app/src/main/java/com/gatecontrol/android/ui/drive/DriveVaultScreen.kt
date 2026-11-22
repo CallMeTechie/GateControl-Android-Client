@@ -50,6 +50,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -205,6 +207,8 @@ class DriveVaultViewModel @Inject constructor(
     private var viewerJob: Job? = null
     /** What the open viewer holds (bitmaps, a PDF, a video's ciphertext): released on close and on lock. */
     private var held = DriveVaultHeld()
+    /** The player of the video shown: here, not in the screen — a fold, an unfold or a turn of the phone does not stop it. */
+    private val videoPlayers = VaultKeptPlayer<ExoPlayer> { it.release() }
 
     /** The requests sheet (null: closed). */
     private val _requests = MutableStateFlow<DriveLoad<List<DVaultDevice>>?>(null)
@@ -728,6 +732,10 @@ class DriveVaultViewModel @Inject constructor(
         }
     }
 
+    /** The player of [video] (the one already playing it, else a new one); null once the viewer closed. Main thread. */
+    internal fun videoPlayer(video: VaultViewer.Video): Player? =
+        if (_viewer.value !== video) null else videoPlayers.get(video.cipher, held) { vaultVideoPlayer(context, video.cipher) }
+
     /** Closes the viewer: what it held is released (bitmaps recycled, the PDF's memory emptied, the ciphertext deleted). */
     fun closeViewer() {
         viewerJob?.cancel()
@@ -1050,6 +1058,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 onUse = viewModel::touch,
                 onLock = viewModel::lockNow,
                 onOpenWith = { openWith(v.node, v.name) },
+                videoPlayer = viewModel::videoPlayer,
             )
         }
     }

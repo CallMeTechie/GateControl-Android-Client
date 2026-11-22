@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.graphics.ImageDecoder
+import android.view.SurfaceView
 import android.view.ViewGroup
 import android.view.Window
 import androidx.annotation.OptIn
@@ -269,17 +270,33 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+/** What the full screen of a viewer asks of the activity's orientation ([ViewerFullscreen]). */
+internal object ViewerOrientation {
+    /** The orientation to go back to: a landscape the viewer forced itself (before the activity was made anew) is none. */
+    fun before(current: Int): Int =
+        if (current == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED else current
+
+    /**
+     * Whether to go back to it as the full screen ends ([forced]: it had turned to landscape): not while the activity is
+     * made anew ([recreating]: a fold or unfold, a turn) under a viewer that comes back with it ([survivesRecreation]) —
+     * that one forces landscape again at once, going back in between would turn the screen to and fro.
+     */
+    fun restore(forced: Boolean, recreating: Boolean, survivesRecreation: Boolean): Boolean =
+        forced && !(recreating && survivesRecreation)
+}
+
 /**
  * Full screen of the viewer: the system bars hidden (swipe from the edge shows them for a moment) and, for a video wider
- * than high, landscape — back as it was when [on] goes or the viewer closes.
+ * than high, landscape — back as it was when [on] goes or the viewer closes. [survivesRecreation]: the viewer is shown
+ * again after the activity was made anew (its state outside the composition), landscape is kept over that.
  */
 @Composable
-internal fun ViewerFullscreen(on: Boolean, landscape: Boolean) {
+internal fun ViewerFullscreen(on: Boolean, landscape: Boolean, survivesRecreation: Boolean = false) {
     val view = LocalView.current
     val window: Window? = (view.parent as? DialogWindowProvider)?.window
     val activity = LocalContext.current.findActivity()
     DisposableEffect(on, landscape, window) {
-        val before = activity?.requestedOrientation
+        val before = activity?.requestedOrientation?.let(ViewerOrientation::before)
         val controller = window?.let { WindowCompat.getInsetsController(it, view) }
         if (on) {
             controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -288,9 +305,46 @@ internal fun ViewerFullscreen(on: Boolean, landscape: Boolean) {
         }
         onDispose {
             controller?.show(WindowInsetsCompat.Type.systemBars())
-            if (on && landscape && before != null) activity.requestedOrientation = before
+            val recreating = activity?.isChangingConfigurations == true
+            if (before != null && ViewerOrientation.restore(on && landscape, recreating, survivesRecreation)) activity?.requestedOrientation = before
         }
     }
+}
+
+/**
+ * The player's picture and controls (play / pause, seek, sound, the full screen button: [fullscreen] / [onFullscreen]),
+ * the video fitted into the whole of [modifier] — one for every video of Drive: streamed ([DriveVideoPage]) and of a
+ * vault (DriveVaultViewer.kt). [secure]: the video's surface is a window of its own and kept out of screenshots as
+ * well (FLAG_SECURE of the screen does not reach it).
+ */
+@OptIn(UnstableApi::class)
+@Composable
+internal fun DriveVideoSurface(
+    player: Player,
+    fullscreen: Boolean,
+    onFullscreen: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    secure: Boolean = false,
+) {
+    AndroidView(
+        factory = { ctx ->
+            PlayerView(ctx).apply {
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                // before the surface is attached to the window: secure from its first frame
+                if (secure) (videoSurfaceView as? SurfaceView)?.setSecure(true)
+                useController = true
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+            }
+        },
+        update = { v ->
+            v.player = player
+            v.setFullscreenButtonState(fullscreen)
+            v.setFullscreenButtonClickListener { onFullscreen(it) }
+        },
+        onRelease = { it.player = null },
+        modifier = modifier,
+    )
 }
 
 private sealed interface VideoState {
@@ -385,23 +439,7 @@ internal fun DriveVideoPage(
         if (node.blocked) { HeldBack(node); return@Box }
         val s = state
         if (player != null && s != VideoState.CannotPlay) {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                        useController = true
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    }
-                },
-                update = { v ->
-                    v.player = player
-                    v.setFullscreenButtonState(fullscreen)
-                    v.setFullscreenButtonClickListener { onFullscreen(it) }
-                },
-                onRelease = { it.player = null },
-                modifier = Modifier.fillMaxSize(),
-            )
+            DriveVideoSurface(player, fullscreen, onFullscreen, Modifier.fillMaxSize())
         } else if (s != VideoState.CannotPlay && s !is VideoState.Refused && s != VideoState.Network) {
             // the preview until it plays
             val poster = rememberDrivePreview(node, large = true) ?: rememberDrivePreview(node)
