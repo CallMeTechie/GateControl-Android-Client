@@ -136,7 +136,8 @@ sealed interface QuickActionsLoad {
 
 /**
  * Result of running an action. [reason]: why it failed when the server
- * sent no text of its own ([GONE], [NO_USER], [BUSY], [TIMEOUT]; null
+ * sent no text of its own ([GONE], [NO_USER], [BUSY], [TIMEOUT],
+ * [CONTROL_DISABLED]; null
  * otherwise), so the app can say more than „fehlgeschlagen“.
  */
 data class QuickActionResult(val ok: Boolean, val message: String?, val reason: String? = null) {
@@ -149,9 +150,16 @@ data class QuickActionResult(val ok: Boolean, val message: String?, val reason: 
         const val BUSY = "busy"
         /** No answer in time (the app's own wait, or 504 from the server). */
         const val TIMEOUT = "timeout"
+        /** 409 `control_disabled` (GateControl 1.318+): the widget lists the control as disabled right now. */
+        const val CONTROL_DISABLED = "control_disabled"
 
         /** The reason for an HTTP status without a message of the plugin, null for any other. */
-        fun reasonOf(code: Int): String? = when (code) {
+        fun reasonOf(code: Int, error: String? = null): String? = when {
+            code == 409 && error == CONTROL_DISABLED -> CONTROL_DISABLED
+            else -> reasonOfCode(code)
+        }
+
+        private fun reasonOfCode(code: Int): String? = when (code) {
             404 -> GONE
             403 -> NO_USER
             429 -> BUSY
@@ -367,6 +375,8 @@ class QuickActionRepository @Inject constructor(
     suspend fun control(item: QuickActionItem, controlId: String, value: Any): QuickActionResult {
         val outcome = call(item.plugin, item.id, QuickActionRunRequest.SOURCE_APP, controlId, value)
         if (outcome.result.ok) update(item.key, outcome.state?.takeIf { item.toggle }, outcome.widget)
+        // The control was disabled meanwhile (window open, thermostat gone): fetch the widget that says so.
+        else if (outcome.result.reason == QuickActionResult.CONTROL_DISABLED) refreshAsync()
         return outcome.result
     }
 
@@ -402,13 +412,13 @@ class QuickActionRepository @Inject constructor(
             if (!response.isSuccessful || body?.ok != true) {
                 Timber.w("Quick action %s/%s failed: HTTP %d", plugin, id, response.code())
                 // The plugin's reason ("außerhalb des Zeitfensters") when it sent one.
-                val errorMessage = body?.message ?: runCatching {
+                val errorBody = body ?: runCatching {
                     response.errorBody()?.use { b -> b.string().takeIf { it.length < 16_384 } }
-                        ?.let { gson.fromJson(it, QuickActionRunResponse::class.java) }?.message
+                        ?.let { gson.fromJson(it, QuickActionRunResponse::class.java) }
                 }.getOrNull()
-                val text = errorMessage?.let(::clean)?.take(200)?.takeIf { it.isNotBlank() }
+                val text = errorBody?.message?.let(::clean)?.take(200)?.takeIf { it.isNotBlank() }
                 // A 200 with ok false (a chain whose „Nur wenn“ does not hold) carries the plugin's own text.
-                val reason = if (text == null && !response.isSuccessful) QuickActionResult.reasonOf(response.code()) else null
+                val reason = if (text == null && !response.isSuccessful) QuickActionResult.reasonOf(response.code(), errorBody?.error) else null
                 return Outcome(QuickActionResult(false, text, reason))
             }
             Outcome(

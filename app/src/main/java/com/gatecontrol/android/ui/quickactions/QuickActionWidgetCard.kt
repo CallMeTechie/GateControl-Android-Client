@@ -1,6 +1,7 @@
 package com.gatecontrol.android.ui.quickactions
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -35,12 +36,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +64,8 @@ import com.gatecontrol.android.quickactions.QuickActionIcons
 import com.gatecontrol.android.quickactions.QuickActionItem
 import com.gatecontrol.android.quickactions.QuickActionReadingItem
 import com.gatecontrol.android.quickactions.QuickActionScreens
+import com.gatecontrol.android.quickactions.QuickActionTimelineItem
+import com.gatecontrol.android.quickactions.QuickActionTimelineSegment
 import com.gatecontrol.android.quickactions.QuickActionWidgetItem
 import com.gatecontrol.android.quickactions.WidgetPart
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -63,6 +75,7 @@ import com.gatecontrol.android.ui.components.GcSwitch
 import com.gatecontrol.android.ui.start.StartIcons
 import com.gatecontrol.android.ui.start.longPressAnywhere
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.theme.MonoFontFamily
 import kotlin.math.roundToInt
 
 /**
@@ -70,8 +83,10 @@ import kotlin.math.roundToInt
  * switch in the head; then, as the person chose them ([parts]), the main
  * value (a temperature with the house symbol, the outdoor reading beside it
  * with sun and cloud), the small readings (an icon alone shows a state,
- * e.g. a green lock), the status line, the plugin's controls (stepper,
- * slider, choice) and the device's other actions as icon buttons. A control
+ * e.g. a green lock), the status line, the day bar (a heating plan with a
+ * mark for now), the plugin's controls (stepper, slider, choice — greyed
+ * out while the plugin lists them disabled) and the device's other actions
+ * as icon buttons. A control
  * change goes to [onControl] for the action carrying the widget (the view
  * model sends it debounced); an action button calls [onRun] (which asks
  * first where the action wants that). [running] is the key of the action
@@ -169,14 +184,19 @@ fun QuickActionWidgetCard(
             if (widget?.status != null && WidgetPart.STATUS in shown) {
                 Text(widget.status, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
+            if (widget?.timeline != null && WidgetPart.TIMELINE in shown) {
+                TimelineBar(widget.timeline)
+            }
             if (carrier != null && widget != null) {
                 widget.controls.filter { WidgetPart.control(it.id) in shown }.forEach { control ->
                     val busyControl = "${carrier.key}/${control.id}" in adjusting
-                    val send: (Any) -> Unit = { if (interactive) onControl(carrier, control.id, it) }
+                    val send: (Any) -> Unit = { if (interactive && !control.disabled) onControl(carrier, control.id, it) }
+                    // Disabled (GateControl 1.318+): still there, so the card keeps its height, but greyed out.
+                    val look = Modifier.testTag(controlTag(control.id)).then(if (control.disabled) Modifier.alpha(DISABLED_ALPHA) else Modifier)
                     when (control.kind) {
-                        QuickActionControlItem.KIND_STEPPER -> StepperControl(control, busyControl, onChange = send)
-                        QuickActionControlItem.KIND_SLIDER -> SliderControl(control, busyControl, onChange = send)
-                        QuickActionControlItem.KIND_CHOICE -> ChoiceControl(control, onChange = send)
+                        QuickActionControlItem.KIND_STEPPER -> StepperControl(control, busyControl, onChange = send, modifier = look)
+                        QuickActionControlItem.KIND_SLIDER -> SliderControl(control, busyControl, onChange = send, modifier = look)
+                        QuickActionControlItem.KIND_CHOICE -> ChoiceControl(control, onChange = send, modifier = look)
                     }
                 }
             }
@@ -212,6 +232,21 @@ fun QuickActionWidgetCard(
         }
     }
 }
+
+/** How strongly a disabled control is faded. */
+private const val DISABLED_ALPHA = 0.45f
+
+/** Test tag of a control's row. */
+internal fun controlTag(id: String) = "widget-control:$id"
+
+/** Test tag of the day bar. */
+internal const val TIMELINE_TAG = "widget-timeline"
+
+/**
+ * Options of a choice per row: up to 5 in one row, more as two even rows
+ * (6 → 3 + 3, 7 → 4 + 3, 8 → 4 + 4).
+ */
+internal fun choicePerRow(count: Int): Int = if (count <= 5) count.coerceAtLeast(1) else (count + 1) / 2
 
 /** Reading id of the outdoor temperature (shown beside the main value with sun and cloud). */
 internal const val OUTDOOR = "outdoor"
@@ -490,9 +525,75 @@ internal fun stateColors(state: String?): Pair<Color, Color> {
     }
 }
 
+/**
+ * The widget's timeline (GateControl 1.318+), e.g. today's heating plan: a
+ * thin bar, each segment in its colour (else its tone's), a mark at [now],
+ * the axis below (0 6 12 18 24). Display only; screen readers hear the
+ * segments and the time in one sentence.
+ */
+@Composable
+private fun TimelineBar(timeline: QuickActionTimelineItem) {
+    val extra = GateControlTheme.extraColors
+    val nowMark = MaterialTheme.colorScheme.onSurface
+    val spoken = timeline.spokenSegments().joinToString(", ")
+    val nowText = timeline.now?.let { stringResource(R.string.widget_timeline_now, timeline.positionText(it)) }
+    val description = listOfNotNull(stringResource(R.string.widget_timeline_description, spoken), nowText).joinToString("; ")
+    val colors = timeline.segments.map { segmentColor(it) }
+    Column(
+        Modifier.fillMaxWidth().testTag(TIMELINE_TAG).semantics(mergeDescendants = true) { contentDescription = description },
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Canvas(Modifier.fillMaxWidth().height(12.dp)) {
+            val barTop = 2.dp.toPx()
+            val barHeight = 8.dp.toPx()
+            val radius = CornerRadius(4.dp.toPx())
+            val path = Path().apply {
+                addRoundRect(RoundRect(0f, barTop, size.width, barTop + barHeight, radius))
+            }
+            clipPath(path) {
+                drawRect(extra.panel2, topLeft = Offset(0f, barTop), size = Size(size.width, barHeight))
+                timeline.segments.forEachIndexed { i, seg ->
+                    val x0 = timeline.fraction(seg.from) * size.width
+                    val x1 = timeline.fraction(seg.to) * size.width
+                    drawRect(colors[i], topLeft = Offset(x0, barTop), size = Size(x1 - x0, barHeight))
+                }
+            }
+            timeline.now?.let { now ->
+                val w = 2.dp.toPx()
+                val x = (timeline.fraction(now) * size.width - w / 2).coerceIn(0f, size.width - w)
+                drawRoundRect(nowMark, topLeft = Offset(x, 0f), size = Size(w, size.height), cornerRadius = CornerRadius(w / 2))
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            timeline.ticks().forEach { tick ->
+                Text(
+                    tick,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = MonoFontFamily, fontWeight = FontWeight.Medium),
+                    color = extra.faint,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+/** A segment's colour: its own (`#rrggbb`), else its tone's, else a quiet line colour. */
+@Composable
+private fun segmentColor(segment: QuickActionTimelineSegment): Color {
+    val extra = GateControlTheme.extraColors
+    segment.argb?.let { return Color(it) }
+    return when (segment.tone) {
+        "good" -> extra.accentText
+        "warn" -> extra.warn
+        "crit" -> MaterialTheme.colorScheme.error
+        "neutral" -> extra.muted
+        else -> extra.border2
+    }
+}
+
 /** − value + ; the value is kept locally until the server's answer replaces it. */
 @Composable
-private fun StepperControl(control: QuickActionControlItem, busy: Boolean, onChange: (Double) -> Unit) {
+private fun StepperControl(control: QuickActionControlItem, busy: Boolean, onChange: (Double) -> Unit, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
     var local by remember(control.number) { mutableStateOf(control.number) }
     val label = control.label ?: ""
@@ -500,7 +601,7 @@ private fun StepperControl(control: QuickActionControlItem, busy: Boolean, onCha
         local = snap(v, control)
         onChange(local)
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         if (control.label != null) {
             Text(control.label, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, modifier = Modifier.weight(1f))
         } else {
@@ -510,7 +611,7 @@ private fun StepperControl(control: QuickActionControlItem, busy: Boolean, onCha
             icon = GcIcons.Minus,
             contentDescription = stringResource(R.string.widget_decrease, label),
             onClick = { set(local - control.step) },
-            enabled = local > control.min,
+            enabled = !control.disabled && local > control.min,
             size = 32.dp,
             iconSize = 18.dp,
         )
@@ -525,7 +626,7 @@ private fun StepperControl(control: QuickActionControlItem, busy: Boolean, onCha
             icon = GcIcons.Plus,
             contentDescription = stringResource(R.string.widget_increase, label),
             onClick = { set(local + control.step) },
-            enabled = local < control.max,
+            enabled = !control.disabled && local < control.max,
             size = 32.dp,
             iconSize = 18.dp,
         )
@@ -534,10 +635,10 @@ private fun StepperControl(control: QuickActionControlItem, busy: Boolean, onCha
 
 /** Label and value above a slider; sent when the finger lifts. */
 @Composable
-private fun SliderControl(control: QuickActionControlItem, busy: Boolean, onChange: (Double) -> Unit) {
+private fun SliderControl(control: QuickActionControlItem, busy: Boolean, onChange: (Double) -> Unit, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
     var local by remember(control.number) { mutableStateOf(control.number) }
-    Column {
+    Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(control.label ?: "", style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, modifier = Modifier.weight(1f))
             Text(
@@ -553,6 +654,7 @@ private fun SliderControl(control: QuickActionControlItem, busy: Boolean, onChan
             value = local.toFloat(),
             onValueChange = { local = snap(it.toDouble(), control) },
             onValueChangeFinished = { onChange(local) },
+            enabled = !control.disabled,
             valueRange = control.min.toFloat()..control.max.toFloat(),
             steps = steps,
             colors = SliderDefaults.colors(
@@ -561,6 +663,12 @@ private fun SliderControl(control: QuickActionControlItem, busy: Boolean, onChan
                 inactiveTrackColor = extra.border2,
                 activeTickColor = MaterialTheme.colorScheme.primary,
                 inactiveTickColor = extra.border2,
+                // Faded by the row's alpha already; keep the colours so it reads as the same slider.
+                disabledThumbColor = MaterialTheme.colorScheme.primary,
+                disabledActiveTrackColor = MaterialTheme.colorScheme.primary,
+                disabledInactiveTrackColor = extra.border2,
+                disabledActiveTickColor = MaterialTheme.colorScheme.primary,
+                disabledInactiveTickColor = extra.border2,
             ),
             modifier = Modifier.fillMaxWidth().height(28.dp),
         )
@@ -569,36 +677,53 @@ private fun SliderControl(control: QuickActionControlItem, busy: Boolean, onChan
 
 /**
  * The options as icon buttons sharing the widget's width, the chosen one
- * filled; an option without an icon (unknown mode) shows its label instead.
+ * filled (none while the plugin lists no option as active, e.g. a
+ * thermostat in boost); an option without an icon (unknown mode) shows its
+ * label instead. More than 5 options take two even rows ([choicePerRow]).
  */
 @Composable
-private fun ChoiceControl(control: QuickActionControlItem, onChange: (String) -> Unit) {
+private fun ChoiceControl(control: QuickActionControlItem, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
     val extra = GateControlTheme.extraColors
     var local by remember(control.choice) { mutableStateOf(control.choice) }
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        control.options.forEach { option ->
-            val selected = option.id == local
-            val icon = remember(option.glyph) { QuickActionIcons.vectorOrNull(option.glyph) }
-            val tint = if (selected) extra.accentText else extra.muted
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) extra.accentBg else extra.panel2)
-                    .selectable(selected = selected, role = Role.RadioButton, onClick = { local = option.id; onChange(option.id) })
-                    .semantics { contentDescription = option.label },
-                contentAlignment = Alignment.Center,
+    val perRow = choicePerRow(control.options.size)
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        control.options.chunked(perRow).forEach { row ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (icon != null) {
-                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-                } else {
-                    Text(option.label, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                row.forEach { option ->
+                    val selected = option.id == local
+                    val icon = remember(option.glyph) { QuickActionIcons.vectorOrNull(option.glyph) }
+                    val tint = if (selected) extra.accentText else extra.muted
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (selected) extra.accentBg else extra.panel2)
+                            .selectable(
+                                selected = selected,
+                                enabled = !control.disabled,
+                                role = Role.RadioButton,
+                                onClick = { local = option.id; onChange(option.id) },
+                            )
+                            .semantics {
+                                contentDescription = option.label
+                                if (control.disabled) disabled()
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (icon != null) {
+                            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+                        } else {
+                            Text(option.label, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
                 }
+                // A shorter last row keeps the width of the buttons above.
+                repeat(perRow - row.size) { Box(Modifier.weight(1f)) }
             }
         }
     }
@@ -611,5 +736,4 @@ private fun snap(v: Double, c: QuickActionControlItem): Double {
     return rounded.coerceIn(c.min, c.max)
 }
 
-private fun formatValue(v: Double, c: QuickActionControlItem): String =
-    QuickActionWidgetItem.formatNumber(v) + (c.unit?.let { " $it" } ?: "")
+private fun formatValue(v: Double, c: QuickActionControlItem): String = c.format(v)

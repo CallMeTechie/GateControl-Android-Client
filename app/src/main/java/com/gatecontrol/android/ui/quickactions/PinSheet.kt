@@ -378,6 +378,7 @@ private fun partLabel(part: WidgetPart): String = when (part.kind) {
     WidgetPart.Kind.POWER -> stringResource(R.string.pin_sheet_part_power)
     WidgetPart.Kind.VALUE -> part.label ?: stringResource(R.string.pin_sheet_part_value)
     WidgetPart.Kind.STATUS -> stringResource(R.string.pin_sheet_part_status)
+    WidgetPart.Kind.TIMELINE -> stringResource(R.string.pin_sheet_part_timeline)
     WidgetPart.Kind.ACTION -> stringResource(R.string.pin_sheet_part_action, part.label ?: "")
     else -> part.label ?: part.id
 }
@@ -391,7 +392,7 @@ private fun partHint(part: WidgetPart, device: QuickActionDeviceGroup): String? 
         WidgetPart.Kind.READING -> w?.readings?.firstOrNull { WidgetPart.reading(it.id) == part.id }?.let { r -> r.value?.let { v -> r.unit?.let { "$v $it" } ?: v } }
         WidgetPart.Kind.STATUS -> w?.status
         WidgetPart.Kind.CONTROL -> w?.controls?.firstOrNull { WidgetPart.control(it.id) == part.id }?.let { c ->
-            if (c.isNumeric) "− ${com.gatecontrol.android.quickactions.QuickActionWidgetItem.formatNumber(c.number)}${c.unit?.let { " $it" } ?: ""} +"
+            if (c.isNumeric) "− ${c.format(c.number)} +"
             else c.options.joinToString(" · ") { it.label }
         }
         else -> null
