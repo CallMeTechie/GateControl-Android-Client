@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.135.0] - 2026-11-22
+
+### Features
+- Widget-Aktion nicht mehr zusätzlich als Knopf der Karte (#266)
+
+---
+
 ## [1.134.0] - 2026-11-22
 
 ### Features
