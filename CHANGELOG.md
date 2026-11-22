@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.133.1] - 2026-11-21
+
+### Fixes
+- Akku-Badge auf Start-Kacheln und im Homescreen-Widget, klare Fehlermeldungen (#264)
+
+---
+
 ## [1.133.0] - 2026-11-20
 
 ### Features
