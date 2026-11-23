@@ -108,6 +108,7 @@
     <string name="door_event_ding_title">Klingel</string>
     <string name="door_event_motion_title">Bewegung</string>
     <string name="door_event_no_image">Kein Bild (abgelaufen oder keins).</string>
+    <string name="door_event_live">Livebild ansehen</string>
     <string name="door_event_open">Tür öffnen</string>
     <string name="door_event_buzzer">Summer</string>
     <string name="door_pane_pick">Wähle links einen Eintrag.</string>

@@ -180,6 +180,7 @@
     <string name="tv_bell_motion_desc">Aus: nur beim Klingeln</string>
     <string name="tv_bell_camera">Kamera im Fenster</string>
     <string name="tv_bell_camera_none">Das Bild der Klingel</string>
+    <string name="tv_bell_camera_fallback">Die der Klingel zugeordnete Heimkamera, sonst: %1$s</string>
     <string name="tv_pin_intro">Ein Fernseher wird geteilt. Mit einer PIN fragen die Funktionen unten zuerst danach. Ohne PIN fragt nichts.</string>
     <string name="tv_pin_set">PIN festlegen</string>
     <string name="tv_pin_set_desc">4 bis 8 Ziffern, nur als Hash auf diesem TV gespeichert</string>

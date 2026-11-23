@@ -10,6 +10,7 @@ import com.gatecontrol.android.door.DoorLogic
 import com.gatecontrol.android.door.DoorPushInfo
 import com.gatecontrol.android.door.DoorRepository
 import com.gatecontrol.android.door.DoorResult
+import com.gatecontrol.android.door.HomeCameraJson
 import com.gatecontrol.android.door.HomeCameraList
 import com.gatecontrol.android.tv.TvSettings
 import com.gatecontrol.android.tv.cameras.TvCameraMedia
@@ -54,6 +55,7 @@ class TvDoorbellViewModel @Inject constructor(
         eventId = savedState.get<Long>(TvDoorbellActivity.EXTRA_EVENT)?.takeIf { it > 0 },
         cameraId = savedState.get<Long>(TvDoorbellActivity.EXTRA_CAMERA)?.takeIf { it > 0 },
         lockId = null,
+        homeCameraId = savedState.get<String>(TvDoorbellActivity.EXTRA_HOME_CAMERA)?.takeIf { HomeCameraJson.CAMERA_ID_RE.matches(it) },
     )
 
     private val _ui = MutableStateFlow(
@@ -79,12 +81,20 @@ class TvDoorbellViewModel @Inject constructor(
         }
     }
 
-    /** The chosen home camera live; else the ring's own picture (the event's, else a snapshot of the doorbell). */
+    /**
+     * Live: the home camera assigned to the doorbell (push, else `GET me`), else the one chosen in the settings; else the
+     * ring's own picture (the event's, else a snapshot of the doorbell).
+     */
     private suspend fun loadPicture() {
-        val list = (api.homeCameras() as? DoorResult.Ok<HomeCameraList>)?.value
-        val camera = list?.takeIf { it.supported }?.let { DoorbellRules.camera(settings.doorbell.value, it.cameras) }
+        if (info.homeCameraId == null) door.loadCached()
+        DoorbellRules.assignedCamera(info, door.overview.value)?.let { id ->
+            live.start(viewModelScope, id)
+            return
+        }
+        val list = (api.homeCameras() as? DoorResult.Ok<HomeCameraList>)?.value?.takeIf { it.supported }
+        val camera = DoorbellRules.liveCamera(info, door.overview.value, settings.doorbell.value, list?.cameras)
         if (camera != null) {
-            live.start(viewModelScope, camera.id)
+            live.start(viewModelScope, camera)
             return
         }
         val image = info.eventId?.let { (api.event(it) as? DoorResult.Ok)?.value?.image }

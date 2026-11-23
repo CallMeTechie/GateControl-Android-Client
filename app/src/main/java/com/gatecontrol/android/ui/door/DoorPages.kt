@@ -17,7 +17,7 @@ fun DoorPage(dest: DoorDest, onBack: () -> Unit, onOpen: (DoorDest) -> Unit) {
         DoorDest.Home -> DoorHomeScreen(onOpen = onOpen, onBack = onBack)
         is DoorDest.Camera -> DoorHomeScreen(onOpen = onOpen, onBack = onBack, focusCamera = dest.cameraId)
         DoorDest.History -> DoorHistoryScreen(onBack = onBack, onOpen = onOpen)
-        is DoorDest.Event -> DoorEventScreen(eventId = dest.eventId, onBack = onBack)
+        is DoorDest.Event -> DoorEventScreen(eventId = dest.eventId, onBack = onBack, onCamera = { onOpen(DoorDest.Camera(it)) })
     }
 }
 
@@ -30,7 +30,8 @@ fun DoorPage(dest: DoorDest, onBack: () -> Unit, onOpen: (DoorDest) -> Unit) {
 fun DoorTwoPane(initial: DoorDest?, onBack: () -> Unit) {
     var destKey by rememberSaveable(initial?.key) { mutableStateOf(initial?.takeIf { it != DoorDest.Home && it !is DoorDest.Camera }?.key) }
     val selected = DoorDest.parse(destKey)
-    val focusCamera = (initial as? DoorDest.Camera)?.cameraId
+    // a home camera from a push, or "Livebild ansehen" of a ring: shown in the list
+    var focusCamera by rememberSaveable(initial?.key) { mutableStateOf((initial as? DoorDest.Camera)?.cameraId) }
     GcTwoPane(
         listWidth = 420.dp,
         list = { DoorHomeScreen(onOpen = { destKey = it.key }, onBack = onBack, selected = selected, focusCamera = focusCamera) },
@@ -39,7 +40,7 @@ fun DoorTwoPane(initial: DoorDest?, onBack: () -> Unit) {
                 when (selected) {
                     null, DoorDest.Home, is DoorDest.Camera -> DoorPanePlaceholder()
                     DoorDest.History -> DoorHistoryScreen(onBack = { destKey = null }, onOpen = { destKey = it.key }, selected = selected)
-                    is DoorDest.Event -> DoorEventScreen(eventId = selected.eventId, onBack = { destKey = DoorDest.History.key })
+                    is DoorDest.Event -> DoorEventScreen(eventId = selected.eventId, onBack = { destKey = DoorDest.History.key }, onCamera = { focusCamera = it })
                 }
             }
         },

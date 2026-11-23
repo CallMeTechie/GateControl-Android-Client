@@ -180,6 +180,7 @@
     <string name="tv_bell_motion_desc">Off: only when it rings</string>
     <string name="tv_bell_camera">Camera in the window</string>
     <string name="tv_bell_camera_none">The doorbell\'s own picture</string>
+    <string name="tv_bell_camera_fallback">The home camera assigned to the doorbell, else: %1$s</string>
     <string name="tv_pin_intro">A TV is shared. With a PIN, the functions below ask for it first. Without one nothing asks.</string>
     <string name="tv_pin_set">Set PIN</string>
     <string name="tv_pin_set_desc">4 to 8 digits, kept on this TV only as a hash</string>

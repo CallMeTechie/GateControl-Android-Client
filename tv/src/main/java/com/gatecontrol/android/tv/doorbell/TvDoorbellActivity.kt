@@ -68,6 +68,7 @@ class TvDoorbellActivity : ComponentActivity() {
         const val EXTRA_TYPE = "type"
         const val EXTRA_EVENT = "event"
         const val EXTRA_CAMERA = "camera"
+        const val EXTRA_HOME_CAMERA = "home_camera"
         const val EXTRA_FULLSCREEN = "fullscreen"
 
         fun intent(context: Context, message: PushMessage, info: DoorPushInfo, fullscreen: Boolean): Intent =
@@ -77,6 +78,7 @@ class TvDoorbellActivity : ComponentActivity() {
                 .putExtra(EXTRA_TYPE, info.type)
                 .putExtra(EXTRA_EVENT, info.eventId ?: 0L)
                 .putExtra(EXTRA_CAMERA, info.cameraId ?: 0L)
+                .putExtra(EXTRA_HOME_CAMERA, info.homeCameraId)
                 .putExtra(EXTRA_FULLSCREEN, fullscreen)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
