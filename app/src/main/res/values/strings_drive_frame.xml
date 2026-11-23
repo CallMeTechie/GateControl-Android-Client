@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Single photos for the photo frame of the GateControl TV (Drive 1.31, "More" of the ticked photos) -->
+    <string name="drive_frame_add">Share for photo frame</string>
+    <string name="drive_frame_add_desc">The photo frame on the GateControl TV shows them</string>
+    <string name="drive_frame_remove">Remove from photo frame</string>
+    <string name="drive_frame_remove_desc">The photos stay in Drive</string>
+    <string name="drive_frame_forbidden">This account may not share photos for the photo frame.</string>
+    <string name="drive_frame_added_none">The photos are already shared for the photo frame.</string>
+    <string name="drive_frame_removed_none">None of the photos was in the photo frame.</string>
+    <string name="drive_frame_skipped">Skipped: %s</string>
+    <plurals name="drive_frame_added">
+        <item quantity="one">%d photo shared for the photo frame.</item>
+        <item quantity="other">%d photos shared for the photo frame.</item>
+    </plurals>
+    <plurals name="drive_frame_removed">
+        <item quantity="one">%d photo removed from the photo frame.</item>
+        <item quantity="other">%d photos removed from the photo frame.</item>
+    </plurals>
+    <plurals name="drive_frame_skip_video">
+        <item quantity="one">%d video</item>
+        <item quantity="other">%d videos</item>
+    </plurals>
+    <plurals name="drive_frame_skip_not_image">
+        <item quantity="one">%d not a photo</item>
+        <item quantity="other">%d not photos</item>
+    </plurals>
+    <plurals name="drive_frame_skip_vault">
+        <item quantity="one">%d in a vault</item>
+        <item quantity="other">%d in a vault</item>
+    </plurals>
+    <plurals name="drive_frame_skip_blocked">
+        <item quantity="one">%d blocked by the virus scan</item>
+        <item quantity="other">%d blocked by the virus scan</item>
+    </plurals>
+    <plurals name="drive_frame_skip_child">
+        <item quantity="one">%d from a child\'s folder</item>
+        <item quantity="other">%d from children\'s folders</item>
+    </plurals>
+    <plurals name="drive_frame_skip_not_found">
+        <item quantity="one">%d not found</item>
+        <item quantity="other">%d not found</item>
+    </plurals>
+    <plurals name="drive_frame_skip_other">
+        <item quantity="one">%d for another reason</item>
+        <item quantity="other">%d for other reasons</item>
+    </plurals>
+</resources>

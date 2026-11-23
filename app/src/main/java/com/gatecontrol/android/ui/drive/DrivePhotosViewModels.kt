@@ -11,6 +11,7 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DPhotos
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
+import com.gatecontrol.android.drive.DriveFrameLogic
 import com.gatecontrol.android.drive.DriveLive
 import com.gatecontrol.android.drive.DPhotoFilter
 import com.gatecontrol.android.drive.DriveLogic
@@ -315,6 +316,63 @@ class DrivePhotosViewModel @Inject constructor(
         if (!unmetered || !work.settings.value.active || !work.learned.value.usable) return
         if (System.currentTimeMillis() - work.suggestedAt() < SUGGEST_EVERY_MS) return
         viewModelScope.launch { runCatching { work.suggest(limit = SUGGEST_LOOK) } }
+    }
+
+    // ─── single photos for the photo frame (Drive 1.31, `framePhotos`) ─
+
+    /** The snackbar after „Für Fotorahmen freigeben“ / „Aus Fotorahmen entfernen“; [skipped] by reason. */
+    data class FrameSnack(
+        val add: Boolean,
+        val count: Int,
+        val skipped: Map<DriveFrameLogic.Skip, Int> = emptyMap(),
+        /** `403 forbidden`: this account may not share photos for the photo frame. */
+        val forbidden: Boolean = false,
+        val stamp: Long = System.nanoTime(),
+    )
+
+    private val _frameShared = MutableStateFlow<Set<Long>?>(null)
+    /** Which of the photos of the open "Mehr" sheet are shared for the photo frame; null while unknown. */
+    val frameShared: StateFlow<Set<Long>?> = _frameShared.asStateFlow()
+
+    private val _frameSnack = MutableStateFlow<FrameSnack?>(null)
+    val frameSnack: StateFlow<FrameSnack?> = _frameSnack.asStateFlow()
+
+    private var frameAsk: Job? = null
+
+    fun frameSnackShown() { _frameSnack.value = null }
+
+    /** The "Mehr" sheet opened for [nodes]: are they in the photo frame already (only with `framePhotos`)? */
+    fun loadFrameState(nodes: List<DNode>) {
+        frameAsk?.cancel()
+        _frameShared.value = null
+        if (live.me.value?.has(com.gatecontrol.android.drive.DMe.FEATURE_FRAME_PHOTOS) != true) return
+        val ids = DriveFrameLogic.ids(nodes)
+        if (ids.isEmpty()) return
+        frameAsk = viewModelScope.launch { _frameShared.value = api.framePhotoState(ids).valueOrNull() }
+    }
+
+    /** The pictures among the ticked photos (or [only]) for the photo frame ([add]) or out of it. */
+    fun frame(add: Boolean, only: List<DNode>? = null) {
+        val nodes = only ?: bulk.nodes()
+        if (nodes.isEmpty()) return
+        bulk.clear()
+        viewModelScope.launch {
+            val ids = DriveFrameLogic.ids(nodes)
+            if (ids.isEmpty()) {
+                _frameSnack.value = FrameSnack(add, 0, if (add) DriveFrameLogic.skipped(nodes, ids, emptyList()) else emptyMap())
+                return@launch
+            }
+            val r = if (add) api.shareFramePhotos(ids) else api.unshareFramePhotos(ids)
+            when {
+                r is DResult.Ok -> _frameSnack.value = if (add) {
+                    FrameSnack(true, r.value.added, DriveFrameLogic.skipped(nodes, ids, r.value.skipped))
+                } else {
+                    FrameSnack(false, r.value.removed)
+                }
+                DriveFrameLogic.forbidden(r) -> _frameSnack.value = FrameSnack(add, 0, forbidden = true)
+                else -> _message.value = r.errorCode()
+            }
+        }
     }
 
     fun loadAlbums() {
