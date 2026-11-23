@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Medien: Jellyfin runs on plain HTTP in the home network (http://192.168.1.20:8096), and Android cannot allow cleartext
+  for an address range. So cleartext is allowed here and limited in the code instead: MediaAddress (core/media) only
+  accepts http:// for a home-network host (private IPv4, .local / .lan, a name without dots); every other host must
+  use HTTPS. Away the connection goes through the WireGuard tunnel. GateControl's own server is always HTTPS.
+  Only the system's certificate authorities are trusted (no user CAs).
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!-- deliberate (see above): the code limits cleartext to the home network -->
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

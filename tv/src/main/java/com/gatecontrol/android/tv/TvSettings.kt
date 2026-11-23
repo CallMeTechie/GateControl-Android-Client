@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.gatecontrol.android.common.SplitTunnelMode
+import com.gatecontrol.android.media.MediaQualitySetting
 import com.gatecontrol.android.tv.doorbell.DoorbellMode
 import com.gatecontrol.android.tv.doorbell.DoorbellSettings
 import com.gatecontrol.android.tv.frame.TvFrameOrder
@@ -73,6 +74,16 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         idleMinutes = TvFrameSchedule.idleMinutes(prefs.getInt(KEY_FRAME_IDLE, 0)),
         clock = prefs.getBoolean(KEY_FRAME_CLOCK, true),
     )
+
+    private val _mediaQuality = MutableStateFlow(MediaQualitySetting.fromWire(prefs.getString(KEY_MEDIA_QUALITY, null)))
+
+    /** Medien: the player's quality ("Automatisch" by the measured bandwidth, a fixed step or "Original"). */
+    val mediaQuality: StateFlow<MediaQualitySetting> = _mediaQuality.asStateFlow()
+
+    fun setMediaQuality(value: MediaQualitySetting) {
+        prefs.edit { putString(KEY_MEDIA_QUALITY, value.wire) }
+        _mediaQuality.value = value
+    }
 
     fun setAutostartTunnel(on: Boolean) {
         prefs.edit { putBoolean(KEY_AUTOSTART_TUNNEL, on) }
@@ -147,6 +158,7 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         private const val KEY_FRAME_ORDER = "frame_order"
         private const val KEY_FRAME_IDLE = "frame_idle_minutes"
         private const val KEY_FRAME_CLOCK = "frame_clock"
+        private const val KEY_MEDIA_QUALITY = "media_quality"
         private const val MINUTES_PER_DAY = 24 * 60
         const val DEFAULT_AUTOSTART_TUNNEL = true
         const val DEFAULT_OPEN_ON_BOOT = false

@@ -49,6 +49,13 @@ import com.gatecontrol.android.tv.frame.TvFrameSource
 import com.gatecontrol.android.tv.frame.TvFrameStatus
 import com.gatecontrol.android.tv.ui.settings.TvFrameOptions
 import com.gatecontrol.android.tv.home.TvHomeViewModel
+import com.gatecontrol.android.media.MediaTitle
+import com.gatecontrol.android.tv.media.TvMedia
+import com.gatecontrol.android.tv.media.TvMediaLogic
+import com.gatecontrol.android.tv.media.TvMediaViewModel
+import com.gatecontrol.android.tv.ui.media.TvMediaActions
+import com.gatecontrol.android.tv.ui.media.TvMediaPage
+import com.gatecontrol.android.tv.ui.media.TvMediaScreen
 import com.gatecontrol.android.tv.security.TvPinFunction
 import com.gatecontrol.android.tv.ui.cameras.TvCamerasPage
 import com.gatecontrol.android.tv.ui.components.TvConfirmDialog
@@ -90,12 +97,14 @@ class TvActivity : ComponentActivity() {
     private val home: TvHomeViewModel by viewModels()
     private val prefs: TvPrefsViewModel by viewModels()
     private val drive: TvDriveViewModel by viewModels()
+    private val mediaVm: TvMediaViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
     @Inject lateinit var gatedrop: TvGateDrop
     @Inject lateinit var selection: TvMediaSelection
     @Inject lateinit var frameSource: TvFrameSource
+    @Inject lateinit var media: TvMedia
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
@@ -214,7 +223,46 @@ class TvActivity : ComponentActivity() {
         supervisor.onForeground()
         // GateDrop: what was sent to the TV while it was away
         if (pairing.state.value is PairState.Paired) gatedrop.poll()
+        // Medien: back from the player, "Weiterschauen" and the detail page show where it is now
+        if (pairing.state.value is PairState.Paired) mediaVm.onResumed()
     }
+
+    /** Plays a film or episode of the media source in the player (Medien). */
+    private fun playMedia(t: MediaTitle, fromStart: Boolean) {
+        mediaVm.play(t, fromStart) { startActivity(Intent(this, TvMediaActivity::class.java)) }
+    }
+
+    private fun mediaActions(showMedia: () -> Unit) = TvMediaActions(
+        onStart = mediaVm::refresh,
+        onRetry = mediaVm::refresh,
+        onOpen = { t ->
+            mediaVm.open(t)
+            showMedia()
+        },
+        onPlay = ::playMedia,
+        onPicture = mediaVm::wantPicture,
+        pictureKey = mediaVm::pictureKey,
+        onMore = mediaVm::more,
+        onBack = mediaVm::back,
+        onSeason = mediaVm::season,
+        onAudio = mediaVm::chooseAudio,
+        onSubtitle = mediaVm::chooseSubtitle,
+        onOriginal = mediaVm::chooseOriginal,
+        onPlayed = mediaVm::togglePlayed,
+        onSelect = mediaVm::select,
+        onRemove = mediaVm::remove,
+        onAlwaysOriginal = mediaVm::setAlwaysOriginal,
+        onAdd = mediaVm::startAdd,
+        onAddCancel = mediaVm::cancelAdd,
+        onJellyfin = mediaVm::chooseJellyfin,
+        onSearch = mediaVm::search,
+        onAddress = mediaVm::setAddress,
+        onPick = mediaVm::pick,
+        onCheck = mediaVm::check,
+        onLogin = mediaVm::toLogin,
+        onQuickConnect = mediaVm::chooseQuickConnect,
+        onPassword = mediaVm::signIn,
+    )
 
     @Composable
     private fun Paired() {
@@ -264,6 +312,12 @@ class TvActivity : ComponentActivity() {
         // "Annehmen und zeigen": the send whose files are awaited to be shown
         var dropShowing by remember { mutableStateOf<String?>(null) }
         val frame by prefs.frame.collectAsStateWithLifecycle()
+        val mediaUi by mediaVm.ui.collectAsStateWithLifecycle()
+        val mediaDetails by mediaVm.details.collectAsStateWithLifecycle()
+        val mediaAdd by mediaVm.add.collectAsStateWithLifecycle()
+        val mediaLink by mediaVm.link.collectAsStateWithLifecycle()
+        val mediaPictures by mediaVm.pictures.collectAsStateWithLifecycle()
+        val mediaActions = remember { mediaActions(showMedia = { requested = TvDestination.Media }) }
         // the photo frame when nothing happened for a while (only while GateControl is in front)
         // (only with photos shared: GET frame is asked first — a screen saver never shows just a hint)
         LaunchedEffect(frame) {
@@ -286,6 +340,7 @@ class TvActivity : ComponentActivity() {
                 DisposableEffect(Unit) {
                     home.setVisible(true)
                     drive.loadRecent()
+                    mediaVm.refreshResume()
                     onDispose { home.setVisible(false) }
                 }
                 // with a TV PIN for Drive its files do not show on the start page either
@@ -297,7 +352,11 @@ class TvActivity : ComponentActivity() {
                         drive = if (driveOpen) recent else emptyList(),
                         drivePreviews = drivePreviews,
                         drops = dropEntries,
+                        media = mediaUi.resume,
+                        mediaSource = mediaUi.source?.let(TvMediaLogic::sourceLabel),
+                        mediaPictures = mediaPictures,
                     ),
+                    media = mediaActions,
                     onDrop = { dropOpen = it },
                     dropCover = ::dropCover,
                     onDrive = { node ->
@@ -348,6 +407,9 @@ class TvActivity : ComponentActivity() {
                     onRetry = drive::reload,
                 )
             },
+            mediaPage = {
+                TvMediaPage(TvMediaScreen(mediaUi, mediaDetails.lastOrNull(), mediaAdd, mediaLink, mediaPictures), mediaActions)
+            },
             gatedropPage = {
                 TvGateDropPage(
                     entries = dropEntries,
@@ -382,6 +444,7 @@ class TvActivity : ComponentActivity() {
                     onUnpair = {
                         main.unpair {
                             gatedrop.clear()
+                            media.clear()
                             pairing.reset()
                         }
                     },

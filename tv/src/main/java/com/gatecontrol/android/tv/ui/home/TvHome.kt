@@ -69,6 +69,7 @@ enum class TvDestination(@param:StringRes val label: Int, val icon: ImageVector)
     Start(R.string.tv_nav_start, TvIcons.Home),
     Cameras(R.string.tv_nav_cameras, TvIcons.Cameras),
     Drive(R.string.tv_nav_drive, TvIcons.Drive),
+    Media(R.string.tv_nav_media, TvIcons.Media),
     GateDrop(R.string.tv_nav_gatedrop, TvIcons.GateDrop),
     Family(R.string.tv_nav_family, TvIcons.Family),
     Settings(R.string.tv_nav_settings, TvIcons.Settings),
@@ -107,6 +108,7 @@ fun TvHome(
     startPage: (@Composable () -> Unit)? = null,
     camerasPage: (@Composable () -> Unit)? = null,
     drivePage: (@Composable () -> Unit)? = null,
+    mediaPage: (@Composable () -> Unit)? = null,
     gatedropPage: (@Composable () -> Unit)? = null,
     /** Asked before a page opens (the TV PIN of Einstellungen); calls `open` when it may. */
     onOpen: (TvDestination, open: () -> Unit) -> Unit = { _, open -> open() },
@@ -128,6 +130,8 @@ fun TvHome(
                 camerasPage()
             } else if (current == TvDestination.Drive && drivePage != null) {
                 drivePage()
+            } else if (current == TvDestination.Media && mediaPage != null) {
+                mediaPage()
             } else if (current == TvDestination.GateDrop && gatedropPage != null) {
                 gatedropPage()
             } else if (current == TvDestination.Settings && settingsPage != null) {

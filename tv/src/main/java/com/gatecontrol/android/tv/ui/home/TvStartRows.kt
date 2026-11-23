@@ -81,11 +81,15 @@ data class TvStartUi(
     val drivePreviews: Map<Long, Bitmap> = emptyMap(),
     /** "GateDrop-Eingang": the sends kept on the TV, newest first. */
     val drops: List<TvDropEntry> = emptyList(),
+    /** "Weiterschauen" (Medien, kept in Jellyfin) and the source it comes from ("Jellyfin · DS918+"). */
+    val media: List<com.gatecontrol.android.media.MediaTitle> = emptyList(),
+    val mediaSource: String? = null,
+    val mediaPictures: Map<String, Bitmap> = emptyMap(),
 )
 
 /**
  * The rows of the start page (mockup "1 · Start"): Schnellaktionen as tiles from the server's start layout, the
- * cameras with their newest still, Drive still a placeholder (stage 2). D-pad: ◀ ▶ within a row, ▲ ▼ between rows,
+ * cameras with their newest still, "Weiterschauen" of the media source, "Zuletzt in Drive", the GateDrop inbox. D-pad: ◀ ▶ within a row, ▲ ▼ between rows,
  * OK runs. A heating's tile: OK on its "Ziel" opens the target, ◀ ▶ set it in steps, OK or Zurück send it.
  */
 @Composable
@@ -100,6 +104,8 @@ fun TvStartRows(
     onDrop: (TvDropEntry) -> Unit = {},
     /** The card's picture of a send (its first picture, small); null: none. */
     dropCover: suspend (TvDropEntry) -> Bitmap? = { null },
+    /** "Weiterschauen": OK plays on, ☰ the details (Medien). */
+    media: com.gatecontrol.android.tv.ui.media.TvMediaActions? = null,
 ) {
     val colors = GateControlTvTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -132,6 +138,17 @@ fun TvStartRows(
             ) {
                 itemsIndexed(ui.cameras, key = { _, c -> c.id }) { _, cam ->
                     CameraCard(cam, ui.previews[cam.id], onClick = { onCamera(cam) })
+                }
+            }
+        }
+        if (ui.media.isNotEmpty() && media != null) {
+            RowTitle(stringResource(R.string.tv_row_media_resume), ui.mediaSource)
+            LazyRow(
+                contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                itemsIndexed(ui.media, key = { _, t -> t.id }) { _, t ->
+                    com.gatecontrol.android.tv.ui.media.ResumeCard(t, ui.mediaPictures, media, width = 155.dp)
                 }
             }
         }

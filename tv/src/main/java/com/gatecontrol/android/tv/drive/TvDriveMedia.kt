@@ -113,12 +113,27 @@ class TvMediaSelection @Inject constructor() {
     var localSend: String? = null
         private set
 
+    /** Films and episodes of a media source (Medien) instead of Drive's or GateDrop's files. */
+    @Volatile
+    var media: com.gatecontrol.android.tv.media.TvMediaQueue? = null
+        private set
+
+    fun setMedia(queue: com.gatecontrol.android.tv.media.TvMediaQueue) {
+        items = emptyList()
+        document = false
+        local = emptyList()
+        localSend = null
+        at = queue.at
+        media = queue
+    }
+
     fun set(items: List<DNode>, at: Int, document: Boolean = false) {
         this.items = items
         this.at = at.coerceIn(0, (items.size - 1).coerceAtLeast(0))
         this.document = document
         local = emptyList()
         localSend = null
+        media = null
     }
 
     /** The pictures or videos of a GateDrop send kept on the TV ([sendId]), from [at]. */
@@ -127,6 +142,7 @@ class TvMediaSelection @Inject constructor() {
         document = false
         local = files
         localSend = sendId
+        media = null
         this.at = at.coerceIn(0, (files.size - 1).coerceAtLeast(0))
     }
 
@@ -136,5 +152,6 @@ class TvMediaSelection @Inject constructor() {
         document = false
         local = emptyList()
         localSend = null
+        media = null
     }
 }

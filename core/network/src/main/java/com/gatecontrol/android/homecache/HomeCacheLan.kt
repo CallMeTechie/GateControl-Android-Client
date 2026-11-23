@@ -31,6 +31,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import javax.net.SocketFactory
 
+/** A Wi-Fi / Ethernet network of this device with its own [address]/[prefix] (never the VPN's). */
+data class LanLink(val network: Network, val address: String, val prefix: Int)
+
 /**
  * Whether this device is in the home network, remembered per set of LAN addresses for a while (the server's answer to
  * `GET /api/v1/client/home-network`). Home is kept [HOME_MS], "not home" [NOT_HOME_MS], no answer only [UNKNOWN_MS]
@@ -153,6 +156,20 @@ class HomeCacheLan @Inject constructor(
 
     /** Forget whether this is home (e.g. after a network change the next request asks again anyway: other addresses). */
     fun forget() = memory.clear()
+
+    /**
+     * The Wi-Fi / Ethernet networks below the VPN with their private IPv4 address and prefix, Wi-Fi first: for
+     * services of the home network itself (Medien: the server search, a Jellyfin server at home).
+     */
+    fun lanLinks(): List<LanLink> = lanNetworks().flatMap { (net, addrs) ->
+        addrs.mapNotNull { la -> la.address.hostAddress?.let { LanLink(net, it, la.prefixLength) } }
+    }
+
+    /**
+     * Sockets to [host] straight through the LAN (also while the tunnel is up): bound to the Wi-Fi / Ethernet network
+     * whose subnet holds it; null: none does, the system routes it (through the tunnel when it carries the home network).
+     */
+    fun lanSocketFactory(host: String): SocketFactory? = socketFactoryFor(host)
 
     /** Sockets to [host]: bound to the Wi-Fi / Ethernet network whose subnet holds it; null: the system decides. */
     private fun socketFactoryFor(host: String): SocketFactory? =
