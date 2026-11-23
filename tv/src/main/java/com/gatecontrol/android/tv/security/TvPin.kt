@@ -18,15 +18,15 @@ enum class TvPinFunction(val wire: String) {
     /** Opening Einstellungen. */
     SETTINGS("settings"),
 
-    /** Drive (stage 2). */
+    /** Opening Drive (its files, pictures and videos). */
     DRIVE("drive"),
 
-    /** Tresor (stage 2). */
+    /** Tresor (Drive's vault folders): not on the TV yet. */
     VAULT("vault");
 
     companion object {
-        /** Shown in the settings now (Drive and the vault once they exist on the TV). */
-        val AVAILABLE = listOf(DOOR, SETTINGS)
+        /** Shown in the settings now (the vault once it exists on the TV). */
+        val AVAILABLE = listOf(DOOR, SETTINGS, DRIVE)
 
         fun fromWire(raw: String?): TvPinFunction? = entries.firstOrNull { it.wire == raw }
     }

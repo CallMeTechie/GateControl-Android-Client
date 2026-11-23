@@ -27,6 +27,7 @@ include(":core:network")
 include(":core:notify")
 include(":core:door")
 include(":core:quickactions")
+include(":core:drive-api")
 include(":core:tunnel")
 include(":core:rdp")
 // SSH terminal of „Fernzugriff“: Termux terminal-emulator + terminal-view (Apache-2.0), fixed release sources

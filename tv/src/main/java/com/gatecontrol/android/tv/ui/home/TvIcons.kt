@@ -37,6 +37,16 @@ internal object TvIcons {
     val Door = icon("M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M4 21h16M14 12h.01")
     val Thermo = icon("M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z")
 
+    // Drive and the player
+    val Folder = Drive
+    val Photo = icon("M4 5h16v14H4z", "M4 16l5-5 4 4 3-3 4 4", "M15 9h.01")
+    val Play = icon("M8 5v14l11-7z")
+    val Pause = icon("M7 5h3v14H7zM14 5h3v14h-3z")
+    val File = icon("M7 3h7l5 5v13H7z", "M14 3v5h5")
+    val Rewind = icon("M11 6v12L3 12zM20 6v12l-8-6z")
+    val Forward = icon("M13 6v12l8-6zM4 6v12l8-6z")
+    val Frame = icon("M3 4h18v14H3z", "M7 21h10", "M3 15l5-5 4 4 3-3 6 6")
+
     private val cache = object : LinkedHashMap<String, ImageVector?>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageVector?>): Boolean = size > 64
     }

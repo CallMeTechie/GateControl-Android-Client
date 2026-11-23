@@ -476,7 +476,7 @@ internal fun DeadlineReminderRow(d: DDeadline, onRemind: (DDeadline, Int?) -> Un
             }
         } else if (d.reminder?.sent == true) {
             Text(
-                listOfNotNull(stringResource(R.string.drive_deadline_sent), stringResource(R.string.drive_deadline_by_hub).takeIf { d.reminder.byHub }).joinToString(" · "),
+                listOfNotNull(stringResource(R.string.drive_deadline_sent), stringResource(R.string.drive_deadline_by_hub).takeIf { d.reminder?.byHub == true }).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = x.muted,
                 modifier = Modifier.padding(start = 16.dp, bottom = 10.dp),

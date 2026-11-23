@@ -214,4 +214,37 @@
     <string name="tv_split_mode">Mode (OK switches)</string>
     <string name="tv_split_next_connect">Applies from the next connect</string>
     <string name="tv_split_no_apps">No other apps found.</string>
+
+    <!-- Drive (stage 2): browse, pictures, videos, document previews; the TV only reads -->
+    <string name="tv_drive_loading">Loading …</string>
+    <string name="tv_drive_blocked">Held back by the virus scan</string>
+    <string name="tv_drive_cannot_open">Cannot be opened on the TV</string>
+    <string name="tv_drive_as_frame">Use as photo frame</string>
+    <string name="tv_drive_empty">This folder is empty.</string>
+    <string name="tv_drive_offline">No connection to the server.</string>
+    <string name="tv_drive_not_on">Drive is not switched on for you.</string>
+    <string name="tv_drive_not_licensed">Drive is not licensed on this server.</string>
+    <string name="tv_drive_failed">Drive could not be loaded.</string>
+    <string name="tv_drive_retry">Try again</string>
+    <string name="tv_drive_area_mine">My files</string>
+    <string name="tv_drive_area_family">Family</string>
+    <string name="tv_drive_area_child">Child</string>
+    <string name="tv_drive_area_team">Team</string>
+    <string name="tv_pin_for_drive">TV PIN for Drive</string>
+    <string name="tv_viewer_failed">Could not be shown.</string>
+    <string name="tv_viewer_preview_only">Preview only</string>
+    <string name="tv_viewer_slideshow">Slide show</string>
+    <!-- The player of Drive's videos -->
+    <string name="tv_player_cannot_play">This video (%1$s) cannot be played on this TV.</string>
+    <string name="tv_player_network">The video stopped loading. Check the connection.</string>
+    <string name="tv_player_resumed">Resumed at %1$s</string>
+    <string name="tv_player_tracks_hint">▲ Audio &amp; subtitles: %1$s</string>
+    <string name="tv_player_subtitles_off">Subtitles off</string>
+    <string name="tv_player_next_hint">⏭ Next video</string>
+    <string name="tv_player_tracks">Audio &amp; subtitles</string>
+    <string name="tv_player_audio">Audio</string>
+    <string name="tv_player_track">Track</string>
+    <string name="tv_player_subtitles">Subtitles</string>
+    <string name="tv_player_subtitle">Subtitle</string>
+    <string name="tv_player_close_panel">Close</string>
 </resources>

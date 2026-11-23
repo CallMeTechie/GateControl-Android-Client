@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.util.LruCache
 import android.util.Size
 import com.gatecontrol.android.data.SetupRepository
@@ -205,6 +206,8 @@ class DrivePreviews @Inject constructor(
 
     /** A JPEG of about [OWN_SIDE] px from the media store's (or the file's) thumbnail, ≤ [OWN_MAX_BYTES]; null when none. */
     private fun thumbnail(resolver: ContentResolver, uri: Uri): ByteArray? {
+        // loadThumbnail is Android 10+; the TV (Android 9) never uploads, the phone app starts at Android 12
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         val bmp = runCatching { resolver.loadThumbnail(uri, Size(OWN_SIDE, OWN_SIDE), null) }.getOrNull() ?: return null
         try {
             for (quality in intArrayOf(82, 70, 55)) {

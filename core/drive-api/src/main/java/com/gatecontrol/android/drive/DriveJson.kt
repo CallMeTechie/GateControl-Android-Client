@@ -12,7 +12,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
  * have the shape it needs; fields that may be missing get sensible defaults. Names and ids are taken as they come,
  * but bounded, so a broken server cannot blow up the UI.
  */
-internal object DriveJson {
+object DriveJson {
 
     private val SHA256 = Regex("^[0-9a-f]{64}$")
     /** The server keeps at most this much recognised text of a file. */

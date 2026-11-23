@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,8 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.gatecontrol.android.door.HomeCamera
+import com.gatecontrol.android.drive.DNode
+import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.quickactions.QuickActionControlItem
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.home.TvRunNotice
@@ -66,6 +69,9 @@ data class TvStartUi(
     val previews: Map<String, Bitmap>,
     val notice: TvRunNotice?,
     val loading: Boolean,
+    /** "Zuletzt in Drive": the files opened last (Drive's overview), with their previews. */
+    val drive: List<DNode> = emptyList(),
+    val drivePreviews: Map<Long, Bitmap> = emptyMap(),
 )
 
 /**
@@ -80,6 +86,8 @@ fun TvStartRows(
     onSetpoint: (TvTile.Device, QuickActionControlItem, Double) -> Unit,
     onCamera: (HomeCamera) -> Unit,
     modifier: Modifier = Modifier,
+    onDrive: (DNode) -> Unit = {},
+    onDrivePreview: (DNode) -> Unit = {},
 ) {
     val colors = GateControlTvTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -115,12 +123,17 @@ fun TvStartRows(
                 }
             }
         }
-        RowTitle(stringResource(R.string.tv_row_drive), null)
-        LazyRow(
-            contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-        ) {
-            items(3) { TvCard(width = 112.dp, height = 63.dp, onClick = {}) { Placeholder() } }
+        if (ui.drive.isNotEmpty()) {
+            RowTitle(stringResource(R.string.tv_row_drive), null)
+            LazyRow(
+                contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                itemsIndexed(ui.drive, key = { _, n -> n.id }) { _, node ->
+                    LaunchedEffect(node.id) { onDrivePreview(node) }
+                    DriveCard(node, ui.drivePreviews[node.id], onClick = { onDrive(node) })
+                }
+            }
         }
     }
 }
@@ -140,18 +153,6 @@ private fun RowTitle(title: String, extra: String?) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = colors.text)
         if (extra != null) Text(extra, style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun Placeholder() {
-    Box(Modifier.fillMaxSize()) {
-        Text(
-            stringResource(R.string.tv_placeholder),
-            style = MaterialTheme.typography.bodySmall,
-            color = GateControlTvTheme.colors.faint,
-            modifier = Modifier.align(Alignment.BottomStart).padding(9.dp),
-        )
     }
 }
 
@@ -284,6 +285,31 @@ private fun SetpointCard(tile: TvTile.Device, control: QuickActionControlItem, o
         Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Text(if (editing) "◀ $label ▶" else label, style = MaterialTheme.typography.bodySmall, color = if (editing) colors.accentText else colors.muted, maxLines = 1)
             Text(control.format(value), style = MaterialTheme.typography.titleSmall, color = colors.text, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun DriveCard(node: DNode, preview: Bitmap?, onClick: () -> Unit) {
+    val colors = GateControlTvTheme.colors
+    TvCard(126.dp, 71.dp, onClick = onClick, description = node.name) {
+        Box(Modifier.fillMaxSize().background(if (preview != null) Color(0xFF0B0F14) else colors.panel)) {
+            if (preview != null) {
+                Image(preview.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                val icon = when (DriveLogic.kind(node)) {
+                    DriveLogic.Kind.FOLDER -> TvIcons.Folder
+                    DriveLogic.Kind.IMAGE -> TvIcons.Photo
+                    DriveLogic.Kind.VIDEO -> TvIcons.Play
+                    else -> TvIcons.File
+                }
+                Icon(icon, contentDescription = null, tint = colors.muted, modifier = Modifier.align(Alignment.Center).padding(bottom = 14.dp).size(20.dp))
+            }
+            Box(
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text(node.name, style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
