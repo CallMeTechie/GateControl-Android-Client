@@ -372,7 +372,7 @@ fun DriveDeviceFilesScreen(onBack: () -> Unit, viewModel: DriveDeviceFilesViewMo
     val mode = viewModel.mode
     val volume = path?.let { p -> volumes.filter { p == it.path || DeviceFilesLogic.inside(it.path, p) }.maxByOrNull { it.path.length } }
 
-    var viewing by remember { mutableStateOf<DeviceEntry?>(null) }
+    var viewing by rememberKept<DeviceEntry?> { null }
     var toDrive by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<DeviceFileOps.DeletePlan?>(null) }

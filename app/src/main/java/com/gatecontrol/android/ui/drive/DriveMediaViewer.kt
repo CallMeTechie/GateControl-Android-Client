@@ -1,8 +1,5 @@
 package com.gatecontrol.android.ui.drive
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.graphics.ImageDecoder
 import android.view.SurfaceView
@@ -40,6 +37,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,6 +111,16 @@ class DriveMediaViewModel @Inject constructor(
     private val transfers: DriveTransfers,
 ) : ViewModel() {
     val places: DriveVideoPlaces = DriveVideoPlaces.shared
+
+    /**
+     * The player of the video shown: here, not in the page — a fold, an unfold or a turn of the phone (the activity is
+     * made anew) does not stop the film. Released when its page goes ([ReleaseWhenGone]) or with this view model.
+     */
+    internal val players = DriveKeptPlayer<ExoPlayer> { it.release() }
+
+    override fun onCleared() {
+        players.clear()
+    }
 
     suspend fun stream(node: DNode): DResult<DriveStream> = api.stream(node)
 
@@ -264,12 +272,6 @@ internal fun DriveImagePage(node: DNode, active: Boolean, media: DriveMediaViewM
     }
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
 /** What the full screen of a viewer asks of the activity's orientation ([ViewerFullscreen]). */
 internal object ViewerOrientation {
     /** The orientation to go back to: a landscape the viewer forced itself (before the activity was made anew) is none. */
@@ -347,6 +349,9 @@ internal fun DriveVideoSurface(
     )
 }
 
+/** Which player a video page wants: the file, its version and the try (a new try, a new player). */
+internal data class DriveVideoKey(val id: Long, val rev: Int, val attempt: Int)
+
 private sealed interface VideoState {
     data object Loading : VideoState
     data object Ready : VideoState
@@ -374,32 +379,50 @@ internal fun DriveVideoPage(
 ) {
     val context = LocalContext.current
     val ask = rememberScanAsk()
-    var allowed by remember(node.id) { mutableStateOf(node.scan?.warn != true) }
-    var attempt by remember(node.id) { mutableIntStateOf(0) }
+    // kept over a fold, an unfold or a turn (the activity made anew), as the player is
+    var allowed by rememberSaveable(node.id) { mutableStateOf(node.scan?.warn != true) }
+    var attempt by rememberSaveable(node.id) { mutableIntStateOf(0) }
     var state by remember(node.id) { mutableStateOf<VideoState>(VideoState.Loading) }
     var noPicture by remember(node.id) { mutableStateOf(false) }
-    var stream by remember(node.id) { mutableStateOf<DriveStream?>(null) }
+    var player by remember(node.id) { mutableStateOf<ExoPlayer?>(null) }
     val play = active && allowed && !node.blocked
+    val key = DriveVideoKey(node.id, node.rev, attempt)
+    val landscape by rememberUpdatedState(onLandscape)
 
-    LaunchedEffect(play, attempt) {
-        if (!play) return@LaunchedEffect
+    LaunchedEffect(play, key) {
+        if (!play) { player = null; return@LaunchedEffect }
+        // back after the activity was made anew: the player the view model kept, where it was
+        media.players.peek(key)?.let { player = it; return@LaunchedEffect }
         state = VideoState.Loading
         when (val r = media.stream(node)) {
-            is DResult.Ok -> stream = r.value
+            is DResult.Ok -> {
+                val factory = media.sourceFactory() ?: return@LaunchedEffect
+                // the application's context: the player outlives this activity
+                val app = context.applicationContext
+                player = media.players.get(key) {
+                    ExoPlayer.Builder(app).setMediaSourceFactory(DefaultMediaSourceFactory(factory)).build().apply {
+                        setMediaItem(MediaItem.Builder().setUri(r.value.url).build())
+                        media.places.get(node)?.let { seekTo(it) }
+                        prepare()
+                        playWhenReady = true
+                    }
+                }
+            }
             is DResult.Failed -> state = VideoState.Refused(r.code)
             DResult.Offline -> state = VideoState.Network
             DResult.NotConfigured -> state = VideoState.Refused("not_configured")
         }
     }
-    val factory = remember { media.sourceFactory() }
-    val player = remember(stream, play, attempt) {
-        val s = stream
-        if (!play || s == null || factory == null) null
-        else ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(factory)).build()
+    ReleaseWhenGone(media.players, player) { p ->
+        media.places.keep(node, p.currentPosition, p.duration.takeIf { it != C.TIME_UNSET } ?: 0L)
     }
     DisposableEffect(player) {
         val p = player ?: return@DisposableEffect onDispose {}
-        val url = stream?.url ?: return@DisposableEffect onDispose { p.release() }
+        fun tracks(tracks: Tracks) {
+            // a picture the device cannot decode (often HEVC): only the sound plays — say so
+            val video = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+            noPicture = video.isNotEmpty() && video.none { it.isSupported }
+        }
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) state = VideoState.Ready
@@ -414,32 +437,26 @@ internal fun DriveVideoPage(
                 }
             }
 
-            override fun onTracksChanged(tracks: Tracks) {
-                // a picture the device cannot decode (often HEVC): only the sound plays — say so
-                val video = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
-                noPicture = video.isNotEmpty() && video.none { it.isSupported }
-            }
+            override fun onTracksChanged(tracks: Tracks) = tracks(tracks)
 
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                if (videoSize.width > 0 && videoSize.height > 0) onLandscape(videoSize.width > videoSize.height)
+                vaultVideoWide(videoSize)?.let { landscape(it) }
             }
         }
         p.addListener(listener)
-        p.setMediaItem(MediaItem.Builder().setUri(url).build())
-        media.places.get(node)?.let { p.seekTo(it) }
-        p.prepare()
-        p.playWhenReady = true
-        onDispose {
-            media.places.keep(node, p.currentPosition, p.duration.takeIf { it != C.TIME_UNSET } ?: 0L)
-            p.removeListener(listener)
-            p.release()
-        }
+        // a kept player (after a fold or a turn): what it knows already
+        if (p.playbackState == Player.STATE_READY) state = VideoState.Ready
+        p.playerError?.let { listener.onPlayerError(it) }
+        tracks(p.currentTracks)
+        vaultVideoWide(p.videoSize)?.let { landscape(it) }
+        onDispose { p.removeListener(listener) }
     }
     Box(Modifier.fillMaxSize()) {
         if (node.blocked) { HeldBack(node); return@Box }
         val s = state
-        if (player != null && s != VideoState.CannotPlay) {
-            DriveVideoSurface(player, fullscreen, onFullscreen, Modifier.fillMaxSize())
+        val shown = player
+        if (shown != null && s != VideoState.CannotPlay) {
+            DriveVideoSurface(shown, fullscreen, onFullscreen, Modifier.fillMaxSize())
         } else if (s != VideoState.CannotPlay && s !is VideoState.Refused && s != VideoState.Network) {
             // the preview until it plays
             val poster = rememberDrivePreview(node, large = true) ?: rememberDrivePreview(node)

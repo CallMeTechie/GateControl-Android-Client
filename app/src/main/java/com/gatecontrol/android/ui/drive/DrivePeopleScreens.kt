@@ -294,7 +294,7 @@ fun DrivePersonScreen(onBack: () -> Unit, onPlace: (String, Long) -> Unit, viewM
     var merging by remember { mutableStateOf(false) }
     var linking by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
-    var viewing by remember { mutableStateOf<Int?>(null) }
+    var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
     LaunchedEffect(message) {
         message?.let {
             Toast.makeText(context, peopleText(context, it), Toast.LENGTH_SHORT).show()

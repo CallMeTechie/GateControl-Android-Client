@@ -49,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -227,8 +228,8 @@ internal fun DrivePhotosContent(
     val hasMedia = me?.has(DMe.FEATURE_MEDIA_FILTER) == true
     val media by viewModel.media.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf("timeline") }
-    /** Full screen: the timeline from this photo on. */
-    var viewing by remember { mutableStateOf<Int?>(null) }
+    /** Full screen: the timeline from this photo on (open still after a fold or a turn). */
+    var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
     var choosing by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf<Boolean?>(null) }
 
@@ -912,12 +913,16 @@ internal fun PhotoViewer(
     val pager = rememberPagerState(initialPage = start.coerceIn(0, items.size - 1)) { items.size }
     var busy by remember { mutableStateOf(false) }
     var zoomed by remember { mutableStateOf(false) }
-    var chrome by remember { mutableStateOf(true) }
-    var fullscreen by remember { mutableStateOf(false) }
-    var landscape by remember { mutableStateOf(false) }
+    // kept over a fold, an unfold or a turn (the activity made anew): the viewer comes back as it was, its video plays on
+    var chrome by rememberSaveable { mutableStateOf(true) }
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
+    var landscape by rememberSaveable { mutableStateOf(false) }
+    var shownPage by rememberSaveable { mutableIntStateOf(pager.settledPage) }
     LaunchedEffect(pager.currentPage, items.size) { if (onMore != null && pager.currentPage >= items.size - 5) onMore() }
-    // another page: not zoomed, not in full screen
-    LaunchedEffect(pager.settledPage) { zoomed = false; fullscreen = false; landscape = false }
+    // another page: not zoomed, not in full screen (not the same page again after the activity was made anew)
+    LaunchedEffect(pager.settledPage) {
+        if (pager.settledPage != shownPage) { shownPage = pager.settledPage; zoomed = false; fullscreen = false; landscape = false }
+    }
     val ask = rememberScanAsk()
     val act: (DNode, Boolean) -> Unit = { n, send ->
         if (!busy) {
@@ -933,7 +938,7 @@ internal fun PhotoViewer(
         }
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        ViewerFullscreen(fullscreen, landscape)
+        ViewerFullscreen(fullscreen, landscape, survivesRecreation = true)
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !zoomed && !fullscreen, key = { items.getOrNull(it)?.id ?: it }) { page ->
                 // the list may have changed under the pager (a reload): no page beyond it

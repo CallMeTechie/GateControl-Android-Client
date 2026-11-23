@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -134,7 +135,8 @@ fun DriveMemoriesScreen(onBack: () -> Unit, viewModel: DriveMemoriesViewModel = 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val open by viewModel.open.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
-    var viewing by remember { mutableStateOf<Int?>(null) }
+    // the photo shown of the collection opened — closed with another collection, kept over a fold or a turn
+    var viewing by rememberSaveable(open?.id) { mutableStateOf<Int?>(null) }
     BackHandler(enabled = open != null) { viewModel.close() }
     Column(Modifier.fillMaxSize()) {
         val title = open?.let { memoryTitle(it) } ?: stringResource(R.string.drive_mem_title)
@@ -163,7 +165,6 @@ fun DriveMemoriesScreen(onBack: () -> Unit, viewModel: DriveMemoriesViewModel = 
             }
         }
     }
-    LaunchedEffect(open?.id) { viewing = null }
     viewing?.let { start ->
         PhotoViewer(items = photos.items, start = start, fetch = viewModel::fetch, onMore = viewModel::more, onClose = { viewing = null })
     }
