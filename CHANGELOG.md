@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.139.0] - 2026-11-23
+
+### Features
+- GateControl TV Stufe 1b – Schnellaktionen, Kameras, Klingel-Einblendung, TV-PIN, Split-Tunnel (#271)
+
+---
+
 ## [1.138.0] - 2026-11-23
 
 ### Features
