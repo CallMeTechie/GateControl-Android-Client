@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -387,7 +388,12 @@ private fun DeviceRow(d: GdDevice, checked: Boolean, onClick: () -> Unit) {
         // another person's device: whose it is first ("Marc · online")
         description = d.owner?.let { stringResource(R.string.gatedrop_device_owner, it.name, status) } ?: status,
         descriptionAccent = state == GdDeviceState.DIRECT,
-        icon = if (d.platform == "android" || d.platform == "ios") Icons.Outlined.PhoneAndroid else Icons.Outlined.Computer,
+        icon = when (d.platform) {
+            "android", "ios" -> Icons.Outlined.PhoneAndroid
+            // GateControl TV (Fire TV / Android TV)
+            "android-tv" -> Icons.Outlined.Tv
+            else -> Icons.Outlined.Computer
+        },
         checked = checked,
         onClick = onClick,
     )

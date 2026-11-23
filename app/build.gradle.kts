@@ -142,6 +142,7 @@ dependencies {
     implementation(project(":core:door"))
     implementation(project(":core:quickactions"))
     implementation(project(":core:drive-api"))
+    implementation(project(":core:gatedrop"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:rdp"))

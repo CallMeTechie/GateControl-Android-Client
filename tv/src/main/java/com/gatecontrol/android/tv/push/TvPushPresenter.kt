@@ -33,6 +33,7 @@ import javax.inject.Singleton
 class TvPushPresenter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val door: dagger.Lazy<DoorRepository>,
+    private val gatedrop: dagger.Lazy<com.gatecontrol.android.tv.gatedrop.TvGateDrop>,
 ) : PushPresenter {
 
     private val _messages = MutableSharedFlow<PushMessage>(extraBufferCapacity = 16)
@@ -74,8 +75,12 @@ class TvPushPresenter @Inject constructor(
         runCatching { nm?.cancel(notificationId) }
     }
 
+    /** GateDrop's direct-transfer offers and data pushes: handled by [TvGateDrop], never shown. */
+    override fun consume(message: PushMessage): Boolean = gatedrop.get().consume(message)
+
     override suspend fun onNew(message: PushMessage) {
         if (DoorPush.isDoorMessage(message)) door.get().onPush(message)
+        gatedrop.get().onNew(message)
         _messages.tryEmit(message)
     }
 

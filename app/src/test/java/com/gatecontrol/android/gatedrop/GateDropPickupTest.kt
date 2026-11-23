@@ -73,7 +73,7 @@ class GateDropPickupTest {
         assertNull(a.fallback)
         assertEquals(GdDelivery.DELIVERED, a.delivery?.status)
         assertTrue(a.delivery!!.knowsPickup)
-        assertNull(a.delivery.pickedAt)
+        assertNull(a.delivery!!.pickedAt)
         // older plugins: the delivery without pickedAt
         val old = GateDropJson.transferAnswer(obj("""{"delivery":{"kind":"device","target":"pc","status":"delivered","via":"direct"},"fallback":null}"""))
         assertFalse(old.delivery!!.knowsPickup)

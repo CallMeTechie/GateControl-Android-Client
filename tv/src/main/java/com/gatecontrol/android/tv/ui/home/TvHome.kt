@@ -107,6 +107,7 @@ fun TvHome(
     startPage: (@Composable () -> Unit)? = null,
     camerasPage: (@Composable () -> Unit)? = null,
     drivePage: (@Composable () -> Unit)? = null,
+    gatedropPage: (@Composable () -> Unit)? = null,
     /** Asked before a page opens (the TV PIN of Einstellungen); calls `open` when it may. */
     onOpen: (TvDestination, open: () -> Unit) -> Unit = { _, open -> open() },
     /** Another part of the app asks for a page (OK on a camera of the start page). */
@@ -127,6 +128,8 @@ fun TvHome(
                 camerasPage()
             } else if (current == TvDestination.Drive && drivePage != null) {
                 drivePage()
+            } else if (current == TvDestination.GateDrop && gatedropPage != null) {
+                gatedropPage()
             } else if (current == TvDestination.Settings && settingsPage != null) {
                 settingsPage()
             } else {

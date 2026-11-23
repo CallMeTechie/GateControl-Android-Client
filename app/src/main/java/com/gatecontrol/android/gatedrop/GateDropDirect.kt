@@ -19,17 +19,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import javax.net.SocketFactory
 
-/** A local file to send directly (index = position in the send). */
-data class GdLocalFile(val file: File, val name: String, val size: Long)
-
-/** Outcome of a direct transfer. */
-sealed interface GdDirectOutcome {
-    data class Done(val bytes: Long) : GdDirectOutcome
-
-    /** Nothing reachable / refused / broken: the server path takes over. */
-    data class Failed(val reason: String) : GdDirectOutcome
-}
-
 /**
  * Client side of the direct LAN transfer (protocol C v1): push the files
  * to a listening device, or pull them from a listening sender. Plain HTTP

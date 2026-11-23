@@ -248,6 +248,67 @@
     <string name="tv_player_subtitle">Subtitle</string>
     <string name="tv_player_close_panel">Close</string>
 
+    <!-- GateDrop (stage 2): receive over the server, keep on the TV, send on -->
+    <plurals name="tv_drop_new_count">
+        <item quantity="one">%1$d new</item>
+        <item quantity="other">%1$d new</item>
+    </plurals>
+    <string name="tv_drop_receiving">Receiving …</string>
+    <string name="tv_drop_not_on">GateDrop is not available for you on this server.</string>
+    <string name="tv_drop_empty">Nothing received yet. In GateDrop on your phone or PC, pick this TV as the device.</string>
+    <string name="tv_drop_from">From %1$s</string>
+    <string name="tv_drop_someone">someone</string>
+    <string name="tv_drop_waiting">%1$s · %2$s · waiting, OK takes it onto the TV</string>
+    <string name="tv_drop_badge_waiting">WAITING</string>
+    <string name="tv_drop_badge_new">NEW</string>
+    <plurals name="tv_drop_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <string name="tv_drop_offer_text">%1$s sent you a message</string>
+    <plurals name="tv_drop_offer_files">
+        <item quantity="one">%1$s wants to send you %2$d file</item>
+        <item quantity="other">%1$s wants to send you %2$d files</item>
+    </plurals>
+    <string name="tv_drop_not_fetchable">not on the TV</string>
+    <plurals name="tv_drop_more">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <string name="tv_drop_show">Accept and show</string>
+    <string name="tv_drop_show_short">Show</string>
+    <string name="tv_drop_take">Accept only</string>
+    <string name="tv_drop_later">Later</string>
+    <string name="tv_drop_delete">Delete from the TV</string>
+    <string name="tv_drop_file_hint">OK on a file: show or open it, or send it on to another device.</string>
+    <string name="tv_drop_open">Open</string>
+    <string name="tv_drop_open_link">Open link</string>
+    <string name="tv_drop_no_app">No app on this TV opens this. Send it on to another device instead.</string>
+    <string name="tv_drop_sender">Someone</string>
+    <string name="tv_drop_message">Message</string>
+    <string name="tv_drop_card_from">from %1$s · %2$s</string>
+    <string name="tv_row_gatedrop">GateDrop inbox</string>
+    <plurals name="tv_drop_photos">
+        <item quantity="one">%1$d photo</item>
+        <item quantity="other">%1$d photos</item>
+    </plurals>
+    <plurals name="tv_drop_videos">
+        <item quantity="one">%1$d video</item>
+        <item quantity="other">%1$d videos</item>
+    </plurals>
+    <plurals name="tv_drop_media">
+        <item quantity="one">%1$d photo or video</item>
+        <item quantity="other">%1$d photos and videos</item>
+    </plurals>
+    <string name="tv_send_to">Send to …</string>
+    <string name="tv_send_title">Send “%1$s” to</string>
+    <string name="tv_send_busy">Sending …</string>
+    <string name="tv_send_done">Sent to %1$s.</string>
+    <string name="tv_send_failed">Could not be sent.</string>
+    <string name="tv_send_none">No device or person to send to.</string>
+    <string name="tv_send_person">Person</string>
+    <string name="tv_send_device">Device</string>
+    <string name="tv_send_device_online">Device · online</string>
     <!-- Photo frame (stage 2): only photos shared on purpose (Drive "GET frame") over the whole screen -->
     <string name="tv_set_frame">Photo frame</string>
     <string name="tv_frame_intro">Shows only photos shared on purpose for the photo frame: in the phone or Windows app select them in the Photos tab and pick “Share for photo frame”.</string>

@@ -111,6 +111,7 @@ dependencies {
     implementation(project(":core:door"))
     implementation(project(":core:quickactions"))
     implementation(project(":core:drive-api"))
+    implementation(project(":core:gatedrop"))
     implementation(project(":core:tunnel"))
     // the photo frame reads Drive's `GET frame` itself (JsonObject of the plugin bridge)
     implementation(libs.retrofit.gson)
@@ -137,6 +138,8 @@ dependencies {
     ksp(libs.hilt.compiler)
     // The pairing and update calls of core/network (Retrofit answers, OkHttp errors)
     implementation(libs.retrofit)
+    // Gson: GateDrop's pushes and answers (core/gatedrop hands its JsonObject over)
+    implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
     implementation(libs.timber)
     // Home cameras live (HLS fMP4 over the client API's OkHttp), as in the phone app

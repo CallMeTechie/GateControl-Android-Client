@@ -2,4 +2,6 @@
 <paths>
     <!-- App update: the downloaded and checked APK (cacheDir/update/update.apk), handed to Android's installer only. -->
     <cache-path name="update" path="update/" />
+    <!-- GateDrop: a file received on the TV, handed to another app on the TV ("Öffnen") with a read grant only. -->
+    <files-path name="gatedrop" path="gatedrop/" />
 </paths>

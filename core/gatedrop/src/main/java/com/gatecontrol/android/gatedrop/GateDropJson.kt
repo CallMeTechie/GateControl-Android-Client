@@ -1,6 +1,5 @@
 package com.gatecontrol.android.gatedrop
 
-import com.gatecontrol.android.chat.ChatJson
 import com.gatecontrol.android.scan.MediaScanJson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
@@ -22,6 +21,11 @@ import java.util.Base64
 object GateDropJson {
 
     private val ID_RE = Regex("^[A-Za-z0-9_.:-]{1,64}$")
+
+    // as ChatJson.avatarPath (Messenger): a relative avatar path of the own server
+    private val AVATAR_PATH_RE = Regex("^/(?:avatars|plugin-media)/[A-Za-z0-9._~%-]{1,200}$")
+
+    private fun avatarPath(value: String?): String? = value?.trim()?.takeIf { AVATAR_PATH_RE.matches(it) && !it.contains("..") }
     /** Transfer ids and tickets go into URL paths and headers: url-safe only. */
     private val TOKEN_RE = Regex("^[A-Za-z0-9_-]{6,128}$")
     private val MEDIA_ID_RE = Regex("^[A-Za-z0-9_-]{8,64}$")
@@ -258,7 +262,7 @@ object GateDropJson {
         return GdPerson(
             id = id,
             name = name,
-            avatar = ChatJson.avatarPath(o.firstStr("avatar", "avatarUrl")),
+            avatar = avatarPath(o.firstStr("avatar", "avatarUrl")),
             kind = kind,
             initials = line(o.str("initials"), 3),
             colorHex = o.str("colorHex")?.takeIf { COLOR_RE.matches(it) },
@@ -271,7 +275,7 @@ object GateDropJson {
         return GdDevice(
             id = id,
             name = line(o.firstStr("name", "label"), 80) ?: return null,
-            platform = o.str("platform")?.lowercase()?.takeIf { it.length <= 20 && it.all { c -> c.isLetterOrDigit() } },
+            platform = o.str("platform")?.lowercase()?.takeIf { it.length <= 20 && it.all { c -> c.isLetterOrDigit() || c == '-' } },
             online = o.flag("online") == true,
             direct = o.flag("direct") == true,
             owner = o.obj("owner")?.let { w ->
