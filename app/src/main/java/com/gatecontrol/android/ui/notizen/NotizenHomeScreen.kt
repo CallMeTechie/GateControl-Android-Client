@@ -28,7 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DrawerValue
 import com.gatecontrol.android.ui.components.GcDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
+import com.gatecontrol.android.ui.components.GcNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -140,7 +140,7 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
     val selectedNb = ui.notebook?.let { id -> ui.nav?.notebooks?.firstOrNull { it.id == id } }
     val me = ui.me
 
-    ModalNavigationDrawer(
+    GcNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {

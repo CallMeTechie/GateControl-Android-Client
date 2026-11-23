@@ -31,7 +31,7 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import com.gatecontrol.android.ui.components.GcDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
+import com.gatecontrol.android.ui.components.GcNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
@@ -223,7 +223,7 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
     }
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
 
-    ModalNavigationDrawer(
+    GcNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {

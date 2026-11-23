@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -26,6 +28,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -65,6 +68,30 @@ fun GcDrawerSheet(
     CompositionLocalProvider(LocalGcDrawerClose provides onClose) {
         ModalDrawerSheet(drawerContainerColor = containerColor, windowInsets = WindowInsets(0), content = content)
     }
+}
+
+/**
+ * A plugin's side menu around its page (Drive, Notizen & Aufgaben, Mail, Chat). Material places the closed sheet
+ * right before the page's left edge without clipping it: on a phone that is off screen, but on wide windows the page
+ * starts after the navigation rail (or, centred, after an empty margin, or as the second pane beside Start), and the
+ * closed menu was drawn over the rail – its right part visible, the rail hidden (foldable, tablet, landscape). The
+ * menu stays within the page's bounds: closed it is not seen, opened it slides in at the page's left edge.
+ */
+@Composable
+fun GcNavigationDrawer(
+    drawerState: DrawerState,
+    drawerContent: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    gesturesEnabled: Boolean = drawerState.isOpen,
+    content: @Composable () -> Unit,
+) {
+    ModalNavigationDrawer(
+        drawerContent = drawerContent,
+        modifier = modifier.clipToBounds(),
+        drawerState = drawerState,
+        gesturesEnabled = gesturesEnabled,
+        content = content,
+    )
 }
 
 /** The signed-in person for the head of every side menu: the own picture and the way to „Profil“. */
