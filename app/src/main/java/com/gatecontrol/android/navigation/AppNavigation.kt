@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -520,7 +521,8 @@ fun AppNavigation(
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.weight(1f).fillMaxHeight(),
+            // nothing of a page is drawn over the rail (a plugin's closed side menu sat on it: GcNavigationDrawer)
+            modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds(),
         ) {
             composable(Screen.Setup.route) { backStackEntry ->
                 val qrResult = backStackEntry.savedStateHandle.get<String>("qr_result")

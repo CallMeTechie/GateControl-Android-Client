@@ -141,7 +141,7 @@ fun ChatListScreen(
 
     // Chats v2: the side menu behind ☰ (as Drive and Notizen) — the views, the lists, the linked services and, at its
     // foot, the settings (the gear left the head)
-    androidx.compose.material3.ModalNavigationDrawer(
+    com.gatecontrol.android.ui.components.GcNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
