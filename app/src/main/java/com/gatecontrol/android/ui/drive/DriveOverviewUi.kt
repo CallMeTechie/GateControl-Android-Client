@@ -556,9 +556,11 @@ private fun ActivitySection(activity: List<DActivity>, actions: OverviewActions)
     )
     OverviewCard {
         activity.forEachIndexed { i, a ->
+            val folderId = a.folderId
+            val sample = a.sample
             val open: (() -> Unit)? = when {
-                a.folderId != null -> ({ actions.folder(a.folderId) })
-                a.sample != null -> ({ actions.file(a.sample.id) })
+                folderId != null -> ({ actions.folder(folderId) })
+                sample != null -> ({ actions.file(sample.id) })
                 else -> null
             }
             Column {

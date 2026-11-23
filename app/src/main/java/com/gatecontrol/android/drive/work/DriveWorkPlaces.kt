@@ -11,9 +11,6 @@ import kotlin.math.roundToLong
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** Where a photo was taken (EXIF GPS, degrees). */
-data class GeoPoint(val lat: Double, val lon: Double)
-
 /**
  * A photo that teaches the places: taken at [at], work ([work] true: "Firma") or private (false: "Zuhause"); one per
  * photo ([key], as the AI's examples: `n:<nodeId>`), [time] when it was learned.

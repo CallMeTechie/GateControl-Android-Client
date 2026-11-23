@@ -87,7 +87,7 @@ class DrivePlacesPrefs @Inject constructor(
         mine()
         prefs.edit {
             s.keepGeo?.let { putBoolean(KEY_KEEP_GEO, it) }
-            if (s.stripGeoOnShare != null) putBoolean(KEY_STRIP, s.stripGeoOnShare) else remove(KEY_STRIP)
+            s.stripGeoOnShare.let { strip -> if (strip != null) putBoolean(KEY_STRIP, strip) else remove(KEY_STRIP) }
             s.people?.let { putBoolean(KEY_PEOPLE, it) }
             s.peopleKids?.let { putBoolean(KEY_KIDS, it) }
             putBoolean(KEY_KNOWN, true)

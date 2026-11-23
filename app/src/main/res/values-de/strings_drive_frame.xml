@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Einzelne Fotos für den Fotorahmen des GateControl TV (Drive 1.31, „Mehr“ der ausgewählten Fotos) -->
+    <string name="drive_frame_add">Für Fotorahmen freigeben</string>
+    <string name="drive_frame_add_desc">Der Fotorahmen auf dem GateControl TV zeigt sie</string>
+    <string name="drive_frame_remove">Aus Fotorahmen entfernen</string>
+    <string name="drive_frame_remove_desc">Die Fotos bleiben in Drive</string>
+    <string name="drive_frame_forbidden">Dieses Konto darf keine Fotos für den Fotorahmen freigeben.</string>
+    <string name="drive_frame_added_none">Die Fotos sind bereits für den Fotorahmen freigegeben.</string>
+    <string name="drive_frame_removed_none">Keines der Fotos war im Fotorahmen.</string>
+    <string name="drive_frame_skipped">Übersprungen: %s</string>
+    <plurals name="drive_frame_added">
+        <item quantity="one">%d Foto für den Fotorahmen freigegeben.</item>
+        <item quantity="other">%d Fotos für den Fotorahmen freigegeben.</item>
+    </plurals>
+    <plurals name="drive_frame_removed">
+        <item quantity="one">%d Foto aus dem Fotorahmen entfernt.</item>
+        <item quantity="other">%d Fotos aus dem Fotorahmen entfernt.</item>
+    </plurals>
+    <plurals name="drive_frame_skip_video">
+        <item quantity="one">%d Video</item>
+        <item quantity="other">%d Videos</item>
+    </plurals>
+    <plurals name="drive_frame_skip_not_image">
+        <item quantity="one">%d kein Foto</item>
+        <item quantity="other">%d keine Fotos</item>
+    </plurals>
+    <plurals name="drive_frame_skip_vault">
+        <item quantity="one">%d im Tresor</item>
+        <item quantity="other">%d im Tresor</item>
+    </plurals>
+    <plurals name="drive_frame_skip_blocked">
+        <item quantity="one">%d vom Virenscan gesperrt</item>
+        <item quantity="other">%d vom Virenscan gesperrt</item>
+    </plurals>
+    <plurals name="drive_frame_skip_child">
+        <item quantity="one">%d aus einem Kinderordner</item>
+        <item quantity="other">%d aus Kinderordnern</item>
+    </plurals>
+    <plurals name="drive_frame_skip_not_found">
+        <item quantity="one">%d nicht gefunden</item>
+        <item quantity="other">%d nicht gefunden</item>
+    </plurals>
+    <plurals name="drive_frame_skip_other">
+        <item quantity="one">%d aus einem anderen Grund</item>
+        <item quantity="other">%d aus anderen Gründen</item>
+    </plurals>
+</resources>

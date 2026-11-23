@@ -50,6 +50,10 @@ class DriveApi @Inject constructor(
         const val CODE_INVALID = "invalid_answer"
         /** At most this many ids per album call (plugin README). */
         private const val ALBUM_IDS_MAX = 500
+        /** At most this many ids per `POST|DELETE frame/photos` (Drive 1.31). */
+        private const val FRAME_IDS_MAX = 500
+        /** At most this many ids in one `GET frame/photos?ids=` (the address stays short). */
+        private const val FRAME_QUERY_MAX = 100
         /** At most this many ids per `photos/review` (Drive 1.13). */
         private const val REVIEW_IDS_MAX = 500
         private const val TIMEOUT_MS = 25_000L
@@ -450,6 +454,40 @@ class DriveApi @Inject constructor(
             if (last !is DResult.Ok) return last
         }
         return last
+    }
+
+    // ─── photos for the photo frame (Drive 1.31, feature `framePhotos`) ─
+
+    /** Which of [ids] are shared for the photo frame (`GET frame/photos?ids=`, in parts). */
+    suspend fun framePhotoState(ids: List<Long>): DResult<Set<Long>> {
+        if (ids.isEmpty()) return DResult.Ok(emptySet())
+        val out = HashSet<Long>()
+        for (part in ids.distinct().chunked(FRAME_QUERY_MAX)) {
+            when (val r = get("frame/photos", mapOf("ids" to part.joinToString(",")), DriveJson::framePhotos)) {
+                is DResult.Ok -> r.value.ids.filterTo(out) { it in part }
+                else -> return r.notOk()
+            }
+        }
+        return DResult.Ok(out)
+    }
+
+    /** Shares [ids] for the photo frame (at most 500 a call, so in parts); the answers summed up. */
+    suspend fun shareFramePhotos(ids: List<Long>): DResult<DFramePhotos> = framePhotos(ids, add = true)
+
+    /** Takes [ids] out of the photo frame (the photos stay). */
+    suspend fun unshareFramePhotos(ids: List<Long>): DResult<DFramePhotos> = framePhotos(ids, add = false)
+
+    private suspend fun framePhotos(ids: List<Long>, add: Boolean): DResult<DFramePhotos> {
+        if (ids.isEmpty()) return bad()
+        var sum: DFramePhotos? = null
+        for (part in ids.distinct().chunked(FRAME_IDS_MAX)) {
+            val body = DriveJson.idsBody(part)
+            val r = if (add) post("frame/photos", body, DriveJson::framePhotos) else delWithBody("frame/photos", body, DriveJson::framePhotos)
+            if (r !is DResult.Ok) return r
+            val v = r.value
+            sum = sum?.let { s -> v.copy(added = s.added + v.added, removed = s.removed + v.removed, skipped = s.skipped + v.skipped) } ?: v
+        }
+        return sum?.let { DResult.Ok(it) } ?: bad()
     }
 
     // ─── storage (Drive 1.7, feature `storage`) ─────────────────────

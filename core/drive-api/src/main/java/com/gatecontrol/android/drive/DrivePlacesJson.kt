@@ -17,7 +17,7 @@ import java.util.Locale
  * Parsers and bodies of places and people in the photos (Drive 1.16, features `photoPlaces` and `photoPeople`): pure,
  * null for an answer without the shape needed, names and lists bounded like [DriveJson].
  */
-internal object DrivePlacesJson {
+object DrivePlacesJson {
 
     private val PLACE_KEY = Regex("^[A-Za-z0-9:._-]{1,80}$")
     private val MODEL = Regex("^[a-z0-9._-]{1,40}$")

@@ -61,6 +61,7 @@ app
 ├── core:notify     → core:common, core:data, core:network
 ├── core:door       → core:common, core:data, core:network, core:notify
 ├── core:quickactions → core:common, core:data, core:network, core:door
+├── core:drive-api  → core:common, core:data, core:network
 └── core:rdp        → core:common, core:network
 
 tv (GateControl TV) → alle core-Module außer core:rdp

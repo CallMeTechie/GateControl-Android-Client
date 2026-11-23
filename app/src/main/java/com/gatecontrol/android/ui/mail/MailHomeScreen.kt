@@ -34,7 +34,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import com.gatecontrol.android.ui.components.GcDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
+import com.gatecontrol.android.ui.components.GcNavigationDrawer
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -213,7 +213,7 @@ fun MailHomeScreen(
     val inbox = box.isInbox(folders[box.accountId].orEmpty())
     val folder = folders[box.accountId]?.firstOrNull { it.id == box.folderId }
 
-    ModalNavigationDrawer(
+    GcNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {

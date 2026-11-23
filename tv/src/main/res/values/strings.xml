@@ -214,4 +214,70 @@
     <string name="tv_split_mode">Mode (OK switches)</string>
     <string name="tv_split_next_connect">Applies from the next connect</string>
     <string name="tv_split_no_apps">No other apps found.</string>
+
+    <!-- Drive (stage 2): browse, pictures, videos, document previews; the TV only reads -->
+    <string name="tv_drive_loading">Loading …</string>
+    <string name="tv_drive_blocked">Held back by the virus scan</string>
+    <string name="tv_drive_cannot_open">Cannot be opened on the TV</string>
+    <string name="tv_drive_empty">This folder is empty.</string>
+    <string name="tv_drive_offline">No connection to the server.</string>
+    <string name="tv_drive_not_on">Drive is not switched on for you.</string>
+    <string name="tv_drive_not_licensed">Drive is not licensed on this server.</string>
+    <string name="tv_drive_failed">Drive could not be loaded.</string>
+    <string name="tv_drive_retry">Try again</string>
+    <string name="tv_drive_area_mine">My files</string>
+    <string name="tv_drive_area_family">Family</string>
+    <string name="tv_drive_area_child">Child</string>
+    <string name="tv_drive_area_team">Team</string>
+    <string name="tv_pin_for_drive">TV PIN for Drive</string>
+    <string name="tv_viewer_failed">Could not be shown.</string>
+    <string name="tv_viewer_preview_only">Preview only</string>
+    <string name="tv_viewer_slideshow">Slide show</string>
+    <!-- The player of Drive's videos -->
+    <string name="tv_player_cannot_play">This video (%1$s) cannot be played on this TV.</string>
+    <string name="tv_player_network">The video stopped loading. Check the connection.</string>
+    <string name="tv_player_resumed">Resumed at %1$s</string>
+    <string name="tv_player_tracks_hint">▲ Audio &amp; subtitles: %1$s</string>
+    <string name="tv_player_subtitles_off">Subtitles off</string>
+    <string name="tv_player_next_hint">⏭ Next video</string>
+    <string name="tv_player_tracks">Audio &amp; subtitles</string>
+    <string name="tv_player_audio">Audio</string>
+    <string name="tv_player_track">Track</string>
+    <string name="tv_player_subtitles">Subtitles</string>
+    <string name="tv_player_subtitle">Subtitle</string>
+    <string name="tv_player_close_panel">Close</string>
+
+    <!-- Photo frame (stage 2): only photos shared on purpose (Drive "GET frame") over the whole screen -->
+    <string name="tv_set_frame">Photo frame</string>
+    <string name="tv_frame_intro">Shows only photos shared on purpose for the photo frame: in the phone or Windows app select them in the Photos tab and pick “Share for photo frame”.</string>
+    <string name="tv_frame_photos">Shared photos</string>
+    <plurals name="tv_frame_photos_count">
+        <item quantity="one">%1$d photo shared</item>
+        <item quantity="other">%1$d photos shared</item>
+    </plurals>
+    <string name="tv_frame_start">Start photo frame now</string>
+    <string name="tv_frame_seconds">Next picture every</string>
+    <string name="tv_frame_as_server">As on the server (%1$s)</string>
+    <plurals name="tv_frame_seconds_every">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
+    <plurals name="tv_frame_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <string name="tv_frame_order">Order</string>
+    <string name="tv_frame_order_random">Random, every photo once per round</string>
+    <string name="tv_frame_order_date">By date, newest first</string>
+    <string name="tv_frame_clock">Show time and date</string>
+    <string name="tv_frame_idle">Start when nothing happens</string>
+    <string name="tv_frame_idle_off">Off – only by hand</string>
+    <plurals name="tv_frame_idle_after">
+        <item quantity="one">After %1$d minute without a key in GateControl</item>
+        <item quantity="other">After %1$d minutes without a key in GateControl</item>
+    </plurals>
+    <string name="tv_frame_none_shared">No photos shared for the photo frame yet – in the phone or Windows app select them in the Photos tab and pick “Share for photo frame”.</string>
+    <string name="tv_frame_not_ready">The server cannot provide the photos for the photo frame yet. Update GateControl on the server.</string>
+    <string name="tv_frame_unavailable">Drive on the server does not know the photo frame for the TV yet (from Drive 1.31).</string>
+    <string name="tv_frame_failed">The photos could not be loaded. Trying again in a minute.</string>
 </resources>

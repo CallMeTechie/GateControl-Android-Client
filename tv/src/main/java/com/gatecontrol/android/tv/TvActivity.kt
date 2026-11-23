@@ -18,6 +18,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.quickactions.QuickActionsLoad
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tv.doorbell.TvForeground
+import com.gatecontrol.android.tv.drive.TvDriveOpen
+import com.gatecontrol.android.tv.drive.TvDriveViewModel
+import com.gatecontrol.android.tv.ui.drive.TvDrivePage
+import com.gatecontrol.android.tv.ui.drive.TvMediaActivity
+import android.content.Intent
+import android.os.SystemClock
+import com.gatecontrol.android.tv.frame.TvFrameActivity
+import com.gatecontrol.android.tv.frame.TvFrameSchedule
+import com.gatecontrol.android.tv.frame.TvFrameSource
+import com.gatecontrol.android.tv.frame.TvFrameStatus
+import com.gatecontrol.android.tv.ui.settings.TvFrameOptions
 import com.gatecontrol.android.tv.home.TvHomeViewModel
 import com.gatecontrol.android.tv.security.TvPinFunction
 import com.gatecontrol.android.tv.ui.cameras.TvCamerasPage
@@ -59,9 +70,11 @@ class TvActivity : ComponentActivity() {
     private val updates: TvUpdateViewModel by viewModels()
     private val home: TvHomeViewModel by viewModels()
     private val prefs: TvPrefsViewModel by viewModels()
+    private val drive: TvDriveViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
+    @Inject lateinit var frameSource: TvFrameSource
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
@@ -101,8 +114,33 @@ class TvActivity : ComponentActivity() {
         super.onStop()
     }
 
+    /** When the remote last pressed a key here (the photo frame's idle start). */
+    @Volatile
+    private var lastKeyAt = SystemClock.elapsedRealtime()
+
+    @Volatile
+    private var resumed = false
+
+    /** Every key of the remote (and any other input) in GateControl. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        lastKeyAt = SystemClock.elapsedRealtime()
+    }
+
+    override fun onPause() {
+        resumed = false
+        super.onPause()
+    }
+
+    /** By hand: always (the frame itself says when nothing is shared). */
+    private fun startFrame() {
+        startActivity(Intent(this, TvFrameActivity::class.java))
+    }
+
     override fun onResume() {
         super.onResume()
+        resumed = true
+        lastKeyAt = SystemClock.elapsedRealtime()
         // back from the system page "Unbekannte Apps installieren": the installer follows if it is allowed now
         updates.onResume(this)
         // the push service, if Fire OS refused to start it from the background
@@ -140,17 +178,52 @@ class TvActivity : ComponentActivity() {
         var requested by remember { mutableStateOf<TvDestination?>(null) }
         var wanted by remember { mutableStateOf<String?>(null) }
         // A page waiting for the TV PIN (Einstellungen).
-        var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var pinFor by remember { mutableStateOf<Pair<TvPinFunction, () -> Unit>?>(null) }
+        val driveUi by drive.ui.collectAsStateWithLifecycle()
+        val drivePreviews by drive.previews.collectAsStateWithLifecycle()
+        val recent by drive.recent.collectAsStateWithLifecycle()
+        val frame by prefs.frame.collectAsStateWithLifecycle()
+        // the photo frame when nothing happened for a while (only while GateControl is in front)
+        // (only with photos shared: GET frame is asked first — a screen saver never shows just a hint)
+        LaunchedEffect(frame) {
+            while (frame.idleMinutes > 0) {
+                kotlinx.coroutines.delay(IDLE_CHECK_MS)
+                if (!resumed || !TvFrameSchedule.idleDue(frame, frameSource.status.value, lastKeyAt, SystemClock.elapsedRealtime())) continue
+                frameSource.load()
+                if (frameSource.status.value !is TvFrameStatus.Photos) {
+                    lastKeyAt = SystemClock.elapsedRealtime()
+                    continue
+                }
+                lastKeyAt = SystemClock.elapsedRealtime()
+                if (resumed) startFrame()
+            }
+        }
         LaunchedEffect(Unit) { home.refresh() }
         TvHome(
             status = status,
             startPage = {
                 DisposableEffect(Unit) {
                     home.setVisible(true)
+                    drive.loadRecent()
                     onDispose { home.setVisible(false) }
                 }
+                // with a TV PIN for Drive its files do not show on the start page either
+                val driveOpen = !pinState.needsPin(TvPinFunction.DRIVE)
                 TvStartRows(
-                    ui = TvStartUi(tiles, busy, cameras, previews, notice, loading = load is QuickActionsLoad.Loading || load is QuickActionsLoad.Idle),
+                    ui = TvStartUi(
+                        tiles, busy, cameras, previews, notice,
+                        loading = load is QuickActionsLoad.Loading || load is QuickActionsLoad.Idle,
+                        drive = if (driveOpen) recent else emptyList(),
+                        drivePreviews = drivePreviews,
+                    ),
+                    onDrive = { node ->
+                        when (drive.pressRecent(node)) {
+                            TvDriveOpen.PHOTO, TvDriveOpen.VIDEO, TvDriveOpen.PREVIEW -> startActivity(Intent(this, TvMediaActivity::class.java))
+                            TvDriveOpen.FOLDER -> requested = TvDestination.Drive
+                            else -> Unit
+                        }
+                    },
+                    onDrivePreview = drive::wantPreview,
                     onTile = home::press,
                     onSetpoint = { tile, control, value -> home.setControl(tile, control.id, value) },
                     onCamera = {
@@ -172,8 +245,32 @@ class TvActivity : ComponentActivity() {
                     },
                 )
             },
+            drivePage = {
+                TvDrivePage(
+                    ui = driveUi,
+                    previews = drivePreviews,
+                    onStart = drive::start,
+                    onArea = drive::openArea,
+                    onItem = { node ->
+                        drive.press(node).also { open ->
+                            if (open == TvDriveOpen.PHOTO || open == TvDriveOpen.VIDEO || open == TvDriveOpen.PREVIEW) {
+                                startActivity(Intent(this, TvMediaActivity::class.java))
+                            }
+                        }
+                    },
+                    onBack = drive::back,
+                    onMore = drive::more,
+                    onPreview = drive::wantPreview,
+                    onRetry = drive::reload,
+                )
+            },
             onOpen = { destination, open ->
-                if (destination == TvDestination.Settings && pinState.needsPin(TvPinFunction.SETTINGS)) pinFor = open else open()
+                val function = when (destination) {
+                    TvDestination.Settings -> TvPinFunction.SETTINGS
+                    TvDestination.Drive -> TvPinFunction.DRIVE
+                    else -> null
+                }
+                if (function != null && pinState.needsPin(function)) pinFor = function to open else open()
             },
             requested = requested,
             onRequestedShown = { requested = null },
@@ -193,12 +290,16 @@ class TvActivity : ComponentActivity() {
                         TvNoticeOptions(push, prefs::setPush, bell, prefs::setDoorbell, prefs.canDrawOverlays(), bellCameras, prefs::loadCameras)
                     },
                     security = { TvSecurityOptions(pinState, prefs::checkPin, prefs::setPin, prefs::removePin, prefs::setRequired) },
+                    frame = {
+                        val frameStatus by prefs.frameStatus.collectAsStateWithLifecycle()
+                        TvFrameOptions(frame, frameStatus, prefs.frameServer(), prefs::setFrame, ::startFrame, prefs::refreshFrame)
+                    },
                 )
             },
         )
-        pinFor?.let { open ->
+        pinFor?.let { (function, open) ->
             TvPinDialog(
-                title = stringResource(R.string.tv_pin_for_settings),
+                title = stringResource(if (function == TvPinFunction.DRIVE) R.string.tv_pin_for_drive else R.string.tv_pin_for_settings),
                 check = prefs::checkPin,
                 onPassed = {
                     pinFor = null
@@ -238,5 +339,9 @@ class TvActivity : ComponentActivity() {
             Timber.w("VPN consent could not be asked (%s)", it.javaClass.simpleName)
             main.onConsent(false)
         }
+    }
+
+    private companion object {
+        const val IDLE_CHECK_MS = 30_000L
     }
 }
