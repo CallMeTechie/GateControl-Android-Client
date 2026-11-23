@@ -2,6 +2,7 @@ package com.gatecontrol.android.familie
 
 import android.content.Context
 import androidx.core.content.edit
+import com.gatecontrol.android.common.LoginOwner
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
@@ -22,7 +23,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
-import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -220,10 +220,6 @@ class PluginDirectory @Inject constructor(
         private const val MIN_INTERVAL_MS = 3 * 60_000L
 
         /** Short hash of server + token: cached data belongs to exactly this login. */
-        fun ownerKey(serverUrl: String, token: String): String {
-            if (serverUrl.isBlank()) return ""
-            val digest = MessageDigest.getInstance("SHA-256").digest("$serverUrl\n$token".toByteArray())
-            return digest.take(12).joinToString("") { "%02x".format(it) }
-        }
+        fun ownerKey(serverUrl: String, token: String): String = LoginOwner.key(serverUrl, token)
     }
 }

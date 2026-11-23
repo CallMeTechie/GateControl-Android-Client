@@ -1,7 +1,7 @@
 package com.gatecontrol.android.layout
 
+import com.gatecontrol.android.common.BackgroundErrors
 import com.gatecontrol.android.data.SettingsRepository
-import com.gatecontrol.android.support.CrashReports
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,7 +26,7 @@ class StartPagesStore @Inject constructor(
     private val tabLayout: TabLayoutRepository,
     private val settingsRepository: SettingsRepository,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + BackgroundErrors.coroutineHandler)
 
     /** The page ids in their order (unknown ones included; [StartPages.visible] picks those to show). */
     val pages: StateFlow<List<String>> = tabLayout.layout.map { StartPages.pages(it.start) }

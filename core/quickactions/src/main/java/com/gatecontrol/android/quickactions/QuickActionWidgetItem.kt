@@ -62,14 +62,14 @@ data class QuickActionWidgetItem(
             return QuickActionWidgetItem(
                 value = value, unit = unit, status = status, state = state, controls = controls,
                 label = label, readings = readings, power = raw.power != false, badge = badge,
-                icon = QuickActionIcons.sanitize(raw.icon), timeline = timeline,
+                icon = QuickActionPaths.sanitize(raw.icon), timeline = timeline,
             )
         }
 
         /** The head's badge: an icon (required) with an optional short value; its label only names it. */
-        internal fun badgeOf(raw: QuickActionReading?): QuickActionReadingItem? {
+        fun badgeOf(raw: QuickActionReading?): QuickActionReadingItem? {
             raw ?: return null
-            val icon = QuickActionIcons.sanitize(raw.icon) ?: return null
+            val icon = QuickActionPaths.sanitize(raw.icon) ?: return null
             val value = textOf(raw.value, 8)
             return QuickActionReadingItem(
                 id = "badge",
@@ -157,7 +157,7 @@ data class QuickActionControlItem(
                     val options = raw.options.orEmpty().mapNotNull { o ->
                         val oid = o.id?.takeIf { ID.matches(it) } ?: return@mapNotNull null
                         val text = o.label?.let(QuickActionRepository::clean)?.take(20)?.takeIf { it.isNotBlank() } ?: oid
-                        QuickActionControlOptionItem(oid, text, QuickActionIcons.sanitize(o.icon))
+                        QuickActionControlOptionItem(oid, text, QuickActionPaths.sanitize(o.icon))
                     }.distinctBy { it.id }.take(8)
                     if (options.size < 2) return null
                     // Missing or JSON null: no option is active (1.318+). Any other unknown value → the first, as before.
@@ -222,7 +222,7 @@ data class QuickActionReadingItem(
             val id = raw.id?.takeIf { ID.matches(it) } ?: if (requireId) return null else "i$index"
             val label = raw.label?.let(QuickActionRepository::clean)?.take(20)?.takeIf { it.isNotBlank() } ?: return null
             val value = QuickActionWidgetItem.textOf(raw.value, 16)
-            val icon = QuickActionIcons.sanitize(raw.icon)
+            val icon = QuickActionPaths.sanitize(raw.icon)
             if (value == null && icon == null) return null
             return QuickActionReadingItem(
                 id = id,
@@ -249,7 +249,7 @@ data class QuickActionBadgeView(val icon: String, val text: String?, val tone: S
 
         fun of(badge: QuickActionReadingItem?): QuickActionBadgeView? {
             badge ?: return null
-            val icon = QuickActionIcons.sanitize(badge.icon) ?: return null
+            val icon = QuickActionPaths.sanitize(badge.icon) ?: return null
             val text = badge.value?.let { v -> listOfNotNull(v, badge.unit).joinToString(" ") }
             val tone = when (badge.state) {
                 "good", "on" -> "good"

@@ -104,6 +104,9 @@ bottom bar; back returns to where the person was) reached only by:
 
 ## Code
 
+API, models, the door push and the pure logic live in the module `core/door` (`door/…` below, shared with GateControl
+TV); the screens, `HomeCameraMedia` (player, saving stills) and the push presentation stay in `app`.
+
 | Where | What |
 |---|---|
 | `door/DoorModels.kt` | `DoorOverview` (`GET me`), `DoorLock` (LockView), `DoorCamera`, history items, event detail, pictures |

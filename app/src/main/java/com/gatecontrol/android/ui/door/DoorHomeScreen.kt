@@ -286,7 +286,7 @@ fun LockCard(lock: DoorLock, canAct: Boolean, busy: String?, onAction: (DoorLock
             val s = lock.state
             if (s.batteryCritical) add(stringResource(R.string.door_battery_critical) to GcTone.Error)
             else if (s.batteryPercent != null) {
-                val text = stringResource(R.string.door_battery_pct, s.batteryPercent) +
+                val text = stringResource(R.string.door_battery_pct, s.batteryPercent ?: 0) +
                     if (s.batteryCharging) " · " + stringResource(R.string.door_battery_charging) else ""
                 add(text to if (DoorLogic.batteryLow(s)) GcTone.Warn else GcTone.Neutral)
             }

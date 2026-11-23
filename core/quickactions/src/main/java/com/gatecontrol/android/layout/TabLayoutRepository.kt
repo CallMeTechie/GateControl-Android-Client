@@ -1,11 +1,11 @@
 package com.gatecontrol.android.layout
 
+import com.gatecontrol.android.common.BackgroundErrors
+import com.gatecontrol.android.common.LoginOwner
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
-import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.ClientLayoutRequest
-import com.gatecontrol.android.support.CrashReports
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -76,7 +76,7 @@ class TabLayoutRepository @Inject constructor(
     private val apiClientProvider: ApiClientProvider,
     private val settingsRepository: SettingsRepository,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + BackgroundErrors.coroutineHandler)
     private val mutex = Mutex()
     private var lastRefresh = 0L
 
@@ -95,7 +95,7 @@ class TabLayoutRepository @Inject constructor(
 
     private suspend fun read(): StoredTabLayout = forOwner(StoredTabLayout.decode(settingsRepository.getTabLayout().first()))
 
-    private fun owner(): String = PluginDirectory.ownerKey(setupRepository.getServerUrl(), setupRepository.getApiToken())
+    private fun owner(): String = LoginOwner.key(setupRepository.getServerUrl(), setupRepository.getApiToken())
 
     /** [s] for the current login: another login keeps the order shown, not the old server's copy and access. */
     private fun forOwner(s: StoredTabLayout): StoredTabLayout {

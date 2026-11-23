@@ -47,7 +47,7 @@ class QuickActionRepositoryTest {
     private val provider = mockk<ApiClientProvider> { every { getClient(any()) } returns api }
     private val context = mockk<Context>(relaxed = true)
 
-    private fun repo() = QuickActionRepository(context, setup, provider, settings)
+    private fun repo() = QuickActionRepository(setup, provider, settings, QuickActionSurfacesHook.NONE)
 
     private val light = QuickAction(plugin = "gatecontrol-smarthome", pluginName = "Smart Home", id = "light:3", title = "Wohnzimmer", kind = "toggle", state = "off")
 

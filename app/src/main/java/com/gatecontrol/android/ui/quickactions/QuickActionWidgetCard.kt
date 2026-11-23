@@ -183,10 +183,10 @@ fun QuickActionWidgetCard(
                 }
             }
             if (widget?.status != null && WidgetPart.STATUS in shown) {
-                Text(widget.status, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(widget.status.orEmpty(), style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (widget?.timeline != null && WidgetPart.TIMELINE in shown) {
-                TimelineBar(widget.timeline)
+                widget.timeline?.let { TimelineBar(it) }
             }
             if (carrier != null && widget != null) {
                 widget.controls.filter { WidgetPart.control(it.id) in shown }.forEach { control ->
@@ -289,7 +289,7 @@ private fun ClimateLine(main: QuickActionWidgetItem?, outdoor: QuickActionReadin
     val extra = GateControlTheme.extraColors
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         if (main?.value != null) {
-            val text = compactValue(main.value, main.unit)
+            val text = compactValue(main.value.orEmpty(), main.unit)
             TemperaturePart(
                 icon = StartIcons.HouseThermo,
                 iconTint = extra.accentText,
@@ -302,7 +302,7 @@ private fun ClimateLine(main: QuickActionWidgetItem?, outdoor: QuickActionReadin
             TemperaturePart(
                 icon = StartIcons.CloudSun,
                 iconTint = extra.blue,
-                text = compactValue(outdoor.value, outdoor.unit),
+                text = compactValue(outdoor.value.orEmpty(), outdoor.unit),
                 textColor = extra.muted,
                 description = stringResource(R.string.start_climate_outside, listOfNotNull(outdoor.value, outdoor.unit).joinToString(" ")),
             )
@@ -347,11 +347,11 @@ private fun MainValue(widget: QuickActionWidgetItem) {
                 modifier = Modifier.weight(1f, fill = false),
             )
             if (widget.unit != null && widget.value != null) {
-                Text(widget.unit, style = MaterialTheme.typography.bodyMedium, color = extra.muted, maxLines = 1, modifier = Modifier.padding(bottom = 3.dp))
+                Text(widget.unit.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = extra.muted, maxLines = 1, modifier = Modifier.padding(bottom = 3.dp))
             }
         }
         if (widget.label != null && valueIcon == null) {
-            Text(widget.label, style = MaterialTheme.typography.labelSmall, color = extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(widget.label.orEmpty(), style = MaterialTheme.typography.labelSmall, color = extra.faint, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -604,7 +604,7 @@ private fun StepperControl(control: QuickActionControlItem, busy: Boolean, onCha
     }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         if (control.label != null) {
-            Text(control.label, style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(control.label.orEmpty(), style = MaterialTheme.typography.bodySmall, color = extra.muted, maxLines = 1, modifier = Modifier.weight(1f))
         } else {
             Box(Modifier.weight(1f))
         }

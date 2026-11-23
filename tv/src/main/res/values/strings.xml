@@ -108,4 +108,22 @@
     <string name="tv_unpair">Unpair</string>
     <string name="tv_unpair_desc">VPN off, sign-in removed from this TV</string>
     <string name="tv_unpair_confirm">Press OK again to unpair. Remove the device in the portal as well.</string>
+
+    <!-- Push: notification channels and the push service's ongoing card -->
+    <string name="tv_channel_critical">Critical</string>
+    <string name="tv_channel_info">Info</string>
+    <string name="tv_channel_silent">Silent</string>
+    <string name="tv_channel_connection">Connection</string>
+    <string name="tv_channel_security">Security</string>
+    <string name="tv_channel_devices">Devices</string>
+    <string name="tv_channel_services">Services</string>
+    <string name="tv_channel_system">System</string>
+    <string name="tv_channel_admin">Notices from the administrator</string>
+    <string name="tv_channel_other">Messages</string>
+    <string name="tv_ongoing_vpn_on">VPN on</string>
+    <string name="tv_ongoing_vpn_off">VPN off</string>
+    <string name="tv_ongoing_ready">messages ready</string>
+    <string name="tv_ongoing_connecting">messages connecting …</string>
+    <string name="tv_ongoing_waiting">messages waiting for the server</string>
+    <string name="tv_ongoing_blocked">messages not available</string>
 </resources>
