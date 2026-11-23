@@ -21,6 +21,7 @@ class TvMainViewModel @Inject constructor(
     private val settings: TvSettings,
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
+    private val frameSource: com.gatecontrol.android.tv.frame.TvFrameSource,
 ) : ViewModel() {
 
     val tunnelState: StateFlow<TunnelState> = tunnel.state
@@ -62,7 +63,7 @@ class TvMainViewModel @Inject constructor(
             tunnel.disconnect()
             setupRepository.clear()
             apiClientProvider.invalidate()
-            settings.clearFrameFolder()
+            frameSource.clear()
             done()
         }
     }

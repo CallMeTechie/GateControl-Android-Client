@@ -219,7 +219,6 @@
     <string name="tv_drive_loading">Loading …</string>
     <string name="tv_drive_blocked">Held back by the virus scan</string>
     <string name="tv_drive_cannot_open">Cannot be opened on the TV</string>
-    <string name="tv_drive_as_frame">Use as photo frame</string>
     <string name="tv_drive_empty">This folder is empty.</string>
     <string name="tv_drive_offline">No connection to the server.</string>
     <string name="tv_drive_not_on">Drive is not switched on for you.</string>
@@ -248,14 +247,17 @@
     <string name="tv_player_subtitle">Subtitle</string>
     <string name="tv_player_close_panel">Close</string>
 
-    <!-- Photo frame (stage 2): the pictures of a Drive folder over the whole screen -->
+    <!-- Photo frame (stage 2): only photos shared on purpose (Drive "GET frame") over the whole screen -->
     <string name="tv_set_frame">Photo frame</string>
-    <string name="tv_frame_intro">The pictures of a Drive folder as a slide show over the whole screen. Choose the folder in Drive: open it and pick “Use as photo frame”.</string>
-    <string name="tv_frame_folder">Folder</string>
-    <string name="tv_frame_folder_none">None yet – in Drive open a folder and pick “Use as photo frame”</string>
-    <string name="tv_frame_folder_none_short">Choose a folder in Drive first</string>
+    <string name="tv_frame_intro">Shows only photos shared on purpose for the photo frame: in the phone or Windows app select them in the Photos tab and pick “Share for photo frame”.</string>
+    <string name="tv_frame_photos">Shared photos</string>
+    <plurals name="tv_frame_photos_count">
+        <item quantity="one">%1$d photo shared</item>
+        <item quantity="other">%1$d photos shared</item>
+    </plurals>
     <string name="tv_frame_start">Start photo frame now</string>
     <string name="tv_frame_seconds">Next picture every</string>
+    <string name="tv_frame_as_server">As on the server (%1$s)</string>
     <plurals name="tv_frame_seconds_every">
         <item quantity="one">%1$d second</item>
         <item quantity="other">%1$d seconds</item>
@@ -264,9 +266,9 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
-    <string name="tv_frame_shuffle">Shuffle</string>
-    <string name="tv_frame_shuffle_on">Random order, every picture once per round</string>
-    <string name="tv_frame_shuffle_off">By name</string>
+    <string name="tv_frame_order">Order</string>
+    <string name="tv_frame_order_random">Random, every photo once per round</string>
+    <string name="tv_frame_order_date">By date, newest first</string>
     <string name="tv_frame_clock">Show time and date</string>
     <string name="tv_frame_idle">Start when nothing happens</string>
     <string name="tv_frame_idle_off">Off – only by hand</string>
@@ -274,7 +276,8 @@
         <item quantity="one">After %1$d minute without a key in GateControl</item>
         <item quantity="other">After %1$d minutes without a key in GateControl</item>
     </plurals>
-    <string name="tv_frame_chosen">Photo frame: %1$s</string>
-    <string name="tv_frame_empty">There are no pictures in this folder.</string>
-    <string name="tv_frame_failed">The folder could not be read. Trying again in a minute.</string>
+    <string name="tv_frame_none_shared">No photos shared for the photo frame yet – in the phone or Windows app select them in the Photos tab and pick “Share for photo frame”.</string>
+    <string name="tv_frame_not_ready">The server cannot provide the photos for the photo frame yet. Update GateControl on the server.</string>
+    <string name="tv_frame_unavailable">Drive on the server does not know the photo frame for the TV yet (from Drive 1.31).</string>
+    <string name="tv_frame_failed">The photos could not be loaded. Trying again in a minute.</string>
 </resources>

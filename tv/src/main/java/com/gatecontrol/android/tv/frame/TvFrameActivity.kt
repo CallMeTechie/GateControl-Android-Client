@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.text.format.DateFormat
 import android.view.KeyEvent
 import android.view.WindowManager
+import androidx.annotation.StringRes
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,15 +38,13 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import com.gatecontrol.android.drive.DNode
-import com.gatecontrol.android.drive.DResult
-import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.TvSettings
-import com.gatecontrol.android.tv.drive.TvDriveMedia
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
@@ -52,83 +52,73 @@ import java.util.Date
 import javax.inject.Inject
 
 /**
- * The photo frame over the whole screen: the pictures of the chosen Drive folder, one every [TvFrameSettings.seconds],
- * fading into each other, with the time and date. ◀ ▶ step, any other key closes (as a screen saver). The folder is
- * read again every half hour. Pictures only in memory and the shared preview cache.
+ * The photo frame over the whole screen: the photos shared for the photo frame ([TvFrameSource], `GET frame`), one every
+ * [TvFrameSchedule.effectiveSeconds], fading into each other, with the time and date. ◀ ▶ step, any other key closes
+ * (as a screen saver). Asked again every half hour (the URLs hold 2 h). Pictures only in memory.
  */
 @AndroidEntryPoint
 class TvFrameActivity : ComponentActivity() {
 
     @Inject lateinit var settings: TvSettings
-    @Inject lateinit var api: DriveApi
-    @Inject lateinit var media: TvDriveMedia
+    @Inject lateinit var source: TvFrameSource
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val frame = settings.frame.value
-        val folder = frame.folderId
-        if (folder == null) {
-            finish()
-            return
-        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        setContent { GateControlTvTheme { Frame(folder, frame) } }
-    }
-
-    /** All pictures of the folder (pages of 500, at most [TvFrameSchedule.MAX_ITEMS]); null when it cannot be read. */
-    private suspend fun pictures(folder: Long): List<DNode>? {
-        val out = ArrayList<DNode>()
-        var offset: Int? = 0
-        while (offset != null && out.size < TvFrameSchedule.MAX_ITEMS) {
-            val r = api.folder(folder, offset = offset, limit = 500)
-            if (r !is DResult.Ok) return if (out.isEmpty()) null else out
-            out += TvFrameSchedule.pictures(r.value.items)
-            offset = r.value.next
-        }
-        return out.take(TvFrameSchedule.MAX_ITEMS)
+        val frame = settings.frame.value
+        setContent { GateControlTvTheme { Frame(frame) } }
     }
 
     @Composable
-    private fun Frame(folder: Long, frame: TvFrameSettings) {
-        val playlist = remember { TvFramePlaylist(emptyList(), frame.shuffle) }
+    private fun Frame(frame: TvFrameSettings) {
+        var playlist by remember { mutableStateOf<TvFramePlaylist?>(null) }
         var picture by remember { mutableStateOf<Bitmap?>(null) }
-        var state by remember { mutableStateOf(FrameState.LOADING) }
+        val status by source.status.collectAsStateWithLifecycle()
         var step by remember { mutableLongStateOf(0L) }
         var direction by remember { mutableIntStateOf(1) }
         val focus = remember { FocusRequester() }
 
         LaunchedEffect(Unit) {
-            var loadedAt = 0L
+            var misses = 0
+            var applied: TvFrameFeed? = null
             while (true) {
-                val now = System.currentTimeMillis()
-                if (loadedAt == 0L || TvFrameSchedule.refreshDue(loadedAt, now)) {
-                    val fresh = pictures(folder)
-                    if (fresh != null) {
-                        playlist.update(fresh)
-                        loadedAt = now
+                // asked again when due (half an hour; a minute after a failure); the last answer otherwise
+                source.load(force = misses >= MISSES_BEFORE_RELOAD)
+                if (misses >= MISSES_BEFORE_RELOAD) misses = 0
+                val feed = source.last
+                if (feed != null && source.status.value is TvFrameStatus.Photos) {
+                    val list = playlist ?: TvFramePlaylist(emptyList(), TvFrameSchedule.effectiveOrder(frame, feed) == TvFrameOrder.RANDOM).also { playlist = it }
+                    if (feed !== applied) {
+                        list.update(feed.items)
+                        applied = feed
                     }
-                    if (playlist.size == 0) {
-                        state = if (fresh == null) FrameState.FAILED else FrameState.EMPTY
-                        delay(60_000)
-                        continue
-                    }
+                } else {
+                    applied = null
+                    playlist = null
+                    picture = null
+                    delay(TvFrameSchedule.RETRY_MS)
+                    continue
                 }
-                // a picture that cannot be loaded is skipped (a few tries per step)
+                val list = playlist ?: continue
+                // a picture that cannot be loaded is skipped (a few tries per step); several in a row: asked again
                 var shown: Bitmap? = null
                 repeat(3) {
                     if (shown != null) return@repeat
-                    val node = (if (direction < 0) playlist.previous() else playlist.next()) ?: return@repeat
-                    shown = media.picture(node)
+                    val photo = (if (direction < 0) list.previous() else list.next()) ?: return@repeat
+                    shown = source.picture(photo)
                 }
                 direction = 1
                 if (shown != null) {
                     picture = shown
-                    state = FrameState.SHOWING
+                    misses = 0
+                } else {
+                    misses++
                 }
                 val waitUntil = step
                 // the time per picture, or until ◀ ▶ asks for another one
+                val ms = TvFrameSchedule.effectiveSeconds(frame, source.last) * 1_000L
                 var waited = 0L
-                while (waited < frame.seconds * 1_000L && step == waitUntil) {
+                while (waited < ms && step == waitUntil) {
                     delay(250)
                     waited += 250
                 }
@@ -162,25 +152,35 @@ class TvFrameActivity : ComponentActivity() {
             Crossfade(targetState = picture, animationSpec = tween(1_200), label = "frame") { bmp ->
                 if (bmp != null) Image(bmp.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             }
-            if (state != FrameState.SHOWING) {
+            if (picture == null) {
                 Text(
-                    stringResource(
-                        when (state) {
-                            FrameState.EMPTY -> R.string.tv_frame_empty
-                            FrameState.FAILED -> R.string.tv_frame_failed
-                            else -> R.string.tv_drive_loading
-                        },
-                    ),
+                    stringResource(TvFrameTexts.message(status)),
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.White,
-                    modifier = Modifier.align(Alignment.Center),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center).widthIn(max = 760.dp).padding(24.dp),
                 )
             }
             if (frame.clock) FrameClock(Modifier.align(Alignment.BottomEnd).padding(36.dp))
         }
     }
 
-    private enum class FrameState { LOADING, SHOWING, EMPTY, FAILED }
+    private companion object {
+        /** This many steps without a picture in a row: the URLs may have run out, `GET frame` is asked again. */
+        const val MISSES_BEFORE_RELOAD = 3
+    }
+}
+
+/** The texts of the frame's states (the frame and Einstellungen › Fotorahmen). */
+object TvFrameTexts {
+    @StringRes
+    fun message(status: TvFrameStatus): Int = when (status) {
+        TvFrameStatus.Unknown, is TvFrameStatus.Photos -> R.string.tv_drive_loading
+        TvFrameStatus.NoPhotos -> R.string.tv_frame_none_shared
+        TvFrameStatus.NotReady -> R.string.tv_frame_not_ready
+        TvFrameStatus.Unavailable -> R.string.tv_frame_unavailable
+        TvFrameStatus.Failed -> R.string.tv_frame_failed
+    }
 }
 
 /** Time and date in the corner, updated by the minute. */

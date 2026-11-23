@@ -11,6 +11,10 @@ import com.gatecontrol.android.door.HomeCamera
 import com.gatecontrol.android.notify.PushPrefsStore
 import com.gatecontrol.android.tv.doorbell.DoorbellSettings
 import com.gatecontrol.android.tv.doorbell.TvDoorbell
+import com.gatecontrol.android.tv.frame.TvFrameFeed
+import com.gatecontrol.android.tv.frame.TvFrameSettings
+import com.gatecontrol.android.tv.frame.TvFrameSource
+import com.gatecontrol.android.tv.frame.TvFrameStatus
 import com.gatecontrol.android.tv.security.TvPinCheck
 import com.gatecontrol.android.tv.security.TvPinFunction
 import com.gatecontrol.android.tv.security.TvPinState
@@ -41,14 +45,26 @@ class TvPrefsViewModel @Inject constructor(
     private val pushStore: PushPrefsStore,
     private val doorbell: TvDoorbell,
     private val doorApi: DoorApi,
+    private val frameSource: TvFrameSource,
 ) : ViewModel() {
 
     val doorbellSettings: StateFlow<DoorbellSettings> = settings.doorbell
     val splitTunnel: StateFlow<TvSplitTunnelSettings> = settings.splitTunnel
     val pin: StateFlow<TvPinState> = pins.state
-    val frame: StateFlow<com.gatecontrol.android.tv.frame.TvFrameSettings> = settings.frame
+    val frame: StateFlow<TvFrameSettings> = settings.frame
 
-    fun setFrame(value: com.gatecontrol.android.tv.frame.TvFrameSettings) = settings.setFrame(value)
+    /** What the photo frame can show (the last `GET frame`). */
+    val frameStatus: StateFlow<TvFrameStatus> = frameSource.status
+
+    fun setFrame(value: TvFrameSettings) = settings.setFrame(value)
+
+    /** Einstellungen › Fotorahmen opened: asked again, so a share made a moment ago in the app shows. */
+    fun refreshFrame() {
+        viewModelScope.launch { frameSource.load(force = true) }
+    }
+
+    /** The server's interval and order (null: not known yet), for „Wie am Server (…)“. */
+    fun frameServer(): TvFrameFeed? = frameSource.last
     val pushEnabled: StateFlow<Boolean> = pushStore.settings.map { it.enabled }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _apps = MutableStateFlow<List<TvInstalledApp>>(emptyList())

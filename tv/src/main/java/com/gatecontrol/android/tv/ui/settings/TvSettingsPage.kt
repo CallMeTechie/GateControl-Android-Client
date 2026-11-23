@@ -83,7 +83,7 @@ fun TvSettingsPage(
     notices: @Composable () -> Unit = {},
     /** Sicherheit: the TV PIN. */
     security: @Composable () -> Unit = {},
-    /** Fotorahmen: folder, interval, order, idle start. */
+    /** Fotorahmen: what is shared, interval, order, idle start. */
     frame: @Composable () -> Unit = {},
 ) {
     var category by rememberSaveable { mutableStateOf(TvSettingsCategory.Connection) }

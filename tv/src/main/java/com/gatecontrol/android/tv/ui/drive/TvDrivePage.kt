@@ -71,8 +71,6 @@ fun TvDrivePage(
     onPreview: (DNode) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    /** The folder shown becomes the photo frame (null: not offered). */
-    onFrame: ((id: Long, name: String) -> Unit)? = null,
 ) {
     val colors = GateControlTvTheme.colors
     LaunchedEffect(Unit) { onStart() }
@@ -101,10 +99,6 @@ fun TvDrivePage(
             }
             if (ui.loading) TvPill(stringResource(R.string.tv_drive_loading), TvPillTone.Info)
             hint?.let { TvPill(stringResource(if (it == TvDriveOpen.BLOCKED) R.string.tv_drive_blocked else R.string.tv_drive_cannot_open), TvPillTone.Warn) }
-            if (onFrame != null && !ui.stack.atAreas && ui.items.any { TvDriveLogicUi.isPicture(it) }) {
-                val top = ui.stack.top
-                if (top != null) TvButton(stringResource(R.string.tv_drive_as_frame), onClick = { onFrame(top.id, top.name) })
-            }
         }
         val problem = ui.problem
         when {

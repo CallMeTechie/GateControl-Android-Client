@@ -219,7 +219,6 @@
     <string name="tv_drive_loading">Lädt …</string>
     <string name="tv_drive_blocked">Vom Virenscan zurückgehalten</string>
     <string name="tv_drive_cannot_open">Am Fernseher nicht zu öffnen</string>
-    <string name="tv_drive_as_frame">Als Fotorahmen verwenden</string>
     <string name="tv_drive_empty">Dieser Ordner ist leer.</string>
     <string name="tv_drive_offline">Keine Verbindung zum Server.</string>
     <string name="tv_drive_not_on">Drive ist für dich nicht eingeschaltet.</string>
@@ -248,14 +247,17 @@
     <string name="tv_player_subtitle">Untertitel</string>
     <string name="tv_player_close_panel">Schließen</string>
 
-    <!-- Fotorahmen (Stufe 2): die Fotos eines Drive-Ordners im Vollbild -->
+    <!-- Fotorahmen (Stufe 2): nur ausdrücklich freigegebene Fotos (Drive „GET frame“) im Vollbild -->
     <string name="tv_set_frame">Fotorahmen</string>
-    <string name="tv_frame_intro">Die Fotos eines Drive-Ordners als Diashow im Vollbild. Den Ordner wählst du in Drive: öffnen und „Als Fotorahmen verwenden“.</string>
-    <string name="tv_frame_folder">Ordner</string>
-    <string name="tv_frame_folder_none">Noch keiner – in Drive einen Ordner öffnen und „Als Fotorahmen verwenden“ wählen</string>
-    <string name="tv_frame_folder_none_short">Erst in Drive einen Ordner wählen</string>
+    <string name="tv_frame_intro">Zeigt nur Fotos, die ausdrücklich für den Fotorahmen freigegeben sind: in der Handy- oder Windows-App im Foto-Tab auswählen und „Für Fotorahmen freigeben“.</string>
+    <string name="tv_frame_photos">Freigegebene Fotos</string>
+    <plurals name="tv_frame_photos_count">
+        <item quantity="one">%1$d Foto freigegeben</item>
+        <item quantity="other">%1$d Fotos freigegeben</item>
+    </plurals>
     <string name="tv_frame_start">Fotorahmen jetzt starten</string>
     <string name="tv_frame_seconds">Nächstes Foto alle</string>
+    <string name="tv_frame_as_server">Wie am Server (%1$s)</string>
     <plurals name="tv_frame_seconds_every">
         <item quantity="one">%1$d Sekunde</item>
         <item quantity="other">%1$d Sekunden</item>
@@ -264,9 +266,9 @@
         <item quantity="one">%1$d Minute</item>
         <item quantity="other">%1$d Minuten</item>
     </plurals>
-    <string name="tv_frame_shuffle">Zufällige Reihenfolge</string>
-    <string name="tv_frame_shuffle_on">Gemischt, jedes Foto einmal pro Runde</string>
-    <string name="tv_frame_shuffle_off">Nach Name</string>
+    <string name="tv_frame_order">Reihenfolge</string>
+    <string name="tv_frame_order_random">Zufällig, jedes Foto einmal pro Runde</string>
+    <string name="tv_frame_order_date">Nach Datum, neueste zuerst</string>
     <string name="tv_frame_clock">Uhrzeit und Datum zeigen</string>
     <string name="tv_frame_idle">Starten, wenn nichts passiert</string>
     <string name="tv_frame_idle_off">Aus – nur von Hand</string>
@@ -274,7 +276,8 @@
         <item quantity="one">Nach %1$d Minute ohne Taste in GateControl</item>
         <item quantity="other">Nach %1$d Minuten ohne Taste in GateControl</item>
     </plurals>
-    <string name="tv_frame_chosen">Fotorahmen: %1$s</string>
-    <string name="tv_frame_empty">In diesem Ordner sind keine Fotos.</string>
-    <string name="tv_frame_failed">Der Ordner ließ sich nicht lesen. Neuer Versuch in einer Minute.</string>
+    <string name="tv_frame_none_shared">Noch keine Fotos für den Fotorahmen freigegeben – in der Handy- oder Windows-App im Foto-Tab auswählen und „Für Fotorahmen freigeben“.</string>
+    <string name="tv_frame_not_ready">Der Server kann die Fotos für den Fotorahmen noch nicht bereitstellen. GateControl auf dem Server aktualisieren.</string>
+    <string name="tv_frame_unavailable">Drive auf dem Server kennt den Fotorahmen für den TV noch nicht (ab Drive 1.31).</string>
+    <string name="tv_frame_failed">Die Fotos ließen sich nicht laden. Neuer Versuch in einer Minute.</string>
 </resources>
