@@ -180,6 +180,7 @@
     <string name="tv_bell_motion_desc">Aus: nur beim Klingeln</string>
     <string name="tv_bell_camera">Kamera im Fenster</string>
     <string name="tv_bell_camera_none">Das Bild der Klingel</string>
+    <string name="tv_bell_camera_fallback">Die der Klingel zugeordnete Heimkamera, sonst: %1$s</string>
     <string name="tv_pin_intro">Ein Fernseher wird geteilt. Mit einer PIN fragen die Funktionen unten zuerst danach. Ohne PIN fragt nichts.</string>
     <string name="tv_pin_set">PIN festlegen</string>
     <string name="tv_pin_set_desc">4 bis 8 Ziffern, nur als Hash auf diesem TV gespeichert</string>
@@ -247,6 +248,67 @@
     <string name="tv_player_subtitle">Untertitel</string>
     <string name="tv_player_close_panel">Schließen</string>
 
+    <!-- GateDrop (Stufe 2): über den Server empfangen, am TV behalten, weitersenden -->
+    <plurals name="tv_drop_new_count">
+        <item quantity="one">%1$d neu</item>
+        <item quantity="other">%1$d neu</item>
+    </plurals>
+    <string name="tv_drop_receiving">Empfängt …</string>
+    <string name="tv_drop_not_on">GateDrop gibt es auf diesem Server für dich nicht.</string>
+    <string name="tv_drop_empty">Noch nichts empfangen. Wähle in GateDrop am Handy oder PC diesen Fernseher als Gerät.</string>
+    <string name="tv_drop_from">Von %1$s</string>
+    <string name="tv_drop_someone">jemandem</string>
+    <string name="tv_drop_waiting">%1$s · %2$s · wartet, OK holt es auf den TV</string>
+    <string name="tv_drop_badge_waiting">WARTET</string>
+    <string name="tv_drop_badge_new">NEU</string>
+    <plurals name="tv_drop_files">
+        <item quantity="one">%1$d Datei</item>
+        <item quantity="other">%1$d Dateien</item>
+    </plurals>
+    <string name="tv_drop_offer_text">%1$s hat dir eine Nachricht geschickt</string>
+    <plurals name="tv_drop_offer_files">
+        <item quantity="one">%1$s möchte dir %2$d Datei senden</item>
+        <item quantity="other">%1$s möchte dir %2$d Dateien senden</item>
+    </plurals>
+    <string name="tv_drop_not_fetchable">nicht am TV</string>
+    <plurals name="tv_drop_more">
+        <item quantity="one">und %1$d weitere</item>
+        <item quantity="other">und %1$d weitere</item>
+    </plurals>
+    <string name="tv_drop_show">Annehmen und zeigen</string>
+    <string name="tv_drop_show_short">Zeigen</string>
+    <string name="tv_drop_take">Nur annehmen</string>
+    <string name="tv_drop_later">Später</string>
+    <string name="tv_drop_delete">Vom TV löschen</string>
+    <string name="tv_drop_file_hint">OK auf einer Datei: zeigen oder öffnen, oder an ein anderes Gerät weitersenden.</string>
+    <string name="tv_drop_open">Öffnen</string>
+    <string name="tv_drop_open_link">Link öffnen</string>
+    <string name="tv_drop_no_app">Keine App auf diesem TV öffnet das. Sende es stattdessen an ein anderes Gerät.</string>
+    <string name="tv_drop_sender">Jemand</string>
+    <string name="tv_drop_message">Nachricht</string>
+    <string name="tv_drop_card_from">von %1$s · %2$s</string>
+    <string name="tv_row_gatedrop">GateDrop-Eingang</string>
+    <plurals name="tv_drop_photos">
+        <item quantity="one">%1$d Foto</item>
+        <item quantity="other">%1$d Fotos</item>
+    </plurals>
+    <plurals name="tv_drop_videos">
+        <item quantity="one">%1$d Video</item>
+        <item quantity="other">%1$d Videos</item>
+    </plurals>
+    <plurals name="tv_drop_media">
+        <item quantity="one">%1$d Foto oder Video</item>
+        <item quantity="other">%1$d Fotos und Videos</item>
+    </plurals>
+    <string name="tv_send_to">Senden an …</string>
+    <string name="tv_send_title">„%1$s“ senden an</string>
+    <string name="tv_send_busy">Wird gesendet …</string>
+    <string name="tv_send_done">An %1$s gesendet.</string>
+    <string name="tv_send_failed">Senden hat nicht geklappt.</string>
+    <string name="tv_send_none">Kein Gerät und keine Person zum Senden.</string>
+    <string name="tv_send_person">Person</string>
+    <string name="tv_send_device">Gerät</string>
+    <string name="tv_send_device_online">Gerät · online</string>
     <!-- Fotorahmen (Stufe 2): nur ausdrücklich freigegebene Fotos (Drive „GET frame“) im Vollbild -->
     <string name="tv_set_frame">Fotorahmen</string>
     <string name="tv_frame_intro">Zeigt nur Fotos, die ausdrücklich für den Fotorahmen freigegeben sind: in der Handy- oder Windows-App im Foto-Tab auswählen und „Für Fotorahmen freigeben“.</string>

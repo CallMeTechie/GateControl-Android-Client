@@ -85,6 +85,21 @@ object DoorbellRules {
         settings.cameraId?.let { id -> cameras.firstOrNull { it.id == id } }
 
     /**
+     * The home camera assigned to the ringing doorbell (Door 1.9): from the push (`data.door.homeCameraId` / `live`),
+     * else from `GET me` cameras[] of the ringing camera. Null: none assigned (or an older Door) — then
+     * [camera] of the settings is the fallback.
+     */
+    fun assignedCamera(info: DoorPushInfo, overview: DoorOverview?): String? =
+        info.homeCameraId ?: info.cameraId?.let { id -> overview?.cameras?.firstOrNull { it.id == id }?.homeCameraId }
+
+    /**
+     * The home camera whose live picture the overlay shows: [assignedCamera], else the one chosen in the settings while
+     * this person still sees it ([cameras] null: the list could not be read). Null: the doorbell's own picture.
+     */
+    fun liveCamera(info: DoorPushInfo, overview: DoorOverview?, settings: DoorbellSettings, cameras: List<HomeCamera>?): String? =
+        assignedCamera(info, overview) ?: cameras?.let { camera(settings, it)?.id }
+
+    /**
      * The lock the overlay's "Tür öffnen" acts on: the one the ringing camera belongs to (`lockId`), else the only
      * lock; only when this person may open it right now. Null: no button.
      */

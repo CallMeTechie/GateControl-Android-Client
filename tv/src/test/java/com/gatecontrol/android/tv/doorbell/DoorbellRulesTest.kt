@@ -125,4 +125,28 @@ class DoorbellRulesTest {
         assertNull(DoorbellRules.camera(DoorbellSettings(cameraId = "c00000000000000f"), cams))
         assertNull(DoorbellRules.camera(DoorbellSettings(cameraId = null), cams))
     }
+
+    @Test
+    fun `the home camera assigned to the doorbell comes first, the setting is the fallback`() {
+        val cams = listOf(home("c000000000000001"), home("c000000000000002"))
+        val chosen = DoorbellSettings(cameraId = "c000000000000002")
+        // the push carries it (Door 1.9): that one, whatever the setting says
+        val pushed = ding.copy(homeCameraId = "c00000000000000a")
+        assertEquals("c00000000000000a", DoorbellRules.liveCamera(pushed, null, chosen, cams))
+        assertEquals("c00000000000000a", DoorbellRules.liveCamera(pushed, null, chosen, null))
+        // the push without it: GET me of the ringing camera (3)
+        val o = overview(emptyList(), listOf(camera(3, null).copy(homeCameraId = "c00000000000000b")))
+        assertEquals("c00000000000000b", DoorbellRules.assignedCamera(ding, o))
+        assertEquals("c00000000000000b", DoorbellRules.liveCamera(ding, o, chosen, cams))
+        // another camera rang: its assignment does not count
+        assertNull(DoorbellRules.assignedCamera(ding.copy(cameraId = 4), o))
+        // nothing assigned (older Door): the camera of the settings while the person sees it
+        val none = overview(emptyList(), listOf(camera(3, null)))
+        assertNull(DoorbellRules.assignedCamera(ding, none))
+        assertEquals("c000000000000002", DoorbellRules.liveCamera(ding, none, chosen, cams))
+        assertEquals("c000000000000002", DoorbellRules.liveCamera(ding, null, chosen, cams))
+        // nothing set either, or the list not readable: the doorbell's own picture
+        assertNull(DoorbellRules.liveCamera(ding, none, DoorbellSettings(), cams))
+        assertNull(DoorbellRules.liveCamera(ding, none, chosen, null))
+    }
 }

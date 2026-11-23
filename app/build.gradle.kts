@@ -18,8 +18,8 @@ android {
         applicationId = "com.gatecontrol.client"
         minSdk = 31
         targetSdk = 36
-        versionCode = 24200
-        versionName = "1.142.0"
+        versionCode = 24400
+        versionName = "1.144.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -142,6 +142,7 @@ dependencies {
     implementation(project(":core:door"))
     implementation(project(":core:quickactions"))
     implementation(project(":core:drive-api"))
+    implementation(project(":core:gatedrop"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:rdp"))

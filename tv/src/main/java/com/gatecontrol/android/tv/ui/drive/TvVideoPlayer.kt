@@ -49,7 +49,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -64,13 +63,9 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import com.gatecontrol.android.drive.DNode
-import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveMediaLogic
-import com.gatecontrol.android.drive.DriveVideoPlaces
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.drive.TvDriveLogic
-import com.gatecontrol.android.tv.drive.TvDriveMedia
 import com.gatecontrol.android.tv.player.TvPlayerAction
 import com.gatecontrol.android.tv.player.TvPlayerKeys
 import com.gatecontrol.android.tv.player.TvTrack
@@ -90,17 +85,18 @@ import kotlinx.coroutines.delay
 @OptIn(UnstableApi::class)
 @Composable
 fun TvVideoPlayer(
-    items: List<DNode>,
+    source: TvVideoSource,
     at: Int,
-    media: TvDriveMedia,
-    places: DriveVideoPlaces,
     onAt: (Int) -> Unit,
     onClose: () -> Unit,
+    /** "Senden an …" in the panel (GateDrop); null: not offered. */
+    onSend: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val colors = GateControlTvTheme.colors
-    val node = items[at]
-    val factory = remember { media.sourceFactory() }
+    val key = source.key(at)
+    val count = source.count
+    val factory = remember { source.factory(context) }
     val player = remember(factory) {
         factory?.let { ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(it)).build() }
     }
@@ -109,24 +105,23 @@ fun TvVideoPlayer(
     var duration by remember { mutableLongStateOf(0L) }
     var buffered by remember { mutableLongStateOf(0L) }
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
-    var trouble by remember(node.id) { mutableStateOf<String?>(null) }
-    var resumedAt by remember(node.id) { mutableStateOf<Long?>(null) }
-    var format by remember(node.id) { mutableStateOf<String?>(null) }
+    var trouble by remember(key) { mutableStateOf<String?>(null) }
+    var resumedAt by remember(key) { mutableStateOf<Long?>(null) }
+    var format by remember(key) { mutableStateOf<String?>(null) }
     var panel by remember { mutableStateOf(false) }
     var touched by remember { mutableIntStateOf(0) }
     var controls by remember { mutableStateOf(true) }
     val root = remember { FocusRequester() }
-    val cannotPlay = stringResource(R.string.tv_player_cannot_play, DriveMediaLogic.typeName(node))
+    val cannotPlay = stringResource(R.string.tv_player_cannot_play, source.typeName(at))
     val network = stringResource(R.string.tv_player_network)
     val failed = stringResource(R.string.tv_viewer_failed)
     // the listener lives as long as the player: it reads the video shown now
-    val nowNode by rememberUpdatedState(node)
     val nowAt by rememberUpdatedState(at)
     val nowOnAt by rememberUpdatedState(onAt)
 
     fun keep() {
         val p = player ?: return
-        if (p.playbackState != Player.STATE_IDLE) places.keep(node, p.currentPosition, p.duration.takeIf { it != C.TIME_UNSET } ?: 0)
+        if (p.playbackState != Player.STATE_IDLE) source.keep(at, p.currentPosition, p.duration.takeIf { it != C.TIME_UNSET } ?: 0)
     }
 
     DisposableEffect(player) {
@@ -151,8 +146,8 @@ fun TvVideoPlayer(
             override fun onPlaybackStateChanged(state: Int) {
                 // the end of a video: the next one of the folder, as the bar's "Nächstes Video"
                 if (state == Player.STATE_ENDED) {
-                    places.forget(nowNode)
-                    if (nowAt < items.size - 1) nowOnAt(nowAt + 1)
+                    source.forget(nowAt)
+                    if (nowAt < count - 1) nowOnAt(nowAt + 1)
                 }
             }
         }
@@ -162,8 +157,8 @@ fun TvVideoPlayer(
         }
     }
     DisposableEffect(player) { onDispose { player?.release() } }
-    // the video of [node]: its stream first (the rights, the virus scan), then from where it was left
-    LaunchedEffect(player, node.id) {
+    // the video at [at]: its stream first (Drive: the rights, the virus scan), then from where it was left
+    LaunchedEffect(player, key) {
         val p = player ?: run {
             trouble = failed
             return@LaunchedEffect
@@ -171,10 +166,10 @@ fun TvVideoPlayer(
         p.stop()
         p.clearMediaItems()
         trouble = null
-        when (val s = media.stream(node)) {
-            is DResult.Ok -> {
-                val item = MediaItem.Builder().setUri(s.value.url).apply { s.value.mime?.let(::setMimeType) }.build()
-                val from = places.get(node)
+        when (val s = source.open(at)) {
+            is TvOpen.Ready -> {
+                val item = s.item
+                val from = source.startAt(at)
                 if (from != null) {
                     p.setMediaItem(item, from)
                     resumedAt = from
@@ -184,8 +179,8 @@ fun TvVideoPlayer(
                 p.prepare()
                 p.playWhenReady = true
             }
-            DResult.Offline -> trouble = network
-            else -> trouble = failed
+            TvOpen.Offline -> trouble = network
+            TvOpen.Failed -> trouble = failed
         }
     }
     // the bar's times while it shows (and where the video is, for "Weiter ab")
@@ -212,7 +207,7 @@ fun TvVideoPlayer(
         }
     }
     LaunchedEffect(panel) { if (!panel) root.requestSoon() }
-    DisposableEffect(node.id) { onDispose { keep() } }
+    DisposableEffect(key) { onDispose { keep() } }
 
     val menu = remember(tracks) { TvTracks.menu(TvTracks.of(tracks)) }
 
@@ -233,19 +228,19 @@ fun TvVideoPlayer(
                 it.seekTo(TvPlayerKeys.seekTarget(it.currentPosition, step, it.duration.takeIf { d -> d != C.TIME_UNSET } ?: 0))
                 position = it.currentPosition
             }
-            TvPlayerAction.NEXT -> if (at < items.size - 1) {
+            TvPlayerAction.NEXT -> if (at < count - 1) {
                 keep()
-                onAt(TvDriveLogic.step(at, 1, items.size))
+                onAt(TvDriveLogic.step(at, 1, count))
             }
             TvPlayerAction.PREVIOUS -> {
                 // as other players: back to the start first, then the video before
                 val p0 = p?.currentPosition ?: 0
                 if (p0 > 5_000 || at == 0) p?.seekTo(0) else {
                     keep()
-                    onAt(TvDriveLogic.step(at, -1, items.size))
+                    onAt(TvDriveLogic.step(at, -1, count))
                 }
             }
-            TvPlayerAction.TRACKS -> if (menu.any) panel = true
+            TvPlayerAction.TRACKS -> if (menu.any || onSend != null) panel = true
             TvPlayerAction.SHOW_CONTROLS -> Unit
             TvPlayerAction.BACK -> if (controls && playing) controls = false else close()
             TvPlayerAction.STOP -> close()
@@ -294,9 +289,9 @@ fun TvVideoPlayer(
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))),
             )
             Column(Modifier.align(Alignment.TopStart).padding(start = 48.dp, top = 28.dp, end = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(node.name, style = MaterialTheme.typography.headlineSmall, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(source.name(at), style = MaterialTheme.typography.headlineSmall, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (items.size > 1) TvPill("${at + 1} / ${items.size}", TvPillTone.Neutral, dot = false)
+                    if (count > 1) TvPill("${at + 1} / $count", TvPillTone.Neutral, dot = false)
                     format?.let { TvPill(it, TvPillTone.Neutral, dot = false) }
                     resumedAt?.let { TvPill(stringResource(R.string.tv_player_resumed, TvPlayerKeys.time(it)), TvPillTone.Accent) }
                 }
@@ -314,7 +309,7 @@ fun TvVideoPlayer(
                     RoundIcon(TvIcons.Forward, main = false)
                     Spacer(Modifier.weight(1f))
                     if (menu.any) Hint(stringResource(R.string.tv_player_tracks_hint, TvPlayerUi.textState(menu, stringResource(R.string.tv_player_subtitles_off))))
-                    if (at < items.size - 1) Hint(stringResource(R.string.tv_player_next_hint))
+                    if (at < count - 1) Hint(stringResource(R.string.tv_player_next_hint))
                 }
             }
         }
@@ -322,7 +317,7 @@ fun TvVideoPlayer(
             player?.let { p ->
                 p.trackSelectionParameters = if (t == null) TvTracks.subtitlesOff(p.trackSelectionParameters) else TvTracks.choose(p.trackSelectionParameters, p.currentTracks, t)
             }
-        }, onClose = { panel = false }, modifier = Modifier.align(Alignment.CenterEnd))
+        }, onClose = { panel = false }, onSend = onSend?.let { send -> { panel = false; player?.pause(); send() } }, modifier = Modifier.align(Alignment.CenterEnd))
     }
     LaunchedEffect(Unit) { root.requestSoon() }
 }
@@ -396,6 +391,7 @@ private fun TracksPanel(
     onText: (TvTrack?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onSend: (() -> Unit)? = null,
 ) {
     val colors = GateControlTvTheme.colors
     val first = remember { FocusRequester() }
@@ -408,7 +404,7 @@ private fun TracksPanel(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(stringResource(R.string.tv_player_tracks), style = MaterialTheme.typography.titleMedium, color = colors.text)
+        Text(stringResource(if (menu.any) R.string.tv_player_tracks else R.string.tv_send_to), style = MaterialTheme.typography.titleMedium, color = colors.text)
         if (menu.audio.size > 1) {
             Text(stringResource(R.string.tv_player_audio), style = MaterialTheme.typography.labelMedium, color = colors.muted, modifier = Modifier.padding(top = 10.dp))
             val fallback = stringResource(R.string.tv_player_track)
@@ -428,6 +424,14 @@ private fun TracksPanel(
             menu.text.forEachIndexed { i, t -> Choice(TvTracks.name(t, i + 1, fallback), t.selected, onClick = { onText(t) }) }
         }
         Spacer(Modifier.height(10.dp))
+        if (onSend != null) {
+            Choice(
+                stringResource(R.string.tv_send_to),
+                false,
+                onClick = onSend,
+                modifier = if (menu.audio.size <= 1 && menu.text.isEmpty()) Modifier.focusRequester(first) else Modifier,
+            )
+        }
         Choice(stringResource(R.string.tv_player_close_panel), false, onClick = onClose)
     }
     LaunchedEffect(Unit) { first.requestSoon() }

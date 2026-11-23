@@ -67,6 +67,8 @@ class TvPlayerKeysTest {
         assertEquals(TvPhotoAction.SLIDESHOW, TvPhotoKeys.action(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
         assertEquals(TvPhotoAction.SLIDESHOW, TvPhotoKeys.action(KeyEvent.KEYCODE_DPAD_CENTER))
         assertEquals(TvPhotoAction.BACK, TvPhotoKeys.action(KeyEvent.KEYCODE_BACK))
-        assertNull(TvPhotoKeys.action(KeyEvent.KEYCODE_DPAD_UP))
+        assertEquals(TvPhotoAction.SEND, TvPhotoKeys.action(KeyEvent.KEYCODE_DPAD_UP))
+        assertEquals(TvPhotoAction.SEND, TvPhotoKeys.action(KeyEvent.KEYCODE_MENU))
+        assertNull(TvPhotoKeys.action(KeyEvent.KEYCODE_DPAD_DOWN))
     }
 }

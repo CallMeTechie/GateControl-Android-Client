@@ -45,6 +45,38 @@ class DoorPushTest {
     }
 
     @Test
+    fun `Door 1_9 a ring or motion carries the home camera assigned to the doorbell`() {
+        val ding = DoorPush.parse(
+            msg(
+                "plugin:gatecontrol-door:doorbell",
+                """{"door":{"type":"ding","eventId":120,"cameraId":4,"homeCameraId":"c0123456789abcde",
+                   "live":{"source":"home","cameraId":"c0123456789abcde","path":"cameras/home/c0123456789abcde/live"}}}""",
+            ),
+        )!!
+        assertEquals("c0123456789abcde", ding.homeCameraId)
+        assertTrue(ding.isRing)
+        // still a ring: its detail, not the camera
+        assertFalse(ding.isHomeCamera)
+        val ringMsg = msg("plugin:gatecontrol-door:doorbell", """{"door":{"type":"ding","eventId":120,"cameraId":4,"homeCameraId":"c0123456789abcde"}}""")
+        assertEquals(DoorDest.Event(120), DoorPush.destination(ringMsg))
+        // only live: its camera
+        val motion = DoorPush.parse(
+            msg("plugin:gatecontrol-door:motion", """{"door":{"type":"motion","cameraId":4,"live":{"source":"home","cameraId":"c00000000000000f","path":"cameras/home/c00000000000000f/live"}}}"""),
+        )!!
+        assertEquals("c00000000000000f", motion.homeCameraId)
+        // without the field (older Door), malformed, or a path to somewhere else: none
+        assertNull(DoorPush.parse(msg("plugin:gatecontrol-door:doorbell", """{"door":{"type":"ding","cameraId":4}}"""))!!.homeCameraId)
+        assertNull(DoorPush.parse(msg("plugin:gatecontrol-door:doorbell", """{"door":{"type":"ding","homeCameraId":"../x"}}"""))!!.homeCameraId)
+        assertNull(
+            DoorPush.parse(
+                msg("plugin:gatecontrol-door:doorbell", """{"door":{"type":"ding","live":{"source":"home","cameraId":"c00000000000000f","path":"cameras/home/c00000000000000e/live"}}}"""),
+            )!!.homeCameraId,
+        )
+        // other door pushes never take it
+        assertNull(DoorPush.parse(msg("plugin:gatecontrol-door:door", """{"door":{"type":"jammed","homeCameraId":"c0123456789abcde"}}"""))!!.homeCameraId)
+    }
+
+    @Test
     fun `a person at a home camera opens the door screen with that camera`() {
         val m = msg(
             "plugin:gatecontrol-door:kamera",

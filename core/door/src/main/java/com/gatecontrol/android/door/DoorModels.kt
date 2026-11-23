@@ -91,6 +91,11 @@ data class DoorCamera(
     val battery: Int?,
     val prefs: DoorCameraPrefs,
     val lastImageAt: String?,
+    /**
+     * Door 1.9: the home camera (`c` + 15 hex) the administrator assigned to this doorbell, only when this person sees
+     * it; null: none.
+     */
+    val homeCameraId: String? = null,
 )
 
 /** Ring connection (unofficial interface): [broken] → "Ring: gestört". */
@@ -154,4 +159,10 @@ data class DoorHistoryItem(
 data class DoorHistoryPage(val items: List<DoorHistoryItem>, val nextCursor: Long?)
 
 /** Answer of `GET events/<id>`: the event, its picture (or none) and the linked lock (or none). */
-class DoorEventDetail(val item: DoorHistoryItem, val image: DoorImage?, val lock: DoorLock?)
+class DoorEventDetail(
+    val item: DoorHistoryItem,
+    val image: DoorImage?,
+    val lock: DoorLock?,
+    /** Door 1.9: the home camera assigned to the ringing doorbell (its live picture), null: none. */
+    val homeCameraId: String? = null,
+)

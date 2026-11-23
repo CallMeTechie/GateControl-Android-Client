@@ -266,7 +266,7 @@ class GateDropNotifier @Inject constructor(
         val main = when {
             entry.files.isNotEmpty() -> entry.files.take(3).joinToString(", ") { it.name } +
                 (if (entry.files.size > 3) " …" else "") + " · " + size(entry.files.sumOf { it.bytes }, locale)
-            entry.link != null -> entry.link
+            entry.link != null -> entry.link.orEmpty()
             else -> entry.text?.lineSequence()?.firstOrNull().orEmpty()
         }
         return listOfNotNull(main.takeIf { it.isNotBlank() }, entry.note).joinToString("\n")
@@ -312,7 +312,7 @@ class GateDropNotifier @Inject constructor(
                 }
             }
             entry.link != null -> {
-                b.addAction(0, ctx.getString(R.string.gatedrop_open), viewUrl(entry.link, base + 1))
+                b.addAction(0, ctx.getString(R.string.gatedrop_open), viewUrl(entry.link.orEmpty(), base + 1))
                 b.addAction(0, ctx.getString(R.string.gatedrop_copy), receiver(GateDropActionReceiver.ACTION_COPY, entry.key, base + 2))
             }
             entry.text != null -> b.addAction(0, ctx.getString(R.string.gatedrop_copy), receiver(GateDropActionReceiver.ACTION_COPY, entry.key, base + 2))
