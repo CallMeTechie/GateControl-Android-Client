@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.138.0] - 2026-11-23
+
+### Features
+- GateControl TV Stufe 1b – Auslagerung in core-Module, Push und Heartbeat am TV (#270)
+
+---
+
 ## [1.137.0] - 2026-11-22
 
 ### Features
