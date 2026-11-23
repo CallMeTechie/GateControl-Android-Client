@@ -1,0 +1,115 @@
+package com.gatecontrol.android.tv.security
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+
+class TvPinTest {
+
+    // Few iterations: the rules are the same, the test stays fast.
+    private fun hash(pin: String) = TvPinHash.hash(pin, iterations = 1_000)
+
+    @Test
+    fun `only 4 to 8 digits are a PIN`() {
+        assertTrue(TvPinHash.isValid("1234"))
+        assertTrue(TvPinHash.isValid("12345678"))
+        assertFalse(TvPinHash.isValid("123"))
+        assertFalse(TvPinHash.isValid("123456789"))
+        assertFalse(TvPinHash.isValid("12a4"))
+        assertFalse(TvPinHash.isValid(""))
+        assertThrows<IllegalArgumentException> { TvPinHash.hash("12") }
+    }
+
+    @Test
+    fun `the hash holds no PIN and verifies only the right one`() {
+        val h = hash("4711")
+        assertFalse(h.contains("4711"))
+        assertTrue(h.startsWith("v1$1000$"))
+        assertTrue(TvPinHash.verify("4711", h))
+        assertFalse(TvPinHash.verify("4712", h))
+        assertFalse(TvPinHash.verify("4711", null))
+        assertFalse(TvPinHash.verify("4711", "v1\$1000\$broken"))
+        assertFalse(TvPinHash.verify("4711", "v2" + h.removePrefix("v1")))
+    }
+
+    @Test
+    fun `every hash has its own salt`() {
+        assertNotEquals(hash("1234"), hash("1234"))
+    }
+
+    @Test
+    fun `the default strength is the stored one`() {
+        val h = TvPinHash.hash("2580")
+        assertTrue(h.startsWith("v1$${TvPinHash.ITERATIONS}$"))
+        assertTrue(TvPinHash.verify("2580", h))
+    }
+
+    @Test
+    fun `five wrong PINs lock for 30 s, each further one doubles it up to 30 min`() {
+        assertEquals(0L, TvPinLock.lockMs(4))
+        assertEquals(30_000L, TvPinLock.lockMs(5))
+        assertEquals(60_000L, TvPinLock.lockMs(6))
+        assertEquals(120_000L, TvPinLock.lockMs(7))
+        assertEquals(30 * 60_000L, TvPinLock.lockMs(20))
+        assertEquals(30 * 60_000L, TvPinLock.lockMs(500))
+        assertEquals(5, TvPinLock.attemptsLeft(0))
+        assertEquals(1, TvPinLock.attemptsLeft(4))
+        assertEquals(0, TvPinLock.attemptsLeft(9))
+    }
+
+    @Test
+    fun `wrong PINs count, a lock refuses even the right one, a right PIN resets`() {
+        var state = TvPinRules.setPin(TvPinState(), hash("1357"))
+        var now = 1_000_000L
+        repeat(4) {
+            val (next, result) = TvPinRules.check(state, "0000", now)
+            state = next
+            assertTrue(result is TvPinCheck.Wrong && result.lockedUntil == 0L)
+        }
+        val (locked, fifth) = TvPinRules.check(state, "0000", now)
+        assertEquals(TvPinCheck.Wrong(0, now + 30_000L), fifth)
+        state = locked
+        assertEquals(TvPinCheck.Locked(now + 30_000L), TvPinRules.check(state, "1357", now + 10_000L).second)
+        now += 31_000L
+        val (ok, result) = TvPinRules.check(state, "1357", now)
+        assertEquals(TvPinCheck.Ok, result)
+        assertEquals(0, ok.failures)
+    }
+
+    @Test
+    fun `per function with or without PIN, only once a PIN exists`() {
+        val none = TvPinState()
+        assertFalse(none.needsPin(TvPinFunction.DOOR))
+        assertEquals(none, TvPinRules.setRequired(none, TvPinFunction.SETTINGS, true))
+        // the first PIN switches the door on, nothing else
+        val withPin = TvPinRules.setPin(none, hash("2468"))
+        assertTrue(withPin.needsPin(TvPinFunction.DOOR))
+        assertFalse(withPin.needsPin(TvPinFunction.SETTINGS))
+        val settings = TvPinRules.setRequired(withPin, TvPinFunction.SETTINGS, true)
+        assertTrue(settings.needsPin(TvPinFunction.SETTINGS))
+        val doorOff = TvPinRules.setRequired(settings, TvPinFunction.DOOR, false)
+        assertFalse(doorOff.needsPin(TvPinFunction.DOOR))
+        // a changed PIN keeps the choice
+        val changed = TvPinRules.setPin(doorOff, hash("9999"))
+        assertEquals(setOf(TvPinFunction.SETTINGS), changed.required)
+        // removed: nothing asks
+        val removed = TvPinRules.removePin(changed)
+        assertFalse(removed.needsPin(TvPinFunction.SETTINGS))
+        assertFalse(removed.hasPin)
+    }
+
+    @Test
+    fun `without a PIN every check passes`() {
+        assertEquals(TvPinCheck.Ok, TvPinRules.check(TvPinState(), "0000", 0L).second)
+    }
+
+    @Test
+    fun `functions keep their stored names`() {
+        for (f in TvPinFunction.entries) assertEquals(f, TvPinFunction.fromWire(f.wire))
+        assertEquals(null, TvPinFunction.fromWire("other"))
+        assertEquals(listOf(TvPinFunction.DOOR, TvPinFunction.SETTINGS), TvPinFunction.AVAILABLE)
+    }
+}

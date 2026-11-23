@@ -54,9 +54,11 @@ data class TvConnectionUi(
 
 data class TvUpdateUi(val version: String, val check: TvUpdateCheck, val download: ApkUpdateState)
 
-/** The categories of Einstellungen (mockup "6 · Einstellungen"); the others follow with their functions (stage 1b). */
+/** The categories of Einstellungen (mockup "6 · Einstellungen"); GateDrop and Startseite follow with their functions. */
 internal enum class TvSettingsCategory(@param:StringRes val label: Int) {
     Connection(R.string.tv_set_connection),
+    Notices(R.string.tv_set_notices),
+    Security(R.string.tv_set_security),
     Updates(R.string.tv_set_updates),
     Device(R.string.tv_set_device),
 }
@@ -74,6 +76,12 @@ fun TvSettingsPage(
     onInstallUpdate: () -> Unit,
     onUnpair: () -> Unit,
     modifier: Modifier = Modifier,
+    /** "Geteilter Tunnel" under Verbindung. */
+    splitTunnel: @Composable () -> Unit = {},
+    /** Einblendungen: messages, the doorbell. */
+    notices: @Composable () -> Unit = {},
+    /** Sicherheit: the TV PIN. */
+    security: @Composable () -> Unit = {},
 ) {
     var category by rememberSaveable { mutableStateOf(TvSettingsCategory.Connection) }
     Row(modifier.fillMaxSize().padding(end = 30.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -85,7 +93,12 @@ fun TvSettingsPage(
             verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             when (category) {
-                TvSettingsCategory.Connection -> ConnectionOptions(connection, onVpn, onAutostartTunnel, onOpenOnBoot)
+                TvSettingsCategory.Connection -> {
+                    ConnectionOptions(connection, onVpn, onAutostartTunnel, onOpenOnBoot)
+                    splitTunnel()
+                }
+                TvSettingsCategory.Notices -> notices()
+                TvSettingsCategory.Security -> security()
                 TvSettingsCategory.Updates -> UpdateOptions(update, onCheckUpdate, onInstallUpdate)
                 TvSettingsCategory.Device -> DeviceOptions(connection.host, deviceName, onUnpair)
             }

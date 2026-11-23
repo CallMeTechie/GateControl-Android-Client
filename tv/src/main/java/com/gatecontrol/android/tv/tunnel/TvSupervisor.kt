@@ -15,6 +15,7 @@ import com.gatecontrol.android.notify.model.ServerState
 import com.gatecontrol.android.tunnel.HeartbeatScheduler
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
+import com.gatecontrol.android.tv.doorbell.TvDoorbell
 import com.gatecontrol.android.tv.push.TvPushController
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -33,7 +34,7 @@ import javax.inject.Singleton
  * What the TV does with the server besides the screens, like the phone app's `TunnelSupervisor` and
  * `ServerControlHandler`:
  *
- * - the push stream ([TvPushController], own foreground service),
+ * - the push stream ([TvPushController], own foreground service) and the doorbell's overlay ([TvDoorbell]),
  * - the heartbeat while the tunnel is up (last seen, traffic, name of the TV): first one right after connecting, then
  *   every 60 s, or every 15 min while the push stream delivers the control events itself ([HeartbeatScheduler]),
  * - the server's word about this device, pushed or in the heartbeat's answer: peer switched off → tunnel down; a new
@@ -51,6 +52,7 @@ class TvSupervisor @Inject constructor(
     // Lazy: the push client itself needs this sink (ServerControlSink)
     private val pushClient: dagger.Lazy<PushClient>,
     private val pushController: dagger.Lazy<TvPushController>,
+    private val doorbell: dagger.Lazy<TvDoorbell>,
 ) : ServerControlSink {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -64,6 +66,7 @@ class TvSupervisor @Inject constructor(
             started = true
         }
         pushController.get().start(scope)
+        doorbell.get().start(scope)
         scope.launch {
             tunnelManager.state.collect { state ->
                 when (state) {

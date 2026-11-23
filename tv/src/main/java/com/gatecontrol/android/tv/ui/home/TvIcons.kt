@@ -32,6 +32,24 @@ internal object TvIcons {
     /** The arrow of the GateControl mark (on the green square). */
     val Mark = icon("M5 12h9M10 7l5 5-5 5M19 5v14", strokeWidth = 2.6f)
 
+    /** A quick action without an icon of its own. */
+    val Bolt = icon("M13 2L4 14h7l-1 8 9-12h-7z")
+    val Door = icon("M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M4 21h16M14 12h.01")
+    val Thermo = icon("M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z")
+
+    private val cache = object : LinkedHashMap<String, ImageVector?>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageVector?>): Boolean = size > 64
+    }
+
+    /** A plugin's icon path (checked by `QuickActionPaths`), cached per path; [fallback] when it cannot be drawn. */
+    fun fromPath(d: String?, fallback: ImageVector = Bolt): ImageVector {
+        val s = com.gatecontrol.android.quickactions.QuickActionPaths.sanitize(d) ?: return fallback
+        synchronized(cache) { if (cache.containsKey(s)) return cache[s] ?: fallback }
+        val v = runCatching { icon(s) }.getOrNull()
+        synchronized(cache) { cache[s] = v }
+        return v ?: fallback
+    }
+
     private fun icon(vararg paths: String, strokeWidth: Float = 2f): ImageVector {
         val builder = ImageVector.Builder(
             defaultWidth = 24.dp,

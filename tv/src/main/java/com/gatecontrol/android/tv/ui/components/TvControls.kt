@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -214,6 +216,10 @@ fun TvTextInput(
     mono: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    /** Digits shown as dots (the TV PIN). */
+    password: Boolean = false,
+    /** On the field itself (focus requests), [modifier] is on the column with the label. */
+    fieldModifier: Modifier = Modifier,
 ) {
     val colors = GateControlTvTheme.colors
     var focused by remember { mutableStateOf(false) }
@@ -229,7 +235,8 @@ fun TvTextInput(
             cursorBrush = SolidColor(colors.accent),
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
-            modifier = Modifier
+            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+            modifier = fieldModifier
                 .fillMaxWidth()
                 .semantics { contentDescription = label }
                 .onFocusChanged { focused = it.isFocused },

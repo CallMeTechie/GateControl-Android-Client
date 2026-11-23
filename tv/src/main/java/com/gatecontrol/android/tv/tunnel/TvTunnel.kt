@@ -1,9 +1,11 @@
 package com.gatecontrol.android.tv.tunnel
 
+import android.content.Context
 import com.gatecontrol.android.common.VpnSubnet
+import com.gatecontrol.android.tv.TvSettings
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
-import com.gatecontrol.android.tunnel.SplitTunnelConfig
 import com.gatecontrol.android.tunnel.TunnelConfig
 import com.gatecontrol.android.tunnel.TunnelManager
 import com.gatecontrol.android.tunnel.TunnelState
@@ -22,13 +24,15 @@ import javax.inject.Singleton
 /**
  * The WireGuard tunnel of GateControl TV over core/tunnel's [TunnelManager] (GoBackend, armeabi-v7a included). The
  * same steps as the phone app's `TunnelConnector`: the VPN subnet for the VPN-safe DNS, the server name resolved
- * before the tunnel is up, the config checked against the server (`config/check`) — then the whole config (the
- * server's AllowedIPs; a split tunnel of its own comes with the TV settings later).
+ * before the tunnel is up, the config checked against the server (`config/check`) — then the config with the server's
+ * AllowedIPs and the apps of "Geteilter Tunnel" ([TvSplitTunnel]).
  *
  * The VPN consent (`VpnService.prepare`) must have been given once in the app; without it the backend cannot start.
  */
 @Singleton
 class TvTunnel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val settings: TvSettings,
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
     private val tunnelManager: TunnelManager,
@@ -59,7 +63,8 @@ class TvTunnel @Inject constructor(
             applyVpnSubnet(config)
         }
         return try {
-            tunnelManager.connect(config, SplitTunnelConfig())
+            val allowedIps = runCatching { TunnelConfig.parse(config).allowedIps }.getOrDefault("")
+            tunnelManager.connect(config, TvSplitTunnel.config(settings.splitTunnel.value, context.packageName, allowedIps))
             tunnelManager.state.value is TunnelState.Connected
         } catch (e: CancellationException) {
             throw e
