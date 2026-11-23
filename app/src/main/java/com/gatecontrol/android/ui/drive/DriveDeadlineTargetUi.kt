@@ -104,7 +104,7 @@ internal fun DeadlineTargetDialog(
                             }
                             Text(
                                 when {
-                                    c.calendar != null -> c.calendar.name
+                                    c.calendar != null -> c.calendar?.name.orEmpty()
                                     c.target == null -> stringResource(R.string.drive_dl_target_off)
                                     else -> stringResource(R.string.drive_dl_target_family)
                                 },

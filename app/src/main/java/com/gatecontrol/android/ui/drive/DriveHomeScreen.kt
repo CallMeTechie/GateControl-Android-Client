@@ -642,8 +642,9 @@ private fun TreeRow(r: DriveTree.Row, selected: Boolean, onToggle: (Long) -> Uni
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (r.area != null) {
-                AreaIcon(r.area, size = 36)
+            val area = r.area
+            if (area != null) {
+                AreaIcon(area, size = 36)
             } else {
                 Icon(GcIcons.Folder, contentDescription = null, tint = if (selected) x.accentText else x.muted, modifier = Modifier.size(20.dp))
             }
@@ -656,7 +657,7 @@ private fun TreeRow(r: DriveTree.Row, selected: Boolean, onToggle: (Long) -> Uni
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (r.area != null) Text(areaLine(r.area), style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (area != null) Text(areaLine(area), style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

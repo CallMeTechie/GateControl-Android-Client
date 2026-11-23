@@ -214,4 +214,37 @@
     <string name="tv_split_mode">Modus (OK schaltet um)</string>
     <string name="tv_split_next_connect">Gilt ab der nächsten Verbindung</string>
     <string name="tv_split_no_apps">Keine anderen Apps gefunden.</string>
+
+    <!-- Drive (Stufe 2): durchsuchen, Fotos, Videos, Dokument-Vorschau; der TV liest nur -->
+    <string name="tv_drive_loading">Lädt …</string>
+    <string name="tv_drive_blocked">Vom Virenscan zurückgehalten</string>
+    <string name="tv_drive_cannot_open">Am Fernseher nicht zu öffnen</string>
+    <string name="tv_drive_as_frame">Als Fotorahmen verwenden</string>
+    <string name="tv_drive_empty">Dieser Ordner ist leer.</string>
+    <string name="tv_drive_offline">Keine Verbindung zum Server.</string>
+    <string name="tv_drive_not_on">Drive ist für dich nicht eingeschaltet.</string>
+    <string name="tv_drive_not_licensed">Drive ist auf diesem Server nicht lizenziert.</string>
+    <string name="tv_drive_failed">Drive konnte nicht geladen werden.</string>
+    <string name="tv_drive_retry">Nochmal versuchen</string>
+    <string name="tv_drive_area_mine">Meine Dateien</string>
+    <string name="tv_drive_area_family">Familie</string>
+    <string name="tv_drive_area_child">Kind</string>
+    <string name="tv_drive_area_team">Team</string>
+    <string name="tv_pin_for_drive">TV-PIN für Drive</string>
+    <string name="tv_viewer_failed">Konnte nicht angezeigt werden.</string>
+    <string name="tv_viewer_preview_only">Nur Vorschau</string>
+    <string name="tv_viewer_slideshow">Diashow</string>
+    <!-- Der Player für Drive-Videos -->
+    <string name="tv_player_cannot_play">Dieses Video (%1$s) kann dieser Fernseher nicht abspielen.</string>
+    <string name="tv_player_network">Das Video lädt nicht weiter. Prüfe die Verbindung.</string>
+    <string name="tv_player_resumed">Weiter ab %1$s</string>
+    <string name="tv_player_tracks_hint">▲ Ton &amp; Untertitel: %1$s</string>
+    <string name="tv_player_subtitles_off">Untertitel aus</string>
+    <string name="tv_player_next_hint">⏭ Nächstes Video</string>
+    <string name="tv_player_tracks">Ton &amp; Untertitel</string>
+    <string name="tv_player_audio">Ton</string>
+    <string name="tv_player_track">Spur</string>
+    <string name="tv_player_subtitles">Untertitel</string>
+    <string name="tv_player_subtitle">Untertitel</string>
+    <string name="tv_player_close_panel">Schließen</string>
 </resources>

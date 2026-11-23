@@ -55,6 +55,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Drive's viewer: pictures, videos (player), document previews over the whole screen -->
+        <activity
+            android:name=".ui.drive.TvMediaActivity"
+            android:exported="false"
+            android:configChanges="keyboard|keyboardHidden|navigation"
+            android:theme="@style/Theme.GateControlTv" />
+
         <activity
             android:name=".doorbell.TvDoorbellActivity"
             android:exported="false"

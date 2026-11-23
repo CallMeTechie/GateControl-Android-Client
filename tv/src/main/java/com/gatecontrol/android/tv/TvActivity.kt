@@ -18,6 +18,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.quickactions.QuickActionsLoad
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tv.doorbell.TvForeground
+import com.gatecontrol.android.tv.drive.TvDriveOpen
+import com.gatecontrol.android.tv.drive.TvDriveViewModel
+import com.gatecontrol.android.tv.ui.drive.TvDrivePage
+import com.gatecontrol.android.tv.ui.drive.TvMediaActivity
+import android.content.Intent
 import com.gatecontrol.android.tv.home.TvHomeViewModel
 import com.gatecontrol.android.tv.security.TvPinFunction
 import com.gatecontrol.android.tv.ui.cameras.TvCamerasPage
@@ -59,6 +64,7 @@ class TvActivity : ComponentActivity() {
     private val updates: TvUpdateViewModel by viewModels()
     private val home: TvHomeViewModel by viewModels()
     private val prefs: TvPrefsViewModel by viewModels()
+    private val drive: TvDriveViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
@@ -140,17 +146,36 @@ class TvActivity : ComponentActivity() {
         var requested by remember { mutableStateOf<TvDestination?>(null) }
         var wanted by remember { mutableStateOf<String?>(null) }
         // A page waiting for the TV PIN (Einstellungen).
-        var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
+        var pinFor by remember { mutableStateOf<Pair<TvPinFunction, () -> Unit>?>(null) }
+        val driveUi by drive.ui.collectAsStateWithLifecycle()
+        val drivePreviews by drive.previews.collectAsStateWithLifecycle()
+        val recent by drive.recent.collectAsStateWithLifecycle()
         LaunchedEffect(Unit) { home.refresh() }
         TvHome(
             status = status,
             startPage = {
                 DisposableEffect(Unit) {
                     home.setVisible(true)
+                    drive.loadRecent()
                     onDispose { home.setVisible(false) }
                 }
+                // with a TV PIN for Drive its files do not show on the start page either
+                val driveOpen = !pinState.needsPin(TvPinFunction.DRIVE)
                 TvStartRows(
-                    ui = TvStartUi(tiles, busy, cameras, previews, notice, loading = load is QuickActionsLoad.Loading || load is QuickActionsLoad.Idle),
+                    ui = TvStartUi(
+                        tiles, busy, cameras, previews, notice,
+                        loading = load is QuickActionsLoad.Loading || load is QuickActionsLoad.Idle,
+                        drive = if (driveOpen) recent else emptyList(),
+                        drivePreviews = drivePreviews,
+                    ),
+                    onDrive = { node ->
+                        when (drive.pressRecent(node)) {
+                            TvDriveOpen.PHOTO, TvDriveOpen.VIDEO, TvDriveOpen.PREVIEW -> startActivity(Intent(this, TvMediaActivity::class.java))
+                            TvDriveOpen.FOLDER -> requested = TvDestination.Drive
+                            else -> Unit
+                        }
+                    },
+                    onDrivePreview = drive::wantPreview,
                     onTile = home::press,
                     onSetpoint = { tile, control, value -> home.setControl(tile, control.id, value) },
                     onCamera = {
@@ -172,8 +197,32 @@ class TvActivity : ComponentActivity() {
                     },
                 )
             },
+            drivePage = {
+                TvDrivePage(
+                    ui = driveUi,
+                    previews = drivePreviews,
+                    onStart = drive::start,
+                    onArea = drive::openArea,
+                    onItem = { node ->
+                        drive.press(node).also { open ->
+                            if (open == TvDriveOpen.PHOTO || open == TvDriveOpen.VIDEO || open == TvDriveOpen.PREVIEW) {
+                                startActivity(Intent(this, TvMediaActivity::class.java))
+                            }
+                        }
+                    },
+                    onBack = drive::back,
+                    onMore = drive::more,
+                    onPreview = drive::wantPreview,
+                    onRetry = drive::reload,
+                )
+            },
             onOpen = { destination, open ->
-                if (destination == TvDestination.Settings && pinState.needsPin(TvPinFunction.SETTINGS)) pinFor = open else open()
+                val function = when (destination) {
+                    TvDestination.Settings -> TvPinFunction.SETTINGS
+                    TvDestination.Drive -> TvPinFunction.DRIVE
+                    else -> null
+                }
+                if (function != null && pinState.needsPin(function)) pinFor = function to open else open()
             },
             requested = requested,
             onRequestedShown = { requested = null },
@@ -196,9 +245,9 @@ class TvActivity : ComponentActivity() {
                 )
             },
         )
-        pinFor?.let { open ->
+        pinFor?.let { (function, open) ->
             TvPinDialog(
-                title = stringResource(R.string.tv_pin_for_settings),
+                title = stringResource(if (function == TvPinFunction.DRIVE) R.string.tv_pin_for_drive else R.string.tv_pin_for_settings),
                 check = prefs::checkPin,
                 onPassed = {
                     pinFor = null
